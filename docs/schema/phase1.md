@@ -2,7 +2,8 @@
 
 Source: `docs/Legal_Case_Monitoring_Portal_Plan.docx` section 7 (data groups) and the decisions log.
 The database starts empty; there is no migration of earlier data. Phase 2 and 3 tables are listed at the end
-so that Phase 1 columns leave the right hooks. Implemented by Alembic migration `0001_phase1_core` in `backend/`.
+so that Phase 1 columns leave the right hooks. Implemented by Alembic migration `0001_phase1_core` in `backend/`
+(39 tables; the model modules under `backend/aslms/domain/` are the executable form of this document).
 
 ## Conventions
 - UUID primary keys (`gen_random_uuid()`); `created_at` / `updated_at` as `timestamptz`; the application works in IST.
@@ -44,7 +45,7 @@ so that Phase 1 columns leave the right hooks. Implemented by Alembic migration 
 ## Group 4 — Cause lists
 | Table | Columns | Notes |
 |---|---|---|
-| `causelists` | court_id, list_date, bench_id, causelist_id (NAPIX), list_type (`daily` / `supplementary` / `lawazima` / `vacation` / `other`), label, source (`napix` / `ghc_website` / `local_dir`), document_id (stored PDF), fetch_status, parse_status, entry_count, fetched_at | Unique (court_id, list_date, bench_id, causelist_id, source). |
+| `causelists` | court_id, list_date, bench_id (NAPIX), napix_causelist_id, list_type (`daily` / `supplementary` / `lawazima` / `vacation` / `other`), label, source (`napix` / `ghc_website` / `local_dir`), document_id (stored PDF), fetch_status, parse_status, entry_count, fetched_at | Unique (court_id, list_date, bench_id, causelist_id, source). |
 | `causelist_entries` | causelist_id, sr_no, court_no, cnr (nullable), case_id (nullable until resolved), case_no_text, petitioner_text, respondent_text, pet_advocate_text, res_advocate_text, counsel_codes text[], with_text, remarks, source (`napix_details` / `pdf_parse`), resolution_status (`resolved` / `provisional` / `unresolved`), raw | Unique (causelist_id, source, sr_no). Two sources are kept until the live test shows whether Cause List Details returns rows. |
 | `causelist_reconciliations` | causelist_id, cnr, in_napix, in_pdf, mismatch_fields jsonb | Feeds the data-collection-health report. |
 

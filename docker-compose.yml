@@ -1,0 +1,103 @@
+# ASLMS v2 — single-machine stack (laptop now, pilot server / State Data Centre later; same file, different .env).
+# Queue names in the worker commands MUST match backend/aslms/jobs/celery_app.py task_routes.
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-aslms}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aslms}
+      POSTGRES_DB: ${POSTGRES_DB:-aslms}
+    ports: ["${POSTGRES_HOST_PORT:-5433}:5432"]   # host port 5433: a native PostgreSQL often holds 5432 on Windows
+    volumes: ["pgdata_v2:/var/lib/postgresql/data"]   # fresh volume: the prototype's `aslms_pgdata` is not reused
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aslms} -d ${POSTGRES_DB:-aslms}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports: ["6379:6379"]
+    volumes: ["redisdata_v2:/data"]
+
+  clamav:
+    image: clamav/clamav:stable
+    ports: ["3310:3310"]
+    volumes: ["clamdb:/var/lib/clamav"]
+    profiles: ["scan"]   # optional on a laptop; required on the pilot server
+
+  api:
+    build: ./backend
+    command: uvicorn aslms.api.main:app --host 0.0.0.0 --port 8000 --workers 2
+    env_file: .env
+    environment: &app_env
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-aslms}:${POSTGRES_PASSWORD:-aslms}@postgres:5432/${POSTGRES_DB:-aslms}
+      DATABASE_URL_SYNC: postgresql+psycopg://${POSTGRES_USER:-aslms}:${POSTGRES_PASSWORD:-aslms}@postgres:5432/${POSTGRES_DB:-aslms}
+      REDIS_URL: redis://redis:6379/0
+      CLAMAV_HOST: clamav
+      CAUSE_LIST_DIR: /data/causelists
+      STORAGE_ROOT: /data/storage
+    volumes:
+      - ./data/causelists:/data/causelists:ro
+      - appdata_v2:/data/storage
+    ports: ["8000:8000"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_started }
+
+  worker-ingest:
+    build: ./backend
+    command: celery -A aslms.jobs.celery_app worker -Q ingest,default -c 2 --loglevel=INFO
+    env_file: .env
+    environment: *app_env
+    volumes:
+      - ./data/causelists:/data/causelists:ro
+      - appdata_v2:/data/storage
+    depends_on: [postgres, redis]
+
+  worker-track:
+    build: ./backend
+    command: celery -A aslms.jobs.celery_app worker -Q track -c 4 --loglevel=INFO
+    env_file: .env
+    environment: *app_env
+    volumes: ["appdata_v2:/data/storage"]
+    depends_on: [postgres, redis]
+
+  worker-documents:
+    build: ./backend
+    command: celery -A aslms.jobs.celery_app worker -Q documents -c 2 --loglevel=INFO
+    env_file: .env
+    environment: *app_env
+    volumes: ["appdata_v2:/data/storage"]
+    depends_on: [postgres, redis]
+
+  worker-notify:
+    build: ./backend
+    command: celery -A aslms.jobs.celery_app worker -Q notify -c 2 --loglevel=INFO
+    env_file: .env
+    environment: *app_env
+    depends_on: [postgres, redis]
+
+  beat:
+    build: ./backend
+    command: celery -A aslms.jobs.celery_app beat --loglevel=INFO
+    env_file: .env
+    environment: *app_env
+    depends_on: [postgres, redis]
+
+  flower:
+    build: ./backend
+    command: celery -A aslms.jobs.celery_app flower --port=5555
+    env_file: .env
+    environment: *app_env
+    ports: ["5555:5555"]
+    profiles: ["monitoring"]
+    depends_on: [redis]
+
+volumes:
+  pgdata_v2:
+  redisdata_v2:
+  clamdb:
+  appdata_v2:

@@ -5,9 +5,9 @@ Gauhati High Court in one place, acts on court directions in time, and keeps an 
 each case is handled. Data comes from the official eCourts / High Court APIs (NAPIX). Case research and
 order reading go through SourceTrace, the in-house RAG service.
 
-**Status (25 Sep 2026):** design approved, repository reorganised, Phase 1 build starting. The backend
-skeleton and the first migration are the next change. The database starts empty; there is no migration of
-earlier data.
+**Status (25 Sep 2026):** design approved, repository reorganised, backend skeleton and migration
+`0001_phase1_core` (39 tables) in place and round-trip tested. Next: the NAPIX integration layer and the
+`aslms napix-check` live test. The database starts empty; there is no migration of earlier data.
 
 ## Read first
 
@@ -45,7 +45,17 @@ docker compose run --rm api aslms seed
 docker compose up -d                       # api, workers, beat
 ```
 
-Backend checks: `cd backend && pytest -q && ruff check aslms`.
+Backend development without the `api` container (Python 3.11+; the venv lives in `backend/.venv`):
+
+```bash
+cd backend
+python -m venv .venv && .venv/Scripts/pip install -e ".[dev]"      # Windows; use .venv/bin on Linux
+.venv/Scripts/alembic upgrade head
+.venv/Scripts/aslms seed                     # structural offices, GAHC01, operator account (SEED_ADMIN_*)
+.venv/Scripts/python -m pytest -q            # integration tests use <db>_test and skip if Postgres is down
+.venv/Scripts/ruff check aslms tests alembic
+.venv/Scripts/uvicorn aslms.api.main:app --reload   # http://localhost:8000/api/docs
+```
 
 ## Phases
 
