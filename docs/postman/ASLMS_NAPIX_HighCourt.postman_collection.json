@@ -1,0 +1,1066 @@
+{
+  "info": {
+    "name": "ASLMS · NAPIX High Court APIs",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Test harness for the e-Committee NAPIX High Court Open API (spec v1.0, 07.09.2023). Encryption, hashing, token refresh and response decryption are automatic. Fill client_id, client_secret, dept_id, auth_key in the collection Variables tab."
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// ---- key helpers (shared) ----",
+          "// Reads a variable from Environment → Collection (whichever is set), trimmed of stray spaces/newlines.",
+          "function v(name) { const x = pm.variables.get(name); return (x === undefined || x === null ? \"\" : String(x)).trim(); }",
+          "// key_mode: \"text\" (default: the key as typed), \"hex\" (32 hex chars = 16 bytes), \"base64\".",
+          "// PHP openssl AES-128-CBC semantics: key and IV are exactly 16 bytes (truncate, or pad with \\0).",
+          "function napixKey() {",
+          "  const k = v(\"auth_key\"), mode = (v(\"key_mode\") || \"text\").toLowerCase();",
+          "  let wa;",
+          "  if (mode === \"hex\") wa = CryptoJS.enc.Hex.parse(k);",
+          "  else if (mode === \"base64\") wa = CryptoJS.enc.Base64.parse(k);",
+          "  else wa = CryptoJS.enc.Utf8.parse(k);",
+          "  let hex = wa.toString(CryptoJS.enc.Hex);",
+          "  const nbytes = hex.length / 2;",
+          "  if (hex.length > 32) hex = hex.slice(0, 32);",
+          "  while (hex.length < 32) hex += \"00\";",
+          "  return { key: CryptoJS.enc.Hex.parse(hex), chars: k.length, bytes: nbytes, mode: mode,",
+          "           fp: CryptoJS.SHA256(k).toString().slice(0, 8) };   // fingerprint: safe to share, reveals nothing",
+          "}",
+          "function aesDecryptText(b64, key) {",
+          "  const dec = CryptoJS.AES.decrypt(b64, key, { iv: key, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7 });",
+          "  try { return dec.toString(CryptoJS.enc.Utf8); } catch (e) { return \"\"; }",
+          "}",
+          "",
+          "// ===== ASLMS NAPIX helper (collection-level pre-request) =====",
+          "// 1) Gets/refreshes the OAuth token automatically.",
+          "// 2) Reads the plain request string from the \"X-Plain\" header, encrypts it (AES-128-CBC, key = IV = auth_key,",
+          "//    PKCS7, base64) and hashes it (HMAC-SHA256 with hash_key, hex) exactly as NAPIX Annexure-A specifies.",
+          "const cv = pm.collectionVariables;",
+          "const isTokenCall = pm.request.url.toString().includes(\"oauth2/token\");",
+          "",
+          "function fetchToken(cb) {",
+          "  const basic = CryptoJS.enc.Base64.stringify(CryptoJS.enc.Utf8.parse(v(\"client_id\") + \":\" + v(\"client_secret\")));",
+          "  pm.sendRequest({",
+          "    url: v(\"base_url\") + \"/oauth2/token\",",
+          "    method: \"POST\",",
+          "    header: { \"Authorization\": \"Basic \" + basic, \"Content-Type\": \"application/x-www-form-urlencoded\" },",
+          "    body: { mode: \"urlencoded\", urlencoded: [{ key: \"grant_type\", value: \"client_credentials\" }, { key: \"scope\", value: \"napix\" }] }",
+          "  }, (err, res) => {",
+          "    if (err) { console.error(\"Token request failed:\", err); return cb && cb(); }",
+          "    try {",
+          "      const j = res.json();",
+          "      cv.set(\"access_token\", j.access_token || \"\");",
+          "      cv.set(\"token_expiry\", String(Date.now() + ((j.expires_in || 3600) - 60) * 1000));",
+          "      console.log(\"Token OK, expires_in:\", j.expires_in);",
+          "    } catch (e) { console.error(\"Token response not JSON:\", res.text()); }",
+          "    cb && cb();",
+          "  });",
+          "}",
+          "",
+          "// Known-answer test from the NAPIX Subscriber Manual, Annexure B: HMAC(\"state_code=27\") must equal d10f8382…79c7",
+          "(function () {",
+          "  const kat = CryptoJS.HmacSHA256(\"state_code=27\", v(\"hash_key\") || \"15081947\").toString(CryptoJS.enc.Hex);",
+          "  console.log(\"SELF-TEST hash vs Subscriber Manual: \" + (kat === \"d10f8382c089c134ae7635fea97b2ca81488b25f3db23c9d578146599b7679c7\" ? \"PASS\" : \"FAIL (check hash_key = 15081947)\"));",
+          "})();",
+          "if (!isTokenCall) {",
+          "  const exp = parseInt(cv.get(\"token_expiry\") || \"0\", 10);",
+          "  if (!cv.get(\"access_token\") || Date.now() > exp) { fetchToken(); }",
+          "",
+          "  const hdr = pm.request.headers.get(\"X-Plain\");",
+          "  const plain = hdr === undefined || hdr === null ? \"\" : pm.variables.replaceIn(hdr);",
+          "  pm.request.headers.remove(\"X-Plain\");",
+          "",
+          "  const K = napixKey(), key = K.key;",
+          "  console.log(\"auth_key: \" + K.chars + \" chars, \" + K.bytes + \" bytes, mode=\" + K.mode + \", fingerprint=\" + K.fp + (K.chars === 0 ? \"  ← EMPTY! set auth_key (Current value)\" : \"\"));",
+          "  if (K.bytes !== 16 && K.chars > 0) console.warn(\"auth_key is not 16 bytes — PHP will use the first 16 (padded with \\\\0 if shorter).\");",
+          "  const enc = CryptoJS.AES.encrypt(CryptoJS.enc.Utf8.parse(plain), key, { iv: key, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7 }).toString();",
+          "  const token = CryptoJS.HmacSHA256(plain, v(\"hash_key\") || \"15081947\").toString(CryptoJS.enc.Hex);",
+          "",
+          "  pm.variables.set(\"request_str\", enc);                              // for POST form bodies (Postman encodes)",
+          "  pm.variables.set(\"request_str_enc\", encodeURIComponent(enc));      // for GET query strings",
+          "  pm.variables.set(\"request_token\", token);",
+          "  console.log(\"PLAIN:\", JSON.stringify(plain));",
+          "  console.log(\"request_str:\", enc);",
+          "  console.log(\"request_token:\", token);",
+          "}"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// ---- key helpers (shared) ----",
+          "// Reads a variable from Environment → Collection (whichever is set), trimmed of stray spaces/newlines.",
+          "function v(name) { const x = pm.variables.get(name); return (x === undefined || x === null ? \"\" : String(x)).trim(); }",
+          "// key_mode: \"text\" (default: the key as typed), \"hex\" (32 hex chars = 16 bytes), \"base64\".",
+          "// PHP openssl AES-128-CBC semantics: key and IV are exactly 16 bytes (truncate, or pad with \\0).",
+          "function napixKey() {",
+          "  const k = v(\"auth_key\"), mode = (v(\"key_mode\") || \"text\").toLowerCase();",
+          "  let wa;",
+          "  if (mode === \"hex\") wa = CryptoJS.enc.Hex.parse(k);",
+          "  else if (mode === \"base64\") wa = CryptoJS.enc.Base64.parse(k);",
+          "  else wa = CryptoJS.enc.Utf8.parse(k);",
+          "  let hex = wa.toString(CryptoJS.enc.Hex);",
+          "  const nbytes = hex.length / 2;",
+          "  if (hex.length > 32) hex = hex.slice(0, 32);",
+          "  while (hex.length < 32) hex += \"00\";",
+          "  return { key: CryptoJS.enc.Hex.parse(hex), chars: k.length, bytes: nbytes, mode: mode,",
+          "           fp: CryptoJS.SHA256(k).toString().slice(0, 8) };   // fingerprint: safe to share, reveals nothing",
+          "}",
+          "function aesDecryptText(b64, key) {",
+          "  const dec = CryptoJS.AES.decrypt(b64, key, { iv: key, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7 });",
+          "  try { return dec.toString(CryptoJS.enc.Utf8); } catch (e) { return \"\"; }",
+          "}",
+          "",
+          "// ===== ASLMS NAPIX helper (collection-level test): decrypt + verify response =====",
+          "const cv = pm.collectionVariables;",
+          "if (pm.request.url.toString().includes(\"oauth2/token\")) {",
+          "  // token request handled by its own test script",
+          "} else {",
+          "  const ctype = (pm.response.headers.get(\"Content-Type\") || \"\").toLowerCase();",
+          "  if (ctype.includes(\"pdf\")) {",
+          "    console.log(\"PDF returned (\" + pm.response.responseSize + \" bytes). Use 'Save Response > Save to a file'.\");",
+          "    pm.test(\"PDF received\", () => pm.expect(pm.response.code).to.eql(200));",
+          "  } else {",
+          "    let j = null;",
+          "    try { j = pm.response.json(); } catch (e) { console.log(\"Non-JSON response:\", pm.response.text().slice(0, 500)); }",
+          "    if (j && j.response_str) {",
+          "      const key = napixKey().key;",
+          "      const text = aesDecryptText(j.response_str, key);",
+          "      const calc = CryptoJS.HmacSHA256(text, v(\"hash_key\") || \"15081947\").toString(CryptoJS.enc.Hex);",
+          "      pm.test(\"response_token matches decrypted payload\", () => pm.expect(calc).to.eql(j.response_token));",
+          "      cv.set(\"last_decrypted\", text);",
+          "      let pretty = text;",
+          "      try { pretty = JSON.stringify(JSON.parse(text), null, 2); }",
+          "      catch (e) { if (text.startsWith(\"JVBER\")) { pretty = \"(base64 PDF, \" + text.length + \" chars — decode base64 and save as .pdf)\"; } }",
+          "      console.log(\"DECRYPTED:\\n\" + pretty);",
+          "      pm.visualizer.set('<pre style=\"white-space:pre-wrap;font:12px monospace\">{{d}}</pre>', { d: pretty });",
+          "    } else if (j && typeof j.status === \"string\" && !/^\\d+$/.test(j.status)) {",
+          "      // NAPIX encrypts error responses as well: {\"status\": \"<base64 AES>\"}",
+          "      const K = napixKey(), key = K.key;",
+          "      const text = aesDecryptText(j.status, key);",
+          "      console.log(\"Tried auth_key: \" + K.chars + \" chars, mode=\" + K.mode + \", fingerprint=\" + K.fp);",
+          "      if (text) {",
+          "        console.warn(\"NAPIX ERROR (decrypted): \" + text);",
+          "        pm.test(\"error decrypted with auth_key (key is correct)\", () => pm.expect(text.length).to.be.above(0));",
+          "        pm.visualizer.set('<pre style=\"white-space:pre-wrap\">NAPIX error (decrypted)\\n{{t}}\\n\\nauth_key is CORRECT — see the code above.</pre>', { t: text });",
+          "      } else {",
+          "        // Deep check: decrypt without padding. Right key + different IV → blocks 2.. are readable and padding is valid.",
+          "        const raw = CryptoJS.AES.decrypt(j.status, key, { iv: key, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.NoPadding }).toString(CryptoJS.enc.Hex);",
+          "        const n = parseInt(raw.slice(-2), 16), padOk = n >= 1 && n <= 16 && raw.slice(-2 * n) === raw.slice(-2).repeat(n);",
+          "        const tail = CryptoJS.enc.Hex.parse(raw.slice(32, padOk ? raw.length - 2 * n : raw.length)).toString(CryptoJS.enc.Latin1);",
+          "        const readable = /^[\\x20-\\x7e]*$/.test(tail);",
+          "        console.log(\"DEEP CHECK: \" + (raw.length / 2) + \" bytes, padding valid=\" + padOk + \", bytes 17+ readable=\" + readable + (readable ? \"  →  ...\" + tail : \"\"));",
+          "        if (padOk && readable) console.warn(\"→ auth_key is RIGHT; NAPIX used a different IV for this reply. Tell Claude: DEEP CHECK readable.\");",
+          "        else console.warn(\"→ auth_key does NOT match the key NAPIX holds for dept_id '\" + v(\"dept_id\") + \"'. Ask e-Committee to confirm the HC Authentication Key for this dept_id.\");",
+          "        console.error(\"Could not decrypt the status. Check: (1) auth_key Current value is filled in the SAME place you edit (Environment or Collection), no spaces; (2) fingerprint above equals the one printed by diagnose_key.py; (3) try key_mode=hex if the key is 32 hex chars.\");",
+          "        pm.test(\"error decrypted with auth_key\", () => pm.expect.fail(\"auth_key could not decrypt the response\"));",
+          "        pm.visualizer.set('<pre>Encrypted status could not be decrypted.\\nThe auth_key is wrong (it must be the 16-char Authentication Key from e-Committee, not the API Key/Secret).</pre>', {});",
+          "      }",
+          "    } else if (j && j.status !== undefined) {",
+          "      const codes = {600:\"INVALID_CNR\",601:\"INVALID_DATE\",602:\"INVALID_ORDER_NO\",603:\"INVALID_EST_CODE\",604:\"INVALID_CASE_TYPE\",616:\"INVALID_CAUSELIST_DATE\",626:\"INVALID_TOKEN\",627:\"INVALID_DEPT_ID\",628:\"RECORD_NOT_FOUND\",629:\"UNEXPECTED_ERROR\",631:\"API_ACCESS_NOT_ALLOWED\",632:\"INVALID_VERSION\",633:\"INVALID_BENCH_ID\",634:\"INVALID_CAUSELIST_ID\"};",
+          "      console.warn(\"NAPIX status \" + j.status + \" \" + (codes[j.status] || \"\") + \" :: \" + JSON.stringify(j));",
+          "      pm.visualizer.set('<pre>NAPIX status {{s}} {{n}}\\n{{b}}</pre>', { s: j.status, n: codes[j.status] || \"\", b: JSON.stringify(j, null, 2) });",
+          "    }",
+          "  }",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "00 · Get access token",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const j = pm.response.json();",
+              "pm.test('got access_token', () => pm.expect(j.access_token).to.be.a('string'));",
+              "pm.collectionVariables.set('access_token', j.access_token);",
+              "pm.collectionVariables.set('token_expiry', String(Date.now() + ((j.expires_in||3600)-60)*1000));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "{{client_id}}"
+            },
+            {
+              "key": "password",
+              "value": "{{client_secret}}"
+            }
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "client_credentials"
+            },
+            {
+              "key": "scope",
+              "value": "napix"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/oauth2/token",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "oauth2",
+            "token"
+          ]
+        },
+        "description": "OAuth2 client-credentials. Basic auth = NAPIX subscriber application Client ID / Client Secret."
+      }
+    },
+    {
+      "name": "K · Key diagnosis (run K1→K5 in order)",
+      "description": "Isolates the Authentication Key. See the step-by-step guide.",
+      "item": [
+        {
+          "name": "K1 · Overview — request_str EMPTY (key not used on the way in)",
+          "request": {
+            "method": "GET",
+            "description": "HC spec 5.1.3: request_str doesn't require any input (request_str=\"\"). request_token = HMAC of empty string. The key is used ONLY to decrypt the reply.",
+            "header": [
+              {
+                "key": "X-Plain",
+                "value": ""
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/overview/overview?dept_id={{dept_id}}&request_str=&request_token={{request_token}}&version={{version}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "overview",
+                "overview"
+              ],
+              "query": [
+                {
+                  "key": "dept_id",
+                  "value": "{{dept_id}}"
+                },
+                {
+                  "key": "request_str",
+                  "value": ""
+                },
+                {
+                  "key": "request_token",
+                  "value": "{{request_token}}"
+                },
+                {
+                  "key": "version",
+                  "value": "{{version}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "K2 · HC State master — no request_str at all",
+          "request": {
+            "method": "GET",
+            "description": "HC spec 9.1.1 URL has no request_str. Second key-free request.",
+            "header": [
+              {
+                "key": "X-Plain",
+                "value": ""
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/hc-state-api/state?dept_id={{dept_id}}&request_token={{request_token}}&version={{version}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "hc-state-api",
+                "state"
+              ],
+              "query": [
+                {
+                  "key": "dept_id",
+                  "value": "{{dept_id}}"
+                },
+                {
+                  "key": "request_token",
+                  "value": "{{request_token}}"
+                },
+                {
+                  "key": "version",
+                  "value": "{{version}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "K3 · Overview — request_str = encrypt(\"\")",
+          "request": {
+            "method": "GET",
+            "description": "Same as K1 but the empty string is encrypted with your key (one 16-byte block). If K1 works and K3 gives 626, the server's key differs from yours.",
+            "header": [
+              {
+                "key": "X-Plain",
+                "value": ""
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/overview/overview?dept_id={{dept_id}}&request_str={{request_str_enc}}&request_token={{request_token}}&version={{version}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "overview",
+                "overview"
+              ],
+              "query": [
+                {
+                  "key": "dept_id",
+                  "value": "{{dept_id}}"
+                },
+                {
+                  "key": "request_str",
+                  "value": "{{request_str_enc}}"
+                },
+                {
+                  "key": "request_token",
+                  "value": "{{request_token}}"
+                },
+                {
+                  "key": "version",
+                  "value": "{{version}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "K4 · HC District master — state_code={{state_code}}",
+          "request": {
+            "method": "GET",
+            "description": "HC spec 9.2: one key-value pair, encrypted. Simplest real encrypted request on the HC side.",
+            "header": [
+              {
+                "key": "X-Plain",
+                "value": "state_code={{state_code}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/hc-district-api/district?dept_id={{dept_id}}&request_str={{request_str_enc}}&request_token={{request_token}}&version={{version}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "hc-district-api",
+                "district"
+              ],
+              "query": [
+                {
+                  "key": "dept_id",
+                  "value": "{{dept_id}}"
+                },
+                {
+                  "key": "request_str",
+                  "value": "{{request_str_enc}}"
+                },
+                {
+                  "key": "request_token",
+                  "value": "{{request_token}}"
+                },
+                {
+                  "key": "version",
+                  "value": "{{version}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "K5 · DC District master — state_code=27 (the Subscriber Manual's own example)",
+          "request": {
+            "method": "GET",
+            "description": "Subscriber Manual Annexure A/B: dc-district-api/district. The request_token printed in the Console MUST equal the manual's d10f8382…79c7. Tests whether your key works on the District Court product.",
+            "header": [
+              {
+                "key": "X-Plain",
+                "value": "state_code=27"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/dc-district-api/district?dept_id={{dept_id}}&request_str={{request_str_enc}}&request_token={{request_token}}&version={{version}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "dc-district-api",
+                "district"
+              ],
+              "query": [
+                {
+                  "key": "dept_id",
+                  "value": "{{dept_id}}"
+                },
+                {
+                  "key": "request_str",
+                  "value": "{{request_str_enc}}"
+                },
+                {
+                  "key": "request_token",
+                  "value": "{{request_token}}"
+                },
+                {
+                  "key": "version",
+                  "value": "{{version}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "01 · Overview",
+      "request": {
+        "method": "GET",
+        "description": "Sanity check: no input string. Proves token + dept_id + crypto are accepted.",
+        "header": [
+          {
+            "key": "X-Plain",
+            "value": "",
+            "description": "Plain key=value|key=value string; encrypted automatically"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/overview/overview?dept_id={{dept_id}}&request_str={{request_str_enc}}&request_token={{request_token}}&version={{version}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "overview",
+            "overview"
+          ],
+          "query": [
+            {
+              "key": "dept_id",
+              "value": "{{dept_id}}"
+            },
+            {
+              "key": "request_str",
+              "value": "{{request_str_enc}}"
+            },
+            {
+              "key": "request_token",
+              "value": "{{request_token}}"
+            },
+            {
+              "key": "version",
+              "value": "{{version}}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "02 · HC State master",
+      "request": {
+        "method": "GET",
+        "description": "Find the state_code for Gauhati High Court; put it in the state_code variable.",
+        "header": [
+          {
+            "key": "X-Plain",
+            "value": "",
+            "description": "Plain key=value|key=value string; encrypted automatically"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hc-state-api/state?dept_id={{dept_id}}&request_str={{request_str_enc}}&request_token={{request_token}}&version={{version}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "hc-state-api",
+            "state"
+          ],
+          "query": [
+            {
+              "key": "dept_id",
+              "value": "{{dept_id}}"
+            },
+            {
+              "key": "request_str",
+              "value": "{{request_str_enc}}"
+            },
+            {
+              "key": "request_token",
+              "value": "{{request_token}}"
+            },
+            {
+              "key": "version",
+              "value": "{{version}}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "03 · HC Bench master",
+      "request": {
+        "method": "GET",
+        "description": "Lists benches with est_code. Confirm Principal Seat est_code (expected GAHC01) and set est_code.",
+        "header": [
+          {
+            "key": "X-Plain",
+            "value": "state_code={{state_code}}",
+            "description": "Plain key=value|key=value string; encrypted automatically"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hc-bench-master-api/bench?dept_id={{dept_id}}&request_str={{request_str_enc}}&request_token={{request_token}}&version={{version}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "hc-bench-master-api",
+            "bench"
+          ],
+          "query": [
+            {
+              "key": "dept_id",
+              "value": "{{dept_id}}"
+            },
+            {
+              "key": "request_str",
+              "value": "{{request_str_enc}}"
+            },
+            {
+              "key": "request_token",
+              "value": "{{request_token}}"
+            },
+            {
+              "key": "version",
+              "value": "{{version}}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "04 · Case type master",
+      "request": {
+        "method": "GET",
+        "description": "Numeric case_type codes (e.g. WP(C)) needed for search-by-case-number.",
+        "header": [
+          {
+            "key": "X-Plain",
+            "value": "est_code={{est_code}}",
+            "description": "Plain key=value|key=value string; encrypted automatically"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hc-case-type-master-api/casetypemaster?dept_id={{dept_id}}&request_str={{request_str_enc}}&request_token={{request_token}}&version={{version}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "hc-case-type-master-api",
+            "casetypemaster"
+          ],
+          "query": [
+            {
+              "key": "dept_id",
+              "value": "{{dept_id}}"
+            },
+            {
+              "key": "request_str",
+              "value": "{{request_str_enc}}"
+            },
+            {
+              "key": "request_token",
+              "value": "{{request_token}}"
+            },
+            {
+              "key": "version",
+              "value": "{{version}}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "05 · Case by CNR (full dossier)",
+      "request": {
+        "method": "GET",
+        "description": "Full history: parties, hearings, interim/final orders. Use a CNR from a cause-list PDF.",
+        "header": [
+          {
+            "key": "X-Plain",
+            "value": "cino={{cnr}}",
+            "description": "Plain key=value|key=value string; encrypted automatically"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hc-cnr-api/CNR?dept_id={{dept_id}}&request_str={{request_str_enc}}&request_token={{request_token}}&version={{version}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "hc-cnr-api",
+            "CNR"
+          ],
+          "query": [
+            {
+              "key": "dept_id",
+              "value": "{{dept_id}}"
+            },
+            {
+              "key": "request_str",
+              "value": "{{request_str_enc}}"
+            },
+            {
+              "key": "request_token",
+              "value": "{{request_token}}"
+            },
+            {
+              "key": "version",
+              "value": "{{version}}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "06 · Current status (bulk, POST)",
+      "request": {
+        "method": "POST",
+        "description": "Up to 500 comma-separated CNRs. This is the cheap nightly heartbeat ASLMS will use.",
+        "header": [
+          {
+            "key": "X-Plain",
+            "value": "cino={{cnr}},{{cnr2}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "dept_id",
+              "value": "{{dept_id}}"
+            },
+            {
+              "key": "request_str",
+              "value": "{{request_str}}"
+            },
+            {
+              "key": "request_token",
+              "value": "{{request_token}}"
+            },
+            {
+              "key": "version",
+              "value": "{{version}}"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/hc-current-status-api/currentStatus",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "hc-current-status-api",
+            "currentStatus"
+          ]
+        }
+      }
+    },
+    {
+      "name": "07 · Show business (a hearing date)",
+      "request": {
+        "method": "GET",
+        "description": "Use a business_date from the CNR history (request 05).",
+        "header": [
+          {
+            "key": "X-Plain",
+            "value": "cino={{cnr}}|business_date={{business_date}}",
+            "description": "Plain key=value|key=value string; encrypted automatically"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hc-show-business-api/showBusiness?dept_id={{dept_id}}&request_str={{request_str_enc}}&request_token={{request_token}}&version={{version}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "hc-show-business-api",
+            "showBusiness"
+          ],
+          "query": [
+            {
+              "key": "dept_id",
+              "value": "{{dept_id}}"
+            },
+            {
+              "key": "request_str",
+              "value": "{{request_str_enc}}"
+            },
+            {
+              "key": "request_token",
+              "value": "{{request_token}}"
+            },
+            {
+              "key": "version",
+              "value": "{{version}}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "08 · Order PDF",
+      "request": {
+        "method": "GET",
+        "description": "order_no + order_date from interimorder/finalorder in request 05. Returns a PDF.",
+        "header": [
+          {
+            "key": "X-Plain",
+            "value": "cino={{cnr}}|order_no={{order_no}}|order_date={{order_date}}",
+            "description": "Plain key=value|key=value string; encrypted automatically"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hc-order-api/order?dept_id={{dept_id}}&request_str={{request_str_enc}}&request_token={{request_token}}&version={{version}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "hc-order-api",
+            "order"
+          ],
+          "query": [
+            {
+              "key": "dept_id",
+              "value": "{{dept_id}}"
+            },
+            {
+              "key": "request_str",
+              "value": "{{request_str_enc}}"
+            },
+            {
+              "key": "request_token",
+              "value": "{{request_token}}"
+            },
+            {
+              "key": "version",
+              "value": "{{version}}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "09 · Cause-list benches for a date",
+      "request": {
+        "method": "GET",
+        "description": "Benches sitting on causelist_date (yyyy-mm-dd). Copy a bench_id.",
+        "header": [
+          {
+            "key": "X-Plain",
+            "value": "est_code={{est_code}}|causelist_date={{causelist_date}}",
+            "description": "Plain key=value|key=value string; encrypted automatically"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hc-causelist-bench-api/causelistbench?dept_id={{dept_id}}&request_str={{request_str_enc}}&request_token={{request_token}}&version={{version}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "hc-causelist-bench-api",
+            "causelistbench"
+          ],
+          "query": [
+            {
+              "key": "dept_id",
+              "value": "{{dept_id}}"
+            },
+            {
+              "key": "request_str",
+              "value": "{{request_str_enc}}"
+            },
+            {
+              "key": "request_token",
+              "value": "{{request_token}}"
+            },
+            {
+              "key": "version",
+              "value": "{{version}}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "10 · Cause lists of a bench",
+      "request": {
+        "method": "GET",
+        "description": "Returns causelist_id(s) and list type (Daily/Supplementary…).",
+        "header": [
+          {
+            "key": "X-Plain",
+            "value": "est_code={{est_code}}|causelist_date={{causelist_date}}|bench_id={{bench_id}}",
+            "description": "Plain key=value|key=value string; encrypted automatically"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hc-causelist-details-api/causelistdetails?dept_id={{dept_id}}&request_str={{request_str_enc}}&request_token={{request_token}}&version={{version}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "hc-causelist-details-api",
+            "causelistdetails"
+          ],
+          "query": [
+            {
+              "key": "dept_id",
+              "value": "{{dept_id}}"
+            },
+            {
+              "key": "request_str",
+              "value": "{{request_str_enc}}"
+            },
+            {
+              "key": "request_token",
+              "value": "{{request_token}}"
+            },
+            {
+              "key": "version",
+              "value": "{{version}}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "11 · Cause-list PDF",
+      "request": {
+        "method": "GET",
+        "description": "The PDF ASLMS parses. Save it and compare with the ghconline.gov.in file.",
+        "header": [
+          {
+            "key": "X-Plain",
+            "value": "est_code={{est_code}}|bench_id={{bench_id}}|causelist_id={{causelist_id}}|causelist_date={{causelist_date}}",
+            "description": "Plain key=value|key=value string; encrypted automatically"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hc-show-causelist-api/showcauselist?dept_id={{dept_id}}&request_str={{request_str_enc}}&request_token={{request_token}}&version={{version}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "hc-show-causelist-api",
+            "showcauselist"
+          ],
+          "query": [
+            {
+              "key": "dept_id",
+              "value": "{{dept_id}}"
+            },
+            {
+              "key": "request_str",
+              "value": "{{request_str_enc}}"
+            },
+            {
+              "key": "request_token",
+              "value": "{{request_token}}"
+            },
+            {
+              "key": "version",
+              "value": "{{version}}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "12 · Search by case number",
+      "request": {
+        "method": "GET",
+        "description": "case_type = numeric code from request 04.",
+        "header": [
+          {
+            "key": "X-Plain",
+            "value": "est_code={{est_code}}|case_type={{case_type}}|reg_no={{reg_no}}|reg_year={{reg_year}}",
+            "description": "Plain key=value|key=value string; encrypted automatically"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hc-case-search-api/casesearch?dept_id={{dept_id}}&request_str={{request_str_enc}}&request_token={{request_token}}&version={{version}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "hc-case-search-api",
+            "casesearch"
+          ],
+          "query": [
+            {
+              "key": "dept_id",
+              "value": "{{dept_id}}"
+            },
+            {
+              "key": "request_str",
+              "value": "{{request_str_enc}}"
+            },
+            {
+              "key": "request_token",
+              "value": "{{request_token}}"
+            },
+            {
+              "key": "version",
+              "value": "{{version}}"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://delhigw.napix.gov.in/nic/ecourts"
+    },
+    {
+      "key": "client_id",
+      "value": ""
+    },
+    {
+      "key": "client_secret",
+      "value": ""
+    },
+    {
+      "key": "dept_id",
+      "value": ""
+    },
+    {
+      "key": "auth_key",
+      "value": ""
+    },
+    {
+      "key": "hash_key",
+      "value": "15081947"
+    },
+    {
+      "key": "version",
+      "value": "v1.0"
+    },
+    {
+      "key": "state_code",
+      "value": "6"
+    },
+    {
+      "key": "est_code",
+      "value": "GAHC01"
+    },
+    {
+      "key": "cnr",
+      "value": "GAHC010153612024"
+    },
+    {
+      "key": "cnr2",
+      "value": "GAHC010059192024"
+    },
+    {
+      "key": "business_date",
+      "value": ""
+    },
+    {
+      "key": "order_no",
+      "value": ""
+    },
+    {
+      "key": "order_date",
+      "value": ""
+    },
+    {
+      "key": "causelist_date",
+      "value": "2026-09-24"
+    },
+    {
+      "key": "bench_id",
+      "value": ""
+    },
+    {
+      "key": "causelist_id",
+      "value": ""
+    },
+    {
+      "key": "case_type",
+      "value": ""
+    },
+    {
+      "key": "reg_no",
+      "value": ""
+    },
+    {
+      "key": "reg_year",
+      "value": ""
+    },
+    {
+      "key": "access_token",
+      "value": ""
+    },
+    {
+      "key": "token_expiry",
+      "value": "0"
+    },
+    {
+      "key": "last_decrypted",
+      "value": ""
+    },
+    {
+      "key": "key_mode",
+      "value": "text",
+      "type": "string",
+      "description": "text | hex | base64 — how auth_key is written"
+    }
+  ]
+}

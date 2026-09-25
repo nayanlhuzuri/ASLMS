@@ -1,0 +1,47 @@
+# --- secrets ---------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# --- local data (cause-list PDFs, document storage, samples) ---------------
+data/
+cause-list-directory/
+case_documents/
+order_documents/
+
+# --- reference copies of earlier systems (kept outside the workspace) -------
+archive/
+_prototype/
+ASLMS-legacy/
+
+# --- python ----------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.venv-*/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+build/
+dist/
+
+# --- node / next.js ----------------------------------------------------------
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+npm-debug.log*
+yarn-error.log*
+
+# --- tooling / editors -------------------------------------------------------
+.claude/
+.vscode/
+.idea/
+*.log
+.DS_Store
+Thumbs.db
