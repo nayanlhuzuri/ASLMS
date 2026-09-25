@@ -6,8 +6,9 @@ each case is handled. Data comes from the official eCourts / High Court APIs (NA
 order reading go through SourceTrace, the in-house RAG service.
 
 **Status (25 Sep 2026):** design approved, repository reorganised, backend skeleton and migration
-`0001_phase1_core` (39 tables) in place and round-trip tested. Next: the NAPIX integration layer and the
-`aslms napix-check` live test. The database starts empty; there is no migration of earlier data.
+`0001_phase1_core` (39 tables) in place and round-trip tested, NAPIX integration layer written and tested
+offline against a mocked gateway. Next: run `aslms napix-check` with real credentials (the live test), then
+the daily data cycle. The database starts empty; there is no migration of earlier data.
 
 ## Read first
 
@@ -55,7 +56,12 @@ python -m venv .venv && .venv/Scripts/pip install -e ".[dev]"      # Windows; us
 .venv/Scripts/python -m pytest -q            # integration tests use <db>_test and skip if Postgres is down
 .venv/Scripts/ruff check aslms tests alembic
 .venv/Scripts/uvicorn aslms.api.main:app --reload   # http://localhost:8000/api/docs
+.venv/Scripts/aslms napix-check --date 2026-09-26 --cnr GAHC010153612024   # live NAPIX test; needs NAPIX_* in .env
 ```
+
+`napix-check` walks overview → state → bench master → case type master → cause-list benches → cause-list
+details → show cause list (PDF) → CNR → current status → show business → order, prints one line per call and
+writes every decrypted response to `docs/specs/napix/hc/samples/` (git-ignored) for review.
 
 ## Phases
 

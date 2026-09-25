@@ -11,6 +11,9 @@ cause-list-directory/
 case_documents/
 order_documents/
 
+# --- decrypted NAPIX responses written by `aslms napix-check` (review locally; commit deliberately) ---
+docs/specs/napix/hc/samples/
+
 # --- reference copies of earlier systems (kept outside the workspace) -------
 archive/
 _prototype/

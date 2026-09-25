@@ -1,4 +1,4 @@
-"""`aslms` command line: seed, and (next build step) napix-check, cycle, backfill, report."""
+"""`aslms` command line: version, seed, napix-check (later: cycle, backfill, report)."""
 
 from __future__ import annotations
 
@@ -6,9 +6,11 @@ import typer
 from rich import print as rprint
 
 from aslms import __version__
+from aslms.cli.napix_check import napix_check
 from aslms.core.logging import configure_logging
 
 app = typer.Typer(no_args_is_help=True, help="ASLMS v2 backend commands")
+app.command(name="napix-check")(napix_check)
 
 
 @app.callback()
