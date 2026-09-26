@@ -33,7 +33,7 @@ class SmtpMailer:
         msg["From"], msg["To"], msg["Subject"] = self.sender, to, subject
         msg.set_content(body)
         with smtplib.SMTP(self.host, self.port, timeout=30) as smtp:
-            if self.port != 25:
+            if get_settings().smtp_starttls:
                 smtp.starttls(context=ssl.create_default_context())
             if self.user and self.password:
                 smtp.login(self.user, self.password)

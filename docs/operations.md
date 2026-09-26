@@ -25,13 +25,12 @@ For the team installing and running the portal on the pilot server and, later, i
 git clone <repo> aslms && cd aslms
 cp .env.example .env        # then edit: see §3
 docker compose -f docker-compose.yml -f docker-compose.prod.yml build
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d postgres redis pgbouncer
-make prod-migrate           # alembic upgrade head, directly against postgres (not through PgBouncer)
-docker compose -f docker-compose.yml -f docker-compose.prod.yml run --rm api aslms seed
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# the one-shot `init` service runs the migrations (directly against postgres) and `aslms bootstrap` (seed, no demo
+# data) before the API, workers and scheduler start; it repeats harmlessly on every start
 ```
 
-`aslms seed` creates the State office, the central monitoring cell, the Advocate General's office, the Gauhati High
+The seed creates the State office, the central monitoring cell, the Advocate General's office, the Gauhati High
 Court establishment (GAHC01) and one central-operator account (`SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`). Sign in
 with it, change the password, then set up the organisation (§4).
 

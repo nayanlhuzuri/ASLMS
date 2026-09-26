@@ -71,6 +71,7 @@ class Settings(BaseSettings):
     smtp_user: str | None = None
     smtp_password: SecretStr | None = None
     smtp_from: str = "no-reply@aslms.assam.gov.in"
+    smtp_starttls: bool = True  # false only for a local mail catcher without TLS
     sms_gateway_url: str | None = None
     sms_gateway_key: SecretStr | None = None
 

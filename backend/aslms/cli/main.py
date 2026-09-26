@@ -54,6 +54,35 @@ def seed() -> None:
     rprint(f"[green]seed complete[/green] {counts}")
 
 
+@app.command()
+def bootstrap(
+    demo: bool = typer.Option(False, help="load demo data on a first run (refused when APP_ENV=prod)"),
+) -> None:
+    """Container start-up step (after `alembic upgrade head`): seed, and on a laptop load the demo data once."""
+    from sqlalchemy import select
+
+    from aslms.core.config import get_settings
+    from aslms.db.seed import run_seed
+    from aslms.db.session import sync_session
+    from aslms.domain.org import User
+
+    with sync_session() as session:
+        run_seed(session)
+    if not demo or get_settings().is_prod:
+        rprint("[green]bootstrap complete[/green]")
+        return
+    from aslms.db.demo_seed import USERS, run_demo_seed
+    from aslms.services import admin
+
+    with sync_session() as session:
+        first_run = session.scalar(select(User).where(User.email == USERS[0][0])) is None
+        run_demo_seed(session)
+    if first_run:
+        with sync_session() as session:
+            rprint({"rescored": admin.rescore_all(session)})
+    rprint("[green]bootstrap complete (demo data present)[/green]")
+
+
 @app.command("seed-demo")
 def seed_demo() -> None:
     """DEV ONLY: demo departments, counsel-code mappings and one account per role (refused in production)."""

@@ -5,8 +5,8 @@ API          = $(COMPOSE) run --rm api
 
 .PHONY: up down db migrate seed demo test lint web-dev backfill cycle report prod-up prod-migrate backup
 
-up:            ## dev stack: postgres, redis, api, workers, beat, web
-	$(COMPOSE) up -d
+up:            ## everything: open http://localhost:3000, sign-in codes at http://localhost:8025
+	$(COMPOSE) up -d --build
 
 down:
 	$(COMPOSE) down
@@ -45,8 +45,8 @@ web-dev:       ## Next.js dev server against the local API
 prod-up:
 	$(COMPOSE_PROD) up -d --build
 
-prod-migrate:  ## migrations bypass PgBouncer
-	$(COMPOSE_PROD) run --rm -e DATABASE_URL_SYNC=postgresql+psycopg://$${POSTGRES_USER:-aslms}:$${POSTGRES_PASSWORD:-aslms}@postgres:5432/$${POSTGRES_DB:-aslms} api alembic upgrade head
+prod-migrate:  ## migrations bypass PgBouncer (the init service also runs them on every start)
+	$(COMPOSE_PROD) run --rm init
 
 backup:        ## one backup now
 	$(COMPOSE_PROD) run --rm backup /backup.sh once

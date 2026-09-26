@@ -1,7 +1,7 @@
 # Production / pilot-server override:
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 # Adds nginx (the only public port), PgBouncer (transaction pooling), ClamAV, Flower, Prometheus + Grafana with
-# exporters, and nightly backups. Internal services lose their host ports. Set APP_ENV=prod and real secrets in .env.
+# exporters, and nightly backups. Internal services lose their host ports. Set APP_ENV=prod, real secrets and SMTP in .env.
 
 services:
   postgres:
@@ -32,18 +32,29 @@ services:
     restart: unless-stopped
     ports: !reset []
 
+  mailpit:
+    profiles: ["dev-mail"]   # real SMTP in production
+
+  # migrations run against postgres directly (not through PgBouncer); never demo data
+  init:
+    environment:
+      SEED_DEMO: ""
+      SMTP_HOST: ${SMTP_HOST:-}
+
   api:
     restart: unless-stopped
     ports: !reset []
     environment: &prod_env
-      # the app talks to PgBouncer; migrations (alembic) should target postgres directly:
-      #   docker compose ... run --rm -e DATABASE_URL_SYNC=postgresql+psycopg://…@postgres:5432/aslms api alembic upgrade head
+      # the app talks to PgBouncer; `init` runs the migrations against postgres directly
       DATABASE_URL_SYNC: postgresql+psycopg://${POSTGRES_USER:-aslms}:${POSTGRES_PASSWORD:-aslms}@pgbouncer:5432/${POSTGRES_DB:-aslms}
       DB_BEHIND_PGBOUNCER: "true"
       REDIS_URL: redis://redis:6379/0
       CLAMAV_HOST: clamav
       CAUSE_LIST_DIR: /data/causelists
       STORAGE_ROOT: /data/storage
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_STARTTLS: ${SMTP_STARTTLS:-true}
     depends_on: [pgbouncer, redis, clamav]
 
   worker-ingest: { restart: unless-stopped, environment: *prod_env, depends_on: [pgbouncer, redis] }
@@ -60,6 +71,8 @@ services:
   web:
     restart: unless-stopped
     ports: !reset []
+    environment:
+      COOKIE_SECURE: "true"   # HTTPS through nginx; set false only for a closed-network pilot on plain HTTP
 
   nginx:
     image: nginx:1.27-alpine
@@ -122,7 +135,7 @@ services:
       - ./infra/backup/backup.sh:/backup.sh:ro
       - ./infra/backup/restore.sh:/restore.sh:ro
       - ${BACKUP_DIR:-./backups}:/backups
-      - appdata_v2:/data/storage:ro
+      - ./data/storage:/data/storage:ro
     depends_on: [postgres]
 
 volumes:

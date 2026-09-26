@@ -46,32 +46,40 @@ docs/       plan, decisions, schema, operations, specs
 data/       git-ignored local data: cause-list PDFs (data/causelists/DD-MM-YYYY/), document storage
 ```
 
-## Running on a laptop
+## Running it
 
-Prerequisites: Docker Desktop, Python 3.11+, Node 20+.
+Prerequisite: Docker Desktop. One command builds and starts everything:
 
 ```bash
-cp .env.example .env
-docker compose up -d postgres redis
-
-cd backend
-python -m venv .venv && .venv/Scripts/pip install -e ".[dev]"     # Linux/macOS: .venv/bin/...
-.venv/Scripts/alembic upgrade head
-.venv/Scripts/aslms seed                 # structural offices, GAHC01, operator account
-.venv/Scripts/aslms seed-demo            # DEV ONLY: demo departments, code mappings, one account per role
-.venv/Scripts/aslms backfill --limit 5   # ingest cause-list PDFs from data/causelists
-.venv/Scripts/aslms rescore
-.venv/Scripts/uvicorn aslms.api.main:app --reload        # API on :8000, docs at /api/docs
-
-cd ../frontend
-npm install && npm run dev               # portal on http://localhost:3000 (API_BASE_URL=http://localhost:8000)
+docker compose up -d --build
 ```
 
-Sign in with a demo account (the password is printed by `seed-demo`); the one-time code is written to the API's
-console while `SMTP_HOST` is empty.
+| Open | What |
+|---|---|
+| http://localhost:3000 | the portal |
+| http://localhost:8025 | Mailpit: every e-mail the portal sends, including the six-digit sign-in codes |
+| http://localhost:8000/api/docs | API documentation (dev only) |
 
-Everything in containers instead: `docker compose up -d --build` (portal on :3000).
-Production: see `docs/operations.md`.
+On the first start the `init` container migrates the database, seeds it and loads the demo departments and one
+account per role. Sign in with, for example, `edu.admin@aslms.local` and the password `Demo@2026pass`, then take the
+code from the Mailpit inbox. Other demo accounts: `edu.head`, `edu.officer`, `dse.user`, `edu.counsel`,
+`health.admin`, `fin.admin`, `cs.office`, `auditor` (all `@aslms.local`).
+
+Cause-list PDFs placed in `data/causelists/DD-MM-YYYY/` are picked up by the daily cycle, or at once with
+`docker compose exec api aslms backfill`. Other commands run the same way (`docker compose exec api aslms report`).
+
+Stop with `docker compose down` (data is kept in Docker volumes and `data/`). `.env` is optional on a laptop;
+copy `.env.example` to change settings. Uploads show "scan failed" unless ClamAV runs
+(`docker compose --profile scan up -d` with `CLAMAV_HOST=clamav`). Production: `docs/operations.md`.
+
+### Developing without containers
+
+```bash
+docker compose up -d postgres redis mailpit
+cd backend && python -m venv .venv && .venv/Scripts/pip install -e ".[dev]"
+.venv/Scripts/uvicorn aslms.api.main:app --reload          # needs DATABASE_URL_SYNC=...@localhost:5433/aslms
+cd ../frontend && npm install && npm run dev               # API_BASE_URL=http://localhost:8000
+```
 
 ## Checks
 

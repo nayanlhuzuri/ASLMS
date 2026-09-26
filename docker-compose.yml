@@ -1,5 +1,36 @@
-# ASLMS v2 — single-machine stack (laptop now, pilot server / State Data Centre later; same file, different .env).
+# ASLMS v2 — the whole application in containers.
+#
+#   docker compose up -d --build        then open http://localhost:3000   (sign-in codes: http://localhost:8025)
+#
+# First start: `init` migrates the database, seeds it and, on a laptop, loads the demo departments and accounts
+# (password Demo@2026pass). Every value below has a working default; `.env` is optional and overrides them.
+# Pilot server / State Data Centre: add docker-compose.prod.yml (see docs/operations.md).
 # Queue names in the worker commands MUST match backend/aslms/jobs/celery_app.py task_routes.
+
+x-backend: &backend
+  build: ./backend
+  image: aslms-backend:latest
+  env_file:
+    - path: .env
+      required: false
+  environment: &app_env
+    DATABASE_URL_SYNC: postgresql+psycopg://${POSTGRES_USER:-aslms}:${POSTGRES_PASSWORD:-aslms}@postgres:5432/${POSTGRES_DB:-aslms}
+    REDIS_URL: redis://redis:6379/0
+    CAUSE_LIST_DIR: /data/causelists
+    STORAGE_ROOT: /data/storage
+    PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3000}
+    NAPIX_ENABLED: ${NAPIX_ENABLED:-false}
+    CLAMAV_HOST: ${CLAMAV_HOST:-}
+    # on a laptop every e-mail (sign-in codes, alerts) lands in Mailpit: http://localhost:8025
+    SMTP_HOST: ${SMTP_HOST:-mailpit}
+    SMTP_PORT: ${SMTP_PORT:-1025}
+    SMTP_STARTTLS: ${SMTP_STARTTLS:-false}
+  volumes:
+    - ./data/causelists:/data/causelists:ro
+    - ./data/storage:/data/storage
+  depends_on:
+    init: { condition: service_completed_successfully }
+    redis: { condition: service_started }
 
 services:
   postgres:
@@ -9,7 +40,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aslms}
       POSTGRES_DB: ${POSTGRES_DB:-aslms}
     ports: ["${POSTGRES_HOST_PORT:-5433}:5432"]   # host port 5433: a native PostgreSQL often holds 5432 on Windows
-    volumes: ["pgdata_v2:/var/lib/postgresql/data"]   # fresh volume: the prototype's `aslms_pgdata` is not reused
+    volumes: ["pgdata_v2:/var/lib/postgresql/data"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aslms} -d ${POSTGRES_DB:-aslms}"]
       interval: 5s
@@ -22,91 +53,77 @@ services:
     ports: ["6379:6379"]
     volumes: ["redisdata_v2:/data"]
 
+  mailpit:
+    image: axllent/mailpit:latest
+    ports: ["8025:8025"]   # web inbox; SMTP 1025 stays inside the compose network
+
   clamav:
     image: clamav/clamav:stable
-    ports: ["3310:3310"]
     volumes: ["clamdb:/var/lib/clamav"]
-    profiles: ["scan"]   # optional on a laptop; required on the pilot server
+    profiles: ["scan"]   # optional on a laptop (`--profile scan`, set CLAMAV_HOST=clamav); required in production
 
-  api:
-    build: ./backend
-    # the portal is the only client; trust its X-Forwarded-For so audit rows record the real address
-    command: uvicorn aslms.api.main:app --host 0.0.0.0 --port 8000 --workers 2 --proxy-headers --forwarded-allow-ips=*
-    env_file: .env
-    environment: &app_env
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-aslms}:${POSTGRES_PASSWORD:-aslms}@postgres:5432/${POSTGRES_DB:-aslms}
-      DATABASE_URL_SYNC: postgresql+psycopg://${POSTGRES_USER:-aslms}:${POSTGRES_PASSWORD:-aslms}@postgres:5432/${POSTGRES_DB:-aslms}
-      REDIS_URL: redis://redis:6379/0
-      CLAMAV_HOST: ${CLAMAV_HOST:-}   # production override sets clamav; `--profile scan` runs it locally
-      CAUSE_LIST_DIR: /data/causelists
-      STORAGE_ROOT: /data/storage
-    volumes:
-      - ./data/causelists:/data/causelists:ro
-      - appdata_v2:/data/storage
-    ports: ["8000:8000"]
+  # one-shot: migrations, seed, demo data on a first laptop run; everything else waits for it
+  init:
+    <<: *backend
+    command: ["sh", "-c", "alembic upgrade head && aslms bootstrap $${SEED_DEMO:+--demo}"]
+    environment:
+      <<: *app_env
+      SEED_DEMO: ${SEED_DEMO:-true}
     depends_on:
       postgres: { condition: service_healthy }
-      redis: { condition: service_started }
+    restart: "no"
+
+  api:
+    <<: *backend
+    # the portal is the only client; trust its X-Forwarded-For so audit rows record the real address
+    command: uvicorn aslms.api.main:app --host 0.0.0.0 --port 8000 --workers 2 --proxy-headers --forwarded-allow-ips=*
+    ports: ["8000:8000"]   # API docs at http://localhost:8000/api/docs (dev only)
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
 
   worker-ingest:
-    build: ./backend
+    <<: *backend
     command: celery -A aslms.jobs.celery_app worker -Q ingest,default -c 2 --loglevel=INFO
-    env_file: .env
-    environment: *app_env
-    volumes:
-      - ./data/causelists:/data/causelists:ro
-      - appdata_v2:/data/storage
-    depends_on: [postgres, redis]
 
   worker-track:
-    build: ./backend
+    <<: *backend
     command: celery -A aslms.jobs.celery_app worker -Q track -c 4 --loglevel=INFO
-    env_file: .env
-    environment: *app_env
-    volumes: ["appdata_v2:/data/storage"]
-    depends_on: [postgres, redis]
 
   worker-documents:
-    build: ./backend
+    <<: *backend
     command: celery -A aslms.jobs.celery_app worker -Q documents -c 2 --loglevel=INFO
-    env_file: .env
-    environment: *app_env
-    volumes: ["appdata_v2:/data/storage"]
-    depends_on: [postgres, redis]
 
   worker-notify:
-    build: ./backend
+    <<: *backend
     command: celery -A aslms.jobs.celery_app worker -Q notify -c 2 --loglevel=INFO
-    env_file: .env
-    environment: *app_env
-    depends_on: [postgres, redis]
 
   beat:
-    build: ./backend
-    command: celery -A aslms.jobs.celery_app beat --loglevel=INFO
-    env_file: .env
-    environment: *app_env
-    depends_on: [postgres, redis]
+    <<: *backend
+    command: celery -A aslms.jobs.celery_app beat --loglevel=INFO --schedule /tmp/celerybeat-schedule
 
   flower:
-    build: ./backend
+    <<: *backend
     command: celery -A aslms.jobs.celery_app flower --port=5555
-    env_file: .env
-    environment: *app_env
     ports: ["5555:5555"]
     profiles: ["monitoring"]
-    depends_on: [redis]
 
   web:
     build: ./frontend
+    image: aslms-web:latest
     environment:
       API_BASE_URL: http://api:8000
       NODE_ENV: production
+      # cookies without the Secure flag so http://localhost works; the production override turns it on
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
     ports: ["3000:3000"]
-    depends_on: [api]
+    depends_on:
+      api: { condition: service_healthy }
 
 volumes:
   pgdata_v2:
   redisdata_v2:
   clamdb:
-  appdata_v2:
