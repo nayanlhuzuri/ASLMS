@@ -56,7 +56,7 @@ export function CodesTab({ me }: { me: Me }) {
         is_generic_state: draft.is_generic_state,
         notes: draft.notes.trim() || null,
       });
-      toast.success(`Code ${draft.code.trim().toUpperCase()} saved. It applies to new cause lists and to pending cases at the next re-score.`);
+      toast.success(`Code ${draft.code.trim().toUpperCase()} saved. The cases carrying it have been re-scored.`);
       setDraft(EMPTY);
       setEditing(false);
       codes.reload();
@@ -72,7 +72,7 @@ export function CodesTab({ me }: { me: Me }) {
     setRemoving(c.id);
     try {
       await api.del(`/mapping/codes/${c.id}`);
-      toast.success(`Code ${c.code} deactivated.`);
+      toast.success(`Code ${c.code} deactivated. The cases carrying it have been re-scored.`);
       codes.reload();
       unmapped.reload();
     } catch (err) {

@@ -300,3 +300,24 @@ def test_sourcetrace_sends_only_court_records_and_filings(client: TestClient, wo
         select(NextDate).where(NextDate.case_id == case.id, NextDate.source == NextDateSource.ORDER_PERIOD)
     )
     assert nd.next_date == date(2026, 9, 15) and nd.needs_review is True  # advisory: a person confirms
+
+
+def test_same_file_twice_or_already_on_case_attaches_once(client: TestClient, world) -> None:
+    """Regression: duplicate attachments violated the (note, document) unique constraint and returned 500."""
+    edu = auth(login(client, "edu.admin@t.in"))
+    case_id = _claimed_case(client, edu)
+    pdf = b"%PDF-1.4 same content"
+    client.post(
+        f"/api/v1/cases/{case_id}/documents",
+        headers=edu,
+        data={"doc_type": "other"},
+        files={"file": ("already.pdf", pdf, "application/pdf")},
+    )
+    r = client.post(
+        f"/api/v1/cases/{case_id}/notes",
+        headers=edu,
+        data={"body": "twice"},
+        files=[("files", ("a.pdf", pdf, "application/pdf")), ("files", ("b.pdf", pdf, "application/pdf"))],
+    )
+    assert r.status_code == 201, r.text
+    assert len(r.json()["attachments"]) == 1

@@ -9,6 +9,7 @@ import { Card, Notice, PageHeader } from "@/components/ui/Layout";
 import { Pagination } from "@/components/ui/Pagination";
 import { Async, Empty, Loading } from "@/components/ui/States";
 import { fmtNumber } from "@/lib/format";
+import { useConfig } from "@/lib/config";
 import { useApi } from "@/lib/hooks";
 import type { CaseType, LiveSearch, SearchOut } from "@/lib/types";
 import { useUrlState } from "@/lib/urlState";
@@ -42,6 +43,7 @@ function SearchInner() {
   const url = useUrlState();
   const { departments } = useOffices();
   const caseTypes = useApi<CaseType[]>("/masters/case-types");
+  const { config, loaded } = useConfig();
   const current: Draft = Object.fromEntries(FILTERS.map((k) => [k, url.get(k)])) as Draft;
   const [draft, setDraft] = useState<Draft>(current);
   const page = Number(url.get("page", "1")) || 1;
@@ -160,6 +162,9 @@ function SearchInner() {
           </div>
         </form>
       </Card>
+      {loaded && !config.napix_enabled ? (
+        <Notice tone="warning">Court API not configured: only the portal database is searched. Cases not yet in the portal cannot be fetched from the court.</Notice>
+      ) : null}
       {!hasQuery ? (
         <Empty title="Search for a case" center>
           Enter a CINO, a case number such as WP(C)/1234/2026, or a party or advocate name, or choose filters.

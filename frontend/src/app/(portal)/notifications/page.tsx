@@ -94,7 +94,11 @@ function NotificationsInner() {
                         </span>
                       </div>
                       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                        {n.alert_id ? (
+                        {n.case_id ? (
+                          <Link href={`/cases/${n.case_id}`} style={{ fontSize: 14, fontWeight: 600 }}>
+                            Open case
+                          </Link>
+                        ) : n.alert_id ? (
                           <Link href="/alerts" style={{ fontSize: 14, fontWeight: 600 }}>
                             Alerts
                           </Link>

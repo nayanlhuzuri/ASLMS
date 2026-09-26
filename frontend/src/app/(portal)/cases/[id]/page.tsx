@@ -8,7 +8,10 @@ import { CaseHeader } from "@/components/case/detail/CaseHeader";
 import s from "@/components/case/detail/detail.module.css";
 import { DocumentsTab } from "@/components/case/detail/DocumentsTab";
 import { OverviewTab } from "@/components/case/detail/OverviewTab";
-import { AssistantPanel, NotesPanel } from "@/components/case/detail/PhasePanels";
+import { AssistantChat } from "@/components/case/detail/AssistantChat";
+import { NotesTab } from "@/components/case/detail/NotesTab";
+import { RequestsTab } from "@/components/case/detail/Requests";
+import { CustodyTrail } from "@/components/case/detail/Workflow";
 import { HearingsTab, LinksTab, ListingsCard, OrdersTab, OwnershipTab, SignalsTab, TimelineTab } from "@/components/case/detail/SimpleTabs";
 import { useMe } from "@/components/shell/MeContext";
 import { Card, CardHead, KV, Notice } from "@/components/ui/Layout";
@@ -25,11 +28,12 @@ const TABS: TabDef[] = [
   { id: "hearings", label: "Hearings" },
   { id: "orders", label: "Orders" },
   { id: "documents", label: "Documents" },
+  { id: "requests", label: "Requests" },
+  { id: "notes", label: "Notes & files" },
   { id: "links", label: "Linked cases" },
   { id: "timeline", label: "Timeline" },
   { id: "ownership", label: "Ownership history" },
   { id: "signals", label: "Signals" },
-  { id: "notes", label: "Notes & custody" },
   { id: "assistant", label: "Case Assistant" },
 ];
 
@@ -42,7 +46,7 @@ function TrackingView({ c }: { c: CaseCard }) {
   return (
     <>
       <Notice>
-        This case is outside your department&apos;s access, so only its tracking card is shown: status, next hearing, owner and cause-list appearances.
+        This case is outside your department&apos;s access, so only its tracking card is shown: status, next hearing, owner, custody, stage and cause-list appearances.
       </Notice>
       <div className={s.columns}>
         <div className={s.main}>
@@ -68,6 +72,7 @@ function TrackingView({ c }: { c: CaseCard }) {
           <TimelineTab caseId={c.id} trackingOnly />
         </div>
         <div className={s.side}>
+          <CustodyTrail caseId={c.id} />
           <Card>
             <CardHead title="Ownership" caption />
             <KV
@@ -131,10 +136,12 @@ function CaseInner() {
           <OwnershipTab caseId={c.id} />
         ) : active === "signals" ? (
           <SignalsTab caseId={c.id} />
+        ) : active === "requests" ? (
+          <RequestsTab caseId={c.id} canWrite={!me.read_only} onChanged={state.reload} />
         ) : active === "notes" ? (
-          <NotesPanel />
+          <NotesTab caseId={c.id} canWrite={!me.read_only} />
         ) : (
-          <AssistantPanel />
+          <AssistantChat caseId={c.id} />
         )}
       </TabPanel>
     </>

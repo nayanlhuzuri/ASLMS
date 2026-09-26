@@ -20,11 +20,11 @@ const HEADERS: Record<string, string> = {
 
 const MONO = new Set(["department", "office", "code", "case_type"]);
 
-function cell(key: string, v: string | number | null): string {
+function cell(key: string, v: unknown): string {
   if (v === null || v === undefined) return "-";
   if (typeof v === "number") return fmtNumber(v);
-  if (key === "date") return fmtDate(v);
-  return v;
+  if (typeof v === "string") return key === "date" ? fmtDate(v) : v;
+  return String(v);
 }
 
 export function ReportExport({ path, query }: { path: string; query?: Query }) {
@@ -67,7 +67,7 @@ export function ReportView({ path, query, empty }: { path: string; query?: Query
                     header: HEADERS[k] ?? humanize(k),
                     num: typeof r.rows[0][k] === "number",
                     mono: MONO.has(k),
-                    render: (row: Record<string, string | number | null>) => cell(k, row[k]),
+                    render: (row: Record<string, unknown>) => cell(k, row[k]),
                   }))}
                 />
               )}

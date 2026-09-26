@@ -10,7 +10,7 @@ import { Card, CardHead } from "../../ui/Layout";
 import { Pill, StatusPill } from "../../ui/Pill";
 import { Async, Empty } from "../../ui/States";
 import { DataTable } from "../../ui/Table";
-import { asSignals, caseNumber, SignalList } from "../CaseBits";
+import { caseNumber, SignalList } from "../CaseBits";
 import s from "./detail.module.css";
 import { eventsToEntries, Timeline } from "./Timeline";
 
@@ -228,7 +228,7 @@ export function SignalsTab({ caseId }: { caseId: string }) {
                       </span>
                     }
                   />
-                  <SignalList signals={asSignals(r.signals)} />
+                  <SignalList signals={r.signals} />
                   <div className="muted" style={{ fontSize: 12 }}>
                     Computed {fmtDateTime(r.computed_at)}. Scores only recommend; nothing is assigned until a department claims the case.
                   </div>

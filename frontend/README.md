@@ -80,13 +80,15 @@ src/
     (public)/login, forgot      sign-in with OTP, password reset
     (portal)/                   the signed-in portal (shell: nav, header, search, notifications)
       page.tsx                  dashboard (role-aware)
-      welcome, inbox, search, cases/[id], alerts, notifications, causelists, reports, admin, audit, settings
+      welcome, inbox, requests, search, cases/[id], alerts, notifications, causelists, research, reports,
+      admin, audit, settings
     api/auth/*                  login, verify, logout, forgot, reset (BFF)
     api/v1/[...path]            authenticated proxy to the backend
   components/
     ui/                         buttons, pills, cards, fields, tabs, dialog, toasts, tables, pagination
     shell/                      app shell, notification bell, signed-in user context
     case/                       tracking cards, hearing rows, signals; detail/ for the case page tabs
+                                (custody strip and trail, stages, requests, notes trail, Case Assistant)
     inbox/ dashboard/ alerts/ reports/ admin/ settings/
   lib/
     api-types.ts                generated from openapi.json (do not edit)
@@ -94,5 +96,6 @@ src/
     api.ts                      browser API client (typed errors, redirect on 401)
     server/                     BFF session and relay helpers (server-only)
     format.ts                   DD Mon YYYY dates, IST times, Indian number grouping
+    config.ts                   GET /config (upload limit and types, NAPIX / SourceTrace switches)
     roles.ts labels.ts hooks.ts urlState.ts safeNext.ts
 ```

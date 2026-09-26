@@ -74,6 +74,7 @@ def add_note(session: Session, actor: Actor, p: Principal, case: Case, note: Not
     )
     session.add(n)
     session.flush()
+    attached: set[uuid.UUID] = set()
     for req in note.attachments:
         req = documents.UploadRequest(
             req.filename,
@@ -85,6 +86,9 @@ def add_note(session: Session, actor: Actor, p: Principal, case: Case, note: Not
             internal=True,
         )
         doc = _attach(session, actor, p, case, req)
+        if doc.id in attached:
+            continue  # the same file given twice is stored and linked once (sha256 dedupe)
+        attached.add(doc.id)
         session.add(CaseNoteAttachment(note_id=n.id, document_id=doc.id))
         events.emit(
             session,

@@ -38,6 +38,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Config
+         * @description Non-secret settings the portal needs (upload limit, feature switches, score thresholds).
+         */
+        get: operations["config_api_v1_config_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/login": {
         parameters: {
             query?: never;
@@ -942,6 +962,7 @@ export interface paths {
         /**
          * Offices
          * @description Every signed-in user can list offices (needed to suggest a department or transfer).
+         *     `include_inactive=true` returns active and inactive offices together.
          */
         get: operations["offices_api_v1_offices_get"];
         put?: never;
@@ -1270,6 +1291,275 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/cases/{case_id}/custody/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Custody History
+         * @description The movement trail is part of the tracking card: visible to every signed-in user.
+         */
+        get: operations["custody_history_api_v1_cases__case_id__custody_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cases/{case_id}/requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Case Requests */
+        get: operations["case_requests_api_v1_cases__case_id__requests_get"];
+        put?: never;
+        /** Send Request */
+        post: operations["send_request_api_v1_cases__case_id__requests_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Requests
+         * @description Requests addressed to (or sent by) your office and the offices below it.
+         */
+        get: operations["my_requests_api_v1_requests_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/requests/{request_id}/answer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Answer */
+        post: operations["answer_api_v1_requests__request_id__answer_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/requests/{request_id}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Withdraw */
+        post: operations["withdraw_api_v1_requests__request_id__withdraw_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/requests/{request_id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Message */
+        post: operations["message_api_v1_requests__request_id__messages_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stages
+         * @description The guided department lifecycle, in order (not enforced).
+         */
+        get: operations["stages_api_v1_stages_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cases/{case_id}/stages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Case Stages */
+        get: operations["case_stages_api_v1_cases__case_id__stages_get"];
+        put?: never;
+        /** Set Stage */
+        post: operations["set_stage_api_v1_cases__case_id__stages_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cases/{case_id}/handover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Handover */
+        post: operations["handover_api_v1_cases__case_id__handover_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cases/{case_id}/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Notes */
+        get: operations["list_notes_api_v1_cases__case_id__notes_get"];
+        put?: never;
+        /** Add Note */
+        post: operations["add_note_api_v1_cases__case_id__notes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/assistant/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Status */
+        get: operations["status_api_v1_assistant_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cases/{case_id}/assistant": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Case Conversations */
+        get: operations["case_conversations_api_v1_cases__case_id__assistant_get"];
+        put?: never;
+        /** Ask Case */
+        post: operations["ask_case_api_v1_cases__case_id__assistant_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/research": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Research Conversations */
+        get: operations["research_conversations_api_v1_research_get"];
+        put?: never;
+        /** Ask Research */
+        post: operations["ask_research_api_v1_research_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/assistant/conversations/{conversation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Conversation */
+        get: operations["get_conversation_api_v1_assistant_conversations__conversation_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/assistant/messages/{message_id}/to-note": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Copy To Note */
+        post: operations["copy_to_note_api_v1_assistant_messages__message_id__to_note_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1326,6 +1616,39 @@ export interface components {
             /** Officer User Id */
             officer_user_id?: string | null;
         };
+        /** AnswerIn */
+        AnswerIn: {
+            /** Body */
+            body: string;
+        };
+        /** AskIn */
+        AskIn: {
+            /** Question */
+            question: string;
+            /** Conversation Id */
+            conversation_id?: string | null;
+        };
+        /** AssistantMessageOut */
+        AssistantMessageOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Role */
+            role: string;
+            /** Content */
+            content: string;
+            /** Citations */
+            citations: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
         /** AuditOut */
         AuditOut: {
             /**
@@ -1362,6 +1685,28 @@ export interface components {
             after: {
                 [key: string]: unknown;
             } | null;
+        };
+        /** Body_add_note_api_v1_cases__case_id__notes_post */
+        Body_add_note_api_v1_cases__case_id__notes_post: {
+            /** Body */
+            body: string;
+            /**
+             * Kind
+             * @default general
+             */
+            kind: string;
+            /**
+             * Visibility
+             * @default case_scope
+             */
+            visibility: string;
+            /** Supersedes Id */
+            supersedes_id?: string | null;
+            /**
+             * Files
+             * @default []
+             */
+            files: string[];
         };
         /** Body_upload_document_api_v1_cases__case_id__documents_post */
         Body_upload_document_api_v1_cases__case_id__documents_post: {
@@ -1438,6 +1783,9 @@ export interface components {
              *     }
              */
             owners: components["schemas"]["Owners"];
+            custody?: components["schemas"]["CustodyOut"] | null;
+            /** Stage */
+            stage?: string | null;
             /**
              * In Scope
              * @default false
@@ -1485,6 +1833,9 @@ export interface components {
              *     }
              */
             owners: components["schemas"]["Owners"];
+            custody?: components["schemas"]["CustodyOut"] | null;
+            /** Stage */
+            stage?: string | null;
             /**
              * In Scope
              * @default false
@@ -1560,6 +1911,18 @@ export interface components {
             /** Aliases */
             aliases: string[];
         };
+        /** CauseListDateOut */
+        CauseListDateOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Lists */
+            lists: number;
+            /** Entries */
+            entries: number;
+        };
         /** CauseListOut */
         CauseListOut: {
             /**
@@ -1589,6 +1952,20 @@ export interface components {
             /** Document Id */
             document_id: string | null;
         };
+        /** CauseListStat */
+        CauseListStat: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Source */
+            source: string;
+            /** Lists */
+            lists: number;
+            /** Entries */
+            entries: number;
+        };
         /** Challenge */
         Challenge: {
             /**
@@ -1615,6 +1992,55 @@ export interface components {
             office_id?: string | null;
             /** Reason */
             reason?: string | null;
+        };
+        /**
+         * ConfigOut
+         * @description Settings the portal needs (no secrets).
+         */
+        ConfigOut: {
+            /** Upload Max Mb */
+            upload_max_mb: number;
+            /** Allowed Upload Types */
+            allowed_upload_types: string[];
+            /** Napix Enabled */
+            napix_enabled: boolean;
+            /** Sourcetrace Enabled */
+            sourcetrace_enabled: boolean;
+            /** Score Strong Threshold */
+            score_strong_threshold: number;
+            /** Score Possible Threshold */
+            score_possible_threshold: number;
+            /** App Env */
+            app_env: string;
+        };
+        /** ConversationOut */
+        ConversationOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Case Id */
+            case_id: string | null;
+            /** Scope */
+            scope: string;
+            /** Title */
+            title: string | null;
+            /** Last Message At */
+            last_message_at: string | null;
+            /**
+             * Messages
+             * @default []
+             */
+            messages: components["schemas"]["AssistantMessageOut"][];
+        };
+        /** CopyToNoteIn */
+        CopyToNoteIn: {
+            /**
+             * Visibility
+             * @default case_scope
+             */
+            visibility: string;
         };
         /** CounselCodeIn */
         CounselCodeIn: {
@@ -1661,12 +2087,121 @@ export interface components {
             /** Is Active */
             is_active: boolean;
         };
+        /** CustodyLegOut */
+        CustodyLegOut: {
+            /** Seq No */
+            seq_no: number;
+            /** Holder Office */
+            holder_office: string;
+            /** Holder User */
+            holder_user: string | null;
+            /** Reason */
+            reason: string;
+            /** Pending Action */
+            pending_action: string | null;
+            /** Due Date */
+            due_date: string | null;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /** Moved By */
+            moved_by: string | null;
+            /** Moved By Office */
+            moved_by_office: string | null;
+        };
+        /**
+         * CustodyOut
+         * @description Where the case is right now (eOffice-style custody), part of the tracking card.
+         */
+        CustodyOut: {
+            holder_office: components["schemas"]["OwnerRef"];
+            /** Holder User */
+            holder_user: string | null;
+            /** Pending Action */
+            pending_action: string | null;
+            /**
+             * Since
+             * Format: date-time
+             */
+            since: string;
+            /** Due Date */
+            due_date: string | null;
+            /** Days Pending */
+            days_pending: number;
+            /** Overdue */
+            overdue: boolean;
+        };
+        /** DashboardOut */
+        DashboardOut: {
+            /** Role */
+            role: string;
+            /** Cases In Scope */
+            cases_in_scope: number;
+            /** Pending Cases */
+            pending_cases: number;
+            /** Hearings 48H */
+            hearings_48h: number;
+            /** Hearings Week */
+            hearings_week: number;
+            /** Unread Notifications */
+            unread_notifications: number;
+            /** Open Critical Alerts */
+            open_critical_alerts: number;
+            /** Undelivered Email */
+            undelivered_email: number;
+            /** Recommended High */
+            recommended_high?: number | null;
+            /** Recommended Total */
+            recommended_total?: number | null;
+            /** Transfers Incoming */
+            transfers_incoming?: number | null;
+            /** By Unit */
+            by_unit?: components["schemas"]["UnitCount"][] | null;
+            /** Unclaimed Pending */
+            unclaimed_pending?: number | null;
+            /** Unclaimed Listed Week */
+            unclaimed_listed_week?: number | null;
+            /** By Department */
+            by_department?: components["schemas"]["DepartmentCount"][] | null;
+            /** Allotted To Me */
+            allotted_to_me?: number | null;
+        };
+        /** DataHealthOut */
+        DataHealthOut: {
+            /** Jobs */
+            jobs: components["schemas"]["JobRunOut"][];
+            /** Napix Calls */
+            napix_calls: components["schemas"]["NapixCallStat"][];
+            /** Open Failures */
+            open_failures: components["schemas"]["OpenFailure"][];
+            /** Cause Lists */
+            cause_lists: components["schemas"]["CauseListStat"][];
+            /** Entries By Source */
+            entries_by_source: components["schemas"]["EntrySourceStat"][];
+            /** Orders */
+            orders: {
+                [key: string]: number;
+            };
+        };
         /** DecideIn */
         DecideIn: {
             /** Office Id */
             office_id?: string | null;
             /** Reason */
             reason?: string | null;
+        };
+        /** DepartmentCount */
+        DepartmentCount: {
+            /** Office Id */
+            office_id: string;
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+            /** Pending */
+            pending: number;
         };
         /** DismissIn */
         DismissIn: {
@@ -1758,6 +2293,17 @@ export interface components {
                 [key: string]: unknown;
             } | null;
         };
+        /** EntrySourceStat */
+        EntrySourceStat: {
+            /** Source */
+            source: string;
+            /** Entries */
+            entries: number;
+            /** With Cnr */
+            with_cnr: number;
+            /** Cnr Rate */
+            cnr_rate: number;
+        };
         /** EventOut */
         EventOut: {
             /**
@@ -1779,18 +2325,59 @@ export interface components {
             /** Visibility */
             visibility: string;
         };
+        /** FailureOut */
+        FailureOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Ref */
+            ref: string;
+            /** Error */
+            error: string;
+            /** Attempts */
+            attempts: number;
+            /**
+             * First Seen
+             * Format: date-time
+             */
+            first_seen: string;
+            /**
+             * Last Seen
+             * Format: date-time
+             */
+            last_seen: string;
+            /** Resolved At */
+            resolved_at: string | null;
+        };
         /** ForgotIn */
         ForgotIn: {
-            /**
-             * Email
-             * Format: email
-             */
+            /** Email */
             email: string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** HandoverIn */
+        HandoverIn: {
+            /**
+             * To Office Id
+             * Format: uuid
+             */
+            to_office_id: string;
+            /** To User Id */
+            to_user_id?: string | null;
+            /** Note */
+            note: string;
+            /** Pending Action */
+            pending_action?: string | null;
+            /** Due Date */
+            due_date?: string | null;
         };
         /** HearingOut */
         HearingOut: {
@@ -1816,6 +2403,28 @@ export interface components {
             job: string;
             /** List Date */
             list_date?: string | null;
+        };
+        /** JobRunOut */
+        JobRunOut: {
+            /** Job */
+            job: string;
+            /** Run Date */
+            run_date: string | null;
+            /** Status */
+            status: string;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /** Finished At */
+            finished_at: string | null;
+            /** Counters */
+            counters: {
+                [key: string]: unknown;
+            };
+            /** Error */
+            error: string | null;
         };
         /** KeywordIn */
         KeywordIn: {
@@ -1895,12 +2504,28 @@ export interface components {
              */
             causelist_id: string;
         };
+        /**
+         * ListingRef
+         * @description The latest cause-list appearance of the recommended case.
+         */
+        ListingRef: {
+            /**
+             * List Date
+             * Format: date
+             */
+            list_date: string;
+            /** List Type */
+            list_type: string;
+            /** Court No */
+            court_no: string | null;
+            /** Item */
+            item: string | null;
+            /** Section */
+            section: string | null;
+        };
         /** LoginIn */
         LoginIn: {
-            /**
-             * Email
-             * Format: email
-             */
+            /** Email */
             email: string;
             /** Password */
             password: string;
@@ -1942,6 +2567,22 @@ export interface components {
             /** Can Admin */
             can_admin: boolean;
         };
+        /** MessageIn */
+        MessageIn: {
+            /** Body */
+            body: string;
+        };
+        /** NapixCallStat */
+        NapixCallStat: {
+            /** Api */
+            api: string;
+            /** Calls */
+            calls: number;
+            /** Ok */
+            ok: number;
+            /** Avg Ms */
+            avg_ms: number;
+        };
         /** NextDateOut */
         NextDateOut: {
             /**
@@ -1972,6 +2613,64 @@ export interface components {
              */
             created_at: string;
         };
+        /** NoteAttachmentOut */
+        NoteAttachmentOut: {
+            /**
+             * Document Id
+             * Format: uuid
+             */
+            document_id: string;
+            /** Filename */
+            filename: string | null;
+            /** Mime */
+            mime: string;
+            /** Size Bytes */
+            size_bytes: number;
+            /** Virus Scan Status */
+            virus_scan_status: string;
+        };
+        /** NoteOut */
+        NoteOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Seq No */
+            seq_no: number;
+            /** Kind */
+            kind: string;
+            /** Body */
+            body: string;
+            /** Visibility */
+            visibility: string;
+            /** Author */
+            author: string | null;
+            /** Author Designation */
+            author_designation: string | null;
+            /** Author Office */
+            author_office: string | null;
+            /** Author Role */
+            author_role: string;
+            /** Custody Leg Seq */
+            custody_leg_seq: number | null;
+            /** Supersedes Seq */
+            supersedes_seq: number | null;
+            /** Superseded By */
+            superseded_by: number[];
+            /** Source */
+            source: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Attachments
+             * @default []
+             */
+            attachments: components["schemas"]["NoteAttachmentOut"][];
+        };
         /** NotificationOut */
         NotificationOut: {
             /**
@@ -1981,6 +2680,8 @@ export interface components {
             id: string;
             /** Alert Id */
             alert_id: string | null;
+            /** Case Id */
+            case_id?: string | null;
             /** Channel */
             channel: string;
             /** Status */
@@ -2044,6 +2745,29 @@ export interface components {
             ok: boolean;
             /** Detail */
             detail?: string | null;
+        };
+        /** OpenFailure */
+        OpenFailure: {
+            /** Id */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Ref */
+            ref: string;
+            /** Error */
+            error: string;
+            /** Attempts */
+            attempts: number;
+            /**
+             * First Seen
+             * Format: date-time
+             */
+            first_seen: string;
+            /**
+             * Last Seen
+             * Format: date-time
+             */
+            last_seen: string;
         };
         /** OrderOut */
         OrderOut: {
@@ -2177,6 +2901,17 @@ export interface components {
             /** Items */
             items: components["schemas"]["RecommendationOut"][];
         };
+        /** Page[RequestOut] */
+        Page_RequestOut_: {
+            /** Total */
+            total: number;
+            /** Page */
+            page: number;
+            /** Size */
+            size: number;
+            /** Items */
+            items: components["schemas"]["RequestOut"][];
+        };
         /** Page[UserOut] */
         Page_UserOut_: {
             /** Total */
@@ -2295,9 +3030,8 @@ export interface components {
             /** Origin */
             origin: string;
             /** Signals */
-            signals: {
-                [key: string]: unknown;
-            }[];
+            signals: components["schemas"]["SignalOut"][];
+            listing?: components["schemas"]["ListingRef"] | null;
             /** Reason */
             reason: string | null;
             /**
@@ -2317,6 +3051,99 @@ export interface components {
             office_id?: string | null;
             /** Reason */
             reason: string;
+        };
+        /** ReportOut */
+        ReportOut: {
+            /** Title */
+            title: string;
+            /** Rows */
+            rows: {
+                [key: string]: unknown;
+            }[];
+        };
+        /** RequestIn */
+        RequestIn: {
+            /** Kind */
+            kind: string;
+            /**
+             * To Office Id
+             * Format: uuid
+             */
+            to_office_id: string;
+            /** To User Id */
+            to_user_id?: string | null;
+            /** Subject */
+            subject: string;
+            /** Body */
+            body?: string | null;
+            /** Due Date */
+            due_date?: string | null;
+        };
+        /** RequestMessageOut */
+        RequestMessageOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Body */
+            body: string;
+            /** Is Answer */
+            is_answer: boolean;
+            /** Author */
+            author: string | null;
+            /** Author Office */
+            author_office: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** RequestOut */
+        RequestOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Case Id
+             * Format: uuid
+             */
+            case_id: string;
+            /** Case No */
+            case_no?: string | null;
+            /** Kind */
+            kind: string;
+            from_office: components["schemas"]["OwnerRef"];
+            to_office: components["schemas"]["OwnerRef"];
+            /** To User */
+            to_user: string | null;
+            /** Subject */
+            subject: string;
+            /** Body */
+            body: string | null;
+            /** Due Date */
+            due_date: string | null;
+            /** Status */
+            status: string;
+            /** Overdue */
+            overdue: boolean;
+            /** Requested By */
+            requested_by: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Answered At */
+            answered_at: string | null;
+            /**
+             * Messages
+             * @default []
+             */
+            messages: components["schemas"]["RequestMessageOut"][];
         };
         /** ResetIn */
         ResetIn: {
@@ -2345,9 +3172,7 @@ export interface components {
             /** Score */
             score: number;
             /** Signals */
-            signals: {
-                [key: string]: unknown;
-            }[];
+            signals: components["schemas"]["SignalOut"][];
             /**
              * Computed At
              * Format: date-time
@@ -2371,6 +3196,82 @@ export interface components {
             live: {
                 [key: string]: unknown;
             };
+        };
+        /**
+         * SignalOut
+         * @description One reason behind a department's score.
+         */
+        SignalOut: {
+            /** Kind */
+            kind: string;
+            /** Value */
+            value: string;
+            /** Weight */
+            weight: number;
+            /** Office */
+            office?: string | null;
+            /** Matched Text */
+            matched_text?: string | null;
+        };
+        /** StageIn */
+        StageIn: {
+            /** Stage */
+            stage: string;
+            /** Note */
+            note?: string | null;
+            /** Response Mode */
+            response_mode?: string | null;
+        };
+        /** StageOut */
+        StageOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Stage */
+            stage: string;
+            /** Response Mode */
+            response_mode: string | null;
+            /** Note */
+            note: string | null;
+            /** Set By */
+            set_by: string | null;
+            /** Set By Office */
+            set_by_office: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** StageSetOut */
+        StageSetOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Stage */
+            stage: string;
+            /** Response Mode */
+            response_mode: string | null;
+            /** Note */
+            note: string | null;
+            /** Set By */
+            set_by: string | null;
+            /** Set By Office */
+            set_by_office: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Skipped
+             * @default []
+             */
+            skipped: string[];
         };
         /** Tokens */
         Tokens: {
@@ -2424,12 +3325,23 @@ export interface components {
             /** Decided At */
             decided_at: string | null;
         };
+        /** UnitCount */
+        UnitCount: {
+            /** Unit */
+            unit: string;
+            /** Cases */
+            cases: number;
+        };
+        /** UnmappedCodeOut */
+        UnmappedCodeOut: {
+            /** Code */
+            code: string;
+            /** Seen */
+            seen: number;
+        };
         /** UserIn */
         UserIn: {
-            /**
-             * Email
-             * Format: email
-             */
+            /** Email */
             email: string;
             /** Full Name */
             full_name: string;
@@ -2551,6 +3463,11 @@ export interface components {
              */
             created_at: string;
         };
+        /** WithdrawIn */
+        WithdrawIn: {
+            /** Reason */
+            reason?: string | null;
+        };
     };
     responses: never;
     parameters: never;
@@ -2600,6 +3517,26 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
+                };
+            };
+        };
+    };
+    config_api_v1_config_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigOut"];
                 };
             };
         };
@@ -3810,9 +4747,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["CauseListDateOut"][];
                 };
             };
             /** @description Validation Error */
@@ -4187,9 +5122,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["DashboardOut"];
                 };
             };
         };
@@ -4244,7 +5177,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ReportOut"];
                 };
             };
             /** @description Validation Error */
@@ -4275,9 +5208,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["DataHealthOut"];
                 };
             };
             /** @description Validation Error */
@@ -4310,7 +5241,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ReportOut"];
                 };
             };
             /** @description Validation Error */
@@ -4328,7 +5259,8 @@ export interface operations {
         parameters: {
             query?: {
                 kind?: string | null;
-                active?: boolean | null;
+                active?: boolean;
+                include_inactive?: boolean;
             };
             header?: never;
             path?: never;
@@ -4659,9 +5591,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["UnmappedCodeOut"][];
                 };
             };
             /** @description Validation Error */
@@ -4964,9 +5894,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["FailureOut"][];
                 };
             };
             /** @description Validation Error */
@@ -5068,6 +5996,636 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Page_AuditOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    custody_history_api_v1_cases__case_id__custody_history_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustodyLegOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    case_requests_api_v1_cases__case_id__requests_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RequestOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    send_request_api_v1_cases__case_id__requests_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RequestIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RequestOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    my_requests_api_v1_requests_get: {
+        parameters: {
+            query?: {
+                direction?: string;
+                status?: string | null;
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_RequestOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    answer_api_v1_requests__request_id__answer_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnswerIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RequestOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    withdraw_api_v1_requests__request_id__withdraw_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WithdrawIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RequestOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    message_api_v1_requests__request_id__messages_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MessageIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RequestOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stages_api_v1_stages_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string[];
+                };
+            };
+        };
+    };
+    case_stages_api_v1_cases__case_id__stages_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StageOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_stage_api_v1_cases__case_id__stages_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StageIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StageSetOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    handover_api_v1_cases__case_id__handover_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HandoverIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoteOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_notes_api_v1_cases__case_id__notes_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoteOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_note_api_v1_cases__case_id__notes_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_add_note_api_v1_cases__case_id__notes_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoteOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    status_api_v1_assistant_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    case_conversations_api_v1_cases__case_id__assistant_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ask_case_api_v1_cases__case_id__assistant_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AskIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    research_conversations_api_v1_research_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationOut"][];
+                };
+            };
+        };
+    };
+    ask_research_api_v1_research_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AskIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_conversation_api_v1_assistant_conversations__conversation_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    copy_to_note_api_v1_assistant_messages__message_id__to_note_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CopyToNoteIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ok"];
                 };
             };
             /** @description Validation Error */

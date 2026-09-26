@@ -22,7 +22,7 @@ function useRemove(after: () => void) {
     setBusy(id);
     try {
       await api.del(`${path}/${id}`);
-      toast.success(`${label} removed.`);
+      toast.success(`${label} removed. A full re-score of pending cases has been queued.`);
       after();
     } catch (e) {
       toast.error(e);
@@ -54,7 +54,7 @@ export function KeywordsTab({ me }: { me: Me }) {
     setBusyP(true);
     try {
       await api.post("/mapping/patterns", { office_id: p.office_id, pattern: p.pattern.trim(), kind: p.kind, weight: Number(p.weight) || 0.8 });
-      toast.success("Name pattern added.");
+      toast.success("Name pattern added. A full re-score of pending cases has been queued.");
       setP({ ...p, pattern: "" });
       patterns.reload();
     } catch (err) {
@@ -69,7 +69,7 @@ export function KeywordsTab({ me }: { me: Me }) {
     setBusyK(true);
     try {
       await api.post("/mapping/keywords", { office_id: k.office_id, keyword: k.keyword.trim(), weight: Number(k.weight) || 0.4 });
-      toast.success("Keyword added.");
+      toast.success("Keyword added. A full re-score of pending cases has been queued.");
       setK({ ...k, keyword: "" });
       keywords.reload();
     } catch (err) {

@@ -50,3 +50,5 @@ export const canSeeAudit = (me: Me) =>
 /** Adding to the department watchlist. */
 export const canWatch = (me: Me) => !me.read_only && has(me, "dept_admin", "dept_head", "central_operator");
 export const canWrite = (me: Me) => !me.read_only;
+/** Requests between offices: everyone except the read-only State tier. */
+export const canUseRequests = (me: Me) => !has(me, "state_oversight", "auditor");

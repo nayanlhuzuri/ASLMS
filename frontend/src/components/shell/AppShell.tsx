@@ -9,7 +9,10 @@ import {
   canSeeAudit,
   canSeeInbox,
   canSeeReports,
+  canUseRequests,
 } from "@/lib/roles";
+import { useApi } from "@/lib/hooks";
+import type { Page, RequestOut } from "@/lib/types";
 import type { Me } from "@/lib/types";
 import { Icon, type IconName } from "../ui/Icon";
 import ui from "../ui/ui.module.css";
@@ -22,14 +25,17 @@ interface NavDef {
   label: string;
   icon: IconName;
   show: (me: Me) => boolean;
+  badge?: "requests";
 }
 
 const NAV: NavDef[] = [
   { href: "/", label: "Dashboard", icon: "dashboard", show: () => true },
   { href: "/inbox", label: "Case Inbox", icon: "inbox", show: canSeeInbox },
+  { href: "/requests", label: "Requests", icon: "send", show: canUseRequests, badge: "requests" },
   { href: "/search", label: "Search", icon: "search", show: () => true },
   { href: "/alerts", label: "Alerts & Calendar", icon: "calendar", show: () => true },
   { href: "/causelists", label: "Cause Lists", icon: "list", show: () => true },
+  { href: "/research", label: "Research", icon: "chat", show: () => true },
   { href: "/reports", label: "Reports", icon: "reports", show: canSeeReports },
   { href: "/admin", label: "Administration", icon: "admin", show: canSeeAdmin },
   { href: "/audit", label: "Audit log", icon: "audit", show: canSeeAudit },
@@ -47,6 +53,8 @@ const TITLES: Record<string, string> = {
   admin: "Administration",
   audit: "Audit log",
   settings: "Settings",
+  requests: "Requests",
+  research: "Research",
   welcome: "Welcome",
 };
 
@@ -100,6 +108,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const openRequests = useApi<Page<RequestOut>>(canUseRequests(me) ? "/requests" : null, { direction: "incoming", status: "open", size: 1 });
+  const requestsReload = openRequests.reload;
+  useEffect(() => {
+    requestsReload();
+  }, [pathname, requestsReload]);
 
   useEffect(() => setOpen(false), [pathname]);
 
@@ -151,6 +164,11 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <Link href={n.href} className={`${s.navItem} ${active ? s.navActive : ""}`} aria-current={active ? "page" : undefined}>
                   <Icon name={n.icon} />
                   {n.label}
+                  {n.badge === "requests" && openRequests.data && openRequests.data.total > 0 ? (
+                    <span className={s.badge} aria-label={`${openRequests.data.total} open incoming`}>
+                      {openRequests.data.total > 99 ? "99+" : openRequests.data.total}
+                    </span>
+                  ) : null}
                 </Link>
               </li>
             );

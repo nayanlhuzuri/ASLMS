@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { fmtDate, fmtDayMonth, fmtScore, parties, weekday } from "@/lib/format";
+import { fmtDate, fmtDayMonth, fmtScore, humanize, parties, weekday } from "@/lib/format";
 import { signalLabel } from "@/lib/labels";
 import type { CaseCard, Signal } from "@/lib/types";
 import { HearingPill, Pill, StatusPill } from "../ui/Pill";
@@ -13,6 +13,20 @@ export function caseNumber(c: Pick<CaseCard, "case_no" | "filing_no" | "cnr">): 
 
 export function ownerName(c: CaseCard): string | null {
   return c.owners?.primary?.name ?? null;
+}
+
+/** Compact custody holder for list cards: "With DSE (A. Das) · 12 days". */
+export function CustodyChip({ c }: { c: CaseCard }) {
+  const k = c.custody;
+  if (!k) return null;
+  const who = `${k.holder_office.name}${k.holder_user ? ` (${k.holder_user})` : ""}`;
+  const days = `${k.days_pending} ${k.days_pending === 1 ? "day" : "days"}`;
+  return (
+    <Pill tone={k.overdue ? "criticalSoft" : "infoSoft"} title={k.pending_action ? `Pending: ${k.pending_action}` : undefined}>
+      With {who} · {days}
+      {k.overdue ? " · overdue" : ""}
+    </Pill>
+  );
 }
 
 /** A case as a tracking card: what every signed-in user may see. */
@@ -37,6 +51,8 @@ export function TrackingCard({ c, actions, extra }: { c: CaseCard; actions?: Rea
           <StatusPill status={c.status} />
           {c.is_provisional ? <Pill tone="warning">Provisional (no CNR yet)</Pill> : null}
           {owner ? <Pill tone="neutral">Held by {owner}</Pill> : <Pill tone="muted">Not claimed</Pill>}
+          <CustodyChip c={c} />
+          {c.stage ? <Pill tone="muted">Stage: {humanize(c.stage)}</Pill> : null}
           {c.owners?.watchers?.length ? <Pill tone="muted">Watched by {c.owners.watchers.map((w) => w.code).join(", ")}</Pill> : null}
         </div>
         {extra}
@@ -114,17 +130,6 @@ export function signalChip(sig: Signal): string {
   return `${signalLabel(sig.kind)}: ${sig.value}`;
 }
 
-export function asSignals(raw: Record<string, unknown>[]): Signal[] {
-  return raw.map((r) => ({
-    kind: String(r.kind ?? ""),
-    value: String(r.value ?? ""),
-    weight: typeof r.weight === "number" ? r.weight : Number(r.weight ?? 0),
-    office: r.office ? String(r.office) : undefined,
-    matched_text: r.matched_text ? String(r.matched_text) : null,
-    suggested_unit: r.suggested_unit ? String(r.suggested_unit) : null,
-  }));
-}
-
 /** The signals behind a score: kind, value, matched text and weight. */
 export function SignalList({ signals }: { signals: Signal[] }) {
   if (signals.length === 0) return <div className="muted" style={{ fontSize: 13 }}>No signals recorded.</div>;
@@ -136,7 +141,6 @@ export function SignalList({ signals }: { signals: Signal[] }) {
           <span>
             <span className={sig.kind === "counsel_code" || sig.kind === "watchlist" ? "mono" : undefined}>{sig.value}</span>
             {sig.matched_text && sig.matched_text !== sig.value ? <span className="muted"> · matched “{sig.matched_text}”</span> : null}
-            {sig.suggested_unit ? <span className="muted"> · unit {sig.suggested_unit}</span> : null}
           </span>
           <span className={s.signalWeight}>weight {sig.weight.toFixed(2)}</span>
         </div>

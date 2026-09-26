@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { fmtDate, humanize, parties } from "@/lib/format";
+import { listTypeLabel } from "@/lib/labels";
 import type { Recommendation } from "@/lib/types";
-import { asSignals, caseNumber, Details, ScoreBox, SignalList, signalChip } from "../case/CaseBits";
+import { caseNumber, CustodyChip, Details, ScoreBox, SignalList, signalChip } from "../case/CaseBits";
 import s from "../case/case.module.css";
 import { Button } from "../ui/Button";
 import { HearingPill, Pill } from "../ui/Pill";
@@ -28,7 +29,7 @@ export function RecommendationCard({
   onSuggest: () => void;
 }) {
   const c = rec.case;
-  const signals = asSignals(rec.signals);
+  const signals = rec.signals;
   return (
     <article className={s.card} aria-label={caseNumber(c)}>
       <ScoreBox score={rec.score} band={rec.band} />
@@ -38,7 +39,16 @@ export function RecommendationCard({
         </Link>
         <div className={s.meta}>
           <span className={s.caseNo}>{caseNumber(c)}</span>
-          <span>· {ORIGIN[rec.origin] ?? humanize(rec.origin)}</span>
+          {rec.listing ? (
+            <span>
+              · {rec.listing.list_type && rec.listing.list_type !== "daily" ? `${listTypeLabel(rec.listing.list_type)} list` : "Cause list"} {fmtDate(rec.listing.list_date)}
+              {rec.listing.court_no ? ` · Court No. ${rec.listing.court_no}` : ""}
+              {rec.listing.item ? ` · Item ${rec.listing.item}` : ""}
+              {rec.listing.section ? ` · ${rec.listing.section}` : ""}
+            </span>
+          ) : (
+            <span>· {ORIGIN[rec.origin] ?? humanize(rec.origin)}</span>
+          )}
           {c.next_hearing_date ? <span>· Next hearing {fmtDate(c.next_hearing_date)}</span> : null}
           {c.court ? <span>· {c.court}</span> : null}
           <HearingPill date={c.next_hearing_date} />
@@ -49,6 +59,7 @@ export function RecommendationCard({
               {signalChip(sig)}
             </Pill>
           ))}
+          <CustodyChip c={c} />
           {c.owners?.primary ? <Pill tone="warning">Already held by {c.owners.primary.name}</Pill> : null}
         </div>
         <Details summary="Why this recommendation">

@@ -151,3 +151,62 @@ export const JOBS: { value: string; label: string; needsDate?: boolean }[] = [
   { value: "rescore", label: "Re-score pending cases" },
   { value: "alerts", label: "Raise alerts" },
 ];
+
+export const REQUEST_KINDS: { value: string; label: string }[] = [
+  { value: "records", label: "Records (petition, notice, annexures)" },
+  { value: "report", label: "Report / parawise comments" },
+  { value: "instructions", label: "Instructions to standing counsel" },
+  { value: "views", label: "Views of a referral department" },
+  { value: "signature", label: "Signature on affidavit" },
+  { value: "implementation", label: "Implementation of a court order" },
+  { value: "brief", label: "Brief from standing counsel" },
+  { value: "other", label: "Other" },
+];
+export const requestKindLabel = (v: string) => REQUEST_KINDS.find((k) => k.value === v)?.label.split(" (")[0] ?? humanize(v);
+
+export const NOTE_KINDS: { value: string; label: string }[] = [
+  { value: "general", label: "General" },
+  { value: "instruction", label: "Instruction" },
+  { value: "opinion", label: "Opinion" },
+  { value: "hearing_note", label: "Hearing note" },
+  { value: "compliance", label: "Compliance" },
+  { value: "decision", label: "Decision" },
+];
+const NOTE_KIND_EXTRA: Record<string, string> = { handover: "Hand-over", system: "System", assistant: "From Case Assistant" };
+export const noteKindLabel = (v: string) => NOTE_KINDS.find((k) => k.value === v)?.label ?? NOTE_KIND_EXTRA[v] ?? humanize(v);
+
+const CUSTODY_REASONS: Record<string, string> = {
+  claim: "Claimed",
+  allot: "Allotted",
+  transfer: "Transferred",
+  request_sent: "Request sent",
+  request_answered: "Request answered",
+  request_withdrawn: "Request withdrawn",
+  handover: "Handed over",
+  release: "Released",
+};
+export const custodyReasonLabel = (v: string) => CUSTODY_REASONS[v] ?? humanize(v);
+
+const STAGES: Record<string, string> = {
+  notice_received: "Notice received",
+  records_received: "Records received",
+  response_mode_decided: "Response mode decided",
+  inputs_awaited: "Inputs awaited",
+  inputs_received: "Inputs received",
+  referral_views_awaited: "Referral views awaited",
+  instructions_sent: "Instructions sent",
+  affidavit_filed: "Affidavit filed",
+  order_under_examination: "Order under examination",
+  compliance_in_progress: "Compliance in progress",
+  complied: "Complied",
+  appeal_review_under_consideration: "Appeal / review under consideration",
+  appeal_review_instructed: "Appeal / review instructed",
+  appeal_review_filed: "Appeal / review filed",
+  contempt_notice_received: "Contempt notice received",
+  vakalatnama_sent: "Vakalatnama sent",
+  appearance_entered: "Appearance entered",
+};
+export const stageLabel = (v: string | null | undefined) => (v ? (STAGES[v] ?? humanize(v)) : "-");
+
+const REQUEST_STATUS: Record<string, string> = { open: "Open", answered: "Answered", withdrawn: "Withdrawn" };
+export const requestStatusLabel = (v: string) => REQUEST_STATUS[v] ?? humanize(v);

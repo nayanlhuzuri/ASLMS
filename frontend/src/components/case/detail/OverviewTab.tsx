@@ -10,6 +10,7 @@ import { Empty } from "../../ui/States";
 import s from "./detail.module.css";
 import { NextDates } from "./NextDates";
 import { Timeline } from "./Timeline";
+import { CustodyTrail, StageCard } from "./Workflow";
 
 function PartyColumn({ title, c, role }: { title: string; c: CaseDetail; role: "petitioner" | "respondent" }) {
   const parties = c.parties.filter((p) => p.role === role).sort((a, b) => a.party_no - b.party_no);
@@ -59,6 +60,8 @@ export function OverviewTab({ c, me, onChanged, onOpenTab }: { c: CaseDetail; me
   return (
     <div className={s.columns}>
       <div className={s.main}>
+        <StageCard c={c} canSet={!me.read_only} onChanged={onChanged} />
+
         <Card labelledBy="ov-next">
           <CardHead id="ov-next" title="Next hearing" caption />
           {c.next_hearing_date ? (
@@ -162,10 +165,7 @@ export function OverviewTab({ c, me, onChanged, onOpenTab }: { c: CaseDetail; me
       </div>
 
       <div className={s.side}>
-        <Card labelledBy="ov-custody">
-          <CardHead id="ov-custody" title="Custody" caption actions={<Pill tone="muted">Phase 2</Pill>} />
-          <p className={s.small}>Custody (who holds the file and the pending action) and the noting trail arrive in Phase 2.</p>
-        </Card>
+        <CustodyTrail caseId={c.id} />
 
         <Card labelledBy="ov-order">
           <CardHead id="ov-order" title="Latest order" caption />

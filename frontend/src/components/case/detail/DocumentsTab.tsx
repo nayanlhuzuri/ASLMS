@@ -2,6 +2,7 @@
 
 import { useRef, useState, type DragEvent, type FormEvent } from "react";
 import { api, apiUrl } from "@/lib/api";
+import { describeTypes, useConfig } from "@/lib/config";
 import { fmtBytes, fmtDate, todayIST } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 import { docTypeLabel, scanLabel, sourceTraceLabel, UPLOAD_DOC_TYPES, VISIBILITY, visibilityLabel } from "@/lib/labels";
@@ -15,10 +16,6 @@ import { Async, Empty } from "../../ui/States";
 import { useToast } from "../../ui/Toast";
 import s from "./detail.module.css";
 
-const ACCEPT = ".pdf,.doc,.docx,.jpg,.jpeg,.png,.tif,.tiff";
-const EXTENSIONS = ACCEPT.split(",");
-/** Backend default (UPLOAD_MAX_MB); the server enforces the configured value. */
-const MAX_MB = 25;
 
 const GROUPS: { id: string; title: string; note: string }[] = [
   { id: "court_record", title: "Court orders", note: "Collected automatically" },
@@ -86,6 +83,11 @@ function DocRow({ d }: { d: DocumentOut }) {
 
 function UploadPanel({ caseId, onUploaded }: { caseId: string; onUploaded: () => void }) {
   const toast = useToast();
+  const { config } = useConfig();
+  const EXTENSIONS = config.allowed_upload_types.map((e) => e.toLowerCase());
+  const ACCEPT = EXTENSIONS.join(",");
+  const MAX_MB = config.upload_max_mb;
+  const kinds = describeTypes(EXTENSIONS);
   const input = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [drag, setDrag] = useState(false);
@@ -105,7 +107,7 @@ function UploadPanel({ caseId, onUploaded }: { caseId: string; onUploaded: () =>
     if (!f) return;
     const ext = f.name.slice(f.name.lastIndexOf(".")).toLowerCase();
     if (!EXTENSIONS.includes(ext)) {
-      setError("Only PDF, Word (.doc, .docx) and image files (JPEG, PNG, TIFF) can be uploaded.");
+      setError(`Only ${kinds} files can be uploaded (${EXTENSIONS.join(", ")}).`);
       return;
     }
     if (f.size > MAX_MB * 1024 * 1024) {
@@ -175,7 +177,7 @@ function UploadPanel({ caseId, onUploaded }: { caseId: string; onUploaded: () =>
             <Icon name="upload" />
           </span>
           <span className={s.dropTitle}>{file ? file.name : "Drop a file here or choose a file"}</span>
-          <span>{file ? fmtBytes(file.size) : `PDF, Word or image, up to ${MAX_MB} MB · checked for viruses before saving`}</span>
+          <span>{file ? fmtBytes(file.size) : `${kinds}, up to ${MAX_MB} MB · checked for viruses before saving`}</span>
           <input ref={input} type="file" accept={ACCEPT} className="sr-only" onChange={(e) => pick(e.target.files?.[0])} />
         </label>
         {error ? (
@@ -197,7 +199,11 @@ function UploadPanel({ caseId, onUploaded }: { caseId: string; onUploaded: () =>
         ) : null}
         <Notice tone={internal ? "warning" : "info"}>
           <Icon name={internal ? "lock" : "info"} size={16} />
-          {internal ? "Internal document · stays in the portal, never sent to SourceTrace" : "Court filing · will be available to the Case Assistant"}
+          {internal
+            ? "Internal document · stays in the portal, never sent to SourceTrace"
+            : config.sourcetrace_enabled
+              ? "Court filing · will be available to the Case Assistant"
+              : "Court filing · will reach the Case Assistant once SourceTrace is connected"}
         </Notice>
         <Field label="Document date">
           <TextInput type="date" value={docDate} max={todayIST()} onChange={(e) => setDocDate(e.target.value)} />

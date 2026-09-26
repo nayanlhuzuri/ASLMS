@@ -123,7 +123,13 @@ export function NotificationBell() {
               {items.map((n) => (
                 <li key={n.id} className={s.dropItem}>
                   <div className={s.dropText}>
-                    <span style={{ fontWeight: 600 }}>{n.title}</span>
+                    {n.case_id ? (
+                      <Link href={`/cases/${n.case_id}`} style={{ fontWeight: 600 }} onClick={() => void markRead(n.id)}>
+                        {n.title}
+                      </Link>
+                    ) : (
+                      <span style={{ fontWeight: 600 }}>{n.title}</span>
+                    )}
                     {n.body ? <span className="muted">{n.body}</span> : null}
                     <span className={s.dropMeta}>{fmtDateTime(n.created_at)}</span>
                   </div>

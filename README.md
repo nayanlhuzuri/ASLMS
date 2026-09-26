@@ -19,7 +19,7 @@ cross-check. Case research and order reading go through SourceTrace, the in-hous
 | Sign-in with password + e-mailed OTP; nine roles; visibility enforced in SQL | built |
 | Phase 2: custody, requests between offices, guided stages, notes trail | built |
 | Phase 2: SourceTrace ingestion and period next dates | built against the interface; off until the SourceTrace API is available |
-| Phase 3: Case Assistant and research | conversation storage and UI built; answers need SourceTrace |
+| Phase 3: Case Assistant and research | conversation storage, case chat and Research page built; answers need SourceTrace |
 | Phase 3: District Courts via NAPIX DC API | not started (no DC specification in the repository) |
 | Deployment: Docker Compose with nginx, PgBouncer, ClamAV, Prometheus/Grafana, backups | built |
 

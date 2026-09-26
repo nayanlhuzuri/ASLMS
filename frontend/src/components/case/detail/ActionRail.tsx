@@ -11,8 +11,9 @@ import { Field, Select, TextArea } from "../../ui/Field";
 import { Notice } from "../../ui/Layout";
 import { useToast } from "../../ui/Toast";
 import { caseNumber } from "../CaseBits";
+import { HandoverDialog } from "./Workflow";
 
-type Open = null | "claim" | "transfer" | "allot" | "release" | "watch";
+type Open = null | "claim" | "transfer" | "allot" | "release" | "watch" | "handover";
 
 export interface RailPermissions {
   claim: boolean;
@@ -20,6 +21,7 @@ export interface RailPermissions {
   allot: boolean;
   release: boolean;
   watch: boolean;
+  handover: boolean;
   /** Department the caller acts for on an owned case (the owner, for the central operator). */
   actingOfficeId?: string;
 }
@@ -39,6 +41,8 @@ export function railPermissions(me: Me, c: CaseCard): RailPermissions {
     allot: writer && lead && !!primary && (operator || mineAsPrimary),
     release: writer && lead && (operator ? !!primary : mineAsPrimary || mineAsWatcher),
     watch: canWatch(me) && !!c.cnr,
+    // Hand-over needs access to the case; the backend decides whether the caller holds the file.
+    handover: writer && c.in_scope === true,
     actingOfficeId: operator ? (primary?.office_id ?? undefined) : undefined,
   };
 }
@@ -51,12 +55,17 @@ export function ActionRail({ me, c, onChanged }: { me: Me; c: CaseCard; onChange
     setOpen(null);
     onChanged();
   };
-  if (!perms.claim && !perms.transfer && !perms.allot && !perms.release && !perms.watch) return null;
+  if (!perms.claim && !perms.transfer && !perms.allot && !perms.release && !perms.watch && !perms.handover) return null;
   return (
     <>
       {perms.claim ? (
         <Button variant="primary" icon="claim" onClick={() => setOpen("claim")}>
           Claim
+        </Button>
+      ) : null}
+      {perms.handover ? (
+        <Button icon="transfer" onClick={() => setOpen("handover")}>
+          Hand over
         </Button>
       ) : null}
       {perms.allot ? (
@@ -65,7 +74,7 @@ export function ActionRail({ me, c, onChanged }: { me: Me; c: CaseCard; onChange
         </Button>
       ) : null}
       {perms.transfer ? (
-        <Button icon="transfer" onClick={() => setOpen("transfer")}>
+        <Button icon="link" onClick={() => setOpen("transfer")}>
           Transfer
         </Button>
       ) : null}
@@ -83,6 +92,7 @@ export function ActionRail({ me, c, onChanged }: { me: Me; c: CaseCard; onChange
       <TransferDialog open={open === "transfer"} c={c} actingOfficeId={perms.actingOfficeId} onClose={close} onDone={done} />
       <AllotDialog open={open === "allot"} me={me} c={c} actingOfficeId={perms.actingOfficeId} onClose={close} onDone={done} />
       <ReleaseDialog open={open === "release"} c={c} actingOfficeId={perms.actingOfficeId} onClose={close} onDone={done} />
+      <HandoverDialog open={open === "handover"} c={c} onClose={close} onDone={done} />
       <WatchDialog open={open === "watch"} me={me} c={c} onClose={close} onDone={done} />
     </>
   );

@@ -16,13 +16,16 @@ function alertPill(a: Alert): { tone: Tone; text: string } {
 }
 
 export interface AttentionProps {
-  recommended?: number;
-  recommendedHigh?: number;
-  transfersIn?: number;
+  recommended?: number | null;
+  recommendedHigh?: number | null;
+  transfersIn?: number | null;
   alerts: Alert[];
 }
 
-export function NeedsAttention({ recommended = 0, recommendedHigh = 0, transfersIn = 0, alerts }: AttentionProps) {
+export function NeedsAttention({ recommended: r, recommendedHigh: rh, transfersIn: ti, alerts }: AttentionProps) {
+  const recommended = r ?? 0;
+  const recommendedHigh = rh ?? 0;
+  const transfersIn = ti ?? 0;
   const empty = recommended === 0 && transfersIn === 0 && alerts.length === 0;
   return (
     <div className={s.attention}>

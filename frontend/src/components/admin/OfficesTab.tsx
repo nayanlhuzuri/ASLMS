@@ -32,9 +32,10 @@ export function OfficesTab({ me }: { me: Me }) {
 
   useEffect(() => {
     let alive = true;
-    Promise.all([api.get<Office[]>("/offices", { active: true }), api.get<Office[]>("/offices", { active: false })])
-      .then(([a, b]) => {
-        if (alive) setAll([...a, ...b].sort((x, y) => x.path.localeCompare(y.path)));
+    api
+      .get<Office[]>("/offices", { include_inactive: true })
+      .then((list) => {
+        if (alive) setAll([...list].sort((x, y) => x.path.localeCompare(y.path)));
       })
       .catch((e: unknown) => {
         if (alive) setError(e instanceof Error ? e.message : "Could not load offices.");
