@@ -13,6 +13,14 @@ from aslms.core.config import get_settings
 def configure_logging() -> None:
     settings = get_settings()
     level = getattr(logging, settings.log_level.upper(), logging.INFO)
+    # A console that cannot encode a character (e.g. cp1252 on Windows) must never make logging raise: log
+    # lines are written by code paths such as the dev mailer, and a logging error would fail the delivery.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            try:
+                stream.reconfigure(errors="backslashreplace")
+            except (ValueError, OSError):
+                pass
     logging.basicConfig(format="%(message)s", stream=sys.stdout, level=level)
     renderer = structlog.processors.JSONRenderer() if settings.is_prod else structlog.dev.ConsoleRenderer()
     structlog.configure(
