@@ -4,9 +4,18 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
-from typing import Any, Generic, TypeVar
+from typing import Annotated, Any, Generic, TypeVar
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+
+# E-mail shape only: pydantic's Email rejects reserved domains such as `.local`, which the seed and demo
+# accounts use, and government mail domains vary. Delivery itself proves the address.
+Email = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True, to_lower=True, max_length=320, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
+    ),
+]
 
 T = TypeVar("T")
 
@@ -29,7 +38,7 @@ class Ok(BaseModel):
 
 # ------------------------------------------------------------------ auth
 class LoginIn(BaseModel):
-    email: EmailStr
+    email: Email
     password: str
 
 
@@ -55,7 +64,7 @@ class RefreshIn(BaseModel):
 
 
 class ForgotIn(BaseModel):
-    email: EmailStr
+    email: Email
 
 
 class ResetIn(BaseModel):
@@ -114,7 +123,7 @@ class MeOut(UserOut):
 
 
 class UserIn(BaseModel):
-    email: EmailStr
+    email: Email
     full_name: str
     office_id: uuid.UUID
     role: str

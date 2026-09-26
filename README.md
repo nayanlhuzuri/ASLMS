@@ -1,14 +1,29 @@
 # ASLMS v2 — Assam State Legal Management System
 
-Legal Case Monitoring Portal for the Government of Assam: every department tracks its cases before the
-Gauhati High Court in one place, acts on court directions in time, and keeps an accountable record of how
-each case is handled. Data comes from the official eCourts / High Court APIs (NAPIX). Case research and
-order reading go through SourceTrace, the in-house RAG service.
+Legal Case Monitoring Portal for the Government of Assam. Every department tracks its cases before the Gauhati
+High Court in one place, acts on court directions in time, and keeps an accountable record of how each case is
+handled. Data comes from the official eCourts / High Court APIs (NAPIX), with the court's cause-list PDFs as a
+cross-check. Case research and order reading go through SourceTrace, the in-house RAG service.
 
-**Status (25 Sep 2026):** design approved, repository reorganised, backend skeleton and migration
-`0001_phase1_core` (39 tables) in place and round-trip tested, NAPIX integration layer written and tested
-offline against a mocked gateway. Next: run `aslms napix-check` with real credentials (the live test), then
-the daily data cycle. The database starts empty; there is no migration of earlier data.
+## What is built
+
+| Area | State |
+|---|---|
+| Daily data cycle: cause lists (NAPIX + PDF parser), cases by CNR, hearings, next dates, events | built; NAPIX side waits for `NAPIX_ENABLED` |
+| Recommend-and-claim: scoring from counsel codes, name patterns, keywords, watchlist, linked cases; inbox; claim, dismiss, suggest, transfer, allot, release | built |
+| Case tracking: first-sight fetch, daily Current Status, weekly refresh, change detection | built; needs NAPIX |
+| Orders archive with text extraction and next dates (specific dates read; periods flagged for review) | built; downloads need NAPIX |
+| Case documents: upload with type, visibility, virus scan | built |
+| Alerts, calendar, in-app / e-mail notifications, daily digest; SMS gateway hook | built |
+| Search (portal first, NAPIX fallback), case detail, dashboard per role, reports (Excel/CSV), administration, audit log | built |
+| Sign-in with password + e-mailed OTP; nine roles; visibility enforced in SQL | built |
+| Phase 2: custody, requests between offices, guided stages, notes trail | built |
+| Phase 2: SourceTrace ingestion and period next dates | built against the interface; off until the SourceTrace API is available |
+| Phase 3: Case Assistant and research | conversation storage and UI built; answers need SourceTrace |
+| Phase 3: District Courts via NAPIX DC API | not started (no DC specification in the repository) |
+| Deployment: Docker Compose with nginx, PgBouncer, ClamAV, Prometheus/Grafana, backups | built |
+
+The database starts empty. There is no migration of earlier data.
 
 ## Read first
 
@@ -16,57 +31,63 @@ the daily data cycle. The database starts empty; there is no migration of earlie
 |---|---|
 | `docs/Legal_Case_Monitoring_Portal_Plan.docx` | The agreed plan. Source of truth. |
 | `docs/claude_ASLMS_design_decisions.md` | Decision log and open points. |
-| `docs/schema/phase1.md` | Phase 1 database schema. |
+| `docs/schema/phase1.md` | Database schema (Phase 1 and the Phase 2/3 tables). |
+| `docs/operations.md` | Installation, configuration, daily operation, backups, upgrades. |
 | `docs/specs/napix/hc/`, `docs/postman/` | NAPIX High Court API stubs and the Postman test collection. |
 | `CLAUDE.md` | Working rules for anyone (or any agent) changing code here. |
 
 ## Layout
 
 ```
-backend/    FastAPI + SQLAlchemy 2 + Alembic + Celery  (Python 3.11+)
-frontend/   Next.js portal
-infra/      PgBouncer, Prometheus, Grafana, ClamAV, backups, nginx
-docs/       plan, decisions, schema, specs, postman
-tools/      one-off helper scripts
+backend/    FastAPI + SQLAlchemy 2 + Alembic + Celery (Python 3.11+); tests in backend/tests
+frontend/   Next.js portal (TypeScript); talks to the API through its own server-side proxy
+infra/      nginx, Prometheus, Grafana, backup scripts
+docs/       plan, decisions, schema, operations, specs
 data/       git-ignored local data: cause-list PDFs (data/causelists/DD-MM-YYYY/), document storage
 ```
 
-Earlier systems are kept outside this repository, for reference only:
-`D:\Dev Workspace\ASLMS-legacy\v1-legacy` and `D:\Dev Workspace\ASLMS-legacy\v2-prototype`.
+## Running on a laptop
 
-## Running locally
-
-Prerequisites: Docker Desktop (Postgres 16, Redis, ClamAV run as containers), Python 3.11+, Node 20+.
+Prerequisites: Docker Desktop, Python 3.11+, Node 20+.
 
 ```bash
-cp .env.example .env                       # fill NAPIX_* to use the live gateway
+cp .env.example .env
 docker compose up -d postgres redis
-docker compose run --rm api alembic upgrade head
-docker compose run --rm api aslms seed
-docker compose up -d                       # api, workers, beat
+
+cd backend
+python -m venv .venv && .venv/Scripts/pip install -e ".[dev]"     # Linux/macOS: .venv/bin/...
+.venv/Scripts/alembic upgrade head
+.venv/Scripts/aslms seed                 # structural offices, GAHC01, operator account
+.venv/Scripts/aslms seed-demo            # DEV ONLY: demo departments, code mappings, one account per role
+.venv/Scripts/aslms backfill --limit 5   # ingest cause-list PDFs from data/causelists
+.venv/Scripts/aslms rescore
+.venv/Scripts/uvicorn aslms.api.main:app --reload        # API on :8000, docs at /api/docs
+
+cd ../frontend
+npm install && npm run dev               # portal on http://localhost:3000 (API_BASE_URL=http://localhost:8000)
 ```
 
-Backend development without the `api` container (Python 3.11+; the venv lives in `backend/.venv`):
+Sign in with a demo account (the password is printed by `seed-demo`); the one-time code is written to the API's
+console while `SMTP_HOST` is empty.
+
+Everything in containers instead: `docker compose up -d --build` (portal on :3000).
+Production: see `docs/operations.md`.
+
+## Checks
 
 ```bash
-cd backend
-python -m venv .venv && .venv/Scripts/pip install -e ".[dev]"      # Windows; use .venv/bin on Linux
-.venv/Scripts/alembic upgrade head
-.venv/Scripts/aslms seed                     # structural offices, GAHC01, operator account (SEED_ADMIN_*)
-.venv/Scripts/python -m pytest -q            # integration tests use <db>_test and skip if Postgres is down
-.venv/Scripts/ruff check aslms tests alembic
-.venv/Scripts/uvicorn aslms.api.main:app --reload   # http://localhost:8000/api/docs
-.venv/Scripts/aslms napix-check --date 2026-09-26 --cnr GAHC010153612024   # live NAPIX test; needs NAPIX_* in .env
+cd backend && .venv/Scripts/python -m pytest -q && .venv/Scripts/ruff check aslms tests alembic
+cd frontend && npm run typecheck && npm run lint && npm run build
 ```
+Integration tests need Postgres (they create `<db>_test`) and are skipped when it is not reachable.
 
-`napix-check` walks overview → state → bench master → case type master → cause-list benches → cause-list
-details → show cause list (PDF) → CNR → current status → show business → order, prints one line per call and
-writes every decrypted response to `docs/specs/napix/hc/samples/` (git-ignored) for review.
+## Useful commands
 
-## Phases
-
-1. **Core** — live NAPIX test, daily data cycle, department mapping and inbox, case tracking, orders archive,
-   case document upload, specific-date alerts, search, case detail page, administration, login and roles,
-   in-app and email notifications, dashboard.
-2. **Workflow** — custody and requests, case notes trail, SourceTrace ingestion and period-based alerts, SMS, reports.
-3. **Extension** — Case Assistant and legal research through SourceTrace; District Courts through the NAPIX DC API.
+```bash
+aslms napix-check --date YYYY-MM-DD --cnr <CNR>   # live NAPIX test (needs NAPIX_ENABLED=true)
+aslms cycle --date YYYY-MM-DD                     # the daily cycle for one date
+aslms refresh status|full|first-sight|orders|masters|discovery
+aslms alerts                                      # raise alerts and send queued notifications
+aslms import-offices offices.csv / import-codes codes.csv / create-user ...
+aslms report                                      # data summary and top unmapped counsel codes
+```

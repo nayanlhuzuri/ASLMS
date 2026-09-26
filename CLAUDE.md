@@ -117,6 +117,14 @@ order_period | manual) · Alert · Notification · Event · AuditLog · Office (
   `est_code` per bench (GAHC01 assumed), `state_code` (6 assumed), auth-key encoding, and whether PDF APIs
   return raw `application/pdf` or base64 inside `response_str`. Record the answers in the decisions log.
 
+## Current state (26 Sep 2026)
+
+Phase 1 and the Phase 2 workflow are built and tested (70 backend tests); the Phase 3 assistant has its storage and
+UI. Waiting on outside input: NAPIX live test (`NAPIX_ENABLED=true`, `aslms napix-check`), the real
+code-to-department mapping from the departments, the SourceTrace API shapes, and the NAPIX DC specification.
+Migrations: 0001 (Phase 1 core), 0002 (`case_ownership.unit_office_id`), 0003 (Phase 2/3 tables).
+Operations: `docs/operations.md`.
+
 ## Build order — Phase 1 (Core), one reviewable change at a time
 
 1. Backend skeleton + migration `0001_phase1_core` (schema per `docs/schema/phase1.md`); `alembic upgrade head`,
@@ -134,8 +142,16 @@ order_period | manual) · Alert · Notification · Event · AuditLog · Office (
    daily digest; dashboard per role; search (portal DB first, NAPIX fallback, store on hit); case detail page.
 8. Reports and data-collection health; Next.js frontend per the UI boards.
 
-Phase 2: custody & workflow, notes trail, SourceTrace ingestion + period-based next dates, SMS, reports.
-Phase 3: Case Assistant & research, District Courts.
+Phase 2 (built): custody & workflow, notes trail, SourceTrace ingestion + period-based next dates (behind the
+interface), SMS hook, reports. Phase 3: Case Assistant & research (storage built, answers need SourceTrace),
+District Courts (not started).
+
+Additional rules learned while building:
+- Services take a sync `Session`; the caller owns the transaction. A service that must persist something even when
+  it then raises (OTP attempt counters, refresh-token revocation) commits before raising, with a comment saying why.
+- `NAPIX_ENABLED` is the master switch; never flip it on in code or tests.
+- Custody is only ever moved through `services.workflow.move`; officers' workflow access is personal (held by /
+  addressed to them), not by office.
 
 ## Running locally (once the skeleton exists)
 
