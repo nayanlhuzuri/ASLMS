@@ -96,6 +96,14 @@ services:
     profiles: ["monitoring"]
     depends_on: [redis]
 
+  web:
+    build: ./frontend
+    environment:
+      API_BASE_URL: http://api:8000
+      NODE_ENV: production
+    ports: ["3000:3000"]
+    depends_on: [api]
+
 volumes:
   pgdata_v2:
   redisdata_v2:

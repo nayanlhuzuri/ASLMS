@@ -165,6 +165,18 @@ class Owners(BaseModel):
     watchers: list[OwnerRef] = []
 
 
+class CustodyOut(BaseModel):
+    """Where the case is right now (eOffice-style custody), part of the tracking card."""
+
+    holder_office: OwnerRef
+    holder_user: str | None
+    pending_action: str | None
+    since: datetime
+    due_date: date | None
+    days_pending: int
+    overdue: bool
+
+
 class CaseCard(BaseModel):
     """Tracking card: visible to every signed-in user."""
 
@@ -184,6 +196,8 @@ class CaseCard(BaseModel):
     disposal_date: date | None
     court: str | None = None
     owners: Owners = Owners()
+    custody: CustodyOut | None = None
+    stage: str | None = None
     in_scope: bool = False
 
 
@@ -543,3 +557,145 @@ class AuditOut(ORM):
 class JobIn(BaseModel):
     job: str  # daily_cycle | status_refresh | full_refresh | master_sync | discovery | rescore | alerts
     list_date: date | None = None
+
+
+# ------------------------------------------------------------------ Phase 2: workflow and notes
+class CustodyLegOut(BaseModel):
+    seq_no: int
+    holder_office: str
+    holder_user: str | None
+    reason: str
+    pending_action: str | None
+    due_date: date | None
+    started_at: datetime
+    moved_by: str | None
+    moved_by_office: str | None
+
+
+class RequestIn(BaseModel):
+    kind: str
+    to_office_id: uuid.UUID
+    to_user_id: uuid.UUID | None = None
+    subject: str
+    body: str | None = None
+    due_date: date | None = None
+
+
+class RequestMessageOut(BaseModel):
+    id: uuid.UUID
+    body: str
+    is_answer: bool
+    author: str | None
+    author_office: str | None
+    created_at: datetime
+
+
+class RequestOut(BaseModel):
+    id: uuid.UUID
+    case_id: uuid.UUID
+    case_no: str | None = None
+    kind: str
+    from_office: OwnerRef
+    to_office: OwnerRef
+    to_user: str | None
+    subject: str
+    body: str | None
+    due_date: date | None
+    status: str
+    overdue: bool
+    requested_by: str | None
+    created_at: datetime
+    answered_at: datetime | None
+    messages: list[RequestMessageOut] = []
+
+
+class AnswerIn(BaseModel):
+    body: str
+
+
+class MessageIn(BaseModel):
+    body: str
+
+
+class WithdrawIn(BaseModel):
+    reason: str | None = None
+
+
+class StageIn(BaseModel):
+    stage: str
+    note: str | None = None
+    response_mode: str | None = None
+
+
+class StageOut(BaseModel):
+    id: uuid.UUID
+    stage: str
+    response_mode: str | None
+    note: str | None
+    set_by: str | None
+    set_by_office: str | None
+    created_at: datetime
+
+
+class StageSetOut(StageOut):
+    skipped: list[str] = []
+
+
+class HandoverIn(BaseModel):
+    to_office_id: uuid.UUID
+    to_user_id: uuid.UUID | None = None
+    note: str
+    pending_action: str | None = None
+    due_date: date | None = None
+
+
+class NoteAttachmentOut(BaseModel):
+    document_id: uuid.UUID
+    filename: str | None
+    mime: str
+    size_bytes: int
+    virus_scan_status: str
+
+
+class NoteOut(BaseModel):
+    id: uuid.UUID
+    seq_no: int
+    kind: str
+    body: str
+    visibility: str
+    author: str | None
+    author_designation: str | None
+    author_office: str | None
+    author_role: str
+    custody_leg_seq: int | None
+    supersedes_seq: int | None
+    superseded_by: list[int]
+    source: str | None
+    created_at: datetime
+    attachments: list[NoteAttachmentOut] = []
+
+
+class AskIn(BaseModel):
+    question: str
+    conversation_id: uuid.UUID | None = None
+
+
+class AssistantMessageOut(BaseModel):
+    id: uuid.UUID
+    role: str
+    content: str
+    citations: list[dict[str, Any]]
+    created_at: datetime
+
+
+class ConversationOut(BaseModel):
+    id: uuid.UUID
+    case_id: uuid.UUID | None
+    scope: str
+    title: str | None
+    last_message_at: datetime | None
+    messages: list[AssistantMessageOut] = []
+
+
+class CopyToNoteIn(BaseModel):
+    visibility: str = "case_scope"

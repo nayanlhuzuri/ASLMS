@@ -404,6 +404,7 @@ def run_job(body: S.JobIn, ctx: Ctx = Depends(roles(Role.CENTRAL_OPERATOR))) -> 
         "discovery": lambda: tasks.track_discovery.delay(),
         "rescore": lambda: tasks.ops_rescore_all.delay(),
         "alerts": lambda: tasks.notify_alerts.delay(),
+        "sourcetrace": lambda: tasks.documents_sourcetrace.delay(),
     }
     if body.job not in jobs:
         raise ValidationError("unknown job", available=list(jobs))

@@ -80,6 +80,49 @@ def _under(path_col, path: str) -> ColumnElement[bool]:
 def case_scope_clause(p: Principal) -> ColumnElement[bool]:
     if p.is_state_tier:
         return true()
+    base = _ownership_clause(p)
+    return or_(base, _custody_or_request_clause(p))
+
+
+def _custody_or_request_clause(p: Principal) -> ColumnElement[bool]:
+    """Phase 2: an office also sees a case it currently holds, or one with a request addressed to it
+    (decisions log: directorates see their own matters and requests addressed to them; referral departments
+    see the case they were asked for views on)."""
+    from aslms.domain.workflow import Custody, Request
+
+    if p.role in (Role.DEPT_OFFICER, Role.REFERRAL_REVIEWER):
+        # officers see only what is personally with them: holding the case, or a request addressed to them.
+        # (An officer sitting in the department office must not inherit every case the department holds.)
+        return or_(
+            exists(
+                select(Custody.case_id).where(Custody.case_id == Case.id, Custody.holder_user_id == p.user_id)
+            ),
+            exists(select(Request.id).where(Request.case_id == Case.id, Request.to_user_id == p.user_id)),
+        )
+    path = p.department_path if p.role in DEPT_WIDE else p.office_path
+    holder_office = Office.__table__.alias("holder_office")
+    to_office = Office.__table__.alias("to_office")
+    return or_(
+        exists(
+            select(Custody.case_id)
+            .join(holder_office, holder_office.c.id == Custody.holder_office_id)
+            .where(
+                Custody.case_id == Case.id,
+                or_(Custody.holder_user_id == p.user_id, _under(holder_office.c.path, path)),
+            )
+        ),
+        exists(
+            select(Request.id)
+            .join(to_office, to_office.c.id == Request.to_office_id)
+            .where(
+                Request.case_id == Case.id,
+                or_(Request.to_user_id == p.user_id, _under(to_office.c.path, path)),
+            )
+        ),
+    )
+
+
+def _ownership_clause(p: Principal) -> ColumnElement[bool]:
     owner_office = Office.__table__.alias("owner_office")
     unit_office = Office.__table__.alias("unit_office")
     active = and_(CaseOwnership.case_id == Case.id, CaseOwnership.status == OwnershipStatus.ACTIVE)

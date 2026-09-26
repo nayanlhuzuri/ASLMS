@@ -1,0 +1,130 @@
+# Production / pilot-server override:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# Adds nginx (the only public port), PgBouncer (transaction pooling), ClamAV, Flower, Prometheus + Grafana with
+# exporters, and nightly backups. Internal services lose their host ports. Set APP_ENV=prod and real secrets in .env.
+
+services:
+  postgres:
+    restart: unless-stopped
+    ports: !reset []
+
+  redis:
+    restart: unless-stopped
+    ports: !reset []
+
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    restart: unless-stopped
+    environment:
+      DB_HOST: postgres
+      DB_USER: ${POSTGRES_USER:-aslms}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-aslms}
+      DB_NAME: ${POSTGRES_DB:-aslms}
+      POOL_MODE: transaction
+      AUTH_TYPE: scram-sha-256
+      MAX_CLIENT_CONN: 400
+      DEFAULT_POOL_SIZE: 25
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  clamav:
+    profiles: !reset []
+    restart: unless-stopped
+    ports: !reset []
+
+  api:
+    restart: unless-stopped
+    ports: !reset []
+    environment: &prod_env
+      # the app talks to PgBouncer; migrations (alembic) should target postgres directly:
+      #   docker compose ... run --rm -e DATABASE_URL_SYNC=postgresql+psycopg://…@postgres:5432/aslms api alembic upgrade head
+      DATABASE_URL_SYNC: postgresql+psycopg://${POSTGRES_USER:-aslms}:${POSTGRES_PASSWORD:-aslms}@pgbouncer:5432/${POSTGRES_DB:-aslms}
+      DB_BEHIND_PGBOUNCER: "true"
+      REDIS_URL: redis://redis:6379/0
+      CLAMAV_HOST: clamav
+      CAUSE_LIST_DIR: /data/causelists
+      STORAGE_ROOT: /data/storage
+    depends_on: [pgbouncer, redis, clamav]
+
+  worker-ingest: { restart: unless-stopped, environment: *prod_env, depends_on: [pgbouncer, redis] }
+  worker-track: { restart: unless-stopped, environment: *prod_env, depends_on: [pgbouncer, redis] }
+  worker-documents: { restart: unless-stopped, environment: *prod_env, depends_on: [pgbouncer, redis, clamav] }
+  worker-notify: { restart: unless-stopped, environment: *prod_env, depends_on: [pgbouncer, redis] }
+  beat: { restart: unless-stopped, environment: *prod_env, depends_on: [pgbouncer, redis] }
+
+  flower:
+    profiles: !reset []
+    restart: unless-stopped
+    ports: !reset []
+
+  web:
+    restart: unless-stopped
+    ports: !reset []
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infra/nginx/aslms-locations.conf:/etc/nginx/aslms-locations.conf:ro
+      - ./infra/nginx/certs:/etc/nginx/certs:ro
+    depends_on: [web]
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    restart: unless-stopped
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - promdata:/prometheus
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=30d"]
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-change-me}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports: ["127.0.0.1:3001:3000"]   # reach it through an SSH tunnel or an internal-only route
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafanadata:/var/lib/grafana
+    depends_on: [prometheus]
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: postgresql://${POSTGRES_USER:-aslms}:${POSTGRES_PASSWORD:-aslms}@postgres:5432/${POSTGRES_DB:-aslms}?sslmode=disable
+    depends_on: [postgres]
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.62.0
+    restart: unless-stopped
+    environment:
+      REDIS_ADDR: redis://redis:6379
+    depends_on: [redis]
+
+  backup:
+    image: postgres:16
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "/backup.sh"]
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-aslms}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-aslms}
+      PGDATABASE: ${POSTGRES_DB:-aslms}
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+      BACKUP_HOUR: ${BACKUP_HOUR:-1}
+    volumes:
+      - ./infra/backup/backup.sh:/backup.sh:ro
+      - ./infra/backup/restore.sh:/restore.sh:ro
+      - ${BACKUP_DIR:-./backups}:/backups
+      - appdata_v2:/data/storage:ro
+    depends_on: [postgres]
+
+volumes:
+  promdata:
+  grafanadata:

@@ -59,6 +59,7 @@ class AlertKind(enum.StrEnum):
     COMPLIANCE = "compliance"
     ORDER_RECEIVED = "order_received"
     UNCLAIMED_FOLLOWUP = "unclaimed_followup"
+    REQUEST_DUE = "request_due"
     DATA_HEALTH = "data_health"
 
 

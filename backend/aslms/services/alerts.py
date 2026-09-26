@@ -39,6 +39,7 @@ from aslms.domain.events import EventType
 from aslms.domain.ops import SourceFailure
 from aslms.domain.org import Channel, DigestMode, Office, Role, User, UserNotificationPreference
 from aslms.domain.ownership import CaseOwnership, OwnershipStatus
+from aslms.domain.workflow import Custody, Request, RequestStatus
 from aslms.integration.email import get_mailer
 from aslms.integration.sms import get_sms
 from aslms.services import events
@@ -206,6 +207,30 @@ def generate(session: Session, today: date | None = None) -> dict[str, int]:
         if aid:
             counts["unclaimed_followup"] += 1
 
+    # Phase 2: requests between offices nearing or past their due date → the office asked to act
+    for r, c in session.execute(
+        select(Request, Case)
+        .join(Case, Case.id == Request.case_id)
+        .where(
+            Request.status == RequestStatus.OPEN,
+            Request.due_date.isnot(None),
+            Request.due_date <= today + timedelta(days=2),
+        )
+    ):
+        overdue = r.due_date < today
+        aid = _upsert_alert(
+            session,
+            dedupe_key=f"request:{r.id}:{'overdue' if overdue else 'due'}",
+            kind=AlertKind.REQUEST_DUE,
+            case_id=c.id,
+            title=f"{'Overdue' if overdue else 'Due'} {r.due_date:%d-%m-%Y}: {r.subject} ({_case_title(c)})",
+            body=f"{r.kind.value} requested by {r.actor_office_code or ''} {r.actor_name or ''}".strip(),
+            due_at=_due(r.due_date),
+            severity=Severity.CRITICAL if overdue else Severity.HIGH,
+        )
+        if aid:
+            counts["request_due"] = counts.get("request_due", 0) + 1
+
     open_failures = (
         session.scalar(
             select(func.count()).select_from(SourceFailure).where(SourceFailure.resolved_at.is_(None))
@@ -265,7 +290,33 @@ def recipients_for_case(session: Session, case_id: uuid.UUID) -> list[User]:
                 select(User).where(User.office_id == own.unit_office_id, User.is_active.is_(True))
             ):
                 users[u.id] = u
+    # the custody holder (Phase 2): the office and officer who must act next
+    cur = session.get(Custody, case_id)
+    if cur:
+        if cur.holder_user_id:
+            u = session.get(User, cur.holder_user_id)
+            if u and u.is_active:
+                users[u.id] = u
+        else:
+            for u in session.scalars(
+                select(User).where(User.office_id == cur.holder_office_id, User.is_active.is_(True))
+            ):
+                users[u.id] = u
     return list(users.values())
+
+
+def request_recipients(session: Session, request: Request) -> list[User]:
+    if request.to_user_id:
+        u = session.get(User, request.to_user_id)
+        return [u] if u and u.is_active else []
+    to = session.get(Office, request.to_office_id)
+    return list(
+        session.scalars(
+            select(User)
+            .join(Office, Office.id == User.office_id)
+            .where(User.is_active.is_(True), or_(Office.path == to.path, Office.path.like(to.path + "/%")))
+        )
+    )
 
 
 def central_operators(session: Session) -> list[User]:
@@ -290,6 +341,10 @@ def fan_out(session: Session) -> int:
     for a in session.scalars(select(Alert).where(Alert.status == AlertStatus.OPEN, ~has_notes)):
         if a.kind in (AlertKind.UNCLAIMED_FOLLOWUP, AlertKind.DATA_HEALTH):
             users = central_operators(session)
+        elif a.kind == AlertKind.REQUEST_DUE:
+            rid = a.dedupe_key.split(":")[1]
+            req = session.get(Request, uuid.UUID(rid))
+            users = request_recipients(session, req) if req else []
         else:
             users = recipients_for_case(session, a.case_id) if a.case_id else []
         for u in users:

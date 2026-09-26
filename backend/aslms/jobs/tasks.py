@@ -108,3 +108,23 @@ def notify_deliver() -> dict:
 def notify_digest() -> dict:
     with sync_session() as s:
         return {"digests": alerts.send_digests(s)}
+
+
+@celery_app.task(name="aslms.jobs.tasks.documents_sourcetrace")
+def documents_sourcetrace() -> dict:
+    """Phase 2: queue eligible court orders and filings, ingest them, then read period next dates.
+    Does nothing until SOURCETRACE_ENABLED is true (the connector is a stub until the API is published)."""
+    from aslms.core.config import get_settings
+    from aslms.integration.sourcetrace import get_knowledge_service
+    from aslms.services import sourcetrace
+
+    if not get_settings().sourcetrace_enabled:
+        return {"skipped": "SourceTrace not enabled"}
+    ks = get_knowledge_service()
+    with sync_session() as s:
+        out = {"queued": sourcetrace.mark_candidates(s)}
+    with sync_session() as s:
+        out["ingest"] = sourcetrace.ingest_pending(s, ks)
+    with sync_session() as s:
+        out["period_next_dates"] = sourcetrace.read_period_next_dates(s, ks)
+    return out

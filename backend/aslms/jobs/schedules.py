@@ -46,5 +46,9 @@ BEAT_SCHEDULE: dict[str, dict] = {
         "task": "aslms.jobs.tasks.track_discovery",
         "schedule": crontab(day_of_week="sat", hour="3", minute="0"),
     },
+    "sourcetrace": {
+        "task": "aslms.jobs.tasks.documents_sourcetrace",
+        "schedule": crontab(minute="40", hour="*/2"),
+    },
     "heartbeat": {"task": "aslms.jobs.tasks.ops_heartbeat", "schedule": crontab(minute="*/30")},
 }

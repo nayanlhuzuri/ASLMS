@@ -43,7 +43,8 @@ from aslms.domain.ownership import (
     ScoreBand,
     TransferStatus,
 )
-from aslms.services import audit, events
+from aslms.domain.workflow import CustodyReason
+from aslms.services import audit, events, workflow
 from aslms.services.audit import Actor
 from aslms.services.scoring import (
     ENGINE_VERSION,
@@ -325,6 +326,16 @@ def claim(
             setattr(rec, k, v)
     session.flush()
     _set_tracked(session, case)
+    if role == OwnershipRole.PRIMARY:
+        workflow.move(
+            session,
+            actor,
+            case,
+            office_id=dept.id,
+            user_id=None,
+            reason=CustodyReason.CLAIM,
+            pending_action="examine the case and decide the response",
+        )
     etype = EventType.CASE_CLAIMED if role == OwnershipRole.PRIMARY else EventType.WATCHER_ADDED
     events.emit(
         session,
@@ -529,6 +540,14 @@ def decide_transfer(
                 )
             )
         session.flush()
+        workflow.move(
+            session,
+            actor,
+            case,
+            office_id=dept.id,
+            reason=CustodyReason.TRANSFER,
+            pending_action="case transferred to the department; examine it",
+        )
         events.emit(
             session,
             EventType.OWNERSHIP_TRANSFERRED,
@@ -598,6 +617,19 @@ def allot(
             raise ValidationError("the officer must belong to the owning department")
     before = {"unit": str(own.unit_office_id or ""), "officer": str(own.officer_user_id or "")}
     own.unit_office_id, own.officer_user_id = unit_office_id, officer_user_id
+    if own.role == OwnershipRole.PRIMARY and (unit_office_id or officer_user_id):
+        holder_office = unit_office_id
+        if holder_office is None:
+            holder_office = session.get(User, officer_user_id).office_id
+        workflow.move(
+            session,
+            actor,
+            case,
+            office_id=holder_office,
+            user_id=officer_user_id,
+            reason=CustodyReason.ALLOT,
+            pending_action="prepare the department's response",
+        )
     audit.record(
         session,
         actor,
@@ -635,6 +667,14 @@ def release(session: Session, actor: Actor, case: Case, acting_office_id: uuid.U
         )
         if watcher:
             watcher.role = OwnershipRole.PRIMARY
+            workflow.move(
+                session,
+                actor,
+                case,
+                office_id=watcher.office_id,
+                reason=CustodyReason.RELEASE,
+                pending_action="case released by the previous owner; examine it",
+            )
     events.emit(
         session,
         EventType.OWNERSHIP_RELEASED,

@@ -17,8 +17,15 @@ from aslms.core.config import get_settings
 @lru_cache
 def sync_engine() -> Engine:
     s = get_settings()
+    # Behind PgBouncer in transaction mode, server-side prepared statements break (another client may get the
+    # connection); psycopg's prepare_threshold=None turns them off.
+    connect_args = {"prepare_threshold": None} if s.db_behind_pgbouncer else {}
     return create_engine(
-        s.database_url_sync, pool_size=s.db_pool_size, max_overflow=s.db_max_overflow, pool_pre_ping=True
+        s.database_url_sync,
+        pool_size=s.db_pool_size,
+        max_overflow=s.db_max_overflow,
+        pool_pre_ping=True,
+        connect_args=connect_args,
     )
 
 

@@ -8,115 +8,21 @@ import re
 from datetime import timedelta
 from pathlib import Path
 
-import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from aslms.core.security import hash_password
 from aslms.core.time import today_ist
 from aslms.domain.alerts import Alert, AlertKind
 from aslms.domain.cases import Case
 from aslms.domain.causelists import CauseListSource
 from aslms.domain.events import AuditLog, Event, EventType
-from aslms.domain.org import Office, OfficeKind, Role, User
-from aslms.domain.ownership import CounselCode, Recommendation
+from aslms.domain.ownership import Recommendation
 from aslms.integration.antivirus import EICAR
 from aslms.integration.email import ConsoleMailer
+from tests.integration.helpers import PW, auth, login
 
 FIX = Path(__file__).resolve().parents[1] / "fixtures"
-PW = "Test-pass-2026"
-
-
-def _office(db: Session, code: str, kind: OfficeKind, parent: Office | None = None) -> Office:
-    o = Office(
-        code=code,
-        name=f"{code} office",
-        kind=kind,
-        parent_id=parent.id if parent else None,
-        path=f"{parent.path}/{code}" if parent else code,
-    )
-    db.add(o)
-    db.flush()
-    return o
-
-
-def _user(db: Session, email: str, office: Office, role: Role) -> User:
-    u = User(
-        email=email,
-        full_name=email.split("@")[0],
-        designation="Officer",
-        office_id=office.id,
-        role=role,
-        password_hash=hash_password(PW),
-        must_confirm_profile=False,
-    )
-    db.add(u)
-    db.flush()
-    return u
-
-
-@pytest.fixture()
-def world(db: Session):
-    from aslms.db.seed import run_seed
-    from aslms.services import causelists
-
-    run_seed(db)
-    edu = _office(db, "EDU", OfficeKind.DEPARTMENT)
-    dse = _office(db, "DSE", OfficeKind.DIRECTORATE, edu)
-    health = _office(db, "HEALTH", OfficeKind.DEPARTMENT)
-    edu_sc = _office(db, "EDU-SC", OfficeKind.COUNSEL_OFFICE, edu)
-    state = db.scalar(select(Office).where(Office.code == "STATE"))
-    # test mapping: the Lawazima fixture's rows carry "GA, ASSAM"; map it (non-generic) to EDU for this test
-    db.add(CounselCode(code="GA, ASSAM", office_id=edu.id, weight=0.95))
-    users = {
-        "edu_admin": _user(db, "edu.admin@t.in", edu, Role.DEPT_ADMIN),
-        "edu_officer": _user(db, "edu.officer@t.in", edu, Role.DEPT_OFFICER),
-        "dse": _user(db, "dse@t.in", dse, Role.DIRECTORATE_USER),
-        "health_admin": _user(db, "health.admin@t.in", health, Role.DEPT_ADMIN),
-        "counsel": _user(db, "counsel@t.in", edu_sc, Role.STANDING_COUNSEL),
-        "cs": _user(db, "cs@t.in", state, Role.STATE_OVERSIGHT),
-    }
-    db.commit()
-    stats, parsed = causelists.ingest_pdf(
-        db,
-        (FIX / "ghc_lawazima_01-09-2025.pdf").read_bytes(),
-        source=CauseListSource.LOCAL_DIR,
-        filename="Lawazima_01-09-2025.pdf",
-    )
-    db.commit()
-    n_rec = sum(1 for r in parsed.rows if "GA, ASSAM" in r.counsel_codes)
-    return {
-        "edu": edu,
-        "dse": dse,
-        "health": health,
-        "users": users,
-        "stats": stats,
-        "parsed": parsed,
-        "n_rec": n_rec,
-    }
-
-
-@pytest.fixture()
-def client(world):
-    from aslms.api.main import create_app
-
-    with TestClient(create_app()) as c:
-        yield c
-
-
-def login(client: TestClient, email: str) -> dict[str, str]:
-    ConsoleMailer.sent.clear()
-    r = client.post("/api/v1/auth/login", json={"email": email, "password": PW})
-    assert r.status_code == 200, r.text
-    code = re.search(r"\b(\d{6})\b", ConsoleMailer.sent[-1]["body"]).group(1)
-    r = client.post("/api/v1/auth/verify", json={"challenge_id": r.json()["challenge_id"], "code": code})
-    assert r.status_code == 200, r.text
-    return r.json()
-
-
-def auth(tokens: dict[str, str]) -> dict[str, str]:
-    return {"Authorization": f"Bearer {tokens['access_token']}"}
 
 
 def test_ingestion_is_idempotent(world, db: Session) -> None:

@@ -39,6 +39,15 @@ class EventType(enum.StrEnum):
     DOCUMENT_UPLOADED = "document_uploaded"
     NEXT_DATE_EXTRACTED = "next_date_extracted"
     ALERT_RAISED = "alert_raised"
+    # workflow (Phase 2)
+    CUSTODY_MOVED = "custody_moved"
+    REQUEST_SENT = "request_sent"
+    REQUEST_ANSWERED = "request_answered"
+    REQUEST_WITHDRAWN = "request_withdrawn"
+    STAGE_CHANGED = "stage_changed"
+    NOTE_ADDED = "note_added"
+    FILE_ADDED = "file_added"
+    DOCUMENT_INGESTED = "document_ingested"
     # operations
     SOURCE_FAILED = "source_failed"
 

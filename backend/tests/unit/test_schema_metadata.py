@@ -56,16 +56,29 @@ PHASE1_TABLES = {
     "source_failures",
 }
 
+PHASE2_TABLES = {
+    "custody",
+    "custody_history",
+    "requests",
+    "request_messages",
+    "case_stages",
+    "case_notes",
+    "case_note_attachments",
+    "sourcetrace_ingestions",
+    "assistant_conversations",
+    "assistant_messages",
+}
+
 
 def test_phase1_tables_match_document() -> None:
-    assert set(Base.metadata.tables) == PHASE1_TABLES
-    assert len(PHASE1_TABLES) == 39
+    assert set(Base.metadata.tables) == PHASE1_TABLES | PHASE2_TABLES
+    assert len(PHASE1_TABLES) == 39 and len(PHASE2_TABLES) == 10
 
 
 def test_every_table_has_uuid_primary_key_or_document_fk() -> None:
     for name, table in Base.metadata.tables.items():
         pk = [c.name for c in table.primary_key.columns]
-        assert pk in (["id"], ["document_id"]), f"{name} has an unexpected primary key {pk}"
+        assert pk in (["id"], ["document_id"], ["case_id"]), f"{name} has an unexpected primary key {pk}"
 
 
 def test_append_only_tables_have_dedupe_or_actor() -> None:

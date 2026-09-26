@@ -12,7 +12,21 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from aslms import __version__
-from aslms.api.routers import admin, alerts, auth, cases, causelists, dashboard, health, inbox, search
+from aslms.api.metrics import MetricsMiddleware
+from aslms.api.metrics import router as metrics_router
+from aslms.api.routers import (
+    admin,
+    alerts,
+    assistant,
+    auth,
+    cases,
+    causelists,
+    dashboard,
+    health,
+    inbox,
+    search,
+    workflow,
+)
 from aslms.core.config import get_settings
 from aslms.core.errors import AppError
 from aslms.core.logging import configure_logging, get_logger
@@ -57,6 +71,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.add_middleware(SecurityHeaders)
+    app.add_middleware(MetricsMiddleware)
 
     @app.exception_handler(AppError)
     async def app_error_handler(_: Request, exc: AppError) -> JSONResponse:
@@ -82,8 +97,9 @@ def create_app() -> FastAPI:
             status_code=422, content={"error": "validation_error", "message": str(exc), "details": {}}
         )
 
-    for r in (health, auth, cases, inbox, search, causelists, alerts, dashboard, admin):
+    for r in (health, auth, cases, inbox, search, causelists, alerts, dashboard, admin, workflow, assistant):
         app.include_router(r.router, prefix="/api/v1")
+    app.include_router(metrics_router)  # /metrics, scraped by Prometheus on the internal network only
     return app
 
 

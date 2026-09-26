@@ -89,9 +89,23 @@ so that Phase 1 columns leave the right hooks. Implemented by Alembic migration 
 | `napix_call_log` | api, params_sha256, http_status, napix_status (6xx), duration_ms, ok, error, called_at, job_run_id | Indexed on called_at; pruned after a retention period. |
 | `source_failures` | kind (`napix` / `ghc_pdf` / `order_download` / `antivirus`), ref, error, first_seen, last_seen, attempts, resolved_at | Read by the administration "needs attention" screen. |
 
-## Deferred by design
-- **Phase 2:** `custody`, `custody_history`, `requests`, `request_messages`, `case_stages`, `case_notes`, `case_note_attachments`, `sourcetrace_ingestions`, `decisions`, `deadlines`; `next_dates.source = order_period`.
-- **Phase 3:** `assistant_conversations`, `assistant_messages`, `assistant_citations`; district-court rows in `courts` and the NAPIX DC integration.
+## Phase 2 and 3 tables (migration 0003, built 26 Sep 2026)
+| Table | Columns (key ones) | Notes |
+|---|---|---|
+| `custody` | case_id (PK), holder_office_id, holder_user_id, pending_action, since, due_date, request_id, current_leg_id | Where the case is now. Derived from claims, allotments, transfers, requests and hand-overs; never keyed in. Part of the tracking card. |
+| `custody_history` | case_id, seq_no, holder_office_id + code snapshot, holder_user_id + name snapshot, reason (`claim` / `allot` / `transfer` / `request_sent` / `request_answered` / `request_withdrawn` / `handover` / `release`), pending_action, due_date, request_id, started_at, actor snapshot | Append-only (trigger). One row per leg. |
+| `requests` | case_id, kind (`records` / `report` / `instructions` / `views` / `signature` / `implementation` / `brief` / `other`), from_office_id, to_office_id, to_user_id, subject, body, due_date, status (`open` / `answered` / `withdrawn`), answered_at, actor snapshot | Sending moves custody to the receiving office; answering or withdrawing brings it back. |
+| `request_messages` | request_id, body, is_answer, actor snapshot | Thread between the two offices. |
+| `case_stages` | case_id, office_id, stage (17 lifecycle stages), response_mode (`dept_led` / `directorate_led`), note, actor snapshot | Append-only; latest row is the current stage. Guided, not enforced: skipped stages are reported. |
+| `case_notes` | case_id, seq_no (unique per case), kind (`general` / `handover` / `instruction` / `opinion` / `hearing_note` / `compliance` / `decision` / `system`), body, visibility, office_id, author_role, custody_leg_id, supersedes_id, source, actor snapshot | The noting trail. Append-only (trigger); corrections supersede, both kept. |
+| `case_note_attachments` | note_id, document_id | Attachments are internal documents on the documents substrate; never sent to SourceTrace. |
+| `sourcetrace_ingestions` | document_id, attempt, ok, reference, error, metadata_sent | One row per attempt; up to 5 attempts, then a source failure. |
+| `assistant_conversations` | user_id, case_id (nullable = general research), scope, title, last_message_at | Private to the user. |
+| `assistant_messages` | conversation_id, role, content, citations jsonb, model_info jsonb | |
+
+Enum values added to existing types in 0003: `event_type` (custody_moved, request_sent, request_answered, request_withdrawn, stage_changed, note_added, file_added, document_ingested) and `alert_kind` (request_due).
+
+Still deferred: district-court rows in `courts` and the NAPIX DC integration (Phase 3; no DC API specification in the repository yet).
 
 ## Not carried over from the prototype's 56 tables
 AI and knowledge-base tables (ai_jobs, research_*, document_chunks, chunk_embeddings, order_analyses, order_directions, order_citations, issues, case_briefs, judgments_external, legal_instruments and versions/sections), `assignments` (replaced by `recommendations` + `case_ownership`), `match_feedback`, `court_outcomes`, `listing_reconciliations` (renamed), and the pgvector extension.

@@ -28,6 +28,8 @@ def cards(db: Session, p: Principal, cases: Iterable[Case]) -> list[S.CaseCard]:
         set(db.scalars(select(Case.id).where(Case.id.in_(ids), case_scope_clause(p)))) if ids else set()
     )
     courts = {c.id: c.name for c in db.scalars(select(Court))}
+    custody = custody_cards(db, ids)
+    stages = current_stages(db, ids)
     return [
         S.CaseCard(
             id=c.id,
@@ -46,6 +48,8 @@ def cards(db: Session, p: Principal, cases: Iterable[Case]) -> list[S.CaseCard]:
             disposal_date=c.disposal_date,
             court=courts.get(c.court_id),
             owners=S.Owners(**owners.get(c.id, {})) if c.id in owners else S.Owners(),
+            custody=custody.get(c.id),
+            stage=stages.get(c.id),
             in_scope=c.id in in_scope,
         )
         for c in cases
@@ -137,3 +141,52 @@ def detail(db: Session, p: Principal, case: Case) -> S.CaseDetail:
             )
         ],
     )
+
+
+def custody_cards(db: Session, case_ids: list) -> dict:
+    from aslms.core.time import today_ist
+    from aslms.domain.workflow import Custody
+
+    out: dict = {}
+    if not case_ids:
+        return out
+    today = today_ist()
+    for cur, office in db.execute(
+        select(Custody, Office)
+        .join(Office, Office.id == Custody.holder_office_id)
+        .where(Custody.case_id.in_(case_ids))
+    ):
+        holder = db.get(User, cur.holder_user_id) if cur.holder_user_id else None
+        out[cur.case_id] = S.CustodyOut(
+            holder_office=office_ref(office),
+            holder_user=holder.full_name if holder else None,
+            pending_action=cur.pending_action,
+            since=cur.since,
+            due_date=cur.due_date,
+            days_pending=(today - cur.since.date()).days,
+            overdue=bool(cur.due_date and cur.due_date < today),
+        )
+    return out
+
+
+def current_stages(db: Session, case_ids: list) -> dict:
+    from sqlalchemy import func
+
+    from aslms.domain.workflow import CaseStage
+
+    if not case_ids:
+        return {}
+    latest = (
+        select(CaseStage.case_id, func.max(CaseStage.created_at).label("at"))
+        .where(CaseStage.case_id.in_(case_ids))
+        .group_by(CaseStage.case_id)
+        .subquery()
+    )
+    return {
+        cid: st.value
+        for cid, st in db.execute(
+            select(CaseStage.case_id, CaseStage.stage).join(
+                latest, (latest.c.case_id == CaseStage.case_id) & (latest.c.at == CaseStage.created_at)
+            )
+        )
+    }

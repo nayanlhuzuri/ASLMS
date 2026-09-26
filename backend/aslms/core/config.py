@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     database_url_sync: str = "postgresql+psycopg://aslms:aslms@localhost:5433/aslms"
     db_pool_size: int = 5
     db_max_overflow: int = 10
+    db_behind_pgbouncer: bool = False  # transaction pooling: psycopg prepared statements must be off
     redis_url: str = "redis://localhost:6379/0"
 
     # --- document storage and uploads --------------------------------------------

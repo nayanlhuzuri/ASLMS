@@ -1,0 +1,38 @@
+groups:
+  - name: aslms
+    rules:
+      - alert: DailyCycleStale
+        # the cycle runs six times a day; 14 h without a successful run means cause lists are being missed
+        expr: aslms_last_daily_cycle_age_seconds > 14 * 3600 or aslms_last_daily_cycle_age_seconds == -1
+        for: 30m
+        labels: { severity: critical }
+        annotations:
+          summary: "No successful daily data cycle for more than 14 hours"
+
+      - alert: DataCollectionFailures
+        expr: aslms_open_source_failures > 0
+        for: 2h
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $value }} unresolved data-collection failure(s); see Administration → Operations"
+
+      - alert: ApiErrors
+        expr: sum(rate(aslms_http_requests_total{status=~"5.."}[10m])) > 0.1
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "The API is returning server errors"
+
+      - alert: ApiDown
+        expr: up{job="aslms-api"} == 0
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "The ASLMS API is not answering /metrics"
+
+      - alert: PostgresDown
+        expr: pg_up == 0
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: "PostgreSQL is down"
