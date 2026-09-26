@@ -37,7 +37,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-aslms}:${POSTGRES_PASSWORD:-aslms}@postgres:5432/${POSTGRES_DB:-aslms}
       DATABASE_URL_SYNC: postgresql+psycopg://${POSTGRES_USER:-aslms}:${POSTGRES_PASSWORD:-aslms}@postgres:5432/${POSTGRES_DB:-aslms}
       REDIS_URL: redis://redis:6379/0
-      CLAMAV_HOST: clamav
+      CLAMAV_HOST: ${CLAMAV_HOST:-}   # production override sets clamav; `--profile scan` runs it locally
       CAUSE_LIST_DIR: /data/causelists
       STORAGE_ROOT: /data/storage
     volumes:
