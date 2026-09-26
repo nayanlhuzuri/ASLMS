@@ -19,7 +19,7 @@ from aslms.services import storage
 router = APIRouter(prefix="/causelists", tags=["cause lists"])
 
 
-@router.get("/dates", response_model=list[dict])
+@router.get("/dates", response_model=list[S.CauseListDateOut])
 def dates(limit: int = Query(60, le=400), ctx: Ctx = Depends(current_ctx)) -> list[dict]:
     rows = ctx.db.execute(
         select(CauseList.list_date, func.count(), func.sum(CauseList.entry_count))

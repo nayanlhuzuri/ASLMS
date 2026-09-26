@@ -84,6 +84,7 @@ def test_recommend_claim_scope_watch_transfer(client: TestClient, world, db: Ses
     assert rec["total"] == world["n_rec"]
     first = rec["items"][0]
     assert first["band"] == "high" and first["signals"][0]["kind"] == "counsel_code"
+    assert first["listing"]["list_date"] == "2025-09-01" and first["listing"]["court_no"] == "111"
     case_id = first["case"]["id"]
     assert first["case"]["in_scope"] is False  # recommended is not owned
 
@@ -261,7 +262,7 @@ def test_alerts_notifications_calendar(client: TestClient, world, db: Session) -
     assert items[0]["kind"] == "hearing" and items[0]["severity"] == "critical"
     assert client.post(f"/api/v1/alerts/{items[0]['id']}/ack", headers=edu).json()["status"] == "acknowledged"
     notes = client.get("/api/v1/notifications?unread=true", headers=edu).json()
-    assert notes["total"] == 1
+    assert notes["total"] == 1 and notes["items"][0]["case_id"] == case_id
     client.post("/api/v1/notifications/read-all", headers=edu)
     assert client.get("/api/v1/notifications?unread=true", headers=edu).json()["total"] == 0
     cal = client.get("/api/v1/calendar", headers=edu).json()
@@ -282,6 +283,11 @@ def test_search_reports_audit_admin(client: TestClient, world) -> None:
         "napix": "not configured"
     }
 
+    cfg = client.get("/api/v1/config", headers=cs).json()
+    assert (
+        cfg["upload_max_mb"] == 25 and ".pdf" in cfg["allowed_upload_types"] and cfg["napix_enabled"] is False
+    )
+    assert client.get("/api/v1/reports/data-health", headers=cs).status_code == 200
     rep = client.get("/api/v1/reports/pending-by-department", headers=cs).json()
     assert rep["rows"][0]["department"] == "UNCLAIMED" and rep["rows"][0]["pending"] == 16
     x = client.get("/api/v1/reports/pending-by-department?format=xlsx", headers=cs)

@@ -30,7 +30,8 @@ services:
 
   api:
     build: ./backend
-    command: uvicorn aslms.api.main:app --host 0.0.0.0 --port 8000 --workers 2
+    # the portal is the only client; trust its X-Forwarded-For so audit rows record the real address
+    command: uvicorn aslms.api.main:app --host 0.0.0.0 --port 8000 --workers 2 --proxy-headers --forwarded-allow-ips=*
     env_file: .env
     environment: &app_env
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-aslms}:${POSTGRES_PASSWORD:-aslms}@postgres:5432/${POSTGRES_DB:-aslms}

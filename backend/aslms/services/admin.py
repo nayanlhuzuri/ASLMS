@@ -11,7 +11,7 @@ import re
 import uuid
 from typing import Any
 
-from sqlalchemy import any_, func, select, update
+from sqlalchemy import any_, func, literal, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -236,6 +236,37 @@ def unmapped_codes(session: Session, limit: int = 100) -> list[dict[str, Any]]:
         .limit(limit)
     )
     return [{"code": c, "seen": n} for c, n in rows]
+
+
+def rescore_for_code(session: Session, code: str) -> int:
+    """Rescores the cases in which this counsel code appears (advocates or cause-list entries)."""
+    from aslms.domain.cases import CaseAdvocate
+    from aslms.domain.causelists import CauseListEntry
+
+    ids = set(session.scalars(select(CaseAdvocate.case_id).where(CaseAdvocate.counsel_code == code)))
+    ids |= set(
+        session.scalars(
+            select(CauseListEntry.case_id).where(
+                CauseListEntry.case_id.isnot(None), literal(code) == any_(CauseListEntry.counsel_codes)
+            )
+        )
+    )
+    cfg = ownership.load_config(session)
+    for c in session.scalars(select(Case).where(Case.id.in_(ids))):
+        ownership.rescore(session, c, cfg)
+    return len(ids)
+
+
+def queue_rescore_all() -> bool:
+    """Asks the workers for a full rescore (after a pattern, keyword or watchlist change). Returns False when the
+    queue is unreachable; the operator can then run it from Operations."""
+    try:
+        from aslms.jobs.tasks import ops_rescore_all
+
+        ops_rescore_all.apply_async(retry=False)
+        return True
+    except Exception:  # noqa: BLE001 — a broker outage must not fail the admin change
+        return False
 
 
 def rescore_all(session: Session, limit: int | None = None) -> int:

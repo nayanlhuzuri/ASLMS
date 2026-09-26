@@ -39,13 +39,17 @@ def _require_office_admin(ctx: Ctx, office_id: uuid.UUID) -> None:
 # ------------------------------------------------------------------ offices
 @router.get("/offices", response_model=list[S.OfficeOut])
 def offices(
-    kind: str | None = None, active: bool | None = True, ctx: Ctx = Depends(current_ctx)
+    kind: str | None = None,
+    active: bool = True,
+    include_inactive: bool = False,
+    ctx: Ctx = Depends(current_ctx),
 ) -> list[S.OfficeOut]:
-    """Every signed-in user can list offices (needed to suggest a department or transfer)."""
+    """Every signed-in user can list offices (needed to suggest a department or transfer).
+    `include_inactive=true` returns active and inactive offices together."""
     stmt = select(Office)
     if kind:
         stmt = stmt.where(Office.kind == OfficeKind(kind))
-    if active is not None:
+    if not include_inactive:
         stmt = stmt.where(Office.is_active.is_(active))
     return [S.OfficeOut.model_validate(o) for o in ctx.db.scalars(stmt.order_by(Office.path))]
 
@@ -190,17 +194,18 @@ def upsert_code(body: S.CounselCodeIn, ctx: Ctx = Depends(roles(*ADMINS))) -> S.
         raise ForbiddenError("this code is mapped to another department; ask the central operator")
     if body.is_generic_state and ctx.principal.role != Role.CENTRAL_OPERATOR:
         raise ForbiddenError("only the central operator marks generic State codes")
-    return S.CounselCodeOut.model_validate(
-        admin_svc.upsert_counsel_code(
-            ctx.db,
-            ctx.actor,
-            code=body.code,
-            office_id=body.office_id,
-            weight=body.weight,
-            is_generic_state=body.is_generic_state,
-            notes=body.notes,
-        )
+    row = admin_svc.upsert_counsel_code(
+        ctx.db,
+        ctx.actor,
+        code=body.code,
+        office_id=body.office_id,
+        weight=body.weight,
+        is_generic_state=body.is_generic_state,
+        notes=body.notes,
     )
+    # recommendations follow the mapping at once for the cases that carry this code
+    admin_svc.rescore_for_code(ctx.db, row.code)
+    return S.CounselCodeOut.model_validate(row)
 
 
 @router.delete("/mapping/codes/{code_id}", response_model=S.Ok)
@@ -213,12 +218,14 @@ def deactivate_code(code_id: uuid.UUID, ctx: Ctx = Depends(roles(*ADMINS))) -> S
     audit.record(
         ctx.db, ctx.actor, "mapping.counsel_code.deactivate", "counsel_code", row.id, after={"code": row.code}
     )
+    ctx.db.flush()
+    admin_svc.rescore_for_code(ctx.db, row.code)
     return S.Ok()
 
 
-@router.get("/mapping/unmapped-codes", response_model=list[dict])
-def unmapped(limit: int = Query(100, le=500), ctx: Ctx = Depends(roles(*READERS))) -> list[dict]:
-    return admin_svc.unmapped_codes(ctx.db, limit)
+@router.get("/mapping/unmapped-codes", response_model=list[S.UnmappedCodeOut])
+def unmapped(limit: int = Query(100, le=500), ctx: Ctx = Depends(roles(*READERS))) -> list[S.UnmappedCodeOut]:
+    return [S.UnmappedCodeOut(**r) for r in admin_svc.unmapped_codes(ctx.db, limit)]
 
 
 @router.get("/mapping/patterns", response_model=list[S.PatternOut])
@@ -259,6 +266,7 @@ def add_pattern(body: S.PatternIn, ctx: Ctx = Depends(roles(*ADMINS))) -> S.Patt
         row.id,
         after=body.model_dump(mode="json"),
     )
+    admin_svc.queue_rescore_all()
     return S.PatternOut.model_validate(row)
 
 
@@ -298,6 +306,7 @@ def add_keyword(body: S.KeywordIn, ctx: Ctx = Depends(roles(*ADMINS))) -> S.Keyw
     audit.record(
         ctx.db, ctx.actor, "mapping.keyword", "office_keyword", row.id, after=body.model_dump(mode="json")
     )
+    admin_svc.queue_rescore_all()
     return S.KeywordOut.model_validate(row)
 
 
@@ -356,7 +365,7 @@ def case_types(ctx: Ctx = Depends(current_ctx)) -> list[S.CaseTypeOut]:
     ]
 
 
-@router.get("/ops/failures", response_model=list[dict])
+@router.get("/ops/failures", response_model=list[S.FailureOut])
 def failures(
     open_only: bool = True, ctx: Ctx = Depends(roles(Role.CENTRAL_OPERATOR, Role.AUDITOR))
 ) -> list[dict]:

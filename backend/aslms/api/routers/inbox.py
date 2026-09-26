@@ -55,6 +55,7 @@ def recommended(
         if rows
         else {}
     )
+    listings = latest_listings(ctx, [r[1].id for r in rows])
     items = [
         S.RecommendationOut(
             id=rec.id,
@@ -63,6 +64,7 @@ def recommended(
             band=rec.band.value,
             origin=rec.origin.value,
             signals=signals.get(case.id, []),
+            listing=listings.get(case.id),
             reason=rec.reason,
             created_at=rec.created_at,
         )
@@ -136,5 +138,31 @@ def transfers(office_id: uuid.UUID | None = None, ctx: Ctx = Depends(current_ctx
                 created_at=t.created_at,
                 decided_at=t.decided_at,
             )
+        )
+    return out
+
+
+def latest_listings(ctx: Ctx, case_ids: list) -> dict:
+    """The most recent cause-list appearance of each case (list date, court, printed item, section)."""
+    from aslms.domain.causelists import CauseList, CauseListEntry
+
+    out: dict = {}
+    if not case_ids:
+        return out
+    rows = ctx.db.execute(
+        select(CauseListEntry, CauseList)
+        .join(CauseList, CauseList.id == CauseListEntry.causelist_id)
+        .where(CauseListEntry.case_id.in_(case_ids))
+        .order_by(CauseListEntry.case_id, CauseList.list_date.desc())
+        .distinct(CauseListEntry.case_id)
+    )
+    for e, cl in rows:
+        raw = e.raw or {}
+        out[e.case_id] = S.ListingRef(
+            list_date=cl.list_date,
+            list_type=cl.list_type.value,
+            court_no=e.court_no,
+            item=raw.get("printed_sr"),
+            section=raw.get("section"),
         )
     return out

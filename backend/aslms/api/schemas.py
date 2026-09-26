@@ -341,10 +341,20 @@ class ListingOut(BaseModel):
     causelist_id: uuid.UUID
 
 
+class SignalOut(BaseModel):
+    """One reason behind a department's score."""
+
+    kind: str  # counsel_code | name_pattern | keyword | watchlist | link_history | suggested_unit
+    value: str
+    weight: float
+    office: str | None = None
+    matched_text: str | None = None
+
+
 class ScoreOut(BaseModel):
     office: OwnerRef
     score: float
-    signals: list[dict[str, Any]]
+    signals: list[SignalOut]
     computed_at: datetime
 
 
@@ -382,13 +392,24 @@ class ReleaseIn(BaseModel):
     reason: str
 
 
+class ListingRef(BaseModel):
+    """The latest cause-list appearance of the recommended case."""
+
+    list_date: date
+    list_type: str
+    court_no: str | None
+    item: str | None
+    section: str | None
+
+
 class RecommendationOut(BaseModel):
     id: uuid.UUID
     case: CaseCard
     score: float
     band: str
     origin: str
-    signals: list[dict[str, Any]]
+    signals: list[SignalOut]
+    listing: ListingRef | None = None
     reason: str | None
     created_at: datetime
 
@@ -422,6 +443,7 @@ class AlertOut(ORM):
 class NotificationOut(ORM):
     id: uuid.UUID
     alert_id: uuid.UUID | None
+    case_id: uuid.UUID | None = None
     channel: str
     status: str
     title: str
@@ -708,3 +730,124 @@ class ConversationOut(BaseModel):
 
 class CopyToNoteIn(BaseModel):
     visibility: str = "case_scope"
+
+
+# ------------------------------------------------------------------ typed responses (previously loose dicts)
+class UnitCount(BaseModel):
+    unit: str
+    cases: int
+
+
+class DepartmentCount(BaseModel):
+    office_id: str
+    code: str
+    name: str
+    pending: int
+
+
+class DashboardOut(BaseModel):
+    role: str
+    cases_in_scope: int
+    pending_cases: int
+    hearings_48h: int
+    hearings_week: int
+    unread_notifications: int
+    open_critical_alerts: int
+    undelivered_email: int
+    recommended_high: int | None = None
+    recommended_total: int | None = None
+    transfers_incoming: int | None = None
+    by_unit: list[UnitCount] | None = None
+    unclaimed_pending: int | None = None
+    unclaimed_listed_week: int | None = None
+    by_department: list[DepartmentCount] | None = None
+    allotted_to_me: int | None = None
+
+
+class CauseListDateOut(BaseModel):
+    date: date
+    lists: int
+    entries: int
+
+
+class UnmappedCodeOut(BaseModel):
+    code: str
+    seen: int
+
+
+class FailureOut(BaseModel):
+    id: uuid.UUID
+    kind: str
+    ref: str
+    error: str
+    attempts: int
+    first_seen: datetime
+    last_seen: datetime
+    resolved_at: datetime | None
+
+
+class ReportOut(BaseModel):
+    title: str
+    rows: list[dict[str, Any]]
+
+
+class JobRunOut(BaseModel):
+    job: str
+    run_date: date | None
+    status: str
+    started_at: datetime
+    finished_at: datetime | None
+    counters: dict[str, Any]
+    error: str | None
+
+
+class NapixCallStat(BaseModel):
+    api: str
+    calls: int
+    ok: int
+    avg_ms: int
+
+
+class OpenFailure(BaseModel):
+    id: str
+    kind: str
+    ref: str
+    error: str
+    attempts: int
+    first_seen: datetime
+    last_seen: datetime
+
+
+class CauseListStat(BaseModel):
+    date: date
+    source: str
+    lists: int
+    entries: int
+
+
+class EntrySourceStat(BaseModel):
+    source: str
+    entries: int
+    with_cnr: int
+    cnr_rate: float
+
+
+class DataHealthOut(BaseModel):
+    jobs: list[JobRunOut]
+    napix_calls: list[NapixCallStat]
+    open_failures: list[OpenFailure]
+    cause_lists: list[CauseListStat]
+    entries_by_source: list[EntrySourceStat]
+    orders: dict[str, int]
+
+
+class ConfigOut(BaseModel):
+    """Settings the portal needs (no secrets)."""
+
+    upload_max_mb: int
+    allowed_upload_types: list[str]
+    napix_enabled: bool
+    sourcetrace_enabled: bool
+    score_strong_threshold: float
+    score_possible_threshold: float
+    app_env: str

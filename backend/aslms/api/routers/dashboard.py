@@ -20,7 +20,7 @@ from aslms.services import reports
 router = APIRouter(tags=["dashboard & reports"])
 
 
-@router.get("/dashboard", response_model=dict[str, Any])
+@router.get("/dashboard", response_model=S.DashboardOut)
 def dashboard(ctx: Ctx = Depends(current_ctx)) -> dict[str, Any]:
     return dash.summary(ctx.db, ctx.principal)
 
@@ -46,7 +46,7 @@ def _export(title: str, rows: list[dict[str, Any]], fmt: str, name: str) -> Resp
     return JSONResponse({"title": title, "rows": rows})
 
 
-@router.get("/reports/hearings-disposals")
+@router.get("/reports/hearings-disposals", responses={200: {"model": S.ReportOut}})
 def hearings_disposals(
     start: date | None = None,
     end: date | None = None,
@@ -61,7 +61,7 @@ def hearings_disposals(
     )
 
 
-@router.get("/reports/data-health", response_model=dict[str, Any])
+@router.get("/reports/data-health", response_model=S.DataHealthOut)
 def data_health(
     days: int = Query(7, ge=1, le=90),
     ctx: Ctx = Depends(roles(Role.CENTRAL_OPERATOR, Role.STATE_OVERSIGHT, Role.AUDITOR, Role.DEPT_ADMIN)),
@@ -69,7 +69,7 @@ def data_health(
     return reports.data_health(ctx.db, days)
 
 
-@router.get("/reports/{name}")
+@router.get("/reports/{name}", responses={200: {"model": S.ReportOut}})
 def report(
     name: str, format: str = Query("json", pattern="^(json|csv|xlsx)$"), ctx: Ctx = Depends(current_ctx)
 ) -> Response:

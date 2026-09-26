@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from aslms.core.time import now_utc, today_ist
 from aslms.domain.alerts import Alert, AlertStatus
 from aslms.domain.cases import Case, CaseHearing, CaseStatus
-from aslms.domain.causelists import CauseList, CauseListEntry, EntrySource
+from aslms.domain.causelists import CauseList, CauseListEntry
 from aslms.domain.documents import Order
 from aslms.domain.ops import JobRun, NapixCallLog, SourceFailure
 from aslms.domain.org import Office
@@ -206,7 +206,6 @@ def data_health(session: Session, days: int = 7) -> dict[str, Any]:
             for s, n, c in entries
         ],
         "orders": {k.value: v for k, v in orders.items()},
-        "pdf_vs_napix": EntrySource.PDF_PARSE.value,
     }
 
 

@@ -176,9 +176,17 @@ def notifications(
         stmt = stmt.where(Notification.read_at.is_(None))
     total = ctx.db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
     rows = ctx.db.scalars(stmt.order_by(Notification.created_at.desc()).offset((page - 1) * size).limit(size))
-    return S.Page(
-        total=total, page=page, size=size, items=[S.NotificationOut.model_validate(n) for n in rows]
+    rows = list(rows)
+    alert_cases = dict(
+        ctx.db.execute(
+            select(Alert.id, Alert.case_id).where(Alert.id.in_([n.alert_id for n in rows if n.alert_id]))
+        ).all()
     )
+    items = [
+        S.NotificationOut.model_validate(n).model_copy(update={"case_id": alert_cases.get(n.alert_id)})
+        for n in rows
+    ]
+    return S.Page(total=total, page=page, size=size, items=items)
 
 
 @router.post("/notifications/{notification_id}/read", response_model=S.Ok)
