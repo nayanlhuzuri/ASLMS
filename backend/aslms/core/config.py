@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     cause_list_dir: Path = Path("./data/causelists")
 
     # --- NAPIX eCourts High Court API (primary source) ----------------------------
+    napix_enabled: bool = False  # master switch: no call leaves the server until this is true
     napix_base: str = "https://delhigw.napix.gov.in/nic/ecourts"
     napix_client_id: str | None = None
     napix_client_secret: SecretStr | None = None
@@ -54,6 +55,9 @@ class Settings(BaseSettings):
 
     # --- GHC website (supplementary) ----------------------------------------------------
     ghc_causelist_base: str = "https://ghconline.gov.in"
+    ghc_causelist_url_template: str | None = (
+        None  # e.g. https://…/{list_type}_{dd}-{mm}-{yyyy}.pdf (unverified)
+    )
 
     # --- SourceTrace (in-house RAG) ------------------------------------------------------
     sourcetrace_base_url: str | None = None
@@ -83,13 +87,21 @@ class Settings(BaseSettings):
     seed_admin_email: str = "admin@aslms.local"
     seed_admin_password: SecretStr = SecretStr("change-me")
 
+    # --- jobs -----------------------------------------------------------------------------------
+    first_sight_batch: int = 200  # CNR fetches per run for newly seen cases
+    order_download_batch: int = 200
+    full_refresh_days: int = 7
+    cors_origins: str = ""  # extra comma-separated origins besides PUBLIC_BASE_URL
+
     @property
     def is_prod(self) -> bool:
         return self.app_env == "prod"
 
     @property
     def napix_configured(self) -> bool:
-        return all([self.napix_client_id, self.napix_client_secret, self.napix_dept_id, self.napix_auth_key])
+        return self.napix_enabled and all(
+            [self.napix_client_id, self.napix_client_secret, self.napix_dept_id, self.napix_auth_key]
+        )
 
 
 @lru_cache

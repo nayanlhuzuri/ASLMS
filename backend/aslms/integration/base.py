@@ -42,6 +42,14 @@ class CauseListRow:
     with_text: str | None = None
     remarks: str | None = None
     raw: dict[str, Any] = field(default_factory=dict)
+    # context printed around the row (PDF lists; NAPIX rows fill what they can)
+    bench_text: str | None = None
+    section: str | None = None  # e.g. "FOR ORDERS", "ADMISSION WITH NOTICE SERVED - REPLY FILED"
+    printed_sr: str | None = None  # the serial number as printed; connected matters may have none
+    connected_to: int | None = None  # sr_no of the main entry this row is listed WITH
+    parent_case_no_text: str | None = None  # "in WA/1649/2024" for IAs and similar
+    is_filing_number: bool = False  # case_no_text is a filing number, not a registration number
+    counsel_codes: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

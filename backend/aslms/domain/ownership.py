@@ -183,6 +183,8 @@ class CaseOwnership(TimestampMixin, ActorSnapshotMixin, Base):
     office_id: Mapped[uuid.UUID] = uuid_fk("offices.id", ondelete="RESTRICT")
     role: Mapped[OwnershipRole] = mapped_column(pg_enum(OwnershipRole, "ownership_role"), nullable=False)
     officer_user_id: Mapped[uuid.UUID | None] = uuid_fk("users.id", nullable=True, ondelete="SET NULL")
+    # the directorate / section inside the department the case is allotted to (migration 0002)
+    unit_office_id: Mapped[uuid.UUID | None] = uuid_fk("offices.id", nullable=True, ondelete="SET NULL")
     claimed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     status: Mapped[OwnershipStatus] = mapped_column(
         pg_enum(OwnershipStatus, "ownership_status"),

@@ -296,6 +296,45 @@ class NapixHighCourt:
         except SourceNotFound:
             return []
 
+    async def search_party(
+        self, name: str, reg_year: int | None = None, pending: bool | None = True
+    ) -> list[dict[str, Any]]:
+        """Search by Party Name. Key names follow the spec draft; confirm with `napix-check` samples."""
+        params: dict[str, Any] = {"est_code": self.est_code, "litigant_name": name}
+        if reg_year:
+            params["reg_year"] = reg_year
+        if pending is not None:
+            params["pend_disp"] = "P" if pending else "D"
+        try:
+            return nested_list((await self.client.call(API["party_name"], params)).data)
+        except SourceNotFound:
+            return []
+
+    async def search_advocate(
+        self, name: str, reg_year: int | None = None, pending: bool | None = True
+    ) -> list[dict[str, Any]]:
+        params: dict[str, Any] = {"est_code": self.est_code, "advocate_name": name}
+        if reg_year:
+            params["reg_year"] = reg_year
+        if pending is not None:
+            params["pend_disp"] = "P" if pending else "D"
+        try:
+            return nested_list((await self.client.call(API["advocate_name"], params)).data)
+        except SourceNotFound:
+            return []
+
+    async def search_filing(self, case_type_code: int, fil_no: int, fil_year: int) -> list[dict[str, Any]]:
+        params = {
+            "est_code": self.est_code,
+            "case_type": case_type_code,
+            "fil_no": fil_no,
+            "fil_year": fil_year,
+        }
+        try:
+            return nested_list((await self.client.call(API["filing"], params)).data)
+        except SourceNotFound:
+            return []
+
 
 def _pend(v: Any) -> str:
     u = (_s(v) or "").upper()

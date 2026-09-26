@@ -14,6 +14,7 @@ import asyncio
 import base64
 import hashlib
 import json
+import re
 import time
 from collections import deque
 from collections.abc import Callable
@@ -77,9 +78,14 @@ class RateLimiter:
     def __init__(self, per_minute: int):
         self.per_minute = max(1, per_minute)
         self._stamps: deque[float] = deque()
-        self._lock = asyncio.Lock()
+        self._lock: asyncio.Lock | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
 
     async def wait(self) -> None:
+        # sync callers drive the client with asyncio.run(), one loop per call: a lock is bound to its loop
+        loop = asyncio.get_running_loop()
+        if self._lock is None or self._loop is not loop:
+            self._lock, self._loop = asyncio.Lock(), loop
         async with self._lock:
             now = time.monotonic()
             while self._stamps and now - self._stamps[0] > 60:
@@ -234,6 +240,10 @@ class NapixClient:
             body = r.json()
         except ValueError as e:
             result.raw_text = r.text[:2000]
+            # the gateway sometimes answers errors as a PHP print_r dump: "Array ( [status_code] => 626 ... )"
+            m = re.search(r"\[status_code\]\s*=>\s*(\d{3})", r.text)
+            if m:
+                self._raise_for_status(int(m.group(1)), result, r.text[:300])
             raise IntegrationError(f"NAPIX non-JSON response: {r.text[:200]}") from e
         self.parse_body(body, result)
 

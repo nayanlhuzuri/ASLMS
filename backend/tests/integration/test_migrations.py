@@ -48,6 +48,10 @@ def test_migrations_round_trip(test_db_url: str, monkeypatch) -> None:
     command.upgrade(cfg, "head")
     assert _tables(test_db_url) == set(Base.metadata.tables)
     get_settings.cache_clear()
+    # the schema was dropped and recreated: pooled connections hold prepared statements for the old tables
+    from aslms.db.session import sync_engine
+
+    sync_engine().dispose()
 
 
 def test_seed_is_idempotent(test_db_url: str) -> None:

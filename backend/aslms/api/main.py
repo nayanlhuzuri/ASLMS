@@ -1,4 +1,4 @@
-"""FastAPI application. Routers are added one build step at a time (see CLAUDE.md, build order)."""
+"""FastAPI application: all routers under /api/v1, uniform error bodies, CORS for the portal."""
 
 from __future__ import annotations
 
@@ -6,11 +6,13 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from aslms import __version__
-from aslms.api.routers import health
+from aslms.api.routers import admin, alerts, auth, cases, causelists, dashboard, health, inbox, search
 from aslms.core.config import get_settings
 from aslms.core.errors import AppError
 from aslms.core.logging import configure_logging, get_logger
@@ -26,6 +28,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     log.info("aslms api stopping")
 
 
+class SecurityHeaders(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+        response.headers.setdefault("Referrer-Policy", "same-origin")
+        response.headers.setdefault("Cache-Control", "no-store")
+        return response
+
+
 def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(
@@ -36,13 +48,15 @@ def create_app() -> FastAPI:
         redoc_url=None,
         openapi_url="/api/openapi.json" if not settings.is_prod else None,
     )
+    origins = [settings.public_base_url] + [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[settings.public_base_url],
+        allow_origins=origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    app.add_middleware(SecurityHeaders)
 
     @app.exception_handler(AppError)
     async def app_error_handler(_: Request, exc: AppError) -> JSONResponse:
@@ -51,7 +65,25 @@ def create_app() -> FastAPI:
             content={"error": exc.code, "message": exc.message, "details": exc.details},
         )
 
-    app.include_router(health.router, prefix="/api/v1")
+    @app.exception_handler(RequestValidationError)
+    async def validation_handler(_: Request, exc: RequestValidationError) -> JSONResponse:
+        return JSONResponse(
+            status_code=422,
+            content={
+                "error": "validation_error",
+                "message": "invalid request",
+                "details": {"errors": exc.errors()},
+            },
+        )
+
+    @app.exception_handler(ValueError)
+    async def value_error_handler(_: Request, exc: ValueError) -> JSONResponse:
+        return JSONResponse(
+            status_code=422, content={"error": "validation_error", "message": str(exc), "details": {}}
+        )
+
+    for r in (health, auth, cases, inbox, search, causelists, alerts, dashboard, admin):
+        app.include_router(r.router, prefix="/api/v1")
     return app
 
 
