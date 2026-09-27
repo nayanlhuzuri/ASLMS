@@ -72,6 +72,12 @@ class Settings(BaseSettings):
     smtp_password: SecretStr | None = None
     smtp_from: str = "no-reply@aslms.assam.gov.in"
     smtp_starttls: bool = True  # false only for a local mail catcher without TLS
+    smtp_from_name: str = "ASLMS Legal Case Monitoring"
+    # mail backend: auto = Mailtrap API if MAILTRAP_API_TOKEN is set, else SMTP if SMTP_HOST is set, else console
+    mail_backend: str = Field("auto", description="auto | mailtrap | smtp | console")
+    mailtrap_api_token: SecretStr | None = None
+    # sending: https://send.api.mailtrap.io/api/send · testing sandbox: https://sandbox.api.mailtrap.io/api/send/<inbox_id>
+    mailtrap_api_url: str = "https://send.api.mailtrap.io/api/send"
     sms_gateway_url: str | None = None
     sms_gateway_key: SecretStr | None = None
 
@@ -80,6 +86,8 @@ class Settings(BaseSettings):
     refresh_token_days: int = 14
     otp_expiry_minutes: int = 10
     otp_max_attempts: int = 5
+    otp_resend_seconds: int = 120  # minimum wait before another code can be sent to the same account
+    otp_max_per_hour: int = 10  # codes per account per hour, all purposes together
 
     # --- ownership scoring ------------------------------------------------------------------
     score_strong_threshold: float = 0.85

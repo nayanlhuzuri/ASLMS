@@ -68,6 +68,9 @@ code from the Mailpit inbox. Other demo accounts: `edu.head`, `edu.officer`, `ds
 Cause-list PDFs placed in `data/causelists/DD-MM-YYYY/` are picked up by the daily cycle, or at once with
 `docker compose exec api aslms backfill`. Other commands run the same way (`docker compose exec api aslms report`).
 
+To send real e-mail through Mailtrap instead of Mailpit, put `MAILTRAP_API_TOKEN` (and a `SMTP_FROM` on your
+verified Mailtrap domain) in `.env` and run `docker compose up -d` again; see the e-mail section of `.env.example`.
+
 Stop with `docker compose down` (data is kept in Docker volumes and `data/`). `.env` is optional on a laptop;
 copy `.env.example` to change settings. Uploads show "scan failed" unless ClamAV runs
 (`docker compose --profile scan up -d` with `CLAMAV_HOST=clamav`). Production: `docs/operations.md`.

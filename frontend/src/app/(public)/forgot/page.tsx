@@ -7,12 +7,14 @@ import { Field, TextInput } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Layout";
 import { ErrorState } from "@/components/ui/States";
 import { authCall, errorMessage } from "@/lib/api";
+import { ResendCode, type OtpChallenge } from "@/components/auth/ResendCode";
 import s from "../auth.module.css";
 
 export default function ForgotPage() {
   const [step, setStep] = useState<"email" | "reset" | "done">("email");
   const [email, setEmail] = useState("");
   const [challengeId, setChallengeId] = useState("");
+  const [resendAfter, setResendAfter] = useState(120);
   const [code, setCode] = useState("");
   const [pw, setPw] = useState("");
   const [pw2, setPw2] = useState("");
@@ -24,8 +26,9 @@ export default function ForgotPage() {
     setError(null);
     setBusy(true);
     try {
-      const c = await authCall<{ challenge_id: string }>("forgot", { email });
+      const c = await authCall<OtpChallenge>("forgot", { email });
       setChallengeId(c.challenge_id);
+      setResendAfter(c.resend_after ?? 120);
       setStep("reset");
     } catch (err) {
       setError(errorMessage(err));
@@ -97,6 +100,17 @@ export default function ForgotPage() {
           <Button type="submit" variant="primary" busy={busy} disabled={code.length !== 6}>
             Change password
           </Button>
+          <ResendCode
+            challengeId={challengeId}
+            resendAfter={resendAfter}
+            onResent={(c) => {
+              setChallengeId(c.challenge_id);
+              setResendAfter(c.resend_after ?? 120);
+              setCode("");
+              setError(null);
+            }}
+            onError={setError}
+          />
         </form>
       ) : (
         <Notice>Sign in again with your new password.</Notice>

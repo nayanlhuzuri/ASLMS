@@ -117,7 +117,7 @@ export const api = {
 };
 
 /** Calls one of the portal's own /api/auth/* handlers (sign-in, OTP, password reset, sign-out). */
-export async function authCall<T>(name: "login" | "verify" | "logout" | "forgot" | "reset", body: unknown): Promise<T> {
+export async function authCall<T>(name: "login" | "verify" | "logout" | "forgot" | "reset" | "resend", body: unknown): Promise<T> {
   let res: Response;
   try {
     res = await fetch(`/api/auth/${name}`, {

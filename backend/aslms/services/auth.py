@@ -9,12 +9,13 @@ from __future__ import annotations
 import re
 import uuid
 from dataclasses import dataclass
+from datetime import timedelta
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from aslms.core.config import get_settings
-from aslms.core.errors import UnauthorizedError, ValidationError
+from aslms.core.errors import SourceUnavailable, TooManyRequestsError, UnauthorizedError, ValidationError
 from aslms.core.logging import get_logger
 from aslms.core.security import (
     create_access_token,
@@ -46,7 +47,39 @@ def validate_password(pw: str) -> None:
         raise ValidationError("password must be at least 10 characters and contain letters and digits")
 
 
-def _issue_otp(session: Session, user: User, purpose: OtpPurpose) -> uuid.UUID:
+def seconds_until_next_code(session: Session, user_id: uuid.UUID, purpose: OtpPurpose) -> int:
+    """How long before another code may be sent for this account and purpose (0 = now)."""
+    last = session.scalar(
+        select(func.max(OtpCode.created_at)).where(OtpCode.user_id == user_id, OtpCode.purpose == purpose)
+    )
+    if last is None:
+        return 0
+    wait = get_settings().otp_resend_seconds - int((now_utc() - last).total_seconds())
+    return max(0, wait)
+
+
+def _check_send_limits(session: Session, user: User, purpose: OtpPurpose, *, cooldown: bool) -> None:
+    s = get_settings()
+    if cooldown:
+        wait = seconds_until_next_code(session, user.id, purpose)
+        if wait:
+            raise TooManyRequestsError(
+                f"please wait {wait} seconds before asking for a new code", retry_after=wait
+            )
+    recent = (
+        session.scalar(
+            select(func.count())
+            .select_from(OtpCode)
+            .where(OtpCode.user_id == user.id, OtpCode.created_at > now_utc() - timedelta(hours=1))
+        )
+        or 0
+    )
+    if recent >= s.otp_max_per_hour:
+        raise TooManyRequestsError("too many codes requested; try again in an hour", retry_after=3600)
+
+
+def _issue_otp(session: Session, user: User, purpose: OtpPurpose, *, cooldown: bool = False) -> uuid.UUID:
+    _check_send_limits(session, user, purpose, cooldown=cooldown)
     # one live code per purpose: older unused codes stop working
     session.execute(
         update(OtpCode)
@@ -58,11 +91,17 @@ def _issue_otp(session: Session, user: User, purpose: OtpPurpose) -> uuid.UUID:
     session.add(otp)
     session.flush()
     minutes = get_settings().otp_expiry_minutes
-    get_mailer().send(
-        to=user.email,
-        subject="ASLMS one-time password",
-        body=f"Your ASLMS one-time password is {code}. It expires in {minutes} minutes. Do not share it.",
-    )
+    try:
+        get_mailer().send(
+            to=user.email,
+            subject="ASLMS one-time password",
+            body=f"Your ASLMS one-time password is {code}. It expires in {minutes} minutes. Do not share it.",
+        )
+    except Exception as e:  # noqa: BLE001 — any mail backend failure becomes one clear, non-secret message
+        log.error("otp e-mail could not be sent", user_id=str(user.id), error=str(e)[:300])
+        raise SourceUnavailable(
+            "the one-time password could not be e-mailed; try again or contact the administrator"
+        ) from e
     return otp.id
 
 
@@ -154,11 +193,32 @@ def logout(session: Session, raw_token: str) -> None:
 
 
 def start_password_reset(session: Session, email: str) -> uuid.UUID | None:
-    """Always answers the same way to the caller; returns None when no such account (not revealed)."""
+    """Always answers the same way to the caller; returns None when no such account (not revealed) or when the
+    account asked too recently (no code is sent, and that is not revealed either: this endpoint needs no
+    password, so it must not become a way to flood someone's inbox)."""
     user = session.scalar(select(User).where(User.email == email.strip().lower()))
     if user is None or not user.is_active:
         return None
-    return _issue_otp(session, user, OtpPurpose.PASSWORD_RESET)
+    try:
+        return _issue_otp(session, user, OtpPurpose.PASSWORD_RESET, cooldown=True)
+    except TooManyRequestsError:
+        return None
+
+
+RESEND_WINDOW_MINUTES = 30
+
+
+def resend_code(session: Session, challenge_id: uuid.UUID) -> uuid.UUID | None:
+    """Sends a fresh code for an earlier sign-in or reset challenge (at most every OTP_RESEND_SECONDS, and at
+    most OTP_MAX_PER_HOUR codes an hour). The earlier code stops working. Returns the new challenge id, or None
+    for an unknown or stale challenge (the caller answers as if a code had been sent)."""
+    old = session.get(OtpCode, challenge_id)
+    if old is None or old.created_at < now_utc() - timedelta(minutes=RESEND_WINDOW_MINUTES):
+        return None
+    user = session.get(User, old.user_id)
+    if user is None or not user.is_active:
+        return None
+    return _issue_otp(session, user, old.purpose, cooldown=True)
 
 
 def complete_password_reset(session: Session, challenge_id: uuid.UUID, code: str, new_password: str) -> None:

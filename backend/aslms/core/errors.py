@@ -59,3 +59,8 @@ class SourceNotFound(IntegrationError):
 
     status_code = 404
     code = "source_not_found"
+
+
+class TooManyRequestsError(AppError):
+    status_code = 429
+    code = "too_many_requests"

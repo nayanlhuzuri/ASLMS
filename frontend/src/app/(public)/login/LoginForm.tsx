@@ -9,12 +9,10 @@ import { ErrorState } from "@/components/ui/States";
 import { api, authCall, errorMessage } from "@/lib/api";
 import { safeNext } from "@/lib/safeNext";
 import type { Me } from "@/lib/types";
+import { ResendCode, type OtpChallenge } from "@/components/auth/ResendCode";
 import s from "../auth.module.css";
 
-interface Challenge {
-  challenge_id: string;
-  detail?: string;
-}
+type Challenge = OtpChallenge;
 
 export function LoginForm() {
   const params = useSearchParams();
@@ -122,6 +120,19 @@ export function LoginForm() {
           <Button type="submit" variant="primary" busy={busy} disabled={code.length !== 6}>
             Sign in
           </Button>
+          {challenge ? (
+            <ResendCode
+              challengeId={challenge.challenge_id}
+              resendAfter={challenge.resend_after ?? 120}
+              onResent={(c) => {
+                setChallenge(c);
+                setCode("");
+                setError(null);
+                otpRef.current?.focus();
+              }}
+              onError={setError}
+            />
+          ) : null}
           <div className={s.links}>
             <button
               type="button"

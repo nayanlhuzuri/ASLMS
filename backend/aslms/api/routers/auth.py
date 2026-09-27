@@ -21,7 +21,9 @@ router = APIRouter(tags=["auth"])
 @router.post("/auth/login", response_model=S.Challenge)
 def login(body: S.LoginIn, request: Request, db: Session = Depends(get_db)) -> S.Challenge:
     ip, _ = client_meta(request)
-    return S.Challenge(challenge_id=auth.start_login(db, body.email, body.password, ip))
+    return S.Challenge(
+        challenge_id=auth.start_login(db, body.email, body.password, ip), resend_after=_resend_after()
+    )
 
 
 @router.post("/auth/verify", response_model=S.Tokens)
@@ -53,8 +55,28 @@ def forgot(body: S.ForgotIn, db: Session = Depends(get_db)) -> S.Challenge:
     cid = auth.start_password_reset(db, body.email)
     # the same answer whether or not the account exists
     return S.Challenge(
-        challenge_id=cid or uuid.uuid4(), detail="If the account exists, a code has been sent to its e-mail."
+        challenge_id=cid or uuid.uuid4(),
+        detail="If the account exists, a code has been sent to its e-mail.",
+        resend_after=_resend_after(),
     )
+
+
+@router.post("/auth/otp/resend", response_model=S.Challenge)
+def resend(body: S.ResendIn, db: Session = Depends(get_db)) -> S.Challenge:
+    """A new code for an earlier sign-in or password-reset step. Allowed once every OTP_RESEND_SECONDS (429 with
+    `retry_after` before that). The previous code stops working."""
+    cid = auth.resend_code(db, body.challenge_id)
+    return S.Challenge(
+        challenge_id=cid or uuid.uuid4(),
+        detail="A new one-time password has been sent.",
+        resend_after=_resend_after(),
+    )
+
+
+def _resend_after() -> int:
+    from aslms.core.config import get_settings
+
+    return get_settings().otp_resend_seconds
 
 
 @router.post("/auth/password/reset", response_model=S.Ok)

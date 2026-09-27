@@ -45,6 +45,11 @@ class LoginIn(BaseModel):
 class Challenge(BaseModel):
     challenge_id: uuid.UUID
     detail: str = "A one-time password has been sent to your e-mail."
+    resend_after: int = 120  # seconds before "Resend code" may be used
+
+
+class ResendIn(BaseModel):
+    challenge_id: uuid.UUID
 
 
 class VerifyIn(BaseModel):

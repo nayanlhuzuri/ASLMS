@@ -698,7 +698,10 @@ def recommended_query(office_id: uuid.UUID):
             Recommendation.office_id == office_id, Recommendation.status == RecommendationStatus.RECOMMENDED
         )
         .order_by(
-            Recommendation.band.asc(), Recommendation.score.desc(), Case.next_hearing_date.asc().nulls_last()
+            Recommendation.band.asc(),
+            Recommendation.score.desc(),
+            Case.next_hearing_date.asc().nulls_last(),
+            Recommendation.id,
         )
     )
 
@@ -712,7 +715,7 @@ def claimed_query(office_path: str):
             CaseOwnership.status == OwnershipStatus.ACTIVE,
             or_(Office.path == office_path, Office.path.like(office_path + "/%")),
         )
-        .order_by(Case.next_hearing_date.asc().nulls_last())
+        .order_by(Case.next_hearing_date.asc().nulls_last(), Case.id)
     )
 
 
@@ -724,7 +727,7 @@ def unclaimed_query():
     return (
         select(Case)
         .where(~owned, Case.merged_into_case_id.is_(None), Case.status != "disposed")
-        .order_by(Case.next_hearing_date.asc().nulls_last(), Case.created_at.desc())
+        .order_by(Case.next_hearing_date.asc().nulls_last(), Case.created_at.desc(), Case.id)
     )
 
 

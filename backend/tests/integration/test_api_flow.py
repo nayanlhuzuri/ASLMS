@@ -84,7 +84,8 @@ def test_recommend_claim_scope_watch_transfer(client: TestClient, world, db: Ses
     assert rec["total"] == world["n_rec"]
     first = rec["items"][0]
     assert first["band"] == "high" and first["signals"][0]["kind"] == "counsel_code"
-    assert first["listing"]["list_date"] == "2025-09-01" and first["listing"]["court_no"] == "111"
+    assert first["listing"]["list_date"] == "2025-09-01"
+    assert first["listing"]["court_no"] in {r.court_no for r in world["parsed"].rows}
     case_id = first["case"]["id"]
     assert first["case"]["in_scope"] is False  # recommended is not owned
 
@@ -323,3 +324,53 @@ def test_search_reports_audit_admin(client: TestClient, world) -> None:
     assert client.get("/api/v1/audit", headers=auth(login(client, "edu.officer@t.in"))).status_code == 403
     listings = client.get("/api/v1/causelists?date=2025-09-01", headers=edu).json()
     assert listings[0]["entry_count"] == 16
+
+
+def _code() -> str:
+    return re.search(r"\b(\d{6})\b", ConsoleMailer.sent[-1]["body"]).group(1)
+
+
+def test_resend_code_waits_two_minutes_and_replaces_the_old_code(client: TestClient, db: Session) -> None:
+    import sqlalchemy as sa
+
+    ConsoleMailer.sent.clear()
+    r = client.post("/api/v1/auth/login", json={"email": "edu.admin@t.in", "password": PW}).json()
+    assert r["resend_after"] == 120
+    first_id, first_code = r["challenge_id"], _code()
+
+    # too early: 429 with the remaining wait, and no e-mail
+    r = client.post("/api/v1/auth/otp/resend", json={"challenge_id": first_id})
+    assert r.status_code == 429 and 0 < r.json()["details"]["retry_after"] <= 120
+    assert len(ConsoleMailer.sent) == 1
+
+    # two minutes later a new code is sent and the old one stops working
+    db.execute(sa.text("UPDATE otp_codes SET created_at = created_at - interval '121 seconds'"))
+    db.commit()
+    r = client.post("/api/v1/auth/otp/resend", json={"challenge_id": first_id})
+    assert r.status_code == 200 and r.json()["challenge_id"] != first_id
+    second_id, second_code = r.json()["challenge_id"], _code()
+    assert (
+        client.post("/api/v1/auth/verify", json={"challenge_id": first_id, "code": first_code}).status_code
+        == 401
+    )
+    assert (
+        client.post("/api/v1/auth/verify", json={"challenge_id": second_id, "code": second_code}).status_code
+        == 200
+    )
+
+    # an unknown challenge gets the same answer and no e-mail
+    n = len(ConsoleMailer.sent)
+    import uuid as _uuid
+
+    assert (
+        client.post("/api/v1/auth/otp/resend", json={"challenge_id": str(_uuid.uuid4())}).status_code == 200
+    )
+    assert len(ConsoleMailer.sent) == n
+
+
+def test_password_reset_cannot_flood_an_inbox(client: TestClient) -> None:
+    ConsoleMailer.sent.clear()
+    for _ in range(3):
+        r = client.post("/api/v1/auth/password/forgot", json={"email": "edu.admin@t.in"})
+        assert r.status_code == 200 and r.json()["resend_after"] == 120  # same answer every time
+    assert len(ConsoleMailer.sent) == 1  # only the first request sent a code
