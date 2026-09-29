@@ -12,9 +12,10 @@ from aslms.integration import email
 @pytest.fixture()
 def settings_env(monkeypatch: pytest.MonkeyPatch):
     def apply(**env: str) -> None:
-        for k in ("MAIL_BACKEND", "MAILTRAP_API_TOKEN", "SMTP_HOST", "MAILTRAP_API_URL"):
-            monkeypatch.delenv(k, raising=False)
-        for k, v in env.items():
+        # a developer's .env may hold a real token or backend; environment variables override the file,
+        # so every key is pinned (empty = "not set") unless the test sets it
+        defaults = {"MAIL_BACKEND": "auto", "MAILTRAP_API_TOKEN": "", "SMTP_HOST": "", "MAILTRAP_API_URL": ""}
+        for k, v in {**defaults, **env}.items():
             monkeypatch.setenv(k, v)
         get_settings.cache_clear()
 

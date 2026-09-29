@@ -66,6 +66,8 @@ def app_env(test_db_url: str, tmp_path_factory: pytest.TempPathFactory) -> Itera
     mp.setenv("STORAGE_ROOT", str(tmp_path_factory.mktemp("storage")))
     mp.setenv("NAPIX_ENABLED", "false")
     mp.setenv("SMTP_HOST", "")
+    mp.setenv("MAIL_BACKEND", "console")  # never a developer's Mailtrap token from .env
+    mp.setenv("MAILTRAP_API_TOKEN", "")
     mp.setenv("CLAMAV_HOST", "")
     mp.setenv("APP_ENV", "test")
     _reset_caches()
