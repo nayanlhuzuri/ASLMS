@@ -30,9 +30,17 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 # data) before the API, workers and scheduler start; it repeats harmlessly on every start
 ```
 
-The seed creates the State office, the central monitoring cell, the Advocate General's office, the Gauhati High
-Court establishment (GAHC01) and one central-operator account (`SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`). Sign in
-with it, change the password, then set up the organisation (§4).
+The first migration creates the database roles (`docs/DB_STANDARD.md` §8): `aslms_owner` (migrations),
+`aslms_app` (the API, workers and CLI; it cannot delete legal records or run DDL) and `aslms_readonly` (Grafana,
+reports). Their passwords come from `ASLMS_APP_PASSWORD` and `ASLMS_READONLY_PASSWORD`; `init` and
+`make prod-migrate` connect as the owner through `ASLMS_MIGRATE_URL`, everything else as `aslms_app` through
+PgBouncer.
+
+The seed creates the code sets (`ref_*`), the designations, Assam and its districts, the State office, the
+central monitoring cell, the Advocate General's office, the Gauhati High Court establishment (GAHC01) and one
+central-operator account (`SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`). Sign in with it, change the password,
+then set up the organisation (§4). Enter the LGD district codes under Administration when the departments
+supply them; the portal never guesses an identifier.
 
 Never run `aslms seed-demo` on the pilot or production server; it refuses when `APP_ENV=prod`.
 
@@ -42,7 +50,7 @@ Never run `aslms seed-demo` on the pilot or production server; it refuses when `
 |---|---|
 | `APP_ENV=prod` | turns off API docs, refuses demo data, requires the virus scanner |
 | `SECRET_KEY` | signs sessions; a long random string, never shared |
-| `POSTGRES_PASSWORD`, `GRAFANA_ADMIN_PASSWORD`, `SEED_ADMIN_PASSWORD` | defaults are for laptops only |
+| `POSTGRES_PASSWORD`, `ASLMS_APP_PASSWORD`, `ASLMS_READONLY_PASSWORD`, `GRAFANA_ADMIN_PASSWORD`, `SEED_ADMIN_PASSWORD` | defaults are for laptops only; the two role passwords are set by the first migration |
 | `PUBLIC_BASE_URL` | the portal's address, used in e-mail links and CORS |
 | `SMTP_*` | without `SMTP_HOST`, OTPs and alerts are only written to the log |
 | `NAPIX_*` and `NAPIX_ENABLED=true` | see §5; nothing calls NAPIX until `NAPIX_ENABLED` is true |
@@ -91,11 +99,13 @@ Put the TLS certificate and key in `infra/nginx/certs/` and uncomment the 443 se
 
 ## 7. Backups and restore
 
-- The `backup` service writes `BACKUP_DIR/db/aslms-YYYYMMDD-HHMMSS.dump` every night and copies new document files
-  to `BACKUP_DIR/storage/`; dumps older than `BACKUP_KEEP_DAYS` are removed. Copy `BACKUP_DIR` off the server.
+- The `backup` service writes `BACKUP_DIR/db/aslms-YYYYMMDD-HHMMSS.dump` and `roles-YYYYMMDD-HHMMSS.sql` (the
+  three database roles, which a database dump does not contain) every night and copies new document files
+  to `BACKUP_DIR/storage/`; files older than `BACKUP_KEEP_DAYS` are removed. Copy `BACKUP_DIR` off the server.
 - One backup now: `make backup`.
-- Restore (stop `api`, workers and `beat` first, into an empty database):
-  `docker compose ... run --rm backup /restore.sh /backups/db/aslms-....dump`, then copy `storage/` back into the
+- Restore (stop `api`, workers and `beat` first, into an empty database): on a fresh server replay the roles
+  file first (`psql -d postgres -f /backups/db/roles-....sql`), then
+  `docker compose ... run --rm backup /restore.sh /backups/db/aslms-....dump`, copy `storage/` back into the
   storage volume and run `make prod-migrate`.
 - Test a restore on a spare machine at least once a quarter.
 
@@ -117,6 +127,10 @@ Migrations are forward-only in production; each is tested with upgrade → downg
   token ends all of that user's sessions.
 - Visibility is enforced in the database queries for every request, by role and office hierarchy.
 - Events, the audit log, the notes trail, custody history and stage history cannot be edited or deleted: the
-  database refuses it.
+  database refuses it. Cases, cause lists, documents, orders, requests and every other legal record are never
+  deleted either: every foreign key to them is RESTRICT and the application role has no DELETE right on them;
+  masters (offices, users, codes, patterns, keywords, watchlist) are deactivated, never removed.
+- Every case, request, note, upload, transfer and alert carries a reference number
+  (`ASLMS/<office>/<type>/<year>/<serial>`, `docs/DB_STANDARD.md` §3) to quote in correspondence.
 - Uploads: PDF, Word and images only, content checked against the extension, size limit, virus scan before storage.
 - No case data is sent to any cloud AI service. Court orders and court filings go only to SourceTrace, once enabled.

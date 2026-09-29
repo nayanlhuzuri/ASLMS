@@ -7,7 +7,7 @@ Read this file fully before touching code. Then read, once, in this order:
    else (including this file) differs from it, the plan wins.
 2. `docs/claude_ASLMS_design_decisions.md` — running decision log: what was decided, why, and what the plan
    left open. Append to it whenever a decision is taken; never rewrite history in it.
-3. `docs/schema/phase1.md` — the approved Phase 1 database schema.
+3. `docs/DB_STANDARD.md` (the database standard) and `docs/schema/schema.md` (the database as built).
 4. `docs/specs/napix/hc/` and `docs/postman/` — the NAPIX High Court API stubs and the test collection.
 
 Design decisions are settled with the product owner and are not re-litigated. When something is genuinely
@@ -70,7 +70,7 @@ directorate_user, referral_reviewer, standing_counsel, central_operator, auditor
 ```
 backend/
   pyproject.toml  alembic.ini  Dockerfile
-  alembic/versions/         0001_phase1_core.py — fresh history
+  alembic/versions/         0001_core.py — fresh history (DB-1)
   aslms/
     core/         config (pydantic-settings), logging (structlog), security (argon2, JWT), time (IST), errors
     db/           session (async + sync), base (Base, mixins), seed/ (offices, roles, masters, counsel codes)
@@ -121,23 +121,25 @@ order_period | manual) · Alert · Notification · Event · AuditLog · Office (
   `est_code` per bench (GAHC01 assumed), `state_code` (6 assumed), auth-key encoding, and whether PDF APIs
   return raw `application/pdf` or base64 inside `response_str`. Record the answers in the decisions log.
 
-## Milestone DB-1 — database conformance (next; do this before anything else)
+## Milestone DB-1 — database conformance (done 29 Sep 2026)
 
-Execute `docs/DB_STANDARD.md` §11 steps 1–7 (§12.1 is step 6) one commit per step, then run the §12.2
-acceptance gate and report the outputs of gate steps 4, 5, 7 and 8 verbatim. Record the pre-migration
-baseline (how the test data was produced and its counts) before step 1. Stop on any baseline drift.
+`docs/DB_STANDARD.md` §11 steps 1–7 were executed one commit per step and the §12.2 gate run; the baseline and
+the gate outputs are in the decisions log. The database is a fresh history (`0001_core`, 67 tables): UUID v7
+keys, `ref_no` on quotable records, nine `ref_*` code sets, RESTRICT everywhere but the §6 list, `class=`
+comments, `set_updated_at()` and append-only triggers, and the roles `aslms_owner` / `aslms_app` /
+`aslms_readonly`. The Plan's build order resumes from here.
 
-## Current state (26 Sep 2026)
+## Current state (29 Sep 2026)
 
-Phase 1 and the Phase 2 workflow are built and tested (70 backend tests); the Phase 3 assistant has its storage and
-UI. Waiting on outside input: NAPIX live test (`NAPIX_ENABLED=true`, `aslms napix-check`), the real
-code-to-department mapping from the departments, the SourceTrace API shapes, and the NAPIX DC specification.
-Migrations: 0001 (Phase 1 core), 0002 (`case_ownership.unit_office_id`), 0003 (Phase 2/3 tables).
-Operations: `docs/operations.md`.
+Phase 1 and the Phase 2 workflow are built and tested (89 backend tests); the Phase 3 assistant has its storage and
+UI. Waiting on outside input: NAPIX live test (`NAPIX_ENABLED=true`, `aslms napix-check`; it also records the
+real dossier shape that `tests/fixtures/cnr_dossier_shape.json` stands in for), the real code-to-department
+mapping from the departments, the LGD district codes, the SourceTrace API shapes, and the NAPIX DC
+specification. Migration: `0001_core` only. Operations: `docs/operations.md`.
 
 ## Build order — Phase 1 (Core), one reviewable change at a time
 
-1. Backend skeleton + migration `0001_phase1_core` (schema per `docs/schema/phase1.md`); `alembic upgrade head`,
+1. Backend skeleton + migration `0001_core` (schema per `docs/schema/schema.md`); `alembic upgrade head`,
    `downgrade -1`, `upgrade head` round-trip; seed for offices, roles and one admin.
 2. NAPIX integration layer + `aslms napix-check` (the live test; saves decrypted shapes to
    `docs/specs/napix/hc/samples/`). Then settle the open points above.
@@ -163,20 +165,19 @@ Additional rules learned while building:
 - Custody is only ever moved through `services.workflow.move`; officers' workflow access is personal (held by /
   addressed to them), not by office.
 
-## Running locally (once the skeleton exists)
+## Running locally
 
 ```bash
-cp .env.example .env                       # fill NAPIX_* to use the live gateway
-docker compose up -d postgres redis
-docker compose run --rm api alembic upgrade head
-docker compose run --rm api aslms seed
-docker compose up -d                       # api, workers, beat
-cd backend && pytest -q && ruff check aslms
+docker compose up -d --build               # init migrates and seeds (demo data on a laptop), then api, workers, beat, web
+cd backend && pytest -q && ruff check aslms tests alembic
+cd frontend && npm run typecheck && npm run lint && npm run build
 ```
+`.env` is optional on a laptop (`cp .env.example .env` to change settings; fill `NAPIX_*` for the live gateway).
 
 ## Definition of done for any change
 
 - `ruff check` clean, `pytest -q` green, new behaviour has a test.
-- Migration added if models changed; upgrade → downgrade → upgrade works.
+- Migration added if models changed; upgrade → downgrade → upgrade works; every new table declares its
+  `__table_class__`, keys are UUID v7, no new CASCADE outside `docs/DB_STANDARD.md` §6.
 - `README.md` / `.env.example` updated if a command or variable changed; decisions log appended if a decision was taken.
 - No secrets committed. Nothing imported from the legacy folders.

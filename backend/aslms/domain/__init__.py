@@ -1,4 +1,4 @@
-"""SQLAlchemy models, one module per data group (docs/schema/phase1.md; Phase 2: workflow, sourcetrace).
+"""SQLAlchemy models, one module per data group (docs/schema/schema.md; Phase 2: workflow, sourcetrace).
 Every module must be imported here so Alembic and `Base.metadata` see all tables."""
 
 from aslms.db.base import Base

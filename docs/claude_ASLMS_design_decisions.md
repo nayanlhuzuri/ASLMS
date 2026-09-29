@@ -126,7 +126,7 @@ Previous designs for reference only: the scraper-based system tables listed abov
 - **Resend code** on the sign-in and password-reset pages, with a two-minute countdown. The wait is enforced by the server (`OTP_RESEND_SECONDS=120`, 429 with `retry_after`), plus a cap of `OTP_MAX_PER_HOUR=10` codes per account. Resending invalidates the previous code. The password-reset endpoint needs no password, so a repeat request inside the wait sends nothing and answers exactly as before (no inbox flooding, no account disclosure).
 
 ## Next
-1. ~~Propose project structure and new database schema from the plan; get approval.~~ Done 25 Sep (plan file approved; structure and Phase 1 schema recorded in `CLAUDE.md` and `docs/schema/phase1.md`).
+1. ~~Propose project structure and new database schema from the plan; get approval.~~ Done 25 Sep (plan file approved; structure and Phase 1 schema recorded in `CLAUDE.md` and `docs/schema/phase1.md`, now `docs/schema/schema.md`).
 2. ~~Backend skeleton and Alembic `0001_phase1_core`~~ Done 25 Sep: 39 tables, 48 enum types created explicitly in the migration, append-only triggers on `events` and `audit_log`, upgrade → downgrade → upgrade verified by `tests/integration/test_migrations.py`; seed creates STATE / CENTRAL / AG offices, GAHC01 and the operator account. NAPIX integration layer (`backend/aslms/integration/napix/`: crypto with the Subscriber Manual known-answer test, client with token/envelope/rate limit/retry/call hook, HC adapter implementing `CourtSource`) and the `aslms napix-check` CLI are written and tested offline against a mocked gateway (25 tests green). **Pending: run `aslms napix-check` with the real credentials** (overview → state → bench → case type → causelist bench/details → show causelist → CNR → current status → show business → order); it saves each decrypted response under `docs/specs/napix/hc/samples/` (git-ignored) and answers the five open points above.
 3. Compile the initial code-to-department mapping, name patterns and office list (from cause lists and department input).
 4. Phase 1 build: integration layer, daily data cycle, cause-list parser (cross-check), department mapping + recommend/claim inbox, case tracking, orders archive, case document upload with virus scan, specific-date alerts, search, case detail page, administration, auth (local accounts + OTP) and RBAC with visibility tiers, in-app + email notifications, dashboard, Next.js frontend per the current UI screens.
@@ -212,3 +212,50 @@ Differences that are expected and are not drift: batch 1 originally ran through 
 before the demo codes existed, so its recommendations came from the later `rescore_all`; `job_runs`,
 `source_failures` (the two NAPIX rows) and everything marked *m* are not reproduced. Any other difference in
 the step-5 numbers is a regression to explain before anything is changed.
+
+## Build decisions (29 Sep 2026, Milestone DB-1 — DB_STANDARD v1.2)
+
+Executed §11 steps 1–7, one commit per step (`DB-1 step N` in the log), after the baseline above.
+
+- **Fresh migration history.** `0001_phase1_core`, `0002_ownership_unit` and `0003_phase2_workflow` are replaced by
+  one `0001_core` (67 tables). The baseline data was rebuilt from the same cause-list PDFs (gate step 5).
+- **Code sets stay Python enums in the ORM.** The eight `ref_*` columns are `varchar(40)` with a foreign key, mapped
+  with `sa.Enum(native_enum=False)`, so services, tests and the API keep the enum members; only the storage changed.
+  A ninth set, `ref_record_type`, backs reference numbers. The test database fixture seeds the code sets after
+  every truncate, because no row can be written without them.
+- **Reference numbers in URLs.** `/` in `ASLMS/GOA/CASE/2026/000001` cannot travel in a path segment, so the API also
+  accepts the same number with `-` (`ASLMS-GOA-CASE-2026-000001`); office codes may contain `-`, so the number is
+  parsed from the right (type, year, serial are the last three parts). `resolve_case_ref` takes an id, either
+  form of the number, or a CNR, and every `/cases/{case_ref}` route uses it.
+- **Two master mixins.** `MasterMixin` (`is_active`, `deactivated_at`, `valid_from`, `valid_to`) on the versioned
+  organisation masters (`offices`, `designations`); `DeactivateMixin` (the first two) on the other masters, which
+  the standard does not version.
+- **Designations.** `users.designation_id` points at the master; `users.designation` keeps the text shown at write
+  time (author snapshots freeze it), and stays free text for designations not yet in the master.
+- **LGD codes are not guessed.** `states` and `districts` are seeded by name (Assam, LGD 18, and its 35 districts;
+  Sribhumi for the former Karimganj). The LGD district codes could not be fetched (the LGD and data.gov.in portals
+  refuse automated access) and are entered under Administration when supplied; the NAPIX district master fills
+  `ecourts_code` through `master_sync`, which now also syncs states and acts (act master added to the API map).
+- **Creation cycle.** `offices.created_by` → `users` and `users.office_id` → `offices` (and `users` ↔
+  `designations`) form a cycle; the fifteen audit foreign keys are declared `use_alter` and the migration adds them
+  after the tables (SQLAlchemy omits `use_alter` keys from a single-table CREATE, so the post-processor emits them).
+- **Roles.** `aslms_owner` (NOLOGIN, granted to the migrating user), `aslms_app` and `aslms_readonly` are created by
+  `0001_core` only if absent (roles are cluster-wide) with passwords from `ASLMS_APP_PASSWORD` /
+  `ASLMS_READONLY_PASSWORD`; downgrade revokes their privileges in the database (`DROP OWNED BY`) and leaves the
+  roles. Compose runs the API and workers as `aslms_app`, `init` and PgBouncer's pool credentials follow; the
+  nightly backup adds `pg_dumpall --roles-only`.
+- **Alerts allocate a number only when new.** The daily generator looks the dedupe key up before inserting, so
+  re-runs do not burn serials (gaps are allowed, but not one per existing alert per day).
+- **`closed_at`** is set when a case is first seen disposed (CNR or Current Status); "owner closure" has no
+  separate action yet.
+- **`other` document type** is grouped as `court_filing` in `ref_doc_type`; the uploader still says whether an
+  `other` file is internal, as before.
+- **Dossier fixture.** `tests/fixtures/cnr_dossier_shape.json` carries the documented field names of every §10
+  block but is constructed, not recorded; the live `aslms napix-check` replaces it.
+- **Party history.** The dossier apply upserts parties on (case, role, party_no) and marks the missing ones
+  `is_current = false`; advocates are matched to the `advocates` master only when a bar registration number is
+  known (none in the current dossier fields).
+- **Deletion.** No service deletes any more; the four mapping DELETE endpoints deactivate and return the row.
+  Documents have no delete endpoint; `archived_at` is the retirement column for when one is needed.
+- Open: the real dossier field names (live test), the LGD codes, PostgreSQL schemas per bounded context (§9,
+  revisit with Phase 3), retention/archive policy (§6, policy owner to confirm).

@@ -23,7 +23,9 @@ cross-check. Case research and order reading go through SourceTrace, the in-hous
 | Phase 3: District Courts via NAPIX DC API | not started (no DC specification in the repository) |
 | Deployment: Docker Compose with nginx, PgBouncer, ClamAV, Prometheus/Grafana, backups | built |
 
-The database starts empty. There is no migration of earlier data.
+The database starts empty. There is no migration of earlier data. Every case, request, note, upload, transfer
+and alert carries an eOffice-style reference number (`ASLMS/GOA/CASE/2026/000123`) that the API accepts
+wherever an id is; legal records are never deleted, and the application's database role cannot delete them.
 
 ## Read first
 
@@ -31,7 +33,8 @@ The database starts empty. There is no migration of earlier data.
 |---|---|
 | `docs/Legal_Case_Monitoring_Portal_Plan.docx` | The agreed plan. Source of truth. |
 | `docs/claude_ASLMS_design_decisions.md` | Decision log and open points. |
-| `docs/schema/phase1.md` | Database schema (Phase 1 and the Phase 2/3 tables). |
+| `docs/DB_STANDARD.md` | The database standard (keys, reference numbers, code sets, deletion, roles). |
+| `docs/schema/schema.md` | The database as built: every table, by group. |
 | `docs/operations.md` | Installation, configuration, daily operation, backups, upgrades. |
 | `docs/specs/napix/hc/`, `docs/postman/` | NAPIX High Court API stubs and the Postman test collection. |
 | `CLAUDE.md` | Working rules for anyone (or any agent) changing code here. |
@@ -72,7 +75,9 @@ To send real e-mail through Mailtrap instead of Mailpit, put `MAILTRAP_API_TOKEN
 verified Mailtrap domain) in `.env` and run `docker compose up -d` again; see the e-mail section of `.env.example`.
 
 Stop with `docker compose down` (data is kept in Docker volumes and `data/`). `.env` is optional on a laptop;
-copy `.env.example` to change settings. Uploads show "scan failed" unless ClamAV runs
+copy `.env.example` to change settings. The first start creates the database roles `aslms_owner`, `aslms_app`
+(the API and workers) and `aslms_readonly` (dashboards); their passwords are `ASLMS_APP_PASSWORD` and
+`ASLMS_READONLY_PASSWORD`. Uploads show "scan failed" unless ClamAV runs
 (`docker compose --profile scan up -d` with `CLAMAV_HOST=clamav`). Production: `docs/operations.md`.
 
 ### Developing without containers
