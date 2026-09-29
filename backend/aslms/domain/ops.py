@@ -12,7 +12,7 @@ from sqlalchemy import Boolean, Date, DateTime, Index, Integer, String, Text, te
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from aslms.db.base import Base, CreatedAtMixin, TimestampMixin, pg_enum, uuid_fk, uuid_pk
+from aslms.db.base import Base, CreatedAtMixin, TableClass, TimestampMixin, pg_enum, uuid_fk, uuid_pk
 
 
 class JobKind(enum.StrEnum):
@@ -35,6 +35,7 @@ class JobStatus(enum.StrEnum):
 
 class JobRun(TimestampMixin, Base):
     __tablename__ = "job_runs"
+    __table_class__ = TableClass.DERIVED
     __table_args__ = (Index("ix_job_runs_job_started", "job", text("started_at DESC")),)
 
     id: Mapped[uuid.UUID] = uuid_pk()
@@ -51,6 +52,7 @@ class JobRun(TimestampMixin, Base):
 
 class NapixCallLog(CreatedAtMixin, Base):
     __tablename__ = "napix_call_log"
+    __table_class__ = TableClass.DERIVED
     __table_args__ = (Index("ix_napix_call_log_called_at", text("called_at DESC")),)
 
     id: Mapped[uuid.UUID] = uuid_pk()
@@ -62,7 +64,7 @@ class NapixCallLog(CreatedAtMixin, Base):
     ok: Mapped[bool] = mapped_column(Boolean, nullable=False)
     error: Mapped[str | None] = mapped_column(Text)
     called_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    job_run_id: Mapped[uuid.UUID | None] = uuid_fk("job_runs.id", nullable=True, ondelete="SET NULL")
+    job_run_id: Mapped[uuid.UUID | None] = uuid_fk("job_runs.id", nullable=True, ondelete="CASCADE")
 
 
 class FailureKind(enum.StrEnum):
@@ -79,6 +81,7 @@ class SourceFailure(TimestampMixin, Base):
     """One row per failing thing (keyed by kind + ref), updated on every retry, closed when it succeeds."""
 
     __tablename__ = "source_failures"
+    __table_class__ = TableClass.DERIVED
     __table_args__ = (
         Index(
             "uq_source_failures_open",

@@ -10,7 +10,7 @@ from sqlalchemy import Boolean, Date, DateTime, Integer, String, Text, UniqueCon
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 
-from aslms.db.base import Base, CreatedAtMixin, TimestampMixin, pg_enum, uuid_fk, uuid_pk
+from aslms.db.base import Base, CreatedAtMixin, TableClass, TimestampMixin, pg_enum, uuid_fk, uuid_pk
 
 
 class CourtLevel(enum.StrEnum):
@@ -22,6 +22,7 @@ class Court(TimestampMixin, Base):
     """One row per NAPIX establishment (`est_code`), e.g. GAHC01 = Gauhati High Court, Principal Seat."""
 
     __tablename__ = "courts"
+    __table_class__ = TableClass.MASTER
 
     id: Mapped[uuid.UUID] = uuid_pk()
     est_code: Mapped[str] = mapped_column(String(16), unique=True, nullable=False)
@@ -36,6 +37,7 @@ class Bench(TimestampMixin, Base):
     """Bench ids as NAPIX reports them for a cause-list date; they change from day to day, so every id is kept."""
 
     __tablename__ = "benches"
+    __table_class__ = TableClass.MASTER
     __table_args__ = (UniqueConstraint("court_id", "bench_id"),)
 
     id: Mapped[uuid.UUID] = uuid_pk()
@@ -52,6 +54,7 @@ class CaseType(TimestampMixin, Base):
     that cause lists print, so entries can be normalised to a code."""
 
     __tablename__ = "case_types"
+    __table_class__ = TableClass.MASTER
     __table_args__ = (UniqueConstraint("court_id", "case_type_code"),)
 
     id: Mapped[uuid.UUID] = uuid_pk()
@@ -72,6 +75,7 @@ class MasterKind(enum.StrEnum):
 
 class MasterSyncRun(CreatedAtMixin, Base):
     __tablename__ = "master_sync_runs"
+    __table_class__ = TableClass.DERIVED
 
     id: Mapped[uuid.UUID] = uuid_pk()
     master: Mapped[MasterKind] = mapped_column(pg_enum(MasterKind, "master_kind"), nullable=False)

@@ -15,7 +15,16 @@ from sqlalchemy import Date, DateTime, ForeignKey, Index, Integer, String, Text,
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from aslms.db.base import ActorSnapshotMixin, Base, CreatedAtMixin, TimestampMixin, pg_enum, uuid_fk, uuid_pk
+from aslms.db.base import (
+    ActorSnapshotMixin,
+    Base,
+    CreatedAtMixin,
+    TableClass,
+    TimestampMixin,
+    pg_enum,
+    uuid_fk,
+    uuid_pk,
+)
 
 
 class CustodyReason(enum.StrEnum):
@@ -33,9 +42,10 @@ class Custody(TimestampMixin, Base):
     """Where the case is right now."""
 
     __tablename__ = "custody"
+    __table_class__ = TableClass.TRANSACTION
 
     case_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("cases.id", ondelete="CASCADE"), primary_key=True
+        UUID(as_uuid=True), ForeignKey("cases.id", ondelete="RESTRICT"), primary_key=True
     )
     holder_office_id: Mapped[uuid.UUID] = uuid_fk("offices.id", ondelete="RESTRICT")
     holder_user_id: Mapped[uuid.UUID | None] = uuid_fk("users.id", nullable=True, ondelete="SET NULL")
@@ -52,6 +62,7 @@ class CustodyHistory(CreatedAtMixin, ActorSnapshotMixin, Base):
     """Append-only trail: one row per custody leg (ground rule 3; triggers in migration 0003)."""
 
     __tablename__ = "custody_history"
+    __table_class__ = TableClass.DERIVED
     __table_args__ = (Index("ix_custody_history_case_started", "case_id", text("started_at DESC")),)
 
     id: Mapped[uuid.UUID] = uuid_pk()
@@ -93,6 +104,7 @@ class Request(TimestampMixin, ActorSnapshotMixin, Base):
     """Office-to-office request with a due date (plan §5.7). Sending it moves custody to `to_office`."""
 
     __tablename__ = "requests"
+    __table_class__ = TableClass.TRANSACTION
     __table_args__ = (
         Index("ix_requests_to_office_status", "to_office_id", "status"),
         Index("ix_requests_case", "case_id"),
@@ -120,6 +132,7 @@ class Request(TimestampMixin, ActorSnapshotMixin, Base):
 
 class RequestMessage(CreatedAtMixin, ActorSnapshotMixin, Base):
     __tablename__ = "request_messages"
+    __table_class__ = TableClass.TRANSACTION
 
     id: Mapped[uuid.UUID] = uuid_pk()
     request_id: Mapped[uuid.UUID] = uuid_fk("requests.id")
@@ -156,6 +169,7 @@ class CaseStage(CreatedAtMixin, ActorSnapshotMixin, Base):
     """Append-only: the latest row is the current stage."""
 
     __tablename__ = "case_stages"
+    __table_class__ = TableClass.TRANSACTION
     __table_args__ = (Index("ix_case_stages_case_created", "case_id", text("created_at DESC")),)
 
     id: Mapped[uuid.UUID] = uuid_pk()
@@ -188,6 +202,7 @@ class CaseNote(CreatedAtMixin, ActorSnapshotMixin, Base):
     old one and both stay visible. Author snapshot frozen; per-case sequence number; custody leg recorded."""
 
     __tablename__ = "case_notes"
+    __table_class__ = TableClass.TRANSACTION
     __table_args__ = (
         UniqueConstraint("case_id", "seq_no"),
         Index("ix_case_notes_case_seq", "case_id", "seq_no"),
@@ -218,6 +233,7 @@ class CaseNote(CreatedAtMixin, ActorSnapshotMixin, Base):
 
 class CaseNoteAttachment(CreatedAtMixin, Base):
     __tablename__ = "case_note_attachments"
+    __table_class__ = TableClass.TRANSACTION
     __table_args__ = (UniqueConstraint("note_id", "document_id"),)
 
     id: Mapped[uuid.UUID] = uuid_pk()

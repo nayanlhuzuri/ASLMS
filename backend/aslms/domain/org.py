@@ -10,7 +10,7 @@ from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Un
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from aslms.db.base import Base, CreatedAtMixin, TimestampMixin, pg_enum, uuid_fk, uuid_pk
+from aslms.db.base import Base, CreatedAtMixin, TableClass, TimestampMixin, pg_enum, uuid_fk, uuid_pk
 
 
 class OfficeKind(enum.StrEnum):
@@ -42,6 +42,7 @@ class Office(TimestampMixin, Base):
     (e.g. `EDU/EDU-DSE`) so a department's scope is `path LIKE 'EDU/%' OR path = 'EDU'`."""
 
     __tablename__ = "offices"
+    __table_class__ = TableClass.MASTER
 
     id: Mapped[uuid.UUID] = uuid_pk()
     code: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
@@ -62,6 +63,7 @@ class Office(TimestampMixin, Base):
 
 class User(TimestampMixin, Base):
     __tablename__ = "users"
+    __table_class__ = TableClass.MASTER
 
     id: Mapped[uuid.UUID] = uuid_pk()
     email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False)
@@ -86,10 +88,11 @@ class OtpPurpose(enum.StrEnum):
 
 class OtpCode(CreatedAtMixin, Base):
     __tablename__ = "otp_codes"
+    __table_class__ = TableClass.DERIVED
     __table_args__ = (Index("ix_otp_codes_user_purpose", "user_id", "purpose"),)
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    user_id: Mapped[uuid.UUID] = uuid_fk("users.id")
+    user_id: Mapped[uuid.UUID] = uuid_fk("users.id", ondelete="CASCADE")
     purpose: Mapped[OtpPurpose] = mapped_column(pg_enum(OtpPurpose, "otp_purpose"), nullable=False)
     code_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -99,9 +102,10 @@ class OtpCode(CreatedAtMixin, Base):
 
 class RefreshToken(CreatedAtMixin, Base):
     __tablename__ = "refresh_tokens"
+    __table_class__ = TableClass.DERIVED
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    user_id: Mapped[uuid.UUID] = uuid_fk("users.id")
+    user_id: Mapped[uuid.UUID] = uuid_fk("users.id", ondelete="CASCADE")
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -124,10 +128,11 @@ class DigestMode(enum.StrEnum):
 
 class UserNotificationPreference(TimestampMixin, Base):
     __tablename__ = "user_notification_preferences"
+    __table_class__ = TableClass.MASTER
     __table_args__ = (UniqueConstraint("user_id", "channel"),)
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    user_id: Mapped[uuid.UUID] = uuid_fk("users.id")
+    user_id: Mapped[uuid.UUID] = uuid_fk("users.id", ondelete="CASCADE")
     channel: Mapped[Channel] = mapped_column(NOTIFICATION_CHANNEL, nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
     digest: Mapped[DigestMode] = mapped_column(

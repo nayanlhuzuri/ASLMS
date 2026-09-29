@@ -12,7 +12,7 @@ from sqlalchemy import DateTime, Index, String, text
 from sqlalchemy.dialects.postgresql import INET, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from aslms.db.base import ActorSnapshotMixin, Base, CreatedAtMixin, pg_enum, uuid_fk, uuid_pk
+from aslms.db.base import ActorSnapshotMixin, Base, CreatedAtMixin, TableClass, pg_enum, uuid_fk, uuid_pk
 
 
 class EventType(enum.StrEnum):
@@ -59,6 +59,7 @@ class EventVisibility(enum.StrEnum):
 
 class Event(CreatedAtMixin, Base):
     __tablename__ = "events"
+    __table_class__ = TableClass.DERIVED
     __table_args__ = (
         Index("ix_events_case_occurred", "case_id", text("occurred_at DESC")),
         Index("ix_events_type_occurred", "type", text("occurred_at DESC")),
@@ -82,6 +83,7 @@ class Event(CreatedAtMixin, Base):
 
 class AuditLog(CreatedAtMixin, ActorSnapshotMixin, Base):
     __tablename__ = "audit_log"
+    __table_class__ = TableClass.DERIVED
     __table_args__ = (
         Index("ix_audit_log_actor_created", "actor_user_id", text("created_at DESC")),
         Index("ix_audit_log_case_created", "case_id", text("created_at DESC")),

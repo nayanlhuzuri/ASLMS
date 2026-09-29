@@ -13,7 +13,7 @@ from sqlalchemy import Boolean, DateTime, Index, Numeric, String, Text, UniqueCo
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from aslms.db.base import ActorSnapshotMixin, Base, TimestampMixin, pg_enum, uuid_fk, uuid_pk
+from aslms.db.base import ActorSnapshotMixin, Base, TableClass, TimestampMixin, pg_enum, uuid_fk, uuid_pk
 
 
 class CounselCode(TimestampMixin, Base):
@@ -21,6 +21,7 @@ class CounselCode(TimestampMixin, Base):
     `is_generic_state` marks codes such as `PP, ASSAM` that identify the State but not a department."""
 
     __tablename__ = "counsel_codes"
+    __table_class__ = TableClass.MASTER
 
     id: Mapped[uuid.UUID] = uuid_pk()
     code: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
@@ -39,6 +40,7 @@ class PatternKind(enum.StrEnum):
 
 class OfficeNamePattern(TimestampMixin, Base):
     __tablename__ = "office_name_patterns"
+    __table_class__ = TableClass.MASTER
     __table_args__ = (UniqueConstraint("office_id", "pattern"),)
 
     id: Mapped[uuid.UUID] = uuid_pk()
@@ -51,6 +53,7 @@ class OfficeNamePattern(TimestampMixin, Base):
 
 class OfficeKeyword(TimestampMixin, Base):
     __tablename__ = "office_keywords"
+    __table_class__ = TableClass.MASTER
     __table_args__ = (UniqueConstraint("office_id", "keyword"),)
 
     id: Mapped[uuid.UUID] = uuid_pk()
@@ -62,6 +65,7 @@ class OfficeKeyword(TimestampMixin, Base):
 
 class OfficeWatchlist(TimestampMixin, ActorSnapshotMixin, Base):
     __tablename__ = "office_watchlist"
+    __table_class__ = TableClass.MASTER
     __table_args__ = (UniqueConstraint("office_id", "cnr"),)
 
     id: Mapped[uuid.UUID] = uuid_pk()
@@ -77,13 +81,14 @@ class CaseOfficeScore(TimestampMixin, Base):
     """Latest score per (case, office). `signals` is a list of {kind, value, weight, matched_text}."""
 
     __tablename__ = "case_office_scores"
+    __table_class__ = TableClass.DERIVED
     __table_args__ = (
         UniqueConstraint("case_id", "office_id"),
         Index("ix_case_office_scores_office_score", "office_id", "score"),
     )
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    case_id: Mapped[uuid.UUID] = uuid_fk("cases.id")
+    case_id: Mapped[uuid.UUID] = uuid_fk("cases.id", ondelete="CASCADE")  # §6: recomputed
     office_id: Mapped[uuid.UUID] = uuid_fk("offices.id")
     score: Mapped[float] = mapped_column(Numeric(4, 3), nullable=False)
     signals: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False, server_default="[]")
@@ -117,6 +122,7 @@ class Recommendation(TimestampMixin, ActorSnapshotMixin, Base):
     unclaimed pool (cases with no active ownership)."""
 
     __tablename__ = "recommendations"
+    __table_class__ = TableClass.TRANSACTION
     __table_args__ = (
         Index(
             "uq_recommendations_active",
@@ -161,6 +167,7 @@ class CaseOwnership(TimestampMixin, ActorSnapshotMixin, Base):
     """Written only by an explicit claim (or accepted transfer). One active primary owner per case."""
 
     __tablename__ = "case_ownership"
+    __table_class__ = TableClass.TRANSACTION
     __table_args__ = (
         Index(
             "uq_case_ownership_one_primary",
@@ -203,6 +210,7 @@ class TransferStatus(enum.StrEnum):
 
 class OwnershipTransfer(TimestampMixin, ActorSnapshotMixin, Base):
     __tablename__ = "ownership_transfers"
+    __table_class__ = TableClass.TRANSACTION
     __table_args__ = (Index("ix_ownership_transfers_to_office_status", "to_office_id", "status"),)
 
     id: Mapped[uuid.UUID] = uuid_pk()

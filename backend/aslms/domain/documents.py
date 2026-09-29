@@ -23,7 +23,16 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from aslms.db.base import ActorSnapshotMixin, Base, CreatedAtMixin, TimestampMixin, pg_enum, uuid_fk, uuid_pk
+from aslms.db.base import (
+    ActorSnapshotMixin,
+    Base,
+    CreatedAtMixin,
+    TableClass,
+    TimestampMixin,
+    pg_enum,
+    uuid_fk,
+    uuid_pk,
+)
 
 
 class DocumentKind(enum.StrEnum):
@@ -89,6 +98,7 @@ class Document(TimestampMixin, ActorSnapshotMixin, Base):
     user uploads; system-collected documents leave them NULL."""
 
     __tablename__ = "documents"
+    __table_class__ = TableClass.TRANSACTION
     __table_args__ = (
         Index("ix_documents_case_kind", "case_id", "kind"),
         Index("ix_documents_sourcetrace_status", "sourcetrace_status"),
@@ -132,6 +142,7 @@ class DocumentText(CreatedAtMixin, Base):
     """Extracted text kept apart so `documents` stays narrow. `search_vector` drives content search."""
 
     __tablename__ = "document_text"
+    __table_class__ = TableClass.TRANSACTION
     __table_args__ = (Index("ix_document_text_search_vector", "search_vector", postgresql_using="gin"),)
 
     document_id: Mapped[uuid.UUID] = mapped_column(
@@ -160,6 +171,7 @@ class Order(TimestampMixin, Base):
     has delivered the PDF."""
 
     __tablename__ = "orders"
+    __table_class__ = TableClass.TRANSACTION
     __table_args__ = (
         UniqueConstraint("case_id", "order_no", "order_date"),
         Index("ix_orders_download_status", "download_status"),

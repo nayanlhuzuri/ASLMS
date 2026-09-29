@@ -26,6 +26,7 @@ dependencies = [
   "argon2-cffi>=23",
   "python-multipart>=0.0.9",
   "clamd>=1.0.2",
+  "uuid6>=2024.7",
   "openpyxl>=3.1",
   "prometheus-client>=0.20",
   "flower>=2.0",

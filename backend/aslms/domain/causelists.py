@@ -11,7 +11,7 @@ from sqlalchemy import Date, DateTime, Index, Integer, String, Text, UniqueConst
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from aslms.db.base import Base, CreatedAtMixin, TimestampMixin, pg_enum, uuid_fk, uuid_pk
+from aslms.db.base import Base, CreatedAtMixin, TableClass, TimestampMixin, pg_enum, uuid_fk, uuid_pk
 
 
 class ListType(enum.StrEnum):
@@ -45,6 +45,7 @@ class ParseStatus(enum.StrEnum):
 
 class CauseList(TimestampMixin, Base):
     __tablename__ = "causelists"
+    __table_class__ = TableClass.TRANSACTION
     __table_args__ = (
         UniqueConstraint("court_id", "list_date", "bench_id", "napix_causelist_id", "source"),
         Index("ix_causelists_list_date", "list_date"),
@@ -93,6 +94,7 @@ class CauseListEntry(CreatedAtMixin, Base):
     shows whether Cause List Details is complete; `causelist_reconciliations` compares them."""
 
     __tablename__ = "causelist_entries"
+    __table_class__ = TableClass.TRANSACTION
     __table_args__ = (
         UniqueConstraint("causelist_id", "source", "sr_no"),
         Index("ix_causelist_entries_cnr", "cnr"),
@@ -126,10 +128,11 @@ class CauseListEntry(CreatedAtMixin, Base):
 
 class CauseListReconciliation(CreatedAtMixin, Base):
     __tablename__ = "causelist_reconciliations"
+    __table_class__ = TableClass.TRANSACTION
     __table_args__ = (UniqueConstraint("causelist_id", "cnr"),)
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    causelist_id: Mapped[uuid.UUID] = uuid_fk("causelists.id")
+    causelist_id: Mapped[uuid.UUID] = uuid_fk("causelists.id", ondelete="CASCADE")  # §6: regenerable
     cnr: Mapped[str] = mapped_column(String(16), nullable=False)
     in_napix: Mapped[bool] = mapped_column(nullable=False)
     in_pdf: Mapped[bool] = mapped_column(nullable=False)

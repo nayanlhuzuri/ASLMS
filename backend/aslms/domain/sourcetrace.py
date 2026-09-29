@@ -12,7 +12,7 @@ from sqlalchemy import DateTime, Index, Integer, String, Text, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from aslms.db.base import Base, CreatedAtMixin, TimestampMixin, pg_enum, uuid_fk, uuid_pk
+from aslms.db.base import Base, CreatedAtMixin, TableClass, TimestampMixin, pg_enum, uuid_fk, uuid_pk
 
 
 class SourceTraceIngestion(CreatedAtMixin, Base):
@@ -20,10 +20,11 @@ class SourceTraceIngestion(CreatedAtMixin, Base):
     documents) to the SourceTrace ingestion API."""
 
     __tablename__ = "sourcetrace_ingestions"
+    __table_class__ = TableClass.DERIVED
     __table_args__ = (Index("ix_sourcetrace_ingestions_document", "document_id", text("created_at DESC")),)
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    document_id: Mapped[uuid.UUID] = uuid_fk("documents.id", index=False)
+    document_id: Mapped[uuid.UUID] = uuid_fk("documents.id", index=False, ondelete="CASCADE")
     attempt: Mapped[int] = mapped_column(Integer, nullable=False)
     ok: Mapped[bool] = mapped_column(nullable=False)
     reference: Mapped[str | None] = mapped_column(String(200))
@@ -40,6 +41,7 @@ class AssistantConversation(TimestampMixin, Base):
     """Visible only to its user (plan §5.9)."""
 
     __tablename__ = "assistant_conversations"
+    __table_class__ = TableClass.TRANSACTION
     __table_args__ = (Index("ix_assistant_conversations_user_case", "user_id", "case_id"),)
 
     id: Mapped[uuid.UUID] = uuid_pk()
@@ -54,10 +56,13 @@ class AssistantConversation(TimestampMixin, Base):
 
 class AssistantMessage(CreatedAtMixin, Base):
     __tablename__ = "assistant_messages"
+    __table_class__ = TableClass.TRANSACTION
     __table_args__ = (Index("ix_assistant_messages_conversation", "conversation_id", "created_at"),)
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    conversation_id: Mapped[uuid.UUID] = uuid_fk("assistant_conversations.id", index=False)
+    conversation_id: Mapped[uuid.UUID] = uuid_fk(
+        "assistant_conversations.id", index=False, ondelete="CASCADE"
+    )
     role: Mapped[str] = mapped_column(String(16), nullable=False)  # user | assistant
     content: Mapped[str] = mapped_column(Text, nullable=False)
     citations: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False, server_default="[]")

@@ -10,7 +10,7 @@ from sqlalchemy import Boolean, Date, DateTime, Index, Numeric, String, Text, Un
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from aslms.db.base import Base, CreatedAtMixin, TimestampMixin, pg_enum, uuid_fk, uuid_pk
+from aslms.db.base import Base, CreatedAtMixin, TableClass, TimestampMixin, pg_enum, uuid_fk, uuid_pk
 from aslms.domain.org import NOTIFICATION_CHANNEL, Channel
 
 
@@ -31,6 +31,7 @@ class ReviewStatus(enum.StrEnum):
 
 class NextDate(TimestampMixin, Base):
     __tablename__ = "next_dates"
+    __table_class__ = TableClass.TRANSACTION
     __table_args__ = (
         UniqueConstraint("case_id", "next_date", "source", "order_id"),
         Index("ix_next_dates_next_date", "next_date"),
@@ -78,6 +79,7 @@ class AlertStatus(enum.StrEnum):
 
 class Alert(TimestampMixin, Base):
     __tablename__ = "alerts"
+    __table_class__ = TableClass.TRANSACTION
     __table_args__ = (Index("ix_alerts_due_status", "due_at", "status"), Index("ix_alerts_case", "case_id"))
 
     id: Mapped[uuid.UUID] = uuid_pk()
@@ -109,11 +111,12 @@ class NotificationStatus(enum.StrEnum):
 
 class Notification(CreatedAtMixin, Base):
     __tablename__ = "notifications"
+    __table_class__ = TableClass.DERIVED
     __table_args__ = (Index("ix_notifications_user_status", "user_id", "status"),)
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    alert_id: Mapped[uuid.UUID | None] = uuid_fk("alerts.id", nullable=True)
-    user_id: Mapped[uuid.UUID] = uuid_fk("users.id", index=False)
+    alert_id: Mapped[uuid.UUID | None] = uuid_fk("alerts.id", nullable=True, ondelete="CASCADE")
+    user_id: Mapped[uuid.UUID] = uuid_fk("users.id", index=False, ondelete="CASCADE")
     channel: Mapped[Channel] = mapped_column(NOTIFICATION_CHANNEL, nullable=False)
     status: Mapped[NotificationStatus] = mapped_column(
         pg_enum(NotificationStatus, "notification_status"),
@@ -130,10 +133,11 @@ class Notification(CreatedAtMixin, Base):
 
 class Digest(CreatedAtMixin, Base):
     __tablename__ = "digests"
+    __table_class__ = TableClass.DERIVED
     __table_args__ = (UniqueConstraint("user_id", "digest_date"),)
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    user_id: Mapped[uuid.UUID] = uuid_fk("users.id")
+    user_id: Mapped[uuid.UUID] = uuid_fk("users.id", ondelete="CASCADE")
     digest_date: Mapped[date] = mapped_column(Date, nullable=False)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     alert_ids: Mapped[list[uuid.UUID]] = mapped_column(

@@ -22,7 +22,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from aslms.db.base import Base, CreatedAtMixin, TimestampMixin, pg_enum, uuid_fk, uuid_pk
+from aslms.db.base import Base, CreatedAtMixin, TableClass, TimestampMixin, pg_enum, uuid_fk, uuid_pk
 
 
 class CaseStatus(enum.StrEnum):
@@ -42,6 +42,7 @@ class Case(TimestampMixin, Base):
     """Never fabricate a CNR. A case that has no CNR yet is `is_provisional = true` with `cnr` NULL."""
 
     __tablename__ = "cases"
+    __table_class__ = TableClass.TRANSACTION
     __table_args__ = (
         Index("ix_cases_court_type_no_year", "court_id", "case_type_id", "reg_no", "reg_year"),
         Index("ix_cases_next_hearing", "next_hearing_date"),
@@ -100,6 +101,7 @@ class PartyRole(enum.StrEnum):
 
 class CaseParty(CreatedAtMixin, Base):
     __tablename__ = "case_parties"
+    __table_class__ = TableClass.TRANSACTION
     __table_args__ = (
         UniqueConstraint("case_id", "role", "party_no"),
         Index("ix_case_parties_name_normalised", "name_normalised"),
@@ -124,6 +126,7 @@ class AdvocateSide(enum.StrEnum):
 
 class CaseAdvocate(CreatedAtMixin, Base):
     __tablename__ = "case_advocates"
+    __table_class__ = TableClass.TRANSACTION
     __table_args__ = (Index("ix_case_advocates_counsel_code", "counsel_code"),)
 
     id: Mapped[uuid.UUID] = uuid_pk()
@@ -145,6 +148,7 @@ class HearingSource(enum.StrEnum):
 
 class CaseHearing(CreatedAtMixin, Base):
     __tablename__ = "case_hearings"
+    __table_class__ = TableClass.TRANSACTION
     __table_args__ = (UniqueConstraint("case_id", "business_date", "purpose"),)
 
     id: Mapped[uuid.UUID] = uuid_pk()
@@ -160,6 +164,7 @@ class CaseHearing(CreatedAtMixin, Base):
 
 class CaseAct(CreatedAtMixin, Base):
     __tablename__ = "case_acts"
+    __table_class__ = TableClass.TRANSACTION
     __table_args__ = (UniqueConstraint("case_id", "act_name", "section"),)
 
     id: Mapped[uuid.UUID] = uuid_pk()
@@ -188,6 +193,7 @@ class CaseLink(CreatedAtMixin, Base):
     """`to_case_id` is NULL while the target is only known by number (`to_case_no_text`)."""
 
     __tablename__ = "case_links"
+    __table_class__ = TableClass.TRANSACTION
     __table_args__ = (UniqueConstraint("from_case_id", "to_case_no_text", "kind"),)
 
     id: Mapped[uuid.UUID] = uuid_pk()
@@ -210,6 +216,7 @@ class CaseSnapshot(CreatedAtMixin, Base):
     """Verbatim court record as fetched. Diffing consecutive snapshots yields status / next-date events."""
 
     __tablename__ = "case_snapshots"
+    __table_class__ = TableClass.DERIVED
     __table_args__ = (
         UniqueConstraint("case_id", "payload_sha256"),
         Index("ix_case_snapshots_case_fetched", "case_id", text("fetched_at DESC")),
