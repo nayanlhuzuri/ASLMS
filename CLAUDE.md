@@ -60,6 +60,10 @@ directorate_user, referral_reviewer, standing_counsel, central_operator, auditor
 12. **Secrets** live in `.env` (git-ignored) and are never logged or sent to the browser. NAPIX credentials
     especially. `.env.example` documents every variable with a safe default.
 13. Python 3.11+, type hints, `ruff check` clean, `pytest -q` green. Frontend: Next.js (App Router) + TypeScript.
+14. **The database follows `docs/DB_STANDARD.md` v1.2** (UUID v7 keys, eOffice-style `ref_no` on quotable
+    records, no deletion of legal records — FKs RESTRICT, `ref_*` lookup tables for the eight user-facing code
+    sets, table classes in `COMMENT ON TABLE`, `public` schema kept). Read it before adding or changing any
+    table. Milestone DB-1 (its §11–§12) runs before the Plan's build order resumes.
 
 ## Repository map (target layout)
 
@@ -116,6 +120,12 @@ order_period | manual) · Alert · Notification · Event · AuditLog · Office (
 - Open until the live test (`aslms napix-check`): what Cause List Details returns (rows or list metadata),
   `est_code` per bench (GAHC01 assumed), `state_code` (6 assumed), auth-key encoding, and whether PDF APIs
   return raw `application/pdf` or base64 inside `response_str`. Record the answers in the decisions log.
+
+## Milestone DB-1 — database conformance (next; do this before anything else)
+
+Execute `docs/DB_STANDARD.md` §11 steps 1–7 (§12.1 is step 6) one commit per step, then run the §12.2
+acceptance gate and report the outputs of gate steps 4, 5, 7 and 8 verbatim. Record the pre-migration
+baseline (how the test data was produced and its counts) before step 1. Stop on any baseline drift.
 
 ## Current state (26 Sep 2026)
 

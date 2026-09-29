@@ -134,3 +134,81 @@ Previous designs for reference only: the scraper-based system tables listed abov
 3b. Phase 2 backend (custody, requests, stages, notes trail, SourceTrace ingestion tracking) and the Phase 3 assistant storage built and tested (26 Sep); 70 tests. Deployment: production compose with nginx, PgBouncer, ClamAV, Prometheus/Grafana, exporters and nightly backups.
 3a. Phase 1 backend built and tested (26 Sep): daily cycle, parser, scoring and inbox, auth with OTP, scope in SQL, documents with virus scan, orders and next dates, alerts and notifications, search with NAPIX fallback, dashboard, reports, administration, audit; 63 tests.
 - Open: GHC website URL template unverified; PDF spec not yet in the repo; NAPIX live test pending (`NAPIX_ENABLED=true`, then `aslms napix-check`).
+
+## Milestone DB-1 — pre-migration baseline (29 Sep 2026, DB_STANDARD v1.2 §12.2 step 5)
+
+Recorded before any change of this milestone, from the running stack (`postgres:16`, volume `pgdata_v2`,
+alembic head `0003`, 49 application tables + `alembic_version`). The owner confirmed the data is test data.
+
+**How the data was produced.** NAPIX was never reached (`NAPIX_ENABLED=false`; the two calls of 26 Sep were
+rejected, see the build decisions above). Everything came from the cause-list PDFs on disk under
+`data/causelists/DD-MM-YYYY/` through `LocalDirSource` (files whose names contain notice, roster, sitting,
+swearing or circular are skipped), with first-sight fetches and order downloads skipped:
+
+| # | When (UTC) | Command | Folder dates | Result |
+|---|---|---|---|---|
+| 1 | 26 Sep 15:47 | `aslms cycle --date 2025-09-01`, then `--date 2025-09-02` | 2 | both `partial` (one NAPIX failure each; the master switch was added right after) |
+| 2 | 26 Sep 16:17 | `aslms backfill --start 2026-07-27 --end 2026-08-05` | 8 | succeeded |
+| 3 | 27 Sep 16:18 | `aslms backfill` (from the earliest folder) | 162 (2024-08-01 … 2025-05-01) | interrupted at 2025-05-02 by the Docker rework (its `job_runs` row is still `running`; nothing of that date was committed) |
+| – | 27–29 Sep | beat `daily-cycle-*` for 2026-09-27 … 2026-09-30 | 0 | no folders for those dates; ingested nothing |
+
+Seed: `aslms seed` (STATE, CENTRAL, AG; GAHC01; `admin@aslms.local`) and the demo data
+(`aslms seed-demo` on 26 Sep before batch 2, again through `aslms bootstrap --demo` on 27 Sep, which also
+ran `rescore_all`): 15 demo offices, 22 counsel codes, 7 name patterns, 4 keywords, 9 demo accounts. One
+account was created by hand (`nayan.semt@gmail.com`, dept_admin, SEC-EDU).
+
+Of the 449 folder dates on disk (1,791 PDFs), 172 were ingested (518 lists: 167 daily, 177 supplementary,
+165 lawazima, 2 vacation, 7 other); the 277 dates from 2025-05-02 to 2026-07-24 were never processed.
+
+**Manual actions through the portal** (not reproduced by ingestion): 1 claim (`GAHC010185692025` by SEC-EDU
+on 26 Sep 16:55 UTC), 4 custody moves, 1 request with 2 messages, 2 stage changes, 7 notes with 2
+attachments, 3 uploads (1 court filing, 2 internal), 2 assistant conversations, 15 sign-ins.
+
+**Gate step 5 numbers.**
+
+| Measure | Now | Expected after the rebuild (no manual claim) |
+|---|---|---|
+| cases | 49,568 (12 provisional; all `first_seen_source = causelist`) | 49,568 |
+| causelist_entries | 126,036 (all `pdf_parse`; 126,022 resolved, 14 provisional) | 126,036 |
+| recommendations by band | high 10,915 (10,914 recommended + 1 claimed); medium 0 | high 10,915, all recommended |
+| unclaimed pool (cases with no active ownership) | 49,567 | 49,568 |
+| case_office_scores | 10,932 rows over 9,025 cases | 10,932 |
+
+**Every table, for gate step 7 (idempotency).** Rows that only manual actions or sign-ins produce are marked *m*.
+
+| table | rows | table | rows | table | rows |
+|---|---|---|---|---|---|
+| alerts | 3 *m* | case_types | 0 | notifications | 6 *m* |
+| assistant_conversations | 2 *m* | cases | 49,568 | office_keywords | 4 |
+| assistant_messages | 6 *m* | causelist_entries | 126,036 | office_name_patterns | 7 |
+| audit_log | 31 *m* | causelist_reconciliations | 0 | office_watchlist | 0 |
+| benches | 0 | causelists | 518 | offices | 18 |
+| case_acts | 0 | counsel_codes | 22 | orders | 0 |
+| case_advocates | 245,087 | courts | 1 | otp_codes | 15 *m* |
+| case_hearings | 126,000 | custody | 1 *m* | ownership_transfers | 0 |
+| case_links | 22,630 | custody_history | 4 *m* | recommendations | 10,915 |
+| case_note_attachments | 2 *m* | digests | 0 | refresh_tokens | 15 *m* |
+| case_notes | 7 *m* | document_text | 0 | request_messages | 2 *m* |
+| case_office_scores | 10,932 | documents | 521 (518 cause lists + 3 *m*) | requests | 1 *m* |
+| case_ownership | 1 *m* | events | 335,173 (≈ 22 *m*) | source_failures | 4 |
+| case_parties | 0 | job_runs | 191 | sourcetrace_ingestions | 0 |
+| case_snapshots | 0 | master_sync_runs | 0 | user_notification_preferences | 3 *m* |
+| case_stages | 2 *m* | napix_call_log | 2 | users | 11 (10 seeded + 1 *m*) |
+
+Events by type: next_date_extracted 125,998; listed 111,964; case_created 49,569; case_linked 22,630;
+listed_supplementary 14,069; recommendation_made 10,915; source_failed 4; the rest are manual.
+
+**Reproduction after the rebuild** (`docker compose down -v && docker compose up -d --build`; `init` runs
+`alembic upgrade head` and `aslms bootstrap --demo`, so the demo mapping exists before ingestion), in the
+original order:
+
+```bash
+docker compose exec api aslms backfill --start 2025-09-01 --end 2025-09-02
+docker compose exec api aslms backfill --start 2026-07-27 --end 2026-08-05
+docker compose exec api aslms backfill --start 2024-08-01 --end 2025-05-01
+```
+
+Differences that are expected and are not drift: batch 1 originally ran through `cycle` (alerts raised) and
+before the demo codes existed, so its recommendations came from the later `rescore_all`; `job_runs`,
+`source_failures` (the two NAPIX rows) and everything marked *m* are not reproduced. Any other difference in
+the step-5 numbers is a regression to explain before anything is changed.
