@@ -95,14 +95,16 @@ class User(TimestampMixin, CreatedByMixin, Base):
     password_hash: Mapped[str] = mapped_column(String(300), nullable=False)
     full_name: Mapped[str] = mapped_column(String(200), nullable=False)
     designation: Mapped[str | None] = mapped_column(String(200))  # text as shown; the master row when known
-    designation_id: Mapped[uuid.UUID | None] = uuid_fk("designations.id", nullable=True, ondelete="RESTRICT")
+    designation_id: Mapped[uuid.UUID | None] = uuid_fk(
+        "designations.id", nullable=True, ondelete="RESTRICT", use_alter=True
+    )
     office_id: Mapped[uuid.UUID] = uuid_fk("offices.id", ondelete="RESTRICT")
     role: Mapped[Role] = ref_code(Role, "ref_role")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
     must_confirm_profile: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
-    office: Mapped[Office] = relationship()
+    office: Mapped[Office] = relationship(foreign_keys=[office_id])
 
 
 class OtpPurpose(enum.StrEnum):

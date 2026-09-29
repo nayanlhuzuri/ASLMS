@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     db_pool_size: int = 5
     db_max_overflow: int = 10
     db_behind_pgbouncer: bool = False  # transaction pooling: psycopg prepared statements must be off
+    # DB_STANDARD §8: the API and workers connect as aslms_app (DATABASE_URL_SYNC); migrations run as the
+    # owner through ASLMS_MIGRATE_URL (defaults to DATABASE_URL_SYNC on a laptop, where both are the superuser)
+    aslms_migrate_url: str | None = None
+    aslms_app_password: SecretStr = SecretStr("aslms_app")
+    aslms_readonly_password: SecretStr = SecretStr("aslms_readonly")
     redis_url: str = "redis://localhost:6379/0"
 
     # --- document storage and uploads --------------------------------------------
@@ -102,6 +107,10 @@ class Settings(BaseSettings):
     order_download_batch: int = 200
     full_refresh_days: int = 7
     cors_origins: str = ""  # extra comma-separated origins besides PUBLIC_BASE_URL
+
+    @property
+    def migrate_url(self) -> str:
+        return self.aslms_migrate_url or self.database_url_sync
 
     @property
     def is_prod(self) -> bool:

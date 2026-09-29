@@ -50,7 +50,6 @@ class Base(DeclarativeBase):
         if tc is None:
             raise TypeError(f"{cls.__name__}: declare __table_class__ (DB_STANDARD §0)")
         table.comment = f"class={TableClass(tc).value}"
-        table.info["table_class"] = TableClass(tc)
 
 
 def uuid_pk() -> Mapped[uuid.UUID]:
@@ -62,11 +61,20 @@ def uuid_pk() -> Mapped[uuid.UUID]:
 
 
 def uuid_fk(
-    target: str, *, nullable: bool = False, ondelete: str = "RESTRICT", index: bool = True
+    target: str,
+    *,
+    nullable: bool = False,
+    ondelete: str = "RESTRICT",
+    index: bool = True,
+    use_alter: bool = False,
 ) -> Mapped[Any]:
-    """Foreign key; RESTRICT unless the referencing table is on the §6 cascade list."""
+    """Foreign key; RESTRICT unless the referencing table is on the §6 cascade list. `use_alter` breaks a
+    creation cycle (users ↔ offices / designations) by adding the constraint after both tables exist."""
     return mapped_column(
-        UUID(as_uuid=True), ForeignKey(target, ondelete=ondelete), nullable=nullable, index=index
+        UUID(as_uuid=True),
+        ForeignKey(target, ondelete=ondelete, use_alter=use_alter),
+        nullable=nullable,
+        index=index,
     )
 
 
@@ -125,11 +133,15 @@ class CreatedByMixin:
 
     @declared_attr
     def created_by(cls) -> Mapped[uuid.UUID | None]:
-        return mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+        return mapped_column(
+            UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL", use_alter=True), nullable=True
+        )
 
     @declared_attr
     def updated_by(cls) -> Mapped[uuid.UUID | None]:
-        return mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+        return mapped_column(
+            UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL", use_alter=True), nullable=True
+        )
 
 
 class RefNoMixin:
