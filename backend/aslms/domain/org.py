@@ -18,6 +18,7 @@ from aslms.db.base import (
     TableClass,
     TimestampMixin,
     pg_enum,
+    ref_code,
     uuid_fk,
     uuid_pk,
 )
@@ -58,7 +59,7 @@ class Office(TimestampMixin, MasterMixin, CreatedByMixin, Base):
     id: Mapped[uuid.UUID] = uuid_pk()
     code: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     name: Mapped[str] = mapped_column(String(300), nullable=False)
-    kind: Mapped[OfficeKind] = mapped_column(pg_enum(OfficeKind, "office_kind"), nullable=False)
+    kind: Mapped[OfficeKind] = ref_code(OfficeKind, "ref_office_kind")
     parent_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("offices.id", ondelete="RESTRICT"), nullable=True
     )
@@ -96,7 +97,7 @@ class User(TimestampMixin, CreatedByMixin, Base):
     designation: Mapped[str | None] = mapped_column(String(200))  # text as shown; the master row when known
     designation_id: Mapped[uuid.UUID | None] = uuid_fk("designations.id", nullable=True, ondelete="RESTRICT")
     office_id: Mapped[uuid.UUID] = uuid_fk("offices.id", ondelete="RESTRICT")
-    role: Mapped[Role] = mapped_column(pg_enum(Role, "user_role"), nullable=False)
+    role: Mapped[Role] = ref_code(Role, "ref_role")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
     must_confirm_profile: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

@@ -13,10 +13,21 @@ from sqlalchemy import Boolean, DateTime, Index, Numeric, String, Text, UniqueCo
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from aslms.db.base import ActorSnapshotMixin, Base, TableClass, TimestampMixin, pg_enum, uuid_fk, uuid_pk
+from aslms.db.base import (
+    ActorSnapshotMixin,
+    Base,
+    CreatedByMixin,
+    DeactivateMixin,
+    RefNoMixin,
+    TableClass,
+    TimestampMixin,
+    pg_enum,
+    uuid_fk,
+    uuid_pk,
+)
 
 
-class CounselCode(TimestampMixin, Base):
+class CounselCode(TimestampMixin, DeactivateMixin, CreatedByMixin, Base):
     """Standing-counsel code as printed in the cause list advocate column (e.g. `SC, EDU`) → office.
     `is_generic_state` marks codes such as `PP, ASSAM` that identify the State but not a department."""
 
@@ -29,7 +40,6 @@ class CounselCode(TimestampMixin, Base):
     weight: Mapped[float] = mapped_column(Numeric(4, 3), nullable=False, server_default="0.950")
     is_generic_state: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     notes: Mapped[str | None] = mapped_column(Text)
-    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
 
 
 class PatternKind(enum.StrEnum):
@@ -38,7 +48,7 @@ class PatternKind(enum.StrEnum):
     REGEX = "regex"
 
 
-class OfficeNamePattern(TimestampMixin, Base):
+class OfficeNamePattern(TimestampMixin, DeactivateMixin, CreatedByMixin, Base):
     __tablename__ = "office_name_patterns"
     __table_class__ = TableClass.MASTER
     __table_args__ = (UniqueConstraint("office_id", "pattern"),)
@@ -48,10 +58,9 @@ class OfficeNamePattern(TimestampMixin, Base):
     pattern: Mapped[str] = mapped_column(String(300), nullable=False)
     kind: Mapped[PatternKind] = mapped_column(pg_enum(PatternKind, "pattern_kind"), nullable=False)
     weight: Mapped[float] = mapped_column(Numeric(4, 3), nullable=False, server_default="0.800")
-    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
 
 
-class OfficeKeyword(TimestampMixin, Base):
+class OfficeKeyword(TimestampMixin, DeactivateMixin, CreatedByMixin, Base):
     __tablename__ = "office_keywords"
     __table_class__ = TableClass.MASTER
     __table_args__ = (UniqueConstraint("office_id", "keyword"),)
@@ -60,10 +69,9 @@ class OfficeKeyword(TimestampMixin, Base):
     office_id: Mapped[uuid.UUID] = uuid_fk("offices.id")
     keyword: Mapped[str] = mapped_column(String(200), nullable=False)
     weight: Mapped[float] = mapped_column(Numeric(4, 3), nullable=False, server_default="0.400")
-    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
 
 
-class OfficeWatchlist(TimestampMixin, ActorSnapshotMixin, Base):
+class OfficeWatchlist(TimestampMixin, DeactivateMixin, ActorSnapshotMixin, Base):
     __tablename__ = "office_watchlist"
     __table_class__ = TableClass.MASTER
     __table_args__ = (UniqueConstraint("office_id", "cnr"),)
@@ -71,10 +79,9 @@ class OfficeWatchlist(TimestampMixin, ActorSnapshotMixin, Base):
     id: Mapped[uuid.UUID] = uuid_pk()
     office_id: Mapped[uuid.UUID] = uuid_fk("offices.id")
     cnr: Mapped[str] = mapped_column(String(16), nullable=False)
-    case_id: Mapped[uuid.UUID | None] = uuid_fk("cases.id", nullable=True, ondelete="SET NULL")
+    case_id: Mapped[uuid.UUID | None] = uuid_fk("cases.id", nullable=True, ondelete="RESTRICT")
     reason: Mapped[str | None] = mapped_column(Text)
     weight: Mapped[float] = mapped_column(Numeric(4, 3), nullable=False, server_default="0.750")
-    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
 
 
 class CaseOfficeScore(TimestampMixin, Base):
@@ -208,7 +215,9 @@ class TransferStatus(enum.StrEnum):
     WITHDRAWN = "withdrawn"
 
 
-class OwnershipTransfer(TimestampMixin, ActorSnapshotMixin, Base):
+class OwnershipTransfer(TimestampMixin, RefNoMixin, ActorSnapshotMixin, Base):
+    """`ref_no` = `ASLMS/<from department>/TRF/YYYY/NNNNNN`."""
+
     __tablename__ = "ownership_transfers"
     __table_class__ = TableClass.TRANSACTION
     __table_args__ = (Index("ix_ownership_transfers_to_office_status", "to_office_id", "status"),)
@@ -225,3 +234,4 @@ class OwnershipTransfer(TimestampMixin, ActorSnapshotMixin, Base):
     reason: Mapped[str | None] = mapped_column(Text)
     decided_by_user_id: Mapped[uuid.UUID | None] = uuid_fk("users.id", nullable=True, ondelete="SET NULL")
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    withdrawn_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

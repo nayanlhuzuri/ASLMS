@@ -165,6 +165,7 @@ class Case(TimestampMixin, RefNoMixin, Base):
     merged_into_case_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("cases.id", ondelete="RESTRICT"), nullable=True
     )
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # disposal + owner closure
     search_vector: Mapped[Any | None] = mapped_column(TSVECTOR)
     raw: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
 
@@ -195,6 +196,8 @@ class CaseParty(CreatedAtMixin, Base):
     name: Mapped[str] = mapped_column(Text, nullable=False)
     name_normalised: Mapped[str] = mapped_column(Text, nullable=False)
     address: Mapped[str | None] = mapped_column(Text)
+    has_legal_heir: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
 
     case: Mapped[Case] = relationship(back_populates="parties")
 
@@ -220,6 +223,7 @@ class CaseAdvocate(CreatedAtMixin, Base):
     advocate_id: Mapped[uuid.UUID | None] = uuid_fk("advocates.id", nullable=True, ondelete="RESTRICT")
     bar_reg_no: Mapped[str | None] = mapped_column(String(64))
     counsel_code: Mapped[str | None] = mapped_column(String(64))  # e.g. "SC, EDU" when printed
+    is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
 
     case: Mapped[Case] = relationship(back_populates="advocates")
 

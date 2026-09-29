@@ -12,7 +12,16 @@ from sqlalchemy import DateTime, Index, String, text
 from sqlalchemy.dialects.postgresql import INET, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from aslms.db.base import ActorSnapshotMixin, Base, CreatedAtMixin, TableClass, pg_enum, uuid_fk, uuid_pk
+from aslms.db.base import (
+    ActorSnapshotMixin,
+    Base,
+    CreatedAtMixin,
+    TableClass,
+    pg_enum,
+    ref_code,
+    uuid_fk,
+    uuid_pk,
+)
 
 
 class EventType(enum.StrEnum):
@@ -67,7 +76,7 @@ class Event(CreatedAtMixin, Base):
 
     id: Mapped[uuid.UUID] = uuid_pk()
     case_id: Mapped[uuid.UUID | None] = uuid_fk("cases.id", nullable=True, index=False)
-    type: Mapped[EventType] = mapped_column(pg_enum(EventType, "event_type"), nullable=False)
+    type: Mapped[EventType] = ref_code(EventType, "ref_event_type")
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     actor_user_id: Mapped[uuid.UUID | None] = uuid_fk(
         "users.id", nullable=True, ondelete="SET NULL", index=False
@@ -94,7 +103,7 @@ class AuditLog(CreatedAtMixin, ActorSnapshotMixin, Base):
     action: Mapped[str] = mapped_column(String(100), nullable=False)
     entity_type: Mapped[str] = mapped_column(String(64), nullable=False)
     entity_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
-    case_id: Mapped[uuid.UUID | None] = uuid_fk("cases.id", nullable=True, ondelete="SET NULL", index=False)
+    case_id: Mapped[uuid.UUID | None] = uuid_fk("cases.id", nullable=True, ondelete="RESTRICT", index=False)
     ip: Mapped[str | None] = mapped_column(INET)
     user_agent: Mapped[str | None] = mapped_column(String(400))
     before: Mapped[dict[str, Any] | None] = mapped_column(JSONB)

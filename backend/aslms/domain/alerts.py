@@ -10,7 +10,19 @@ from sqlalchemy import Boolean, Date, DateTime, Index, Numeric, String, Text, Un
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from aslms.db.base import Base, CreatedAtMixin, TableClass, TimestampMixin, pg_enum, uuid_fk, uuid_pk
+from aslms.db.base import (
+    Base,
+    CreatedAtMixin,
+    CreatedByMixin,
+    OptionalRefNoMixin,
+    RefNoMixin,
+    TableClass,
+    TimestampMixin,
+    pg_enum,
+    ref_code,
+    uuid_fk,
+    uuid_pk,
+)
 from aslms.domain.org import NOTIFICATION_CHANNEL, Channel
 
 
@@ -29,7 +41,9 @@ class ReviewStatus(enum.StrEnum):
     REJECTED = "rejected"
 
 
-class NextDate(TimestampMixin, Base):
+class NextDate(TimestampMixin, OptionalRefNoMixin, CreatedByMixin, Base):
+    """A next-date fact per (case, date, source, order). Manual entries carry a `ref_no` (`NXT`)."""
+
     __tablename__ = "next_dates"
     __table_class__ = TableClass.TRANSACTION
     __table_args__ = (
@@ -43,7 +57,7 @@ class NextDate(TimestampMixin, Base):
     source: Mapped[NextDateSource] = mapped_column(
         pg_enum(NextDateSource, "next_date_source"), nullable=False
     )
-    order_id: Mapped[uuid.UUID | None] = uuid_fk("orders.id", nullable=True, ondelete="SET NULL")
+    order_id: Mapped[uuid.UUID | None] = uuid_fk("orders.id", nullable=True, ondelete="RESTRICT")
     confidence: Mapped[float | None] = mapped_column(Numeric(4, 3))
     needs_review: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     review_status: Mapped[ReviewStatus] = mapped_column(
@@ -77,14 +91,16 @@ class AlertStatus(enum.StrEnum):
     EXPIRED = "expired"
 
 
-class Alert(TimestampMixin, Base):
+class Alert(TimestampMixin, RefNoMixin, Base):
+    """`ref_no` = `ASLMS/GOA/ALR/YYYY/NNNNNN`; `dedupe_key` keeps the daily generator idempotent."""
+
     __tablename__ = "alerts"
     __table_class__ = TableClass.TRANSACTION
     __table_args__ = (Index("ix_alerts_due_status", "due_at", "status"), Index("ix_alerts_case", "case_id"))
 
     id: Mapped[uuid.UUID] = uuid_pk()
     case_id: Mapped[uuid.UUID | None] = uuid_fk("cases.id", nullable=True, index=False)
-    kind: Mapped[AlertKind] = mapped_column(pg_enum(AlertKind, "alert_kind"), nullable=False)
+    kind: Mapped[AlertKind] = ref_code(AlertKind, "ref_alert_kind")
     due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     severity: Mapped[Severity] = mapped_column(
         pg_enum(Severity, "alert_severity"), nullable=False, server_default=Severity.NORMAL.value
@@ -94,7 +110,7 @@ class Alert(TimestampMixin, Base):
     )
     title: Mapped[str] = mapped_column(String(300), nullable=False)
     body: Mapped[str | None] = mapped_column(Text)
-    source_event_id: Mapped[uuid.UUID | None] = uuid_fk("events.id", nullable=True, ondelete="SET NULL")
+    source_event_id: Mapped[uuid.UUID | None] = uuid_fk("events.id", nullable=True, ondelete="RESTRICT")
     dedupe_key: Mapped[str] = mapped_column(String(200), unique=True, nullable=False)
     acknowledged_by_user_id: Mapped[uuid.UUID | None] = uuid_fk(
         "users.id", nullable=True, ondelete="SET NULL"

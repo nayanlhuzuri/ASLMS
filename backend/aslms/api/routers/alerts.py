@@ -144,6 +144,8 @@ def review_next_date(
             order_id=nd.order_id,
             confidence=1.0,
             note=f"confirmed by {ctx.user.full_name}",
+            ref_office=ctx.principal.office_code,
+            created_by=ctx.user.id,
         )
         if final >= today_ist() and (
             case.next_hearing_date is None or case.next_hearing_date < today_ist() or body.next_date

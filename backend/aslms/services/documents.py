@@ -36,6 +36,7 @@ from aslms.domain.org import Office, Role
 from aslms.integration.antivirus import get_scanner
 from aslms.services import audit, events, storage
 from aslms.services.audit import Actor
+from aslms.services.refno import RecordType, allocate_ref_no
 from aslms.services.scope import Principal
 
 ALLOWED = {
@@ -134,6 +135,7 @@ def upload(session: Session, actor: Actor, principal: Principal, case: Case, req
         )
     sha, key = storage.write_blob(req.content, "uploads", mime)
     doc = Document(
+        ref_no=allocate_ref_no(session, principal.office_code, RecordType.DOC),
         sha256=sha,
         storage_key=key,
         mime=mime,

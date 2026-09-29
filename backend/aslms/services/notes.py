@@ -25,6 +25,7 @@ from aslms.domain.org import Office, Role
 from aslms.domain.workflow import CaseNote, CaseNoteAttachment, Custody, NoteKind, NoteVisibility
 from aslms.services import audit, documents, events
 from aslms.services.audit import Actor
+from aslms.services.refno import RecordType, allocate_ref_no
 from aslms.services.scope import Principal
 
 MAX_NOTE_CHARS = 20_000
@@ -60,6 +61,7 @@ def add_note(session: Session, actor: Actor, p: Principal, case: Case, note: Not
     seq = (session.scalar(select(func.max(CaseNote.seq_no)).where(CaseNote.case_id == case.id)) or 0) + 1
     cur = session.get(Custody, case.id)
     n = CaseNote(
+        ref_no=allocate_ref_no(session, p.office_code, RecordType.NOTE),
         case_id=case.id,
         seq_no=seq,
         kind=note.kind,

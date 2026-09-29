@@ -61,7 +61,7 @@ class CauseList(TimestampMixin, Base):
     source: Mapped[CauseListSource] = mapped_column(
         pg_enum(CauseListSource, "causelist_source"), nullable=False
     )
-    document_id: Mapped[uuid.UUID | None] = uuid_fk("documents.id", nullable=True, ondelete="SET NULL")
+    document_id: Mapped[uuid.UUID | None] = uuid_fk("documents.id", nullable=True, ondelete="RESTRICT")
     fetch_status: Mapped[FetchStatus] = mapped_column(
         pg_enum(FetchStatus, "fetch_status"), nullable=False, server_default=FetchStatus.PENDING.value
     )
@@ -106,7 +106,7 @@ class CauseListEntry(CreatedAtMixin, Base):
     sr_no: Mapped[int] = mapped_column(Integer, nullable=False)
     court_no: Mapped[str | None] = mapped_column(String(32))
     cnr: Mapped[str | None] = mapped_column(String(16))
-    case_id: Mapped[uuid.UUID | None] = uuid_fk("cases.id", nullable=True, ondelete="SET NULL", index=False)
+    case_id: Mapped[uuid.UUID | None] = uuid_fk("cases.id", nullable=True, ondelete="RESTRICT", index=False)
     case_no_text: Mapped[str | None] = mapped_column(String(120))
     petitioner_text: Mapped[str | None] = mapped_column(Text)
     respondent_text: Mapped[str | None] = mapped_column(Text)

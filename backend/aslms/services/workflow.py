@@ -34,6 +34,7 @@ from aslms.domain.workflow import (
 )
 from aslms.services import audit, events
 from aslms.services.audit import Actor
+from aslms.services.refno import RecordType, allocate_ref_no
 from aslms.services.scope import Principal
 
 MAIN_TRACK = STAGE_ORDER[: STAGE_ORDER.index(Stage.COMPLIED) + 1]
@@ -175,6 +176,7 @@ def send_request(session: Session, actor: Actor, p: Principal, case: Case, req: 
         if u is None or not _office_under(session, u.office_id, to.path):
             raise ValidationError("the addressee must belong to the receiving office")
     r = Request(
+        ref_no=allocate_ref_no(session, p.office_code, RecordType.REQ),
         case_id=case.id,
         kind=req.kind,
         from_office_id=p.office_id,
@@ -273,7 +275,7 @@ def withdraw_request(
     frm = session.get(Office, r.from_office_id)
     if p.read_only or not _office_under(session, p.office_id, frm.path):
         raise ForbiddenError("only the requesting office can withdraw a request")
-    r.status = RequestStatus.WITHDRAWN
+    r.status, r.withdrawn_at = RequestStatus.WITHDRAWN, now_utc()
     if reason:
         session.add(RequestMessage(request_id=r.id, body=f"Withdrawn: {reason}", **actor.snapshot()))
     case = session.get(Case, r.case_id)

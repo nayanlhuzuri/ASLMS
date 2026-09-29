@@ -46,6 +46,7 @@ from aslms.domain.ownership import (
 from aslms.domain.workflow import CustodyReason
 from aslms.services import audit, events, workflow
 from aslms.services.audit import Actor
+from aslms.services.refno import RecordType, allocate_ref_no
 from aslms.services.scoring import (
     ENGINE_VERSION,
     CaseFacts,
@@ -470,7 +471,12 @@ def request_transfer(
     if open_:
         raise ConflictError("a transfer is already pending for this case")
     t = OwnershipTransfer(
-        case_id=case.id, from_office_id=src.id, to_office_id=dst.id, reason=reason, **actor.snapshot()
+        ref_no=allocate_ref_no(session, src.code, RecordType.TRF),
+        case_id=case.id,
+        from_office_id=src.id,
+        to_office_id=dst.id,
+        reason=reason,
+        **actor.snapshot(),
     )
     session.add(t)
     session.flush()
@@ -580,6 +586,7 @@ def withdraw_transfer(
         now_utc(),
         actor.user_id,
     )
+    transfer.withdrawn_at = transfer.decided_at
     audit.record(
         session, actor, "transfer.withdraw", "ownership_transfer", transfer.id, case_id=transfer.case_id
     )

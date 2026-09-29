@@ -19,9 +19,11 @@ from aslms.db.base import (
     ActorSnapshotMixin,
     Base,
     CreatedAtMixin,
+    RefNoMixin,
     TableClass,
     TimestampMixin,
     pg_enum,
+    ref_code,
     uuid_fk,
     uuid_pk,
 )
@@ -53,7 +55,7 @@ class Custody(TimestampMixin, Base):
     since: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     due_date: Mapped[date | None] = mapped_column(Date)
     request_id: Mapped[uuid.UUID | None] = uuid_fk(
-        "requests.id", nullable=True, ondelete="SET NULL", index=False
+        "requests.id", nullable=True, ondelete="RESTRICT", index=False
     )
     current_leg_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
 
@@ -78,7 +80,7 @@ class CustodyHistory(CreatedAtMixin, ActorSnapshotMixin, Base):
     pending_action: Mapped[str | None] = mapped_column(String(300))
     due_date: Mapped[date | None] = mapped_column(Date)
     request_id: Mapped[uuid.UUID | None] = uuid_fk(
-        "requests.id", nullable=True, ondelete="SET NULL", index=False
+        "requests.id", nullable=True, ondelete="RESTRICT", index=False
     )
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
@@ -100,8 +102,9 @@ class RequestStatus(enum.StrEnum):
     WITHDRAWN = "withdrawn"
 
 
-class Request(TimestampMixin, ActorSnapshotMixin, Base):
-    """Office-to-office request with a due date (plan §5.7). Sending it moves custody to `to_office`."""
+class Request(TimestampMixin, RefNoMixin, ActorSnapshotMixin, Base):
+    """Office-to-office request with a due date (plan §5.7). Sending it moves custody to `to_office`.
+    `ref_no` = `ASLMS/<from office>/REQ/YYYY/NNNNNN`."""
 
     __tablename__ = "requests"
     __table_class__ = TableClass.TRANSACTION
@@ -112,7 +115,7 @@ class Request(TimestampMixin, ActorSnapshotMixin, Base):
 
     id: Mapped[uuid.UUID] = uuid_pk()
     case_id: Mapped[uuid.UUID] = uuid_fk("cases.id", index=False)
-    kind: Mapped[RequestKind] = mapped_column(pg_enum(RequestKind, "request_kind"), nullable=False)
+    kind: Mapped[RequestKind] = ref_code(RequestKind, "ref_request_kind")
     from_office_id: Mapped[uuid.UUID] = uuid_fk("offices.id", ondelete="RESTRICT")
     to_office_id: Mapped[uuid.UUID] = uuid_fk("offices.id", ondelete="RESTRICT", index=False)
     to_user_id: Mapped[uuid.UUID | None] = uuid_fk(
@@ -128,6 +131,7 @@ class Request(TimestampMixin, ActorSnapshotMixin, Base):
     answered_by_user_id: Mapped[uuid.UUID | None] = uuid_fk(
         "users.id", nullable=True, ondelete="SET NULL", index=False
     )
+    withdrawn_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class RequestMessage(CreatedAtMixin, ActorSnapshotMixin, Base):
@@ -175,7 +179,7 @@ class CaseStage(CreatedAtMixin, ActorSnapshotMixin, Base):
     id: Mapped[uuid.UUID] = uuid_pk()
     case_id: Mapped[uuid.UUID] = uuid_fk("cases.id", index=False)
     office_id: Mapped[uuid.UUID] = uuid_fk("offices.id", ondelete="RESTRICT", index=False)
-    stage: Mapped[Stage] = mapped_column(pg_enum(Stage, "case_stage"), nullable=False)
+    stage: Mapped[Stage] = ref_code(Stage, "ref_case_stage")
     response_mode: Mapped[str | None] = mapped_column(String(32))  # dept_led | directorate_led
     note: Mapped[str | None] = mapped_column(Text)
 
@@ -197,7 +201,7 @@ class NoteVisibility(enum.StrEnum):
     PRIVATE_TO_OFFICE = "private_to_office"
 
 
-class CaseNote(CreatedAtMixin, ActorSnapshotMixin, Base):
+class CaseNote(CreatedAtMixin, RefNoMixin, ActorSnapshotMixin, Base):
     """The noting trail (plan §5.8): append-only, never edited; a correction is a new note that supersedes the
     old one and both stay visible. Author snapshot frozen; per-case sequence number; custody leg recorded."""
 
@@ -211,7 +215,7 @@ class CaseNote(CreatedAtMixin, ActorSnapshotMixin, Base):
     id: Mapped[uuid.UUID] = uuid_pk()
     case_id: Mapped[uuid.UUID] = uuid_fk("cases.id", index=False)
     seq_no: Mapped[int] = mapped_column(Integer, nullable=False)
-    kind: Mapped[NoteKind] = mapped_column(pg_enum(NoteKind, "note_kind"), nullable=False)
+    kind: Mapped[NoteKind] = ref_code(NoteKind, "ref_note_kind")
     body: Mapped[str] = mapped_column(Text, nullable=False)
     visibility: Mapped[NoteVisibility] = mapped_column(
         pg_enum(NoteVisibility, "note_visibility"),
@@ -221,10 +225,10 @@ class CaseNote(CreatedAtMixin, ActorSnapshotMixin, Base):
     office_id: Mapped[uuid.UUID] = uuid_fk("offices.id", ondelete="RESTRICT", index=False)
     author_role: Mapped[str] = mapped_column(String(32), nullable=False)
     custody_leg_id: Mapped[uuid.UUID | None] = uuid_fk(
-        "custody_history.id", nullable=True, ondelete="SET NULL", index=False
+        "custody_history.id", nullable=True, ondelete="RESTRICT", index=False
     )
     supersedes_id: Mapped[uuid.UUID | None] = uuid_fk(
-        "case_notes.id", nullable=True, ondelete="SET NULL", index=False
+        "case_notes.id", nullable=True, ondelete="RESTRICT", index=False
     )
     source: Mapped[str | None] = mapped_column(
         String(32)

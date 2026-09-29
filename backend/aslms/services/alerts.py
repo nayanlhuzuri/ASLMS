@@ -43,6 +43,7 @@ from aslms.domain.workflow import Custody, Request, RequestStatus
 from aslms.integration.email import get_mailer
 from aslms.integration.sms import get_sms
 from aslms.services import events
+from aslms.services.refno import SYSTEM_OFFICE, RecordType, allocate_ref_no
 
 log = get_logger(__name__)
 HEARING_TIME = time(10, 30)
@@ -73,9 +74,16 @@ def _upsert_alert(
     due_at: datetime | None,
     severity: Severity,
 ) -> uuid.UUID | None:
+    a = session.scalar(select(Alert).where(Alert.dedupe_key == dedupe_key))
+    if a is not None:
+        # already raised: keep severity current as the date approaches
+        if a.status == AlertStatus.OPEN and a.severity != severity:
+            a.severity = severity
+        return None
     stmt = (
         insert(Alert)
         .values(
+            ref_no=allocate_ref_no(session, SYSTEM_OFFICE, RecordType.ALR),
             dedupe_key=dedupe_key,
             kind=kind,
             case_id=case_id,
@@ -88,11 +96,7 @@ def _upsert_alert(
         .returning(Alert.id)
     )
     aid = session.execute(stmt).scalar_one_or_none()
-    if aid is None:
-        # already raised: keep severity current as the date approaches
-        a = session.scalar(select(Alert).where(Alert.dedupe_key == dedupe_key))
-        if a and a.status == AlertStatus.OPEN and a.severity != severity:
-            a.severity = severity
+    if aid is None:  # raced by another worker
         return None
     events.emit(
         session,

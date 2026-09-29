@@ -268,13 +268,31 @@ def record_next_date(
     confidence: float | None = None,
     needs_review: bool = False,
     note: str | None = None,
+    ref_office: str = SYSTEM_OFFICE,
+    created_by: uuid.UUID | None = None,
 ) -> bool:
-    """Upserts a next-date fact. Returns True when it is new."""
+    """Upserts a next-date fact. Returns True when it is new. A manual entry gets a reference number (`NXT`)
+    from the reviewer's office."""
     if not next_date:
         return False
+    ref_no = None
+    if source == NextDateSource.MANUAL:
+        exists_ = session.scalar(
+            select(NextDate.id).where(
+                NextDate.case_id == case.id,
+                NextDate.next_date == next_date,
+                NextDate.source == source,
+                NextDate.order_id.is_(None) if order_id is None else NextDate.order_id == order_id,
+            )
+        )
+        if exists_:
+            return False
+        ref_no = allocate_ref_no(session, ref_office, RecordType.NXT)
     stmt = (
         insert(NextDate)
         .values(
+            ref_no=ref_no,
+            created_by=created_by,
             case_id=case.id,
             next_date=next_date,
             source=source,

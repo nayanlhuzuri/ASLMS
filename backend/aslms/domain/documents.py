@@ -27,9 +27,11 @@ from aslms.db.base import (
     ActorSnapshotMixin,
     Base,
     CreatedAtMixin,
+    OptionalRefNoMixin,
     TableClass,
     TimestampMixin,
     pg_enum,
+    ref_code,
     uuid_fk,
     uuid_pk,
 )
@@ -93,9 +95,10 @@ class SourceTraceStatus(enum.StrEnum):
     FAILED = "failed"
 
 
-class Document(TimestampMixin, ActorSnapshotMixin, Base):
+class Document(TimestampMixin, OptionalRefNoMixin, ActorSnapshotMixin, Base):
     """One row per stored file, deduplicated on sha256. The actor columns record the uploader for
-    user uploads; system-collected documents leave them NULL."""
+    user uploads; system-collected documents leave them NULL. Uploads (`court_filing` / `internal`) carry a
+    `ref_no` (`DOC`); court records do not. Never deleted: `archived_at` retires a document."""
 
     __tablename__ = "documents"
     __table_class__ = TableClass.TRANSACTION
@@ -111,9 +114,9 @@ class Document(TimestampMixin, ActorSnapshotMixin, Base):
     size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
     original_filename: Mapped[str | None] = mapped_column(String(300))
     kind: Mapped[DocumentKind] = mapped_column(pg_enum(DocumentKind, "document_kind"), nullable=False)
-    doc_type: Mapped[DocType] = mapped_column(pg_enum(DocType, "doc_type"), nullable=False)
+    doc_type: Mapped[DocType] = ref_code(DocType, "ref_doc_type")
     doc_group: Mapped[DocGroup] = mapped_column(pg_enum(DocGroup, "doc_group"), nullable=False)
-    case_id: Mapped[uuid.UUID | None] = uuid_fk("cases.id", nullable=True, ondelete="SET NULL", index=False)
+    case_id: Mapped[uuid.UUID | None] = uuid_fk("cases.id", nullable=True, ondelete="RESTRICT", index=False)
     doc_date: Mapped[date | None] = mapped_column(Date)
     description: Mapped[str | None] = mapped_column(Text)
     visibility: Mapped[Visibility] = mapped_column(
@@ -136,6 +139,7 @@ class Document(TimestampMixin, ActorSnapshotMixin, Base):
         server_default=SourceTraceStatus.NOT_APPLICABLE.value,
     )
     sourcetrace_ref: Mapped[str | None] = mapped_column(String(200))
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class DocumentText(CreatedAtMixin, Base):
@@ -183,7 +187,7 @@ class Order(TimestampMixin, Base):
     order_date: Mapped[date] = mapped_column(Date, nullable=False)
     kind: Mapped[OrderKind] = mapped_column(pg_enum(OrderKind, "order_kind"), nullable=False)
     is_reportable: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
-    document_id: Mapped[uuid.UUID | None] = uuid_fk("documents.id", nullable=True, ondelete="SET NULL")
+    document_id: Mapped[uuid.UUID | None] = uuid_fk("documents.id", nullable=True, ondelete="RESTRICT")
     download_status: Mapped[DownloadStatus] = mapped_column(
         pg_enum(DownloadStatus, "download_status"),
         nullable=False,
