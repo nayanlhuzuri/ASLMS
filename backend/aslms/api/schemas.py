@@ -224,7 +224,7 @@ class PartyOut(ORM):
 
 class AdvocateOut(ORM):
     side: str
-    name: str
+    name: str  # `name_as_listed` in the database; the ORM property keeps the API field
     counsel_code: str | None
 
 

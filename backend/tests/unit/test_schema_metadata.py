@@ -1,5 +1,5 @@
-"""The model modules are the executable form of docs/schema/phase1.md: every table listed there must exist,
-and nothing else may sneak in without updating the document."""
+"""The model modules are the executable form of docs/schema/phase1.md (docs/schema/schema.md after DB-1): every
+table listed there must exist, and nothing else may sneak in without updating the document."""
 
 from __future__ import annotations
 
@@ -56,6 +56,30 @@ PHASE1_TABLES = {
     "source_failures",
 }
 
+DB1_TABLES = {
+    # DB_STANDARD §7 code sets and §3 sequences
+    "ref_role",
+    "ref_office_kind",
+    "ref_case_stage",
+    "ref_request_kind",
+    "ref_note_kind",
+    "ref_doc_type",
+    "ref_alert_kind",
+    "ref_event_type",
+    "ref_record_type",
+    "ref_sequences",
+    # masters
+    "designations",
+    "states",
+    "districts",
+    "acts",
+    "advocates",
+    # §10 dossier tables
+    "case_applications",
+    "case_lower_courts",
+    "case_objections",
+}
+
 PHASE2_TABLES = {
     "custody",
     "custody_history",
@@ -71,14 +95,25 @@ PHASE2_TABLES = {
 
 
 def test_phase1_tables_match_document() -> None:
-    assert set(Base.metadata.tables) == PHASE1_TABLES | PHASE2_TABLES
-    assert len(PHASE1_TABLES) == 39 and len(PHASE2_TABLES) == 10
+    assert set(Base.metadata.tables) == PHASE1_TABLES | PHASE2_TABLES | DB1_TABLES
+    assert len(PHASE1_TABLES) == 39 and len(PHASE2_TABLES) == 10 and len(DB1_TABLES) == 18
 
 
 def test_every_table_has_uuid_primary_key_or_document_fk() -> None:
+    """DB_STANDARD §2: `id uuid` v7, or the parent's id for 1:1 tables; `ref_*` tables use `code`."""
     for name, table in Base.metadata.tables.items():
         pk = [c.name for c in table.primary_key.columns]
+        if name.startswith("ref_"):
+            assert pk == ["code"] or name == "ref_sequences", f"{name} has an unexpected primary key {pk}"
+            continue
         assert pk in (["id"], ["document_id"], ["case_id"]), f"{name} has an unexpected primary key {pk}"
+        if pk == ["id"]:
+            assert table.c.id.server_default.arg.text == "uuid_generate_v7()", name
+
+
+def test_every_table_declares_its_class() -> None:
+    for name, table in Base.metadata.tables.items():
+        assert table.comment and table.comment.startswith("class="), name
 
 
 def test_append_only_tables_have_dedupe_or_actor() -> None:

@@ -44,6 +44,7 @@ from aslms.domain.reference import CaseType, Court, CourtLevel
 from aslms.integration.base import CaseRecord, StatusRecord
 from aslms.integration.ghc.causelist_pdf import is_counsel_code, normalise_counsel_code
 from aslms.services import events
+from aslms.services.refno import SYSTEM_OFFICE, RecordType, allocate_ref_no
 
 
 # ------------------------------------------------------------------------------------------ lookups
@@ -99,8 +100,10 @@ def resolve_case(
     is_filing_number: bool = False,
     petitioner: str | None = None,
     respondent: str | None = None,
+    ref_office: str = SYSTEM_OFFICE,
 ) -> tuple[Case, bool]:
-    """Finds or creates the canonical case. Returns (case, created)."""
+    """Finds or creates the canonical case. Returns (case, created). A new case gets its reference number
+    from `ref_office` (`GOA` unless a department's discovery created it; DB_STANDARD §3)."""
     cnr = cnr.strip().upper() if cnr else None
     if cnr and not is_cnr(cnr):
         cnr = None
@@ -140,6 +143,7 @@ def resolve_case(
     type_text, reg_no, reg_year = split_case_no(canon) if canon else (None, None, None)
     ct = case_type_for(session, court.id, type_text)
     case = Case(
+        ref_no=allocate_ref_no(session, ref_office, RecordType.CASE),
         cnr=cnr,
         court_id=court.id,
         case_type_id=ct.id if ct else None,
@@ -163,6 +167,7 @@ def resolve_case(
         case_id=case.id,
         payload={
             "cnr": cnr,
+            "ref_no": case.ref_no,
             "case_no": canon or case.filing_no_text,
             "source": source.value,
             "provisional": cnr is None,
@@ -174,7 +179,7 @@ def resolve_case(
 def add_advocates(session: Session, case: Case, side: AdvocateSide, names: list[str]) -> None:
     """Adds advocates not yet recorded for this side. Counsel codes are stored normalised in `counsel_code`."""
     existing = {
-        (a.name.upper())
+        (a.name_as_listed.upper())
         for a in session.scalars(
             select(CaseAdvocate).where(CaseAdvocate.case_id == case.id, CaseAdvocate.side == side)
         )
@@ -184,7 +189,7 @@ def add_advocates(session: Session, case: Case, side: AdvocateSide, names: list[
         if not name or name.upper() in existing:
             continue
         code = normalise_counsel_code(name) if is_counsel_code(name) else None
-        session.add(CaseAdvocate(case_id=case.id, side=side, name=name, counsel_code=code))
+        session.add(CaseAdvocate(case_id=case.id, side=side, name_as_listed=name, counsel_code=code))
         existing.add(name.upper())
 
 
@@ -456,9 +461,11 @@ def apply_case_record(session: Session, case: Case, rec: CaseRecord) -> dict[str
             session.execute(
                 insert(CaseAct)
                 .values(
-                    case_id=case.id, act_name=str(a["act"])[:300], section=str(a.get("section") or "")[:200]
+                    case_id=case.id,
+                    act_name_as_listed=str(a["act"])[:300],
+                    section=str(a.get("section") or "")[:200],
                 )
-                .on_conflict_do_nothing(index_elements=["case_id", "act_name", "section"])
+                .on_conflict_do_nothing(index_elements=["case_id", "act_name_as_listed", "section"])
             )
 
     for o in rec.orders:

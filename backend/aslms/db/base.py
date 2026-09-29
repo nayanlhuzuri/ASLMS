@@ -46,7 +46,7 @@ class Base(DeclarativeBase):
         table = cls.__dict__.get("__table__")
         if table is None:  # abstract / mixin
             return
-        tc = cls.__dict__.get("__table_class__")
+        tc = getattr(cls, "__table_class__", None)  # Base only annotates it; a mixin may set it
         if tc is None:
             raise TypeError(f"{cls.__name__}: declare __table_class__ (DB_STANDARD §0)")
         table.comment = f"class={TableClass(tc).value}"

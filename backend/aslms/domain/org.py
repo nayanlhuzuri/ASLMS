@@ -10,7 +10,17 @@ from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Un
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from aslms.db.base import Base, CreatedAtMixin, TableClass, TimestampMixin, pg_enum, uuid_fk, uuid_pk
+from aslms.db.base import (
+    Base,
+    CreatedAtMixin,
+    CreatedByMixin,
+    MasterMixin,
+    TableClass,
+    TimestampMixin,
+    pg_enum,
+    uuid_fk,
+    uuid_pk,
+)
 
 
 class OfficeKind(enum.StrEnum):
@@ -37,9 +47,10 @@ class Role(enum.StrEnum):
 STATE_TIER_ROLES = frozenset({Role.STATE_OVERSIGHT, Role.AUDITOR, Role.CENTRAL_OPERATOR})
 
 
-class Office(TimestampMixin, Base):
+class Office(TimestampMixin, MasterMixin, CreatedByMixin, Base):
     """Departments, directorates and other offices. `path` is the materialised code path
-    (e.g. `EDU/EDU-DSE`) so a department's scope is `path LIKE 'EDU/%' OR path = 'EDU'`."""
+    (e.g. `EDU/EDU-DSE`) so a department's scope is `path LIKE 'EDU/%' OR path = 'EDU'`.
+    Versioned (`valid_from` / `valid_to`) and deactivated, never deleted (DB_STANDARD §0)."""
 
     __tablename__ = "offices"
     __table_class__ = TableClass.MASTER
@@ -52,7 +63,6 @@ class Office(TimestampMixin, Base):
         UUID(as_uuid=True), ForeignKey("offices.id", ondelete="RESTRICT"), nullable=True
     )
     path: Mapped[str] = mapped_column(String(400), nullable=False, index=True)
-    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
 
     parent: Mapped[Office | None] = relationship(remote_side="Office.id")
 
@@ -61,7 +71,20 @@ class Office(TimestampMixin, Base):
         return self.path.split("/", 1)[0]
 
 
-class User(TimestampMixin, Base):
+class Designation(TimestampMixin, MasterMixin, CreatedByMixin, Base):
+    """Organisation master of designations (Under Secretary, Section Officer, Standing Counsel…), so users
+    and author snapshots draw on one list. `users.designation` keeps the text shown at write time."""
+
+    __tablename__ = "designations"
+    __table_class__ = TableClass.MASTER
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    code: Mapped[str] = mapped_column(String(40), unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+
+
+class User(TimestampMixin, CreatedByMixin, Base):
     __tablename__ = "users"
     __table_class__ = TableClass.MASTER
 
@@ -70,7 +93,8 @@ class User(TimestampMixin, Base):
     mobile: Mapped[str | None] = mapped_column(String(20))
     password_hash: Mapped[str] = mapped_column(String(300), nullable=False)
     full_name: Mapped[str] = mapped_column(String(200), nullable=False)
-    designation: Mapped[str | None] = mapped_column(String(200))
+    designation: Mapped[str | None] = mapped_column(String(200))  # text as shown; the master row when known
+    designation_id: Mapped[uuid.UUID | None] = uuid_fk("designations.id", nullable=True, ondelete="RESTRICT")
     office_id: Mapped[uuid.UUID] = uuid_fk("offices.id", ondelete="RESTRICT")
     role: Mapped[Role] = mapped_column(pg_enum(Role, "user_role"), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")

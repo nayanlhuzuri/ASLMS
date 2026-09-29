@@ -88,7 +88,7 @@ def _query(q: str | None, f: SearchFilters):
     if f.advocate:
         like = f"%{f.advocate.strip().upper()}%"
         stmt = stmt.where(
-            exists().where(and_(CaseAdvocate.case_id == Case.id, func.upper(CaseAdvocate.name).like(like)))
+            exists().where(and_(CaseAdvocate.case_id == Case.id, func.upper(CaseAdvocate.name_as_listed).like(like)))
         )
     if f.party:
         like = f"%{normalise_name(f.party)}%"
