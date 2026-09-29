@@ -86,12 +86,12 @@ function SearchInner() {
       <Card>
         <form role="search" onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <FormRow>
-            <Field label="CINO, case number, party or advocate" className="grow">
+            <Field label="CINO, case number, portal reference, party or advocate" className="grow">
               <TextInput
                 type="search"
                 value={draft.q}
                 onChange={(e) => upd("q")(e.target.value)}
-                placeholder="e.g. WP(C)/1234/2026 or GAHC010012342026"
+                placeholder="e.g. WP(C)/1234/2026, GAHC010012342026 or ASLMS/GOA/CASE/2026/000123"
               />
             </Field>
           </FormRow>

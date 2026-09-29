@@ -15,10 +15,13 @@ run_backup() {
     echo "[$stamp] dumping database $PGDATABASE"
     pg_dump -Fc -Z 6 -f "$BACKUP_DIR/db/aslms-$stamp.dump.part" "$PGDATABASE"
     mv "$BACKUP_DIR/db/aslms-$stamp.dump.part" "$BACKUP_DIR/db/aslms-$stamp.dump"
+    # the database roles (aslms_owner, aslms_app, aslms_readonly) are cluster objects and are not in a
+    # database dump; a restore on a fresh server replays this file first (DB_STANDARD §8)
+    pg_dumpall --roles-only -f "$BACKUP_DIR/db/roles-$stamp.sql"
     echo "[$stamp] syncing document storage"
     # storage is content-addressed (sha256 names), so copying new files is enough
     cp -Rn "$STORAGE_DIR/." "$BACKUP_DIR/storage/" 2>/dev/null || true
-    find "$BACKUP_DIR/db" -name 'aslms-*.dump' -mtime "+$BACKUP_KEEP_DAYS" -delete
+    find "$BACKUP_DIR/db" \( -name 'aslms-*.dump' -o -name 'roles-*.sql' \) -mtime "+$BACKUP_KEEP_DAYS" -delete
     echo "[$stamp] done: $(ls -1 "$BACKUP_DIR/db" | wc -l) dump(s) kept"
 }
 

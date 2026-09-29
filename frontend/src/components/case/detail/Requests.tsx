@@ -67,6 +67,9 @@ export function RequestCard({ r, canAct, onChanged, showCase }: { r: RequestOut;
         <RequestStatusPill r={r} />
         <DuePill r={r} />
         <Pill tone="neutral">{requestKindLabel(r.kind)}</Pill>
+        <span className="mono muted" style={{ fontSize: 12 }} title="Request reference number">
+          {r.ref_no}
+        </span>
         {showCase ? (
           <Link href={`/cases/${r.case_id}?tab=requests`} className="mono" style={{ fontSize: 13, fontWeight: 500 }}>
             {r.case_no ?? "Open case"}

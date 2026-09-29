@@ -40,9 +40,12 @@ export function TrackingCard({ c, actions, extra }: { c: CaseCard; actions?: Rea
         </Link>
         <div className={s.meta}>
           <span className={s.caseNo}>{caseNumber(c)}</span>
+          <span title="Portal reference number">
+            Ref <span className="mono">{c.ref_no}</span>
+          </span>
           {c.cnr && c.case_no ? (
             <span>
-              CNR <span className="mono">{c.cnr}</span>
+              · CNR <span className="mono">{c.cnr}</span>
             </span>
           ) : null}
           {c.court ? <span>· {c.court}</span> : null}

@@ -50,7 +50,7 @@ export function WatchlistTab({ me }: { me: Me }) {
     setRemoving(w.id);
     try {
       await api.del(`/mapping/watchlist/${w.id}`);
-      toast.success(`${w.cnr} removed from the watchlist.`);
+      toast.success(`${w.cnr} deactivated on the watchlist (kept for the record).`);
       list.reload();
     } catch (err) {
       toast.error(err);
@@ -83,7 +83,7 @@ export function WatchlistTab({ me }: { me: Me }) {
                   { key: "office", header: "Department", render: (w) => officeName(byId, w.office_id) },
                   { key: "reason", header: "Reason", render: (w) => w.reason || "-" },
                   { key: "added", header: "Added", render: (w) => fmtDate(w.created_at) },
-                  { key: "status", header: "Status", render: (w) => <Pill tone={w.is_active ? "success" : "muted"}>{w.is_active ? "Active" : "Removed"}</Pill> },
+                  { key: "status", header: "Status", render: (w) => <Pill tone={w.is_active ? "success" : "muted"}>{w.is_active ? "Active" : "Deactivated"}</Pill> },
                   {
                     key: "act",
                     header: "",
@@ -91,7 +91,7 @@ export function WatchlistTab({ me }: { me: Me }) {
                     render: (w) =>
                       writable && w.is_active ? (
                         <Button variant="link" small busy={removing === w.id} onClick={() => remove(w)}>
-                          Remove<span className="sr-only"> {w.cnr}</span>
+                          Deactivate<span className="sr-only"> {w.cnr}</span>
                         </Button>
                       ) : null,
                   },

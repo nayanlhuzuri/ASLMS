@@ -101,6 +101,24 @@ class CaseRecord:
     linked_cnrs: list[str]
     fetched_at: datetime
     raw: dict[str, Any] = field(default_factory=dict)
+    # DB_STANDARD §10 — the rest of the dossier
+    applications: list[dict[str, Any]] = field(default_factory=list)  # iafiling{}
+    lower_courts: list[dict[str, Any]] = field(default_factory=list)  # lower_court_*, trial_lower_court_*
+    objections: list[dict[str, Any]] = field(default_factory=list)  # objections{}
+    pet_legal_heir: bool = False
+    res_legal_heir: bool = False
+    date_first_list: date | None = None
+    filing_case_type_text: str | None = None
+    disposal_type: str | None = None
+    short_order: str | None = None
+    date_filing_disp: date | None = None
+    reason_for_rej: str | None = None
+    sub_category: str | None = None
+    fir_no: str | None = None
+    fir_year: int | None = None
+    police_station: str | None = None
+    state_name: str | None = None
+    dist_name: str | None = None
 
 
 @dataclass(frozen=True)

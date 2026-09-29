@@ -17,8 +17,9 @@ services:
     restart: unless-stopped
     environment:
       DB_HOST: postgres
-      DB_USER: ${POSTGRES_USER:-aslms}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-aslms}
+      # the pool authenticates as the application role (DB_STANDARD §8); migrations bypass the pool
+      DB_USER: aslms_app
+      DB_PASSWORD: ${ASLMS_APP_PASSWORD:?set ASLMS_APP_PASSWORD}
       DB_NAME: ${POSTGRES_DB:-aslms}
       POOL_MODE: transaction
       AUTH_TYPE: scram-sha-256
@@ -46,7 +47,7 @@ services:
     ports: !reset []
     environment: &prod_env
       # the app talks to PgBouncer; `init` runs the migrations against postgres directly
-      DATABASE_URL_SYNC: postgresql+psycopg://${POSTGRES_USER:-aslms}:${POSTGRES_PASSWORD:-aslms}@pgbouncer:5432/${POSTGRES_DB:-aslms}
+      DATABASE_URL_SYNC: postgresql+psycopg://aslms_app:${ASLMS_APP_PASSWORD:?set ASLMS_APP_PASSWORD}@pgbouncer:5432/${POSTGRES_DB:-aslms}
       DB_BEHIND_PGBOUNCER: "true"
       REDIS_URL: redis://redis:6379/0
       CLAMAV_HOST: clamav

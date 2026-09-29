@@ -20,6 +20,8 @@ from aslms.domain.causelists import CauseList, CauseListEntry
 from aslms.domain.documents import DocType, Document, Order, Visibility
 from aslms.domain.org import Office
 from aslms.domain.ownership import CaseOfficeScore, OwnershipTransfer
+from aslms.domain.reference import RefEventType
+from aslms.services import cases as case_svc
 from aslms.services import documents as doc_svc
 from aslms.services import events as event_svc
 from aslms.services import ownership, storage
@@ -28,12 +30,12 @@ from aslms.services.scope import acting_department, case_in_scope, require_case_
 router = APIRouter(tags=["cases"])
 
 
-def _case(ctx: Ctx, case_id: uuid.UUID) -> Case:
-    case = ctx.db.get(Case, case_id)
+def _case(ctx: Ctx, case_ref: str) -> Case:
+    """`{case_ref}` is an id, a reference number (`ASLMS-GOA-CASE-2026-000001` in a URL) or a CNR
+    (DB_STANDARD §3); a merged case resolves to its target."""
+    case = case_svc.resolve_case_ref(ctx.db, case_ref)
     if case is None:
         raise NotFoundError("case not found")
-    if case.merged_into_case_id:
-        case = ctx.db.get(Case, case.merged_into_case_id)
     return case
 
 
@@ -47,23 +49,25 @@ def by_cnr(cnr: str, ctx: Ctx = Depends(current_ctx)) -> S.CaseCard:
     return card(ctx.db, ctx.principal, case)
 
 
-@router.get("/cases/{case_id}", response_model=S.CaseDetail | S.CaseCard)
-def get_case(case_id: uuid.UUID, ctx: Ctx = Depends(current_ctx)) -> S.CaseDetail | S.CaseCard:
+@router.get("/cases/{case_ref}", response_model=S.CaseDetail | S.CaseCard)
+def get_case(case_ref: str, ctx: Ctx = Depends(current_ctx)) -> S.CaseDetail | S.CaseCard:
     """Full detail when the case is in scope, otherwise the tracking card only."""
-    case = _case(ctx, case_id)
+    case = _case(ctx, case_ref)
     if case_in_scope(ctx.db, ctx.principal, case.id):
         return detail(ctx.db, ctx.principal, case)
     return card(ctx.db, ctx.principal, case)
 
 
-@router.get("/cases/{case_id}/timeline", response_model=list[S.EventOut])
-def timeline(case_id: uuid.UUID, ctx: Ctx = Depends(current_ctx)) -> list[S.EventOut]:
-    case = _case(ctx, case_id)
+@router.get("/cases/{case_ref}/timeline", response_model=list[S.EventOut])
+def timeline(case_ref: str, ctx: Ctx = Depends(current_ctx)) -> list[S.EventOut]:
+    case = _case(ctx, case_ref)
     in_scope = case_in_scope(ctx.db, ctx.principal, case.id)
+    labels = dict(ctx.db.execute(select(RefEventType.code, RefEventType.timeline_label)).all())
     return [
         S.EventOut(
             id=e.id,
             type=e.type.value,
+            label=labels.get(e.type.value),
             occurred_at=e.occurred_at,
             payload=e.payload,
             visibility=e.visibility.value,
@@ -72,9 +76,9 @@ def timeline(case_id: uuid.UUID, ctx: Ctx = Depends(current_ctx)) -> list[S.Even
     ]
 
 
-@router.get("/cases/{case_id}/hearings", response_model=list[S.HearingOut])
-def hearings(case_id: uuid.UUID, ctx: Ctx = Depends(current_ctx)) -> list[S.HearingOut]:
-    case = _case(ctx, case_id)
+@router.get("/cases/{case_ref}/hearings", response_model=list[S.HearingOut])
+def hearings(case_ref: str, ctx: Ctx = Depends(current_ctx)) -> list[S.HearingOut]:
+    case = _case(ctx, case_ref)
     require_case_scope(ctx.db, ctx.principal, case.id)
     rows = ctx.db.scalars(
         select(CaseHearing).where(CaseHearing.case_id == case.id).order_by(CaseHearing.business_date.desc())
@@ -92,10 +96,10 @@ def hearings(case_id: uuid.UUID, ctx: Ctx = Depends(current_ctx)) -> list[S.Hear
     ]
 
 
-@router.get("/cases/{case_id}/listings", response_model=list[S.ListingOut])
-def listings(case_id: uuid.UUID, ctx: Ctx = Depends(current_ctx)) -> list[S.ListingOut]:
+@router.get("/cases/{case_ref}/listings", response_model=list[S.ListingOut])
+def listings(case_ref: str, ctx: Ctx = Depends(current_ctx)) -> list[S.ListingOut]:
     """Cause-list appearances (public court information: visible with the tracking card)."""
-    case = _case(ctx, case_id)
+    case = _case(ctx, case_ref)
     rows = ctx.db.execute(
         select(CauseListEntry, CauseList)
         .join(CauseList, CauseList.id == CauseListEntry.causelist_id)
@@ -120,10 +124,10 @@ def listings(case_id: uuid.UUID, ctx: Ctx = Depends(current_ctx)) -> list[S.List
     ]
 
 
-@router.get("/cases/{case_id}/links", response_model=list[S.LinkOut])
-def links(case_id: uuid.UUID, ctx: Ctx = Depends(current_ctx)) -> list[S.LinkOut]:
+@router.get("/cases/{case_ref}/links", response_model=list[S.LinkOut])
+def links(case_ref: str, ctx: Ctx = Depends(current_ctx)) -> list[S.LinkOut]:
     """Linked cases for the relationship graph (appeals, IAs, connected matters)."""
-    case = _case(ctx, case_id)
+    case = _case(ctx, case_ref)
     out: list[S.LinkOut] = []
     for ln in ctx.db.scalars(
         select(CaseLink).where(or_(CaseLink.from_case_id == case.id, CaseLink.to_case_id == case.id))
@@ -144,9 +148,9 @@ def links(case_id: uuid.UUID, ctx: Ctx = Depends(current_ctx)) -> list[S.LinkOut
     return out
 
 
-@router.get("/cases/{case_id}/orders", response_model=list[S.OrderOut])
-def orders(case_id: uuid.UUID, ctx: Ctx = Depends(current_ctx)) -> list[S.OrderOut]:
-    case = _case(ctx, case_id)
+@router.get("/cases/{case_ref}/orders", response_model=list[S.OrderOut])
+def orders(case_ref: str, ctx: Ctx = Depends(current_ctx)) -> list[S.OrderOut]:
+    case = _case(ctx, case_ref)
     require_case_scope(ctx.db, ctx.principal, case.id)
     return [
         S.OrderOut.model_validate(o)
@@ -158,10 +162,10 @@ def orders(case_id: uuid.UUID, ctx: Ctx = Depends(current_ctx)) -> list[S.OrderO
     ]
 
 
-@router.get("/cases/{case_id}/scores", response_model=list[S.ScoreOut])
-def scores(case_id: uuid.UUID, ctx: Ctx = Depends(current_ctx)) -> list[S.ScoreOut]:
+@router.get("/cases/{case_ref}/scores", response_model=list[S.ScoreOut])
+def scores(case_ref: str, ctx: Ctx = Depends(current_ctx)) -> list[S.ScoreOut]:
     """Signals behind each department's score (shown in the inbox)."""
-    case = _case(ctx, case_id)
+    case = _case(ctx, case_ref)
     q = (
         select(CaseOfficeScore, Office)
         .join(Office, Office.id == CaseOfficeScore.office_id)
@@ -175,16 +179,16 @@ def scores(case_id: uuid.UUID, ctx: Ctx = Depends(current_ctx)) -> list[S.ScoreO
     ]
 
 
-@router.get("/cases/{case_id}/ownership", response_model=list[S.OwnershipOut])
-def ownership_history(case_id: uuid.UUID, ctx: Ctx = Depends(current_ctx)) -> list[S.OwnershipOut]:
-    case = _case(ctx, case_id)
+@router.get("/cases/{case_ref}/ownership", response_model=list[S.OwnershipOut])
+def ownership_history(case_ref: str, ctx: Ctx = Depends(current_ctx)) -> list[S.OwnershipOut]:
+    case = _case(ctx, case_ref)
     return ownership_rows(ctx.db, case.id, include_history=case_in_scope(ctx.db, ctx.principal, case.id))
 
 
 # ------------------------------------------------------------------ documents
-@router.get("/cases/{case_id}/documents", response_model=list[S.DocumentOut])
-def list_documents(case_id: uuid.UUID, ctx: Ctx = Depends(current_ctx)) -> list[S.DocumentOut]:
-    case = _case(ctx, case_id)
+@router.get("/cases/{case_ref}/documents", response_model=list[S.DocumentOut])
+def list_documents(case_ref: str, ctx: Ctx = Depends(current_ctx)) -> list[S.DocumentOut]:
+    case = _case(ctx, case_ref)
     require_case_scope(ctx.db, ctx.principal, case.id)
     rows = ctx.db.scalars(
         select(Document)
@@ -194,9 +198,9 @@ def list_documents(case_id: uuid.UUID, ctx: Ctx = Depends(current_ctx)) -> list[
     return [S.DocumentOut.model_validate(d) for d in rows]
 
 
-@router.post("/cases/{case_id}/documents", response_model=S.DocumentOut, status_code=201)
+@router.post("/cases/{case_ref}/documents", response_model=S.DocumentOut, status_code=201)
 def upload_document(
-    case_id: uuid.UUID,
+    case_ref: str,
     file: UploadFile = File(...),
     doc_type: str = Form(...),
     visibility: str = Form("case_scope"),
@@ -205,7 +209,7 @@ def upload_document(
     internal: bool | None = Form(None),
     ctx: Ctx = Depends(current_ctx),
 ) -> S.DocumentOut:
-    case = _case(ctx, case_id)
+    case = _case(ctx, case_ref)
     require_write(ctx.principal)
     require_case_scope(ctx.db, ctx.principal, case.id)
     try:
@@ -250,17 +254,17 @@ def download_document(document_id: uuid.UUID, ctx: Ctx = Depends(current_ctx)) -
 
 
 # ------------------------------------------------------------------ ownership actions
-@router.post("/cases/{case_id}/claim", response_model=list[S.OwnershipOut])
-def claim(case_id: uuid.UUID, body: S.ClaimIn, ctx: Ctx = Depends(current_ctx)) -> list[S.OwnershipOut]:
-    case = _case(ctx, case_id)
+@router.post("/cases/{case_ref}/claim", response_model=list[S.OwnershipOut])
+def claim(case_ref: str, body: S.ClaimIn, ctx: Ctx = Depends(current_ctx)) -> list[S.OwnershipOut]:
+    case = _case(ctx, case_ref)
     dept = acting_department(ctx.principal, body.office_id)
     ownership.claim(ctx.db, ctx.actor, case, dept, reason=body.reason)
     return ownership_rows(ctx.db, case.id)
 
 
-@router.post("/cases/{case_id}/dismiss", response_model=S.Ok)
-def dismiss(case_id: uuid.UUID, body: S.DismissIn, ctx: Ctx = Depends(current_ctx)) -> S.Ok:
-    case = _case(ctx, case_id)
+@router.post("/cases/{case_ref}/dismiss", response_model=S.Ok)
+def dismiss(case_ref: str, body: S.DismissIn, ctx: Ctx = Depends(current_ctx)) -> S.Ok:
+    case = _case(ctx, case_ref)
     dept = acting_department(ctx.principal, body.office_id)
     ownership.dismiss(
         ctx.db, ctx.actor, case, dept, reason=body.reason, suggest_office_id=body.suggest_office_id
@@ -268,17 +272,17 @@ def dismiss(case_id: uuid.UUID, body: S.DismissIn, ctx: Ctx = Depends(current_ct
     return S.Ok(detail="dismissed")
 
 
-@router.post("/cases/{case_id}/transfer", response_model=S.Ok)
-def transfer(case_id: uuid.UUID, body: S.TransferIn, ctx: Ctx = Depends(current_ctx)) -> S.Ok:
-    case = _case(ctx, case_id)
+@router.post("/cases/{case_ref}/transfer", response_model=S.Ok)
+def transfer(case_ref: str, body: S.TransferIn, ctx: Ctx = Depends(current_ctx)) -> S.Ok:
+    case = _case(ctx, case_ref)
     dept = acting_department(ctx.principal, body.office_id)
     t = ownership.request_transfer(ctx.db, ctx.actor, case, dept, body.to_office_id, reason=body.reason)
     return S.Ok(detail=str(t.id))
 
 
-@router.post("/cases/{case_id}/allot", response_model=list[S.OwnershipOut])
-def allot(case_id: uuid.UUID, body: S.AllotIn, ctx: Ctx = Depends(current_ctx)) -> list[S.OwnershipOut]:
-    case = _case(ctx, case_id)
+@router.post("/cases/{case_ref}/allot", response_model=list[S.OwnershipOut])
+def allot(case_ref: str, body: S.AllotIn, ctx: Ctx = Depends(current_ctx)) -> list[S.OwnershipOut]:
+    case = _case(ctx, case_ref)
     dept = acting_department(ctx.principal, body.office_id)
     ownership.allot(
         ctx.db,
@@ -291,9 +295,9 @@ def allot(case_id: uuid.UUID, body: S.AllotIn, ctx: Ctx = Depends(current_ctx)) 
     return ownership_rows(ctx.db, case.id)
 
 
-@router.post("/cases/{case_id}/release", response_model=S.Ok)
-def release(case_id: uuid.UUID, body: S.ReleaseIn, ctx: Ctx = Depends(current_ctx)) -> S.Ok:
-    case = _case(ctx, case_id)
+@router.post("/cases/{case_ref}/release", response_model=S.Ok)
+def release(case_ref: str, body: S.ReleaseIn, ctx: Ctx = Depends(current_ctx)) -> S.Ok:
+    case = _case(ctx, case_ref)
     dept = acting_department(ctx.principal, body.office_id)
     ownership.release(ctx.db, ctx.actor, case, dept, reason=body.reason)
     return S.Ok(detail="released")

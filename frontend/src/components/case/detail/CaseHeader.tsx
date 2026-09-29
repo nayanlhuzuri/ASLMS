@@ -27,9 +27,12 @@ export function CaseHeader({ c, rail }: { c: CaseCard | CaseDetail; rail?: React
             {c.petitioner ?? "Petitioner not yet known"} <span className={s.vs}>vs.</span> {c.respondent ?? "Respondent not yet known"}
           </div>
           <div className={s.headMeta}>
+            <span title="Portal reference number: quote it in correspondence">
+              Ref <span className="mono">{c.ref_no}</span>
+            </span>
             {c.cnr ? (
               <span>
-                CNR <span className="mono">{c.cnr}</span>
+                · CNR <span className="mono">{c.cnr}</span>
               </span>
             ) : null}
             {c.court ? <span>· {c.court}</span> : null}

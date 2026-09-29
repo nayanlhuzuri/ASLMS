@@ -33,6 +33,7 @@ def cards(db: Session, p: Principal, cases: Iterable[Case]) -> list[S.CaseCard]:
     return [
         S.CaseCard(
             id=c.id,
+            ref_no=c.ref_no,
             cnr=c.cnr,
             case_no=c.case_no_text,
             filing_no=c.filing_no_text,

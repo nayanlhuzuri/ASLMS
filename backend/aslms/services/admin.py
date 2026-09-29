@@ -19,7 +19,7 @@ from aslms.core.errors import ConflictError, IntegrationError, NotFoundError, Va
 from aslms.core.security import hash_password
 from aslms.core.text import is_cnr
 from aslms.core.time import now_utc, today_ist
-from aslms.domain.cases import Case, FirstSeenSource
+from aslms.domain.cases import Act, Case, District, FirstSeenSource, State
 from aslms.domain.org import Office, OfficeKind, Role, User
 from aslms.domain.ownership import (
     CounselCode,
@@ -82,6 +82,7 @@ def update_office(
         office.name = name.strip()
     if is_active is not None:
         office.is_active = is_active
+        office.deactivated_at = None if is_active else now_utc()
     audit.record(
         session,
         actor,
@@ -105,6 +106,7 @@ def create_user(
     role: Role,
     password: str,
     designation: str | None = None,
+    designation_id: uuid.UUID | None = None,
     mobile: str | None = None,
 ) -> User:
     email = email.strip().lower()
@@ -122,6 +124,7 @@ def create_user(
         role=role,
         password_hash=hash_password(password),
         designation=designation,
+        designation_id=designation_id,
         mobile=mobile,
     )
     session.add(user)
@@ -204,6 +207,7 @@ def upsert_counsel_code(
             notes,
             True,
         )
+        row.deactivated_at = None
     else:
         row = CounselCode(
             code=norm, office_id=office_id, weight=weight, is_generic_state=is_generic_state, notes=notes
@@ -346,6 +350,7 @@ def sync_masters(session: Session, hc) -> dict[str, int]:
         )
     )
     counts["case_types"] = len(types)
+    counts.update(_sync_places_and_acts(session, hc))
     # cases created before the master was loaded get their case type now
     session.execute(
         update(Case)
@@ -358,6 +363,102 @@ def sync_masters(session: Session, hc) -> dict[str, int]:
         )
     )
     return counts
+
+
+def _sync_run(session: Session, kind: MasterKind, rows: list) -> None:
+    session.add(
+        MasterSyncRun(
+            master=kind,
+            fetched_at=now_utc(),
+            row_count=len(rows),
+            sha256=hashlib.sha256(json.dumps(rows, sort_keys=True, default=str).encode()).hexdigest(),
+        )
+    )
+
+
+def _sync_places_and_acts(session: Session, hc) -> dict[str, int]:
+    """DB_STANDARD §0 rule 2 / §10: states, districts and acts are synced from the NAPIX masters, keyed by
+    the court's own codes, never deleted (rows absent upstream are deactivated). LGD codes are not in
+    NAPIX and stay as entered by the administrator."""
+    counts: dict[str, int] = {}
+    states = asyncio.run(hc.state_master())
+    for row in states:
+        code, name = (
+            _s(row.get("state_code") or row.get("state_cd")),
+            _s(row.get("state_name") or row.get("name")),
+        )
+        if not code or not name:
+            continue
+        st = session.scalar(select(State).where(State.ecourts_code == code)) or session.scalar(
+            select(State).where(func.lower(State.name) == name.lower())
+        )
+        if st is None:
+            session.add(State(ecourts_code=code, name=name[:120]))
+        else:
+            st.ecourts_code, st.is_active, st.deactivated_at = code, True, None
+    session.flush()
+    _sync_run(session, MasterKind.STATE, states)
+    counts["states"] = len(states)
+    home = session.scalar(select(State).where(State.ecourts_code == hc.state_code))
+    districts = asyncio.run(hc.district_master())
+    if home is not None:
+        seen: set[str] = set()
+        for row in districts:
+            code, name = (
+                _s(row.get("dist_code") or row.get("district_code")),
+                _s(row.get("dist_name") or row.get("district_name") or row.get("name")),
+            )
+            if not name:
+                continue
+            d = session.scalar(
+                select(District).where(
+                    District.state_id == home.id, func.lower(District.name) == name.lower()
+                )
+            )
+            if d is None and code:
+                d = session.scalar(
+                    select(District).where(District.state_id == home.id, District.ecourts_code == code)
+                )
+            if d is None:
+                d = District(state_id=home.id, name=name[:120], ecourts_code=code)
+                session.add(d)
+            else:
+                d.ecourts_code, d.is_active, d.deactivated_at = code or d.ecourts_code, True, None
+            seen.add(name.lower())
+        session.flush()
+        for d in session.scalars(
+            select(District).where(District.state_id == home.id, District.is_active.is_(True))
+        ):
+            if d.name.lower() not in seen and districts:
+                d.is_active, d.deactivated_at = False, now_utc()
+    _sync_run(session, MasterKind.DISTRICT, districts)
+    counts["districts"] = len(districts)
+    acts = asyncio.run(hc.act_master())
+    for row in acts:
+        code = _s(row.get("act_code") or row.get("national_act_code") or row.get("actcode"))
+        name = _s(row.get("act_name") or row.get("actname") or row.get("name"))
+        if not name:
+            continue
+        a = (
+            session.scalar(select(Act).where(Act.national_act_code == code)) if code else None
+        ) or session.scalar(select(Act).where(func.lower(Act.name) == name.lower()))
+        if a is None:
+            session.add(Act(national_act_code=code[:32] if code else None, name=name[:300]))
+        else:
+            a.national_act_code, a.is_active, a.deactivated_at = (
+                (code[:32] if code else a.national_act_code),
+                True,
+                None,
+            )
+    session.flush()
+    _sync_run(session, MasterKind.ACT, acts)
+    counts["acts"] = len(acts)
+    return counts
+
+
+def _s(v) -> str | None:
+    t = str(v).strip() if v is not None else ""
+    return t or None
 
 
 def record_bench(session: Session, court: Court, bench_id: str, judges: str | None) -> None:
@@ -424,7 +525,7 @@ def watch(
         select(OfficeWatchlist).where(OfficeWatchlist.office_id == office_id, OfficeWatchlist.cnr == cnr)
     )
     if row:
-        row.is_active, row.reason = True, reason or row.reason
+        row.is_active, row.reason, row.deactivated_at = True, reason or row.reason, None
     else:
         case = case_svc.get_by_cnr(session, cnr)
         row = OfficeWatchlist(

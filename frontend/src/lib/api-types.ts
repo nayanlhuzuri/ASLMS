@@ -143,6 +143,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/otp/resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resend
+         * @description A new code for an earlier sign-in or password-reset step. Allowed once every OTP_RESEND_SECONDS (429 with
+         *     `retry_after` before that). The previous code stops working.
+         */
+        post: operations["resend_api_v1_auth_otp_resend_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/password/reset": {
         parameters: {
             query?: never;
@@ -250,7 +271,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/cases/{case_id}": {
+    "/api/v1/cases/{case_ref}": {
         parameters: {
             query?: never;
             header?: never;
@@ -261,7 +282,7 @@ export interface paths {
          * Get Case
          * @description Full detail when the case is in scope, otherwise the tracking card only.
          */
-        get: operations["get_case_api_v1_cases__case_id__get"];
+        get: operations["get_case_api_v1_cases__case_ref__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -270,7 +291,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/cases/{case_id}/timeline": {
+    "/api/v1/cases/{case_ref}/timeline": {
         parameters: {
             query?: never;
             header?: never;
@@ -278,7 +299,7 @@ export interface paths {
             cookie?: never;
         };
         /** Timeline */
-        get: operations["timeline_api_v1_cases__case_id__timeline_get"];
+        get: operations["timeline_api_v1_cases__case_ref__timeline_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -287,7 +308,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/cases/{case_id}/hearings": {
+    "/api/v1/cases/{case_ref}/hearings": {
         parameters: {
             query?: never;
             header?: never;
@@ -295,7 +316,7 @@ export interface paths {
             cookie?: never;
         };
         /** Hearings */
-        get: operations["hearings_api_v1_cases__case_id__hearings_get"];
+        get: operations["hearings_api_v1_cases__case_ref__hearings_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -304,7 +325,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/cases/{case_id}/listings": {
+    "/api/v1/cases/{case_ref}/listings": {
         parameters: {
             query?: never;
             header?: never;
@@ -315,7 +336,7 @@ export interface paths {
          * Listings
          * @description Cause-list appearances (public court information: visible with the tracking card).
          */
-        get: operations["listings_api_v1_cases__case_id__listings_get"];
+        get: operations["listings_api_v1_cases__case_ref__listings_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -324,7 +345,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/cases/{case_id}/links": {
+    "/api/v1/cases/{case_ref}/links": {
         parameters: {
             query?: never;
             header?: never;
@@ -335,7 +356,7 @@ export interface paths {
          * Links
          * @description Linked cases for the relationship graph (appeals, IAs, connected matters).
          */
-        get: operations["links_api_v1_cases__case_id__links_get"];
+        get: operations["links_api_v1_cases__case_ref__links_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -344,7 +365,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/cases/{case_id}/orders": {
+    "/api/v1/cases/{case_ref}/orders": {
         parameters: {
             query?: never;
             header?: never;
@@ -352,7 +373,7 @@ export interface paths {
             cookie?: never;
         };
         /** Orders */
-        get: operations["orders_api_v1_cases__case_id__orders_get"];
+        get: operations["orders_api_v1_cases__case_ref__orders_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -361,7 +382,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/cases/{case_id}/scores": {
+    "/api/v1/cases/{case_ref}/scores": {
         parameters: {
             query?: never;
             header?: never;
@@ -372,7 +393,7 @@ export interface paths {
          * Scores
          * @description Signals behind each department's score (shown in the inbox).
          */
-        get: operations["scores_api_v1_cases__case_id__scores_get"];
+        get: operations["scores_api_v1_cases__case_ref__scores_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -381,7 +402,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/cases/{case_id}/ownership": {
+    "/api/v1/cases/{case_ref}/ownership": {
         parameters: {
             query?: never;
             header?: never;
@@ -389,7 +410,7 @@ export interface paths {
             cookie?: never;
         };
         /** Ownership History */
-        get: operations["ownership_history_api_v1_cases__case_id__ownership_get"];
+        get: operations["ownership_history_api_v1_cases__case_ref__ownership_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -398,7 +419,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/cases/{case_id}/documents": {
+    "/api/v1/cases/{case_ref}/documents": {
         parameters: {
             query?: never;
             header?: never;
@@ -406,10 +427,10 @@ export interface paths {
             cookie?: never;
         };
         /** List Documents */
-        get: operations["list_documents_api_v1_cases__case_id__documents_get"];
+        get: operations["list_documents_api_v1_cases__case_ref__documents_get"];
         put?: never;
         /** Upload Document */
-        post: operations["upload_document_api_v1_cases__case_id__documents_post"];
+        post: operations["upload_document_api_v1_cases__case_ref__documents_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -433,7 +454,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/cases/{case_id}/claim": {
+    "/api/v1/cases/{case_ref}/claim": {
         parameters: {
             query?: never;
             header?: never;
@@ -443,14 +464,14 @@ export interface paths {
         get?: never;
         put?: never;
         /** Claim */
-        post: operations["claim_api_v1_cases__case_id__claim_post"];
+        post: operations["claim_api_v1_cases__case_ref__claim_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/cases/{case_id}/dismiss": {
+    "/api/v1/cases/{case_ref}/dismiss": {
         parameters: {
             query?: never;
             header?: never;
@@ -460,14 +481,14 @@ export interface paths {
         get?: never;
         put?: never;
         /** Dismiss */
-        post: operations["dismiss_api_v1_cases__case_id__dismiss_post"];
+        post: operations["dismiss_api_v1_cases__case_ref__dismiss_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/cases/{case_id}/transfer": {
+    "/api/v1/cases/{case_ref}/transfer": {
         parameters: {
             query?: never;
             header?: never;
@@ -477,14 +498,14 @@ export interface paths {
         get?: never;
         put?: never;
         /** Transfer */
-        post: operations["transfer_api_v1_cases__case_id__transfer_post"];
+        post: operations["transfer_api_v1_cases__case_ref__transfer_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/cases/{case_id}/allot": {
+    "/api/v1/cases/{case_ref}/allot": {
         parameters: {
             query?: never;
             header?: never;
@@ -494,14 +515,14 @@ export interface paths {
         get?: never;
         put?: never;
         /** Allot */
-        post: operations["allot_api_v1_cases__case_id__allot_post"];
+        post: operations["allot_api_v1_cases__case_ref__allot_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/cases/{case_id}/release": {
+    "/api/v1/cases/{case_ref}/release": {
         parameters: {
             query?: never;
             header?: never;
@@ -511,7 +532,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Release */
-        post: operations["release_api_v1_cases__case_id__release_post"];
+        post: operations["release_api_v1_cases__case_ref__release_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1074,7 +1095,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Deactivate Code */
+        /**
+         * Deactivate Code
+         * @description Masters are deactivated, never deleted (DB_STANDARD §0); the row comes back deactivated.
+         */
         delete: operations["deactivate_code_api_v1_mapping_codes__code_id__delete"];
         options?: never;
         head?: never;
@@ -1203,6 +1227,82 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/designations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Designations */
+        get: operations["designations_api_v1_designations_get"];
+        put?: never;
+        /** Add Designation */
+        post: operations["add_designation_api_v1_designations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/designations/{designation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Designation */
+        patch: operations["update_designation_api_v1_designations__designation_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/ref/{code_set}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ref Rows
+         * @description Labels of a code set (`role`, `office_kind`, `case_stage`, `request_kind`, `note_kind`, `doc_type`,
+         *     `alert_kind`, `event_type`, `record_type`), in display order.
+         */
+        get: operations["ref_rows_api_v1_ref__code_set__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ref/{code_set}/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Ref Row
+         * @description Administrators edit labels, descriptions and order; codes themselves never change (DB_STANDARD §7).
+         */
+        patch: operations["update_ref_row_api_v1_ref__code_set___code__patch"];
+        trace?: never;
+    };
     "/api/v1/masters/case-types": {
         parameters: {
             query?: never;
@@ -1291,7 +1391,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/cases/{case_id}/custody/history": {
+    "/api/v1/cases/{case_ref}/custody/history": {
         parameters: {
             query?: never;
             header?: never;
@@ -1302,7 +1402,7 @@ export interface paths {
          * Custody History
          * @description The movement trail is part of the tracking card: visible to every signed-in user.
          */
-        get: operations["custody_history_api_v1_cases__case_id__custody_history_get"];
+        get: operations["custody_history_api_v1_cases__case_ref__custody_history_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1311,7 +1411,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/cases/{case_id}/requests": {
+    "/api/v1/cases/{case_ref}/requests": {
         parameters: {
             query?: never;
             header?: never;
@@ -1319,10 +1419,10 @@ export interface paths {
             cookie?: never;
         };
         /** Case Requests */
-        get: operations["case_requests_api_v1_cases__case_id__requests_get"];
+        get: operations["case_requests_api_v1_cases__case_ref__requests_get"];
         put?: never;
         /** Send Request */
-        post: operations["send_request_api_v1_cases__case_id__requests_post"];
+        post: operations["send_request_api_v1_cases__case_ref__requests_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1420,7 +1520,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/cases/{case_id}/stages": {
+    "/api/v1/cases/{case_ref}/stages": {
         parameters: {
             query?: never;
             header?: never;
@@ -1428,17 +1528,17 @@ export interface paths {
             cookie?: never;
         };
         /** Case Stages */
-        get: operations["case_stages_api_v1_cases__case_id__stages_get"];
+        get: operations["case_stages_api_v1_cases__case_ref__stages_get"];
         put?: never;
         /** Set Stage */
-        post: operations["set_stage_api_v1_cases__case_id__stages_post"];
+        post: operations["set_stage_api_v1_cases__case_ref__stages_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/cases/{case_id}/handover": {
+    "/api/v1/cases/{case_ref}/handover": {
         parameters: {
             query?: never;
             header?: never;
@@ -1448,14 +1548,14 @@ export interface paths {
         get?: never;
         put?: never;
         /** Handover */
-        post: operations["handover_api_v1_cases__case_id__handover_post"];
+        post: operations["handover_api_v1_cases__case_ref__handover_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/cases/{case_id}/notes": {
+    "/api/v1/cases/{case_ref}/notes": {
         parameters: {
             query?: never;
             header?: never;
@@ -1463,10 +1563,10 @@ export interface paths {
             cookie?: never;
         };
         /** List Notes */
-        get: operations["list_notes_api_v1_cases__case_id__notes_get"];
+        get: operations["list_notes_api_v1_cases__case_ref__notes_get"];
         put?: never;
         /** Add Note */
-        post: operations["add_note_api_v1_cases__case_id__notes_post"];
+        post: operations["add_note_api_v1_cases__case_ref__notes_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1490,7 +1590,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/cases/{case_id}/assistant": {
+    "/api/v1/cases/{case_ref}/assistant": {
         parameters: {
             query?: never;
             header?: never;
@@ -1498,10 +1598,10 @@ export interface paths {
             cookie?: never;
         };
         /** Case Conversations */
-        get: operations["case_conversations_api_v1_cases__case_id__assistant_get"];
+        get: operations["case_conversations_api_v1_cases__case_ref__assistant_get"];
         put?: never;
         /** Ask Case */
-        post: operations["ask_case_api_v1_cases__case_id__assistant_post"];
+        post: operations["ask_case_api_v1_cases__case_ref__assistant_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1587,6 +1687,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Ref No */
+            ref_no: string;
             /** Case Id */
             case_id: string | null;
             /** Kind */
@@ -1686,8 +1788,8 @@ export interface components {
                 [key: string]: unknown;
             } | null;
         };
-        /** Body_add_note_api_v1_cases__case_id__notes_post */
-        Body_add_note_api_v1_cases__case_id__notes_post: {
+        /** Body_add_note_api_v1_cases__case_ref__notes_post */
+        Body_add_note_api_v1_cases__case_ref__notes_post: {
             /** Body */
             body: string;
             /**
@@ -1708,8 +1810,8 @@ export interface components {
              */
             files: string[];
         };
-        /** Body_upload_document_api_v1_cases__case_id__documents_post */
-        Body_upload_document_api_v1_cases__case_id__documents_post: {
+        /** Body_upload_document_api_v1_cases__case_ref__documents_post */
+        Body_upload_document_api_v1_cases__case_ref__documents_post: {
             /** File */
             file: string;
             /** Doc Type */
@@ -1749,6 +1851,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Ref No */
+            ref_no: string;
             /** Cnr */
             cnr: string | null;
             /** Case No */
@@ -1799,6 +1903,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Ref No */
+            ref_no: string;
             /** Cnr */
             cnr: string | null;
             /** Case No */
@@ -1978,6 +2084,11 @@ export interface components {
              * @default A one-time password has been sent to your e-mail.
              */
             detail: string;
+            /**
+             * Resend After
+             * @default 120
+             */
+            resend_after: number;
         };
         /** ChangePasswordIn */
         ChangePasswordIn: {
@@ -2203,6 +2314,43 @@ export interface components {
             /** Pending */
             pending: number;
         };
+        /** DesignationIn */
+        DesignationIn: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+            /**
+             * Sort Order
+             * @default 0
+             */
+            sort_order: number;
+        };
+        /** DesignationOut */
+        DesignationOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+            /** Sort Order */
+            sort_order: number;
+            /** Is Active */
+            is_active: boolean;
+        };
+        /** DesignationPatch */
+        DesignationPatch: {
+            /** Name */
+            name?: string | null;
+            /** Sort Order */
+            sort_order?: number | null;
+            /** Is Active */
+            is_active?: boolean | null;
+        };
         /** DismissIn */
         DismissIn: {
             /** Office Id */
@@ -2219,6 +2367,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Ref No */
+            ref_no?: string | null;
             /** Kind */
             kind: string;
             /** Doc Type */
@@ -2313,6 +2463,8 @@ export interface components {
             id: string;
             /** Type */
             type: string;
+            /** Label */
+            label?: string | null;
             /**
              * Occurred At
              * Format: date-time
@@ -2543,6 +2695,8 @@ export interface components {
             full_name: string;
             /** Designation */
             designation: string | null;
+            /** Designation Id */
+            designation_id?: string | null;
             /** Mobile */
             mobile: string | null;
             /**
@@ -2590,6 +2744,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Ref No */
+            ref_no?: string | null;
             /**
              * Next Date
              * Format: date
@@ -2636,6 +2792,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Ref No */
+            ref_no: string;
             /** Seq No */
             seq_no: number;
             /** Kind */
@@ -3040,6 +3198,33 @@ export interface components {
              */
             created_at: string;
         };
+        /**
+         * RefRowOut
+         * @description A row of a `ref_*` code set (DB_STANDARD §7); extras vary by set and are read from `extra`.
+         */
+        RefRowOut: {
+            /** Code */
+            code: string;
+            /** Label */
+            label: string;
+            /** Description */
+            description: string | null;
+            /** Sort Order */
+            sort_order: number;
+            /** Is Active */
+            is_active: boolean;
+        };
+        /** RefRowPatch */
+        RefRowPatch: {
+            /** Label */
+            label?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Sort Order */
+            sort_order?: number | null;
+            /** Is Active */
+            is_active?: boolean | null;
+        };
         /** RefreshIn */
         RefreshIn: {
             /** Refresh Token */
@@ -3107,6 +3292,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Ref No */
+            ref_no: string;
             /**
              * Case Id
              * Format: uuid
@@ -3144,6 +3331,14 @@ export interface components {
              * @default []
              */
             messages: components["schemas"]["RequestMessageOut"][];
+        };
+        /** ResendIn */
+        ResendIn: {
+            /**
+             * Challenge Id
+             * Format: uuid
+             */
+            challenge_id: string;
         };
         /** ResetIn */
         ResetIn: {
@@ -3306,6 +3501,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Ref No */
+            ref_no: string;
             case: components["schemas"]["CaseCard"];
             /** Direction */
             direction: string;
@@ -3356,6 +3553,8 @@ export interface components {
             password: string;
             /** Designation */
             designation?: string | null;
+            /** Designation Id */
+            designation_id?: string | null;
             /** Mobile */
             mobile?: string | null;
         };
@@ -3372,6 +3571,8 @@ export interface components {
             full_name: string;
             /** Designation */
             designation: string | null;
+            /** Designation Id */
+            designation_id?: string | null;
             /** Mobile */
             mobile: string | null;
             /**
@@ -3394,6 +3595,8 @@ export interface components {
             full_name?: string | null;
             /** Designation */
             designation?: string | null;
+            /** Designation Id */
+            designation_id?: string | null;
             /** Mobile */
             mobile?: string | null;
             /** Office Id */
@@ -3706,6 +3909,39 @@ export interface operations {
             };
         };
     };
+    resend_api_v1_auth_otp_resend_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResendIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Challenge"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     reset_api_v1_auth_password_reset_post: {
         parameters: {
             query?: never;
@@ -3929,12 +4165,12 @@ export interface operations {
             };
         };
     };
-    get_case_api_v1_cases__case_id__get: {
+    get_case_api_v1_cases__case_ref__get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                case_id: string;
+                case_ref: string;
             };
             cookie?: never;
         };
@@ -3960,12 +4196,12 @@ export interface operations {
             };
         };
     };
-    timeline_api_v1_cases__case_id__timeline_get: {
+    timeline_api_v1_cases__case_ref__timeline_get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                case_id: string;
+                case_ref: string;
             };
             cookie?: never;
         };
@@ -3991,12 +4227,12 @@ export interface operations {
             };
         };
     };
-    hearings_api_v1_cases__case_id__hearings_get: {
+    hearings_api_v1_cases__case_ref__hearings_get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                case_id: string;
+                case_ref: string;
             };
             cookie?: never;
         };
@@ -4022,12 +4258,12 @@ export interface operations {
             };
         };
     };
-    listings_api_v1_cases__case_id__listings_get: {
+    listings_api_v1_cases__case_ref__listings_get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                case_id: string;
+                case_ref: string;
             };
             cookie?: never;
         };
@@ -4053,12 +4289,12 @@ export interface operations {
             };
         };
     };
-    links_api_v1_cases__case_id__links_get: {
+    links_api_v1_cases__case_ref__links_get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                case_id: string;
+                case_ref: string;
             };
             cookie?: never;
         };
@@ -4084,12 +4320,12 @@ export interface operations {
             };
         };
     };
-    orders_api_v1_cases__case_id__orders_get: {
+    orders_api_v1_cases__case_ref__orders_get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                case_id: string;
+                case_ref: string;
             };
             cookie?: never;
         };
@@ -4115,12 +4351,12 @@ export interface operations {
             };
         };
     };
-    scores_api_v1_cases__case_id__scores_get: {
+    scores_api_v1_cases__case_ref__scores_get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                case_id: string;
+                case_ref: string;
             };
             cookie?: never;
         };
@@ -4146,12 +4382,12 @@ export interface operations {
             };
         };
     };
-    ownership_history_api_v1_cases__case_id__ownership_get: {
+    ownership_history_api_v1_cases__case_ref__ownership_get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                case_id: string;
+                case_ref: string;
             };
             cookie?: never;
         };
@@ -4177,12 +4413,12 @@ export interface operations {
             };
         };
     };
-    list_documents_api_v1_cases__case_id__documents_get: {
+    list_documents_api_v1_cases__case_ref__documents_get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                case_id: string;
+                case_ref: string;
             };
             cookie?: never;
         };
@@ -4208,18 +4444,18 @@ export interface operations {
             };
         };
     };
-    upload_document_api_v1_cases__case_id__documents_post: {
+    upload_document_api_v1_cases__case_ref__documents_post: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                case_id: string;
+                case_ref: string;
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "multipart/form-data": components["schemas"]["Body_upload_document_api_v1_cases__case_id__documents_post"];
+                "multipart/form-data": components["schemas"]["Body_upload_document_api_v1_cases__case_ref__documents_post"];
             };
         };
         responses: {
@@ -4274,12 +4510,12 @@ export interface operations {
             };
         };
     };
-    claim_api_v1_cases__case_id__claim_post: {
+    claim_api_v1_cases__case_ref__claim_post: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                case_id: string;
+                case_ref: string;
             };
             cookie?: never;
         };
@@ -4309,12 +4545,12 @@ export interface operations {
             };
         };
     };
-    dismiss_api_v1_cases__case_id__dismiss_post: {
+    dismiss_api_v1_cases__case_ref__dismiss_post: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                case_id: string;
+                case_ref: string;
             };
             cookie?: never;
         };
@@ -4344,12 +4580,12 @@ export interface operations {
             };
         };
     };
-    transfer_api_v1_cases__case_id__transfer_post: {
+    transfer_api_v1_cases__case_ref__transfer_post: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                case_id: string;
+                case_ref: string;
             };
             cookie?: never;
         };
@@ -4379,12 +4615,12 @@ export interface operations {
             };
         };
     };
-    allot_api_v1_cases__case_id__allot_post: {
+    allot_api_v1_cases__case_ref__allot_post: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                case_id: string;
+                case_ref: string;
             };
             cookie?: never;
         };
@@ -4414,12 +4650,12 @@ export interface operations {
             };
         };
     };
-    release_api_v1_cases__case_id__release_post: {
+    release_api_v1_cases__case_ref__release_post: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                case_id: string;
+                case_ref: string;
             };
             cookie?: never;
         };
@@ -5560,7 +5796,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Ok"];
+                    "application/json": components["schemas"]["CounselCodeOut"];
                 };
             };
             /** @description Validation Error */
@@ -5675,7 +5911,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Ok"];
+                    "application/json": components["schemas"]["PatternOut"];
                 };
             };
             /** @description Validation Error */
@@ -5759,7 +5995,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Ok"];
+                    "application/json": components["schemas"]["KeywordOut"];
                 };
             };
             /** @description Validation Error */
@@ -5843,7 +6079,162 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Ok"];
+                    "application/json": components["schemas"]["WatchOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    designations_api_v1_designations_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DesignationOut"][];
+                };
+            };
+        };
+    };
+    add_designation_api_v1_designations_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DesignationIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DesignationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_designation_api_v1_designations__designation_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                designation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DesignationPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DesignationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ref_rows_api_v1_ref__code_set__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code_set: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RefRowOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_ref_row_api_v1_ref__code_set___code__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code_set: string;
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefRowPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RefRowOut"];
                 };
             };
             /** @description Validation Error */
@@ -6009,12 +6400,12 @@ export interface operations {
             };
         };
     };
-    custody_history_api_v1_cases__case_id__custody_history_get: {
+    custody_history_api_v1_cases__case_ref__custody_history_get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                case_id: string;
+                case_ref: string;
             };
             cookie?: never;
         };
@@ -6040,12 +6431,12 @@ export interface operations {
             };
         };
     };
-    case_requests_api_v1_cases__case_id__requests_get: {
+    case_requests_api_v1_cases__case_ref__requests_get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                case_id: string;
+                case_ref: string;
             };
             cookie?: never;
         };
@@ -6071,12 +6462,12 @@ export interface operations {
             };
         };
     };
-    send_request_api_v1_cases__case_id__requests_post: {
+    send_request_api_v1_cases__case_ref__requests_post: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                case_id: string;
+                case_ref: string;
             };
             cookie?: never;
         };
@@ -6265,12 +6656,12 @@ export interface operations {
             };
         };
     };
-    case_stages_api_v1_cases__case_id__stages_get: {
+    case_stages_api_v1_cases__case_ref__stages_get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                case_id: string;
+                case_ref: string;
             };
             cookie?: never;
         };
@@ -6296,12 +6687,12 @@ export interface operations {
             };
         };
     };
-    set_stage_api_v1_cases__case_id__stages_post: {
+    set_stage_api_v1_cases__case_ref__stages_post: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                case_id: string;
+                case_ref: string;
             };
             cookie?: never;
         };
@@ -6331,12 +6722,12 @@ export interface operations {
             };
         };
     };
-    handover_api_v1_cases__case_id__handover_post: {
+    handover_api_v1_cases__case_ref__handover_post: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                case_id: string;
+                case_ref: string;
             };
             cookie?: never;
         };
@@ -6366,12 +6757,12 @@ export interface operations {
             };
         };
     };
-    list_notes_api_v1_cases__case_id__notes_get: {
+    list_notes_api_v1_cases__case_ref__notes_get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                case_id: string;
+                case_ref: string;
             };
             cookie?: never;
         };
@@ -6397,18 +6788,18 @@ export interface operations {
             };
         };
     };
-    add_note_api_v1_cases__case_id__notes_post: {
+    add_note_api_v1_cases__case_ref__notes_post: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                case_id: string;
+                case_ref: string;
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "multipart/form-data": components["schemas"]["Body_add_note_api_v1_cases__case_id__notes_post"];
+                "multipart/form-data": components["schemas"]["Body_add_note_api_v1_cases__case_ref__notes_post"];
             };
         };
         responses: {
@@ -6454,12 +6845,12 @@ export interface operations {
             };
         };
     };
-    case_conversations_api_v1_cases__case_id__assistant_get: {
+    case_conversations_api_v1_cases__case_ref__assistant_get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                case_id: string;
+                case_ref: string;
             };
             cookie?: never;
         };
@@ -6485,12 +6876,12 @@ export interface operations {
             };
         };
     };
-    ask_case_api_v1_cases__case_id__assistant_post: {
+    ask_case_api_v1_cases__case_ref__assistant_post: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                case_id: string;
+                case_ref: string;
             };
             cookie?: never;
         };

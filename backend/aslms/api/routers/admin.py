@@ -15,13 +15,13 @@ from sqlalchemy import func, or_, select
 
 from aslms.api import schemas as S
 from aslms.api.deps import Ctx, current_ctx, roles
-from aslms.core.errors import ForbiddenError, NotFoundError, ValidationError
-from aslms.core.time import IST
+from aslms.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationError
+from aslms.core.time import IST, now_utc
 from aslms.domain.events import AuditLog
 from aslms.domain.ops import SourceFailure
-from aslms.domain.org import Office, OfficeKind, Role, User
+from aslms.domain.org import Designation, Office, OfficeKind, Role, User
 from aslms.domain.ownership import CounselCode, OfficeKeyword, OfficeNamePattern, OfficeWatchlist, PatternKind
-from aslms.domain.reference import CaseType
+from aslms.domain.reference import REF_TABLES, CaseType
 from aslms.services import admin as admin_svc
 from aslms.services import audit
 from aslms.services.scope import can_admin_office, require_write
@@ -145,6 +145,7 @@ def create_user(body: S.UserIn, ctx: Ctx = Depends(roles(*ADMINS))) -> S.UserOut
             role=role,
             password=body.password,
             designation=body.designation,
+            designation_id=body.designation_id,
             mobile=body.mobile,
         )
     )
@@ -208,19 +209,20 @@ def upsert_code(body: S.CounselCodeIn, ctx: Ctx = Depends(roles(*ADMINS))) -> S.
     return S.CounselCodeOut.model_validate(row)
 
 
-@router.delete("/mapping/codes/{code_id}", response_model=S.Ok)
-def deactivate_code(code_id: uuid.UUID, ctx: Ctx = Depends(roles(*ADMINS))) -> S.Ok:
+@router.delete("/mapping/codes/{code_id}", response_model=S.CounselCodeOut)
+def deactivate_code(code_id: uuid.UUID, ctx: Ctx = Depends(roles(*ADMINS))) -> S.CounselCodeOut:
+    """Masters are deactivated, never deleted (DB_STANDARD §0); the row comes back deactivated."""
     row = ctx.db.get(CounselCode, code_id)
     if row is None:
         raise NotFoundError("code not found")
     _require_office_admin(ctx, row.office_id)
-    row.is_active = False
+    row.is_active, row.deactivated_at = False, now_utc()
     audit.record(
         ctx.db, ctx.actor, "mapping.counsel_code.deactivate", "counsel_code", row.id, after={"code": row.code}
     )
     ctx.db.flush()
     admin_svc.rescore_for_code(ctx.db, row.code)
-    return S.Ok()
+    return S.CounselCodeOut.model_validate(row)
 
 
 @router.get("/mapping/unmapped-codes", response_model=list[S.UnmappedCodeOut])
@@ -256,7 +258,7 @@ def add_pattern(body: S.PatternIn, ctx: Ctx = Depends(roles(*ADMINS))) -> S.Patt
         )
         ctx.db.add(row)
     else:
-        row.kind, row.weight, row.is_active = kind, body.weight, True
+        row.kind, row.weight, row.is_active, row.deactivated_at = kind, body.weight, True, None
     ctx.db.flush()
     audit.record(
         ctx.db,
@@ -270,15 +272,16 @@ def add_pattern(body: S.PatternIn, ctx: Ctx = Depends(roles(*ADMINS))) -> S.Patt
     return S.PatternOut.model_validate(row)
 
 
-@router.delete("/mapping/patterns/{pattern_id}", response_model=S.Ok)
-def remove_pattern(pattern_id: uuid.UUID, ctx: Ctx = Depends(roles(*ADMINS))) -> S.Ok:
+@router.delete("/mapping/patterns/{pattern_id}", response_model=S.PatternOut)
+def remove_pattern(pattern_id: uuid.UUID, ctx: Ctx = Depends(roles(*ADMINS))) -> S.PatternOut:
     row = ctx.db.get(OfficeNamePattern, pattern_id)
     if row is None:
         raise NotFoundError("pattern not found")
     _require_office_admin(ctx, row.office_id)
-    row.is_active = False
+    row.is_active, row.deactivated_at = False, now_utc()
     audit.record(ctx.db, ctx.actor, "mapping.pattern.deactivate", "office_name_pattern", row.id)
-    return S.Ok()
+    ctx.db.flush()
+    return S.PatternOut.model_validate(row)
 
 
 @router.get("/mapping/keywords", response_model=list[S.KeywordOut])
@@ -301,7 +304,7 @@ def add_keyword(body: S.KeywordIn, ctx: Ctx = Depends(roles(*ADMINS))) -> S.Keyw
         row = OfficeKeyword(office_id=body.office_id, keyword=body.keyword.strip(), weight=body.weight)
         ctx.db.add(row)
     else:
-        row.weight, row.is_active = body.weight, True
+        row.weight, row.is_active, row.deactivated_at = body.weight, True, None
     ctx.db.flush()
     audit.record(
         ctx.db, ctx.actor, "mapping.keyword", "office_keyword", row.id, after=body.model_dump(mode="json")
@@ -310,15 +313,16 @@ def add_keyword(body: S.KeywordIn, ctx: Ctx = Depends(roles(*ADMINS))) -> S.Keyw
     return S.KeywordOut.model_validate(row)
 
 
-@router.delete("/mapping/keywords/{keyword_id}", response_model=S.Ok)
-def remove_keyword(keyword_id: uuid.UUID, ctx: Ctx = Depends(roles(*ADMINS))) -> S.Ok:
+@router.delete("/mapping/keywords/{keyword_id}", response_model=S.KeywordOut)
+def remove_keyword(keyword_id: uuid.UUID, ctx: Ctx = Depends(roles(*ADMINS))) -> S.KeywordOut:
     row = ctx.db.get(OfficeKeyword, keyword_id)
     if row is None:
         raise NotFoundError("keyword not found")
     _require_office_admin(ctx, row.office_id)
-    row.is_active = False
+    row.is_active, row.deactivated_at = False, now_utc()
     audit.record(ctx.db, ctx.actor, "mapping.keyword.deactivate", "office_keyword", row.id)
-    return S.Ok()
+    ctx.db.flush()
+    return S.KeywordOut.model_validate(row)
 
 
 @router.get("/mapping/watchlist", response_model=list[S.WatchOut])
@@ -343,18 +347,121 @@ def add_watch(
     return S.WatchOut.model_validate(admin_svc.watch(ctx.db, ctx.actor, office_id, body.cnr, body.reason))
 
 
-@router.delete("/mapping/watchlist/{watch_id}", response_model=S.Ok)
+@router.delete("/mapping/watchlist/{watch_id}", response_model=S.WatchOut)
 def remove_watch(
     watch_id: uuid.UUID, ctx: Ctx = Depends(roles(Role.DEPT_ADMIN, Role.DEPT_HEAD, Role.CENTRAL_OPERATOR))
-) -> S.Ok:
+) -> S.WatchOut:
     row = ctx.db.get(OfficeWatchlist, watch_id)
     if row is None:
         raise NotFoundError("watch not found")
     if ctx.principal.role != Role.CENTRAL_OPERATOR and row.office_id != ctx.principal.department_id:
         raise ForbiddenError("not your department")
-    row.is_active = False
-    audit.record(ctx.db, ctx.actor, "mapping.watch.remove", "office_watchlist", row.id)
-    return S.Ok()
+    row.is_active, row.deactivated_at = False, now_utc()
+    audit.record(ctx.db, ctx.actor, "mapping.watch.deactivate", "office_watchlist", row.id)
+    ctx.db.flush()
+    return S.WatchOut.model_validate(row)
+
+
+# ------------------------------------------------------------------ designations and code sets (DB_STANDARD §0, §7)
+@router.get("/designations", response_model=list[S.DesignationOut])
+def designations(ctx: Ctx = Depends(current_ctx)) -> list[S.DesignationOut]:
+    rows = ctx.db.scalars(select(Designation).order_by(Designation.sort_order, Designation.name))
+    return [S.DesignationOut.model_validate(d) for d in rows]
+
+
+@router.post("/designations", response_model=S.DesignationOut, status_code=201)
+def add_designation(
+    body: S.DesignationIn, ctx: Ctx = Depends(roles(Role.CENTRAL_OPERATOR))
+) -> S.DesignationOut:
+    code = body.code.strip().upper().replace(" ", "_")[:40]
+    if not code or not body.name.strip():
+        raise ValidationError("code and name are required")
+    if ctx.db.scalar(select(Designation).where(Designation.code == code)):
+        raise ConflictError("a designation with this code exists")
+    row = Designation(
+        code=code, name=body.name.strip()[:200], sort_order=body.sort_order, created_by=ctx.user.id
+    )
+    ctx.db.add(row)
+    ctx.db.flush()
+    audit.record(ctx.db, ctx.actor, "designation.create", "designation", row.id, after=body.model_dump())
+    return S.DesignationOut.model_validate(row)
+
+
+@router.patch("/designations/{designation_id}", response_model=S.DesignationOut)
+def update_designation(
+    designation_id: uuid.UUID, body: S.DesignationPatch, ctx: Ctx = Depends(roles(Role.CENTRAL_OPERATOR))
+) -> S.DesignationOut:
+    row = ctx.db.get(Designation, designation_id)
+    if row is None:
+        raise NotFoundError("designation not found")
+    before = {"name": row.name, "sort_order": row.sort_order, "is_active": row.is_active}
+    if body.name is not None:
+        row.name = body.name.strip()[:200]
+    if body.sort_order is not None:
+        row.sort_order = body.sort_order
+    if body.is_active is not None:
+        row.is_active = body.is_active
+        row.deactivated_at = None if body.is_active else now_utc()
+    row.updated_by = ctx.user.id
+    ctx.db.flush()
+    audit.record(
+        ctx.db,
+        ctx.actor,
+        "designation.update",
+        "designation",
+        row.id,
+        before=before,
+        after=body.model_dump(exclude_none=True),
+    )
+    return S.DesignationOut.model_validate(row)
+
+
+REF_SETS = {m.__tablename__.removeprefix("ref_"): m for m in REF_TABLES}
+
+
+@router.get("/ref/{code_set}", response_model=list[S.RefRowOut])
+def ref_rows(code_set: str, ctx: Ctx = Depends(current_ctx)) -> list[S.RefRowOut]:
+    """Labels of a code set (`role`, `office_kind`, `case_stage`, `request_kind`, `note_kind`, `doc_type`,
+    `alert_kind`, `event_type`, `record_type`), in display order."""
+    model = REF_SETS.get(code_set)
+    if model is None:
+        raise NotFoundError("no such code set")
+    return [
+        S.RefRowOut.model_validate(r)
+        for r in ctx.db.scalars(select(model).order_by(model.sort_order, model.code))
+    ]
+
+
+@router.patch("/ref/{code_set}/{code}", response_model=S.RefRowOut)
+def update_ref_row(
+    code_set: str, code: str, body: S.RefRowPatch, ctx: Ctx = Depends(roles(Role.CENTRAL_OPERATOR))
+) -> S.RefRowOut:
+    """Administrators edit labels, descriptions and order; codes themselves never change (DB_STANDARD §7)."""
+    model = REF_SETS.get(code_set)
+    if model is None:
+        raise NotFoundError("no such code set")
+    row = ctx.db.get(model, code)
+    if row is None:
+        raise NotFoundError("no such code")
+    before = {
+        "label": row.label,
+        "description": row.description,
+        "sort_order": row.sort_order,
+        "is_active": row.is_active,
+    }
+    for k, v in body.model_dump(exclude_none=True).items():
+        setattr(row, k, v)
+    ctx.db.flush()
+    audit.record(
+        ctx.db,
+        ctx.actor,
+        "ref.update",
+        f"ref_{code_set}",
+        None,
+        before=before,
+        after={**body.model_dump(exclude_none=True), "code": code},
+    )
+    return S.RefRowOut.model_validate(row)
 
 
 # ------------------------------------------------------------------ masters & operations

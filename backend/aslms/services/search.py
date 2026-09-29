@@ -20,6 +20,7 @@ from aslms.domain.ownership import CaseOwnership, OwnershipRole, OwnershipStatus
 from aslms.integration.factory import napix_source
 from aslms.services import cases as case_svc
 from aslms.services import ownership
+from aslms.services.refno import from_slug, is_ref_no
 from aslms.services.scope import Principal, case_scope_clause
 
 CASE_NO_LIKE = re.compile(r"^\s*[A-Za-z][A-Za-z0-9().&\s-]*/\s*\d+\s*(/\s*\d{4})?\s*$")
@@ -50,6 +51,8 @@ def _query(q: str | None, f: SearchFilters):
         text = q.strip()
         if is_cnr(text):
             stmt = stmt.where(Case.cnr == text.upper())
+        elif is_ref_no(from_slug(text)):
+            stmt = stmt.where(Case.ref_no == from_slug(text))
         elif CASE_NO_LIKE.match(text):
             t, n, y = split_case_no(text)
             if t:

@@ -111,6 +111,7 @@ class UserOut(ORM):
     email: str
     full_name: str
     designation: str | None
+    designation_id: uuid.UUID | None = None
     mobile: str | None
     office_id: uuid.UUID
     role: str
@@ -134,12 +135,14 @@ class UserIn(BaseModel):
     role: str
     password: str
     designation: str | None = None
+    designation_id: uuid.UUID | None = None
     mobile: str | None = None
 
 
 class UserPatch(BaseModel):
     full_name: str | None = None
     designation: str | None = None
+    designation_id: uuid.UUID | None = None
     mobile: str | None = None
     office_id: uuid.UUID | None = None
     role: str | None = None
@@ -195,6 +198,7 @@ class CaseCard(BaseModel):
     """Tracking card: visible to every signed-in user."""
 
     id: uuid.UUID
+    ref_no: str
     cnr: str | None
     case_no: str | None
     filing_no: str | None
@@ -263,6 +267,7 @@ class OrderOut(ORM):
 
 class DocumentOut(ORM):
     id: uuid.UUID
+    ref_no: str | None = None
     kind: str
     doc_type: str
     doc_group: str
@@ -283,6 +288,7 @@ class DocumentOut(ORM):
 
 class NextDateOut(ORM):
     id: uuid.UUID
+    ref_no: str | None = None
     next_date: date
     source: str
     order_id: uuid.UUID | None
@@ -328,6 +334,7 @@ class CaseDetail(CaseCard):
 class EventOut(ORM):
     id: uuid.UUID
     type: str
+    label: str | None = None  # timeline label from ref_event_type
     occurred_at: datetime
     payload: dict[str, Any]
     visibility: str
@@ -421,6 +428,7 @@ class RecommendationOut(BaseModel):
 
 class TransferOut(BaseModel):
     id: uuid.UUID
+    ref_no: str
     case: CaseCard
     direction: str  # incoming | outgoing
     from_office: OwnerRef
@@ -435,6 +443,7 @@ class TransferOut(BaseModel):
 # ------------------------------------------------------------------ alerts & notifications
 class AlertOut(ORM):
     id: uuid.UUID
+    ref_no: str
     case_id: uuid.UUID | None
     kind: str
     due_at: datetime | None
@@ -567,6 +576,43 @@ class WatchOut(ORM):
     created_at: datetime
 
 
+class DesignationOut(ORM):
+    id: uuid.UUID
+    code: str
+    name: str
+    sort_order: int
+    is_active: bool
+
+
+class DesignationIn(BaseModel):
+    code: str
+    name: str
+    sort_order: int = 0
+
+
+class DesignationPatch(BaseModel):
+    name: str | None = None
+    sort_order: int | None = None
+    is_active: bool | None = None
+
+
+class RefRowOut(ORM):
+    """A row of a `ref_*` code set (DB_STANDARD §7); extras vary by set and are read from `extra`."""
+
+    code: str
+    label: str
+    description: str | None
+    sort_order: int
+    is_active: bool
+
+
+class RefRowPatch(BaseModel):
+    label: str | None = None
+    description: str | None = None
+    sort_order: int | None = None
+    is_active: bool | None = None
+
+
 class CaseTypeOut(ORM):
     id: uuid.UUID
     case_type_code: int
@@ -628,6 +674,7 @@ class RequestMessageOut(BaseModel):
 
 class RequestOut(BaseModel):
     id: uuid.UUID
+    ref_no: str
     case_id: uuid.UUID
     case_no: str | None = None
     kind: str
@@ -695,6 +742,7 @@ class NoteAttachmentOut(BaseModel):
 
 class NoteOut(BaseModel):
     id: uuid.UUID
+    ref_no: str
     seq_no: int
     kind: str
     body: str

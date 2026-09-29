@@ -22,21 +22,28 @@ from aslms.core.text import canonical_case_no, is_cnr, normalise_name, split_cas
 from aslms.core.time import now_utc, parse_date
 from aslms.domain.alerts import NextDate, NextDateSource, ReviewStatus
 from aslms.domain.cases import (
+    Act,
     AdvocateSide,
     Case,
     CaseAct,
     CaseAdvocate,
+    CaseApplication,
     CaseHearing,
     CaseLink,
+    CaseLowerCourt,
+    CaseObjection,
     CaseParty,
     CaseSnapshot,
     CaseStatus,
+    District,
     FirstSeenSource,
     HearingSource,
     LinkKind,
     LinkSource,
+    LowerCourtLevel,
     PartyRole,
     SnapshotSource,
+    State,
 )
 from aslms.domain.documents import DownloadStatus, Order, OrderKind
 from aslms.domain.events import EventType
@@ -44,7 +51,7 @@ from aslms.domain.reference import CaseType, Court, CourtLevel
 from aslms.integration.base import CaseRecord, StatusRecord
 from aslms.integration.ghc.causelist_pdf import is_counsel_code, normalise_counsel_code
 from aslms.services import events
-from aslms.services.refno import SYSTEM_OFFICE, RecordType, allocate_ref_no
+from aslms.services.refno import SYSTEM_OFFICE, RecordType, allocate_ref_no, from_slug, is_ref_no
 
 
 # ------------------------------------------------------------------------------------------ lookups
@@ -77,6 +84,25 @@ def case_type_for(session: Session, court_id: uuid.UUID, type_text: str | None) 
 
 def get_by_cnr(session: Session, cnr: str) -> Case | None:
     return session.scalar(select(Case).where(Case.cnr == cnr.strip().upper()))
+
+
+def resolve_case_ref(session: Session, ref: str) -> Case | None:
+    """A case by `id`, `ref_no` (`ASLMS/GOA/CASE/2026/000001`, or its URL form with `-`) or CNR
+    (DB_STANDARD §3). A merged case resolves to the case it was merged into."""
+    r = ref.strip()
+    case: Case | None = None
+    try:
+        case = session.get(Case, uuid.UUID(r))
+    except ValueError:
+        if is_cnr(r):
+            case = get_by_cnr(session, r)
+        else:
+            cand = from_slug(r)
+            if is_ref_no(cand):
+                case = session.scalar(select(Case).where(Case.ref_no == cand))
+    if case is not None and case.merged_into_case_id:
+        case = session.get(Case, case.merged_into_case_id)
+    return case
 
 
 def find_by_case_no(session: Session, court_id: uuid.UUID, case_no_text: str) -> Case | None:
@@ -424,30 +450,34 @@ def apply_case_record(session: Session, case: Case, rec: CaseRecord) -> dict[str
         val = getattr(rec, attr)
         if val is not None:
             setattr(case, attr, val)
+    for attr in (
+        "date_first_list",
+        "disposal_type",
+        "short_order",
+        "date_filing_disp",
+        "reason_for_rej",
+        "sub_category",
+        "fir_no",
+        "fir_year",
+        "police_station",
+    ):
+        val = getattr(rec, attr)
+        if val is not None:
+            setattr(case, attr, val)
+    if rec.filing_case_type_text and court:
+        fct = case_type_for(session, court.id, rec.filing_case_type_text)
+        case.filing_case_type_id = fct.id if fct else case.filing_case_type_id
+    _apply_place(session, case, rec.state_name, rec.dist_name)
     if rec.status in ("pending", "disposed"):
         case.status = CaseStatus(rec.status)
+        if case.status == CaseStatus.DISPOSED and case.closed_at is None:
+            case.closed_at = now_utc()  # §6: lifecycle is state, not deletion
     if rec.next_hearing_date:
         case.next_hearing_date = rec.next_hearing_date
     case.raw = rec.raw
 
     if rec.parties:
-        session.query(CaseParty).filter(CaseParty.case_id == case.id).delete()
-        seen: set[tuple[str, int]] = set()
-        for p in rec.parties:
-            key = (p.role, p.party_no)
-            if key in seen:
-                continue
-            seen.add(key)
-            session.add(
-                CaseParty(
-                    case_id=case.id,
-                    role=PartyRole(p.role),
-                    party_no=p.party_no,
-                    name=p.name,
-                    name_normalised=normalise_name(p.name),
-                    address=p.address,
-                )
-            )
+        _upsert_parties(session, case, rec)
     for side, text_ in (
         (AdvocateSide.PETITIONER, rec.pet_advocate),
         (AdvocateSide.RESPONDENT, rec.res_advocate),
@@ -475,16 +505,29 @@ def apply_case_record(session: Session, case: Case, rec: CaseRecord) -> dict[str
         counts["new_hearings"] += session.execute(stmt).rowcount or 0
 
     for a in rec.acts:
-        if a.get("act"):
-            session.execute(
-                insert(CaseAct)
-                .values(
-                    case_id=case.id,
-                    act_name_as_listed=str(a["act"])[:300],
-                    section=str(a.get("section") or "")[:200],
-                )
-                .on_conflict_do_nothing(index_elements=["case_id", "act_name_as_listed", "section"])
+        if not a.get("act"):
+            continue
+        name, code = str(a["act"])[:300], a.get("code")
+        act = session.scalar(select(Act).where(Act.national_act_code == code)) if code else None
+        if act is None:
+            act = session.scalar(select(Act).where(func.lower(Act.name) == name.lower()))
+        session.execute(
+            insert(CaseAct)
+            .values(
+                case_id=case.id,
+                act_name_as_listed=name,
+                section=str(a.get("section") or "")[:200],
+                act_id=act.id if act else None,
+                national_act_code=code[:32] if code else None,
             )
+            .on_conflict_do_update(
+                index_elements=["case_id", "act_name_as_listed", "section"],
+                set_={"act_id": act.id if act else None, "national_act_code": code[:32] if code else None},
+            )
+        )
+    counts["applications"] = _upsert_applications(session, case, rec)
+    counts["lower_courts"] = _upsert_lower_courts(session, case, rec)
+    counts["objections"] = _upsert_objections(session, case, rec)
 
     for o in rec.orders:
         if not o.order_date or not o.order_no:
@@ -546,6 +589,145 @@ def apply_case_record(session: Session, case: Case, rec: CaseRecord) -> dict[str
     return counts
 
 
+def _upsert_parties(session: Session, case: Case, rec: CaseRecord) -> None:
+    """§6: parties are never deleted; a party absent from the new dossier keeps its row with
+    `is_current = false`."""
+    existing = {
+        (p.role, p.party_no): p
+        for p in session.scalars(select(CaseParty).where(CaseParty.case_id == case.id))
+    }
+    seen: set[tuple[PartyRole, int]] = set()
+    for p in rec.parties:
+        key = (PartyRole(p.role), p.party_no)
+        if key in seen:
+            continue
+        seen.add(key)
+        heir = (
+            rec.pet_legal_heir
+            if key[0] == PartyRole.PETITIONER
+            else rec.res_legal_heir
+            if key[0] == PartyRole.RESPONDENT
+            else False
+        )
+        row = existing.get(key)
+        if row is None:
+            session.add(
+                CaseParty(
+                    case_id=case.id,
+                    role=key[0],
+                    party_no=key[1],
+                    name=p.name,
+                    name_normalised=normalise_name(p.name),
+                    address=p.address,
+                    has_legal_heir=heir,
+                )
+            )
+        else:
+            row.name, row.name_normalised, row.address = p.name, normalise_name(p.name), p.address
+            row.has_legal_heir, row.is_current = heir, True
+    for key, row in existing.items():
+        if key not in seen and row.is_current:
+            row.is_current = False
+
+
+def _apply_place(session: Session, case: Case, state_name: str | None, dist_name: str | None) -> None:
+    if not state_name:
+        return
+    st = session.scalar(select(State).where(func.lower(State.name) == state_name.strip().lower()))
+    if st is None:
+        return
+    case.state_id = st.id
+    if dist_name:
+        d = session.scalar(
+            select(District).where(
+                District.state_id == st.id, func.lower(District.name) == dist_name.strip().lower()
+            )
+        )
+        if d is not None:
+            case.district_id = d.id
+
+
+def _upsert_applications(session: Session, case: Case, rec: CaseRecord) -> int:
+    n = 0
+    for ia in rec.applications:
+        stmt = (
+            insert(CaseApplication)
+            .values(
+                case_id=case.id,
+                ia_number=ia["ia_number"],
+                party_name=ia.get("party_name"),
+                status=ia.get("status"),
+                filing_date=ia.get("filing_date"),
+                raw=ia.get("raw"),
+            )
+            .on_conflict_do_update(
+                index_elements=["case_id", "ia_number"],
+                set_={
+                    "party_name": ia.get("party_name"),
+                    "status": ia.get("status"),
+                    "filing_date": ia.get("filing_date"),
+                    "raw": ia.get("raw"),
+                },
+            )
+        )
+        n += session.execute(stmt).rowcount or 0
+    return n
+
+
+def _upsert_lower_courts(session: Session, case: Case, rec: CaseRecord) -> int:
+    n = 0
+    for lc in rec.lower_courts:
+        stmt = (
+            insert(CaseLowerCourt)
+            .values(
+                case_id=case.id,
+                level=LowerCourtLevel(lc["level"]),
+                court_name=lc.get("court_name"),
+                case_no_text=lc.get("case_no_text"),
+                decision_date=lc.get("decision_date"),
+                raw=lc.get("raw"),
+            )
+            .on_conflict_do_update(
+                index_elements=["case_id", "level"],
+                set_={
+                    "court_name": lc.get("court_name"),
+                    "case_no_text": lc.get("case_no_text"),
+                    "decision_date": lc.get("decision_date"),
+                    "raw": lc.get("raw"),
+                },
+            )
+        )
+        n += session.execute(stmt).rowcount or 0
+    return n
+
+
+def _upsert_objections(session: Session, case: Case, rec: CaseRecord) -> int:
+    n = 0
+    for ob in rec.objections:
+        stmt = (
+            insert(CaseObjection)
+            .values(
+                case_id=case.id,
+                objection=ob.get("objection"),
+                scrutiny_date=ob["scrutiny_date"],
+                compliance_by_date=ob.get("compliance_by_date"),
+                receipt_date=ob.get("receipt_date"),
+                raw=ob.get("raw"),
+            )
+            .on_conflict_do_update(
+                index_elements=["case_id", "scrutiny_date"],
+                set_={
+                    "objection": ob.get("objection"),
+                    "compliance_by_date": ob.get("compliance_by_date"),
+                    "receipt_date": ob.get("receipt_date"),
+                    "raw": ob.get("raw"),
+                },
+            )
+        )
+        n += session.execute(stmt).rowcount or 0
+    return n
+
+
 def apply_status_record(session: Session, case: Case, st: StatusRecord) -> bool:
     """Applies a Current Status result. Returns True when anything changed."""
     case.last_status_refresh_at = now_utc()
@@ -562,6 +744,8 @@ def apply_status_record(session: Session, case: Case, st: StatusRecord) -> bool:
     )
     if st.status in ("pending", "disposed"):
         case.status = CaseStatus(st.status)
+        if case.status == CaseStatus.DISPOSED and case.closed_at is None:
+            case.closed_at = now_utc()
     for attr in (
         "next_hearing_date",
         "next_purpose",

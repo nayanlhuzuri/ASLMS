@@ -196,6 +196,6 @@ def test_parse_case_record_maps_documented_fields() -> None:
         ("respondent", 2, "Director of Secondary Education"),
     ]
     assert [(o.order_no, o.kind) for o in rec.orders] == [("1", "interim")]
-    assert rec.acts == [{"act": "Constitution of India", "section": "226"}]
+    assert rec.acts == [{"act": "Constitution of India", "section": "226", "code": None}]
     assert rec.linked_case_nos == ["WA/12/2025"] and rec.linked_cnrs == ["GAHC010000012024"]
     assert len(rec.hearings) == 1

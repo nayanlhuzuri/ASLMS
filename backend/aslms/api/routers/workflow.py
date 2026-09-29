@@ -27,6 +27,7 @@ from aslms.domain.workflow import (
     RequestStatus,
     Stage,
 )
+from aslms.services import cases as case_svc
 from aslms.services import documents as doc_svc
 from aslms.services import notes as notes_svc
 from aslms.services import workflow as wf
@@ -35,8 +36,9 @@ from aslms.services.scope import require_case_scope, require_write
 router = APIRouter(tags=["workflow & notes"])
 
 
-def _case(ctx: Ctx, case_id: uuid.UUID) -> Case:
-    case = ctx.db.get(Case, case_id)
+def _case(ctx: Ctx, case_ref: str) -> Case:
+    """`{case_ref}` is an id, a reference number (`ASLMS-GOA-CASE-2026-000001` in a URL) or a CNR."""
+    case = case_svc.resolve_case_ref(ctx.db, case_ref)
     if case is None:
         raise NotFoundError("case not found")
     return case
@@ -56,10 +58,10 @@ def _leg(h: CustodyHistory) -> S.CustodyLegOut:
     )
 
 
-@router.get("/cases/{case_id}/custody/history", response_model=list[S.CustodyLegOut])
-def custody_history(case_id: uuid.UUID, ctx: Ctx = Depends(current_ctx)) -> list[S.CustodyLegOut]:
+@router.get("/cases/{case_ref}/custody/history", response_model=list[S.CustodyLegOut])
+def custody_history(case_ref: str, ctx: Ctx = Depends(current_ctx)) -> list[S.CustodyLegOut]:
     """The movement trail is part of the tracking card: visible to every signed-in user."""
-    return [_leg(h) for h in wf.history(ctx.db, _case(ctx, case_id).id)]
+    return [_leg(h) for h in wf.history(ctx.db, _case(ctx, case_ref).id)]
 
 
 def _request_out(ctx: Ctx, r: Request, case: Case | None = None, with_messages: bool = False) -> S.RequestOut:
@@ -84,6 +86,7 @@ def _request_out(ctx: Ctx, r: Request, case: Case | None = None, with_messages: 
         ]
     return S.RequestOut(
         id=r.id,
+        ref_no=r.ref_no,
         case_id=r.case_id,
         case_no=case.case_no_text if case else None,
         kind=r.kind.value,
@@ -102,9 +105,9 @@ def _request_out(ctx: Ctx, r: Request, case: Case | None = None, with_messages: 
     )
 
 
-@router.get("/cases/{case_id}/requests", response_model=list[S.RequestOut])
-def case_requests(case_id: uuid.UUID, ctx: Ctx = Depends(current_ctx)) -> list[S.RequestOut]:
-    case = _case(ctx, case_id)
+@router.get("/cases/{case_ref}/requests", response_model=list[S.RequestOut])
+def case_requests(case_ref: str, ctx: Ctx = Depends(current_ctx)) -> list[S.RequestOut]:
+    case = _case(ctx, case_ref)
     require_case_scope(ctx.db, ctx.principal, case.id)
     rows = ctx.db.scalars(
         select(Request).where(Request.case_id == case.id).order_by(Request.created_at.desc())
@@ -112,9 +115,9 @@ def case_requests(case_id: uuid.UUID, ctx: Ctx = Depends(current_ctx)) -> list[S
     return [_request_out(ctx, r, case, with_messages=True) for r in rows]
 
 
-@router.post("/cases/{case_id}/requests", response_model=S.RequestOut, status_code=201)
-def send_request(case_id: uuid.UUID, body: S.RequestIn, ctx: Ctx = Depends(current_ctx)) -> S.RequestOut:
-    case = _case(ctx, case_id)
+@router.post("/cases/{case_ref}/requests", response_model=S.RequestOut, status_code=201)
+def send_request(case_ref: str, body: S.RequestIn, ctx: Ctx = Depends(current_ctx)) -> S.RequestOut:
+    case = _case(ctx, case_ref)
     require_case_scope(ctx.db, ctx.principal, case.id)
     try:
         kind = RequestKind(body.kind)
@@ -196,9 +199,9 @@ def stages() -> list[str]:
     return [s.value for s in Stage]
 
 
-@router.get("/cases/{case_id}/stages", response_model=list[S.StageOut])
-def case_stages(case_id: uuid.UUID, ctx: Ctx = Depends(current_ctx)) -> list[S.StageOut]:
-    case = _case(ctx, case_id)
+@router.get("/cases/{case_ref}/stages", response_model=list[S.StageOut])
+def case_stages(case_ref: str, ctx: Ctx = Depends(current_ctx)) -> list[S.StageOut]:
+    case = _case(ctx, case_ref)
     require_case_scope(ctx.db, ctx.principal, case.id)
     return [
         _stage_out(s)
@@ -208,9 +211,9 @@ def case_stages(case_id: uuid.UUID, ctx: Ctx = Depends(current_ctx)) -> list[S.S
     ]
 
 
-@router.post("/cases/{case_id}/stages", response_model=S.StageSetOut, status_code=201)
-def set_stage(case_id: uuid.UUID, body: S.StageIn, ctx: Ctx = Depends(current_ctx)) -> S.StageSetOut:
-    case = _case(ctx, case_id)
+@router.post("/cases/{case_ref}/stages", response_model=S.StageSetOut, status_code=201)
+def set_stage(case_ref: str, body: S.StageIn, ctx: Ctx = Depends(current_ctx)) -> S.StageSetOut:
+    case = _case(ctx, case_ref)
     require_case_scope(ctx.db, ctx.principal, case.id)
     try:
         stage = Stage(body.stage)
@@ -222,9 +225,9 @@ def set_stage(case_id: uuid.UUID, body: S.StageIn, ctx: Ctx = Depends(current_ct
     return S.StageSetOut(**_stage_out(res.stage).model_dump(), skipped=res.skipped)
 
 
-@router.post("/cases/{case_id}/handover", response_model=S.NoteOut, status_code=201)
-def handover(case_id: uuid.UUID, body: S.HandoverIn, ctx: Ctx = Depends(current_ctx)) -> S.NoteOut:
-    case = _case(ctx, case_id)
+@router.post("/cases/{case_ref}/handover", response_model=S.NoteOut, status_code=201)
+def handover(case_ref: str, body: S.HandoverIn, ctx: Ctx = Depends(current_ctx)) -> S.NoteOut:
+    case = _case(ctx, case_ref)
     require_case_scope(ctx.db, ctx.principal, case.id)
     note, _ = wf.hand_over(
         ctx.db,
@@ -246,6 +249,7 @@ def _note_out(ctx: Ctx, n, attachments, superseded_by) -> S.NoteOut:
     sup = ctx.db.get(notes_svc.CaseNote, n.supersedes_id) if n.supersedes_id else None
     return S.NoteOut(
         id=n.id,
+        ref_no=n.ref_no,
         seq_no=n.seq_no,
         kind=n.kind.value,
         body=n.body,
@@ -272,18 +276,18 @@ def _note_out(ctx: Ctx, n, attachments, superseded_by) -> S.NoteOut:
     )
 
 
-@router.get("/cases/{case_id}/notes", response_model=list[S.NoteOut])
-def list_notes(case_id: uuid.UUID, ctx: Ctx = Depends(current_ctx)) -> list[S.NoteOut]:
-    case = _case(ctx, case_id)
+@router.get("/cases/{case_ref}/notes", response_model=list[S.NoteOut])
+def list_notes(case_ref: str, ctx: Ctx = Depends(current_ctx)) -> list[S.NoteOut]:
+    case = _case(ctx, case_ref)
     require_case_scope(ctx.db, ctx.principal, case.id)
     return [
         _note_out(ctx, n, atts, sup) for n, atts, sup in notes_svc.list_notes(ctx.db, ctx.principal, case.id)
     ]
 
 
-@router.post("/cases/{case_id}/notes", response_model=S.NoteOut, status_code=201)
+@router.post("/cases/{case_ref}/notes", response_model=S.NoteOut, status_code=201)
 def add_note(
-    case_id: uuid.UUID,
+    case_ref: str,
     body: str = Form(...),
     kind: str = Form("general"),
     visibility: str = Form("case_scope"),
@@ -291,7 +295,7 @@ def add_note(
     files: list[UploadFile] = File(default=[]),
     ctx: Ctx = Depends(current_ctx),
 ) -> S.NoteOut:
-    case = _case(ctx, case_id)
+    case = _case(ctx, case_ref)
     require_write(ctx.principal)
     require_case_scope(ctx.db, ctx.principal, case.id)
     try:

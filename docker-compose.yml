@@ -14,7 +14,11 @@ x-backend: &backend
     - path: .env
       required: false
   environment: &app_env
-    DATABASE_URL_SYNC: postgresql+psycopg://${POSTGRES_USER:-aslms}:${POSTGRES_PASSWORD:-aslms}@postgres:5432/${POSTGRES_DB:-aslms}
+    # the application connects as aslms_app; migrations and seeding run as the owner (DB_STANDARD §8)
+    DATABASE_URL_SYNC: postgresql+psycopg://aslms_app:${ASLMS_APP_PASSWORD:-aslms_app}@postgres:5432/${POSTGRES_DB:-aslms}
+    ASLMS_MIGRATE_URL: postgresql+psycopg://${POSTGRES_USER:-aslms}:${POSTGRES_PASSWORD:-aslms}@postgres:5432/${POSTGRES_DB:-aslms}
+    ASLMS_APP_PASSWORD: ${ASLMS_APP_PASSWORD:-aslms_app}
+    ASLMS_READONLY_PASSWORD: ${ASLMS_READONLY_PASSWORD:-aslms_readonly}
     REDIS_URL: redis://redis:6379/0
     CAUSE_LIST_DIR: /data/causelists
     STORAGE_ROOT: /data/storage
@@ -68,6 +72,8 @@ services:
     command: ["sh", "-c", "alembic upgrade head && aslms bootstrap $${SEED_DEMO:+--demo}"]
     environment:
       <<: *app_env
+      # the owner: creates the roles on the first run and seeds as the owner
+      DATABASE_URL_SYNC: postgresql+psycopg://${POSTGRES_USER:-aslms}:${POSTGRES_PASSWORD:-aslms}@postgres:5432/${POSTGRES_DB:-aslms}
       SEED_DEMO: ${SEED_DEMO:-true}
     depends_on:
       postgres: { condition: service_healthy }

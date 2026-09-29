@@ -24,6 +24,9 @@ function NoteView({ n, canWrite, onCorrect }: { n: Note; canWrite: boolean; onCo
     <article className={`${s.note} ${superseded ? s.noteSuperseded : ""}`} id={`note-${n.seq_no}`} aria-label={`Note ${n.seq_no}`}>
       <div className={s.noteHead}>
         <span className={s.noteNo}>Note {n.seq_no}</span>
+        <span className="mono muted" style={{ fontSize: 12 }} title="Note reference number">
+          {n.ref_no}
+        </span>
         <Pill tone="neutral">{noteKindLabel(n.kind)}</Pill>
         <Pill tone={n.visibility === "case_scope" ? "muted" : "warning"}>{visibilityLabel(n.visibility)}</Pill>
         {n.supersedes_seq ? (

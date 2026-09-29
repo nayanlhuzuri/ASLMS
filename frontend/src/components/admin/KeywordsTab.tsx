@@ -22,7 +22,7 @@ function useRemove(after: () => void) {
     setBusy(id);
     try {
       await api.del(`${path}/${id}`);
-      toast.success(`${label} removed. A full re-score of pending cases has been queued.`);
+      toast.success(`${label} deactivated (kept for the record). A full re-score of pending cases has been queued.`);
       after();
     } catch (e) {
       toast.error(e);
@@ -107,7 +107,7 @@ export function KeywordsTab({ me }: { me: Me }) {
                       render: (r) =>
                         writable ? (
                           <Button variant="link" small busy={rmP.busy === r.id} onClick={() => rmP.remove("/mapping/patterns", r.id, "Pattern")}>
-                            Remove<span className="sr-only"> {r.pattern}</span>
+                            Deactivate<span className="sr-only"> {r.pattern}</span>
                           </Button>
                         ) : null,
                     },
@@ -141,7 +141,7 @@ export function KeywordsTab({ me }: { me: Me }) {
                       render: (r) =>
                         writable ? (
                           <Button variant="link" small busy={rmK.busy === r.id} onClick={() => rmK.remove("/mapping/keywords", r.id, "Keyword")}>
-                            Remove<span className="sr-only"> {r.keyword}</span>
+                            Deactivate<span className="sr-only"> {r.keyword}</span>
                           </Button>
                         ) : null,
                     },

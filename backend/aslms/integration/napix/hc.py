@@ -118,6 +118,10 @@ class NapixHighCourt:
     async def case_type_master(self) -> list[dict[str, Any]]:
         return nested_list((await self.client.call(API["case_type"], {"est_code": self.est_code})).data)
 
+    async def act_master(self) -> list[dict[str, Any]]:
+        """Act Master takes no input string (decisions log, 25 Sep)."""
+        return nested_list((await self.client.call(API["act"])).data)
+
     # ------------------------------------------------------------------ cause lists
     async def causelist_benches(self, list_date: date) -> list[BenchRef]:
         try:
@@ -336,6 +340,10 @@ class NapixHighCourt:
             return []
 
 
+def _yes(v: Any) -> bool:
+    return str(v or "").strip().upper() in ("Y", "YES", "1", "TRUE")
+
+
 def _pend(v: Any) -> str:
     u = (_s(v) or "").upper()
     return "disposed" if u.startswith("D") else "pending" if u.startswith("P") else "unknown"
@@ -386,9 +394,58 @@ def parse_case_record(c: dict[str, Any], cnr: str) -> CaseRecord:
         orders.append(OrderRef(str(o.get("order_no", "")), parse_date(o.get("order_date")), "final", o))
 
     acts = [
-        {"act": _s(a.get("actname") or a.get("act_name")), "section": _s(a.get("section"))}
+        {
+            "act": _s(a.get("actname") or a.get("act_name")),
+            "section": _s(a.get("section")),
+            "code": _s(a.get("act_code") or a.get("national_act_code") or a.get("actcode")),
+        }
         for a in nested_list(c.get("acts") or c.get("act"))
     ]
+    applications = []
+    for ia in nested_list(c.get("iafiling") or c.get("ia_filing")):
+        no = _s(ia.get("ia_no") or ia.get("ia_number") or ia.get("ia_regno") or ia.get("application_no"))
+        if no:
+            applications.append(
+                {
+                    "ia_number": no[:64],
+                    "party_name": _s(ia.get("party") or ia.get("party_name") or ia.get("ia_party")),
+                    "status": (_s(ia.get("ia_status") or ia.get("status")) or "")[:64] or None,
+                    "filing_date": parse_date(
+                        ia.get("dt_filing") or ia.get("filing_date") or ia.get("ia_date")
+                    ),
+                    "raw": ia,
+                }
+            )
+    lower_courts = []
+    for level, prefix in (("appellate", "lower_court"), ("trial", "trial_lower_court")):
+        name = _s(c.get(f"{prefix}_name") or c.get(f"{prefix}_court") or c.get(prefix))
+        no = _s(c.get(f"{prefix}_case_no") or c.get(f"{prefix}_caseno") or c.get(f"{prefix}_no"))
+        dec = parse_date(
+            c.get(f"{prefix}_dec_dt") or c.get(f"{prefix}_decision_date") or c.get(f"{prefix}_date")
+        )
+        if name or no or dec:
+            lower_courts.append(
+                {
+                    "level": level,
+                    "court_name": name,
+                    "case_no_text": no[:120] if no else None,
+                    "decision_date": dec,
+                    "raw": {k: v for k, v in c.items() if str(k).startswith(prefix)},
+                }
+            )
+    objections = []
+    for ob in nested_list(c.get("objections") or c.get("objection")):
+        sd = parse_date(ob.get("scrutiny_date") or ob.get("dt_scrutiny") or ob.get("scrutiny_dt"))
+        if sd:
+            objections.append(
+                {
+                    "objection": _s(ob.get("objection") or ob.get("objection_text") or ob.get("remarks")),
+                    "scrutiny_date": sd,
+                    "compliance_by_date": parse_date(ob.get("compliance_by_date") or ob.get("dt_compliance")),
+                    "receipt_date": parse_date(ob.get("receipt_date") or ob.get("dt_receipt")),
+                    "raw": ob,
+                }
+            )
     links = nested_list(c.get("link_cases") or c.get("linked_cases"))
     category = c.get("category_details")
     category_text = _s(category.get("category")) if isinstance(category, dict) else _s(category)
@@ -427,4 +484,21 @@ def parse_case_record(c: dict[str, Any], cnr: str) -> CaseRecord:
         linked_cnrs=[str(c["main_matter_cino"]).upper()] if _s(c.get("main_matter_cino")) else [],
         fetched_at=now_utc(),
         raw=c,
+        applications=applications,
+        lower_courts=lower_courts,
+        objections=objections,
+        pet_legal_heir=_yes(c.get("pet_legal_heir")),
+        res_legal_heir=_yes(c.get("res_legal_heir")),
+        date_first_list=parse_date(c.get("date_first_list")),
+        filing_case_type_text=_s(c.get("type_name_fil")),
+        disposal_type=_s(c.get("disposal_type")),
+        short_order=_s(c.get("short_order")),
+        date_filing_disp=parse_date(c.get("date_filing_disp")),
+        reason_for_rej=_s(c.get("reason_for_rej")),
+        sub_category=_s(c.get("sub_category")),
+        fir_no=_s(c.get("fir_no")),
+        fir_year=_i(c.get("fir_year")),
+        police_station=_s(c.get("police_station")),
+        state_name=_s(c.get("state_name")),
+        dist_name=_s(c.get("dist_name")),
     )

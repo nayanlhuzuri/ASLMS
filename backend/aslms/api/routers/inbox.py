@@ -128,6 +128,7 @@ def transfers(office_id: uuid.UUID | None = None, ctx: Ctx = Depends(current_ctx
         out.append(
             S.TransferOut(
                 id=t.id,
+                ref_no=t.ref_no,
                 case=card(ctx.db, ctx.principal, case),
                 direction="incoming" if t.to_office_id == dept.id else "outgoing",
                 from_office=office_ref(ctx.db.get(Office, t.from_office_id)),

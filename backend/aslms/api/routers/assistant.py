@@ -11,13 +11,22 @@ from sqlalchemy import select
 from aslms.api import schemas as S
 from aslms.api.deps import Ctx, current_ctx
 from aslms.core.config import get_settings
+from aslms.core.errors import NotFoundError
 from aslms.domain.sourcetrace import AssistantConversation, AssistantMessage
 from aslms.domain.workflow import NoteVisibility
 from aslms.integration.sourcetrace import get_knowledge_service
 from aslms.services import assistant
+from aslms.services import cases as case_svc
 from aslms.services.scope import require_case_scope
 
 router = APIRouter(tags=["case assistant"])
+
+
+def _case(ctx: Ctx, case_ref: str):
+    case = case_svc.resolve_case_ref(ctx.db, case_ref)
+    if case is None:
+        raise NotFoundError("case not found")
+    return case
 
 
 def _conv_out(ctx: Ctx, c: AssistantConversation, with_messages: bool = True) -> S.ConversationOut:
@@ -52,8 +61,9 @@ def status() -> dict[str, object]:
     }
 
 
-@router.get("/cases/{case_id}/assistant", response_model=list[S.ConversationOut])
-def case_conversations(case_id: uuid.UUID, ctx: Ctx = Depends(current_ctx)) -> list[S.ConversationOut]:
+@router.get("/cases/{case_ref}/assistant", response_model=list[S.ConversationOut])
+def case_conversations(case_ref: str, ctx: Ctx = Depends(current_ctx)) -> list[S.ConversationOut]:
+    case_id = _case(ctx, case_ref).id
     require_case_scope(ctx.db, ctx.principal, case_id)
     rows = ctx.db.scalars(
         select(AssistantConversation)
@@ -63,8 +73,9 @@ def case_conversations(case_id: uuid.UUID, ctx: Ctx = Depends(current_ctx)) -> l
     return [_conv_out(ctx, c) for c in rows]
 
 
-@router.post("/cases/{case_id}/assistant", response_model=S.ConversationOut)
-def ask_case(case_id: uuid.UUID, body: S.AskIn, ctx: Ctx = Depends(current_ctx)) -> S.ConversationOut:
+@router.post("/cases/{case_ref}/assistant", response_model=S.ConversationOut)
+def ask_case(case_ref: str, body: S.AskIn, ctx: Ctx = Depends(current_ctx)) -> S.ConversationOut:
+    case_id = _case(ctx, case_ref).id
     conv, _, _ = assistant.ask(
         ctx.db,
         ctx.principal,

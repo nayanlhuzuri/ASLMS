@@ -53,6 +53,20 @@ def allocate_ref_no(
     return f"ASLMS/{office_code}/{record_type}/{year}/{n:06d}"
 
 
+def ref_no_slug(ref_no: str) -> str:
+    """`ASLMS/GOA/CASE/2026/000001` -> `ASLMS-GOA-CASE-2026-000001`, safe in a URL path."""
+    return ref_no.replace("/", "-")
+
+
+def from_slug(value: str) -> str:
+    """The inverse of `ref_no_slug`; office codes may themselves contain `-` (SEC-EDU), so the number is
+    read from the right: type, year and serial are the last three parts."""
+    parts = value.strip().upper().split("-")
+    if len(parts) >= 5 and parts[0] == "ASLMS":
+        return "/".join([parts[0], "-".join(parts[1:-3]), parts[-3], parts[-2], parts[-1]])
+    return value.strip().upper()
+
+
 def is_ref_no(value: str | None) -> bool:
     return bool(value) and REF_NO_RE.match(value.strip().upper()) is not None
 
