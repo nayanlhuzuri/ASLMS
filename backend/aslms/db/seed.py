@@ -1,6 +1,7 @@
-"""Bootstrap rows: the structural offices, the Gauhati High Court establishment, and one operator account.
-Idempotent: safe to run again. Department offices, counsel codes, patterns and keywords are compiled with the
-departments and entered through Administration (or a later seed file), not here."""
+"""Bootstrap rows: the `ref_*` code sets, designations, Assam and its districts (seed_ref.py), the structural
+offices, the Gauhati High Court establishment, and one operator account. Idempotent: safe to run again; the
+returned counts say what a run inserted. Department offices, counsel codes, patterns and keywords are compiled
+with the departments and entered through Administration (or a later seed file), not here."""
 
 from __future__ import annotations
 
@@ -12,6 +13,7 @@ from sqlalchemy.orm import Session
 from aslms.core.config import get_settings
 from aslms.core.logging import get_logger
 from aslms.core.security import hash_password
+from aslms.db.seed_ref import seed_assam, seed_designations, seed_ref_tables
 from aslms.domain.org import Office, OfficeKind, Role, User
 from aslms.domain.reference import Court, CourtLevel
 
@@ -94,9 +96,14 @@ def upsert_operator(session: Session) -> User:
 
 
 def run_seed(session: Session) -> dict[str, int]:
+    counts = {
+        "ref_rows_inserted": seed_ref_tables(session),
+        "designations_inserted": seed_designations(session),
+        "districts_inserted": seed_assam(session),
+    }
     for seed in STRUCTURAL_OFFICES:
         upsert_office(session, seed)
     for row in COURTS:
         upsert_court(session, row)
     upsert_operator(session)
-    return {"offices": len(STRUCTURAL_OFFICES), "courts": len(COURTS), "users": 1}
+    return {**counts, "offices": len(STRUCTURAL_OFFICES), "courts": len(COURTS), "users": 1}

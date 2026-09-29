@@ -249,7 +249,7 @@ def refresh_search_vector(session: Session, case_id: uuid.UUID) -> None:
                           coalesce(c.respondent_summary, '')), 'B') ||
                 setweight(to_tsvector('simple', coalesce(c.pet_advocate, '') || ' ' || coalesce(c.res_advocate, '') ||
                           ' ' || coalesce((SELECT string_agg(p.name, ' ') FROM case_parties p WHERE p.case_id = c.id), '') ||
-                          ' ' || coalesce((SELECT string_agg(a.name, ' ') FROM case_advocates a WHERE a.case_id = c.id), '')),
+                          ' ' || coalesce((SELECT string_agg(a.name_as_listed, ' ') FROM case_advocates a WHERE a.case_id = c.id), '')),
                           'C')
             WHERE c.id = :id
             """

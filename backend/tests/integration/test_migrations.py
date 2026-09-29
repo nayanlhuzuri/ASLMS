@@ -66,8 +66,9 @@ def test_seed_is_idempotent(test_db_url: str) -> None:
         with Session(engine) as s:
             run_seed(s)
             s.commit()
-            run_seed(s)
+            second = run_seed(s)
             s.commit()
+            assert second["ref_rows_inserted"] == 0
             assert s.scalar(sa.select(sa.func.count()).select_from(Office)) == 3
             assert s.scalar(sa.select(sa.func.count()).select_from(Court)) == 1
             assert s.scalar(sa.select(sa.func.count()).select_from(User)) == 1

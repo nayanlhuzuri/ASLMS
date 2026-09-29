@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from aslms.core.config import get_settings
 from aslms.core.security import hash_password
 from aslms.db.seed import OfficeSeed, run_seed, upsert_office
-from aslms.domain.org import Office, OfficeKind, Role, User
+from aslms.domain.org import Designation, Office, OfficeKind, Role, User
 from aslms.domain.ownership import CounselCode, OfficeKeyword, OfficeNamePattern, PatternKind
 
 DEMO_PASSWORD = "Demo@2026pass"
@@ -136,6 +136,7 @@ def run_demo_seed(session: Session) -> dict[str, int]:
     for kw, office, weight in KEYWORDS:
         if not session.scalar(select(OfficeKeyword).where(OfficeKeyword.keyword == kw)):
             session.add(OfficeKeyword(office_id=offices[office].id, keyword=kw, weight=weight))
+    by_name = {d.name: d.id for d in session.scalars(select(Designation))}
     for email, name, designation, office, role in USERS:
         if not session.scalar(select(User).where(User.email == email)):
             session.add(
@@ -143,6 +144,7 @@ def run_demo_seed(session: Session) -> dict[str, int]:
                     email=email,
                     full_name=name,
                     designation=designation,
+                    designation_id=by_name.get(designation.split(",")[0].strip()),
                     office_id=offices[office].id,
                     role=role,
                     password_hash=hash_password(DEMO_PASSWORD),

@@ -95,6 +95,12 @@ def db(app_env: str) -> Iterator[Session]:
             )
         ]
         conn.execute(sa.text("TRUNCATE " + ", ".join(f'"{t}"' for t in tables) + " RESTART IDENTITY CASCADE"))
+    # the ref_* code sets are part of the schema in effect (DB_STANDARD §7): no row can be written without them
+    from aslms.db.seed_ref import seed_ref_tables
+
+    with Session(engine) as s:
+        seed_ref_tables(s)
+        s.commit()
     with Session(engine, expire_on_commit=False) as s:
         yield s
 
