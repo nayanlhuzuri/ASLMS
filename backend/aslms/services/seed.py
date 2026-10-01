@@ -26,8 +26,10 @@ from aslms.domain.reference import (
     RefCaseStage,
     RefDocType,
     RefEventType,
+    RefPermission,
     Stage,
 )
+from aslms.services.access_seed import PERMISSION_LABELS, seed_matrix, seed_super_admin
 
 
 @dataclass
@@ -94,6 +96,9 @@ def _extra_columns(model: type, member: enum.Enum) -> dict:
         return {"doc_group": DOC_GROUP.get(member, "internal")}
     if model is RefAlertKind:
         return {"default_severity": ALERT_SEVERITY.get(member, "normal")}
+    if model is RefPermission:
+        label, description = PERMISSION_LABELS[member]
+        return {"label": label, "description": description, "module": member.module}
     if model is RefEventType:
         return {"timeline_label": _label(member.value), "is_tracking_card": member in TRACKING_CARD_EVENTS}
     return {}
@@ -105,14 +110,9 @@ def seed_ref_tables(session: Session, report: SeedReport) -> None:
         for order, member in enumerate(enum_cls, start=1):
             if member.value in existing:
                 continue
-            session.add(
-                model(
-                    code=member.value,
-                    label=_label(member.value),
-                    sort_order=order * 10,
-                    **_extra_columns(model, member),
-                )
-            )
+            columns = {"code": member.value, "label": _label(member.value), "sort_order": order * 10}
+            columns.update(_extra_columns(model, member))
+            session.add(model(**columns))
             report.add(table)
     session.flush()
 
@@ -261,5 +261,7 @@ def seed_all(session: Session) -> SeedReport:
     seed_designations(session, report)
     seed_places(session, report)
     seed_courts(session, report)
-    seed_offices(session, report)
+    root = seed_offices(session, report)
+    seed_matrix(session, report)
+    seed_super_admin(session, report, root)
     return report

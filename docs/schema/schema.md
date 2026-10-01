@@ -57,6 +57,7 @@ written from this document plus the approved addendum. **As built (1 Oct 2026):*
 | `ref_doc_type` | + doc_group (`court_record` / `court_filing` / `internal`) | The filing vocabulary. |
 | `ref_alert_kind` | + default_severity | |
 | `ref_event_type` | + timeline_label, icon_key, is_tracking_card | Timeline labels live in data. |
+| `ref_permission` | + module (`users`, `access`, `admin`, `cases`, `custody`, `requests`, `stages`, `notes`, `documents`, `alerts`, `next_dates`, `reports`, `dashboard`, `assistant`, `audit`) | The functions of the application, seeded from `Permission` (added 1 Oct 2026, migration 0003). |
 | `ref_sequences` | office_code, record_type (FK ref_record_type), year, last_value; PK (office_code, record_type, year) | Locked row by row by `allocate_ref_no`. |
 
 ## Group 1 — Organisation and authentication
@@ -64,7 +65,9 @@ written from this document plus the approved addendum. **As built (1 Oct 2026):*
 |---|---|---|
 | `offices` (master) | code (unique, e.g. `EDU`, `EDU-DSE`), name, kind (→ `ref_office_kind`), parent_id (self FK), path (materialised, e.g. `EDU/EDU-DSE`, indexed), is_active, deactivated_at, valid_from, valid_to, created_by, updated_by | Departments and directorates are rows of one table; the visibility tier is derived from kind and path depth. |
 | `designations` (master) | code (unique), name, sort_order, is_active, deactivated_at, valid_from, valid_to, created_by, updated_by | Secretariat designations; seeded with 18, extended under Administration. |
-| `users` (master) | email (unique), mobile, password_hash (argon2), full_name, designation (text as shown), designation_id (→ designations), office_id, role (→ `ref_role`), is_active, last_login_at, must_confirm_profile, created_by, updated_by | One role per user. |
+| `users` (master) | email (unique), mobile, password_hash (argon2), full_name, designation (text as shown), designation_id (→ designations), office_id, role (→ `ref_role`), is_active, last_login_at, must_confirm_profile, created_by, updated_by | One type (role) per user. `super_admin` (added 1 Oct 2026) holds every function and cannot be denied; an inactive user has none. Effective functions = the type's enabled matrix rows + active grants − active denies. |
+| `role_permissions` (master) | role (→ `ref_role`), permission (→ `ref_permission`), is_enabled, created_by, updated_by; unique (role, permission) | The type matrix: one row per type and function, seeded from the plan's Table 1; only `access.manage_types` (the super admin) switches `is_enabled`. Added 1 Oct 2026 (migration 0003). |
+| `user_permissions` (master) | user_id, permission (→ `ref_permission`), effect (`grant` / `deny`), granted_by_user_id, reason, is_active, deactivated_at, valid_from, valid_to, actor snapshot; unique (user_id, permission) | Per-user overrides on top of the type matrix; never deleted, ended with `valid_to` / `is_active`. A non-super-admin may grant only functions they hold, to users in their own office subtree, of the types `dept_officer`, `directorate_user`, `standing_counsel`, `referral_reviewer`. Added 1 Oct 2026 (migration 0003). |
 | `otp_codes` (derived) | user_id (CASCADE), purpose (`login` / `password_reset` / `new_device`), code_hash, expires_at (10 min), attempts (max 5), consumed_at | |
 | `refresh_tokens` (derived) | user_id (CASCADE), token_hash, expires_at, revoked_at, device_label | Rotating refresh tokens; access tokens are 15-minute JWTs. |
 | `user_notification_preferences` (master) | user_id (CASCADE), channel (`in_app` / `email` / `sms`), enabled, digest (`none` / `daily`), critical_only | |

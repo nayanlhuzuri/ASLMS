@@ -433,3 +433,26 @@ Executed §11 steps 1–7, one commit per step (`DB-1 step N` in the log), after
   benches for it.
 - Admin endpoints (`/admin/napix/health`, the re-fetch buttons) wait for the API; the CLI covers them meanwhile.
 
+## User types, functions and access control (1 Oct 2026, product owner)
+- **Super admin** (`super_admin`, a tenth user type): holds every function in the application and manages
+  access; cannot be denied a function or disabled by anyone. The first one comes from `ASLMS_SUPERADMIN_EMAIL`
+  / `ASLMS_SUPERADMIN_PASSWORD` in `.env` (created by `aslms seed`, never logged) or `aslms users
+  create-super-admin`.
+- **Functions** are the 42 codes of `ref_permission` (`Permission` enum; module prefix `users`, `access`,
+  `admin`, `cases`, `custody`, `requests`, `stages`, `notes`, `documents`, `alerts`, `next_dates`, `reports`,
+  `dashboard`, `assistant`, `audit`). The **type matrix** (`role_permissions`, one row per type × function,
+  seeded from Table 1 of the plan; `access_seed.DEFAULT_MATRIX`) says what each type has; only the super admin
+  switches it (`access.manage_types`). **Per-user overrides** (`user_permissions`, grant or deny, never deleted)
+  sit on top. Effective functions = enabled matrix rows + grants − denies; an inactive user has none.
+- **Delegation** (owner's choice): `users.create`, `users.edit`, `users.set_type`, `users.enable_disable`,
+  `users.grant`, `users.reset_password` are functions like any other, so a departmental admin can hold them.
+  A non-super-admin may act only on users in their own office subtree (`offices.path`), only of the types
+  `dept_officer`, `directorate_user`, `standing_counsel`, `referral_reviewer`, and may grant only functions
+  they hold themselves. Every change is audited (`audit_log`) and raises `user_created` / `user_updated` /
+  `access_changed`.
+- The `referral_reviewer` type (in the approved list, absent from Table 1) is seeded with the reviewing
+  functions of an officer without ownership or custody; the owner can adjust the matrix.
+- Migration 0003; schema.md groups 0 and 1 extended first. Passwords are argon2id; the CLI (`aslms users …`,
+  `aslms access …`) acts as the super admin named in `.env`. The API slice (login, me, user and access
+  endpoints) follows in the same step.
+

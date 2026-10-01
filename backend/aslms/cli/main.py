@@ -23,6 +23,7 @@ from aslms.cli.pipeline import (
     refetch_date,
     sync_masters_cmd,
 )
+from aslms.cli.users import access_app, users_app
 from aslms.core.logging import configure_logging
 
 app = typer.Typer(no_args_is_help=True, help="ASLMS v2 backend commands")
@@ -39,6 +40,8 @@ app.command(name="refetch-date")(refetch_date)
 app.command(name="refetch-case")(refetch_case)
 app.command(name="queue-worker")(queue_worker)
 app.command(name="daily-cycle")(daily_cycle)
+app.add_typer(users_app, name="users")
+app.add_typer(access_app, name="access")
 
 
 @app.callback()

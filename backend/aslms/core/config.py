@@ -50,6 +50,13 @@ class Settings(BaseSettings):
     napix_timeout_seconds: float = 40.0
     napix_token_ttl_seconds: int = 3300  # when the token response carries no expires_in (manual: one hour)
 
+    # --- authentication and the first super admin ------------------------------------------
+    aslms_jwt_secret: SecretStr | None = None  # required to issue tokens; the API refuses to start without it
+    aslms_access_token_minutes: int = 30
+    aslms_refresh_token_days: int = 14
+    aslms_superadmin_email: str | None = None  # created by `aslms seed` when both are set; never logged
+    aslms_superadmin_password: SecretStr | None = None
+
     # --- SourceTrace ---------------------------------------------------------------------
     sourcetrace_base_url: str | None = None
     sourcetrace_api_key: SecretStr | None = None

@@ -11,6 +11,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from aslms.db.base import (
+    ActorSnapshotMixin,
     Base,
     CreatedByMixin,
     MasterMixin,
@@ -21,7 +22,7 @@ from aslms.db.base import (
     uuid_fk,
     uuid_pk,
 )
-from aslms.domain.reference import OfficeKind, Role
+from aslms.domain.reference import OfficeKind, Permission, Role
 
 
 class Office(TimestampMixin, MasterMixin, CreatedByMixin, Base):
@@ -63,6 +64,42 @@ class User(TimestampMixin, MasterMixin, CreatedByMixin, Base):
     must_confirm_profile: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
 
     office = relationship("Office", foreign_keys=[office_id])
+
+
+class RolePermission(TimestampMixin, CreatedByMixin, Base):
+    """The type matrix: which functions a user type has. One row per (type, function); `is_enabled` is what
+    the super admin switches (`access.manage_types`). Seeded from the plan's Table 1."""
+
+    __tablename__ = "role_permissions"
+    __table_class__ = TableClass.MASTER
+    __table_args__ = (UniqueConstraint("role", "permission"),)
+    id: Mapped[uuid.UUID] = uuid_pk()
+    role: Mapped[Role] = ref_code(Role, "ref_role")
+    permission: Mapped[Permission] = ref_code(Permission, "ref_permission")
+    is_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+
+
+class PermissionEffect(enum.StrEnum):
+    GRANT = "grant"
+    DENY = "deny"
+
+
+class UserPermission(TimestampMixin, MasterMixin, ActorSnapshotMixin, Base):
+    """A per-user override on top of the type matrix: a function granted that the type lacks, or one denied
+    that the type has. `granted_by_user_id` and the actor snapshot say who; `valid_to` / `is_active` end it
+    (rows are never deleted)."""
+
+    __tablename__ = "user_permissions"
+    __table_class__ = TableClass.MASTER
+    __table_args__ = (UniqueConstraint("user_id", "permission"),)
+    id: Mapped[uuid.UUID] = uuid_pk()
+    user_id: Mapped[uuid.UUID] = uuid_fk("users.id")
+    permission: Mapped[Permission] = ref_code(Permission, "ref_permission")
+    effect: Mapped[PermissionEffect] = mapped_column(
+        pg_enum(PermissionEffect, "permission_effect"), nullable=False, server_default="grant"
+    )
+    granted_by_user_id: Mapped[uuid.UUID | None] = uuid_fk("users.id", nullable=True, ondelete="SET NULL")
+    reason: Mapped[str | None] = mapped_column(Text)
 
 
 class OtpPurpose(enum.StrEnum):
@@ -127,6 +164,9 @@ class UserNotificationPreference(TimestampMixin, Base):
 
 __all__ = [
     "Channel",
+    "PermissionEffect",
+    "RolePermission",
+    "UserPermission",
     "Designation",
     "DigestMode",
     "Office",

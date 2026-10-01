@@ -15,6 +15,10 @@ from aslms.db.base import Base, TableClass, TimestampMixin
 
 # ---------------------------------------------------------------------- the eight user-facing code sets
 class Role(enum.StrEnum):
+    """The user type. `super_admin` holds every function and manages access; the others get the functions
+    the type matrix (`role_permissions`) enables plus their own grants (`user_permissions`)."""
+
+    SUPER_ADMIN = "super_admin"
     STATE_OVERSIGHT = "state_oversight"
     DEPT_HEAD = "dept_head"
     DEPT_ADMIN = "dept_admin"
@@ -133,6 +137,69 @@ class EventType(enum.StrEnum):
     SOURCE_FAILED = "source_failed"
     MASTERS_SYNCED = "masters_synced"
     CONFIG_CHANGED = "config_changed"
+    USER_CREATED = "user_created"
+    USER_UPDATED = "user_updated"
+    ACCESS_CHANGED = "access_changed"
+
+
+class Permission(enum.StrEnum):
+    """The functions of the application, switched on or off per user type (`role_permissions`) and per user
+    (`user_permissions`). The part before the dot is the module."""
+
+    # users and access
+    USERS_VIEW = "users.view"
+    USERS_CREATE = "users.create"
+    USERS_EDIT = "users.edit"
+    USERS_SET_TYPE = "users.set_type"
+    USERS_ENABLE_DISABLE = "users.enable_disable"
+    USERS_GRANT = "users.grant"
+    USERS_RESET_PASSWORD = "users.reset_password"
+    ACCESS_MANAGE_TYPES = "access.manage_types"
+    # administration
+    OFFICES_MANAGE = "offices.manage"
+    ADMIN_COUNSEL_CODES = "admin.counsel_codes"
+    ADMIN_KEYWORDS = "admin.keywords"
+    ADMIN_WATCHLIST = "admin.watchlist"
+    ADMIN_MASTERS_SYNC = "admin.masters_sync"
+    ADMIN_NAPIX_REFETCH = "admin.napix_refetch"
+    ADMIN_CONFIG = "admin.config"
+    # cases and ownership
+    CASES_VIEW_SCOPE = "cases.view_scope"
+    CASES_VIEW_ALL = "cases.view_all"
+    CASES_SEARCH_COURT = "cases.search_court"
+    CASES_CLAIM = "cases.claim"
+    CASES_DISMISS = "cases.dismiss"
+    CASES_SUGGEST_ELSEWHERE = "cases.suggest_elsewhere"
+    CASES_TRANSFER_REQUEST = "cases.transfer_request"
+    CASES_TRANSFER_DECIDE = "cases.transfer_decide"
+    CASES_ALLOT = "cases.allot"
+    CASES_RELEASE = "cases.release"
+    # custody and workflow
+    CUSTODY_MOVE = "custody.move"
+    REQUESTS_SEND = "requests.send"
+    REQUESTS_ANSWER = "requests.answer"
+    STAGES_SET = "stages.set"
+    NOTES_ADD = "notes.add"
+    NOTES_VIEW_COUNSEL_SHARED = "notes.view_counsel_shared"
+    NOTES_VIEW_PRIVATE_OFFICE = "notes.view_private_office"
+    # documents
+    DOCUMENTS_UPLOAD = "documents.upload"
+    DOCUMENTS_VIEW = "documents.view"
+    DOCUMENTS_DOWNLOAD = "documents.download"
+    # alerts and dates
+    ALERTS_ACKNOWLEDGE = "alerts.acknowledge"
+    NEXT_DATES_REVIEW = "next_dates.review"
+    # reports and dashboards
+    REPORTS_DEPARTMENT = "reports.department"
+    REPORTS_STATE = "reports.state"
+    DASHBOARD_STATE = "dashboard.state"
+    # assistant and audit
+    ASSISTANT_USE = "assistant.use"
+    AUDIT_VIEW = "audit.view"
+
+    @property
+    def module(self) -> str:
+        return self.value.split(".", 1)[0]
 
 
 class RecordType(enum.StrEnum):
@@ -197,6 +264,11 @@ class RefRecordType(RefMixin, Base):
     __tablename__ = "ref_record_type"
 
 
+class RefPermission(RefMixin, Base):
+    __tablename__ = "ref_permission"
+    module: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+
+
 class RefSequence(Base):
     """One counter per (office, record type, year); see DB_STANDARD Appendix C."""
 
@@ -220,4 +292,5 @@ REF_TABLES: dict[str, tuple[type, type[enum.Enum]]] = {
     "ref_alert_kind": (RefAlertKind, AlertKind),
     "ref_event_type": (RefEventType, EventType),
     "ref_record_type": (RefRecordType, RecordType),
+    "ref_permission": (RefPermission, Permission),
 }
