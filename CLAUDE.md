@@ -43,7 +43,10 @@ Python 3.11+ backend (FastAPI), Celery + Redis, PostgreSQL 16 + PgBouncer, Alemb
 - If something needed is missing (an API field, a SourceTrace endpoint, a business rule), stop and ask rather than inventing it.
 
 ## Current focus (after the reset of 1 Oct 2026)
-1. NAPIX integration layer per `docs/napix_integration_design.md`, offline tests, then the live `aslms napix-check`: verify every endpoint, save decrypted samples, build the field inventory (`docs/specs/napix_field_inventory.md`).
-2. Schema addendum: every inventoried NAPIX field mapped to a table and column in `docs/schema/schema.md`; approval.
-3. Backend skeleton and migration 0001 from the approved schema; seed; Docker Compose.
-4. Then the plan's build order: daily cycle, recommend-and-claim, auth, documents, alerts, portal.
+Done: the NAPIX integration layer and live check (14 APIs verified, samples and field inventory), the approved
+coverage addendum, migration 0001 with seed and Compose (`docker compose up -d`), the quota measurement
+(1,000 calls per clock hour). Next, in order (plan "Court data load and refresh" in the decisions log):
+1. Show Cause List PDF parser, written new, with fixtures from `docs/specs/samples/` and `data/causelists/`.
+2. Pipeline stages: masters sync, cause-list day (NAPIX first, website PDF fallback), dossier apply (every
+   coverage-table target), status refresh, order PDFs, the `fetch_queue` runner with the rate budget; `aslms load`.
+3. The historical load from 2025-01-01 in development; then auth, recommend-and-claim, documents, alerts, portal.

@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     # --- database / queue (used from migration 0001 onwards) --------------------------
     database_url_sync: str = "postgresql+psycopg://aslms:aslms@localhost:5433/aslms"
     aslms_migrate_url: str | None = None
+    aslms_app_password: SecretStr | None = None  # set by migration 0001 on the aslms_app role
+    aslms_readonly_password: SecretStr | None = None
     redis_url: str | None = None
 
     # --- NAPIX eCourts High Court API (docs/napix_integration_notes.md §1) -------------

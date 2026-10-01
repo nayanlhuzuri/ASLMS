@@ -6,10 +6,11 @@ the same commit). The database starts empty; there is no migration of earlier da
 Alembic migration `0001_core` in `backend/` (67 tables; the model modules under `backend/aslms/domain/` are the
 executable form of this document, and `tests/unit/test_schema_metadata.py` keeps the two in step).
 
-**Addendum (1 Oct 2026, pending approval): `docs/schema/napix_coverage.md`** maps every field the NAPIX APIs
+**Addendum (approved 1 Oct 2026): `docs/schema/napix_coverage.md`** maps every field the NAPIX APIs
 return (docs/specs/napix_field_inventory.md) to a table and column, and adds `napix_responses`, `high_courts`,
 `causelist_bench_days`, `case_transfers`, `case_writ_info` and the columns listed there. Migration 0001 is
-written from this document plus the approved addendum.
+written from this document plus the approved addendum. **As built (1 Oct 2026):** migration `0001_core`, 73 tables
+(the 67 here plus the addendum's six); the decisions log entry "Migration 0001 and seed" records how.
 
 ## Conventions (DB_STANDARD §0–§9)
 - **Keys.** `id uuid PRIMARY KEY DEFAULT uuid_generate_v7()` (RFC 9562, time-ordered); `uuid6.uuid7()` in Python
