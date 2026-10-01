@@ -12,7 +12,8 @@ Rule (owner, 1 Oct): **every piece of information the NAPIX APIs provide is stor
 
 Inventory as of 1 Oct: 17 samples of 13 APIs, 230 path rows (a disposed and a pending dossier). Paths that the
 inventory shows only as empty blocks (`iafiling`, `objections`, `transfer`, `writinfo`) get tables from the
-e-Committee spec's field names, marked ⚠️ until a sample carries data; the verbatim layer covers them meanwhile.
+e-Committee specifications (HC Open API v1.0 §6.1.6; eCourts Open API v1.3 §5.2.6 for the two blocks the HC spec
+does not describe), marked 📄 = documented, not yet seen with data; the verbatim layer covers them meanwhile.
 
 Conventions as in `DB_STANDARD.md`: UUID v7 keys, `class=` on every table, RESTRICT, court identifiers stored
 exactly as issued, NAPIX date strings (`yyyy-mm-dd`, `''` for none) parsed to `date` with the text kept in the
@@ -37,10 +38,11 @@ payload.
 | `case_acts` | transaction | unchanged (`acts[].actname`, `acts[].section`; `act_id` by name/code). |
 | `orders` | transaction | + `order_details` ("ORDER" / "JUDGEMENT"), `order_judge_name`, `date_judgement_pronounced`, `date_judgement_reserved`; `kind` derived (`interimorder[]` → interim, `finalorder[]` → final, `order_details = JUDGEMENT` → judgment). |
 | `case_hearings` | transaction | + `hearing_date` (the dossier's `hearing_date`, distinct from `business_date`), `causelist_type`, `judge_designation` (`desgname` from Show Business), `case_number_text`, `short_order_text` (`short_order_det`); `purpose` = `purpose_of_listing`, `bench_text` = `judge_name`, `business_text` = `business`. |
-| `case_applications` | transaction | ⚠️ `iafiling[]` empty in every sample; columns per spec (`ia_number`, `party_name`, `status`, `filing_date`) + `raw`; mapped when a sample carries data. |
-| `case_objections` | transaction | ⚠️ `objections[]` empty in every sample; columns per spec (`objection`, `scrutiny_date`, `compliance_by_date`, `receipt_date`) + `raw`. |
-| `case_transfers` | transaction | ⚠️ **new**: the dossier's `transfer` block (empty in every sample; the spec's transfer-of-case details: from / to establishment, transfer date, reason) + `raw`; unique (case_id, transfer_date, to_est_code). Not to be confused with the portal's own `ownership_transfers`. |
-| `case_writ_info` | transaction | ⚠️ **new**: the dossier's `writinfo` block (empty in every sample; the spec's writ information: writ type, nature, authority) + `raw`; one row per case. |
+| `case_applications` | transaction | 📄 `iafiling[]` (HC spec §6.1.6, `sr_no{n}`): `ia_number`, `ia_pet_name` → `party_name`, `ia_pend_disp` → `status` (P/D), `date_of_filing` → `filing_date`; unique (case_id, ia_number). Empty in every sample so far. |
+| `case_objections` | transaction | 📄 `objections` (HC spec §6.1.6) is **one flat block, not a list**: `objection1`, `objection2`, … plus `scrutiny_date`, `objections_compliance_by_date`, `obj_reciept_date` (sic). One row per `objection{n}`: `seq`, `objection`, `scrutiny_date`, `compliance_by_date`, `receipt_date`; unique (case_id, scrutiny_date, seq). Empty (`[]`) in every sample so far. |
+| `case_transfers` | transaction | 📄 **new**: `transfer[]` (`sr_no{n}`; documented only in the eCourts/DC spec §5.2.6, returned empty by the HC backend): `transfer_date`, `from_court_no_desgname` → `from_court_text`, `to_court_no_desgname` → `to_court_text`; unique (case_id, transfer_date, to_court_text). Not to be confused with the portal's own `ownership_transfers`. |
+| `case_writ_info` | transaction | 📄 **new**: `writinfo[]` (`sr_no{n}`; DC spec §5.2.6: cases filed in an appellate court): `appellate_case_number`, `appellate_authority`; unique (case_id, appellate_case_number). Returned empty by the HC backend so far. |
+| `case_links` | transaction | 📄 `link_cases[]` (HC spec §6.1.6, `sr_no{n}`: `filing_number`, `case_number`) joins the existing table as kind `linked` with `filing_number_text`, `case_number_text` (the CNR of the linked case is not given; resolved by case number when known). `null` in the spec sample; absent from the live samples. |
 | `case_lower_courts` | transaction | unchanged (`lower_court_*` → appellate, `trial_lower_court_*` → trial). |
 | `case_links` | transaction | unchanged; `main_matter_cino` → kind main_matter (`main_matter` text kept on `cases.main_matter_text`). |
 | `case_snapshots` | derived | unchanged: the whole dossier / status block, sha256-deduplicated. |
@@ -99,7 +101,6 @@ payload.
 | `desgname` | `cases.coram_designation` |
 | `judicial_branch` | `cases.judicial_branch` |
 | `category_details.category` | `cases.category` (text), `cases.category_code` (leading number) |
-| `sub_category` (spec, not seen) | `cases.sub_category` |
 | `document_details.case_state_code`, `document_details.case_dist_code` | `cases.filing_state_code`, `cases.filing_district_code` (→ `districts.ecourts_code`) |
 | `state_name`, `dist_name` | `cases.state_id` (→ `states` by name), `cases.district_id` (→ `districts.ecourts_name`) |
 | `fir_no`, `fir_year`, `police_station`, `police_st_code` | `cases.fir_no`, `cases.fir_year`, `cases.police_station`, `cases.police_st_code` |
@@ -113,10 +114,13 @@ payload.
 | `acts[].actname`, `acts[].section` | `case_acts.act_name_as_listed`, `case_acts.section` (+ `act_id`) |
 | `interimorder[]` / `finalorder[]`: `order_no`, `order_date`, `order_details`, `order_judge_name`, `date_judgement_pronounced`, `date_judgement_reserved` | `orders` (kind, order_no, order_date, order_details, order_judge_name, date_judgement_pronounced, date_judgement_reserved); the PDF from Show Order → `documents` → `orders.document_id` |
 | `historyofcasehearing[]`: `business_date`, `hearing_date`, `judge_name`, `purpose_of_listing`, `causelist_type` | `case_hearings` (business_date, hearing_date, bench_text, purpose, causelist_type) |
-| `iafiling[]` ⚠️ | `case_applications` |
-| `objections[]` ⚠️ | `case_objections` |
-| `transfer[]` ⚠️ | `case_transfers` |
-| `writinfo` ⚠️ | `case_writ_info` |
+| `iafiling[]` 📄: `ia_number`, `ia_pet_name`, `ia_pend_disp`, `date_of_filing` | `case_applications` (ia_number, party_name, status, filing_date) |
+| `objections` 📄: `objection{n}`, `scrutiny_date`, `objections_compliance_by_date`, `obj_reciept_date` | `case_objections` (seq, objection, scrutiny_date, compliance_by_date, receipt_date) |
+| `transfer[]` 📄: `transfer_date`, `from_court_no_desgname`, `to_court_no_desgname` | `case_transfers` (transfer_date, from_court_text, to_court_text) |
+| `writinfo[]` 📄: `appellate_case_number`, `appellate_authority` | `case_writ_info` |
+| `link_cases[]` 📄: `filing_number`, `case_number` | `case_links` (kind linked, filing_number_text, case_number_text) |
+| `category_details.sub_category` 📄 | `cases.sub_category` |
+| `historyofcasehearing[].desgname` (DC spec only), `pet_adv_cd`, `res_adv_cd`, `pet_adv_bar_reg`, `res_adv_bar_reg`, `court_no`, `processes[]` (DC spec only) | not returned by the HC backend (absent from the HC spec and from every HC sample); if one ever appears it lands in `case_snapshots.payload` and the coverage test flags it for a column. |
 | `lower_court_name`, `lower_court_caseno`, `lower_court_dec_dt` | `case_lower_courts` (level appellate: court_name, case_no_text, decision_date) |
 | `trial_lower_court_name`, `trial_lower_court_caseno`, `trial_lower_court_dec_dt` | `case_lower_courts` (level trial) |
 | *(whole dossier / status block)* | `case_snapshots.payload` |
@@ -139,10 +143,13 @@ payload.
 
 ## E. Still open
 
-- `iafiling[]`, `objections[]`, `transfer[]` and `writinfo` field names are from the spec, not yet seen live; the
-  coverage test marks them ⚠️ and passes while the inventory shows them empty. The three PDF specifications
-  (HC Open API v1.0, eCourts Open API v1.3, Subscriber Manual v1.5) are needed under `docs/specs/pdf/` to
-  confirm their columns before migration 0001.
+- The four empty blocks are now typed from the specifications (📄 rows above; HC Open API v1.0 §6.1.6, eCourts
+  Open API v1.3 §5.2.6). The coverage test treats an inventory path that is empty in every sample as covered when
+  its block has a 📄 table. The three PDFs were reviewed on 1 Oct; copy them to `docs/specs/pdf/` so the repository
+  carries them (they are not committed yet).
+- The Subscriber Manual v1.5 adds nothing to the schema; it confirms the token URL, the one-hour token and the
+  `100 calls per hour` default plan shown on the subscription screen (the live header says 1000: the plan the
+  gateway applies is to be read from `X-RateLimit-Limit`, not assumed).
 - Search by Advocate, by Filing number, by Act, Advocate Bar Reg, Neutral Citation and the Caveat APIs are not
   sampled (not in the plan's usage map); when one is added, its paths join this file first.
 - The rate-limit window: the remaining count was 948 at 12:52 and 994 at 12:56, so the window is short (minutes),
