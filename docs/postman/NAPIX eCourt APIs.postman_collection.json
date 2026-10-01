@@ -1,0 +1,352 @@
+{
+  "info": {
+    "_postman_id": "670bf2ee-99ab-4369-a3ad-0b9ad8aa4bc1",
+    "name": "NAPIX eCourt APIs",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "17730206"
+  },
+  "item": [
+    {
+      "name": "00 Access Token",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "// ===== TOKEN · saves the NAPIX access token (Subscriber Manual §2.2) =====\r",
+              "const j = pm.response.json();\r",
+              "pm.test(\"access_token received\", () => pm.expect(j.access_token).to.be.a(\"string\"));\r",
+              "pm.environment.set(\"access_token\", j.access_token);\r",
+              "console.log(\"════ TOKEN ════\");\r",
+              "console.log(\"[T] HTTP\", pm.response.code, \"| token_type:\", j.token_type, \"| scope:\", j.scope,\r",
+              "  \"| expires_in:\", j.expires_in, \"s | X-Global-Transaction-ID:\", pm.response.headers.get(\"X-Global-Transaction-ID\"));"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        },
+        {
+          "listen": "prerequest",
+          "script": {
+            "packages": {},
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "password",
+              "value": "{{client_secret}}",
+              "type": "string"
+            },
+            {
+              "key": "username",
+              "value": "{{client_key}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "client_credentials",
+              "type": "text",
+              "uuid": "8639add0-799c-4bbb-9bdb-69c5195eaccf"
+            },
+            {
+              "key": "scope",
+              "value": "napix",
+              "type": "text",
+              "uuid": "04bef919-91ab-47f5-9a89-b5206340dd51"
+            }
+          ]
+        },
+        "url": {
+          "raw": "https://delhigw.napix.gov.in/nic/ecourts//oauth2/token",
+          "protocol": "https",
+          "host": [
+            "delhigw",
+            "napix",
+            "gov",
+            "in"
+          ],
+          "path": [
+            "nic",
+            "ecourts",
+            "",
+            "oauth2",
+            "token"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "01 Overview",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              ""
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              ""
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}",
+            "type": "text"
+          },
+          {
+            "key": "X-Input",
+            "value": "",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "https://delhigw.napix.gov.in/nic/ecourts/overview/overview?dept_id={{dept_id}}&request_str={{request_str_enc}}&request_token={{request_token}}&version={{version}}",
+          "protocol": "https",
+          "host": [
+            "delhigw",
+            "napix",
+            "gov",
+            "in"
+          ],
+          "path": [
+            "nic",
+            "ecourts",
+            "overview",
+            "overview"
+          ],
+          "query": [
+            {
+              "key": "dept_id",
+              "value": "{{dept_id}}"
+            },
+            {
+              "key": "request_str",
+              "value": "{{request_str_enc}}"
+            },
+            {
+              "key": "request_token",
+              "value": "{{request_token}}"
+            },
+            {
+              "key": "version",
+              "value": "{{version}}"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "02 High Court Cause List Bench",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              ""
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              ""
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}",
+            "type": "text"
+          },
+          {
+            "key": "X-Input",
+            "value": "est_code=GAHC01|causelist_date=2026-09-03",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "https://delhigw.napix.gov.in/nic/ecourts/hc-causelist-bench-api/causelistbench?dept_id={{dept_id}}&request_str={{request_str_enc}}&request_token={{request_token}}&version={{version}}",
+          "protocol": "https",
+          "host": [
+            "delhigw",
+            "napix",
+            "gov",
+            "in"
+          ],
+          "path": [
+            "nic",
+            "ecourts",
+            "hc-causelist-bench-api",
+            "causelistbench"
+          ],
+          "query": [
+            {
+              "key": "dept_id",
+              "value": "{{dept_id}}"
+            },
+            {
+              "key": "request_str",
+              "value": "{{request_str_enc}}"
+            },
+            {
+              "key": "request_token",
+              "value": "{{request_token}}"
+            },
+            {
+              "key": "version",
+              "value": "{{version}}"
+            }
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          "const CryptoJS = require('crypto-js');\r",
+          "\r",
+          "// AES-128 needs exactly 16 bytes: cut longer keys, pad shorter ones with zero bytes\r",
+          "function napixKey(k) {\r",
+          "  const bytes = CryptoJS.enc.Utf8.parse((k || '').trim());\r",
+          "  const words = bytes.words.slice(0, 4);\r",
+          "  while (words.length < 4) words.push(0);\r",
+          "  return CryptoJS.lib.WordArray.create(words, 16);\r",
+          "}\r",
+          "\r",
+          "const q = pm.request.url.query.toObject(true);\r",
+          "if (Object.prototype.hasOwnProperty.call(q, 'input')) {\r",
+          "  const input = pm.variables.replaceIn(q.input || '');\r",
+          "  const key = napixKey(pm.environment.get('auth_key'));\r",
+          "  const reqStr = CryptoJS.AES.encrypt(CryptoJS.enc.Utf8.parse(input), key, {\r",
+          "    iv: key, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7\r",
+          "  }).toString();\r",
+          "  const token = CryptoJS.HmacSHA256(input, pm.environment.get('hash_key'))\r",
+          "                        .toString(CryptoJS.enc.Hex);\r",
+          "  pm.variables.set('request_str_raw', reqStr);\r",
+          "  pm.variables.set('request_str', encodeURIComponent(reqStr));\r",
+          "  pm.variables.set('request_token', token);\r",
+          "  pm.request.removeQueryParams('input');\r",
+          "  console.log('Input string:', input);\r",
+          "}"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          "const CryptoJS = require('crypto-js');\r",
+          "\r",
+          "function napixKey(k) {\r",
+          "  const bytes = CryptoJS.enc.Utf8.parse((k || '').trim());\r",
+          "  const words = bytes.words.slice(0, 4);\r",
+          "  while (words.length < 4) words.push(0);\r",
+          "  return CryptoJS.lib.WordArray.create(words, 16);\r",
+          "}\r",
+          "\r",
+          "// Decrypts a NAPIX Base64 string; throws a clear error if it cannot\r",
+          "function decryptNapix(cipherText) {\r",
+          "  const key = napixKey(pm.environment.get('auth_key'));\r",
+          "  const clean = String(cipherText).replace(/\\s+/g, '');\r",
+          "  const bytes = CryptoJS.AES.decrypt(\r",
+          "    { ciphertext: CryptoJS.enc.Base64.parse(clean) }, key,\r",
+          "    { iv: key, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7 });\r",
+          "  if (bytes.sigBytes <= 0) throw new Error('decryption gave no data (wrong key or damaged response)');\r",
+          "  try { return CryptoJS.enc.Utf8.stringify(bytes); }\r",
+          "  catch (e) { throw new Error('decrypted data is not readable text (wrong key?)'); }\r",
+          "}\r",
+          "\r",
+          "// Read the body even if the server adds extra text around the JSON\r",
+          "const raw = pm.response.text();\r",
+          "let body = null;\r",
+          "try { body = JSON.parse(raw); } catch (e) {\r",
+          "  const s = raw.indexOf('{'), t = raw.lastIndexOf('}');\r",
+          "  if (s >= 0 && t > s) { try { body = JSON.parse(raw.slice(s, t + 1)); } catch (e2) { body = null; } }\r",
+          "}\r",
+          "\r",
+          "let output;\r",
+          "if (body && body.access_token) {\r",
+          "  output = 'Access token received.';\r",
+          "} else if (body && body.response_str) {\r",
+          "  try {\r",
+          "    const plain = decryptNapix(body.response_str);\r",
+          "    pm.test('Response decrypted', () => {});\r",
+          "    const check = CryptoJS.HmacSHA256(plain, pm.environment.get('hash_key')).toString(CryptoJS.enc.Hex);\r",
+          "    pm.test('Response token matches (data not altered)', () => pm.expect(check).to.eql(body.response_token));\r",
+          "    try { output = JSON.stringify(JSON.parse(plain), null, 2); } catch (e) { output = plain; }\r",
+          "  } catch (e) {\r",
+          "    pm.test('Response decrypted', () => { throw e; });\r",
+          "    output = 'Could not decrypt: ' + e.message;\r",
+          "  }\r",
+          "} else if (body && typeof body.status === 'string') {\r",
+          "  try { output = 'Server status (decrypted): ' + decryptNapix(body.status); }\r",
+          "  catch (e) { output = 'Server status (could not decrypt, ' + e.message + '): ' + body.status; }\r",
+          "} else {\r",
+          "  output = 'Not an encrypted response:\\n' + raw;\r",
+          "}\r",
+          "\r",
+          "console.log(output);\r",
+          "pm.visualizer.set('<pre style=\"white-space:pre-wrap;font-family:monospace\">{{data}}</pre>', { data: output });"
+        ]
+      }
+    }
+  ]
+}

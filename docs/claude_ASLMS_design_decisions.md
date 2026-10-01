@@ -259,3 +259,27 @@ Executed §11 steps 1–7, one commit per step (`DB-1 step N` in the log), after
   Documents have no delete endpoint; `archived_at` is the retirement column for when one is needed.
 - Open: the real dossier field names (live test), the LGD codes, PostgreSQL schemas per bounded context (§9,
   revisit with Phase 3), retention/archive policy (§6, policy owner to confirm).
+
+## NAPIX live-test basis (29 Sep 2026, product owner)
+- **Three foundational documents govern NAPIX testing and integration:** eCourts Open API Specifications NAPIX
+  v1.3 (22.04.2025), High Court Open API Specifications v1.0 NAPIX (07.09.2023) and the NAPIX Subscriber Manual
+  v1.5 (22.04.2025). Where they differ from the gateway JSON stubs or the earlier Postman collection, these win.
+- Points taken from them for the Postman test: token URL is `…/nic/ecourts//oauth2/token` (double slash, Subscriber
+  Manual Annexure A); token lasts 1 hour; Basic Auth username/password = the NAPIX app's **Key/Secret**; the
+  header `Content-Type: application/x-www-form-urlencoded` is set explicitly; `Authorization` must be exactly
+  `Bearer <token>` (no newline); SSL verification is switched off in Postman per the manual (test only — the
+  backend keeps verification on); an app must be subscribed to the API product before calls succeed (631 otherwise).
+- **First live result (29 Sep, Postman, dept_id `itdepartment-as`).** Token call succeeds. Overview GET returns
+  HTTP 200 from the eCourts backend (cookie path `/high_court`, domain `api.ecourts.gov.in`) with an encrypted
+  `{"status": …}` body of 48 bytes that does **not** decrypt with the issued Authentication Key (not as text key,
+  not in any obvious encoding; even CBC blocks 2–3 stay unreadable, so it is the key, not the IV). Request
+  encryption was verified against the Subscriber Manual known-answer test. Open: whether the HC backend holds a
+  different key for this dept_id (HC spec §3: key issued "by e-Committee or respective High Court"); next test is
+  the SM's own DC District call (`state_code=27`) to tell a DC key from an HC key.
+- **Key diagnosis (29 Sep, 13:00–13:05 IST).** (A) DC District `state_code=27` → gateway 401 "Cannot find valid
+  subscription" (app not subscribed to the DC product; no key information). (B) HC Bench Master `state_code=6` →
+  HC backend `626 INVALID_TOKEN` in plain text, with request_str/request_token verified. (C) Overview with
+  `request_str=` blank → the same encrypted status as the first call, byte for byte (deterministic, so it is a fixed
+  error message under a key we do not hold). 626 rather than 627 means the dept_id is recognised. Conclusion: the HC
+  backend holds a different Authentication Key for `itdepartment-as`; raised with e-Committee / Gauhati HC CPC.
+  Transaction IDs: e0b5ce896abbb685935bdd85 (B), e0b5ce896abbb6c4936065a5 (C), e0b5ce896abbb6670976b793 (A).

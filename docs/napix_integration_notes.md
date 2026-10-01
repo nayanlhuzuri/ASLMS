@@ -1,0 +1,85 @@
+# NAPIX High Court API — Integration Notes (verified by live tests)
+
+Last updated: 2026-09-25. Source: live calls from Postman against the NAPIX gateway, plus the High Court Open API Specification v1.0 (`docs/specs/`). Where this file and the spec PDF disagree, **this file wins**: it records what the live service actually accepted.
+
+Status legend: ✅ verified live · ⚠️ from the spec, not yet verified live
+
+## 1. Credentials (all from `.env`, never committed)
+
+| Variable | Meaning |
+|---|---|
+| `NAPIX_CLIENT_ID` | NAPIX subscriber application client ID (Basic Auth username for the token call) |
+| `NAPIX_CLIENT_SECRET` | NAPIX subscriber application client secret (Basic Auth password) |
+| `NAPIX_DEPT_ID` | Department ID = subscriber user name, sent as `dept_id` |
+| `NAPIX_AUTH_KEY` | Authentication key from the e-Committee / High Court, used for AES (key and IV) |
+| `NAPIX_HASH_KEY` | `15081947` (fixed, published in the spec) |
+| `NAPIX_BASE_URL` | `https://delhigw.napix.gov.in/nic/ecourts` |
+| `NAPIX_EST_CODE` | `GAHC01` (Gauhati High Court) ✅ worked in the Cause List Bench test |
+| `NAPIX_VERSION` | `v1.0` |
+
+## 2. Access token ✅
+- `POST {BASE_URL}/oauth2/token`
+- Basic Auth: client ID / client secret.
+- Body `application/x-www-form-urlencoded`: `grant_type=client_credentials`, `scope=napix`.
+- Response JSON has `access_token`. Send it on every API call as `Authorization: Bearer <token>`.
+- Token expires; on HTTP 401 fetch a new one and retry once. Cache the token and reuse it until it expires.
+
+## 3. Building a request ✅
+1. **Input string**: `key=value` pairs joined with `|`, in the exact order the spec lists for that API. No spaces. Example: `est_code=GAHC01|causelist_date=2026-09-24`.
+2. **Key normalisation (critical)**: take the auth key (trimmed), encode UTF-8, then **cut to exactly 16 bytes, or pad with zero bytes to 16**. AES-128 requires 16 bytes and the server does this; without it, some libraries switch to AES-192/256 and every call fails with 626 INVALID_TOKEN.
+3. **request_str**: AES-128-CBC, key = normalised key, **IV = the same 16 bytes**, PKCS7 padding, output Base64.
+   - GET: URL-encode the Base64 value (`+` → `%2B`, `/` → `%2F`, `=` → `%3D`).
+   - POST (form body): send the raw Base64; the form encoder will encode it.
+   - **APIs with no input (Overview, masters)**: encrypt the empty string and send that. A blank `request_str` was rejected with 626.
+4. **request_token**: HMAC-SHA256 of the **plain input string** (not the encrypted one), key `15081947`, lowercase hex.
+   - Test vector: input `""` → `6d1c982a5a21d89d2556c5e5ffb7c9e661a7c549512b1dfd6f055d8d78161fd4` ✅
+5. Query parameters on every call: `dept_id`, `request_str`, `request_token`, `version`.
+
+## 4. Reading a response ✅
+- The server returns `Content-Type: text/html` even for JSON. Parse the body text as JSON yourself; be tolerant of extra text around the JSON (take the first `{` to the last `}`).
+- Success: `{"response_str": "...", "response_token": "...", "version": "v1.0"}`.
+  - Decrypt `response_str`: Base64-decode, AES-128-CBC with the same normalised key and IV, PKCS7, then UTF-8 → JSON.
+  - Treat the Base64 strictly as raw ciphertext (no OpenSSL "Salted__" handling).
+  - Integrity: HMAC-SHA256 of the decrypted JSON text with `15081947` should equal `response_token`. Log a warning on mismatch; do not crash.
+- Collections in responses are objects keyed `case1`, `case2`, … (or `sr_no1`, …), **not arrays**. Convert to lists in order.
+
+## 5. Error formats seen live ✅
+| What comes back | Meaning |
+|---|---|
+| PHP `print_r` text: `Array ( [status_code] => 626 [status] => INVALID_TOKEN )` | eCourts backend error (not JSON). Parse `status_code` and `status` from the text. |
+| JSON `{"status": "<Base64>"}` | Encrypted error/status message from the backend. Decrypt it like `response_str`. |
+| JSON `{"httpCode":"404","httpMessage":"Not Found","moreInformation":"No resources match requested URI"}` | NAPIX gateway: wrong URL path (or API not subscribed). Request never reached eCourts. |
+| HTTP 401 | Access token missing or expired. |
+
+eCourts status codes (spec): 600 INVALID_CNR, 601 INVALID_DATE, 602 INVALID_ORDER_NO, 603 INVALID_EST_CODE, 616 INVALID_CAUSELIST_DATE, 626 INVALID_TOKEN, 627 INVALID_DEPT_ID, 628 RECORD_NOT_FOUND (valid call, no data — not an error for the caller), 629 UNEXPECTED_ERROR (retry with backoff), 632 INVALID_VERSION.
+
+## 6. Rate limit ✅
+Response headers: `X-RateLimit-Limit: name=default,1000;` and `X-RateLimit-Remaining`. Read them, slow down as remaining approaches zero, and spread scheduled jobs (daily cycle, Current Status batches) accordingly. The window period is not stated; confirm before scaling up.
+
+## 7. Endpoints
+**URL pattern ✅**: service names use hyphens as in the spec's API list (`hc-…-api`). The detailed spec sections drop hyphens at line breaks — ignore those spellings. Paths are case-sensitive.
+
+| API | Method + path (after BASE_URL) | Input string (exact order) | Status |
+|---|---|---|---|
+| Overview | GET `/overview/overview` | *(empty, encrypted)* | ✅ |
+| Cause List Bench | GET `/hc-causelist-bench-api/causelistbench` | `est_code|causelist_date` | ✅ |
+| Cause List Details | GET `/hc-causelist-details-api/causelistdetails` | `est_code|causelist_date|bench_id` | ⚠️ |
+| Show Cause List | GET `/hc-show-causelist-api/showcauselist` | `est_code|bench_id|causelist_id|causelist_date` | ⚠️ |
+| Search by CNR | GET `/hc-cnr-api/CNR` (else `/hc-cnr-api/cnr`) | `cino` | ⚠️ |
+| Current Status | POST `/hc-current-status-api/currentStatus` | `cino` (comma-separated, max 500) | ⚠️ |
+| Show Order | GET `/hc-order-api/order` | `cino|order_no|order_date` | ⚠️ |
+| Show Business | GET `/hc-show-business-api/showBusiness` | `cino|business_date` | ⚠️ |
+| Search by Case Number | GET `/hc-case-search-api/casesearch` | `est_code|case_type|reg_no|reg_year` | ⚠️ |
+| Search by Party Name | GET `/hc-party-name-api/…` (check spec) | `est_code|pend_disp|litigant_name|reg_year` | ⚠️ |
+| Masters (State, Bench, Act, Case Type) | see spec §4 list | empty or `est_code` | ⚠️ |
+
+Dates are `yyyy-mm-dd`. Update the Status column (and this file) whenever an endpoint is verified live, and save a decrypted sample to `docs/specs/samples/<api>_<date>.json` (no credentials in samples).
+
+## 8. Observed data notes
+- Cause List Bench returns judges' benches **and** registrars' benches (Joint Registrar, Deputy Registrar, Officer on Special Duty). `bench_id` is an integer; `judge_name` may list two judges for a division bench.
+- Bench list has no `causelist_id`; it comes from Cause List Details.
+
+## 9. Open questions (settle in live tests)
+- Does Cause List Details return complete entries (CNR, parties, advocates with codes like `SC, EDU`, item number, purpose)? This decides whether the cause-list PDF parser stays as a cross-check.
+- Exact CNR path casing; Party Name and master endpoint paths.
+- Token lifetime; rate-limit window.
