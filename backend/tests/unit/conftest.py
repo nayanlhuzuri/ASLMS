@@ -61,10 +61,8 @@ class Gateway:
             assert request.headers.get("authorization", "").startswith("Basic ")
             assert request.content == b"grant_type=client_credentials&scope=napix"
             return httpx.Response(200, json={"access_token": f"tok{self.token_calls}", "expires_in": 3600})
-        if request.method == "POST":
-            q = {k: v[0] for k, v in parse_qs(request.content.decode()).items()}
-        else:
-            q = {k: v[0] for k, v in parse_qs(urlparse(url).query).items()}
+        q = {k: v[0] for k, v in parse_qs(urlparse(url).query).items()}  # GET and POST: query string
+        assert "request_str" in q, "the four parameters must be in the query string (also for POST)"
         plain = self.crypto.decrypt(q["request_str"])
         assert q["request_token"] == self.crypto.token(plain), (
             "request_token must be the HMAC of the plain text"

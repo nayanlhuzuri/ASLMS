@@ -312,3 +312,33 @@ Executed §11 steps 1–7, one commit per step (`DB-1 step N` in the log), after
   uncommitted code on 26 Sep; steps 7–10 were not run because the build was reset instead.
 - Still open from before: the LGD district codes, the SourceTrace API shapes, the NAPIX DC specification, the
   three NAPIX PDF specifications to be added under `docs/specs/pdf/`.
+
+## Deployment target for the pilot (1 Oct 2026, product owner)
+- The pilot / PoC runs on the owner's local machine only: one Docker Compose stack (`compose.yml`) with Postgres,
+  PgBouncer, Redis, API, workers, beat, frontend and monitoring on one host.
+- The later on-premise layout (a data VM with PostgreSQL, PgBouncer and the document store; a stateless app VM
+  with Docker Compose) is deferred, not designed now. To keep that move a configuration change, the pilot code
+  must: take every connection from `.env` (`DATABASE_URL`, `ASLMS_MIGRATE_URL`, `REDIS_URL`, storage settings),
+  never hard-code container hostnames; reach stored files only through the storage interface; keep Postgres and
+  the document store as the only stateful services, on named volumes.
+
+## NAPIX live test (1 Oct 2026, `aslms napix-check`, 14 APIs verified)
+- The Authentication Key issued for `itdepartment-as` now decrypts every response; 38 live calls, all verified
+  against `response_token`. Facts recorded in `docs/napix_integration_notes.md` §1–§9 and the field lists in
+  `docs/specs/napix_field_inventory.md` (142 paths across 14 APIs; samples in `docs/specs/samples/`).
+- **Cause List Details returns list metadata, not case rows** (`bench, bench_id, causelist_id, cause_list_type`):
+  the cause-list PDF (Show Cause List, a Base64 PDF in a JSON string) stays the source of entries and the parser
+  stays primary, as the plan allowed for.
+- **`NAPIX_STATE_CODE` is 18**, not 6: the state master is a list of High Courts (18 = Gauhati); 6 returned
+  Chhattisgarh's bench and Haryana's districts. Bench master: `GAHC01` Principal Seat, `GAHC02` Kohima, `GAHC03`
+  Aizawl, `GAHC04` Itanagar.
+- **Current Status is a POST with the parameters in the query string**; a form or JSON body is refused by the
+  gateway (400). The notes' earlier "form body" line was wrong and is corrected.
+- Search by CNR is `/hc-cnr-api/CNR` (`/cnr` is a gateway 404); a transient HTTP 500 "URL Open error" is retried.
+  The token response carries `expires_in` 3600.
+- The district master's names are eCourts spellings (`Kamrup(M)`, `Sibsagar`, `Karimganj`, `Baska` beside `Baksa`,
+  and non-districts `CBI`, `NIA`, `C/O 99 APO`); the LGD-coded `districts` master keeps its own names and maps
+  the eCourts code by name.
+- Not sampled yet: a pending case's dossier (IAs, objections, hearings in progress). The disposed sample dossier
+  already shows 70 field paths, including `lower_court_*`, `trial_lower_court_*`, `pet_legal_heir`,
+  `res_legal_heir`, `fir_no`, `police_st_code`, `uniform_code`, `document_details.*`, `category_details.*`.

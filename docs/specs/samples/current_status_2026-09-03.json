@@ -1,0 +1,28 @@
+{
+  "cases1": {
+    "date_of_filing": "2024-12-20",
+    "cino": "GAHC010277142024",
+    "dt_regis": "2024-12-20",
+    "type_name": "WA",
+    "case_type_id": null,
+    "fil_no": "15748",
+    "fil_year": "2024",
+    "reg_no": "435",
+    "reg_year": "2024",
+    "date_first_list": "",
+    "date_next_list": "",
+    "pend_disp": "D",
+    "date_of_decision": "2024-12-23",
+    "goshwara_no": "1",
+    "disp_nature": "Contested - Disposed Of",
+    "desgname": "JUDGE",
+    "bench_id": "2068",
+    "purpose_name": "ADMISSION",
+    "pet_name": "DR. JANIFA KAIFEE AHMED",
+    "res_name": "THE STATE OF ASSAM AND 3 ORS",
+    "date_last_list": "2024-12-23",
+    "bench_name": "Division Bench",
+    "judicial_branch": "Civil Section",
+    "coram": "HONOURABLE MR. JUSTICE KALYAN RAI SURANA , HONOURABLE MR. JUSTICE MRIDUL KUMAR KALITA"
+  }
+}

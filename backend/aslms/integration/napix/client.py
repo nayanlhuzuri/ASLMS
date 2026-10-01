@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import binascii
 import hashlib
 import json
 import random
@@ -331,10 +332,12 @@ class NapixClient:
                 "Accept": "application/json, application/pdf",
             }
             try:
+                # the four parameters travel in the query string for GET and POST alike (verified live, 1 Oct:
+                # Current Status answers 400 "required API parameters are missing" to a form or JSON body)
+                qs = "&".join(f"{k}={quote(str(v), safe='')}" for k, v in query.items())
                 if method.upper() == "POST":
-                    r = await self.http.post(url, data=query, headers=headers)
+                    r = await self.http.post(f"{url}?{qs}", headers=headers)
                 else:
-                    qs = "&".join(f"{k}={quote(str(v), safe='')}" for k, v in query.items())
                     r = await self.http.get(f"{url}?{qs}", headers=headers)
             except httpx.HTTPError as e:
                 raise NapixUnavailable(f"NAPIX {api_path}: {e}", api=api_path) from e
@@ -405,20 +408,19 @@ class NapixClient:
                     log.warning("napix response_token mismatch", api=result.api)
             stripped = text.strip()
             data = _json_or_none(stripped)
+            if isinstance(data, str):  # Show Cause List: a JSON string holding the Base64 PDF
+                stripped, data = data.strip(), None
             if data is not None:
                 status = _status_code(data)
                 if status is not None and not _has_payload(data):
                     self._raise_for_status(status, result, data)
                 result.data = data
                 return
-            try:
-                pdf = base64.b64decode(stripped, validate=True)
-            except ValueError:
-                pdf = b""
-            if pdf.startswith(b"%PDF"):
+            pdf = _base64_pdf(stripped)
+            if pdf is not None:
                 result.pdf = pdf
             else:
-                result.data = {"raw": text}
+                result.data = {"raw": stripped}
             return
 
         if isinstance(body, dict) and "httpCode" in body:  # the gateway answered, eCourts was never reached
@@ -485,6 +487,15 @@ def _json_or_none(text: str) -> Any:
         except ValueError:
             return None
     return None
+
+
+def _base64_pdf(text: str) -> bytes | None:
+    """Bytes of a PDF carried as Base64 text (`JVBERi0…`), else None."""
+    try:
+        raw = base64.b64decode("".join(text.split()), validate=True)
+    except (ValueError, binascii.Error):
+        return None
+    return raw if raw.startswith(b"%PDF") else None
 
 
 def _int_or_none(v: Any) -> int | None:

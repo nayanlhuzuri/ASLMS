@@ -1,0 +1,24 @@
+{
+  "benches": {
+    "sr_no1": {
+      "bench_id": "3",
+      "bench_name": "Aizawl Bench",
+      "est_code": "GAHC03"
+    },
+    "sr_no2": {
+      "bench_id": "4",
+      "bench_name": "Itanagar Bench",
+      "est_code": "GAHC04"
+    },
+    "sr_no3": {
+      "bench_id": "2",
+      "bench_name": "Kohima Bench",
+      "est_code": "GAHC02"
+    },
+    "sr_no4": {
+      "bench_id": "1",
+      "bench_name": "Principal Seat at Guwahati",
+      "est_code": "GAHC01"
+    }
+  }
+}

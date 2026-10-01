@@ -39,7 +39,7 @@ class Settings(BaseSettings):
         "GAHC01", validation_alias=AliasChoices("NAPIX_EST_CODE", "NAPIX_HC_EST_CODE")
     )
     napix_version: str = "v1.0"
-    napix_state_code: str = "6"  # Assam; verify with the state master
+    napix_state_code: str = "18"  # Gauhati High Court in the NAPIX state master (verified live, 1 Oct 2026)
     napix_rate_limit_per_min: int = 60
     napix_timeout_seconds: float = 40.0
     napix_token_ttl_seconds: int = 3300  # when the token response carries no expires_in (manual: one hour)

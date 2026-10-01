@@ -1,0 +1,9 @@
+{
+  "overview": "This document describe a RESTFul API for eCourt Projects",
+  "version": "v1.0",
+  "contact": "eCommittee Supreme Court of India, E-mail- ecommittee@aij.gov.in",
+  "license": "Apache 2.0",
+  "uri_scheme": "HTTPS",
+  "consumes": "application/json",
+  "produces": "application/json"
+}

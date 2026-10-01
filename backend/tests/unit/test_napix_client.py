@@ -32,20 +32,19 @@ async def test_get_roundtrip_token_and_hook(client: NapixClient, gateway: Gatewa
     assert calls[0] is res and res.duration_ms >= 0 and res.params_sha256
 
 
-async def test_query_string_percent_encodes_base64_and_post_uses_form_body(
+async def test_query_string_percent_encodes_base64_for_get_and_post(
     client: NapixClient, gateway: Gateway
 ) -> None:
     raws: list[str] = []
     gateway.responses.append(lambda p, q, r: (raws.append(str(r.url)), gateway.envelope({"ok": 1}))[1])
-    gateway.responses.append(
-        lambda p, q, r: (raws.append(r.content.decode()), gateway.envelope({"ok": 1}))[1]
-    )
+    gateway.responses.append(lambda p, q, r: (raws.append(str(r.url)), gateway.envelope({"ok": 1}))[1])
     async with client:
         await client.call("hc-cnr-api/CNR", {"cino": "GAHC010153612024"})
         await client.call("hc-current-status-api/currentStatus", {"cino": "A,B"}, method="POST")
     value = raws[0].split("request_str=")[1].split("&")[0]
     assert all(ch not in value for ch in "+/=") and "%3D" in value  # Base64 padding is always present
-    assert gateway.seen[1]["method"] == "POST" and "request_str=" in raws[1]
+    # Current Status is a POST, but its four parameters travel in the query string (verified live)
+    assert gateway.seen[1]["method"] == "POST" and "request_str=" in raws[1].split("?", 1)[1]
 
 
 async def test_no_input_api_encrypts_the_empty_string(client: NapixClient, gateway: Gateway) -> None:
@@ -168,7 +167,10 @@ async def test_pdf_raw_and_base64_inside_envelope(client: NapixClient, gateway: 
         b = await client.call(
             "hc-order-api/order", {"cino": "X", "order_no": "1", "order_date": "2026-01-01"}
         )
-    assert a.pdf == pdf and b.pdf == pdf
+    gateway.responses.append(lambda p, q, r: gateway.envelope(base64.b64encode(pdf).decode()))  # JSON string
+    async with client:
+        c = await client.call("hc-show-causelist-api/showcauselist", {"est_code": "GAHC01"})
+    assert a.pdf == pdf and b.pdf == pdf and c.pdf == pdf
 
 
 async def test_rate_limit_headers_are_read(client: NapixClient, gateway: Gateway) -> None:

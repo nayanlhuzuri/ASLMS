@@ -40,7 +40,9 @@ def _save(samples: Path, name: str, res: NapixResult | None, stamp: str) -> str:
     if res.data is None:
         return "-"
     p = samples / f"{name}_{stamp}.json"
-    p.write_text(json.dumps(res.data, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
+    p.write_text(
+        json.dumps(res.data, indent=2, ensure_ascii=False, default=str), encoding="utf-8", newline="\n"
+    )
     return p.name
 
 
@@ -170,7 +172,11 @@ async def run(
                     "show_business",
                     lambda: hc.show_business(cnr_, date.fromisoformat(str(bd)[:10])),
                 )
-            ct = rec.get("case_type") or (ctypes[0].get("case_type") if ctypes else None)
+            ct = (
+                rec.get("case_type_id")
+                or rec.get("case_type")
+                or (ctypes[0].get("case_type") if ctypes else None)
+            )
             if ct and rec.get("reg_no") and rec.get("reg_year"):
                 await step(
                     "case_search",
@@ -178,10 +184,11 @@ async def run(
                     lambda: hc.search_case_number(int(ct), int(rec["reg_no"]), int(rec["reg_year"])),
                 )
             if rec.get("pet_name") and rec.get("reg_year"):
+                pend = str(rec.get("pend_disp") or "P")[:1].upper()
                 await step(
                     "party_name",
                     "party_name",
-                    lambda: hc.search_party(str(rec["pet_name"])[:40], int(rec["reg_year"])),
+                    lambda: hc.search_party(str(rec["pet_name"])[:40], int(rec["reg_year"]), pend_disp=pend),
                 )
         else:
             console.print(

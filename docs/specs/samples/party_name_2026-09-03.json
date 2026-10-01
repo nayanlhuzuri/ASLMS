@@ -1,0 +1,38 @@
+{
+  "establishment_name": "Principal Seat at Guwahati",
+  "casenos": {
+    "case1": {
+      "cino": "GAHC010257252024",
+      "type_name": "WP(C)",
+      "reg_no": "6434",
+      "reg_year": "2024",
+      "case_type_id": "111",
+      "pet_name": "DR. JANIFA KAIFEE AHMED",
+      "res_name": "THE STATE OF ASSAM AND 3 ORS.",
+      "uniform_code": null,
+      "police_st_code": ""
+    },
+    "case2": {
+      "cino": "GAHC010277142024",
+      "type_name": "WA",
+      "reg_no": "435",
+      "reg_year": "2024",
+      "case_type_id": "112",
+      "pet_name": "DR. JANIFA KAIFEE AHMED",
+      "res_name": "THE STATE OF ASSAM AND 3 ORS",
+      "uniform_code": null,
+      "police_st_code": ""
+    },
+    "case3": {
+      "cino": "GAHC010271682024",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "3959",
+      "reg_year": "2024",
+      "case_type_id": "220",
+      "pet_name": "",
+      "res_name": "DR. JANIFA KAIFEE AHMED",
+      "uniform_code": null,
+      "police_st_code": ""
+    }
+  }
+}

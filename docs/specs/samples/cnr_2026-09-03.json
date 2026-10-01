@@ -1,0 +1,96 @@
+{
+  "date_of_filing": "2024-12-20",
+  "cino": "GAHC010277142024",
+  "dt_regis": "2024-12-20",
+  "type_name_fil": "WA",
+  "type_name_reg": "WA",
+  "case_type_id": 112,
+  "fil_no": "15748",
+  "fil_year": "2024",
+  "reg_no": "435",
+  "reg_year": "2024",
+  "date_first_list": "",
+  "date_next_list": "",
+  "pend_disp": "D",
+  "date_of_decision": "2024-12-23",
+  "disposal_type": "Disposed Of",
+  "bench_type": 2,
+  "date_judgement_reserved": null,
+  "date_judgement_pronounced": null,
+  "bench_name": "Division Bench",
+  "judicial_branch": "Civil Section",
+  "coram": "HONOURABLE MR. JUSTICE KALYAN RAI SURANA , HONOURABLE MR. JUSTICE MRIDUL KUMAR KALITA",
+  "short_order": null,
+  "desgname": "JUDGE",
+  "bench_id": 2068,
+  "court_est_name": "Gauhati High Court",
+  "est_code": "GAHC01",
+  "state_name": "Assam",
+  "dist_name": "Kamrup(M)",
+  "purpose_name": "ADMISSION",
+  "pet_name": "DR. JANIFA KAIFEE AHMED",
+  "pet_adv": "MR. A B T HAQUE",
+  "pet_legal_heir": "N",
+  "res_name": "THE STATE OF ASSAM AND 3 ORS",
+  "res_adv": "SC, HEALTH",
+  "res_legal_heir": "N",
+  "main_matter_cino": "",
+  "main_matter": "",
+  "fir_no": null,
+  "police_station": null,
+  "uniform_code": null,
+  "police_st_code": null,
+  "fir_year": null,
+  "lower_court_name": null,
+  "lower_court_caseno": 0,
+  "lower_court_dec_dt": "",
+  "trial_lower_court_name": null,
+  "trial_lower_court_caseno": "",
+  "trial_lower_court_dec_dt": null,
+  "date_last_list": "2024-12-23",
+  "date_filing_disp": "",
+  "reason_for_rej": "",
+  "acts": {
+    "act1": {
+      "actname": "CONSTITUTION OF INDIA",
+      "section": "226"
+    }
+  },
+  "pet_extra_party": [],
+  "res_extra_party": {
+    "party_no1": "THE NATIONAL BOARD OF EXAMINATIONS IN MEDICAL SCIENCES",
+    "party_no2": "THE DIRECTOR OF MEDICAL EDUCATION",
+    "party_no3": "THE PRINCIPAL"
+  },
+  "historyofcasehearing": {
+    "sr_no1": {
+      "causelist_type": "",
+      "judge_name": "HONOURABLE MR. JUSTICE KALYAN RAI SURANA , HONOURABLE MR. JUSTICE MRIDUL KUMAR KALITA",
+      "business_date": "2024-12-23",
+      "hearing_date": "",
+      "purpose_of_listing": "Disposed"
+    }
+  },
+  "interimorder": [],
+  "finalorder": {
+    "sr_no1": {
+      "order_no": "1",
+      "order_date": "2024-12-23",
+      "order_judge_name": "HONOURABLE MR. JUSTICE KALYAN RAI SURANA,HONOURABLE MR. JUSTICE MRIDUL KUMAR KALITA",
+      "order_details": "JUDGEMENT",
+      "date_judgement_reserved": null,
+      "date_judgement_pronounced": null
+    }
+  },
+  "transfer": [],
+  "writinfo": [],
+  "iafiling": [],
+  "objections": [],
+  "document_details": {
+    "case_state_code": 18,
+    "case_dist_code": 117
+  },
+  "category_details": {
+    "category": "10237 - Writ Appeals under the Gauhati High Court Rules. ( 204 )"
+  }
+}

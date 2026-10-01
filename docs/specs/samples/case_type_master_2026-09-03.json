@@ -1,0 +1,890 @@
+{
+  "casetype1": {
+    "case_type": "49",
+    "type_name": "AB : Anticipatory Bail"
+  },
+  "casetype2": {
+    "case_type": "211",
+    "type_name": "abc : "
+  },
+  "casetype3": {
+    "case_type": "164",
+    "type_name": "Adml.S. : Admiralty Suits"
+  },
+  "casetype4": {
+    "case_type": "139",
+    "type_name": "Arb.A. : Appeals under Indian Arbitration Act."
+  },
+  "casetype5": {
+    "case_type": "219",
+    "type_name": "Arb.Appln. : Application under Indian Arbitration Act."
+  },
+  "casetype6": {
+    "case_type": "138",
+    "type_name": "Arb.P. : Petition under Indian Arbitration Act."
+  },
+  "casetype7": {
+    "case_type": "57",
+    "type_name": "BA : Bail Application"
+  },
+  "casetype8": {
+    "case_type": "171",
+    "type_name": "Bail Appln. : Bail_Application"
+  },
+  "casetype9": {
+    "case_type": "235",
+    "type_name": "Bail (Cancellation) : Bail (Cancellation)"
+  },
+  "casetype10": {
+    "case_type": "187",
+    "type_name": "CA : "
+  },
+  "casetype11": {
+    "case_type": "183",
+    "type_name": "CAC : "
+  },
+  "casetype12": {
+    "case_type": "47",
+    "type_name": "CAPL : Contempt_Appeal"
+  },
+  "casetype13": {
+    "case_type": "181",
+    "type_name": "C.APPLN : Company Applications"
+  },
+  "casetype14": {
+    "case_type": "178",
+    "type_name": "CAVT : Caveat"
+  },
+  "casetype15": {
+    "case_type": "7",
+    "type_name": "CC(CIV) : Contempt Of Court (Civil)"
+  },
+  "casetype16": {
+    "case_type": "152",
+    "type_name": "CE.Ref. : Reference under Central Excise Act."
+  },
+  "casetype17": {
+    "case_type": "83",
+    "type_name": "CEREF : CENTRAL EXCISE REFERENCE"
+  },
+  "casetype18": {
+    "case_type": "213",
+    "type_name": "C.Ex.App. : Central Excise Appeal"
+  },
+  "casetype19": {
+    "case_type": "109",
+    "type_name": "CMAppl. : Miscellaneous Applications,e.g.,Leave to Suo as indigent person,restoration application,co"
+  },
+  "casetype20": {
+    "case_type": "97",
+    "type_name": "CO : Cross Objection in First Appeal"
+  },
+  "casetype21": {
+    "case_type": "117",
+    "type_name": "Co.App. : Appeals against Judgments/Orders in Company Petitions / Company Appeal."
+  },
+  "casetype22": {
+    "case_type": "115",
+    "type_name": "Co.Appl. : Application in Pending Proceeding."
+  },
+  "casetype23": {
+    "case_type": "6",
+    "type_name": "COB(FA) : Cross Objection in First_Appeal"
+  },
+  "casetype24": {
+    "case_type": "5",
+    "type_name": "COB(MFA) : Cross Objection in Misc. First Appeal"
+  },
+  "casetype25": {
+    "case_type": "81",
+    "type_name": "COB(T) : CROSS OBJECTION (TENDER)"
+  },
+  "casetype26": {
+    "case_type": "34",
+    "type_name": "COJO : Correction of Judgement/Order"
+  },
+  "casetype27": {
+    "case_type": "4",
+    "type_name": "COMAPL : Company Appeal"
+  },
+  "casetype28": {
+    "case_type": "232",
+    "type_name": "Comm.App.Div. : Comm.App.Div."
+  },
+  "casetype29": {
+    "case_type": "3",
+    "type_name": "COMPET : Company Petition"
+  },
+  "casetype30": {
+    "case_type": "94",
+    "type_name": "CONTAPP : Contempt Appeal"
+  },
+  "casetype31": {
+    "case_type": "143",
+    "type_name": "Cont.App.(C) : Appeals against orders in Civil Contempt matters."
+  },
+  "casetype32": {
+    "case_type": "175",
+    "type_name": "Cont.App.(Crl.) : Appeals against Orders in Criminal Contempt matters"
+  },
+  "casetype33": {
+    "case_type": "142",
+    "type_name": "Cont.Cas(C) : Contempt of Court Cases relating to Civil Contempt."
+  },
+  "casetype34": {
+    "case_type": "174",
+    "type_name": "Cont.Cas.(Crl.) : Proceedings relating to Criminal Contempt."
+  },
+  "casetype35": {
+    "case_type": "229",
+    "type_name": "Cont.Cas(C)(Suo Moto) : Contempt Case (Civil)(Suo Moto)"
+  },
+  "casetype36": {
+    "case_type": "228",
+    "type_name": "Cont.Case(Crl)(Suo Moto) : Cont.Case(Crl.)(Suo Moto)"
+  },
+  "casetype37": {
+    "case_type": "2",
+    "type_name": "COP(C) : Civil Original Petition( Contempt )"
+  },
+  "casetype38": {
+    "case_type": "114",
+    "type_name": "Co.Pet. : Original Petition"
+  },
+  "casetype39": {
+    "case_type": "68",
+    "type_name": "CP : Condonation Petition"
+  },
+  "casetype40": {
+    "case_type": "180",
+    "type_name": "C.PTN. : Company Petitions"
+  },
+  "casetype41": {
+    "case_type": "1",
+    "type_name": "CR : Civil Rule"
+  },
+  "casetype42": {
+    "case_type": "52",
+    "type_name": "CRAPL : Criminal Appeal"
+  },
+  "casetype43": {
+    "case_type": "80",
+    "type_name": "CRAPPL : Cross Appeal"
+  },
+  "casetype44": {
+    "case_type": "50",
+    "type_name": "CR(CC) : Criminal Contempt of Court"
+  },
+  "casetype45": {
+    "case_type": "58",
+    "type_name": "CRDREF : Criminal Death Reference"
+  },
+  "casetype46": {
+    "case_type": "104",
+    "type_name": "C.Ref. : Reference."
+  },
+  "casetype47": {
+    "case_type": "13",
+    "type_name": "CREF : Civil Refrence"
+  },
+  "casetype48": {
+    "case_type": "14",
+    "type_name": "CREV : Civil Revision"
+  },
+  "casetype49": {
+    "case_type": "15",
+    "type_name": "CREV(H) : Civil Revision(hills)"
+  },
+  "casetype50": {
+    "case_type": "188",
+    "type_name": "C.REVN : "
+  },
+  "casetype51": {
+    "case_type": "8",
+    "type_name": "CR(HC) : Civil Rule(Habeas Corpus )"
+  },
+  "casetype52": {
+    "case_type": "166",
+    "type_name": "Crl.A. : Appeal against Judgment/Sentence."
+  },
+  "casetype53": {
+    "case_type": "9",
+    "type_name": "CR(LAB) : Civil Rule(labour)"
+  },
+  "casetype54": {
+    "case_type": "189",
+    "type_name": "CRL.A(H) : NULL"
+  },
+  "casetype55": {
+    "case_type": "190",
+    "type_name": "CRL.A(J) : NULL"
+  },
+  "casetype56": {
+    "case_type": "10",
+    "type_name": "CR(LAN) : Civil Rule(land)"
+  },
+  "casetype57": {
+    "case_type": "234",
+    "type_name": "Crl.A(PMLA) : Criminal Appeal under Section 42 PMLA matters"
+  },
+  "casetype58": {
+    "case_type": "208",
+    "type_name": "Crl.L.P. : Criminal Leave Petition"
+  },
+  "casetype59": {
+    "case_type": "172",
+    "type_name": "Crl.M.Appl. : Other Miscellaneous Application"
+  },
+  "casetype60": {
+    "case_type": "170",
+    "type_name": "Crl.M.C. : Application under Section 482 Cr.P.C."
+  },
+  "casetype61": {
+    "case_type": "192",
+    "type_name": "CRL.O.APPN : "
+  },
+  "casetype62": {
+    "case_type": "179",
+    "type_name": "CRL.OP(C) : "
+  },
+  "casetype63": {
+    "case_type": "202",
+    "type_name": "CRL.O.REF : NULL"
+  },
+  "casetype64": {
+    "case_type": "210",
+    "type_name": "Crl.P. : Criminal_Petition"
+  },
+  "casetype65": {
+    "case_type": "209",
+    "type_name": "Crl.Pet. : Criminal Petition"
+  },
+  "casetype66": {
+    "case_type": "224",
+    "type_name": "Crl.Pet.(Suo Moto) : Criminal Petition (Suo Moto)"
+  },
+  "casetype67": {
+    "case_type": "169",
+    "type_name": "Crl.Ref. : Reference_"
+  },
+  "casetype68": {
+    "case_type": "206",
+    "type_name": "CRL.REF(H) : Criminal Hill reference"
+  },
+  "casetype69": {
+    "case_type": "194",
+    "type_name": "CRL.REV(H) : NULL"
+  },
+  "casetype70": {
+    "case_type": "191",
+    "type_name": "CRL.REVN : NULL"
+  },
+  "casetype71": {
+    "case_type": "168",
+    "type_name": "Crl.Rev.P. : Revision_"
+  },
+  "casetype72": {
+    "case_type": "165",
+    "type_name": "Crl.Tr. : Original Trial"
+  },
+  "casetype73": {
+    "case_type": "196",
+    "type_name": "CR(M) : "
+  },
+  "casetype74": {
+    "case_type": "51",
+    "type_name": "CR(MC) : Criminal Misc. Case"
+  },
+  "casetype75": {
+    "case_type": "62",
+    "type_name": "CROA : Criminal Original Application"
+  },
+  "casetype76": {
+    "case_type": "69",
+    "type_name": "CROA(C) : Criminal Original Application Contempt"
+  },
+  "casetype77": {
+    "case_type": "63",
+    "type_name": "CROP : Criminal Original Petition"
+  },
+  "casetype78": {
+    "case_type": "53",
+    "type_name": "CROP(C) : Criminal Original Petition(Contempt)"
+  },
+  "casetype79": {
+    "case_type": "11",
+    "type_name": "CR(OTH) : Civil Rule(other)"
+  },
+  "casetype80": {
+    "case_type": "102",
+    "type_name": "CRP : Revision_Petition"
+  },
+  "casetype81": {
+    "case_type": "216",
+    "type_name": "CRP(IO) : Civil Revision Petition (I/O)"
+  },
+  "casetype82": {
+    "case_type": "227",
+    "type_name": "CRP (Suo Moto) : Civil Revision Petition (Suo Moto)"
+  },
+  "casetype83": {
+    "case_type": "54",
+    "type_name": "CRREF : Criminal Reference"
+  },
+  "casetype84": {
+    "case_type": "55",
+    "type_name": "CRREF(H) : Criminal reference(hills)"
+  },
+  "casetype85": {
+    "case_type": "56",
+    "type_name": "CRREV : Criminal Revision"
+  },
+  "casetype86": {
+    "case_type": "75",
+    "type_name": "CRREVAP : Criminal Review Application"
+  },
+  "casetype87": {
+    "case_type": "12",
+    "type_name": "CR(SER) : Civil Rule(service)"
+  },
+  "casetype88": {
+    "case_type": "95",
+    "type_name": "CS : Civil Suit"
+  },
+  "casetype89": {
+    "case_type": "159",
+    "type_name": "CS(OS) : Civil Suits"
+  },
+  "casetype90": {
+    "case_type": "151",
+    "type_name": "Cus.Ref. : Reference under Customs Act."
+  },
+  "casetype91": {
+    "case_type": "167",
+    "type_name": "Death Sentence Ref. : Confirmation case under Section 336 Cr.P.C."
+  },
+  "casetype92": {
+    "case_type": "72",
+    "type_name": "DS : Divorce Suit"
+  },
+  "casetype93": {
+    "case_type": "182",
+    "type_name": "EC : "
+  },
+  "casetype94": {
+    "case_type": "16",
+    "type_name": "EDREF : Estate Duty Reference"
+  },
+  "casetype95": {
+    "case_type": "199",
+    "type_name": "ED(REF) : "
+  },
+  "casetype96": {
+    "case_type": "135",
+    "type_name": "El.App. : Appeals from judgments in Election Petition"
+  },
+  "casetype97": {
+    "case_type": "134",
+    "type_name": "El.Pet. : Election Petitions"
+  },
+  "casetype98": {
+    "case_type": "17",
+    "type_name": "EP : Election Petition"
+  },
+  "casetype99": {
+    "case_type": "161",
+    "type_name": "Ex.Appl.(OS) : Execution Application"
+  },
+  "casetype100": {
+    "case_type": "106",
+    "type_name": "Ex.FA. : Execution First Appeal"
+  },
+  "casetype101": {
+    "case_type": "105",
+    "type_name": "Ex.P. : Execution Petition"
+  },
+  "casetype102": {
+    "case_type": "107",
+    "type_name": "Ex.SA. : Execution Second Appeal"
+  },
+  "casetype103": {
+    "case_type": "18",
+    "type_name": "FA : First_Appeal"
+  },
+  "casetype104": {
+    "case_type": "60",
+    "type_name": "FA(D) : First Appeal(Divorce)"
+  },
+  "casetype105": {
+    "case_type": "186",
+    "type_name": "FA/MA(F) : "
+  },
+  "casetype106": {
+    "case_type": "98",
+    "type_name": "FAO : First Appeal from Orders"
+  },
+  "casetype107": {
+    "case_type": "160",
+    "type_name": "FA(OS) : First Appeal for Judgments in Original Suits."
+  },
+  "casetype108": {
+    "case_type": "185",
+    "type_name": "FA/SA : "
+  },
+  "casetype109": {
+    "case_type": "212",
+    "type_name": "FA(T) : First Appeal (Tender)"
+  },
+  "casetype110": {
+    "case_type": "20",
+    "type_name": "GCA : Government Criminal Appeal"
+  },
+  "casetype111": {
+    "case_type": "150",
+    "type_name": "GTA/WTA/EDA : Application for direction to make a reference."
+  },
+  "casetype112": {
+    "case_type": "21",
+    "type_name": "GTREF : Gift Tax Reference"
+  },
+  "casetype113": {
+    "case_type": "198",
+    "type_name": "GT(REF) : "
+  },
+  "casetype114": {
+    "case_type": "149",
+    "type_name": "GTR/WTR/EDR : Reference to High Court"
+  },
+  "casetype115": {
+    "case_type": "125",
+    "type_name": "Gua.P. : Petitions under Gurdianship and Wards Act."
+  },
+  "casetype116": {
+    "case_type": "233",
+    "type_name": "Hill.Appeal : Hill Appeal"
+  },
+  "casetype117": {
+    "case_type": "218",
+    "type_name": "I.A. : Interlocutory Application."
+  },
+  "casetype118": {
+    "case_type": "220",
+    "type_name": "I.A.(Civil) : Interlocutory Application (Civil)."
+  },
+  "casetype119": {
+    "case_type": "221",
+    "type_name": "I.A.(Crl.) : Interlocutory Application (Criminal)."
+  },
+  "casetype120": {
+    "case_type": "141",
+    "type_name": "Insurance App. : Appeals under Insurance Act."
+  },
+  "casetype121": {
+    "case_type": "140",
+    "type_name": "Insurance Ref. : Reference under Insurance Act."
+  },
+  "casetype122": {
+    "case_type": "124",
+    "type_name": "Intest.Cas. : Intestate cases,e.g.,Succession Certificates,etc."
+  },
+  "casetype123": {
+    "case_type": "137",
+    "type_name": "IP(Appl.) : Application submitted after adjudication"
+  },
+  "casetype124": {
+    "case_type": "136",
+    "type_name": "IP(M) : Main Petition"
+  },
+  "casetype125": {
+    "case_type": "148",
+    "type_name": "ITA : Application under Section 256(2)"
+  },
+  "casetype126": {
+    "case_type": "147",
+    "type_name": "ITR : Reference under Section 256(1)."
+  },
+  "casetype127": {
+    "case_type": "22",
+    "type_name": "ITREF : Income Tax Reference"
+  },
+  "casetype128": {
+    "case_type": "195",
+    "type_name": "IT(REF) : "
+  },
+  "casetype129": {
+    "case_type": "88",
+    "type_name": "ITREF(A) : AGRI IT REFERENCE"
+  },
+  "casetype130": {
+    "case_type": "127",
+    "type_name": "LA.App. : Appeals"
+  },
+  "casetype131": {
+    "case_type": "126",
+    "type_name": "LA.Ref. : Reference ."
+  },
+  "casetype132": {
+    "case_type": "23",
+    "type_name": "LPA : Latters Patent Appeal"
+  },
+  "casetype133": {
+    "case_type": "101",
+    "type_name": "LPA/Sp.A : Letters Patent Appeal or Special AppealBefore Division Bench against a Judgment or Order"
+  },
+  "casetype134": {
+    "case_type": "87",
+    "type_name": "LPA(T) : LEAVE PATTERN APPEAL (TENDER)"
+  },
+  "casetype135": {
+    "case_type": "132",
+    "type_name": "MAC : Motor Accident Claims"
+  },
+  "casetype136": {
+    "case_type": "133",
+    "type_name": "MACApp. : Motor Accident Appeal"
+  },
+  "casetype137": {
+    "case_type": "24",
+    "type_name": "MAF : Miscellaneous Appeal(first)"
+  },
+  "casetype138": {
+    "case_type": "184",
+    "type_name": "MA(F) : NULL"
+  },
+  "casetype139": {
+    "case_type": "25",
+    "type_name": "MAF(T) : Miscellaneous Appeal First(tender)"
+  },
+  "casetype140": {
+    "case_type": "65",
+    "type_name": "MA(S) : Misc. Appeal ( Second )"
+  },
+  "casetype141": {
+    "case_type": "86",
+    "type_name": "MAS(T) : MISC. APPEAL SECOND (TENDER)"
+  },
+  "casetype142": {
+    "case_type": "121",
+    "type_name": "Mat.App. : Appeals."
+  },
+  "casetype143": {
+    "case_type": "119",
+    "type_name": "Mat.Cas. : Suits/Petitions"
+  },
+  "casetype144": {
+    "case_type": "120",
+    "type_name": "Mat.Ref. : References"
+  },
+  "casetype145": {
+    "case_type": "59",
+    "type_name": "MC : Miscellaneous Case"
+  },
+  "casetype146": {
+    "case_type": "82",
+    "type_name": "MC(COP) : MISC. CASE (COP)"
+  },
+  "casetype147": {
+    "case_type": "26",
+    "type_name": "MC(CR) : Misc. Case of Civil Rule"
+  },
+  "casetype148": {
+    "case_type": "76",
+    "type_name": "MC(CRAPL) : Misc. Case in Criminal Appeal"
+  },
+  "casetype149": {
+    "case_type": "27",
+    "type_name": "MC(CREV) : Misc. Case of Civil Revision"
+  },
+  "casetype150": {
+    "case_type": "193",
+    "type_name": "MCCRL. REVN : "
+  },
+  "casetype151": {
+    "case_type": "73",
+    "type_name": "MC(CRREV) : Misc. Case in Criminal Revision"
+  },
+  "casetype152": {
+    "case_type": "29",
+    "type_name": "MC(EP) : Misc. Case of Election Petition"
+  },
+  "casetype153": {
+    "case_type": "71",
+    "type_name": "MC(F) : Miscellaneous Case (First)"
+  },
+  "casetype154": {
+    "case_type": "79",
+    "type_name": "MC(FA) : Misc. Case (First Appeal)"
+  },
+  "casetype155": {
+    "case_type": "28",
+    "type_name": "MC(MAF) : Misc. Case of Misc. Appeal(First)"
+  },
+  "casetype156": {
+    "case_type": "205",
+    "type_name": "MC(N) : "
+  },
+  "casetype157": {
+    "case_type": "85",
+    "type_name": "MC(RA) : MISC. CASE (R.A.)"
+  },
+  "casetype158": {
+    "case_type": "30",
+    "type_name": "MC(SA) : Misc. Case in Second Appeal"
+  },
+  "casetype159": {
+    "case_type": "74",
+    "type_name": "MC(WA) : Misc. Case in Writ Appeal"
+  },
+  "casetype160": {
+    "case_type": "144",
+    "type_name": "MFA : First Appeal against judgments in Special jurisdiction cases."
+  },
+  "casetype161": {
+    "case_type": "145",
+    "type_name": "MSA : Second appeal from judgments in miscellaneous cases."
+  },
+  "casetype162": {
+    "case_type": "162",
+    "type_name": "M.S.(S.J.,C.S. and so on) : Miscellaneous Summons e.g., Summons for Judgments,Chamber Summons etc."
+  },
+  "casetype163": {
+    "case_type": "163",
+    "type_name": "N.M. : Notice of Motion"
+  },
+  "casetype164": {
+    "case_type": "90",
+    "type_name": "OC : ORIGINAL CASE"
+  },
+  "casetype165": {
+    "case_type": "92",
+    "type_name": "OJ : Original Jurisdiction"
+  },
+  "casetype166": {
+    "case_type": "31",
+    "type_name": "OTA : Other Tax_Application"
+  },
+  "casetype167": {
+    "case_type": "158",
+    "type_name": "OT.Appl : Other_Tax Application"
+  },
+  "casetype168": {
+    "case_type": "157",
+    "type_name": "OTC : Other Tax cases"
+  },
+  "casetype169": {
+    "case_type": "156",
+    "type_name": "OTR : Other Tax Reference cases"
+  },
+  "casetype170": {
+    "case_type": "93",
+    "type_name": "PIL : Public Interest Litigation"
+  },
+  "casetype171": {
+    "case_type": "222",
+    "type_name": "PIL(Suo Moto) : Public Interest Litigation (Suo Moto)"
+  },
+  "casetype172": {
+    "case_type": "70",
+    "type_name": "RA : Review Application"
+  },
+  "casetype173": {
+    "case_type": "32",
+    "type_name": "RA(CR) : Review Application in Civil Rule"
+  },
+  "casetype174": {
+    "case_type": "33",
+    "type_name": "RA(FA) : Review Application in First Appeal"
+  },
+  "casetype175": {
+    "case_type": "35",
+    "type_name": "RA(MFA) : Review Application in Misc. First Appeal"
+  },
+  "casetype176": {
+    "case_type": "66",
+    "type_name": "RAT : Review Application (Tender)"
+  },
+  "casetype177": {
+    "case_type": "128",
+    "type_name": "RCC : Original Suit/Petition"
+  },
+  "casetype178": {
+    "case_type": "129",
+    "type_name": "RCFA : First Appeal"
+  },
+  "casetype179": {
+    "case_type": "131",
+    "type_name": "RCRev. : Revision."
+  },
+  "casetype180": {
+    "case_type": "130",
+    "type_name": "RCSA : Second Appeal"
+  },
+  "casetype181": {
+    "case_type": "36",
+    "type_name": "REP : Recrimination Case in Election Petition"
+  },
+  "casetype182": {
+    "case_type": "231",
+    "type_name": "RERA APPEAL : RERA APPEAL"
+  },
+  "casetype183": {
+    "case_type": "103",
+    "type_name": "Review.Pet. : Review Petition"
+  },
+  "casetype184": {
+    "case_type": "217",
+    "type_name": "Revn.Pet. : Revision Petition."
+  },
+  "casetype185": {
+    "case_type": "96",
+    "type_name": "RFA : First Appeal fron Judgment and Decree in Suit"
+  },
+  "casetype186": {
+    "case_type": "37",
+    "type_name": "RLPA : Review in Latters Patent Appeal"
+  },
+  "casetype187": {
+    "case_type": "122",
+    "type_name": "RP(FAM.CT.) : Revisions under section 19 of the Family Courts Act."
+  },
+  "casetype188": {
+    "case_type": "67",
+    "type_name": "RPT : Review Petition (Tender)"
+  },
+  "casetype189": {
+    "case_type": "99",
+    "type_name": "RSA : Second Appeal from Judgment and Decree"
+  },
+  "casetype190": {
+    "case_type": "39",
+    "type_name": "SA : Second_Appeal"
+  },
+  "casetype191": {
+    "case_type": "100",
+    "type_name": "SAO : Appeal from Appellate Order"
+  },
+  "casetype192": {
+    "case_type": "40",
+    "type_name": "SA(T) : Second Appeal(tender)"
+  },
+  "casetype193": {
+    "case_type": "84",
+    "type_name": "SCA : SUPREME COURT APPEAL"
+  },
+  "casetype194": {
+    "case_type": "113",
+    "type_name": "SCLP : Petition for Leave to Appeal to Supreme Court"
+  },
+  "casetype195": {
+    "case_type": "203",
+    "type_name": "SLP : Special Leave Petition"
+  },
+  "casetype196": {
+    "case_type": "146",
+    "type_name": "SP.JC(Name of Act) : Special Jurisdiction cases assigned to High Courts e.g. Trust Act,Lunancy Act,Trade a Merc"
+  },
+  "casetype197": {
+    "case_type": "154",
+    "type_name": "ST.Appl. : Application for direction to make a reference ."
+  },
+  "casetype198": {
+    "case_type": "153",
+    "type_name": "ST.Ref. : Reference  ."
+  },
+  "casetype199": {
+    "case_type": "41",
+    "type_name": "STREF : Sales Tax Refrence"
+  },
+  "casetype200": {
+    "case_type": "200",
+    "type_name": "ST(REF) : "
+  },
+  "casetype201": {
+    "case_type": "155",
+    "type_name": "ST.Rev. : Revision ."
+  },
+  "casetype202": {
+    "case_type": "214",
+    "type_name": "Test.App. : Testamentary Appeal (Other First Appeal)"
+  },
+  "casetype203": {
+    "case_type": "123",
+    "type_name": "Test.Cas. : Testamentary cases,e.g.,Probate or Letters of Administration,etc."
+  },
+  "casetype204": {
+    "case_type": "204",
+    "type_name": "Tr.P.(C). : Transfer Petition under Section 24 C.P.C."
+  },
+  "casetype205": {
+    "case_type": "177",
+    "type_name": "Tr.P.(Crl.) : Transfer Petition for transfer a Criminal Proceeding."
+  },
+  "casetype206": {
+    "case_type": "230",
+    "type_name": "Tr.P(Crl)(Suo moto) : Transfer Petition (Crl)(Suo-moto)"
+  },
+  "casetype207": {
+    "case_type": "77",
+    "type_name": "TS : Testamentory Suit"
+  },
+  "casetype208": {
+    "case_type": "176",
+    "type_name": "W : Application for Leave to Appeal under Section 378 Cr.P.C. or under the relevant correspond"
+  },
+  "casetype209": {
+    "case_type": "112",
+    "type_name": "WA : Appeal before Division Bench against judgment or order of Single Judge in a Writ Petition."
+  },
+  "casetype210": {
+    "case_type": "42",
+    "type_name": "WA(LAB) : Writ Appeal(labour)"
+  },
+  "casetype211": {
+    "case_type": "43",
+    "type_name": "WA(LAN) : Writ Appeal(land)"
+  },
+  "casetype212": {
+    "case_type": "45",
+    "type_name": "WA(OTH) : Writ Appeal(others)"
+  },
+  "casetype213": {
+    "case_type": "44",
+    "type_name": "WA(SER) : Writ Appeal(service)"
+  },
+  "casetype214": {
+    "case_type": "64",
+    "type_name": "WA(T) : Writ Appeal Tender"
+  },
+  "casetype215": {
+    "case_type": "116",
+    "type_name": "WP : Matters transfered under Section 446(3)"
+  },
+  "casetype216": {
+    "case_type": "111",
+    "type_name": "WP(C) : Writ Petition under Article 226 and 227 of the Constitution"
+  },
+  "casetype217": {
+    "case_type": "173",
+    "type_name": "W.P.(Crl.) : Petition u/a 226 for Writ and Habeas Corpus and other relief in relation to a Cr P"
+  },
+  "casetype218": {
+    "case_type": "226",
+    "type_name": "WP(Crl)(Suo Moto) : WP(Crl)(Suo Moto)"
+  },
+  "casetype219": {
+    "case_type": "225",
+    "type_name": "WP(C)(Suo Moto) : Writ Petition Suo Moto"
+  },
+  "casetype220": {
+    "case_type": "223",
+    "type_name": "WP(C)(Taken up) : Writ Petition (Suo Moto)"
+  },
+  "casetype221": {
+    "case_type": "46",
+    "type_name": "WTREF : Wealth Tax Refrence"
+  },
+  "casetype222": {
+    "case_type": "197",
+    "type_name": "WT(REF) : "
+  }
+}

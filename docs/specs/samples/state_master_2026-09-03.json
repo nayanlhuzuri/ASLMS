@@ -1,0 +1,104 @@
+{
+  "state": {
+    "state14": {
+      "state_code": 9,
+      "state_name": "Allahabad High Court"
+    },
+    "state2": {
+      "state_code": 27,
+      "state_name": "Bombay High Court"
+    },
+    "state17": {
+      "state_code": 19,
+      "state_name": "Calcutta High Court"
+    },
+    "state7": {
+      "state_code": 18,
+      "state_name": "Gauhati High Court"
+    },
+    "state30": {
+      "state_code": 36,
+      "state_name": "High Court  for State of Telangana"
+    },
+    "state3": {
+      "state_code": 28,
+      "state_name": "High Court of Andhra Pradesh"
+    },
+    "state19": {
+      "state_code": 22,
+      "state_name": "High Court of Chhattisgarh"
+    },
+    "state27": {
+      "state_code": 7,
+      "state_name": "High Court of Delhi"
+    },
+    "state18": {
+      "state_code": 24,
+      "state_name": "High Court of Gujarat"
+    },
+    "state6": {
+      "state_code": 2,
+      "state_name": "High Court of Himachal Pradesh"
+    },
+    "state13": {
+      "state_code": 1,
+      "state_name": "High Court of Jammu and Kashmir and Ladakh"
+    },
+    "state8": {
+      "state_code": 20,
+      "state_name": "High Court of Jharkhand"
+    },
+    "state4": {
+      "state_code": 29,
+      "state_name": "High Court of Karnataka"
+    },
+    "state5": {
+      "state_code": 32,
+      "state_name": "High Court of Kerala"
+    },
+    "state24": {
+      "state_code": 23,
+      "state_name": "High Court of Madhya Pradesh"
+    },
+    "state26": {
+      "state_code": 14,
+      "state_name": "High Court of Manipur"
+    },
+    "state22": {
+      "state_code": 17,
+      "state_name": "High Court of Meghalaya"
+    },
+    "state12": {
+      "state_code": 21,
+      "state_name": "High Court of Orissa"
+    },
+    "state23": {
+      "state_code": 3,
+      "state_name": "High Court of Punjab and Haryana"
+    },
+    "state10": {
+      "state_code": 8,
+      "state_name": "High Court of Rajasthan"
+    },
+    "state25": {
+      "state_code": 11,
+      "state_name": "High Court of Sikkim"
+    },
+    "state21": {
+      "state_code": 16,
+      "state_name": "High Court of Tripura"
+    },
+    "state16": {
+      "state_code": 5,
+      "state_name": "High Court of Uttarakhand"
+    },
+    "state11": {
+      "state_code": 33,
+      "state_name": "Madras High Court"
+    },
+    "state9": {
+      "state_code": 10,
+      "state_name": "Patna High Court"
+    }
+  }
+}
