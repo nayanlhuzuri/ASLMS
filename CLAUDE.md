@@ -43,10 +43,11 @@ Python 3.11+ backend (FastAPI), Celery + Redis, PostgreSQL 16 + PgBouncer, Alemb
 - If something needed is missing (an API field, a SourceTrace endpoint, a business rule), stop and ask rather than inventing it.
 
 ## Current focus (after the reset of 1 Oct 2026)
-Done: the NAPIX integration layer and live check (14 APIs verified, samples and field inventory), the approved
-coverage addendum, migration 0001 with seed and Compose (`docker compose up -d`), the quota measurement
-(1,000 calls per clock hour). Next, in order (plan "Court data load and refresh" in the decisions log):
-1. Show Cause List PDF parser, written new, with fixtures from `docs/specs/samples/` and `data/causelists/`.
-2. Pipeline stages: masters sync, cause-list day (NAPIX first, website PDF fallback), dossier apply (every
-   coverage-table target), status refresh, order PDFs, the `fetch_queue` runner with the rate budget; `aslms load`.
-3. The historical load from 2025-01-01 in development; then auth, recommend-and-claim, documents, alerts, portal.
+Done: NAPIX integration layer and live check; approved coverage addendum; migrations 0001–0002, seed, Compose;
+the cause-list PDF parser; the load-and-refresh pipeline (masters, cause-list days with website fallback,
+dossiers, Current Status batches, order PDFs, the `fetch_queue` runner, Celery beat schedules, the Compose
+`worker` and `scheduler` services); the first week of January 2025 loaded live. Next, in order:
+1. The historical load from 2025-01-01 running in development (`aslms load`, the Compose worker); counts and
+   the sample-of-20 check recorded in the decisions log before deployment.
+2. Auth and offices, recommend-and-claim, documents and uploads, alerts and notifications, the API and portal,
+   SourceTrace ingestion (court records only) — the plan's build order.

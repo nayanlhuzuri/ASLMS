@@ -47,6 +47,11 @@ Status legend: ✅ verified live · ⚠️ from the spec, not yet verified live
 - PDFs (Show Cause List ✅, Show Order ✅) arrive as a **JSON string of Base64 inside `response_str`** (`"JVBERi0…"`), not as `application/pdf`: decrypt, JSON-parse the string, Base64-decode, check the `%PDF` prefix. Show Order's `response_token` did not match the decrypted text once (logged, not fatal).
 - The gateway can answer HTTP 500 "URL Open error" for a correct call (Search by CNR, three times in a row, fine a minute later): transient, retry with back-off.
 
+- **PDF responses fail the `response_token` check** (observed on every Show Cause List call of the 1 Oct load run):
+  the HMAC the gateway sends does not match the decrypted JSON string, presumably because it is computed over
+  the raw Base64 rather than the quoted string. The client logs the mismatch and keeps the PDF
+  (`token_verified = false` in `napix_call_log`); JSON responses verify as before.
+
 ## 5. Error formats seen live ✅
 | What comes back | Meaning |
 |---|---|

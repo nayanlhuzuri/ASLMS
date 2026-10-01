@@ -30,7 +30,9 @@ from aslms.services.causelists import load_causelist_day
 from aslms.services.masters import sync_masters
 from aslms.services.napix_store import NapixRecorder
 from aslms.services.napix_values import as_int, as_text
+from aslms.services.orders import enqueue_order_pdfs, fetch_order_pdf
 from aslms.services.storage import LocalStore
+from aslms.services.tracking import run_status_batch
 
 log = structlog.get_logger(__name__)
 
@@ -190,6 +192,15 @@ class QueueRunner:
             return await self._causelist_day(s, date.fromisoformat(ref))
         if kind == FetchKind.DOSSIER:
             return await self._dossier(s, ref)
+        if kind == FetchKind.STATUS_BATCH:
+            if self.hc is None:
+                raise RuntimeError("NAPIX is off: status batches cannot run")
+            rep = await run_status_batch(s, self.hc, ref)
+            return rep.as_dict(), rep.requested == 0
+        if kind == FetchKind.ORDER_PDF:
+            if self.hc is None:
+                raise RuntimeError("NAPIX is off: order PDFs cannot be fetched")
+            return await fetch_order_pdf(s, self.hc, self.store, ref)
         raise NotImplementedError(f"queue kind {kind.value} is not handled yet")
 
     def _court(self, s: Session) -> Court:
@@ -258,11 +269,13 @@ class QueueRunner:
         if not data or not as_text(data.get("cino")):
             return {"error": "empty dossier"}, True
         rep = apply_dossier(s, case, data)
+        queued = enqueue_order_pdfs(s, case)
         return {
             "cnr": cnr,
             "changed": rep.changed,
             "snapshot_new": rep.snapshot_new,
             "counts": rep.counts,
+            "order_pdfs_queued": queued,
         }, False
 
     async def _resolve_cnr(self, court: Court, case_no: str, s: Session) -> str | None:

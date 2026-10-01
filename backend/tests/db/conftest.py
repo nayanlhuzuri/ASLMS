@@ -3,15 +3,23 @@ They are skipped when it is not reachable. The schema is built by the real migra
 
 from __future__ import annotations
 
+import json
 import os
 from collections.abc import Iterator
 from pathlib import Path
 
+import httpx
 import pytest
 import sqlalchemy as sa
 from alembic import command
 from alembic.config import Config
 from sqlalchemy.orm import Session, sessionmaker
+
+from aslms.integration.napix.client import NapixClient
+from aslms.integration.napix.crypto import NapixCrypto
+from aslms.integration.napix.hc import NapixHighCourt
+from aslms.services.seed import seed_all
+from tests.unit.conftest import KEY, Gateway
 
 BACKEND = Path(__file__).resolve().parents[2]
 TEST_URL = os.environ.get(
@@ -85,3 +93,113 @@ def wipe(conn_or_session) -> None:
     for t in rows:
         conn_or_session.execute(sa.text(f"DELETE FROM {t}"))
     conn_or_session.execute(sa.text("SET session_replication_role = DEFAULT"))
+
+
+# ---------------------------------------------------------------- the scripted NAPIX gateway and a seeded DB
+ROOT = Path(__file__).resolve().parents[3]
+SAMPLES = ROOT / "docs" / "specs" / "samples"
+FIXTURES = ROOT / "backend" / "tests" / "fixtures" / "causelists"
+
+
+def sample(name: str):
+    return json.loads((SAMPLES / name).read_text(encoding="utf-8"))
+
+
+BENCHES_2025_01_06 = {
+    "case1": {"bench_id": 2048, "judge_name": "JOINT REGISTRAR (JUDL.) MR. CHINMOY BARUAH"},
+    "case2": {"bench_id": 2110, "judge_name": "JOINT REGISTRAR (VIGILANCE) - SMTI. JAYASHREE BORA"},
+}
+DETAILS = {
+    "2048": {
+        "case1": {
+            "bench": "JOINT REGISTRAR (JUDL.) MR. CHINMOY BARUAH",
+            "bench_id": 2048,
+            "causelist_id": 1007,
+            "cause_list_type": "LAWAZIMA      ",
+        }
+    },
+    "2110": {
+        "case1": {
+            "bench": "JOINT REGISTRAR (VIGILANCE) - SMTI. JAYASHREE BORA",
+            "bench_id": 2110,
+            "causelist_id": 1008,
+            "cause_list_type": "LAWAZIMA      ",
+        }
+    },
+}
+
+
+def router(gw: Gateway):
+    """Answers every API from the samples; the dossier is the pending sample re-labelled with the asked CNR."""
+    import base64
+
+    pdf_b64 = base64.b64encode((FIXTURES / "napix_lawazima_bench2048_2025-01-06.pdf").read_bytes()).decode()
+
+    def handle(path: str, q: dict, request: httpx.Request) -> httpx.Response:
+        plain = gw.crypto.decrypt(q["request_str"])
+        params = dict(kv.split("=", 1) for kv in plain.split("|") if "=" in kv)
+        if path == "hc-state-api/state":
+            return gw.envelope(sample("state_master_2026-09-03.json"))
+        if path == "hc-district-api/district":
+            return gw.envelope(sample("district_master_2026-09-03.json"))
+        if path == "hc-bench-master-api/bench":
+            return gw.envelope(sample("bench_master_2026-09-03.json"))
+        if path == "hc-case-type-master-api/casetypemaster":
+            return gw.envelope(sample("case_type_master_2026-09-03.json"))
+        if path == "hc-act-master-api/actMaster":
+            return gw.envelope(sample("act_master_2026-09-03.json"))
+        if path == "hc-causelist-bench-api/causelistbench":
+            if params.get("causelist_date") == "2025-01-06":
+                return gw.envelope(BENCHES_2025_01_06)
+            return gw.encrypted_status(628)
+        if path == "hc-causelist-details-api/causelistdetails":
+            return gw.envelope(DETAILS[params["bench_id"]])
+        if path == "hc-show-causelist-api/showcauselist":
+            return gw.envelope_text(json.dumps(pdf_b64))
+        if path == "hc-cnr-api/CNR":
+            data = sample("cnr_pending.json")
+            data["cino"] = params["cino"]
+            return gw.envelope(data)
+        if path == "hc-current-status-api/currentStatus":
+            block = sample("current_status_pending.json")["cases1"]
+            out = {}
+            for i, cino in enumerate(params["cino"].split(","), start=1):
+                out[f"cases{i}"] = {
+                    **block,
+                    "cino": cino,
+                    "date_next_list": "2026-10-20",
+                    "purpose_name": "HEARING",
+                }
+            return gw.envelope(out)
+        return gw.encrypted_status(628)
+
+    return handle
+
+
+@pytest.fixture()
+def napix():
+    gw = Gateway(NapixCrypto(KEY))
+    gw.responses = [router(gw)] * 10_000
+    client = NapixClient(
+        base_url="https://gw.test/nic/ecourts",
+        client_id="key-test",
+        client_secret="secret-test",
+        dept_id="dept-test",
+        crypto=NapixCrypto(KEY),
+        transport=httpx.MockTransport(gw.handle),
+        backoff_base=0.0,
+    )
+    hc = NapixHighCourt(client, "GAHC01", "18")
+    return gw, client, hc
+
+
+@pytest.fixture()
+def clean_db(engine):
+    """Empty every table, then seed. Pipeline tests commit real transactions (the runner opens its own)."""
+    with engine.begin() as conn:
+        wipe(conn)
+    Session = sessionmaker(bind=engine)
+    with Session() as s:
+        seed_all(s)
+        s.commit()
+    return Session

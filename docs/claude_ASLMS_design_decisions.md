@@ -412,3 +412,24 @@ Executed §11 steps 1–7, one commit per step (`DB-1 step N` in the log), after
 - CLI: `aslms load --from --to` (enqueue days), `queue-run`, `queue-status`, `sync-masters`, `refetch-date`,
   `refetch-case`. Current Status batches, order PDFs and the Celery schedules are the next stage.
 
+## Pipeline stages 4–5, schedules, Compose workers; first live week (1 Oct 2026)
+- **Current Status batches** (`status_batch`, ref `<date>:<n>` = the n-th block of 500 non-disposed CNRs in CNR
+  order): a change in next date, last date, status, purpose, disposal date or bench updates the case, writes a
+  `next_dates` row (source `current_status`) and an event (`next_date_changed`, `status_changed`,
+  `case_disposed`), and queues a dossier re-fetch at the re-fetch priority.
+- **Order PDFs** (`order_pdf`, ref `<CNR>|<order_no>|<date>`): queued after every dossier apply for orders without
+  a document (pending cases ahead of disposed ones); Show Order → `documents` (kind order, court record,
+  SourceTrace pending) → `orders.document_id`; a 628 is `not_available` and retried by the weekly sweep.
+- **Schedules** (Celery beat, IST): 06:00 masters; 06:30 and 18:30 yesterday/today/tomorrow's lists; 20:00
+  status batches; Sunday 02:00 the dossier sweep of every pending case and the order-PDF retry. Beat only
+  enqueues; `aslms queue-worker` (the Compose `worker` service) fetches, sleeping until the next clock hour when
+  the quota is below the reserve. `aslms daily-cycle` enqueues the same by hand.
+- **Compose:** `worker` and `scheduler` services; `./data` is mounted at `/data` (store and the website PDFs).
+  `NAPIX_ENABLED` for the worker comes from the shell that runs `docker compose up`, default off.
+- **First live week (2025-01-01 … 01-07):** 4 list days (01-02, 01-03, 01-06, 01-07), 3 days without a list
+  (holiday and weekend), 99 list PDFs stored, 2,078 distinct cases queued; 150 dossiers fetched in the same run
+  (148 applied, 1,155 party rows, 842 order references), 174 + 152 calls. Every Show Cause List response failed
+  the `response_token` check (PDFs are kept; see the notes §4). The 2025-01-01 day is `skipped`: NAPIX has no
+  benches for it.
+- Admin endpoints (`/admin/napix/health`, the re-fetch buttons) wait for the API; the CLI covers them meanwhile.
+

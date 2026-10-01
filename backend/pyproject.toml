@@ -16,6 +16,8 @@ dependencies = [
   "psycopg[binary]>=3.2",
   "uuid6>=2024.7",
   "pymupdf>=1.24",
+  "celery>=5.4",
+  "redis>=5",
 ]
 
 [project.optional-dependencies]

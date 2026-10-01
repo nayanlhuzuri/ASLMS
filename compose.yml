@@ -1,6 +1,6 @@
 # ASLMS v2 — one command brings the stack up: `docker compose up -d` (migrates and seeds, then the services).
-# Services return as the rebuild adds them (api, workers, beat); for now the database, the queue and the
-# migration/seed step. Variables come from .env (copy .env.example).
+# Services: postgres, redis, init (migrate + seed), worker (the NAPIX load-and-refresh queue), scheduler
+# (Celery beat). The API and the portal join as they are built. Variables come from .env (copy .env.example).
 
 services:
   postgres:
@@ -40,6 +40,46 @@ services:
         condition: service_healthy
     command: sh -c "alembic upgrade head && aslms seed"
     restart: "no"
+
+  worker:
+    # the load-and-refresh pipeline: pulls fetch_queue rows, calls NAPIX (only when NAPIX_ENABLED=true in .env)
+    build: ./backend
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL_SYNC: postgresql+psycopg://${POSTGRES_USER:-aslms}:${POSTGRES_PASSWORD:-aslms}@postgres:5432/${POSTGRES_DB:-aslms}
+      REDIS_URL: redis://redis:6379/0
+      STORAGE_DIR: /data/store
+      CAUSELIST_DIR: /data/causelists
+      # the master switch stays off unless the shell that runs `docker compose up` sets it for that run
+      NAPIX_ENABLED: ${NAPIX_ENABLED:-false}
+    volumes:
+      - ./data:/data
+    depends_on:
+      init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
+    command: aslms queue-worker
+    restart: unless-stopped
+
+  scheduler:
+    # Celery beat (06:00 masters, 06:30/18:30 lists, 20:00 status, Sunday 02:00 sweep) enqueues; the worker fetches
+    build: ./backend
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL_SYNC: postgresql+psycopg://${POSTGRES_USER:-aslms}:${POSTGRES_PASSWORD:-aslms}@postgres:5432/${POSTGRES_DB:-aslms}
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
+    command: celery -A aslms.jobs.celery_app worker -B --concurrency 1 -l info
+    restart: unless-stopped
 
 volumes:
   pgdata_v3:

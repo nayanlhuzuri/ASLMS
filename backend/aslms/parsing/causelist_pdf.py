@@ -221,8 +221,10 @@ def _header_columns(line: Line) -> Columns | None:
     for w in line.words:
         xs.setdefault(w.text, w.x0)
     try:
+        # some blocks print `Sr.No.Case Number` as one word: the case column then starts 23 points before `Number`
+        case_x = xs["Case"] if "Case" in xs else xs["Number"] - 23
         return Columns(
-            case=xs["Case"] - 3, parties=xs["Main"] - 2, pet=xs["Petitioner"] - 1, res=xs["Respondent"] - 1
+            case=case_x - 3, parties=xs["Main"] - 2, pet=xs["Petitioner"] - 1, res=xs["Respondent"] - 1
         )
     except KeyError:
         return None

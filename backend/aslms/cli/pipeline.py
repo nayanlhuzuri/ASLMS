@@ -106,3 +106,56 @@ def refetch_case(cnr: str = typer.Argument(..., help="the CNR")) -> None:
     with session_scope() as s:
         queue.enqueue(s, FetchKind.DOSSIER, cnr.strip().upper(), queue.PRIORITY["status"], requeue=True)
     rprint(f"queued dossier {cnr.strip().upper()}")
+
+
+def queue_worker(
+    idle_seconds: int = typer.Option(60, "--idle", help="sleep this long when the queue is empty"),
+    max_items: int | None = typer.Option(None, "--max-items", help="rows per pass (default: unlimited)"),
+) -> None:
+    """Run the queue continuously (the Compose `worker` service): pass after pass, sleeping when the queue
+    is empty and until the next clock hour when the gateway budget is spent."""
+    import time
+    from datetime import datetime
+
+    settings = get_settings()
+    factory = get_sessionmaker()
+    rprint(f"queue worker started (NAPIX {'on' if settings.napix_configured else 'off'})")
+    while True:
+        try:
+            report = run_queue(factory, max_items=max_items, kinds=None, settings=settings)
+        except KeyboardInterrupt:
+            raise
+        except Exception as exc:  # noqa: BLE001 — logged, then the loop continues
+            rprint(f"[red]pass failed: {exc.__class__.__name__}: {str(exc)[:300]}[/red]")
+            time.sleep(idle_seconds)
+            continue
+        rprint(
+            f"{datetime.now():%H:%M:%S} pass: {report.processed} rows (done {report.done}, skipped "
+            f"{report.skipped}, failed {report.failed}), {report.calls} calls; {report.stopped_reason}"
+        )
+        if report.stopped_reason and report.stopped_reason.startswith("rate budget"):
+            now = datetime.now()
+            wait = (60 - now.minute) * 60 - now.second + 5
+            rprint(f"budget spent: sleeping {wait}s until the next hour")
+            time.sleep(wait)
+        elif report.processed == 0:
+            time.sleep(idle_seconds)
+
+
+def daily_cycle(
+    what: str = typer.Argument("all", help="all | masters | lists | status | weekly"),
+) -> None:
+    """Enqueue what the scheduler would (for a manual run or a test)."""
+    from aslms.services import schedules
+
+    with session_scope() as s:
+        out = {}
+        if what in ("all", "masters"):
+            out["masters"] = schedules.enqueue_masters(s)
+        if what in ("all", "lists"):
+            out["lists"] = schedules.enqueue_daily_lists(s)
+        if what in ("all", "status"):
+            out["status_batches"] = schedules.enqueue_daily_status(s)
+        if what == "weekly":
+            out["weekly"] = schedules.enqueue_weekly(s)
+    rprint(out)

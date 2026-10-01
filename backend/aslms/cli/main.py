@@ -13,7 +13,16 @@ from aslms.cli.db import db_check, seed
 from aslms.cli.napix_check import napix_check
 from aslms.cli.napix_fields import napix_fields
 from aslms.cli.napix_probe import napix_probe_rate
-from aslms.cli.pipeline import load, queue_run, queue_status, refetch_case, refetch_date, sync_masters_cmd
+from aslms.cli.pipeline import (
+    daily_cycle,
+    load,
+    queue_run,
+    queue_status,
+    queue_worker,
+    refetch_case,
+    refetch_date,
+    sync_masters_cmd,
+)
 from aslms.core.logging import configure_logging
 
 app = typer.Typer(no_args_is_help=True, help="ASLMS v2 backend commands")
@@ -28,6 +37,8 @@ app.command(name="queue-status")(queue_status)
 app.command(name="sync-masters")(sync_masters_cmd)
 app.command(name="refetch-date")(refetch_date)
 app.command(name="refetch-case")(refetch_case)
+app.command(name="queue-worker")(queue_worker)
+app.command(name="daily-cycle")(daily_cycle)
 
 
 @app.callback()
