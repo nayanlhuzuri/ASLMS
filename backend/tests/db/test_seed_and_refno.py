@@ -12,9 +12,11 @@ from aslms.domain.org import Office
 from aslms.domain.reference import REF_TABLES, OfficeKind, RecordType
 from aslms.services.refno import allocate_ref_no, parse_ref_no
 from aslms.services.seed import ASSAM_DISTRICTS, DESIGNATIONS, GAUHATI_HC_COURTS, seed_all
+from tests.db.conftest import wipe
 
 
 def test_seed_twice_inserts_nothing_the_second_time(session):
+    wipe(session)  # rolled back with the test
     first = seed_all(session)
     assert first.total > 0
     second = seed_all(session)

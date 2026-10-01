@@ -165,3 +165,11 @@ payload.
   not daily; `RateLimiter.window_seconds` stays 60 until measured.
 
 Approval of this addendum (sections A–D) is what migration 0001 is written from, together with `schema.md`.
+
+- **Act master keys (found 1 Oct 2026 while syncing the live master):** `national_act_code` is not unique
+  (375 codes carry two to four different act names) and `actname` repeats under several codes; the natural key
+  of `acts` is the pair `(national_act_code, name)` (4,652 distinct pairs in 4,677 rows, 25 exact repeats).
+  Migration 0002 replaces the two single-column unique constraints with the pair. Names are stored
+  HTML-unescaped (`&#039;` → `'`); the verbatim response keeps the original. `case_acts.act_id` is resolved by
+  name only when the name is unique in the master.
+

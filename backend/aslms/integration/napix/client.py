@@ -80,6 +80,8 @@ class NapixResult:
     error: str | None = None
     error_family: str | None = None
     rate_limit: tuple[int | None, int | None] = (None, None)  # (limit, remaining) from the headers
+    params: dict[str, Any] = field(default_factory=dict)  # the input parameters, for the verbatim store
+    method: str = "GET"
     raw_text: str | None = field(default=None, repr=False)
 
 
@@ -324,7 +326,12 @@ class NapixClient:
             "request_token": self.crypto.token(plain),
             "version": self.version,
         }
-        result = NapixResult(api=api_path, params_sha256=hashlib.sha256(plain.encode()).hexdigest())
+        result = NapixResult(
+            api=api_path,
+            params_sha256=hashlib.sha256(plain.encode()).hexdigest(),
+            params={k: str(v) for k, v in params.items()},
+            method=method,
+        )
         url = f"{self.base_url}/{api_path.lstrip('/')}"
         await self.limiter.wait()
         started = time.perf_counter()

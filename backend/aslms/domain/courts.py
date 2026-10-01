@@ -109,11 +109,15 @@ class District(TimestampMixin, DeactivateMixin, Base):
 
 
 class Act(TimestampMixin, DeactivateMixin, Base):
+    """The NAPIX act master repeats a national act code for several acts (375 codes carry two to four names)
+    and a name under several codes, so the natural key is the pair (migration 0002)."""
+
     __tablename__ = "acts"
     __table_class__ = TableClass.MASTER
+    __table_args__ = (UniqueConstraint("national_act_code", "name"),)
     id: Mapped[uuid.UUID] = uuid_pk()
-    national_act_code: Mapped[str | None] = mapped_column(String(20), unique=True)
-    name: Mapped[str] = mapped_column(String(300), nullable=False, unique=True)
+    national_act_code: Mapped[str | None] = mapped_column(String(20), index=True)
+    name: Mapped[str] = mapped_column(String(300), nullable=False, index=True)
 
 
 class Advocate(TimestampMixin, DeactivateMixin, Base):

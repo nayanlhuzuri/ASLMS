@@ -382,3 +382,33 @@ Executed §11 steps 1–7, one commit per step (`DB-1 step N` in the log), after
   workers and the frontend join as they are built. Tests needing a database use `aslms_test` on the same server
   and skip when it is down.
 
+## Cause-list parser and load pipeline, stage 1–3 (1 Oct 2026)
+- **Both PDF kinds carry the CNR.** The NAPIX Show Cause List PDF and the website lists come from the same
+  generator; the case-number cell of every entry is a hyperlink `…getcasedetails.php?cino=<CNR>`. The parser
+  (`backend/aslms/parsing/causelist_pdf.py`, written new) takes the CNR only from that link, never from text.
+  Entries without a link (pages the court published unlinked) are provisional cases keyed by the printed number
+  and resolved later through Search by Case Number.
+- Layout facts the parser relies on are listed in its module docstring. Three were found only by sweeping all
+  1,323 website PDFs on disk (43,094 pages, 318,572 entries, 99.9 % with a CNR): rows printed on a horizontally
+  scaled grid under an unscaled header (each entry carries its own scale, read from its case number's
+  x-position); a respondent named `THE GAUHATI HIGH COURT AND 9 ORS` (the masthead is recognised only with its
+  sub-title on the next line); consolidated lists without a court block. Lok Adalat, production and
+  consolidated lists parse as `list_type = other` with the printed type kept.
+- `causelist_entries.sr_no` is the entry's position in the list (the stable key); `printed_sr_no` is the serial
+  as printed, absent on connected matters listed under `WITH`.
+- **Masters:** the state and bench masters wrap their rows in one named key (`state`, `benches`); the act master
+  is keyed by `(national_act_code, name)` (migration 0002, see the coverage addendum §E). District rows from
+  NAPIX attach to the seeded district by name or eCourts alias (`Kamrup(M)`, `Sibsagar`, `Karimganj`, `Biswanath
+  Chariali`, `South Salmara`); spellings with no seeded counterpart (`Baska`, `Mongoldoi`, `N C Hills`, the
+  agencies `CBI`, `NIA`, `C/O 99 APO`) become their own rows under Assam, as the court uses them.
+- **Pipeline:** `fetch_queue` rows are claimed with `FOR UPDATE SKIP LOCKED`; kinds and `ref` formats are in
+  `backend/aslms/services/queue.py`. The runner (`services/runner.py`) stops pulling when the gateway's
+  remaining quota is below `NAPIX_RATE_RESERVE`; every attempt is logged in `napix_call_log` and every JSON
+  response kept in `napix_responses`; PDFs go to `documents` through the storage service
+  (`STORAGE_DIR/<sha256[:2]>/<sha256>.pdf`). A cause-list day is NAPIX first and the website PDFs on disk
+  (`CAUSELIST_DIR/<dd-mm-yyyy>/`) when the gateway has no benches for the date. `apply_dossier` writes every
+  §C path; child rows are keyed by their natural keys and never deleted (parties and advocates that leave the
+  dossier are marked not current).
+- CLI: `aslms load --from --to` (enqueue days), `queue-run`, `queue-status`, `sync-masters`, `refetch-date`,
+  `refetch-case`. Current Status batches, order PDFs and the Celery schedules are the next stage.
+

@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     aslms_app_password: SecretStr | None = None  # set by migration 0001 on the aslms_app role
     aslms_readonly_password: SecretStr | None = None
     redis_url: str | None = None
+    storage_dir: str = "data/store"  # document store root (a volume in Compose)
+    causelist_dir: str = "data/causelists"  # GHC website PDFs on disk, <dd-mm-yyyy>/<Type>_<date>.pdf
 
     # --- NAPIX eCourts High Court API (docs/napix_integration_notes.md §1) -------------
     napix_enabled: bool = False  # master switch: no call leaves the server until this is true

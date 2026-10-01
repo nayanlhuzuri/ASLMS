@@ -48,6 +48,18 @@ def _s(v: Any) -> str | None:
     return t or None
 
 
+def rows_of(data: Any) -> list[dict[str, Any]]:
+    """Master responses may wrap their numbered rows in one named key (`{"state": {"state1": …}}`,
+    `{"benches": {"sr_no1": …}}`, verified live); flat numbered dicts and JSON lists pass through."""
+    if isinstance(data, dict) and len(data) == 1:
+        (inner,) = data.values()
+        if isinstance(inner, dict | list):
+            rows = nested_list(inner)
+            if rows:
+                return rows
+    return nested_list(data)
+
+
 def search_rows(data: Any) -> list[dict[str, Any]]:
     """Search APIs answer `{"establishment_name": …, "casenos": {"case1": {…}, …}}` (verified live)."""
     if isinstance(data, dict) and "casenos" in data:
@@ -73,19 +85,19 @@ class NapixHighCourt:
         return (await self._get("overview")).data or {}
 
     async def state_master(self) -> list[dict[str, Any]]:
-        return nested_list((await self._get("state")).data)
+        return rows_of((await self._get("state")).data)
 
     async def district_master(self) -> list[dict[str, Any]]:
-        return nested_list((await self._get("district", {"state_code": self.state_code})).data)
+        return rows_of((await self._get("district", {"state_code": self.state_code})).data)
 
     async def bench_master(self) -> list[dict[str, Any]]:
-        return nested_list((await self._get("bench_master", {"state_code": self.state_code})).data)
+        return rows_of((await self._get("bench_master", {"state_code": self.state_code})).data)
 
     async def case_type_master(self) -> list[dict[str, Any]]:
-        return nested_list((await self._get("case_type", {"est_code": self.est_code})).data)
+        return rows_of((await self._get("case_type", {"est_code": self.est_code})).data)
 
     async def act_master(self) -> list[dict[str, Any]]:
-        return nested_list((await self._get("act")).data)
+        return rows_of((await self._get("act")).data)
 
     # ------------------------------------------------------------------ cause lists
     async def causelist_benches(self, list_date: date) -> list[BenchRef]:

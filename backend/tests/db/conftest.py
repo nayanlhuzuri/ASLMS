@@ -67,3 +67,21 @@ def session(engine: sa.Engine) -> Iterator[Session]:
         sess.close()
         trans.rollback()
         conn.close()
+
+
+def wipe(conn_or_session) -> None:
+    """Empty every application table (not alembic_version). Transactional: inside a rolled-back test
+    transaction nothing persists; the pipeline tests call it on a connection they commit."""
+    rows = (
+        conn_or_session.execute(
+            sa.text(
+                "select tablename from pg_tables where schemaname = 'public' and tablename <> 'alembic_version'"
+            )
+        )
+        .scalars()
+        .all()
+    )
+    conn_or_session.execute(sa.text("SET session_replication_role = replica"))
+    for t in rows:
+        conn_or_session.execute(sa.text(f"DELETE FROM {t}"))
+    conn_or_session.execute(sa.text("SET session_replication_role = DEFAULT"))
