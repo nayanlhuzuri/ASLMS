@@ -1,36 +1,39 @@
 # ASLMS — Legal Case Monitoring Portal
 
-A portal for Assam government departments to track their cases before the Gauhati High Court: daily cause lists, case details and orders from the NAPIX APIs, department ownership, hearing alerts, custody and notes, and an AI Case Assistant through SourceTrace.
+A portal for Assam government departments to track their cases before the Gauhati High Court: daily cause lists, case details and orders from the NAPIX APIs, department ownership, hearing alerts, custody and notes, and an AI Case Assistant through SourceTrace. Owner: SeMT Assam / AMTRON.
 
 ## Read these first
-- `docs/Legal_Case_Monitoring_Portal_Plan.pdf` — the agreed plan. **Source of truth**: if code, this file or the log disagree with the plan, follow the plan and flag the conflict.
-- `docs/claude_ASLMS_design_decisions.md` — decision log, schema notes, what is built, what is next.
-- `docs/Legal_Case_Monitoring_Progress_Report.pdf` — how the existing scraper-based system works (migration source).
-- `docs/napix_integration_notes.md` — how the NAPIX APIs actually behave, verified by live tests (auth, encryption, errors, endpoints). Follow it exactly; it overrides the spec PDF where they differ.
-- NAPIX specs: PDFs in `docs/specs/`; request/response JSON in `High Court Case Status API/`. Check field names against these files; never guess NAPIX fields. Decrypted live samples are in `docs/specs/samples/`.
+- `docs/Legal_Case_Monitoring_Portal_Plan.docx` — the agreed plan. **Source of truth**: if code, this file or the log disagree with the plan, follow the plan and flag the conflict.
+- `docs/claude_ASLMS_design_decisions.md` — decision log, what is built, what is next. Append; never rewrite history.
+- `docs/DB_STANDARD.md` and `docs/schema/schema.md` — the approved database standard and design (UUID v7 keys, `ref_no`, `ref_*` code sets, no deletion of legal records, table classes, roles). Build the database from them; extend `schema.md` before any migration adds a table.
+- `docs/napix_integration_notes.md` — how the NAPIX APIs actually behave, verified by live tests (auth, encryption, errors, endpoints). Follow it exactly; it overrides the spec PDF where they differ. `docs/napix_integration_design.md` is the layer's design.
+- NAPIX specs: gateway stubs in `docs/specs/napix/hc/` (envelope only, no response fields); decrypted live samples in `docs/specs/samples/`; the Postman collection in `docs/postman/`. Check field names against the samples and the e-Committee PDF specifications; never guess NAPIX fields.
+- `docs/Legal_Case_Monitoring_Progress_Report.docx` — how the earlier scraper-based system worked. Background only.
 
 ## Building from scratch
-The whole system, including the database, is being designed and built new from the plan. Nothing existing is the foundation.
-- `archive/legacy/` — first version of the code. Reference only: do not modify it or import from it.
-- The existing scraper-based database (described in the progress report) is a data migration source, not a schema to copy.
+The whole system, including the database, is designed and built new from the plan. Nothing existing is the foundation.
+- **No starting data.** The database begins empty and is filled only through the NAPIX daily cycle, user searches and department discovery. There is no migration from the scraper-based system.
+- **No inherited code.** Earlier builds live outside the workspace, for reading only: `D:\Dev Workspace\ASLMS-legacy\v1-legacy` (first system), `v2-prototype` (September 2026 prototype) and `v3-sept-build` (the 25–29 Sep 2026 build: Phase 1 and 2 backend, portal, infra, DB-1 migration). Read them for lessons; never copy modules from them, import them, or point tooling at them.
+- **Every NAPIX field is kept.** Each API response is stored verbatim as JSON, and every documented or observed field has a typed home in the schema (the coverage table in `docs/schema/schema.md`). A field without a home is a defect.
 
 ## Stack
-Python backend (FastAPI), Celery + Redis, PostgreSQL + PgBouncer, Alembic migrations, Next.js frontend, Docker Compose, Prometheus/Grafana.
+Python 3.11+ backend (FastAPI), Celery + Redis, PostgreSQL 16 + PgBouncer, Alembic migrations, Next.js frontend, Docker Compose, Prometheus/Grafana. `ruff check` clean, `pytest -q` green.
 
 ## Rules that must not be broken
 - **Ownership is recommend-and-claim.** Never assign a case to a department automatically. Score ≥ 0.85 = strong recommendation, 0.50–0.85 = possible match, < 0.50 = unclaimed pool. A case belongs to a department only after it claims it.
-- **All AI goes through SourceTrace**, via the SourceTrace connector interface. No cloud LLM, no Ollama or other local model. SourceTrace endpoints are not known yet: code against the interface and use a fake implementation in tests.
+- **All AI goes through SourceTrace**, via the SourceTrace connector interface. No cloud LLM, no local model. SourceTrace endpoints are not known yet: code against the interface and use a fake implementation in tests.
 - **Never send to SourceTrace:** case notes or internal documents. Only court orders and uploaded court filings are ingested.
 - **Case notes are append-only.** No edits or deletes; corrections are new notes linked with `supersedes`.
-- **NAPIX calls go only through the integration layer** (encryption, tokens, retry, rate limits). No other module calls NAPIX directly.
+- **NAPIX calls go only through `backend/aslms/integration/napix/`** (encryption, tokens, retry, rate limits). No other module calls NAPIX directly. Every call is logged; failures are recorded, never lost.
+- **`NAPIX_ENABLED` is the master switch** (default `false`). Never flip it on in code or tests; the live test is run with it set for that run.
 - **Secrets:** NAPIX credentials and other secrets come from `.env` only. Never commit `.env`, print secrets, or write them to logs.
 - **Visibility is enforced on the server** for every query (State → Department → Directorate tiers, per-document and per-note visibility). Never rely on the frontend to hide data.
 - **Audit:** every significant action (ownership decisions, custody moves, notes, uploads, configuration changes) writes an audit log row.
 - **Uploads:** permitted types only (PDF, Word, images), size limit, virus scan before storage.
+- **Never fabricate identifiers.** No made-up CNRs or codes; a case without a CNR is provisional.
 
 ## Database
-- The schema is designed new from the plan (modules in Section 5, data groups in Section 7). Propose the schema in plan mode and get approval before writing the first migration.
-- Starting conventions (can be revised during schema design): UUID primary keys; CNR as the unique business key for cases; enums as varchar + CHECK; consistent constraint names.
+- Built from `docs/DB_STANDARD.md` v1.2 and `docs/schema/schema.md` (approved 29 Sep 2026); the NAPIX coverage addendum is approved before migration 0001 is written.
 - Fresh Alembic history. After the first migration is applied, schema changes only through new migrations; never edit an applied migration.
 
 ## How to work in this repo
@@ -39,8 +42,8 @@ Python backend (FastAPI), Celery + Redis, PostgreSQL + PgBouncer, Alembic migrat
 - When a decision changes, update `docs/claude_ASLMS_design_decisions.md` in the same change.
 - If something needed is missing (an API field, a SourceTrace endpoint, a business rule), stop and ask rather than inventing it.
 
-## Current focus
-Phase 1 (Core), starting from an empty project:
-1. Test the NAPIX High Court APIs live and compare the responses with the JSON files and the plan's API usage map, especially whether Cause List Details returns complete case entries.
-2. Propose the project structure and the new database schema from the plan, for approval.
-3. Then build Phase 1 in small steps. See "Next" in the decision log.
+## Current focus (after the reset of 1 Oct 2026)
+1. NAPIX integration layer per `docs/napix_integration_design.md`, offline tests, then the live `aslms napix-check`: verify every endpoint, save decrypted samples, build the field inventory (`docs/specs/napix_field_inventory.md`).
+2. Schema addendum: every inventoried NAPIX field mapped to a table and column in `docs/schema/schema.md`; approval.
+3. Backend skeleton and migration 0001 from the approved schema; seed; Docker Compose.
+4. Then the plan's build order: daily cycle, recommend-and-claim, auth, documents, alerts, portal.

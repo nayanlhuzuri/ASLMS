@@ -283,3 +283,32 @@ Executed §11 steps 1–7, one commit per step (`DB-1 step N` in the log), after
   error message under a key we do not hold). 626 rather than 627 means the dept_id is recognised. Conclusion: the HC
   backend holds a different Authentication Key for `itdepartment-as`; raised with e-Committee / Gauhati HC CPC.
   Transaction IDs: e0b5ce896abbb685935bdd85 (B), e0b5ce896abbb6c4936065a5 (C), e0b5ce896abbb6670976b793 (A).
+
+## NAPIX integration layer — design against the live notes (1 Oct 2026)
+- `docs/napix_integration_design.md` fixes the target shape of `backend/aslms/integration/napix/` from
+  `docs/napix_integration_notes.md`: variable names follow the notes (`NAPIX_BASE_URL`, `NAPIX_EST_CODE`; the old
+  `NAPIX_BASE` / `NAPIX_HC_EST_CODE` stay accepted as aliases for one release; `NAPIX_AUTH_KEY_MODE` is dropped,
+  the key is trimmed UTF-8 text cut or zero-padded to 16 bytes); the token URL keeps the manual's `//oauth2/token`;
+  no-input APIs encrypt the empty string; the gateway's `httpCode` body and 631 are a `NapixGatewayError`; 626 /
+  627 are `NapixAuthError` and are no longer retried; the token is cached per process and mirrored in Redis;
+  the limiter reads `X-RateLimit-*`. Only `.env.example` changed with the design; the code follows after approval.
+- Verified on 1 Oct: the Authentication Key now in `.env` decrypts both samples in `docs/specs/samples/` and their
+  `response_token` verifies; the notes' `HMAC("")` vector reproduces. The 29 Sep key problem is resolved.
+
+## Full system reset (1 Oct 2026, product owner)
+- The owner asked for a full system reset with the new database design. Decisions: the September build (Phase 1
+  and 2 backend, Next.js portal, infra, the DB-1 migration `0001_core`, 89 tests) moves to
+  `D:\Dev Workspace\ASLMS-legacy\v3-sept-build` as reference only, like v1 and v2; the workspace keeps the documents;
+  git history is kept (one reset commit); the rebuild starts from `docs/DB_STANDARD.md` v1.2 and
+  `docs/schema/schema.md` as the approved design, with no new schema proposal round; the first module is the NAPIX
+  integration layer per `docs/napix_integration_design.md`, followed by the live `napix-check`.
+- **Every NAPIX field is kept** (owner). The gateway stubs in `docs/specs/napix/hc/` define only the envelope, so
+  field names come from the live samples and the e-Committee PDF specifications. Two layers guarantee coverage:
+  every response is stored verbatim as JSON, and a field inventory built from the samples (`aslms napix-fields`
+  → `docs/specs/napix_field_inventory.md`) is mapped field by field in a coverage table added to `schema.md`
+  before migration 0001; a test fails on any inventoried key path without a home.
+- The DB-1 acceptance gate stays recorded as it ended: steps 1–4 and 6 passed, step 5 reproduced every count but
+  nine recommendations and 71 advocate rows, traced to the baseline's first two dates having been ingested from
+  uncommitted code on 26 Sep; steps 7–10 were not run because the build was reset instead.
+- Still open from before: the LGD district codes, the SourceTrace API shapes, the NAPIX DC specification, the
+  three NAPIX PDF specifications to be added under `docs/specs/pdf/`.
