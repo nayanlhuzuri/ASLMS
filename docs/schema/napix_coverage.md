@@ -46,6 +46,8 @@ payload.
 | `case_lower_courts` | transaction | unchanged (`lower_court_*` → appellate, `trial_lower_court_*` → trial). |
 | `case_links` | transaction | unchanged; `main_matter_cino` → kind main_matter (`main_matter` text kept on `cases.main_matter_text`). |
 | `case_snapshots` | derived | unchanged: the whole dossier / status block, sha256-deduplicated. |
+| `fetch_queue` | derived | **new** (load-and-refresh pipeline, approved 1 Oct): `kind` (`masters` / `causelist_day` / `dossier` / `status_batch` / `order_pdf`), `ref` (date, CNR, order key or batch id), `priority` smallint, `status` (`pending` / `running` / `done` / `failed` / `skipped`), `attempts`, `not_before`, `started_at`, `finished_at`, `last_error`, `job_run_id`; unique (kind, ref). The resumable work list every worker pulls from; `running` rows older than the stale limit are re-queued. Rows are never deleted; `done` rows older than the retention period may be pruned like `napix_call_log`. |
+| `cases` (refresh flags) | transaction | + `dossier_stale boolean default false` (set when a Current Status block differs from the stored dossier; cleared by the next dossier apply). `last_full_refresh_at` and `last_status_refresh_at` already exist and serve as `dossier_fetched_at` / `status_checked_at`. `orders.download_status` already carries `pending` / `stored` / `failed` / `not_available`. |
 
 ## B. Masters and cause lists — path by path
 
@@ -142,6 +144,13 @@ payload.
 | *(every response)* | | `napix_responses.payload` |
 
 ## E. Still open
+
+- **Show Cause List is one PDF per (bench, causelist_id)**, not the court-wide file the website publishes (probe of
+  1 Oct: bench 2048's Lawazima for 2025-01-06 is 2 pages; the website Lawazima PDF for the same day is 6 pages and
+  covers every registrar bench). `causelists` therefore holds one row per bench list from NAPIX and one row per
+  court-wide file from the website; `causelist_entries` dedupe across the two by (list_date, cnr, sr_no) in the
+  reconciliation table, and the gateway serves past dates (2025-01-06 and 2025-06-02 both answered), so NAPIX is
+  the source for the historical load and the website PDFs are the fallback only.
 
 - The four empty blocks are now typed from the specifications (📄 rows above; HC Open API v1.0 §6.1.6, eCourts
   Open API v1.3 §5.2.6). The coverage test treats an inventory path that is empty in every sample as covered when

@@ -145,7 +145,7 @@ class RateLimiter:
     headers: under 10 % remaining the next call waits a share of the window; at 0 it waits a whole window.
     The window length is not published (notes §6); `window_seconds` is the assumption, logged when it bites."""
 
-    def __init__(self, per_minute: int, window_seconds: float = 60.0):
+    def __init__(self, per_minute: int, window_seconds: float = 3600.0):
         self.per_minute = max(1, per_minute)
         self.window_seconds = window_seconds
         self._stamps: deque[float] = deque()
@@ -203,6 +203,7 @@ class NapixClient:
         version: str = "v1.0",
         timeout: float = 40.0,
         rate_limit_per_min: int = 60,
+        rate_window_seconds: float = 3600.0,
         token_ttl_seconds: int = 3300,
         token_cache: TokenCache | None = None,
         on_call: CallHook | None = None,
@@ -216,7 +217,7 @@ class NapixClient:
         self.token_ttl_seconds = token_ttl_seconds
         self.tokens = token_cache or TokenCache()
         self.on_call = on_call
-        self.limiter = RateLimiter(rate_limit_per_min)
+        self.limiter = RateLimiter(rate_limit_per_min, rate_window_seconds)
         self.max_attempts, self.backoff_base = max_attempts, backoff_base
         self._transport = transport
         self._http: httpx.AsyncClient | None = None
@@ -239,6 +240,7 @@ class NapixClient:
             version=s.napix_version,
             timeout=s.napix_timeout_seconds,
             rate_limit_per_min=s.napix_rate_limit_per_min,
+            rate_window_seconds=float(s.napix_rate_window_seconds),
             token_ttl_seconds=s.napix_token_ttl_seconds,
             token_cache=TokenCache(s.redis_url),
         )

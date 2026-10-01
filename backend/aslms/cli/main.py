@@ -11,11 +11,13 @@ from rich import print as rprint
 from aslms import __version__
 from aslms.cli.napix_check import napix_check
 from aslms.cli.napix_fields import napix_fields
+from aslms.cli.napix_probe import napix_probe_rate
 from aslms.core.logging import configure_logging
 
 app = typer.Typer(no_args_is_help=True, help="ASLMS v2 backend commands")
 app.command(name="napix-check")(napix_check)
 app.command(name="napix-fields")(napix_fields)
+app.command(name="napix-probe-rate")(napix_probe_rate)
 
 
 @app.callback()
