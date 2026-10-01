@@ -63,11 +63,16 @@ def _shape(res: NapixResult | None) -> str:
 
 
 async def run(
-    list_date: date, cnr: str | None, samples: Path, only: set[str] | None, max_benches: int
+    list_date: date,
+    cnr: str | None,
+    samples: Path,
+    only: set[str] | None,
+    max_benches: int,
+    tag: str | None = None,
 ) -> int:
     s = get_settings()
     calls: list[NapixResult] = []
-    stamp = list_date.isoformat()
+    stamp = tag or list_date.isoformat()
     table = Table(title=f"napix-check {list_date}", show_lines=False)
     for col in ("step", "api", "result", "ms", "shape / sample"):
         table.add_column(col)
@@ -209,6 +214,7 @@ def napix_check(
     samples: Path = typer.Option(DEFAULT_SAMPLES, help="where decrypted samples are written"),
     only: str = typer.Option(None, help="comma-separated step names to run"),
     max_benches: int = typer.Option(3, help="benches to query Cause List Details for"),
+    tag: str = typer.Option(None, help="sample file suffix instead of the date (e.g. pending-case)"),
 ) -> None:
     """Live NAPIX test: walks the High Court APIs and saves the decrypted responses as samples."""
     from aslms.cli.main import parse_cli_date
@@ -219,5 +225,5 @@ def napix_check(
             "NAPIX_ENABLED is false; set it for this run only: NAPIX_ENABLED=true aslms napix-check"
         )
     d = parse_cli_date(date_) or (date.today() - timedelta(days=1))
-    failures = asyncio.run(run(d, cnr, samples, set(only.split(",")) if only else None, max_benches))
+    failures = asyncio.run(run(d, cnr, samples, set(only.split(",")) if only else None, max_benches, tag))
     raise typer.Exit(code=1 if failures else 0)

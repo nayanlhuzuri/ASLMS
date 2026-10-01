@@ -27,6 +27,12 @@ def _is_numbered_list(d: dict[str, Any]) -> bool:
 
 def walk(obj: Any, path: str, out: dict[str, dict[str, Any]]) -> None:
     """Flattens `{"case1": {...}}` into `[]`-paths so repeating blocks are one entry."""
+    if isinstance(obj, (dict, list)) and not obj:  # an empty block still tells us the key exists
+        entry = out.setdefault(path, {"types": set(), "example": None, "seen": 0, "empty": 0})
+        entry["seen"] += 1
+        entry["empty"] += 1
+        entry["types"].add("empty-list" if isinstance(obj, list) else "empty-dict")
+        return
     if isinstance(obj, dict):
         if _is_numbered_list(obj):
             for row in nested_list(obj):
@@ -49,8 +55,32 @@ def walk(obj: Any, path: str, out: dict[str, dict[str, Any]]) -> None:
         entry["example"] = str(obj)[:60]
 
 
+KNOWN_APIS = (
+    "causelist_details",
+    "causelist_bench",
+    "show_causelist",
+    "current_status",
+    "show_business",
+    "case_type_master",
+    "district_master",
+    "bench_master",
+    "state_master",
+    "act_master",
+    "case_search",
+    "party_name",
+    "overview",
+    "order",
+    "cnr",
+)
+
+
 def api_name(file: Path) -> str:
-    return re.sub(r"(_bench\d+)?_\d{4}-\d{2}-\d{2}$|_response$", "", file.stem)
+    """`cnr_2026-09-03`, `cnr_pending`, `causelist_details_bench2048_2026-09-03` → the API's step name."""
+    stem = file.stem
+    for name in KNOWN_APIS:  # longest names first, so `causelist_details` wins over `cnr`
+        if stem == name or stem.startswith(name + "_"):
+            return name
+    return re.sub(r"(_bench\d+)?_\d{4}-\d{2}-\d{2}$|_response$", "", stem)
 
 
 def build_inventory(samples: Path) -> dict[str, dict[str, dict[str, Any]]]:

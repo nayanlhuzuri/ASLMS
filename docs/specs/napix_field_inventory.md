@@ -59,105 +59,194 @@ repeating block (`case1`, `case2`, … or a JSON list). Every path here must hav
 
 | path | type | example | seen | empty |
 |---|---|---|---|---|
-| `acts[].actname` | str | CONSTITUTION OF INDIA | 1 | 0 |
-| `acts[].section` | str | 226 | 1 | 0 |
-| `bench_id` | int | 2068 | 1 | 0 |
-| `bench_name` | str | Division Bench | 1 | 0 |
-| `bench_type` | int | 2 | 1 | 0 |
-| `case_type_id` | int | 112 | 1 | 0 |
-| `category_details.category` | str | 10237 - Writ Appeals under the Gauhati High Court Rules. ( 2 | 1 | 0 |
-| `cino` | str | GAHC010277142024 | 1 | 0 |
-| `coram` | str | HONOURABLE MR. JUSTICE KALYAN RAI SURANA , HONOURABLE MR. JU | 1 | 0 |
-| `court_est_name` | str | Gauhati High Court | 1 | 0 |
-| `date_filing_disp` | str |  | 1 | 1 |
-| `date_first_list` | str |  | 1 | 1 |
-| `date_judgement_pronounced` | null |  | 1 | 1 |
-| `date_judgement_reserved` | null |  | 1 | 1 |
-| `date_last_list` | str | 2024-12-23 | 1 | 0 |
-| `date_next_list` | str |  | 1 | 1 |
-| `date_of_decision` | str | 2024-12-23 | 1 | 0 |
-| `date_of_filing` | str | 2024-12-20 | 1 | 0 |
-| `desgname` | str | JUDGE | 1 | 0 |
-| `disposal_type` | str | Disposed Of | 1 | 0 |
-| `dist_name` | str | Kamrup(M) | 1 | 0 |
-| `document_details.case_dist_code` | int | 117 | 1 | 0 |
-| `document_details.case_state_code` | int | 18 | 1 | 0 |
-| `dt_regis` | str | 2024-12-20 | 1 | 0 |
-| `est_code` | str | GAHC01 | 1 | 0 |
-| `fil_no` | str | 15748 | 1 | 0 |
-| `fil_year` | str | 2024 | 1 | 0 |
-| `finalorder[].date_judgement_pronounced` | null |  | 1 | 1 |
-| `finalorder[].date_judgement_reserved` | null |  | 1 | 1 |
-| `finalorder[].order_date` | str | 2024-12-23 | 1 | 0 |
-| `finalorder[].order_details` | str | JUDGEMENT | 1 | 0 |
-| `finalorder[].order_judge_name` | str | HONOURABLE MR. JUSTICE KALYAN RAI SURANA,HONOURABLE MR. JUST | 1 | 0 |
-| `finalorder[].order_no` | str | 1 | 1 | 0 |
-| `fir_no` | null |  | 1 | 1 |
-| `fir_year` | null |  | 1 | 1 |
-| `historyofcasehearing[].business_date` | str | 2024-12-23 | 1 | 0 |
-| `historyofcasehearing[].causelist_type` | str |  | 1 | 1 |
-| `historyofcasehearing[].hearing_date` | str |  | 1 | 1 |
-| `historyofcasehearing[].judge_name` | str | HONOURABLE MR. JUSTICE KALYAN RAI SURANA , HONOURABLE MR. JU | 1 | 0 |
-| `historyofcasehearing[].purpose_of_listing` | str | Disposed | 1 | 0 |
-| `judicial_branch` | str | Civil Section | 1 | 0 |
-| `lower_court_caseno` | int | 0 | 1 | 0 |
-| `lower_court_dec_dt` | str |  | 1 | 1 |
-| `lower_court_name` | null |  | 1 | 1 |
-| `main_matter` | str |  | 1 | 1 |
-| `main_matter_cino` | str |  | 1 | 1 |
-| `pend_disp` | str | D | 1 | 0 |
-| `pet_adv` | str | MR. A B T HAQUE | 1 | 0 |
-| `pet_legal_heir` | str | N | 1 | 0 |
-| `pet_name` | str | DR. JANIFA KAIFEE AHMED | 1 | 0 |
-| `police_st_code` | null |  | 1 | 1 |
-| `police_station` | null |  | 1 | 1 |
-| `purpose_name` | str | ADMISSION | 1 | 0 |
-| `reason_for_rej` | str |  | 1 | 1 |
-| `reg_no` | str | 435 | 1 | 0 |
-| `reg_year` | str | 2024 | 1 | 0 |
-| `res_adv` | str | SC, HEALTH | 1 | 0 |
-| `res_extra_party.party_no1` | str | THE NATIONAL BOARD OF EXAMINATIONS IN MEDICAL SCIENCES | 1 | 0 |
-| `res_extra_party.party_no2` | str | THE DIRECTOR OF MEDICAL EDUCATION | 1 | 0 |
-| `res_extra_party.party_no3` | str | THE PRINCIPAL | 1 | 0 |
-| `res_legal_heir` | str | N | 1 | 0 |
-| `res_name` | str | THE STATE OF ASSAM AND 3 ORS | 1 | 0 |
-| `short_order` | null |  | 1 | 1 |
-| `state_name` | str | Assam | 1 | 0 |
-| `trial_lower_court_caseno` | str |  | 1 | 1 |
-| `trial_lower_court_dec_dt` | null |  | 1 | 1 |
-| `trial_lower_court_name` | null |  | 1 | 1 |
-| `type_name_fil` | str | WA | 1 | 0 |
-| `type_name_reg` | str | WA | 1 | 0 |
-| `uniform_code` | null |  | 1 | 1 |
+| `acts[].actname` | str | CONSTITUTION OF INDIA | 3 | 0 |
+| `acts[].section` | str | 226 | 3 | 0 |
+| `bench_id` | int | 2068 | 3 | 0 |
+| `bench_name` | str | Division Bench | 3 | 0 |
+| `bench_type` | int | 2 | 3 | 0 |
+| `case_type_id` | int | 112 | 3 | 0 |
+| `category_details.category` | str | 10237 - Writ Appeals under the Gauhati High Court Rules. ( 2 | 3 | 0 |
+| `cino` | str | GAHC010277142024 | 3 | 0 |
+| `coram` | str | HONOURABLE MR. JUSTICE KALYAN RAI SURANA , HONOURABLE MR. JU | 3 | 0 |
+| `court_est_name` | str | Gauhati High Court | 3 | 0 |
+| `date_filing_disp` | str |  | 3 | 3 |
+| `date_first_list` | str |  | 3 | 3 |
+| `date_judgement_pronounced` | null |  | 3 | 3 |
+| `date_judgement_reserved` | null |  | 3 | 3 |
+| `date_last_list` | str | 2024-12-23 | 3 | 0 |
+| `date_next_list` | str |  | 3 | 3 |
+| `date_of_decision` | null, str | 2024-12-23 | 3 | 1 |
+| `date_of_filing` | str | 2024-12-20 | 3 | 0 |
+| `desgname` | str | JUDGE | 3 | 0 |
+| `disposal_type` | null, str | Disposed Of | 3 | 1 |
+| `dist_name` | str | Kamrup(M) | 3 | 0 |
+| `document_details.case_dist_code` | int | 117 | 3 | 0 |
+| `document_details.case_state_code` | int | 18 | 3 | 0 |
+| `dt_regis` | str | 2024-12-20 | 3 | 0 |
+| `est_code` | str | GAHC01 | 3 | 0 |
+| `fil_no` | str | 15748 | 3 | 0 |
+| `fil_year` | str | 2024 | 3 | 0 |
+| `finalorder` | empty-list |  | 1 | 1 |
+| `finalorder[].date_judgement_pronounced` | null |  | 2 | 2 |
+| `finalorder[].date_judgement_reserved` | null |  | 2 | 2 |
+| `finalorder[].order_date` | str | 2024-12-23 | 2 | 0 |
+| `finalorder[].order_details` | str | JUDGEMENT | 2 | 0 |
+| `finalorder[].order_judge_name` | str | HONOURABLE MR. JUSTICE KALYAN RAI SURANA,HONOURABLE MR. JUST | 2 | 0 |
+| `finalorder[].order_no` | str | 1 | 2 | 0 |
+| `fir_no` | null |  | 3 | 3 |
+| `fir_year` | null |  | 3 | 3 |
+| `historyofcasehearing[].business_date` | str | 2024-12-23 | 5 | 0 |
+| `historyofcasehearing[].causelist_type` | str | Daily | 5 | 2 |
+| `historyofcasehearing[].hearing_date` | str | 2026-08-17 | 5 | 2 |
+| `historyofcasehearing[].judge_name` | str | HONOURABLE MR. JUSTICE KALYAN RAI SURANA , HONOURABLE MR. JU | 5 | 0 |
+| `historyofcasehearing[].purpose_of_listing` | str | Disposed | 5 | 0 |
+| `iafiling` | empty-list |  | 3 | 3 |
+| `interimorder` | empty-list |  | 2 | 2 |
+| `interimorder[].date_judgement_pronounced` | null |  | 3 | 3 |
+| `interimorder[].date_judgement_reserved` | null |  | 3 | 3 |
+| `interimorder[].order_date` | str | 2026-07-13 | 3 | 0 |
+| `interimorder[].order_details` | str | ORDER | 3 | 0 |
+| `interimorder[].order_judge_name` | str | HONOURABLE MR. JUSTICE MANISH CHOUDHURY | 3 | 0 |
+| `interimorder[].order_no` | int | 1 | 3 | 0 |
+| `judicial_branch` | str | Civil Section | 3 | 0 |
+| `lower_court_caseno` | int | 0 | 3 | 0 |
+| `lower_court_dec_dt` | str |  | 3 | 3 |
+| `lower_court_name` | null |  | 3 | 3 |
+| `main_matter` | str |  | 3 | 3 |
+| `main_matter_cino` | str |  | 3 | 3 |
+| `objections` | empty-list |  | 3 | 3 |
+| `pend_disp` | str | D | 3 | 0 |
+| `pet_adv` | str | MR. A B T HAQUE | 3 | 0 |
+| `pet_extra_party` | empty-list |  | 2 | 2 |
+| `pet_extra_party.party_no1` | str | SRI DEPON NABENSA | 1 | 0 |
+| `pet_extra_party.party_no10` | str | SRI JITENDRA GIRISA | 1 | 0 |
+| `pet_extra_party.party_no11` | str | SRI GOLEN HOJAI | 1 | 0 |
+| `pet_extra_party.party_no12` | str | SRI DEKHON NABENSA | 1 | 0 |
+| `pet_extra_party.party_no13` | str | SRI RANJIT LANGTHASA | 1 | 0 |
+| `pet_extra_party.party_no14` | str | SMT KOMILA LANGTHASA | 1 | 0 |
+| `pet_extra_party.party_no15` | str | SRI JUNIL NUNISA | 1 | 0 |
+| `pet_extra_party.party_no16` | str | SRI JONTRI NUNISA | 1 | 0 |
+| `pet_extra_party.party_no17` | str | SRI BAPON PHONGLO | 1 | 0 |
+| `pet_extra_party.party_no18` | str | SRI JOYMOL LANGTHASA | 1 | 0 |
+| `pet_extra_party.party_no19` | str | SRI PORNUT HOJAI | 1 | 0 |
+| `pet_extra_party.party_no2` | str | SRI DINESH HOJAI | 1 | 0 |
+| `pet_extra_party.party_no20` | str | SRI DUTTARAM HOJAI | 1 | 0 |
+| `pet_extra_party.party_no21` | str | SRI SORNO HOJAI | 1 | 0 |
+| `pet_extra_party.party_no22` | str | SRI SOSTO HOJAL | 1 | 0 |
+| `pet_extra_party.party_no23` | str | SRI DESANDAO HOJAI | 1 | 0 |
+| `pet_extra_party.party_no24` | str | SRI SAMUEL RONGPI | 1 | 0 |
+| `pet_extra_party.party_no25` | str | SRI BIKROM RONGPI | 1 | 0 |
+| `pet_extra_party.party_no26` | str | SRI SAMUEL CHINGTHONG | 1 | 0 |
+| `pet_extra_party.party_no27` | str | SRI SINGNOT ENGTI | 1 | 0 |
+| `pet_extra_party.party_no28` | str | SRI LOWELLSON RONGPHAR | 1 | 0 |
+| `pet_extra_party.party_no29` | str | SRI HOMESON KATHAR | 1 | 0 |
+| `pet_extra_party.party_no3` | str | SRI BIDESH HOJAI | 1 | 0 |
+| `pet_extra_party.party_no30` | str | SRI JONISH CHINGTHONG | 1 | 0 |
+| `pet_extra_party.party_no31` | str | SRI STIWINSON TERANG | 1 | 0 |
+| `pet_extra_party.party_no32` | str | SRI SARMEN ENGTI | 1 | 0 |
+| `pet_extra_party.party_no33` | str | SRI LUKAS TIMUNG | 1 | 0 |
+| `pet_extra_party.party_no34` | str | SRI SAMUEL RONGHANG | 1 | 0 |
+| `pet_extra_party.party_no35` | str | SRI STEPHAN TERON | 1 | 0 |
+| `pet_extra_party.party_no36` | str | SRI SING CHINGTHONG | 1 | 0 |
+| `pet_extra_party.party_no37` | str | SRI JOYSON MILLICK | 1 | 0 |
+| `pet_extra_party.party_no38` | str | SRI BIREN ENGTI | 1 | 0 |
+| `pet_extra_party.party_no39` | str | SRI DIMOS TIMUNG | 1 | 0 |
+| `pet_extra_party.party_no4` | str | SRI PROSENJIT JIDUNG | 1 | 0 |
+| `pet_extra_party.party_no40` | str | SRI BIDASING ENGHI | 1 | 0 |
+| `pet_extra_party.party_no41` | str | SRI LONGSING TERON | 1 | 0 |
+| `pet_extra_party.party_no42` | str | SRI SAMSON ENGHI | 1 | 0 |
+| `pet_extra_party.party_no43` | str | SRI WELSON TERANG | 1 | 0 |
+| `pet_extra_party.party_no44` | str | SRI DOMINIK TIMUNG | 1 | 0 |
+| `pet_extra_party.party_no45` | str | SRI KENGSING TERANG | 1 | 0 |
+| `pet_extra_party.party_no46` | str | SRI ROBINDRA RONGPI | 1 | 0 |
+| `pet_extra_party.party_no47` | str | SMT NA RONGPIPI | 1 | 0 |
+| `pet_extra_party.party_no48` | str | SRI BIREN RONGHI | 1 | 0 |
+| `pet_extra_party.party_no49` | str | SRI RAMSING RONGHI | 1 | 0 |
+| `pet_extra_party.party_no5` | str | SRI MONIT HAGJER | 1 | 0 |
+| `pet_extra_party.party_no50` | str | SRI HARSING RONGHI | 1 | 0 |
+| `pet_extra_party.party_no51` | str | SRI ARJUN RONGHI | 1 | 0 |
+| `pet_extra_party.party_no52` | str | SRI SARMEN TERON | 1 | 0 |
+| `pet_extra_party.party_no53` | str | SRI HORSING TERON | 1 | 0 |
+| `pet_extra_party.party_no54` | str | SRI SARBURA TERANG | 1 | 0 |
+| `pet_extra_party.party_no55` | str | SRI SENG TISSO | 1 | 0 |
+| `pet_extra_party.party_no56` | str | SRI SARET RONGHANG | 1 | 0 |
+| `pet_extra_party.party_no57` | str | SRI RAMSING TERANG | 1 | 0 |
+| `pet_extra_party.party_no58` | str | SRI SAR SING RONGHI | 1 | 0 |
+| `pet_extra_party.party_no59` | str | SRI AJIT TIMUNG | 1 | 0 |
+| `pet_extra_party.party_no6` | str | SRI PHONJOY HOJAI | 1 | 0 |
+| `pet_extra_party.party_no60` | str | SRI SARMEN MILLIK | 1 | 0 |
+| `pet_extra_party.party_no61` | str | SRI LONGKI ENGHI | 1 | 0 |
+| `pet_extra_party.party_no62` | str | SRI JOYSING MILLIK | 1 | 0 |
+| `pet_extra_party.party_no63` | str | SRI SARMEN ENGHI | 1 | 0 |
+| `pet_extra_party.party_no64` | str | SRI JITEN RONGHANG | 1 | 0 |
+| `pet_extra_party.party_no65` | str | SRI SARMEN RONGHI | 1 | 0 |
+| `pet_extra_party.party_no66` | str | SRI MOJARI RONGHI | 1 | 0 |
+| `pet_extra_party.party_no7` | str | SRI PUNIT KEMPRAI | 1 | 0 |
+| `pet_extra_party.party_no8` | str | SRI JOTINDRA LANGTHASA | 1 | 0 |
+| `pet_extra_party.party_no9` | str | SRI NIKHONJOY NABENSA | 1 | 0 |
+| `pet_legal_heir` | str | N | 3 | 0 |
+| `pet_name` | str | DR. JANIFA KAIFEE AHMED | 3 | 0 |
+| `police_st_code` | null |  | 3 | 3 |
+| `police_station` | null |  | 3 | 3 |
+| `purpose_name` | str | ADMISSION | 3 | 0 |
+| `reason_for_rej` | str |  | 3 | 3 |
+| `reg_no` | str | 435 | 3 | 0 |
+| `reg_year` | str | 2024 | 3 | 0 |
+| `res_adv` | str | SC, HEALTH | 3 | 0 |
+| `res_extra_party.party_no1` | str | THE NATIONAL BOARD OF EXAMINATIONS IN MEDICAL SCIENCES | 3 | 0 |
+| `res_extra_party.party_no10` | str | THE DIRECTOR (GEOLOGY AND MINING) | 1 | 0 |
+| `res_extra_party.party_no11` | str | M/S MAHABAL CEMENT PRIVATE LIMITED | 1 | 0 |
+| `res_extra_party.party_no12` | str | M/S JK LAKSHMI CEMENT LIMITED | 1 | 0 |
+| `res_extra_party.party_no13` | str | THE SUPERINTENDENT OF POLICE, DIMA HASAO | 1 | 0 |
+| `res_extra_party.party_no2` | str | THE DIRECTOR OF MEDICAL EDUCATION | 3 | 0 |
+| `res_extra_party.party_no3` | str | THE PRINCIPAL | 3 | 0 |
+| `res_extra_party.party_no4` | str | THE SUPERINTENDENT OF POLICE (B), BAJALI. | 2 | 0 |
+| `res_extra_party.party_no5` | str | THE STATE CO- ORDINATOR | 2 | 0 |
+| `res_extra_party.party_no6` | str | THE DIVISIONAL FOREST OFFICER (DFO), HAFLONG FOREST DIVISION | 1 | 0 |
+| `res_extra_party.party_no7` | str | THE REGIONAL OFFICER, MOEFCC, NORTH EASTERN REGIONAL OFFICE | 1 | 0 |
+| `res_extra_party.party_no8` | str | THE ASSAM POLLUTION CONTROL BOARD | 1 | 0 |
+| `res_extra_party.party_no9` | str | THE ASSAM MINERAL DEVELOPMENT CORPORATION LIMITED (AMDC) | 1 | 0 |
+| `res_legal_heir` | str | N | 3 | 0 |
+| `res_name` | str | THE STATE OF ASSAM AND 3 ORS | 3 | 0 |
+| `short_order` | null, str | Order Passed  | 3 | 2 |
+| `state_name` | str | Assam | 3 | 0 |
+| `transfer` | empty-list |  | 3 | 3 |
+| `trial_lower_court_caseno` | str |  | 3 | 3 |
+| `trial_lower_court_dec_dt` | null |  | 3 | 3 |
+| `trial_lower_court_name` | null |  | 3 | 3 |
+| `type_name_fil` | str | WA | 3 | 0 |
+| `type_name_reg` | str | WA | 3 | 0 |
+| `uniform_code` | null |  | 3 | 3 |
+| `writinfo` | empty-list |  | 3 | 3 |
 
 ## current_status
 
 | path | type | example | seen | empty |
 |---|---|---|---|---|
-| `[].bench_id` | str | 2068 | 1 | 0 |
-| `[].bench_name` | str | Division Bench | 1 | 0 |
-| `[].case_type_id` | null |  | 1 | 1 |
-| `[].cino` | str | GAHC010277142024 | 1 | 0 |
-| `[].coram` | str | HONOURABLE MR. JUSTICE KALYAN RAI SURANA , HONOURABLE MR. JU | 1 | 0 |
-| `[].date_first_list` | str |  | 1 | 1 |
-| `[].date_last_list` | str | 2024-12-23 | 1 | 0 |
-| `[].date_next_list` | str |  | 1 | 1 |
-| `[].date_of_decision` | str | 2024-12-23 | 1 | 0 |
-| `[].date_of_filing` | str | 2024-12-20 | 1 | 0 |
-| `[].desgname` | str | JUDGE | 1 | 0 |
-| `[].disp_nature` | str | Contested - Disposed Of | 1 | 0 |
-| `[].dt_regis` | str | 2024-12-20 | 1 | 0 |
-| `[].fil_no` | str | 15748 | 1 | 0 |
-| `[].fil_year` | str | 2024 | 1 | 0 |
-| `[].goshwara_no` | str | 1 | 1 | 0 |
-| `[].judicial_branch` | str | Civil Section | 1 | 0 |
-| `[].pend_disp` | str | D | 1 | 0 |
-| `[].pet_name` | str | DR. JANIFA KAIFEE AHMED | 1 | 0 |
-| `[].purpose_name` | str | ADMISSION | 1 | 0 |
-| `[].reg_no` | str | 435 | 1 | 0 |
-| `[].reg_year` | str | 2024 | 1 | 0 |
-| `[].res_name` | str | THE STATE OF ASSAM AND 3 ORS | 1 | 0 |
-| `[].type_name` | str | WA | 1 | 0 |
+| `[].bench_id` | str | 2068 | 3 | 0 |
+| `[].bench_name` | str | Division Bench | 3 | 0 |
+| `[].case_type_id` | null |  | 3 | 3 |
+| `[].cino` | str | GAHC010277142024 | 3 | 0 |
+| `[].coram` | str | HONOURABLE MR. JUSTICE KALYAN RAI SURANA , HONOURABLE MR. JU | 3 | 0 |
+| `[].date_first_list` | str |  | 3 | 3 |
+| `[].date_last_list` | str | 2024-12-23 | 3 | 0 |
+| `[].date_next_list` | str | 5000-01-01 | 3 | 2 |
+| `[].date_of_decision` | str | 2024-12-23 | 3 | 1 |
+| `[].date_of_filing` | str | 2024-12-20 | 3 | 0 |
+| `[].desgname` | str | JUDGE | 3 | 0 |
+| `[].disp_nature` | null, str | Contested - Disposed Of | 3 | 1 |
+| `[].dt_regis` | str | 2024-12-20 | 3 | 0 |
+| `[].fil_no` | str | 15748 | 3 | 0 |
+| `[].fil_year` | str | 2024 | 3 | 0 |
+| `[].goshwara_no` | str | 1 | 3 | 0 |
+| `[].judicial_branch` | str | Civil Section | 3 | 0 |
+| `[].pend_disp` | str | D | 3 | 0 |
+| `[].pet_name` | str | DR. JANIFA KAIFEE AHMED | 3 | 0 |
+| `[].purpose_name` | str | ADMISSION | 3 | 0 |
+| `[].reg_no` | str | 435 | 3 | 0 |
+| `[].reg_year` | str | 2024 | 3 | 0 |
+| `[].res_name` | str | THE STATE OF ASSAM AND 3 ORS | 3 | 0 |
+| `[].type_name` | str | WA | 3 | 0 |
 
 ## district_master
 
@@ -197,11 +286,11 @@ repeating block (`case1`, `case2`, … or a JSON list). Every path here must hav
 
 | path | type | example | seen | empty |
 |---|---|---|---|---|
-| `business` | str | Disposed of | 1 | 0 |
-| `business_date` | str | 2024-12-23 | 1 | 0 |
-| `case_number` | str | WA/0000435/2024 | 1 | 0 |
-| `desgname` | str | JUDGE | 1 | 0 |
-| `short_order_det` | null |  | 1 | 1 |
+| `business` | str | Disposed of | 3 | 0 |
+| `business_date` | str | 2024-12-23 | 3 | 0 |
+| `case_number` | str | WA/0000435/2024 | 3 | 0 |
+| `desgname` | str | JUDGE | 3 | 0 |
+| `short_order_det` | null, str | 1-Order Passed | 3 | 2 |
 
 ## state_master
 

@@ -1,0 +1,98 @@
+{
+  "date_of_filing": "2026-02-17",
+  "cino": "GAHC010032792026",
+  "dt_regis": "2026-02-21",
+  "type_name_fil": "WP(C)",
+  "type_name_reg": "WP(C)",
+  "case_type_id": 111,
+  "fil_no": "1831",
+  "fil_year": "2026",
+  "reg_no": "1000",
+  "reg_year": "2026",
+  "date_first_list": "",
+  "date_next_list": "",
+  "pend_disp": "D",
+  "date_of_decision": "2026-02-25",
+  "disposal_type": "Disposed Of",
+  "bench_type": 2,
+  "date_judgement_reserved": null,
+  "date_judgement_pronounced": null,
+  "bench_name": "Division Bench",
+  "judicial_branch": "Writ Section",
+  "coram": "HONOURABLE MR. JUSTICE KALYAN RAI SURANA , HONOURABLE MRS. JUSTICE SUSMITA PHUKAN KHAUND",
+  "short_order": null,
+  "desgname": "JUDGE",
+  "bench_id": 2066,
+  "court_est_name": "Gauhati High Court",
+  "est_code": "GAHC01",
+  "state_name": "Assam",
+  "dist_name": "Bajali",
+  "purpose_name": "MOTION",
+  "pet_name": "NACHIRAN BEGUM @ NASIRAN BEGUM",
+  "pet_adv": "MR H R A CHOUDHURY",
+  "pet_legal_heir": "N",
+  "res_name": "THE UNION OF INDIA  AND  ORS",
+  "res_adv": "DY.S.G.I.",
+  "res_legal_heir": "N",
+  "main_matter_cino": "",
+  "main_matter": "",
+  "fir_no": null,
+  "police_station": null,
+  "uniform_code": null,
+  "police_st_code": null,
+  "fir_year": null,
+  "lower_court_name": null,
+  "lower_court_caseno": 0,
+  "lower_court_dec_dt": "",
+  "trial_lower_court_name": null,
+  "trial_lower_court_caseno": "",
+  "trial_lower_court_dec_dt": null,
+  "date_last_list": "2026-02-25",
+  "date_filing_disp": "",
+  "reason_for_rej": "",
+  "acts": {
+    "act1": {
+      "actname": "CONSTITUTION OF INDIA",
+      "section": "226"
+    }
+  },
+  "pet_extra_party": [],
+  "res_extra_party": {
+    "party_no1": "THE STATE OF ASSAM",
+    "party_no2": "THE DISTRICT COMMISSIONER, BAJALI.",
+    "party_no3": "THE ELECTION COMMISSION OF INDIA",
+    "party_no4": "THE SUPERINTENDENT OF POLICE (B), BAJALI.",
+    "party_no5": "THE STATE CO- ORDINATOR"
+  },
+  "historyofcasehearing": {
+    "sr_no1": {
+      "causelist_type": "",
+      "judge_name": "HONOURABLE MR. JUSTICE KALYAN RAI SURANA , HONOURABLE MRS. JUSTICE SUSMITA PHUKAN KHAUND",
+      "business_date": "2026-02-25",
+      "hearing_date": "",
+      "purpose_of_listing": "Disposed"
+    }
+  },
+  "interimorder": [],
+  "finalorder": {
+    "sr_no1": {
+      "order_no": "1",
+      "order_date": "2026-02-25",
+      "order_judge_name": "HONOURABLE MR. JUSTICE KALYAN RAI SURANA,HONOURABLE MRS. JUSTICE SUSMITA PHUKAN KHAUND",
+      "order_details": "ORDER",
+      "date_judgement_reserved": null,
+      "date_judgement_pronounced": null
+    }
+  },
+  "transfer": [],
+  "writinfo": [],
+  "iafiling": [],
+  "objections": [],
+  "document_details": {
+    "case_state_code": 18,
+    "case_dist_code": 123
+  },
+  "category_details": {
+    "category": "10176 - Oders of Foreigners Tribunal/Illegal Migrant(D) Tribunal ( 238 )"
+  }
+}

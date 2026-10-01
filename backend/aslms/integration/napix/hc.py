@@ -48,6 +48,13 @@ def _s(v: Any) -> str | None:
     return t or None
 
 
+def search_rows(data: Any) -> list[dict[str, Any]]:
+    """Search APIs answer `{"establishment_name": …, "casenos": {"case1": {…}, …}}` (verified live)."""
+    if isinstance(data, dict) and "casenos" in data:
+        return nested_list(data["casenos"])
+    return nested_list(data)
+
+
 class NapixHighCourt:
     """`CourtSource` for one High Court establishment (Gauhati HC Principal Seat = GAHC01)."""
 
@@ -158,25 +165,25 @@ class NapixHighCourt:
             "case_search",
             {"est_code": self.est_code, "case_type": case_type, "reg_no": reg_no, "reg_year": reg_year},
         )
-        return nested_list(res.data)
+        return search_rows(res.data)
 
     async def search_party(self, name: str, reg_year: int, pend_disp: str = "P") -> list[dict[str, Any]]:
         res = await self._get(
             "party_name",
             {"est_code": self.est_code, "pend_disp": pend_disp, "litigant_name": name, "reg_year": reg_year},
         )
-        return nested_list(res.data)
+        return search_rows(res.data)
 
     async def search_advocate(self, name: str, reg_year: int, pend_disp: str = "P") -> list[dict[str, Any]]:
         res = await self._get(
             "advocate_name",
             {"est_code": self.est_code, "pend_disp": pend_disp, "advocate_name": name, "reg_year": reg_year},
         )
-        return nested_list(res.data)
+        return search_rows(res.data)
 
     async def search_filing(self, case_type: int, fil_no: int, fil_year: int) -> list[dict[str, Any]]:
         res = await self._get(
             "filing",
             {"est_code": self.est_code, "case_type": case_type, "fil_no": fil_no, "fil_year": fil_year},
         )
-        return nested_list(res.data)
+        return search_rows(res.data)
