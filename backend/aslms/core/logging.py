@@ -18,6 +18,10 @@ def configure_logging() -> None:
             stream.reconfigure(errors="backslashreplace")
     level = getattr(logging, s.log_level.upper(), logging.INFO)
     logging.basicConfig(level=level, format="%(message)s", stream=sys.stdout)
+    # httpx logs every request URL (with the encrypted request_str and dept_id) at INFO: too noisy for the
+    # worker and no use for diagnosis — the NAPIX layer logs each call itself without the query string
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
     renderer = structlog.processors.JSONRenderer() if s.is_prod else structlog.dev.ConsoleRenderer()
     structlog.configure(
         processors=[
