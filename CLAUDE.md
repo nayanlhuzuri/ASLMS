@@ -43,11 +43,11 @@ Python 3.11+ backend (FastAPI), Celery + Redis, PostgreSQL 16 + PgBouncer, Alemb
 - If something needed is missing (an API field, a SourceTrace endpoint, a business rule), stop and ask rather than inventing it.
 
 ## Current focus (after the reset of 1 Oct 2026)
-Done: NAPIX integration layer and live check; approved coverage addendum; migrations 0001–0002, seed, Compose;
-the cause-list PDF parser; the load-and-refresh pipeline (masters, cause-list days with website fallback,
-dossiers, Current Status batches, order PDFs, the `fetch_queue` runner, Celery beat schedules, the Compose
-`worker` and `scheduler` services); the first week of January 2025 loaded live. Next, in order:
-1. The historical load from 2025-01-01 running in development (`aslms load`, the Compose worker); counts and
-   the sample-of-20 check recorded in the decisions log before deployment.
-2. Auth and offices, recommend-and-claim, documents and uploads, alerts and notifications, the API and portal,
-   SourceTrace ingestion (court records only) — the plan's build order.
+Done: NAPIX integration layer and live check; approved coverage addendum; migrations 0001–0003, seed, Compose
+(`postgres`, `redis`, `init`, `api`, `worker`, `scheduler`); the cause-list PDF parser; the load-and-refresh
+pipeline; user types, functions, the type matrix and per-user overrides with the delegation rule; the API
+slice (sign-in, `/me`, user and access administration). The historical load from 2025-01-01 is running in the
+Compose worker. Next, in order:
+1. Offices administration, recommend-and-claim, case endpoints with server-side visibility, documents and
+   uploads, alerts and notifications, the portal, SourceTrace ingestion (court records only).
+2. Before deployment: load counts and the sample-of-20 check in the decisions log; `pg_dump` of the dev database.

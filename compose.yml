@@ -41,6 +41,26 @@ services:
     command: sh -c "alembic upgrade head && aslms seed"
     restart: "no"
 
+  api:
+    # the HTTP API (login, users, access; case endpoints follow). Needs ASLMS_JWT_SECRET in .env.
+    build: ./backend
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL_SYNC: postgresql+psycopg://${POSTGRES_USER:-aslms}:${POSTGRES_PASSWORD:-aslms}@postgres:5432/${POSTGRES_DB:-aslms}
+      REDIS_URL: redis://redis:6379/0
+      STORAGE_DIR: /data/store
+    volumes:
+      - ./data:/data
+    ports:
+      - "${API_HOST_PORT:-8000}:8000"
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    command: uvicorn aslms.api.main:app --host 0.0.0.0 --port 8000
+    restart: unless-stopped
+
   worker:
     # the load-and-refresh pipeline: pulls fetch_queue rows, calls NAPIX (only when NAPIX_ENABLED=true in .env)
     build: ./backend

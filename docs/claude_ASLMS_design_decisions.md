@@ -456,3 +456,15 @@ Executed §11 steps 1–7, one commit per step (`DB-1 step N` in the log), after
   `aslms access …`) acts as the super admin named in `.env`. The API slice (login, me, user and access
   endpoints) follows in the same step.
 
+## API slice: sign-in, users and access (3 Oct 2026)
+- FastAPI application (`backend/aslms/api/`): `POST /auth/login` (argon2 check, audited), `POST /auth/refresh`
+  (rotating refresh tokens stored hashed in `refresh_tokens`), `POST /auth/logout`, `GET /me` (the user and the
+  effective functions), `GET/POST /admin/users`, `GET/PATCH /admin/users/{id}`, `…/enable`, `…/disable`,
+  `PUT …/type`, `POST …/password`, `GET/PUT …/permissions/{function}`, `GET /admin/permissions`,
+  `GET/PUT /admin/access/types/{type}/{function}`, `GET /admin/offices`. Access tokens are 30-minute HS256 JWTs
+  signed with `ASLMS_JWT_SECRET` (32+ characters; the API refuses to start without it).
+- Every endpoint resolves the caller's functions on the server (`require(Permission)`), lists are filtered to
+  the caller's office subtree unless they hold `cases.view_all`, and every write goes through
+  `services/access.py`, so the API cannot bypass the delegation rule. Compose gains the `api` service on port
+  `API_HOST_PORT` (8000). OTP sign-in and notification preferences remain for a later step.
+
