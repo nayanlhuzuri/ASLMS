@@ -1,0 +1,73 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git show*)",
+      "Bash(git add*)",
+      "Bash(git commit*)",
+      "Bash(git switch*)",
+      "Bash(git checkout -b *)",
+      "Bash(git branch*)",
+      "Bash(git merge --squash*)",
+      "Bash(git tag*)",
+      "Bash(docker compose build*)",
+      "Bash(docker compose ps*)",
+      "Bash(docker compose logs*)",
+      "Bash(docker compose up -d postgres*)",
+      "Bash(python backend/tools/docx_text.py*)",
+      "Bash(.venv/Scripts/ruff*)",
+      "Bash(.venv/Scripts/python -m pytest*)",
+      "Bash(.venv/Scripts/alembic*)",
+      "Bash(.venv/Scripts/aslms queue-status*)",
+      "Bash(.venv/Scripts/aslms access matrix*)",
+      "Bash(.venv/Scripts/aslms users list*)",
+      "Bash(backend/.venv/Scripts/ruff*)",
+      "Bash(backend/.venv/Scripts/python -m pytest*)",
+      "Bash(backend/.venv/Scripts/alembic*)",
+      "Bash(backend/.venv/Scripts/aslms queue-status*)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.local)",
+      "Read(./.env.prod)",
+      "Read(./.env.production)"
+    ],
+    "ask": [
+      "Bash(git push*)",
+      "Bash(git reset --hard*)",
+      "Bash(git clean*)",
+      "Bash(docker compose down*)",
+      "Bash(rm -rf*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Read|Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard.py\"",
+            "timeout": 15,
+            "statusMessage": "ASLMS guard"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/ruff.py\"",
+            "timeout": 90,
+            "statusMessage": "ruff"
+          }
+        ]
+      }
+    ]
+  }
+}

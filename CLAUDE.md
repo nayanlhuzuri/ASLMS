@@ -42,6 +42,15 @@ Python 3.11+ backend (FastAPI), Celery + Redis, PostgreSQL 16 + PgBouncer, Alemb
 - When a decision changes, update `docs/claude_ASLMS_design_decisions.md` in the same change.
 - If something needed is missing (an API field, a SourceTrace endpoint, a business rule), stop and ask rather than inventing it.
 
+## How the team works
+The build runs as an agent team defined in this repository (`.claude/agents`, `.claude/skills`,
+`.claude/workflows`, hooks in `.claude/settings.json`), described in `docs/team/README.md`: architect →
+owner approval → developer → tester → reviewer → scribe → integrator, one backlog item
+(`docs/backlog.md`) per cycle on `feature/<slug>`, merged locally after tests and review. Commands:
+`/team-cycle`, `/team-design`, `/team-approve`, `/team-status`, `/team-review`. Definition of done:
+`docs/team/definition-of-done.md`. Hooks block `.env` access, edits to applied migrations, turning the
+NAPIX master switch on in any file, and any write from `ASLMS-legacy`.
+
 ## Current focus (after the reset of 1 Oct 2026)
 Done: NAPIX integration layer and live check; approved coverage addendum; migrations 0001–0003, seed, Compose
 (`postgres`, `redis`, `init`, `api`, `worker`, `scheduler`); the cause-list PDF parser; the load-and-refresh

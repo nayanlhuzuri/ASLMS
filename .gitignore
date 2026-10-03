@@ -42,7 +42,8 @@ npm-debug.log*
 yarn-error.log*
 
 # --- tooling / editors -------------------------------------------------------
-.claude/
+.claude/settings.local.json
+.claude/worktrees/
 .vscode/
 .idea/
 *.log

@@ -468,3 +468,22 @@ Executed §11 steps 1–7, one commit per step (`DB-1 step N` in the log), after
   `services/access.py`, so the API cannot bypass the delegation rule. Compose gains the `api` service on port
   `API_HOST_PORT` (8000). OTP sign-in and notification preferences remain for a later step.
 
+## The agent team (4 Oct 2026, product owner)
+- Development becomes a team process run by specialised agents inside Claude Code, defined and versioned in
+  the repository: `architect`, `developer`, `tester`, `reviewer`, `scribe`, `integrator`
+  (`.claude/agents/*.md`), the slash commands `/team-cycle`, `/team-design`, `/team-approve`, `/team-status`,
+  `/team-review` (`.claude/skills/`), and one orchestrating workflow (`.claude/workflows/team-cycle.js`).
+- Owner's choices: one human gate (the design note of each backlog item is approved with `/team-approve`;
+  build, test, review, docs and merge then run unattended, pausing only when a rule or an API field is
+  missing); the backlog lives in `docs/backlog.md`; each feature is built on `feature/<slug>` and
+  squash-merged locally after tests and review (no git remote yet; `github-and-ci` is a backlog item).
+- Guardrails enforced by hooks rather than prompts (`.claude/settings.json`, `.claude/hooks/guard.py`): no
+  access to `.env` files other than `.env.example`; applied migrations cannot be edited; the NAPIX master
+  switch cannot be turned on in a configuration or code file; nothing is written to, copied or imported from
+  `ASLMS-legacy`; every edited Python file is linted and formatted. `.claude/` is now versioned (only
+  `settings.local.json` and `worktrees/` stay ignored).
+- Artefacts: `docs/team/README.md` (how it works), `docs/team/definition-of-done.md`,
+  `docs/team/design-template.md`, `docs/design/<slug>.md` per feature, `docs/reports/<date>-<slug>.md` per
+  cycle, `backend/tools/docx_text.py` to read the plan. Continuous operation is `/loop 45m /team-cycle` while
+  a session is open; a server-side scheduler needs the remote and CI.
+
