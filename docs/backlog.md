@@ -6,7 +6,7 @@ for new work. Statuses: `todo`, `designing`, `awaiting-approval`, `blocked`, `ap
 
 | # | slug | title | status | design | report |
 |---|---|---|---|---|---|
-| 1 | offices-admin | Offices administration: departments and directorates (create, edit, deactivate, tree), designations, the super admin's first department admins | todo | | |
+| 1 | offices-admin | Offices administration: departments and directorates (create, edit, deactivate, tree), designations, the super admin's first department admins | awaiting-approval | [docs/design/offices-admin.md](design/offices-admin.md) | |
 | 2 | recommend-and-claim | Counsel codes, keywords, name patterns, watchlist; the scoring engine over cause-list entries and dossiers; recommendations (≥ 0.85 strong, 0.50–0.85 possible, < 0.50 unclaimed pool); claim, dismiss, suggest elsewhere, transfer request/decide, allot, release; the case inbox API | todo | | |
 | 3 | cases-api | Case endpoints with server-side visibility (State → Department → Directorate), search by CNR / number / party, the case detail page data (dossier, hearings, orders, parties, advocates, links), NAPIX search-the-court behind `cases.search_court` | todo | | |
 | 4 | documents-uploads | Uploads (PDF, Word, images; size limit; virus scan before storage), per-document visibility, download with visibility checks, order PDFs served from the store, text extraction status | todo | | |
