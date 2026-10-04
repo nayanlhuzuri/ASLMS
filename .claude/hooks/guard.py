@@ -86,7 +86,9 @@ def main() -> None:
         # operands are single-line tokens; a quoted multi-line text (a commit message) is not an operand
         operands = [t for t in tokens if "\n" not in t]
         unquoted = QUOTED_RE.sub('""', cmd)
-        redirects = any(t in {">", ">>", "|", "tee"} for t in tokens) or bool(re.search(r">>?", unquoted))
+        # redirections to /dev/null are not file writes (`2>/dev/null`, `>/dev/null`)
+        unquoted_writes = re.sub(r"\d?>>?\s*/dev/null", "", unquoted)
+        redirects = any(t in {">", ">>", "tee"} for t in tokens) or bool(re.search(r">>?", unquoted_writes))
         writes = bool(WRITES_RE.search(unquoted)) or redirects
         legacy_operands = [t for t in operands if LEGACY in t.lower()]
         if legacy_operands and writes:

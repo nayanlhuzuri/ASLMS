@@ -18,13 +18,13 @@ entry and the backlog row exist).
 ```
 git switch main
 git merge --squash feature/<slug>
-git commit -m "<feature title>
-
-<three to eight lines: what was built, migration number, tests>
-
-Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+git commit -F docs/reports/.commit-msg-<slug>.txt      # write the message to that file first (Write tool)
 git tag feature/<slug>-done
 ```
+The message file holds: the feature title; three to eight lines on what was built, the migration number and
+the tests; a blank line; `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`. Use `git commit -F`
+(a file), never a `$(cat <<EOF …)` substitution in the command: the permission system refuses that form.
+Delete the message file after the commit (it is not part of the repository).
 Then set the backlog row to `done` with the report path, commit that on `main` with the same footer, and
 delete the feature branch only if the merge commit is on `main` (`git branch -d feature/<slug>`).
 
