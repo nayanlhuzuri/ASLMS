@@ -487,3 +487,5 @@ Executed §11 steps 1–7, one commit per step (`DB-1 step N` in the log), after
   cycle, `backend/tools/docx_text.py` to read the plan. Continuous operation is `/loop 45m /team-cycle` while
   a session is open; a server-side scheduler needs the remote and CI.
 
+## Design approvals
+- 2026-10-04 — offices-admin: approved by the owner as written (docs/design/offices-admin.md)
