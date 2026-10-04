@@ -21,7 +21,9 @@ ALGORITHM = "HS256"
 def jwt_secret(settings: Settings | None = None) -> str:
     s = settings or get_settings()
     if s.aslms_jwt_secret is None or len(s.aslms_jwt_secret.get_secret_value()) < 32:
-        raise RuntimeError("ASLMS_JWT_SECRET is not set (at least 32 characters; e.g. `openssl rand -hex 32`)")
+        raise RuntimeError(
+            "ASLMS_JWT_SECRET is not set (at least 32 characters; e.g. `openssl rand -hex 32`)"
+        )
     return s.aslms_jwt_secret.get_secret_value()
 
 

@@ -36,6 +36,7 @@ PERMISSION_LABELS: dict[P, tuple[str, str]] = {
     P.ADMIN_MASTERS_SYNC: ("Sync court masters", "Refresh the NAPIX masters now"),
     P.ADMIN_NAPIX_REFETCH: ("Re-fetch court data", "Re-fetch a cause-list day or a case from NAPIX"),
     P.ADMIN_CONFIG: ("Configuration", "Change system configuration"),
+    P.ADMIN_DESIGNATIONS: ("Designations", "Create and edit the State-wide designation list"),
     P.CASES_VIEW_SCOPE: ("View cases in scope", "Cases of the offices the user belongs to"),
     P.CASES_VIEW_ALL: ("View all cases", "Every case across all departments"),
     P.CASES_SEARCH_COURT: ("Search the court", "Search NAPIX by case number, party or advocate"),

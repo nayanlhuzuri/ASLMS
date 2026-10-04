@@ -67,8 +67,8 @@ def test_seed_builds_the_full_matrix(session):
     wipe(session)
     seed_all(session)
     n = session.scalar(sa.select(sa.func.count()).select_from(RolePermission))
-    assert n == len(DEFAULT_MATRIX) * len(Permission) == 9 * 42
-    assert session.scalar(sa.text("select count(*) from ref_permission")) == 42
+    assert n == len(DEFAULT_MATRIX) * len(Permission) == 9 * 43
+    assert session.scalar(sa.text("select count(*) from ref_permission")) == 43
     assert session.scalar(sa.text("select count(*) from ref_role")) == 10
     m = access.matrix(session)
     assert m["dept_admin"]["users.create"] and not m["dept_officer"]["users.create"]

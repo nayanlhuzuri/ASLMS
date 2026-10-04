@@ -268,3 +268,33 @@ From the repository root, Compose up (`docker compose up -d postgres redis api`)
 None. Points the owner may wish to overrule at approval: decision 4 (a department admin may be granted
 `offices.manage` for its own directorates and units), decision 6 (no re-parenting of offices in this
 item), decision 9 (a dedicated `/admins` endpoint rather than only `POST /admin/users`).
+
+## Deviations
+Written by the developer while building (4 Oct 2026); each is the smallest option where the note was silent
+or where two of its paragraphs did not agree.
+1. **`DuplicateCode(OfficeError)`.** The API table maps `OfficeError` to 400 and "duplicate code" to 409; a
+   subclass makes the 409 explicit (used by offices and designations) instead of matching on the message.
+2. **Designation codes allow underscores** (`^[A-Z0-9][A-Z0-9_-]{1,39}$`): the seeded designations are
+   `CS_SEC`, `LEGAL_OFFICER`, `ADDL_DIR`, … and would otherwise be unrepresentable. Office codes keep the
+   pattern of decision 5 (`^[A-Z0-9][A-Z0-9-]{1,39}$`).
+3. **"Not the actor's own office" applies to the office being changed, not to the parent of a create.** A
+   department admin with `offices.manage` creates `EDU-DSE` under `EDU` (their own office) — the new office is
+   strictly inside their subtree — but cannot edit or deactivate `EDU` itself. Reading the Services paragraph
+   literally would have made decision 4 and the delegation tests impossible.
+4. **Inactive offices on `GET /admin/offices/{code}`** (no `include_inactive` parameter there): 404 unless the
+   caller holds `offices.manage`; `PATCH`, `deactivate` and `reactivate` load through the same rule, which
+   `reactivate` needs.
+5. **Audit payloads.** `office.create`, `office.deactivate`, `office.reactivate` (and the designation
+   equivalents) carry full before/after summaries; `office.update` and `designation.update` carry only the
+   fields that were set (as the Tests paragraph requires). An update that sets nothing writes no row and no
+   event.
+6. **Refusals.** Deactivating the root → 400 `OfficeError`; the caller's own office → 403 `Forbidden`;
+   deactivating an inactive office or reactivating an active one (office or designation) → 400 rather than a
+   silent no-op, so a stale screen learns the state changed.
+7. **Order of checks in `create_office`:** the access check runs first (after parsing `kind`), so an
+   unauthorised caller gets 403 before any validation detail.
+8. **CLI.** `aslms offices list` takes `--root CODE` (default `GOA`) and `--all/--active-only` (default
+   `--all`, inactive rows marked); `create` has no `--valid-from` (API only). Like `aslms users`, the CLI has
+   no tests of its own: it wraps the tested service and was checked by hand (`--help` and a dry run).
+9. **`offices.manage` is not in the default matrix of any type** (as decision 2 says of `admin.designations`);
+   the delegation tests grant it to the department admin with the existing per-user override.

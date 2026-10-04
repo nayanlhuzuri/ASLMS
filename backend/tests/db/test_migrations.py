@@ -95,9 +95,11 @@ def test_standard_objects_exist(engine: sa.Engine):
 
 
 def test_uuid_v7_is_time_ordered(engine: sa.Engine):
+    # v7 orders by millisecond; two calls inside one millisecond share the prefix and differ by random bits,
+    # so the second value is taken after a 2 ms pause.
     with engine.connect() as conn:
         a = conn.execute(sa.text("select uuid_generate_v7()")).scalar()
-        b = conn.execute(sa.text("select uuid_generate_v7()")).scalar()
+        b = conn.execute(sa.text("select pg_sleep(0.002), uuid_generate_v7()")).one()[1]
     assert str(a) < str(b)
     assert str(a)[14] == "7"
 

@@ -1,4 +1,4 @@
-"""`aslms` command line: NAPIX checks and probes, `seed`, `db-check`, and the load pipeline (`load`, `queue-run`, `queue-status`, `sync-masters`, `refetch-date`, `refetch-case`)."""
+"""`aslms` command line: NAPIX checks and probes, `seed`, `db-check`, and the load pipeline (`load`, `queue-run`, `queue-status`, `sync-masters`, `refetch-date`, `refetch-case`), and the `users`, `access` and `offices` administration groups."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from aslms.cli.db import db_check, seed
 from aslms.cli.napix_check import napix_check
 from aslms.cli.napix_fields import napix_fields
 from aslms.cli.napix_probe import napix_probe_rate
+from aslms.cli.offices import offices_app
 from aslms.cli.pipeline import (
     daily_cycle,
     load,
@@ -42,6 +43,7 @@ app.command(name="queue-worker")(queue_worker)
 app.command(name="daily-cycle")(daily_cycle)
 app.add_typer(users_app, name="users")
 app.add_typer(access_app, name="access")
+app.add_typer(offices_app, name="offices")
 
 
 @app.callback()

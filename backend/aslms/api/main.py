@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from aslms import __version__
 from aslms.api.routers import access as access_router
 from aslms.api.routers import auth as auth_router
+from aslms.api.routers import offices as offices_router
 from aslms.api.routers import users as users_router
 from aslms.api.security import jwt_secret
 from aslms.core.config import Settings, get_settings
@@ -32,6 +33,7 @@ def create_app(settings: Settings | None = None, session_factory=None) -> FastAP
     app.include_router(auth_router.router)
     app.include_router(users_router.router)
     app.include_router(access_router.router)
+    app.include_router(offices_router.router)
 
     @app.get("/health", tags=["ops"])
     def health() -> dict[str, str]:

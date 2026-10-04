@@ -1,4 +1,4 @@
-"""`/admin/permissions` (the functions), `/admin/access/types` (the type matrix), `/admin/offices` (for pickers)."""
+"""`/admin/permissions` (the functions) and `/admin/access/types` (the type matrix). Offices live in `routers/offices.py`."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from aslms.api import schemas
 from aslms.api.deps import actor_of, current_user, get_session, require
-from aslms.domain.org import Office, User
+from aslms.domain.org import User
 from aslms.domain.reference import Permission, RefPermission, Role
 from aslms.services import access
 from aslms.services.access import Forbidden
@@ -61,17 +61,3 @@ def set_role_function(
     except Forbidden as exc:
         raise HTTPException(status.HTTP_403_FORBIDDEN, str(exc)) from exc
     return access.matrix(session, role).get(role.value, {})
-
-
-@router.get("/offices", response_model=list[schemas.OfficeOut])
-def list_offices(
-    session: Session = Depends(get_session), user: User = Depends(require(Permission.USERS_VIEW))
-) -> list[schemas.OfficeOut]:
-    if access.is_super_admin(user) or access.has(session, user, Permission.CASES_VIEW_ALL):
-        rows = session.scalars(select(Office).where(Office.is_active.is_(True)).order_by(Office.path)).all()
-    else:
-        rows = sorted(access.office_subtree(session, user.office_id), key=lambda o: o.path)
-    return [
-        schemas.OfficeOut(id=o.id, code=o.code, name=o.name, kind=str(o.kind.value), path=o.path)
-        for o in rows
-    ]

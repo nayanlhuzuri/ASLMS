@@ -489,3 +489,55 @@ Executed §11 steps 1–7, one commit per step (`DB-1 step N` in the log), after
 
 ## Design approvals
 - 2026-10-04 — offices-admin: approved by the owner as written (docs/design/offices-admin.md)
+
+## Offices administration (2026-10-04)
+Built on `feature/offices-admin` from `docs/design/offices-admin.md` (approved 2026-10-04). Tests and review passed.
+
+**What was built**
+- No table or column added; no migration. The new function `admin.designations` (43rd in `ref_permission`)
+  is seeded by `aslms seed`; the default matrix enables it for no type (the super admin holds it by definition).
+- `backend/aslms/services/offices.py`: create, update, deactivate and reactivate offices; placement rules
+  (state root only seeded; department, central and advocate_general under state; directorate under department;
+  unit under department, directorate, central or advocate_general); immutable upper-case codes; path as the
+  chain of codes from the root; deactivation refused (409 with counts) while active children, users,
+  ownership or custody depend on the office; the office tree with active-user counts; first department admins;
+  designation create, update, deactivate and reactivate.
+- API router `backend/aslms/api/routers/offices.py` (prefix `/admin`): `GET /offices`, `/offices/tree`,
+  `/offices/{code}`; `POST /offices`; `PATCH /offices/{code}`; `POST /offices/{code}/deactivate` and
+  `/reactivate`; `GET` and `POST /offices/{code}/admins`; `GET`, `POST` `/designations`;
+  `PATCH /designations/{code}`; `POST /designations/{code}/deactivate` and `/reactivate`. `GET /admin/offices`
+  moved from `routers/access.py` unchanged in path.
+- CLI `aslms offices create | list | deactivate`, acting as the `.env` super admin.
+- Tests: `tests/unit/test_offices_rules.py`, `tests/db/test_offices.py`, `tests/db/test_api_offices.py`
+  (including 401, officer 403, admin scope and no audit row on failures).
+
+**Decisions (reasons in the design note)**
+- Codes and kinds are immutable because codes are embedded in `ref_no`, `ref_sequences` and audit snapshots, and
+  kind fixes the visibility tier. No re-parenting (it would rewrite the paths of a subtree and silently change
+  who sees which case); a reorganisation is deactivate-and-create plus ownership transfers.
+- Office writes need `offices.manage`; the super admin acts anywhere, a delegated holder only inside their own
+  subtree and only on `directorate` and `unit`. Departments, central offices and the Advocate General's office
+  are created by the super admin only.
+- Designations have their own function so a department cannot edit the State-wide list.
+- The first department admin is the same user row `POST /admin/users` would create (no second mechanism); only
+  the super admin can create it because `dept_admin` is not delegable.
+- Every write writes an audit row (`office.*`, `designation.*`, `office.admin_added`); office writes also emit
+  one `config_changed` event.
+
+**Deviations from the design note** (recorded in the note's Deviations section)
+- `DuplicateCode(OfficeError)` subclass makes the 409 explicit.
+- Designation codes allow underscores (`CS_SEC`, `LEGAL_OFFICER` are seeded); office codes do not.
+- "Not the actor's own office" applies to the office being changed, not to the parent of a create, so a
+  department admin can create `EDU-DSE` under `EDU` but cannot edit or deactivate `EDU`.
+- Inactive offices on `GET /admin/offices/{code}` give 404 unless the caller holds `offices.manage`.
+- `*.update` audit rows carry only the fields set; an empty update writes no row and no event.
+- Deactivating an inactive office or reactivating an active one is a 400, not a silent no-op; deactivating the
+  root is 400, the caller's own office 403.
+- The CLI has no tests of its own (wraps the tested service); `aslms offices list` has `--root` and
+  `--all/--active-only`; `create` has no `--valid-from`.
+- `offices.manage` is in no type's default matrix; tests grant it with a per-user override.
+
+**Left for later**
+- Counsel codes, keywords, name patterns, watchlist (`recommend-and-claim`); OTP and self-set passwords
+  (`otp-and-profile`); the portal screens (`portal-shell`); true office moves (an audited two-step feature, only
+  if the Secretariat needs it); `short_name` / `sort_order` on offices if a screen needs them.

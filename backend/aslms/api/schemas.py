@@ -1,13 +1,14 @@
-"""Request and response shapes of the auth, user and access endpoints."""
+"""Request and response shapes of the auth, user, access, office and designation endpoints."""
 
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
+from typing import Any
 
 from pydantic import BaseModel, EmailStr, Field
 
-from aslms.domain.reference import Permission, Role
+from aslms.domain.reference import OfficeKind, Permission, Role
 
 
 class LoginIn(BaseModel):
@@ -26,6 +27,18 @@ class OfficeOut(BaseModel):
     name: str
     kind: str
     path: str
+    is_active: bool = True
+
+    @classmethod
+    def from_office(cls, office: Any) -> OfficeOut:
+        return cls(
+            id=office.id,
+            code=office.code,
+            name=office.name,
+            kind=str(office.kind.value),
+            path=office.path,
+            is_active=office.is_active,
+        )
 
 
 class UserOut(BaseModel):
@@ -115,3 +128,80 @@ class PermissionOut(BaseModel):
 
 class MatrixEntryIn(BaseModel):
     enabled: bool
+
+
+# ------------------------------------------------------------------------------------------------ offices
+
+
+class OfficeCountsOut(BaseModel):
+    children: int
+    users: int
+    ownership: int
+    custody: int
+
+
+class OfficeNodeOut(OfficeOut):
+    tier: str
+    depth: int
+    users_active: int
+    children: list[OfficeNodeOut] = Field(default_factory=list)
+
+
+class OfficeDetailOut(OfficeOut):
+    tier: str
+    depth: int
+    parent_code: str | None
+    notes: str | None
+    deactivated_at: datetime | None
+    valid_from: date
+    valid_to: date | None
+    created_at: datetime
+    updated_at: datetime
+    counts: OfficeCountsOut
+
+
+class OfficeCreateIn(BaseModel):
+    code: str = Field(
+        min_length=2,
+        max_length=40,
+        description="the Secretariat's code, upper-cased, immutable; `<PARENT>-<CHILD>` is the convention",
+    )
+    name: str = Field(min_length=1, max_length=200)
+    kind: OfficeKind
+    parent_code: str = Field(min_length=1, max_length=40)
+    notes: str | None = Field(None, max_length=4000)
+    valid_from: date | None = None
+
+
+class OfficePatchIn(BaseModel):
+    name: str | None = Field(None, min_length=1, max_length=200)
+    notes: str | None = Field(None, max_length=4000)
+    valid_from: date | None = None
+
+
+class DepartmentAdminIn(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=10, max_length=200)
+    full_name: str = Field(min_length=2, max_length=200)
+    designation: str | None = Field(None, max_length=200)
+    designation_id: uuid.UUID | None = None
+    mobile: str | None = Field(None, max_length=20)
+
+
+class DesignationOut(BaseModel):
+    id: uuid.UUID
+    code: str
+    name: str
+    sort_order: int
+    is_active: bool
+
+
+class DesignationCreateIn(BaseModel):
+    code: str = Field(min_length=2, max_length=40)
+    name: str = Field(min_length=1, max_length=200)
+    sort_order: int | None = Field(None, ge=0, le=100000)
+
+
+class DesignationPatchIn(BaseModel):
+    name: str | None = Field(None, min_length=1, max_length=200)
+    sort_order: int | None = Field(None, ge=0, le=100000)

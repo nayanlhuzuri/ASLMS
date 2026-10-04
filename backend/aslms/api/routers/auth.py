@@ -28,9 +28,7 @@ def user_out(session: Session, user: User) -> schemas.UserOut:
         email=user.email,
         full_name=user.full_name,
         role=user.role,
-        office=schemas.OfficeOut(
-            id=office.id, code=office.code, name=office.name, kind=str(office.kind.value), path=office.path
-        ),
+        office=schemas.OfficeOut.from_office(office),
         designation=user.designation,
         mobile=user.mobile,
         is_active=user.is_active,

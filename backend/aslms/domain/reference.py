@@ -163,6 +163,7 @@ class Permission(enum.StrEnum):
     ADMIN_MASTERS_SYNC = "admin.masters_sync"
     ADMIN_NAPIX_REFETCH = "admin.napix_refetch"
     ADMIN_CONFIG = "admin.config"
+    ADMIN_DESIGNATIONS = "admin.designations"
     # cases and ownership
     CASES_VIEW_SCOPE = "cases.view_scope"
     CASES_VIEW_ALL = "cases.view_all"
