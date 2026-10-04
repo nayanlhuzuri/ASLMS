@@ -541,3 +541,4 @@ Built on `feature/offices-admin` from `docs/design/offices-admin.md` (approved 2
 - Counsel codes, keywords, name patterns, watchlist (`recommend-and-claim`); OTP and self-set passwords
   (`otp-and-profile`); the portal screens (`portal-shell`); true office moves (an audited two-step feature, only
   if the Secretariat needs it); `short_name` / `sort_order` on offices if a screen needs them.
+- 2026-10-04 — recommend-and-claim: approved by the owner after review (editable scoring settings, claimed cases never return to the pool, take over within the department; docs/design/recommend-and-claim.md)

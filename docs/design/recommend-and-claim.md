@@ -2,10 +2,10 @@
 
 ```
 slug: recommend-and-claim
-status: awaiting-approval
+status: approved
 author: architect
 date: 2026-10-04 (revised 2026-10-04 after the owner's review)
-approved_by: (pending)
+approved_by: product owner (nayan.semt@gmail.com) on 2026-10-04
 ```
 
 ## Context
