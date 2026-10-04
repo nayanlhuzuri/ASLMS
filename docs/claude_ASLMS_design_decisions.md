@@ -542,3 +542,82 @@ Built on `feature/offices-admin` from `docs/design/offices-admin.md` (approved 2
   (`otp-and-profile`); the portal screens (`portal-shell`); true office moves (an audited two-step feature, only
   if the Secretariat needs it); `short_name` / `sort_order` on offices if a screen needs them.
 - 2026-10-04 — recommend-and-claim: approved by the owner after review (editable scoring settings, claimed cases never return to the pool, take over within the department; docs/design/recommend-and-claim.md)
+
+## Recommend and claim (2026-10-04)
+Built on `feature/recommend-and-claim` from `docs/design/recommend-and-claim.md` (approved by the owner on
+2026-10-04 after review). Backlog row 2.
+
+**What was built**
+- Migration **0004_ownership_rules**: `scoring_settings` (versioned master: the five kind weights and the two
+  band thresholds, one `is_current` row, never updated in place or deleted); rule `weight` columns nullable
+  (NULL = the kind's setting); `case_ownership.allotted_at`, `allotted_by_user_id`, `release_reason`;
+  `ownership_transfers.decision_note`, `stay_as_watcher`; the partial unique indexes (one active primary per
+  case, one active row per (case, office), one active recommendation per (case, office), one open transfer per
+  case, one current settings row) and the CHECKs (`weights`, `thresholds`, `current`, `release_watcher`,
+  `score_range`, the rule weights). `schema.md` Group 5 rewritten as built.
+- `services/scoring_settings.py` (defaults, `current`, `update` with `expected_version`, `history`,
+  `seed_default` — version 1 "Plan §4.2 defaults" by `aslms seed`); `services/matching.py` (the engine: noisy-OR
+  over the strongest hit per signal kind, `counsel_code` / `keyword` / `name_pattern` / `linked_case` /
+  `watchlist`, department roll-up with `suggested_unit`, inline scoring from `apply_entries` and `apply_dossier`
+  in a savepoint with failures to `source_failures`, `rescore_all` in batches with a `job_runs` row,
+  `rescore_if_dirty`, `unmapped_codes`); `services/matching_rules.py` (counsel codes, keywords, name patterns,
+  watchlist: create / update / deactivate / reactivate in the caller's subtree, weights only with
+  `admin.scoring`, audit + `config_changed`); `services/ownership.py` (claim, dismiss, suggest, allot, take
+  over, stop watching, transfer request / accept / decline / withdraw, each under the case row lock with audit,
+  event and custody); `services/custody.py::move_custody` (minimal: `claimed`, `allotted`, `taken_over`,
+  `transferred`); `services/visibility.py` (`department_of`, `claimed_conditions`, `owned_case_filter`);
+  `services/inbox.py` (Recommended, Claimed Active / Disposed, the pool, Transfers, counts);
+  `services/cases.py::resolve_case_ref` (id, `ref_no` in slash or dash form, CNR).
+- API: `api/routers/matching.py` (`/admin/scoring-settings` GET / PUT / history, `/admin/counsel-codes` with
+  `/unmapped`, `/admin/keywords`, `/admin/name-patterns`, `/admin/watchlist`, `/admin/matching/cases/{ref}/scores`);
+  `api/routers/inbox.py` (`/inbox/recommended`, `/claimed`, `/pool`, `/transfers`, `/counts`);
+  `api/routers/ownership.py` (`GET /cases/{ref}/ownership`, `POST /cases/{ref}/claim | dismiss | suggest | allot
+  | take-over | stop-watching | transfers`, `POST /transfers/{trf}/accept | decline | withdraw`). No release
+  endpoint for a primary owner.
+- Functions `admin.scoring` (no type by default) and `cases.take_over` (dept head, dept admin, dept officer,
+  directorate user); `cases.release` relabelled "Stop watching"; event type `case_taken_over` (tracking card);
+  `seed_ref_tables` now refreshes permission labels and descriptions.
+- Jobs: Celery task `aslms.rescore_if_dirty`, beat `rescore-dirty` every 15 minutes (the `scheduler` service);
+  a settings save dispatches it at once. CLI `aslms rescore [--all | --case REF]`, `aslms codes unmapped`.
+- Tests: `tests/unit/test_matching_rules.py`; `tests/db/test_scoring_settings.py`, `test_matching.py`,
+  `test_matching_rules_admin.py`, `test_ownership.py`, `test_api_inbox.py` (`tests/db/world.py` holds the shared
+  office and user world). `pytest -q`: 215 passed.
+
+**Decisions (reasons in the design note)**
+- Scores and recommendations are per Department-tier office; a rule on a directorate or unit counts for its
+  department and the most specific office is kept as `suggested_unit`. Generic State codes score nothing.
+- Score = 1 − Π(1 − w_kind) over the strongest hit per kind, rounded to 3 decimals; bands `high` ≥
+  `threshold_strong`, `medium` ≥ `threshold_possible`. Defaults 0.950 / 0.800 / 0.750 / 0.700 / 0.400 and 0.850 /
+  0.500 — **defaults the super admin edits** (`scoring_settings`, function `admin.scoring`); every score row names
+  the settings version in `engine_version` (`1.<version>`).
+- The engine never re-opens a department's dismissal or claim; a human suggestion may. Engine rows carry the
+  `matching` system actor and write no audit rows (events and scores are their record).
+- **No return to the pool** (owner review 2026-10-04): once a department has claimed a case it stays with the
+  last primary owner — also after disposal — and leaves only by an accepted transfer. The pool is "cases that
+  have never had a primary owner". A watcher may stop watching (`cases.release`, relabelled). This
+  **supersedes** the 26 Sep sentence "release → the next primary owner" in "Custody is derived"; the custody
+  reasons `released` and `returned_to_pool` do not exist.
+- **Take over within the same department** (`cases.take_over`): a colleague takes a case allotted to an
+  officer, no approval; the unit follows the taker; custody moves with the taker's user when the row is primary;
+  event `case_taken_over` names both users for `alerts-notifications`.
+- Claimed cases split Active (`pending` / `unknown`) and Disposed by the NAPIX-maintained `cases.status`; no
+  second flag.
+- Custody follows primary ownership only (minimal, so alerts can find a holder; `custody-workflow` adds
+  requests and hand-overs on the same function).
+- Rule edits take effect at the next rescore (within 15 minutes); the API says so (`applies_within_minutes`).
+
+**Deviations from the plan, flagged for the owner**
+- Plan §4.2 / CLAUDE.md state the thresholds as fixed numbers; they are now defaults the super admin can change
+  (the owner edited CLAUDE.md on 2026-10-04 to say so).
+- Department discovery through NAPIX Search by Party Name stays deferred (backlog row 19); it never creates a
+  department.
+- The developer's smaller deviations (default `?office=` for State-wide readers, the `state_party` filter in
+  SQL, response fields beyond the design's table, the dispatch reported honestly) are in the design note's
+  Deviations section.
+
+**Left for later**
+- The case detail and full visibility rule (`cases-api`), alerts on `recommendation_made` / `case_taken_over`
+  and the other ownership events (`alerts-notifications`), requests and hand-overs (`custody-workflow`), the
+  portal screens including the scoring-settings screen (`portal-cases`), department discovery (row 19).
+- Verification against the loaded January 2025 days (design "Verification" steps 4–13) is run by the
+  integrator with Compose up; the unmapped-codes top five goes into the cycle report.

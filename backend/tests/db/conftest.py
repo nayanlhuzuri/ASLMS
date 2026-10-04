@@ -203,3 +203,15 @@ def clean_db(engine):
         seed_all(s)
         s.commit()
     return Session
+
+
+@pytest.fixture()
+def world(engine):
+    """The committed recommend-and-claim world (tests/db/world.py), wiped again after the test so later
+    modules start from an empty database."""
+    from tests.db.world import build_world
+
+    w = build_world(engine)
+    yield w
+    with engine.begin() as conn:
+        wipe(conn)

@@ -1,0 +1,150 @@
+"""`/inbox/*`: the department case inbox (design `recommend-and-claim`, decisions 15 and 23) — Recommended,
+Claimed (Active / Disposed), the Unclaimed pool, Transfers and the dashboard counts. Summary data only; every
+list is filtered on the server by the caller's department and functions (`services/inbox.py`); `?office=`
+other than the caller's department needs `cases.view_all`."""
+
+from __future__ import annotations
+
+import uuid
+from datetime import date
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.orm import Session
+
+from aslms.api import schemas
+from aslms.api.deps import current_user, get_session
+from aslms.domain.org import User
+from aslms.services import inbox
+from aslms.services.access import Forbidden
+from aslms.services.inbox import InboxError
+
+router = APIRouter(prefix="/inbox", tags=["inbox"])
+
+
+def _http(exc: Exception) -> HTTPException:
+    if isinstance(exc, Forbidden):
+        return HTTPException(status.HTTP_403_FORBIDDEN, str(exc))
+    if isinstance(exc, InboxError | ValueError):
+        return HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
+    raise exc
+
+
+@router.get("/recommended", response_model=schemas.RecommendationListOut)
+def recommended(
+    office: str | None = None,
+    band: str | None = None,
+    q: str | None = None,
+    limit: int = inbox.DEFAULT_LIMIT,
+    offset: int = 0,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> schemas.RecommendationListOut:
+    """The department's active recommendations, strongest first, each with the signals behind its score."""
+    try:
+        page = inbox.recommended(session, user, office=office, band=band, q=q, limit=limit, offset=offset)
+    except (Forbidden, ValueError) as exc:
+        raise _http(exc) from exc
+    return schemas.RecommendationListOut(items=page.items, total=page.total)
+
+
+@router.get("/claimed", response_model=schemas.OwnershipListOut)
+def claimed(
+    office: str | None = None,
+    case_state: str = "active",
+    role: str | None = None,
+    unit: str | None = None,
+    officer_user_id: uuid.UUID | None = None,
+    q: str | None = None,
+    limit: int = inbox.DEFAULT_LIMIT,
+    offset: int = 0,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> schemas.OwnershipListOut:
+    """The department's active ownership rows the caller may see: the whole department for holders of
+    `cases.claim` or `cases.allot`, otherwise the cases allotted to the caller or to a unit in their subtree.
+    `case_state` splits Active (`pending` / `unknown`) from Disposed."""
+    try:
+        page = inbox.claimed(
+            session,
+            user,
+            office=office,
+            case_state=case_state,
+            role=role,
+            unit=unit,
+            officer_user_id=officer_user_id,
+            q=q,
+            limit=limit,
+            offset=offset,
+        )
+    except (Forbidden, ValueError) as exc:
+        raise _http(exc) from exc
+    return schemas.OwnershipListOut(items=page.items, total=page.total)
+
+
+@router.get("/pool", response_model=schemas.PoolListOut)
+def pool(
+    q: str | None = None,
+    listed_from: date | None = None,
+    listed_to: date | None = None,
+    status_: str | None = Query(None, alias="status"),
+    case_type: str | None = None,
+    year: int | None = None,
+    min_score: float | None = None,
+    state_party: bool | None = None,
+    limit: int = inbox.DEFAULT_LIMIT,
+    offset: int = 0,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> schemas.PoolListOut:
+    """The unclaimed pool: non-merged cases that have never had a primary owner, next hearing first."""
+    try:
+        page = inbox.pool(
+            session,
+            user,
+            q=q,
+            listed_from=listed_from,
+            listed_to=listed_to,
+            status=status_,
+            case_type=case_type,
+            year=year,
+            min_score=min_score,
+            state_party=state_party,
+            limit=limit,
+            offset=offset,
+        )
+    except (Forbidden, ValueError) as exc:
+        raise _http(exc) from exc
+    return schemas.PoolListOut(items=page.items, total=page.total)
+
+
+@router.get("/transfers", response_model=schemas.TransferListOut)
+def transfers(
+    office: str | None = None,
+    direction: str | None = None,
+    status_: str | None = Query(None, alias="status"),
+    limit: int = inbox.DEFAULT_LIMIT,
+    offset: int = 0,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> schemas.TransferListOut:
+    """Transfers in (`to` the department) or out (`from` it), newest first."""
+    try:
+        page = inbox.transfers(
+            session, user, office=office, direction=direction, status=status_, limit=limit, offset=offset
+        )
+    except (Forbidden, ValueError) as exc:
+        raise _http(exc) from exc
+    return schemas.TransferListOut(items=page.items, total=page.total)
+
+
+@router.get("/counts", response_model=schemas.InboxCountsOut)
+def counts(
+    office: str | None = None,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> schemas.InboxCountsOut:
+    """The dashboard counters; a count is null when the caller lacks that tab's function."""
+    try:
+        return schemas.InboxCountsOut(**inbox.counts(session, user, office=office))
+    except (Forbidden, ValueError) as exc:
+        raise _http(exc) from exc

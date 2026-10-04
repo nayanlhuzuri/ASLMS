@@ -52,12 +52,12 @@ owner approval → developer → tester → reviewer → scribe → integrator, 
 NAPIX master switch on in any file, and any write from `ASLMS-legacy`.
 
 ## Current focus (after the reset of 1 Oct 2026)
-Done: NAPIX integration layer and live check; approved coverage addendum; migrations 0001–0003, seed, Compose
+Done: NAPIX integration layer and live check; approved coverage addendum; migrations 0001–0004, seed, Compose
 (`postgres`, `redis`, `init`, `api`, `worker`, `scheduler`); the cause-list PDF parser; the load-and-refresh
 pipeline; user types, functions, the type matrix and per-user overrides with the delegation rule; the API
 slice (sign-in, `/me`, user and access administration); offices administration (offices, tree, designations,
-first department admins, `aslms offices`; no migration, 43 functions). The historical load from 2025-01-01 is running in the
+first department admins, `aslms offices`; no migration, 43 functions); recommend-and-claim (scoring settings, matching engine, recommendations, claim / dismiss / suggest / allot / take over / transfer, the case inbox API, `aslms rescore`; migration 0004, in review). The historical load from 2025-01-01 is running in the
 Compose worker. Next, in order:
-1. Recommend-and-claim, case endpoints with server-side visibility, documents and
+1. Case endpoints with server-side visibility, documents and
    uploads, alerts and notifications, the portal, SourceTrace ingestion (court records only).
 2. Before deployment: load counts and the sample-of-20 check in the decisions log; `pg_dump` of the dev database.

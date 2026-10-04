@@ -140,6 +140,7 @@ class EventType(enum.StrEnum):
     USER_CREATED = "user_created"
     USER_UPDATED = "user_updated"
     ACCESS_CHANGED = "access_changed"
+    CASE_TAKEN_OVER = "case_taken_over"
 
 
 class Permission(enum.StrEnum):
@@ -164,6 +165,7 @@ class Permission(enum.StrEnum):
     ADMIN_NAPIX_REFETCH = "admin.napix_refetch"
     ADMIN_CONFIG = "admin.config"
     ADMIN_DESIGNATIONS = "admin.designations"
+    ADMIN_SCORING = "admin.scoring"
     # cases and ownership
     CASES_VIEW_SCOPE = "cases.view_scope"
     CASES_VIEW_ALL = "cases.view_all"
@@ -175,6 +177,7 @@ class Permission(enum.StrEnum):
     CASES_TRANSFER_DECIDE = "cases.transfer_decide"
     CASES_ALLOT = "cases.allot"
     CASES_RELEASE = "cases.release"
+    CASES_TAKE_OVER = "cases.take_over"
     # custody and workflow
     CUSTODY_MOVE = "custody.move"
     REQUESTS_SEND = "requests.send"

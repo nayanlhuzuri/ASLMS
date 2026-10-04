@@ -29,6 +29,7 @@ from aslms.domain.reference import (
     RefPermission,
     Stage,
 )
+from aslms.services import scoring_settings
 from aslms.services.access_seed import PERMISSION_LABELS, seed_matrix, seed_super_admin
 
 
@@ -86,6 +87,7 @@ TRACKING_CARD_EVENTS = {
     EventType.ALLOTTED,
     EventType.CUSTODY_MOVED,
     EventType.STAGE_SET,
+    EventType.CASE_TAKEN_OVER,
 }
 
 
@@ -105,16 +107,28 @@ def _extra_columns(model: type, member: enum.Enum) -> dict:
 
 
 def seed_ref_tables(session: Session, report: SeedReport) -> None:
+    """Inserts missing codes. `ref_permission` rows are upserted on code: their label and description follow
+    `PERMISSION_LABELS` (DB_STANDARD §0; label editing by administrators is not built)."""
     for table, (model, enum_cls) in REF_TABLES.items():
         existing = set(session.scalars(select(model.code)).all())
         for order, member in enumerate(enum_cls, start=1):
             if member.value in existing:
+                if model is RefPermission:
+                    _refresh_permission_label(session, member, report)
                 continue
             columns = {"code": member.value, "label": _label(member.value), "sort_order": order * 10}
             columns.update(_extra_columns(model, member))
             session.add(model(**columns))
             report.add(table)
     session.flush()
+
+
+def _refresh_permission_label(session: Session, member: enum.Enum, report: SeedReport) -> None:
+    label, description = PERMISSION_LABELS[member]
+    row = session.get(RefPermission, member.value)
+    if row is not None and (row.label != label or row.description != description):
+        row.label, row.description = label, description
+        report.add("ref_permission_relabelled")
 
 
 DESIGNATIONS = [
@@ -264,4 +278,5 @@ def seed_all(session: Session) -> SeedReport:
     root = seed_offices(session, report)
     seed_matrix(session, report)
     seed_super_admin(session, report, root)
+    scoring_settings.seed_default(session, report)
     return report

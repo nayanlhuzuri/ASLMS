@@ -741,6 +741,51 @@ development database that holds the loaded January 2025 days:
     '^(ownership|transfer|recommendation|counsel_code|keyword|scoring_settings)\.' GROUP BY 1` matches the
     actions taken above; `pytest -q` green; `ruff check` clean.
 
+## Deviations
+Written by the developer while building (4 Oct 2026); each is the smallest option where the note was silent
+or where two of its paragraphs did not agree.
+1. **A State-wide reader without a department must name `?office=`** on `/inbox/recommended`,
+   `/inbox/claimed` and `/inbox/transfers` (400 `office is required`); the note gives `?office=` for "any
+   office" but says nothing about the default for a caller who has no department. `/inbox/counts` for such a
+   caller returns the department counts as `null` and the pool count. A `cases.view_all` holder reading their
+   own department (if any) sees the whole department.
+2. **`rescore_dispatched` reports the real dispatch.** The settings `PUT` commits the session itself when a
+   new version was written and then dispatches `aslms.rescore_if_dirty` synchronously (`send_task`, no retry),
+   so the response says what happened. With no broker configured (`REDIS_URL` unset, as in the tests) the
+   dispatch is skipped and `rescore_dispatched` is `false`; the 15-minute beat picks the change up either way.
+   The test replaces `matching_router.dispatch_rescore`.
+3. **The pool's `state_party` filter runs in SQL** with a normalisation expression that mirrors
+   `normalise_counsel_code` (upper case, whitespace collapsed, `, ` after commas, trailing commas stripped)
+   over `causelist_entries.counsel_codes` and current `case_advocates.counsel_code`, compared with the active
+   `counsel_codes` (generic and mapped). Decision 3's "no SQL is built from rule text" concerns scoring; the
+   codes are bound as parameters, never interpolated. `state_party=false` gives the complement.
+4. **Pool filters.** `case_type` compares `cases.case_type_text` case-insensitively; `year` is `cases.reg_year`;
+   `min_score` is any department's `case_office_scores.score`; `q` shorter than 3 characters → 400. `limit`
+   above 200 is clamped to 200 rather than refused.
+5. **Claimed-tab filters.** `?unit=` must be an office strictly inside the department (400 otherwise);
+   `?role=primary|watcher`; `?officer_user_id=`. The list is ordered by next hearing date (nulls last), then
+   newest claim.
+6. **Rule endpoints outside the caller's subtree are 404** (`PATCH`, `deactivate`, `reactivate`), as the API
+   paragraph requires; a generic State code is loadable by every holder of `admin.counsel_codes` (read-only in
+   the list) and a write on it by a non-super-admin is the service's 403. Unknown `office_code` in a body → 400.
+7. **Response shapes carry a few fields beyond the table** so the portal needs no second call:
+   `RecommendationOut.office_code` and `status`; `OwnershipOut.status`, `released_at`, `release_reason`;
+   `TransferOut.decided_by`, `withdrawn_at`. `OwnershipOut.unit` and `officer` are `{code, name}` /
+   `{id, full_name}`. The 409 body of the ownership endpoints is `{code, message}` (`already_claimed`,
+   `primary_cannot_release`, `not_allotted`, …) so a screen can act on the code.
+8. **`GET /admin/scoring-settings` on an empty table** returns version 0 with the defaults, `reason` and
+   `valid_from` null (the seeded database always has version 1).
+9. **The CLI has no tests of its own** (`aslms rescore`, `aslms codes unmapped` wrap the tested services and were
+   checked with `--help`); like the other CLI groups.
+10. **No new Compose service or variable.** The `scheduler` service already runs beat (the `rescore-dirty` entry
+    is in its comment); the `api` service already has `REDIS_URL`, so the settings save dispatches in Compose.
+11. **"Has ever claimed" is read from `case_ownership`, not only from `claimed` recommendations** (review
+    finding, 4 Oct 2026). A claim from the pool writes no recommendation row, so decision 5's "never re-opened by
+    the engine" was only enforced for departments that had been recommended first. `apply_scores` now blocks
+    every office with any `case_ownership` row for the case, whatever its status (`active`, `transferred`,
+    `released`), in addition to the `dismissed` / `suggested_elsewhere` / `claimed` recommendation statuses.
+    Test: `test_pool_claim_without_recommendation_blocks_the_engine_after_transfer`.
+
 ## Open questions
 None. Points the owner may wish to overrule at approval:
 - decision 10 (owner review 2026-10-04), a **watcher** may still stop watching (`cases.release`, relabelled

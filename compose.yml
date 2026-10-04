@@ -85,7 +85,8 @@ services:
     restart: unless-stopped
 
   scheduler:
-    # Celery beat (06:00 masters, 06:30/18:30 lists, 20:00 status, Sunday 02:00 sweep) enqueues; the worker fetches
+    # Celery beat (06:00 masters, 06:30/18:30 lists, 20:00 status, Sunday 02:00 sweep) enqueues; the worker fetches.
+    # Every 15 minutes `rescore-dirty` rescores the cases when a matching rule, an office or the scoring settings changed.
     build: ./backend
     env_file:
       - path: .env

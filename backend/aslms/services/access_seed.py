@@ -37,6 +37,7 @@ PERMISSION_LABELS: dict[P, tuple[str, str]] = {
     P.ADMIN_NAPIX_REFETCH: ("Re-fetch court data", "Re-fetch a cause-list day or a case from NAPIX"),
     P.ADMIN_CONFIG: ("Configuration", "Change system configuration"),
     P.ADMIN_DESIGNATIONS: ("Designations", "Create and edit the State-wide designation list"),
+    P.ADMIN_SCORING: ("Scoring settings", "Change the matching weights and recommendation thresholds"),
     P.CASES_VIEW_SCOPE: ("View cases in scope", "Cases of the offices the user belongs to"),
     P.CASES_VIEW_ALL: ("View all cases", "Every case across all departments"),
     P.CASES_SEARCH_COURT: ("Search the court", "Search NAPIX by case number, party or advocate"),
@@ -46,7 +47,11 @@ PERMISSION_LABELS: dict[P, tuple[str, str]] = {
     P.CASES_TRANSFER_REQUEST: ("Request transfer", "Ask another department to take a case"),
     P.CASES_TRANSFER_DECIDE: ("Decide transfers", "Accept or decline a transfer request"),
     P.CASES_ALLOT: ("Allot cases", "Allot a case to an officer"),
-    P.CASES_RELEASE: ("Release cases", "Release the department's ownership"),
+    P.CASES_RELEASE: ("Stop watching", "End the department's watcher role on a case"),
+    P.CASES_TAKE_OVER: (
+        "Take over a case",
+        "Take over a case allotted to a colleague in the same department",
+    ),
     P.CUSTODY_MOVE: ("Move custody", "Hand a case to another office or officer"),
     P.REQUESTS_SEND: ("Send requests", "Send a request (report, comments, documents) to an office"),
     P.REQUESTS_ANSWER: ("Answer requests", "Answer a request sent to the user's office"),
@@ -79,6 +84,7 @@ _CASE_WORK = _READ_CASES | {
     P.DOCUMENTS_UPLOAD,
     P.ALERTS_ACKNOWLEDGE,
     P.NEXT_DATES_REVIEW,
+    P.CASES_TAKE_OVER,
 }
 _OWNERSHIP = {
     P.CASES_CLAIM,

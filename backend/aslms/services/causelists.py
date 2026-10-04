@@ -40,11 +40,12 @@ from aslms.domain.documents import (
     Visibility,
 )
 from aslms.domain.ops import FetchKind
+from aslms.domain.ownership import RecommendationOrigin
 from aslms.domain.reference import DocType
 from aslms.integration.base import CauseListRef
 from aslms.integration.napix.hc import NapixHighCourt
 from aslms.parsing.causelist_pdf import Entry, ParsedCauseList, parse_causelist_pdf
-from aslms.services import queue
+from aslms.services import matching, queue
 from aslms.services.cases import get_or_create_case
 from aslms.services.storage import LocalStore
 
@@ -167,7 +168,9 @@ def apply_entries(
     dossier_priority: int,
     report: DayReport,
 ) -> None:
-    """Parsed rows → `causelist_entries` (immutable, keyed by position) → cases → dossier queue rows."""
+    """Parsed rows → `causelist_entries` (immutable, keyed by position) → cases → dossier queue rows, then the
+    matching engine scores every case the new rows touched (inline, one savepoint per case; a scoring error is
+    recorded in `source_failures` and never fails the list)."""
     existing = {
         (e.source, e.sr_no)
         for e in session.scalars(
@@ -175,6 +178,7 @@ def apply_entries(
         ).all()
     }
     source = EntrySource.PDF_PARSE
+    touched: list[uuid.UUID] = []
     for entry in parsed.entries:
         report.entries += 1
         if (source, entry.seq) in existing:
@@ -196,10 +200,14 @@ def apply_entries(
                     report.queued += 1
         session.add(_entry_row(causelist, entry, source, case.id if case else None))
         report.entries_new += 1
+        if case is not None:
+            touched.append(case.id)
     causelist.entry_count = max(causelist.entry_count or 0, len(parsed.entries))
     causelist.parse_status = ParseStatus.PARSED if parsed.entries else ParseStatus.EMPTY
     causelist.error = None
     session.flush()
+    if touched:
+        matching.score_cases(session, touched, origin=RecommendationOrigin.CAUSE_LIST)
 
 
 def _entry_row(

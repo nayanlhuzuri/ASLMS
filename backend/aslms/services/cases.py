@@ -7,6 +7,7 @@ advocates that leave the dossier are marked not current, never deleted."""
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -139,8 +140,16 @@ def _fill_from_case_no(case: Case, case_no: str | None, session: Session, court:
 
 
 def emit_event(
-    session: Session, kind: EventType, case: Case | None, payload: dict[str, Any], dedupe: str | None = None
+    session: Session,
+    kind: EventType,
+    case: Case | None,
+    payload: dict[str, Any],
+    dedupe: str | None = None,
+    *,
+    scoped: bool = False,
+    actor_user_id: uuid.UUID | None = None,
 ) -> None:
+    """One event row, deduplicated by `dedupe_key`. Tracking-card visibility unless `scoped`."""
     key = dedupe or f"{kind.value}:{case.id if case else 'system'}:{payload_sha256(payload)[:16]}"
     exists = session.scalar(select(Event.id).where(Event.dedupe_key == key))
     if exists:
@@ -150,8 +159,9 @@ def emit_event(
             case_id=case.id if case else None,
             type=kind,
             payload=json.loads(json.dumps(payload, default=str)),
-            dedupe_key=key,
-            visibility=EventVisibility.TRACKING_CARD,
+            dedupe_key=key[:300],
+            actor_user_id=actor_user_id,
+            visibility=EventVisibility.SCOPED if scoped else EventVisibility.TRACKING_CARD,
         )
     )
 
@@ -686,7 +696,23 @@ def apply_dossier(session: Session, case: Case, data: dict[str, Any]) -> ApplyRe
             dedupe=f"case_disposed:{case.cnr}:{case.disposal_date}",
         )
     session.flush()
+    _attach_watchlist_and_score(session, case)
     return ApplyReport(case.id, case.cnr, changed=new or bool(counts), snapshot_new=new, counts=counts)
+
+
+def _attach_watchlist_and_score(session: Session, case: Case) -> None:
+    """Fills `office_watchlist.case_id` for the case's CNR and scores the case (recommend-and-claim,
+    decisions 4 and 14). Scoring failures are recorded by the engine, never raised."""
+    from aslms.domain.ownership import OfficeWatchlist
+    from aslms.services import matching
+
+    if case.cnr:
+        for w in session.scalars(
+            select(OfficeWatchlist).where(OfficeWatchlist.cnr == case.cnr, OfficeWatchlist.case_id.is_(None))
+        ).all():
+            w.case_id = case.id
+        session.flush()
+    matching.score_cases(session, [case.id], origin=matching.origin_for_dossier(case))
 
 
 STATUS_WATCH = (
@@ -715,3 +741,44 @@ def apply_status(session: Session, case: Case, block: dict[str, Any]) -> ApplyRe
         case.dossier_stale = True
     session.flush()
     return ApplyReport(case.id, case.cnr, changed=bool(changes), snapshot_new=new, status_changes=changes)
+
+
+# ------------------------------------------------------------------------------------------------ references
+
+
+class CaseNotFound(LookupError):
+    """No case for the given reference (HTTP 404)."""
+
+
+_CNR_RE = re.compile(r"^[A-Z]{4}\d{12}$")
+
+
+def ref_no_from_url(ref: str) -> str | None:
+    """`ASLMS-GOA-CASE-2026-001842` (the URL form) or `ASLMS/GOA/CASE/2026/001842` → the slash form. Office
+    codes may contain hyphens, so the last three segments are taken from the right."""
+    s = (ref or "").strip().upper()
+    if s.startswith("ASLMS/"):
+        return s
+    if not s.startswith("ASLMS-"):
+        return None
+    parts = s.split("-")
+    if len(parts) < 5:
+        return None
+    return "/".join(["ASLMS", "-".join(parts[1:-3]), *parts[-3:]])
+
+
+def resolve_case_ref(session: Session, ref: str) -> Case:
+    """A case by id, `ref_no` (slash or dash form) or CNR (DB_STANDARD §3). Unknown → CaseNotFound."""
+    s = (ref or "").strip()
+    case = None
+    try:
+        case = session.get(Case, uuid.UUID(s))
+    except ValueError:
+        ref_no = ref_no_from_url(s)
+        if ref_no is not None:
+            case = session.scalar(select(Case).where(Case.ref_no == ref_no))
+        elif _CNR_RE.match(s.upper()):
+            case = session.scalar(select(Case).where(Case.cnr == s.upper()))
+    if case is None:
+        raise CaseNotFound("no such case")
+    return case

@@ -1,5 +1,8 @@
 """Celery application: beat enqueues the daily and weekly work into `fetch_queue` (services/schedules.py);
-the fetching itself is done by `aslms queue-worker`, so the broker only carries a few messages a day.
+the fetching itself is done by `aslms queue-worker`, so the broker only carries a few messages a day. The
+`rescore-dirty` entry (every 15 minutes) rescores every case when a matching rule, an office or the scoring
+settings changed since the last rescore (design recommend-and-claim, decision 4); a scoring-settings save
+also dispatches it at once. No NAPIX call.
 Run: `celery -A aslms.jobs.celery_app worker -B --concurrency 1` (the Compose `scheduler` service)."""
 
 from __future__ import annotations
@@ -8,8 +11,8 @@ from celery import Celery
 from celery.schedules import crontab
 
 from aslms.core.config import get_settings
-from aslms.db.session import session_scope
-from aslms.services import schedules
+from aslms.db.session import get_sessionmaker, session_scope
+from aslms.services import matching, schedules
 
 settings = get_settings()
 app = Celery("aslms", broker=settings.redis_url or "redis://localhost:6379/0")
@@ -27,6 +30,7 @@ app.conf.update(
             "task": "aslms.enqueue_weekly",
             "schedule": crontab(day_of_week="sunday", hour=2, minute=0),
         },
+        "rescore-dirty": {"task": "aslms.rescore_if_dirty", "schedule": crontab(minute="*/15")},
     },
 )
 
@@ -53,3 +57,11 @@ def enqueue_daily_status() -> int:
 def enqueue_weekly() -> dict[str, int]:
     with session_scope() as s:
         return schedules.enqueue_weekly(s)
+
+
+@app.task(name="aslms.rescore_if_dirty")
+def rescore_if_dirty() -> dict | None:
+    """Rescores every case when a rule, an office or the scoring settings changed since the last succeeded
+    `rescore` run; None when nothing changed."""
+    report = matching.rescore_if_dirty(get_sessionmaker())
+    return report.as_dict() if report is not None else None

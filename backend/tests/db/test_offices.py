@@ -187,7 +187,7 @@ def test_deactivation_is_refused_while_in_use(session, world):
     # remove each dependency in turn
     offices.deactivate_office(session, actor, sup, dse)
     access.set_enabled(session, actor, sup, admin, False)
-    own.status = OwnershipStatus.RELEASED
+    own.status = OwnershipStatus.TRANSFERRED  # a primary row is never released (recommend-and-claim)
     session.flush()
     with pytest.raises(OfficeInUse) as exc:
         offices.deactivate_office(session, actor, sup, edu)
@@ -395,10 +395,10 @@ def test_office_tree_and_dependents(session, world):
 def test_seed_is_idempotent_with_the_43rd_function(session):
     wipe(session)
     first = seed_all(session)
-    assert first.inserted["ref_permission"] == 43 and first.inserted["role_permissions"] == 9 * 43
+    assert first.inserted["ref_permission"] == 45 and first.inserted["role_permissions"] == 9 * 45
     second = seed_all(session)
     assert second.total == 0
-    assert session.scalar(sa.select(sa.func.count()).select_from(RolePermission)) == len(DEFAULT_MATRIX) * 43
+    assert session.scalar(sa.select(sa.func.count()).select_from(RolePermission)) == len(DEFAULT_MATRIX) * 45
     assert (
         session.scalar(
             sa.select(RolePermission.is_enabled).where(
