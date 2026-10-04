@@ -46,7 +46,7 @@ from aslms.integration.base import CauseListRef
 from aslms.integration.napix.hc import NapixHighCourt
 from aslms.parsing.causelist_pdf import Entry, ParsedCauseList, parse_causelist_pdf
 from aslms.services import matching, queue
-from aslms.services.cases import get_or_create_case
+from aslms.services.cases import get_or_create_case, refresh_search_vector
 from aslms.services.storage import LocalStore
 
 LIST_TYPE_WORDS = (
@@ -207,6 +207,7 @@ def apply_entries(
     causelist.error = None
     session.flush()
     if touched:
+        refresh_search_vector(session, touched)
         matching.score_cases(session, touched, origin=RecommendationOrigin.CAUSE_LIST)
 
 

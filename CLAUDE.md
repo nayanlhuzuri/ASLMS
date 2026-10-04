@@ -56,8 +56,8 @@ Done: NAPIX integration layer and live check; approved coverage addendum; migrat
 (`postgres`, `redis`, `init`, `api`, `worker`, `scheduler`); the cause-list PDF parser; the load-and-refresh
 pipeline; user types, functions, the type matrix and per-user overrides with the delegation rule; the API
 slice (sign-in, `/me`, user and access administration); offices administration (offices, tree, designations,
-first department admins, `aslms offices`; no migration, 43 functions); recommend-and-claim (scoring settings, matching engine, recommendations, claim / dismiss / suggest / allot / take over / transfer, the case inbox API, `aslms rescore`; migration 0004, in review). The historical load from 2025-01-01 is running in the
+first department admins, `aslms offices`; no migration, 43 functions); recommend-and-claim (scoring settings, matching engine, recommendations, claim / dismiss / suggest / allot / take over / transfer, the case inbox API, `aslms rescore`; migration 0004); the cases API (server-side visibility, local search, case detail and tabs, NAPIX court search by CNR, case number and party name behind `cases.search_court`, quota guard; migration 0005, in review). The historical load from 2025-01-01 is running in the
 Compose worker. Next, in order:
-1. Case endpoints with server-side visibility, documents and
-   uploads, alerts and notifications, the portal, SourceTrace ingestion (court records only).
+1. Documents and uploads, alerts and notifications, custody workflow, OTP and profile, the portal, SourceTrace
+   ingestion (court records only) — the backlog order. NAPIX search by advocate and filing number is row 21.
 2. Before deployment: load counts and the sample-of-20 check in the decisions log; `pg_dump` of the dev database.

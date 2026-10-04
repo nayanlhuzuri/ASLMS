@@ -1,5 +1,5 @@
-"""Case visibility by ownership (design `recommend-and-claim`, decisions 15, 16, 23). `cases-api` extends these
-predicates (custody, requests, counsel) instead of re-deriving ownership scope.
+"""Case visibility — one rule, written once, as named SQL conditions (design `cases-api`, decisions 1–3; the
+ownership predicates come from `recommend-and-claim`, decisions 15, 16, 23).
 
 - `department_of(session, office)`: the Department-tier ancestor of an office (the second segment of
   `offices.path`), or None for the State root.
@@ -7,23 +7,46 @@ predicates (custody, requests, counsel) instead of re-deriving ownership scope.
   department for callers holding `cases.claim` or `cases.allot` (or reading another office with
   `cases.view_all`); otherwise the rows allotted to the caller, or to a unit in the caller's subtree when the
   caller sits below the department.
-- `owned_case_filter(session, user)`: the same predicate as a filter on `cases.id`."""
+- `owned_case_filter(session, user)`: the same predicate as a filter on `cases.id`.
+- `visibility_bases(session, user)`: every basis on which the caller may see a case, each a name and a boolean
+  condition over `cases` (correlated `EXISTS` subqueries): `state`, `owner`, `recommended`, `pool`, `allotted`,
+  `custody`, `request`, `counsel`. `visible_case_condition` ORs them (a filter for lists, a selected column for
+  search); `access_basis` evaluates them for one case; `can_view_case` / `require_visible` decide the detail.
+  Nothing is filtered in the portal; nothing is filtered after the query."""
 
 from __future__ import annotations
 
-from typing import Literal
+import uuid
+from typing import Any, Literal
 
-from sqlalchemy import false, or_, select
+from sqlalchemy import ColumnElement, Select, exists, false, literal, or_, select, text, true
 from sqlalchemy.orm import Session
 
 from aslms.domain.cases import Case, CaseStatus
 from aslms.domain.org import Office, User
-from aslms.domain.ownership import CaseOwnership, OwnershipStatus
-from aslms.domain.reference import OfficeKind, Permission
+from aslms.domain.ownership import (
+    CaseOwnership,
+    CounselCode,
+    OwnershipRole,
+    OwnershipStatus,
+    Recommendation,
+    RecommendationStatus,
+)
+from aslms.domain.reference import OfficeKind, Permission, Role
+from aslms.domain.workflow import Custody, Request, RequestStatus
 from aslms.services import access
 
 DEPARTMENT_TIER_KINDS = frozenset({OfficeKind.DEPARTMENT, OfficeKind.CENTRAL, OfficeKind.ADVOCATE_GENERAL})
 CaseState = Literal["active", "disposed", "all"]
+Basis = tuple[str, ColumnElement[bool]]
+
+# the SQL twin of matching.normalise_counsel_code: upper case, whitespace collapsed, ", " after commas,
+# trailing commas and spaces stripped (recommend-and-claim deviation 3)
+NORMALISED_CODE_SQL = "rtrim(regexp_replace(regexp_replace(upper(btrim({col})), '\\s+', ' ', 'g'), '\\s*,\\s*', ', ', 'g'), ', ')"
+
+
+class NotVisibleCase(LookupError):
+    """The case exists but the caller may not see it (HTTP 404 "no such case")."""
 
 
 def is_department(office: Office | None) -> bool:
@@ -50,6 +73,11 @@ def user_department(session: Session, user: User) -> Office | None:
 
 def in_subtree(office: Office, root: Office) -> bool:
     return office.id == root.id or office.path.startswith(root.path + "/")
+
+
+def subtree_ids(root: Office) -> Select:
+    """`offices.id` of the root and its descendants (path prefix, in SQL)."""
+    return select(Office.id).where(or_(Office.id == root.id, Office.path.like(root.path + "/%")))
 
 
 def case_state_condition(case_state: CaseState):
@@ -86,9 +114,11 @@ def claimed_conditions(
         if own.id == department.id:
             conds.append(CaseOwnership.officer_user_id == user.id)
         else:
-            units = select(Office.id).where(or_(Office.id == own.id, Office.path.like(own.path + "/%")))
             conds.append(
-                or_(CaseOwnership.officer_user_id == user.id, CaseOwnership.unit_office_id.in_(units))
+                or_(
+                    CaseOwnership.officer_user_id == user.id,
+                    CaseOwnership.unit_office_id.in_(subtree_ids(own)),
+                )
             )
     state = case_state_condition(case_state)
     if state is not None:
@@ -107,3 +137,160 @@ def owned_case_filter(session: Session, user: User, *, case_state: CaseState = "
         .where(*claimed_conditions(session, user, dept, case_state=case_state))
     )
     return Case.id.in_(sub)
+
+
+# ------------------------------------------------------------------------------------------------ the bases
+
+
+def never_owned() -> Any:
+    """The pool predicate on `Case`: no primary ownership row ever (recommend-and-claim decision 10)."""
+    return ~exists().where(CaseOwnership.case_id == Case.id, CaseOwnership.role == OwnershipRole.PRIMARY)
+
+
+def codes_condition(codes: list[str]) -> ColumnElement[bool]:
+    """One of `codes` (already normalised) appears, after the SQL normalisation, in a cause-list entry's
+    `counsel_codes` or in a current advocate row's `counsel_code` of the case."""
+    if not codes:
+        return false()
+    entry_cond = exists(
+        select(literal(1))
+        .select_from(text("causelist_entries e CROSS JOIN LATERAL unnest(e.counsel_codes) AS c(code)"))
+        .where(
+            text(
+                f"e.case_id = cases.id AND {NORMALISED_CODE_SQL.format(col='c.code')} = ANY(:codes)"
+            ).bindparams(codes=codes)
+        )
+    )
+    adv_cond = exists(
+        select(literal(1))
+        .select_from(text("case_advocates a"))
+        .where(
+            text(
+                "a.case_id = cases.id AND a.is_current AND a.counsel_code IS NOT NULL AND "
+                f"{NORMALISED_CODE_SQL.format(col='a.counsel_code')} = ANY(:codes2)"
+            ).bindparams(codes2=codes)
+        )
+    )
+    return or_(entry_cond, adv_cond)
+
+
+def counsel_department_codes(session: Session, department: Office) -> list[str]:
+    """The active, non-generic counsel codes mapped to an office of the department's subtree, normalised."""
+    from aslms.services.matching import normalise_counsel_code
+
+    rows = session.scalars(
+        select(CounselCode.code).where(
+            CounselCode.is_active.is_(True),
+            CounselCode.is_generic_state.is_(False),
+            CounselCode.office_id.in_(subtree_ids(department)),
+        )
+    ).all()
+    return sorted({normalise_counsel_code(c) for c in rows if c})
+
+
+def visibility_bases(session: Session, user: User) -> list[Basis]:
+    """Decision 2. Empty when the caller holds neither `cases.view_scope` nor `cases.view_all` (or belongs to
+    no department); `[("state", true)]` for State-wide readers."""
+    if access.is_super_admin(user) or access.has(session, user, Permission.CASES_VIEW_ALL):
+        return [("state", true())]
+    if not access.has(session, user, Permission.CASES_VIEW_SCOPE):
+        return []
+    own = session.get(Office, user.office_id)
+    dept = department_of(session, own)
+    if own is None or dept is None:
+        return []
+    whole = whole_department(session, user)
+    role = Role(user.role)
+    bases: list[Basis] = []
+    if whole:
+        bases.append(
+            (
+                "owner",
+                exists().where(
+                    CaseOwnership.case_id == Case.id,
+                    CaseOwnership.office_id == dept.id,
+                    CaseOwnership.status == OwnershipStatus.ACTIVE,
+                ),
+            )
+        )
+        bases.append(
+            (
+                "recommended",
+                exists().where(
+                    Recommendation.case_id == Case.id,
+                    Recommendation.office_id == dept.id,
+                    Recommendation.status == RecommendationStatus.RECOMMENDED,
+                ),
+            )
+        )
+    if access.has(session, user, Permission.CASES_CLAIM):
+        bases.append(("pool", never_owned()))
+    if not whole:
+        bases.append(
+            (
+                "allotted",
+                exists().where(
+                    CaseOwnership.case_id == Case.id,
+                    *claimed_conditions(session, user, dept, case_state="all", whole=False),
+                ),
+            )
+        )
+    # custody and requests: office-wide over a subtree, or personal (decision 2, table rows custody / request)
+    personal = role == Role.REFERRAL_REVIEWER or (own.id == dept.id and not whole)
+    if personal:
+        custody_cond = exists().where(Custody.case_id == Case.id, Custody.holder_user_id == user.id)
+        request_cond = exists().where(
+            Request.case_id == Case.id,
+            Request.status != RequestStatus.WITHDRAWN,
+            Request.to_user_id == user.id,
+        )
+    else:
+        root = dept if whole else own
+        custody_cond = exists().where(
+            Custody.case_id == Case.id, Custody.holder_office_id.in_(subtree_ids(root))
+        )
+        request_cond = exists().where(
+            Request.case_id == Case.id,
+            Request.status != RequestStatus.WITHDRAWN,
+            Request.to_office_id.in_(subtree_ids(root)),
+        )
+    bases.append(("custody", custody_cond))
+    bases.append(("request", request_cond))
+    if role == Role.STANDING_COUNSEL:
+        bases.append(("counsel", codes_condition(counsel_department_codes(session, dept))))
+    return bases
+
+
+def visible_case_condition(session: Session, user: User) -> ColumnElement[bool]:
+    """The OR of the caller's bases: a filter for every list, a selected boolean column for search."""
+    bases = visibility_bases(session, user)
+    if not bases:
+        return false()
+    if len(bases) == 1:
+        return bases[0][1]
+    return or_(*[cond for _, cond in bases])
+
+
+def access_basis(session: Session, user: User, case: Case | uuid.UUID) -> list[str]:
+    """The names of the bases that make `case` visible to `user` (one SELECT evaluating every basis)."""
+    bases = visibility_bases(session, user)
+    if not bases:
+        return []
+    case_id = case if isinstance(case, uuid.UUID) else case.id
+    row = session.execute(
+        select(*[cond.label(name) for name, cond in bases]).select_from(Case).where(Case.id == case_id)
+    ).one_or_none()
+    if row is None:
+        return []
+    return [name for (name, _), value in zip(bases, row, strict=True) if value]
+
+
+def can_view_case(session: Session, user: User, case: Case | uuid.UUID) -> bool:
+    return bool(access_basis(session, user, case))
+
+
+def require_visible(session: Session, user: User, case: Case) -> list[str]:
+    basis = access_basis(session, user, case)
+    if not basis:
+        raise NotVisibleCase("no such case")
+    return basis

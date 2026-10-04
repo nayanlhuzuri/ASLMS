@@ -49,6 +49,11 @@ class Settings(BaseSettings):
     napix_rate_reserve: int = 150  # calls kept for the daily cycle; the load queue stops below this
     napix_timeout_seconds: float = 40.0
     napix_token_ttl_seconds: int = 3300  # when the token response carries no expires_in (manual: one hour)
+    # user court searches (design cases-api, decision 13): refused below this remaining hourly quota, at most
+    # this many per user per hour, and the whole request (retries included) within this many seconds
+    napix_search_floor: int = 50
+    napix_search_per_user_hour: int = 30
+    napix_search_timeout_seconds: float = 60.0
 
     # --- authentication and the first super admin ------------------------------------------
     aslms_jwt_secret: SecretStr | None = None  # required to issue tokens; the API refuses to start without it

@@ -20,17 +20,16 @@ from sqlalchemy.orm import Session, sessionmaker
 from aslms.core.config import Settings, get_settings
 from aslms.core.errors import IntegrationError, NapixInputError, NapixNotFound
 from aslms.domain.cases import Case, FirstSeenSource
-from aslms.domain.courts import CaseType, Court
+from aslms.domain.courts import Court
 from aslms.domain.ops import FetchKind, FetchQueueItem, JobRun, JobStatus
 from aslms.integration.napix.client import NapixClient
 from aslms.integration.napix.hc import NapixHighCourt
-from aslms.services import queue
-from aslms.services.cases import apply_dossier, get_or_create_case
+from aslms.services import court_search, queue
+from aslms.services.cases import get_or_create_case
 from aslms.services.causelists import load_causelist_day
 from aslms.services.masters import sync_masters
 from aslms.services.napix_store import NapixRecorder
-from aslms.services.napix_values import as_int, as_text
-from aslms.services.orders import enqueue_order_pdfs, fetch_order_pdf
+from aslms.services.orders import fetch_order_pdf
 from aslms.services.storage import LocalStore
 from aslms.services.tracking import run_status_batch
 
@@ -236,11 +235,11 @@ class QueueRunner:
         return rep.as_dict(), rep.skipped_reason is not None
 
     async def _dossier(self, s: Session, ref: str) -> tuple[dict[str, Any], bool]:
+        """A dossier by CNR, or by `<est>|<case number>` through Search by Case Number; the fetch itself is
+        `court_search.fetch_dossier`, shared with the user-facing court search."""
         if self.hc is None:
             raise RuntimeError("NAPIX is off: dossiers cannot be fetched")
         court = self._court(s)
-        cnr: str | None
-        case: Case | None
         if "|" in ref:
             est, case_no = ref.split("|", 1)
             if est != court.est_code:
@@ -251,48 +250,26 @@ class QueueRunner:
                 .order_by(Case.cnr.desc().nulls_last())
                 .limit(1)
             )
-            cnr = case.cnr if case and case.cnr else await self._resolve_cnr(court, case_no, s)
+            cnr = (
+                case.cnr if case and case.cnr else await court_search.resolve_cnr(s, self.hc, court, case_no)
+            )
             if cnr is None:
                 return {"error": "not found by case number"}, True
             if case is None:
-                case, _ = get_or_create_case(
-                    s, court, cnr=cnr, case_no=case_no, source=FirstSeenSource.SEARCH
-                )
+                get_or_create_case(s, court, cnr=cnr, case_no=case_no, source=FirstSeenSource.SEARCH)
             elif case.cnr is None:
                 case.cnr = cnr
+                s.flush()
         else:
             cnr = ref.upper()
-            case = s.scalar(select(Case).where(Case.cnr == cnr))
-            if case is None:
-                case, _ = get_or_create_case(s, court, cnr=cnr, case_no=None, source=FirstSeenSource.SEARCH)
-        data = await self.hc.case_by_cnr(cnr)
-        if not data or not as_text(data.get("cino")):
-            return {"error": "empty dossier"}, True
-        rep = apply_dossier(s, case, data)
-        queued = enqueue_order_pdfs(s, case)
+        fetched = await court_search.fetch_dossier(s, self.hc, court, cnr, source=FirstSeenSource.SEARCH)
         return {
             "cnr": cnr,
-            "changed": rep.changed,
-            "snapshot_new": rep.snapshot_new,
-            "counts": rep.counts,
-            "order_pdfs_queued": queued,
+            "changed": fetched.report.changed,
+            "snapshot_new": fetched.report.snapshot_new,
+            "counts": fetched.report.counts,
+            "order_pdfs_queued": fetched.order_pdfs_queued,
         }, False
-
-    async def _resolve_cnr(self, court: Court, case_no: str, s: Session) -> str | None:
-        """`WP(C)/4326/2025` → Search by Case Number with the type code from the case-type master."""
-        parts = case_no.rsplit("/", 2)
-        if len(parts) != 3:
-            return None
-        short, no, year = parts[0].strip(), as_int(parts[1]), as_int(parts[2])
-        ct = s.scalar(select(CaseType).where(CaseType.court_id == court.id, CaseType.short_name == short))
-        if ct is None or no is None or year is None:
-            return None
-        rows = await self.hc.search_case_number(ct.case_type_code, no, year)
-        for row in rows:
-            cino = as_text(row.get("cino"), 16)
-            if cino and as_int(row.get("reg_no")) == no and as_int(row.get("reg_year")) == year:
-                return cino.upper()
-        return None
 
 
 # ------------------------------------------------------------------------------------------------ helpers

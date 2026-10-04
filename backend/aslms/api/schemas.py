@@ -1,12 +1,13 @@
-"""Request and response shapes of the auth, user, access, office and designation endpoints."""
+"""Request and response shapes of the auth, user, access, office, designation, inbox, ownership and case
+endpoints."""
 
 from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
-from typing import Any
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from aslms.domain.reference import OfficeKind, Permission, Role
 
@@ -549,3 +550,397 @@ class TransferRequestIn(BaseModel):
 
 class TransferDecisionIn(BaseModel):
     note: str | None = Field(None, max_length=500)
+
+
+# ------------------------------------------------------------------------------------------------ cases (cases-api)
+
+
+class CaseSearchItemOut(BaseModel):
+    """A row of `/cases` and `/cases/search`: court-public summary data of any case, plus what the caller may
+    do with it. `visible` says whether the detail endpoints will answer."""
+
+    case: CaseSummaryOut
+    visible: bool
+    owner_office_code: str | None
+    in_pool: bool
+    claimable: bool
+    match: str | None = None
+    dossier_status: str
+
+
+class CaseSearchListOut(BaseModel):
+    items: list[CaseSearchItemOut]
+    total: int
+    total_capped: bool = False
+
+
+class CaseIdentityOut(BaseModel):
+    cnr: str | None
+    court_est_name: str | None
+    case_type_id: uuid.UUID | None
+    case_type_text: str | None
+    reg_no: int | None
+    reg_year: int | None
+    case_no_text: str | None
+    filing_case_type_id: uuid.UUID | None
+    filing_case_type_text: str | None
+    filing_no: int | None
+    filing_year: int | None
+    filing_no_text: str | None
+    filing_date: date | None
+    registration_date: date | None
+    date_first_list: date | None
+
+
+class CaseStatusOut(BaseModel):
+    status: str
+    disposal_date: date | None
+    disposal_nature: str | None
+    disposal_type: str | None
+    short_order: str | None
+    date_filing_disp: date | None
+    reason_for_rej: str | None
+    date_judgement_pronounced: date | None
+    date_judgement_reserved: date | None
+    goshwara_no: str | None
+    next_hearing_date: date | None
+    next_purpose: str | None
+    last_hearing_date: date | None
+
+
+class CaseClassificationOut(BaseModel):
+    bench_id: uuid.UUID | None
+    napix_bench_id: int | None
+    bench_name: str | None
+    bench_type_code: int | None
+    coram: str | None
+    coram_designation: str | None
+    judicial_branch: str | None
+    category: str | None
+    category_code: int | None
+    sub_category: str | None
+
+
+class CasePlaceOut(BaseModel):
+    state_id: uuid.UUID | None
+    district_id: uuid.UUID | None
+    state_name_as_listed: str | None
+    district_name_as_listed: str | None
+    filing_state_code: int | None
+    filing_district_code: int | None
+    fir_no: str | None
+    fir_year: int | None
+    police_station: str | None
+    police_st_code: str | None
+    uniform_code: str | None
+    main_matter_text: str | None
+
+
+class CasePartiesAsPrintedOut(BaseModel):
+    petitioner_summary: str | None
+    respondent_summary: str | None
+    pet_advocate: str | None
+    res_advocate: str | None
+
+
+class CasePortalOut(BaseModel):
+    is_provisional: bool
+    is_tracked: bool
+    first_seen_source: str
+    last_full_refresh_at: datetime | None
+    last_status_refresh_at: datetime | None
+    dossier_stale: bool
+    merged_into_case_id: uuid.UUID | None
+    closed_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+    created_by: uuid.UUID | None
+    updated_by: uuid.UUID | None
+
+
+class CourtRefOut(BaseModel):
+    est_code: str
+    name: str
+
+
+class BenchRefOut(BaseModel):
+    bench_id: int
+    judge_names: str | None
+    bench_name: str | None
+
+
+class PartyOut(BaseModel):
+    role: str
+    party_no: int
+    name: str
+    address: str | None
+    has_legal_heir: bool | None
+    is_current: bool
+
+
+class AdvocateOut(BaseModel):
+    side: str
+    name_as_listed: str
+    counsel_code: str | None
+    bar_reg_no: str | None
+    is_current: bool
+
+
+class PartiesOut(BaseModel):
+    parties: list[PartyOut]
+    advocates: list[AdvocateOut]
+
+
+class ActOut(BaseModel):
+    act_name_as_listed: str
+    national_act_code: str | None
+    section: str | None
+
+
+class LowerCourtOut(BaseModel):
+    level: str
+    court_name: str | None
+    case_no_text: str | None
+    decision_date: date | None
+
+
+class ApplicationOut(BaseModel):
+    ia_number: str
+    party_name: str | None
+    status: str | None
+    filing_date: date | None
+
+
+class ObjectionOut(BaseModel):
+    seq: int
+    objection: str | None
+    scrutiny_date: date
+    compliance_by_date: date | None
+    receipt_date: date | None
+
+
+class CourtTransferOut(BaseModel):
+    transfer_date: date | None
+    from_court_text: str | None
+    to_court_text: str | None
+
+
+class WritInfoOut(BaseModel):
+    appellate_case_number: str
+    appellate_authority: str | None
+
+
+class PrimaryOwnerOut(BaseModel):
+    office_code: str | None
+    office_name: str | None
+    unit: OfficeRefOut | None
+    officer: UserRefOut | None
+    claimed_at: datetime
+
+
+class CaseOwnershipCompactOut(BaseModel):
+    primary: PrimaryOwnerOut | None
+    watchers: list[str]
+
+
+class CustodyCardOut(BaseModel):
+    holder_office: OfficeRefOut | None
+    holder_user: UserRefOut | None
+    pending_action: str
+    since: datetime
+    due_date: date | None
+
+
+class CaseCountsOut(BaseModel):
+    hearings: int
+    orders: int
+    listings: int
+    links: int
+    timeline: int
+
+
+class CaseDetailOut(BaseModel):
+    id: uuid.UUID
+    ref_no: str
+    identity: CaseIdentityOut
+    status: CaseStatusOut
+    classification: CaseClassificationOut
+    place: CasePlaceOut
+    parties_as_printed: CasePartiesAsPrintedOut
+    portal: CasePortalOut
+    court: CourtRefOut | None
+    bench: BenchRefOut | None
+    parties: list[PartyOut]
+    advocates: list[AdvocateOut]
+    acts: list[ActOut]
+    lower_courts: list[LowerCourtOut]
+    applications: list[ApplicationOut]
+    objections: list[ObjectionOut]
+    court_transfers: list[CourtTransferOut]
+    writ_info: list[WritInfoOut]
+    ownership: CaseOwnershipCompactOut
+    custody: CustodyCardOut | None
+    access_basis: list[str]
+    claimable: bool
+    dossier_status: str
+    merged_into_ref_no: str | None
+    counts: CaseCountsOut
+
+
+class HearingOut(BaseModel):
+    business_date: date | None
+    hearing_date: date | None
+    purpose: str | None
+    bench_text: str | None
+    judge_designation: str | None
+    causelist_type: str | None
+    next_date: date | None
+    business_text: str | None
+    short_order_text: str | None
+    case_number_text: str | None
+    source: str
+
+
+class HearingListOut(BaseModel):
+    items: list[HearingOut]
+    total: int
+
+
+class OrderOut(BaseModel):
+    id: uuid.UUID
+    order_no: str
+    order_date: date
+    kind: str
+    order_details: str | None
+    order_judge_name: str | None
+    date_judgement_pronounced: date | None
+    date_judgement_reserved: date | None
+    is_reportable: bool | None
+    download_status: str
+    document_id: uuid.UUID | None
+
+
+class OrderListOut(BaseModel):
+    items: list[OrderOut]
+    total: int
+
+
+class ListingOut(BaseModel):
+    list_date: date
+    list_type: str
+    bench_label: str | None
+    bench_id: int | None
+    court_no: str | None
+    sr_no: int
+    printed_sr: str | None
+    section: str | None
+    is_connected: bool
+    counsel_codes: list[str]
+    remarks: str | None
+    source: str
+
+
+class ListingListOut(BaseModel):
+    items: list[ListingOut]
+    total: int
+
+
+class LinkOut(BaseModel):
+    direction: str
+    kind: str
+    case_no_text: str | None
+    cnr: str | None
+    filing_number_text: str | None
+    source: str
+    case: CaseSummaryOut | None
+    visible: bool
+
+
+class LinkListOut(BaseModel):
+    items: list[LinkOut]
+
+
+class GraphNodeOut(BaseModel):
+    key: str
+    case: CaseSummaryOut | None
+    case_no_text: str | None
+    visible: bool
+
+
+class GraphEdgeOut(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    from_: str = Field(alias="from")
+    to: str
+    kind: str
+
+
+class LinkGraphOut(BaseModel):
+    nodes: list[GraphNodeOut]
+    edges: list[GraphEdgeOut]
+    truncated: bool
+
+
+class TimelineOut(BaseModel):
+    type: str
+    label: str
+    icon_key: str | None
+    occurred_at: datetime
+    actor_name: str | None
+    payload: dict[str, Any]
+
+
+class TimelineListOut(BaseModel):
+    items: list[TimelineOut]
+    total: int
+
+
+class CourtSearchCnrIn(BaseModel):
+    kind: Literal["cnr"]
+    cnr: str = Field(min_length=16, max_length=16, pattern=r"^[A-Za-z]{4}\d{12}$")
+
+
+class CourtSearchCaseNumberIn(BaseModel):
+    kind: Literal["case_number"]
+    case_type: str = Field(min_length=1, max_length=60, description="short name (WP(C)) or the master's code")
+    reg_no: int = Field(ge=1, le=9_999_999)
+    reg_year: int = Field(ge=1950, le=2100)
+
+
+class CourtSearchPartyIn(BaseModel):
+    kind: Literal["party"]
+    name: str = Field(
+        min_length=3,
+        max_length=200,
+        pattern=r"^[A-Za-z0-9 .,'&()/-]+$",
+        description="letters, digits, spaces and . , ' & ( ) / - (never | or =, the gateway's separators)",
+    )
+    reg_year: int = Field(ge=1950, le=2100)
+    pend_disp: Literal["P", "D", "both"] = "P"
+
+
+CourtSearchIn = Annotated[
+    CourtSearchCnrIn | CourtSearchCaseNumberIn | CourtSearchPartyIn, Field(discriminator="kind")
+]
+
+
+class UnmatchedRowOut(BaseModel):
+    type_name: str | None = None
+    reg_no: str | None = None
+    reg_year: str | None = None
+    pet_name: str | None = None
+    res_name: str | None = None
+
+
+class CourtSearchOut(BaseModel):
+    source: str
+    calls: int
+    created: int
+    items: list[CaseSearchItemOut]
+    unmatched: list[UnmatchedRowOut]
+
+
+class ErrorOut(BaseModel):
+    code: str
+    message: str
+    retry_after: int | None = None

@@ -19,6 +19,8 @@ from collections.abc import Mapping
 from cryptography.hazmat.primitives import padding
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
+from aslms.core.errors import NapixInputError
+
 DEFAULT_HASH_KEY = "15081947"
 KNOWN_ANSWERS = {
     "state_code=27": "d10f8382c089c134ae7635fea97b2ca81488b25f3db23c9d578146599b7679c7",
@@ -27,7 +29,11 @@ KNOWN_ANSWERS = {
 
 
 def build_plain(params: Mapping[str, object]) -> str:
-    """`k=v|k=v` in insertion order; values verbatim (no encoding inside the plain text)."""
+    """`k=v|k=v` in insertion order; values verbatim (no encoding inside the plain text). A key or value
+    holding `|` or `=` would add or change a pair in the request, so it is refused before anything is sent."""
+    for k, v in params.items():
+        if any(ch in str(k) or ch in str(v) for ch in "|="):
+            raise NapixInputError(f"parameter {k!r} would alter the request: '|' and '=' are not allowed")
     return "|".join(f"{k}={v}" for k, v in params.items())
 
 

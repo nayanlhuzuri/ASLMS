@@ -496,3 +496,49 @@ None. Points the owner may wish to overrule at approval:
   (backlog row 21); both are searched locally meanwhile;
 - decision 13, the defaults: search floor 50 calls, 30 court searches per user per hour, 60-second timeout;
 - decision 14, reading cases is not audited.
+
+## Deviations
+Written by the developer while building (2026-10-04); each is the smallest option where the design was silent.
+1. **Migration 0005 written by hand.** The repository guard refuses `alembic revision --autogenerate` (it
+   writes under the versions directory), so the revision was written from the design's "Data" section and
+   verified with `compare_metadata` against the dev database (empty diff; `test_database_matches_the_models`
+   stays green). The two indexes are declared on the `Case` model so the comparison covers them.
+2. **`access_basis` lists every basis that applies**, so an allotted case reads `["allotted", "custody"]`
+   (allotment moves custody to the officer or unit) and a never-owned case recommended to the department
+   reads `["recommended", "pool"]`. The detail shows *why* a case is visible; one basis is enough to see it.
+3. **`match` on text queries names the field** (`party`, `advocate`, `text`) instead of the kind `text`, so
+   the portal can say which words matched; identifiers report `id`, `ref_no`, `cnr`, `number`.
+4. **`dossier_status` is on every `CaseSearchItemOut`**, not only on the court-search items: one row shape
+   for `/cases`, `/cases/search`, `/cases/search-court` and `/cases/{ref}/fetch-court`.
+5. **Alias number search also matches the printed number** under the master's short name
+   (`WPC 4326/2025` finds `WP(C)/4326/2025` even when the provisional case carries no `case_type_id`).
+6. **Input errors before any call write no audit row** (unknown case type, malformed CNR, a refused guard):
+   nothing was spent and nothing was written. Every attempt that reached the gateway is audited with its
+   outcome (`ok`, `not_found`, `failed:<code>`); a `not_found` party search also writes its row.
+7. **`fetch-court` on a provisional case whose number resolves to a CNR already held by another case** → 409
+   `already_fetched` with `resolved_to` (the held case's `ref_no`) in the audit row; both rows are left as
+   they are (merging cases is not in this item).
+8. **Timeline rule for `suggested_elsewhere`** uses the payload's `from_office_code` / `to_office_code`
+   (the event names both departments); `recommendation_made` and `dismissed` use `office_code`.
+9. **`q` shorter than 3 characters on `/cases/search` is 422** (request validation), on `/cases` 400 (the
+   service's check, since `q` is optional there); `depth` outside 1–3 on `/links/graph` is 422.
+10. **Listings carry `section` and `is_connected`** besides the fields of the design's table (both printed on
+    the list and useful on the tab).
+11. **Tests report the switch as configured by patching `Settings.napix_configured`** (a `monkeypatch` of the
+    property for the test), never by writing the flag anywhere; the gateway is the scripted one.
+12. **`counts.links` and `/links` count both directions**, including links resolved through `to_cnr` to a
+    held case without `to_case_id`.
+13. **The runner's `_dossier` raises `NapixNotFound` for an empty dossier** (through `fetch_dossier`) instead of
+    returning `{"error": "empty dossier"}`; `QueueRunner._process` already records `NapixNotFound` as a
+    skipped item, so the queue row ends the same way.
+14. **The decisions-log entry, the backlog status and the "Current focus" block** are left to the scribe step
+    of the cycle (docs/team/README.md); `schema.md` carries the as-built paragraphs from this note.
+15. **A CNR search creates the case only after the court has answered** (review of 2026-10-04). `fetch_dossier`
+    calls Search by CNR first and gets-or-creates the case row only when the dossier arrives and its `cino` is
+    the asked CNR; a CNR the court does not know (`not_found`), a gateway failure or a time-out leaves no
+    `cases` row, no `case_created` event and no queue item. A dossier labelled with another CNR is a
+    `NapixProtocolError` (502, no case). The same function serves the queue runner, so the rule holds there.
+16. **The party name is restricted to letters, digits, spaces and `. , ' & ( ) / -`** (review of 2026-10-04):
+    the request schema (422), the service (`CourtSearchError`) and the NAPIX layer (`build_plain` refuses any
+    parameter holding `|` or `=`, the separators of the gateway's `k=v|k=v` plain text, as `NapixInputError`)
+    each enforce it, so no value typed by a user can add or change a pair in the request sent to the gateway.

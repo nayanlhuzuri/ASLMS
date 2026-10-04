@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from aslms.domain.cases import (
@@ -696,8 +696,23 @@ def apply_dossier(session: Session, case: Case, data: dict[str, Any]) -> ApplyRe
             dedupe=f"case_disposed:{case.cnr}:{case.disposal_date}",
         )
     session.flush()
+    refresh_search_vector(session, [case.id])
     _attach_watchlist_and_score(session, case)
     return ApplyReport(case.id, case.cnr, changed=new or bool(counts), snapshot_new=new, counts=counts)
+
+
+def refresh_search_vector(session: Session, case_ids) -> int:
+    """Recomputes `cases.search_vector` with the SQL function of migration 0005 for the given cases (design
+    `cases-api`, decision 6). Called after a dossier apply, a cause-list apply and a court-search store; the
+    vector is never written by hand."""
+    ids = list(dict.fromkeys(i for i in case_ids if i is not None))
+    if not ids:
+        return 0
+    result = session.execute(
+        text("UPDATE cases SET search_vector = aslms_case_search_vector(id) WHERE id = ANY(:ids)"),
+        {"ids": ids},
+    )
+    return int(result.rowcount or 0)
 
 
 def _attach_watchlist_and_score(session: Session, case: Case) -> None:

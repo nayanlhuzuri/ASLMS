@@ -1,4 +1,5 @@
-"""Request dependencies: the database session, the current user, `require(function)`, and the audit actor."""
+"""Request dependencies: the database session, the current user, `require(function)`, `require_any(...)`, and
+the audit actor."""
 
 from __future__ import annotations
 
@@ -55,6 +56,19 @@ def require(permission: Permission):
     def check(user: User = Depends(current_user), session: Session = Depends(get_session)) -> User:
         if not access.has(session, user, permission):
             raise HTTPException(status.HTTP_403_FORBIDDEN, f"{permission.value} is not enabled for you")
+        return user
+
+    return check
+
+
+def require_any(*permissions: Permission):
+    """A dependency that admits callers holding at least one of the functions (cases-api decision 16:
+    reading cases needs `cases.view_scope` or `cases.view_all`)."""
+
+    def check(user: User = Depends(current_user), session: Session = Depends(get_session)) -> User:
+        if not any(access.has(session, user, p) for p in permissions):
+            names = " or ".join(p.value for p in permissions)
+            raise HTTPException(status.HTTP_403_FORBIDDEN, f"{names} is not enabled for you")
         return user
 
     return check

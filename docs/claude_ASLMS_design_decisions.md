@@ -487,6 +487,60 @@ Executed §11 steps 1–7, one commit per step (`DB-1 step N` in the log), after
   cycle, `backend/tools/docx_text.py` to read the plan. Continuous operation is `/loop 45m /team-cycle` while
   a session is open; a server-side scheduler needs the remote and CI.
 
+## Cases API: visibility, search, case detail, search the court (2026-10-04)
+
+**What was built** (design: docs/design/cases-api.md, approved 2026-10-04)
+- Migration 0005 (by hand, `compare_metadata` diff empty): SQL function `aslms_case_search_vector(case_id)`, GIN
+  index `ix_cases_search_vector_gin` and expression index `ix_cases_case_no_compact`. No new table, column or
+  permission function.
+- Services: `services/visibility.py` (one rule as named SQL bases: `state`, `owner`, `recommended`, `pool`,
+  `allotted`, `custody`, `request`, `counsel`; used for lists in SQL and for one case in `can_view_case`);
+  `services/case_search.py` (`parse_query` auto-detection of CNR, case number, ref number, party, advocate;
+  word search through `search_vector`; the visible list); `services/case_detail.py` (overview, parties,
+  hearings, orders, listings, links and two-level graph, timeline); `services/court_search.py` (shared dossier
+  fetch, searches by CNR, case number and party name, `fetch-court`, quota guard, audit);
+  `services/cases.py::refresh_search_vector`, called after every dossier, cause-list and court-search store.
+- API (`api/routers/cases.py`): `GET /cases`, `/cases/search`, `/cases/{ref}`, `/{ref}/parties | hearings |
+  orders | listings | links | links/graph | timeline`; `POST /cases/search-court` and `POST
+  /cases/{ref}/fetch-court` (function `cases.search_court`). Reading needs `cases.view_scope` or
+  `cases.view_all` (new dependency `require_any`).
+- CLI: `aslms cases reindex-search`, `aslms cases show`.
+- Settings (`.env`): `NAPIX_SEARCH_FLOOR=50`, `NAPIX_SEARCH_PER_USER_HOUR=30`,
+  `NAPIX_SEARCH_TIMEOUT_SECONDS=60`.
+- Tests: `tests/unit/test_case_search_parse.py`, `test_napix_crypto.py` (extended); `tests/db/test_case_visibility.py`,
+  `test_case_search.py`, `test_case_detail.py`, `test_court_search.py`.
+
+**Decisions** (reasons in the design note)
+- Visibility is one rule written once; a department that transferred a case away stops seeing it unless it
+  stayed as a watcher (decision 3). Department-wide holders of `cases.claim` read the full detail of pool
+  cases; officers and directorate users do not. The standing-counsel rule from the 26 Sep log is kept.
+- Search shows a summary of any non-merged case, marked `visible` or not, with owner office, pool status and
+  `claimable`, so a department can find and claim a case; opening a case it cannot see answers 404 (decision 4).
+- Court search is synchronous through the NAPIX layer. CNR and case-number searches return the local case or
+  fetch its dossier at once; a party-name search stores and scores every hit without fetching dossiers (a
+  button, `fetch-court`, fetches one on demand). Every attempt that reached the gateway is audited
+  (`case.search_court`); reading cases is not audited.
+- Quota guard: refused when the remaining hourly quota is below 50 calls; 30 court searches per user per hour;
+  both are `.env` settings (the numbers are the architect's proposals, accepted at approval).
+- A CNR search creates the case row only after the court answers with that CNR; `not_found`, failure or
+  time-out leave no case, event or queue item (review fix). Party names are limited to letters, digits, spaces
+  and `. , ' & ( ) / -`, enforced in the schema, the service and `build_plain` (which refuses `|` and `=`).
+
+**Deviations**
+- NAPIX Search by Advocate Name and by Filing Number are deferred (decision 12, scope): no live sample of
+  their fields. Both are searched locally meanwhile. Backlog row 21.
+- The developer's smaller deviations (hand-written migration 0005, `access_basis` listing every applicable
+  basis, `match` naming the field, `dossier_status` on every search item, `fetch-court` 409 `already_fetched`
+  on a CNR held by another case, `q` under 3 characters 422 or 400, the runner raising `NapixNotFound` for an
+  empty dossier) are items 1-16 of the design note's Deviations section.
+
+**Left for later**
+- NAPIX search by advocate and filing number (row 21); merging a provisional case with the case holding its
+  resolved CNR; order PDF download and per-document visibility (`documents-uploads`); alerts on new cases found
+  by search (`alerts-notifications`); the portal screens (`portal-cases`).
+- Verification against the loaded January 2025 days and a live CNR search (design "Verification") is run by the
+  integrator with Compose up, the switch set for that run only.
+
 ## Design approvals
 - 2026-10-04 — offices-admin: approved by the owner as written (docs/design/offices-admin.md)
 

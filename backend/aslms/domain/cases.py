@@ -7,7 +7,18 @@ import enum
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, DateTime, Integer, SmallInteger, String, Text, UniqueConstraint, text
+from sqlalchemy import (
+    Boolean,
+    Date,
+    DateTime,
+    Index,
+    Integer,
+    SmallInteger,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -40,6 +51,12 @@ class FirstSeenSource(enum.StrEnum):
 class Case(TimestampMixin, RefNoMixin, CreatedByMixin, Base):
     __tablename__ = "cases"
     __table_class__ = TableClass.TRANSACTION
+    __table_args__ = (
+        # word search (design cases-api, decision 6): the vector is derived by aslms_case_search_vector(id)
+        Index("ix_cases_search_vector_gin", "search_vector", postgresql_using="gin"),
+        # number search: the printed case number upper-cased without white space
+        Index("ix_cases_case_no_compact", text(r"upper(regexp_replace(case_no_text, '\s', '', 'g'))")),
+    )
     id: Mapped[uuid.UUID] = uuid_pk()
     cnr: Mapped[str | None] = mapped_column(String(16), unique=True)  # null only when provisional
     court_id: Mapped[uuid.UUID] = uuid_fk("courts.id")

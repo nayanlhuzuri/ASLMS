@@ -49,6 +49,19 @@ def test_build_plain_keeps_order_and_values_verbatim() -> None:
     assert build_plain({}) == ""
 
 
+def test_build_plain_refuses_values_that_would_add_or_change_a_pair() -> None:
+    from aslms.core.errors import NapixInputError
+
+    for bad in ("ASSAM|est_code=XXHC01", "A=B", "x|y"):
+        with pytest.raises(NapixInputError):
+            build_plain({"est_code": "GAHC01", "litigant_name": bad})
+    with pytest.raises(NapixInputError):
+        build_plain({"a|b": "c"})
+    assert (
+        build_plain({"litigant_name": "DR. JANIFA KAIFEE AHMED"}) == "litigant_name=DR. JANIFA KAIFEE AHMED"
+    )
+
+
 def test_fingerprint_is_short_and_reveals_nothing() -> None:
     f = NapixCrypto(KEY).fingerprint
     assert len(f) == 8 and KEY not in f

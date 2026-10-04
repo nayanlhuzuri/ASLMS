@@ -48,6 +48,10 @@ written from this document plus the approved addendum. **As built (1 Oct 2026):*
   append-only tables; DELETE only on the cascade list; no DDL), `aslms_readonly` (SELECT).
 - Data received from NAPIX is kept verbatim in a `raw jsonb` column beside the parsed columns; scope checks use
   `offices.path` prefix matching, in SQL only.
+- Case visibility is one rule (`services/visibility.py::visibility_bases`, design `cases-api`): the bases
+  `state`, `owner`, `recommended`, `pool`, `allotted`, `custody`, `request`, `counsel`, OR-ed in SQL for every
+  list and evaluated for one case on every detail; summaries of any case are searchable, details only within
+  the rule.
 
 ## Group 0 — Code sets and sequences (reference)
 | Table | Columns | Notes |
@@ -87,7 +91,7 @@ written from this document plus the approved addendum. **As built (1 Oct 2026):*
 ## Group 3 — Cases
 | Table | Columns | Notes |
 |---|---|---|
-| `cases` | ref_no (unique), cnr (unique; null only when `is_provisional`), court_id, case_type_id, case_type_text, reg_no, reg_year, case_no_text, filing_case_type_id, filing_no_text, filing_date, registration_date, date_first_list, status (`pending` / `disposed` / `unknown`), disposal_date, disposal_nature, disposal_type, short_order, date_filing_disp, reason_for_rej, next_hearing_date, next_purpose, last_hearing_date, bench_id, coram, category, sub_category, judicial_branch, state_id, district_id, fir_no, fir_year, police_station, petitioner_summary, respondent_summary, pet_advocate, res_advocate, is_provisional, is_tracked, first_seen_source (`causelist` / `search` / `discovery` / `link`), last_full_refresh_at, last_status_refresh_at, merged_into_case_id, closed_at, search_vector (tsvector, GIN), raw | Never fabricate a CNR: a row without one is provisional. `closed_at` is set on disposal. |
+| `cases` | ref_no (unique), cnr (unique; null only when `is_provisional`), court_id, case_type_id, case_type_text, reg_no, reg_year, case_no_text, filing_case_type_id, filing_no_text, filing_date, registration_date, date_first_list, status (`pending` / `disposed` / `unknown`), disposal_date, disposal_nature, disposal_type, short_order, date_filing_disp, reason_for_rej, next_hearing_date, next_purpose, last_hearing_date, bench_id, coram, category, sub_category, judicial_branch, state_id, district_id, fir_no, fir_year, police_station, petitioner_summary, respondent_summary, pet_advocate, res_advocate, is_provisional, is_tracked, first_seen_source (`causelist` / `search` / `discovery` / `link`), last_full_refresh_at, last_status_refresh_at, merged_into_case_id, closed_at, search_vector (tsvector, derived — see below), raw | Never fabricate a CNR: a row without one is provisional. `closed_at` is set on disposal. |
 | `case_parties` | case_id, role (`petitioner` / `respondent` / `extra`), party_no, name, name_normalised, address, has_legal_heir, is_current | Unique (case_id, role, party_no). A dossier upsert never deletes: parties that disappear get `is_current = false`. |
 | `case_advocates` | case_id, side, name_as_listed, advocate_id (→ advocates), bar_reg_no, counsel_code, is_current | `counsel_code` holds the standing-counsel token (e.g. `SC, EDU`) when present. |
 | `case_hearings` | case_id, business_date, purpose, bench_text, next_date, business_text, source | Unique (case_id, business_date, purpose). |
@@ -97,6 +101,14 @@ written from this document plus the approved addendum. **As built (1 Oct 2026):*
 | `case_objections` | case_id, objection, scrutiny_date, compliance_by_date, receipt_date, raw | `objections{}`; unique (case_id, scrutiny_date). |
 | `case_links` | from_case_id, to_case_id (nullable), to_case_no_text, to_cnr, kind (`main_matter` / `connected` / `ia_in` / `appeal_of` / `contempt_of` / `with`), source | Unique (from, to_case_no_text, kind). |
 | `case_snapshots` (derived) | case_id, source, fetched_at, payload_sha256, payload jsonb | Unique (case_id, payload_sha256). Diffing successive snapshots produces status and next-date change events. |
+
+> `cases.search_vector` (tsvector) is derived. As built, migration 0005 (adds only this function and two indexes, no table or column): `aslms_case_search_vector(case_id)` (SQL
+> function, config `simple`) builds it from the current party names, the party summaries and the cause-list
+> party texts (weight A), the current advocates, counsel codes and cause-list advocate texts (weight B) and the
+> CNR, case number, filing number and `ref_no` (weight C). It is refreshed by
+> `services/cases.py::refresh_search_vector` after every dossier apply, cause-list apply and court-search store;
+> never written by hand. GIN index `ix_cases_search_vector_gin`; expression index `ix_cases_case_no_compact` on
+> the upper-cased case number without white space.
 
 ## Group 4 — Cause lists
 | Table | Columns | Notes |

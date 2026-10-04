@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Any, Literal
 
-from sqlalchemy import Select, and_, exists, func, literal, or_, select, text
+from sqlalchemy import Select, and_, exists, func, or_, select
 from sqlalchemy.orm import Session
 
 from aslms.domain.cases import Case, CaseStatus
@@ -36,7 +36,14 @@ from aslms.domain.ownership import (
 from aslms.domain.reference import Permission
 from aslms.services import access
 from aslms.services.offices import find_office
-from aslms.services.visibility import CaseState, claimed_conditions, is_department, user_department
+from aslms.services.visibility import (
+    CaseState,
+    claimed_conditions,
+    codes_condition,
+    is_department,
+    user_department,
+)
+from aslms.services.visibility import never_owned as visibility_never_owned
 
 MAX_LIMIT = 200
 DEFAULT_LIMIT = 50
@@ -150,8 +157,8 @@ def primary_codes(session: Session, case_ids: list[uuid.UUID]) -> dict[uuid.UUID
 
 
 def never_owned() -> Any:
-    """The pool predicate on `Case`: no primary ownership row ever (decision 10)."""
-    return ~exists().where(CaseOwnership.case_id == Case.id, CaseOwnership.role == OwnershipRole.PRIMARY)
+    """The pool predicate on `Case`: no primary ownership row ever (decision 10; shared with visibility)."""
+    return visibility_never_owned()
 
 
 def _q_condition(q: str | None):
@@ -389,25 +396,12 @@ def ownership_item(session: Session, row: CaseOwnership, case: CaseSummary | Non
 
 # ------------------------------------------------------------------------------------------------ pool
 
-# the SQL twin of matching.normalise_counsel_code: upper case, whitespace collapsed, ", " after commas,
-# trailing commas and spaces stripped
-_NORMALISED_CODE = "rtrim(regexp_replace(regexp_replace(upper(btrim({col})), '\\s+', ' ', 'g'), '\\s*,\\s*', ', ', 'g'), ', ')"
-
 
 def _state_party_condition(session: Session):
-    """A generic or mapped counsel code appears in a cause-list entry or a current advocate row."""
+    """A generic or mapped counsel code appears in a cause-list entry or a current advocate row (the SQL
+    normalisation `visibility.NORMALISED_CODE_SQL`, shared with the counsel visibility basis)."""
     codes = list(session.scalars(select(CounselCode.code).where(CounselCode.is_active.is_(True))).all())
-    if not codes:
-        return literal(False)
-    entry_sql = text(
-        "EXISTS (SELECT 1 FROM causelist_entries e CROSS JOIN LATERAL unnest(e.counsel_codes) AS c(code) "
-        f"WHERE e.case_id = cases.id AND {_NORMALISED_CODE.format(col='c.code')} = ANY(:codes))"
-    ).bindparams(codes=codes)
-    adv_sql = text(
-        "EXISTS (SELECT 1 FROM case_advocates a WHERE a.case_id = cases.id AND a.is_current "
-        f"AND a.counsel_code IS NOT NULL AND {_NORMALISED_CODE.format(col='a.counsel_code')} = ANY(:codes2))"
-    ).bindparams(codes2=codes)
-    return or_(entry_sql, adv_sql)
+    return codes_condition(codes)
 
 
 def pool_stmt(

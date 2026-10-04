@@ -1,7 +1,8 @@
 """A committed test world for the recommend-and-claim tests: the seeded database plus
 
     GOA ─┬─ EDU ─┬─ EDU-DSE
-         │       └─ EDU-DHE
+         │       ├─ EDU-DHE
+         │       └─ EDU-SC (unit: the department's standing counsel)
          ├─ HEALTH
          └─ CENTRAL (central)
 
@@ -39,6 +40,7 @@ USERS = {
     "dse_user": ("user.dse@example.org", Role.DIRECTORATE_USER, "EDU-DSE"),
     "dhe_user": ("user.dhe@example.org", Role.DIRECTORATE_USER, "EDU-DHE"),
     "edu_reviewer": ("reviewer.edu@example.org", Role.REFERRAL_REVIEWER, "EDU"),
+    "edu_counsel": ("counsel.edu@example.org", Role.STANDING_COUNSEL, "EDU-SC"),
     "edu_auditor": ("auditor@example.org", Role.AUDITOR, "GOA"),
     "health_admin": ("admin.health@example.org", Role.DEPT_ADMIN, "HEALTH"),
     "health_off": ("off.health@example.org", Role.DEPT_OFFICER, "HEALTH"),
@@ -84,6 +86,7 @@ def build_world(engine) -> World:
         edu = office("EDU", "Education", OfficeKind.DEPARTMENT, goa)
         office("EDU-DSE", "Secondary Education", OfficeKind.DIRECTORATE, edu)
         office("EDU-DHE", "Higher Education", OfficeKind.DIRECTORATE, edu)
+        office("EDU-SC", "Standing Counsel, Education", OfficeKind.UNIT, edu)
         office("HEALTH", "Health", OfficeKind.DEPARTMENT, goa)
         office("CENTRAL", "Central Cell", OfficeKind.CENTRAL, goa)
         pw_hash = hash_password(PW)

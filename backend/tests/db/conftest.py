@@ -130,7 +130,8 @@ DETAILS = {
 
 
 def router(gw: Gateway):
-    """Answers every API from the samples; the dossier is the pending sample re-labelled with the asked CNR."""
+    """Answers every API from the samples (Search by Case Number and by Party Name included); the dossier is
+    the pending sample re-labelled with the asked CNR."""
     import base64
 
     pdf_b64 = base64.b64encode((FIXTURES / "napix_lawazima_bench2048_2025-01-06.pdf").read_bytes()).decode()
@@ -160,6 +161,10 @@ def router(gw: Gateway):
             data = sample("cnr_pending.json")
             data["cino"] = params["cino"]
             return gw.envelope(data)
+        if path == "hc-case-search-api/casesearch":
+            return gw.envelope(sample("case_search_2026-09-03.json"))
+        if path == "hc-party-name-api/partyname":
+            return gw.envelope(sample("party_name_2026-09-03.json"))
         if path == "hc-current-status-api/currentStatus":
             block = sample("current_status_pending.json")["cases1"]
             out = {}
