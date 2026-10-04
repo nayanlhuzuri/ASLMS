@@ -621,3 +621,4 @@ Built on `feature/recommend-and-claim` from `docs/design/recommend-and-claim.md`
   portal screens including the scoring-settings screen (`portal-cases`), department discovery (row 19).
 - Verification against the loaded January 2025 days (design "Verification" steps 4–13) is run by the
   integrator with Compose up; the unmapped-codes top five goes into the cycle report.
+- 2026-10-04 — cases-api: approved by the owner as written (docs/design/cases-api.md)

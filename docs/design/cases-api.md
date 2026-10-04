@@ -2,10 +2,10 @@
 
 ```
 slug: cases-api
-status: awaiting-approval
+status: approved
 author: architect
 date: 2026-10-04
-approved_by:
+approved_by: product owner (nayan.semt@gmail.com) on 2026-10-04
 ```
 
 ## Context
