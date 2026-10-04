@@ -20,7 +20,7 @@ The whole system, including the database, is designed and built new from the pla
 Python 3.11+ backend (FastAPI), Celery + Redis, PostgreSQL 16 + PgBouncer, Alembic migrations, Next.js frontend, Docker Compose, Prometheus/Grafana. `ruff check` clean, `pytest -q` green.
 
 ## Rules that must not be broken
-- **Ownership is recommend-and-claim.** Never assign a case to a department automatically. Score ≥ 0.85 = strong recommendation, 0.50–0.85 = possible match, < 0.50 = unclaimed pool. A case belongs to a department only after it claims it.
+- - **Ownership is recommend-and-claim.** Never assign a case to a department automatically. Default bands: score ≥ 0.85 = strong recommendation, 0.50–0.85 = possible match, < 0.50 = no recommendation; the super admin can change the weights and bands from the application. A case belongs to a department only after it claims it, and once claimed it never returns to the unclaimed pool.
 - **All AI goes through SourceTrace**, via the SourceTrace connector interface. No cloud LLM, no local model. SourceTrace endpoints are not known yet: code against the interface and use a fake implementation in tests.
 - **Never send to SourceTrace:** case notes or internal documents. Only court orders and uploaded court filings are ingested.
 - **Case notes are append-only.** No edits or deletes; corrections are new notes linked with `supersedes`.
