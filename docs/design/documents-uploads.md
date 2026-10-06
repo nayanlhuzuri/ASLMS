@@ -2,10 +2,10 @@
 
 ```
 slug: documents-uploads
-status: awaiting-approval
+status: approved
 author: architect
 date: 2026-10-04
-approved_by: <owner e-mail or name> on YYYY-MM-DD
+approved_by: product owner (nayan.semt@gmail.com) on 2026-10-06
 ```
 
 ## Context
