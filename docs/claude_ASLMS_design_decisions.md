@@ -736,3 +736,4 @@ documents; no OCR; ClamAV required to test uploads locally.
 - Note attachments and their per-note visibility (`custody-workflow`); the SourceTrace ingestion of court records
   and filings (`sourcetrace-connector`); alerts on a new document (`alerts-notifications`); the upload screens
   (`portal-workflow`).
+- 2026-10-06 — alerts-notifications: approved by the owner as written (docs/design/alerts-notifications.md)
