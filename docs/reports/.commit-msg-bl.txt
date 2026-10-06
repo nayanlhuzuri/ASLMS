@@ -1,3 +1,0 @@
-Backlog: documents-uploads done, report path, follow-up row 25
-
-Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
