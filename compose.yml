@@ -1,6 +1,7 @@
 # ASLMS v2 — one command brings the stack up: `docker compose up -d` (migrates and seeds, then the services).
-# Services: postgres, redis, init (migrate + seed), worker (the NAPIX load-and-refresh queue), scheduler
-# (Celery beat). The API and the portal join as they are built. Variables come from .env (copy .env.example).
+# Services: postgres, redis, clamav (scans every upload), init (migrate + seed), api, worker (the NAPIX
+# load-and-refresh queue), scheduler (Celery beat and the text-extraction sweep). The portal joins as it is
+# built. Variables come from .env (copy .env.example).
 
 services:
   postgres:
@@ -26,6 +27,21 @@ services:
     volumes:
       - redisdata_v3:/data
 
+  clamav:
+    # the virus scanner behind uploads (design documents-uploads): clamd on 3310 inside the Compose network
+    # only; freshclam keeps the signatures in the named volume. The first start downloads the signatures
+    # (minutes); until the healthcheck passes, uploads answer 503 scanner_unavailable. There is no off switch.
+    image: clamav/clamav:stable
+    volumes:
+      - clamdb_v3:/var/lib/clamav
+    healthcheck:
+      test: ["CMD", "clamdscan", "--ping", "1"]
+      interval: 30s
+      timeout: 10s
+      retries: 20
+      start_period: 300s
+    restart: unless-stopped
+
   init:
     build: ./backend
     env_file:
@@ -42,7 +58,8 @@ services:
     restart: "no"
 
   api:
-    # the HTTP API (login, users, access; case endpoints follow). Needs ASLMS_JWT_SECRET in .env.
+    # the HTTP API (login, users, access, cases, documents). Needs ASLMS_JWT_SECRET in .env. Uploads go to
+    # clamav before the store; the api does not wait for clamav to be healthy (503 until it is).
     build: ./backend
     env_file:
       - path: .env
@@ -51,6 +68,8 @@ services:
       DATABASE_URL_SYNC: postgresql+psycopg://${POSTGRES_USER:-aslms}:${POSTGRES_PASSWORD:-aslms}@postgres:5432/${POSTGRES_DB:-aslms}
       REDIS_URL: redis://redis:6379/0
       STORAGE_DIR: /data/store
+      CLAMAV_HOST: clamav
+      CLAMAV_PORT: "3310"
     volumes:
       - ./data:/data
     ports:
@@ -58,6 +77,8 @@ services:
     depends_on:
       init:
         condition: service_completed_successfully
+      clamav:
+        condition: service_started
     command: uvicorn aslms.api.main:app --host 0.0.0.0 --port 8000
     restart: unless-stopped
 
@@ -87,6 +108,7 @@ services:
   scheduler:
     # Celery beat (06:00 masters, 06:30/18:30 lists, 20:00 status, Sunday 02:00 sweep) enqueues; the worker fetches.
     # Every 15 minutes `rescore-dirty` rescores the cases when a matching rule, an office or the scoring settings changed.
+    # Every 5 minutes `extract-text` extracts the text of pending order PDFs and uploads (it reads the store).
     build: ./backend
     env_file:
       - path: .env
@@ -94,6 +116,9 @@ services:
     environment:
       DATABASE_URL_SYNC: postgresql+psycopg://${POSTGRES_USER:-aslms}:${POSTGRES_PASSWORD:-aslms}@postgres:5432/${POSTGRES_DB:-aslms}
       REDIS_URL: redis://redis:6379/0
+      STORAGE_DIR: /data/store
+    volumes:
+      - ./data:/data
     depends_on:
       init:
         condition: service_completed_successfully
@@ -105,3 +130,4 @@ services:
 volumes:
   pgdata_v3:
   redisdata_v3:
+  clamdb_v3:

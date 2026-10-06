@@ -62,6 +62,13 @@ class Settings(BaseSettings):
     aslms_superadmin_email: str | None = None  # created by `aslms seed` when both are set; never logged
     aslms_superadmin_password: SecretStr | None = None
 
+    # --- documents and uploads (design documents-uploads, decisions 1, 2, 4, 10) -----------------------
+    upload_max_bytes: int = 20 * 1024 * 1024  # 20 MB per file, below ClamAV's default StreamMaxLength (25 MB)
+    clamav_host: str = "localhost"  # Compose sets `clamav`
+    clamav_port: int = 3310
+    clamav_timeout_seconds: float = 30.0
+    text_extract_batch: int = 50  # documents per `aslms.extract_pending_text` run
+
     # --- SourceTrace ---------------------------------------------------------------------
     sourcetrace_base_url: str | None = None
     sourcetrace_api_key: SecretStr | None = None

@@ -9,7 +9,8 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
-from sqlalchemy import Select, func, or_, select
+from sqlalchemy import Select, cast, exists, func, literal, or_, select
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Session
 
 from aslms.domain.cases import (
@@ -27,7 +28,7 @@ from aslms.domain.cases import (
 )
 from aslms.domain.causelists import Causelist, CauselistEntry
 from aslms.domain.courts import Bench, Court
-from aslms.domain.documents import Order
+from aslms.domain.documents import Document, Order
 from aslms.domain.events import Event
 from aslms.domain.org import Office, User
 from aslms.domain.ownership import CaseOwnership, OwnershipRole, OwnershipStatus
@@ -35,6 +36,7 @@ from aslms.domain.reference import EventType, Permission, RefEventType
 from aslms.domain.workflow import Custody
 from aslms.services import access, inbox
 from aslms.services.visibility import (
+    document_visible_condition,
     never_owned,
     require_visible,
     user_department,
@@ -256,7 +258,9 @@ def _claimable(session: Session, user: User, case: Case) -> bool:
     return bool(session.scalar(select(never_owned()).select_from(Case).where(Case.id == case.id)))
 
 
-def _counts(session: Session, case: Case) -> dict[str, int]:
+def _counts(session: Session, user: User, case: Case) -> dict[str, int]:
+    from aslms.services.documents import visible_count
+
     def n(stmt: Select) -> int:
         return int(session.scalar(select(func.count()).select_from(stmt.subquery())) or 0)
 
@@ -265,6 +269,7 @@ def _counts(session: Session, case: Case) -> dict[str, int]:
         "orders": n(select(Order.id).where(Order.case_id == case.id)),
         "listings": n(select(CauselistEntry.id).where(CauselistEntry.case_id == case.id)),
         "links": n(_links_stmt(case)),
+        "documents": visible_count(session, user, case),  # visible to the caller, not archived
         "timeline": _count(session, _timeline_stmt(session, None, case, unrestricted=True)),
     }
 
@@ -360,7 +365,7 @@ def overview(session: Session, user: User, case: Case) -> dict[str, Any]:
         "claimable": _claimable(session, user, case),
         "dossier_status": "fetched" if case.last_full_refresh_at is not None else "not_fetched",
         "merged_into_ref_no": merged_into.ref_no if merged_into else None,
-        "counts": _counts(session, case),
+        "counts": _counts(session, user, case),
     }
 
 
@@ -405,9 +410,14 @@ def hearings(session: Session, user: User, case: Case, *, limit=None, offset=Non
 def orders(session: Session, user: User, case: Case, *, limit=None, offset=None) -> Page:
     require_visible(session, user, case)
     stmt = (
-        select(Order).where(Order.case_id == case.id).order_by(Order.order_date.desc(), Order.order_no.desc())
+        select(Order, Document)
+        .outerjoin(Document, Document.id == Order.document_id)
+        .where(Order.case_id == case.id)
+        .order_by(Order.order_date.desc(), Order.order_no.desc())
     )
-    rows, total = _page(session, stmt, limit, offset)
+    limit, offset = inbox.clamp(limit, offset)
+    total = _count(session, stmt)
+    rows = session.execute(stmt.limit(limit).offset(offset)).all()
     return Page(
         [
             {
@@ -422,8 +432,10 @@ def orders(session: Session, user: User, case: Case, *, limit=None, offset=None)
                 "is_reportable": o.is_reportable,
                 "download_status": _value(o.download_status),
                 "document_id": o.document_id,
+                "text_status": _value(d.text_status) if d else None,
+                "page_count": d.page_count if d else None,
             }
-            for o in rows
+            for o, d in rows
         ],
         total,
     )
@@ -599,20 +611,40 @@ def link_graph(session: Session, user: User, case: Case, *, depth: int = 2) -> d
 # ------------------------------------------------------------------------------------------------ timeline
 
 
+def _document_events(session: Session, user: User | None, *, unrestricted: bool):
+    """`document_uploaded` rows, shown only when the document is visible to the caller (design
+    documents-uploads, decision 12); every row when counting unrestricted."""
+    is_doc = Event.type == EventType.DOCUMENT_UPLOADED
+    if unrestricted:
+        return is_doc
+    if user is None:
+        return literal(False)
+    visible_doc = exists(
+        select(literal(1))
+        .select_from(Document)
+        .where(
+            Document.id == cast(Event.payload["document_id"].astext, PG_UUID(as_uuid=True)),
+            document_visible_condition(session, user),
+        )
+    )
+    return is_doc & visible_doc
+
+
 def _timeline_stmt(session: Session, user: User | None, case: Case, *, unrestricted: bool = False) -> Select:
     types = list(COURT_EVENTS + OWNERSHIP_EVENTS)
     stmt = select(Event).where(Event.case_id == case.id)
+    docs = _document_events(session, user, unrestricted=unrestricted)
     if unrestricted or (user is not None and access.has(session, user, Permission.CASES_VIEW_ALL)):
-        return stmt.where(Event.type.in_(types + list(DEPARTMENT_EVENTS)))
+        return stmt.where(or_(Event.type.in_(types + list(DEPARTMENT_EVENTS)), docs))
     dept = user_department(session, user) if user is not None else None
     if dept is None:
-        return stmt.where(Event.type.in_(types))
+        return stmt.where(or_(Event.type.in_(types), docs))
     mine = or_(
         Event.payload["office_code"].astext == dept.code,
         Event.payload["from_office_code"].astext == dept.code,
         Event.payload["to_office_code"].astext == dept.code,
     )
-    return stmt.where(or_(Event.type.in_(types), (Event.type.in_(list(DEPARTMENT_EVENTS))) & mine))
+    return stmt.where(or_(Event.type.in_(types), (Event.type.in_(list(DEPARTMENT_EVENTS))) & mine, docs))
 
 
 def timeline(session: Session, user: User, case: Case, *, limit=None, offset=None) -> Page:

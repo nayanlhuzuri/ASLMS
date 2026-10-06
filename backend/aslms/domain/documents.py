@@ -9,9 +9,11 @@ from datetime import date, datetime
 from sqlalchemy import (
     BigInteger,
     Boolean,
+    CheckConstraint,
     Date,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -77,10 +79,43 @@ class SourcetraceStatus(enum.StrEnum):
 
 
 class Document(TimestampMixin, OptionalRefNoMixin, ActorSnapshotMixin, Base):
+    """A stored file: a cause-list or order PDF fetched by the pipeline, or a user's upload / note attachment
+    (design `documents-uploads`). The store is content-addressed, so one file may back several rows; system
+    PDFs are deduplicated per kind, uploads per (case, office) while not archived. Never deleted."""
+
     __tablename__ = "documents"
     __table_class__ = TableClass.TRANSACTION
+    __table_args__ = (
+        Index("ix_documents_sha256", "sha256"),
+        Index(
+            "ix_documents_system_sha",
+            "kind",
+            "sha256",
+            unique=True,
+            postgresql_where=text("kind IN ('causelist', 'order')"),
+        ),
+        Index(
+            "ix_documents_upload_dedupe",
+            "case_id",
+            "office_id",
+            "sha256",
+            unique=True,
+            postgresql_where=text("kind = 'upload' AND archived_at IS NULL"),
+        ),
+        Index("ix_documents_case_kind", "case_id", "kind", postgresql_where=text("archived_at IS NULL")),
+        CheckConstraint(
+            "doc_group <> 'internal' OR sourcetrace_status = 'not_applicable'", name="internal_not_sent"
+        ),
+        CheckConstraint(
+            "kind NOT IN ('upload', 'attachment') OR (ref_no IS NOT NULL AND office_id IS NOT NULL "
+            "AND doc_date IS NOT NULL AND virus_scan_status = 'clean' AND doc_group <> 'court_record')",
+            name="user_file",
+        ),
+        CheckConstraint("kind <> 'upload' OR case_id IS NOT NULL", name="upload_case"),
+        CheckConstraint("archived_at IS NULL OR archive_reason IS NOT NULL", name="archive_reason"),
+    )
     id: Mapped[uuid.UUID] = uuid_pk()
-    sha256: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     storage_key: Mapped[str] = mapped_column(String(400), nullable=False)
     mime: Mapped[str] = mapped_column(String(100), nullable=False)
     size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
@@ -108,12 +143,16 @@ class Document(TimestampMixin, OptionalRefNoMixin, ActorSnapshotMixin, Base):
     )
     sourcetrace_ref: Mapped[str | None] = mapped_column(String(200))
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    archive_reason: Mapped[str | None] = mapped_column(Text)
     page_count: Mapped[int | None] = mapped_column(Integer)
 
 
 class DocumentText(TimestampMixin, Base):
+    """Written only by the text-extraction job (`services/text_extract.py`)."""
+
     __tablename__ = "document_text"
     __table_class__ = TableClass.TRANSACTION
+    __table_args__ = (Index("ix_document_text_search_vector_gin", "search_vector", postgresql_using="gin"),)
     document_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), primary_key=True
     )

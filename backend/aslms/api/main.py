@@ -11,6 +11,7 @@ from aslms import __version__
 from aslms.api.routers import access as access_router
 from aslms.api.routers import auth as auth_router
 from aslms.api.routers import cases as cases_router
+from aslms.api.routers import documents as documents_router
 from aslms.api.routers import inbox as inbox_router
 from aslms.api.routers import matching as matching_router
 from aslms.api.routers import offices as offices_router
@@ -41,6 +42,8 @@ def create_app(settings: Settings | None = None, session_factory=None) -> FastAP
     app.include_router(matching_router.router)
     app.include_router(inbox_router.router)
     app.include_router(cases_router.router)
+    app.include_router(documents_router.router)
+    documents_router.upload_size_guard(app)
     app.include_router(ownership_router.router)
 
     @app.get("/health", tags=["ops"])

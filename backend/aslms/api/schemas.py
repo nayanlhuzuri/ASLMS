@@ -755,6 +755,7 @@ class CaseCountsOut(BaseModel):
     hearings: int
     orders: int
     listings: int
+    documents: int
     links: int
     timeline: int
 
@@ -818,6 +819,8 @@ class OrderOut(BaseModel):
     is_reportable: bool | None
     download_status: str
     document_id: uuid.UUID | None
+    text_status: str | None = None
+    page_count: int | None = None
 
 
 class OrderListOut(BaseModel):
@@ -944,3 +947,96 @@ class ErrorOut(BaseModel):
     code: str
     message: str
     retry_after: int | None = None
+
+
+# ------------------------------------------------------------------------------------------------ documents
+
+
+class DocumentOfficeOut(BaseModel):
+    code: str
+    name: str
+
+
+class DocumentUploaderOut(BaseModel):
+    name: str
+    designation: str | None = None
+    office_code: str | None = None
+
+
+class DocumentOrderOut(BaseModel):
+    id: uuid.UUID
+    order_no: str
+    order_date: date
+    kind: str
+
+
+class DocumentCaseOut(BaseModel):
+    id: uuid.UUID
+    ref_no: str
+    cnr: str | None
+    case_no_text: str | None
+
+
+class DocumentOut(BaseModel):
+    id: uuid.UUID
+    ref_no: str | None
+    kind: str
+    doc_type: str
+    doc_type_label: str
+    doc_group: str
+    doc_date: date | None
+    description: str | None
+    original_filename: str | None
+    mime: str
+    size_bytes: int
+    visibility: str
+    office: DocumentOfficeOut | None
+    uploaded_by: DocumentUploaderOut | None
+    uploaded_at: datetime
+    virus_scan_status: str
+    text_status: str
+    page_count: int | None
+    text_extracted_at: datetime | None
+    sourcetrace_status: str
+    assistant_available: bool
+    archived_at: datetime | None
+    archive_reason: str | None
+    order: DocumentOrderOut | None
+    case: DocumentCaseOut | None
+    can_manage: bool
+
+
+class DocumentListOut(BaseModel):
+    items: list[DocumentOut]
+    total: int
+
+
+class DocumentTypeOut(BaseModel):
+    code: str
+    label: str
+    doc_group: str
+    group_choosable: bool
+
+
+class DocumentTypesOut(BaseModel):
+    items: list[DocumentTypeOut]
+
+
+class DocumentSearchItemOut(BaseModel):
+    document: DocumentOut
+    case: CaseSummaryOut | None
+    snippet: str | None
+    rank: float
+
+
+class DocumentSearchOut(BaseModel):
+    items: list[DocumentSearchItemOut]
+    total: int
+
+
+class DocumentVisibilityIn(BaseModel):
+    visibility: str = Field(..., pattern="^(case_scope|counsel_shared|private_to_office)$")
+
+
+class DocumentArchiveIn(BaseModel):
+    reason: str = Field(..., min_length=3, max_length=500)

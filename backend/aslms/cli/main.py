@@ -1,4 +1,4 @@
-"""`aslms` command line: NAPIX checks and probes, `seed`, `db-check`, the load pipeline (`load`, `queue-run`, `queue-status`, `sync-masters`, `refetch-date`, `refetch-case`), the matching engine (`rescore`, `codes unmapped`), the `cases` group (`reindex-search`, `show`), and the `users`, `access` and `offices` administration groups."""
+"""`aslms` command line: NAPIX checks and probes, `seed`, `db-check`, the load pipeline (`load`, `queue-run`, `queue-status`, `sync-masters`, `refetch-date`, `refetch-case`), the matching engine (`rescore`, `codes unmapped`), the `cases` group (`reindex-search`, `show`), the `documents` group (`extract`, `scan-check`), and the `users`, `access` and `offices` administration groups."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from rich import print as rprint
 from aslms import __version__
 from aslms.cli.cases import cases_app
 from aslms.cli.db import db_check, seed
+from aslms.cli.documents import documents_app
 from aslms.cli.matching import codes_app, rescore
 from aslms.cli.napix_check import napix_check
 from aslms.cli.napix_fields import napix_fields
@@ -49,6 +50,7 @@ app.add_typer(access_app, name="access")
 app.add_typer(offices_app, name="offices")
 app.add_typer(codes_app, name="codes")
 app.add_typer(cases_app, name="cases")
+app.add_typer(documents_app, name="documents")
 
 
 @app.callback()

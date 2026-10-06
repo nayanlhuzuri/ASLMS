@@ -90,10 +90,14 @@ class DocType(enum.StrEnum):
     COUNTER_AFFIDAVIT = "counter_affidavit"
     REJOINDER = "rejoinder"
     WRITTEN_SUBMISSION = "written_submission"
+    REPLY = "reply"
+    INTERLOCUTORY_APPLICATION = "interlocutory_application"
+    ANNEXURE = "annexure"
     PARAWISE_COMMENTS = "parawise_comments"
     LEGAL_OPINION = "legal_opinion"
     COMPLIANCE_REPORT = "compliance_report"
     CORRESPONDENCE = "correspondence"
+    INSTRUCTIONS_TO_COUNSEL = "instructions_to_counsel"
     OTHER = "other"
 
 

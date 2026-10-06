@@ -92,7 +92,10 @@ async def fetch_order_pdf(
         session.flush()
         raise RuntimeError(order.last_error)
     stored = store.put(pdf, "application/pdf")
-    doc = session.scalar(select(Document).where(Document.sha256 == stored.sha256))
+    # by sha256 *and* kind (design documents-uploads, decision 8): an order never points at a user's upload
+    doc = session.scalar(
+        select(Document).where(Document.sha256 == stored.sha256, Document.kind == DocKind.ORDER)
+    )
     new = doc is None
     if doc is None:
         doc = Document(

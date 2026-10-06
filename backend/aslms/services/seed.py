@@ -67,7 +67,13 @@ DOC_GROUP = {
     DocType.COUNTER_AFFIDAVIT: "court_filing",
     DocType.REJOINDER: "court_filing",
     DocType.WRITTEN_SUBMISSION: "court_filing",
+    DocType.REPLY: "court_filing",
+    DocType.INTERLOCUTORY_APPLICATION: "court_filing",
+    DocType.ANNEXURE: "court_filing",
+    DocType.INSTRUCTIONS_TO_COUNSEL: "internal",
 }
+# labels that differ from the code (design documents-uploads, decision 6; new databases only)
+DOC_TYPE_LABELS = {DocType.COUNTER_AFFIDAVIT: "Affidavit-in-opposition (counter affidavit)"}
 ALERT_SEVERITY = {
     AlertKind.HEARING_DUE: "high",
     AlertKind.NEXT_DATE_CHANGED: "high",
@@ -95,7 +101,10 @@ def _extra_columns(model: type, member: enum.Enum) -> dict:
     if model is RefCaseStage:
         return {"phase": STAGE_PHASE.get(member, "main")}
     if model is RefDocType:
-        return {"doc_group": DOC_GROUP.get(member, "internal")}
+        out = {"doc_group": DOC_GROUP.get(member, "internal")}
+        if member in DOC_TYPE_LABELS:
+            out["label"] = DOC_TYPE_LABELS[member]
+        return out
     if model is RefAlertKind:
         return {"default_severity": ALERT_SEVERITY.get(member, "normal")}
     if model is RefPermission:

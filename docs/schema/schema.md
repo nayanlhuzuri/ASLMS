@@ -52,6 +52,12 @@ written from this document plus the approved addendum. **As built (1 Oct 2026):*
   `state`, `owner`, `recommended`, `pool`, `allotted`, `custody`, `request`, `counsel`, OR-ed in SQL for every
   list and evaluated for one case on every detail; summaries of any case are searchable, details only within
   the rule.
+- Document visibility is one rule (`services/visibility.py::document_visible_condition`, design
+  `documents-uploads`): the document function, a visible case the document belongs to (directly or through an
+  order), and the document's own setting (`record_visibility_condition`: court records and `counsel_shared` to
+  everyone on the case, `case_scope` to everyone but standing counsel, `private_to_office` to the office itself,
+  its department-wide callers and the uploader; State-wide readers see all). Notes reuse
+  `record_visibility_condition`.
 
 ## Group 0 — Code sets and sequences (reference)
 | Table | Columns | Notes |
@@ -139,8 +145,8 @@ moves only; `custody_history.reason` codes `claimed`, `allotted`, `taken_over`, 
 ## Group 6 — Documents and orders
 | Table | Columns | Notes |
 |---|---|---|
-| `documents` | ref_no (unique, uploads only), sha256 (unique), storage_key, mime, size_bytes, original_filename, kind, doc_type (→ `ref_doc_type`), doc_group (`court_record` / `court_filing` / `internal`), case_id, doc_date, description, visibility (`case_scope` / `counsel_shared` / `private_to_office`), office_id, virus_scan_status, scanned_at, text_status, text_extracted_at, sourcetrace_status, sourcetrace_ref, archived_at, actor snapshot | Only `court_record` and `court_filing` may ever be sent to SourceTrace; `internal` never. Retired with `archived_at`, never deleted. |
-| `document_text` | document_id (PK, CASCADE), page_count, full_text, search_vector (tsvector, GIN) | |
+| `documents` (transaction) | ref_no (unique; allocated for `upload` and `attachment` rows on the uploader's office, `ASLMS/<office>/DOC/<yyyy>/<n>`), sha256 (indexed, **not** unique), storage_key, mime, size_bytes, original_filename, kind (`causelist` / `order` / `upload` / `attachment`), doc_type (→ `ref_doc_type`), doc_group (`court_record` / `court_filing` / `internal`), case_id (→ cases RESTRICT), doc_date, description, visibility (`case_scope` / `counsel_shared` / `private_to_office`), office_id (→ offices RESTRICT; the uploader's office), virus_scan_status, scanned_at, text_status (`pending` / `extracted` / `failed` / `none`), text_extracted_at, page_count, sourcetrace_status, sourcetrace_ref, archived_at, archive_reason, actor snapshot, created_at, updated_at | Partial unique `ix_documents_system_sha` (kind, sha256) WHERE kind IN ('causelist','order'); partial unique `ix_documents_upload_dedupe` (case_id, office_id, sha256) WHERE kind = 'upload' AND archived_at IS NULL; one stored file may back several rows (the store is content-addressed). CHECKs: `ck_documents_internal_not_sent` (internal → `sourcetrace_status = not_applicable`), `ck_documents_user_file` (uploads and attachments carry ref_no, office_id, doc_date, scan `clean`, never `court_record`), `ck_documents_upload_case`, `ck_documents_archive_reason`. Uploads are stored only after a clean virus scan (design `documents-uploads`); system PDFs are `skipped`. Only `court_record` and `court_filing` may ever be sent to SourceTrace, and a `private_to_office` filing is not sent. Retired with `archived_at` + `archive_reason`, never deleted; visibility may change (audited), content never. |
+| `document_text` (transaction) | document_id (PK, CASCADE), page_count, full_text, search_vector (tsvector, `to_tsvector('english', left(full_text, 500000))`, GIN `ix_document_text_search_vector_gin`), created_at, updated_at | Written only by the text-extraction job. |
 | `orders` | case_id, order_no (NAPIX), order_date, kind (`interim` / `final` / `judgment`), is_reportable, document_id, download_status, download_attempts, last_error, raw | Unique (case_id, order_no, order_date). |
 
 ## Group 7 — Next dates, alerts and notifications

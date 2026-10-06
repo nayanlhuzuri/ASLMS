@@ -1,5 +1,5 @@
-"""Request dependencies: the database session, the current user, `require(function)`, `require_any(...)`, and
-the audit actor."""
+"""Request dependencies: the database session, the current user, `require(function)`, `require_any(...)`,
+the audit actor, and the virus scanner behind uploads (`app.state.scanner` in tests, `clamd` otherwise)."""
 
 from __future__ import annotations
 
@@ -14,6 +14,8 @@ from aslms.domain.org import Office, User
 from aslms.domain.reference import Permission
 from aslms.services import access
 from aslms.services.audit import Actor
+from aslms.services.scanner import Scanner
+from aslms.services.scanner import get_scanner as _configured_scanner
 
 bearer = HTTPBearer(auto_error=False)
 
@@ -82,3 +84,9 @@ def actor_of(request: Request, user: User, session: Session) -> Actor:
         ip=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
     )
+
+
+def get_scanner(request: Request) -> Scanner:
+    """The upload scanner: a test double set on `app.state.scanner`, else the configured `clamd`."""
+    override = getattr(request.app.state, "scanner", None)
+    return override if override is not None else _configured_scanner(request.app.state.settings)

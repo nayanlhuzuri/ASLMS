@@ -12,17 +12,24 @@ ownership predicates come from `recommend-and-claim`, decisions 15, 16, 23).
   condition over `cases` (correlated `EXISTS` subqueries): `state`, `owner`, `recommended`, `pool`, `allotted`,
   `custody`, `request`, `counsel`. `visible_case_condition` ORs them (a filter for lists, a selected column for
   search); `access_basis` evaluates them for one case; `can_view_case` / `require_visible` decide the detail.
-  Nothing is filtered in the portal; nothing is filtered after the query."""
+  Nothing is filtered in the portal; nothing is filtered after the query.
+- Documents (design `documents-uploads`, decision 7): `record_visibility_condition` is the per-record rule
+  shared with notes (court records and `counsel_shared` to everyone on the case, `case_scope` to everyone but
+  standing counsel, `private_to_office` to the office itself, its department-wide callers and the author;
+  State-wide readers see all); `document_case_condition` is "a visible case the document belongs to, directly
+  or through an order"; `document_visible_condition` ANDs the function, the case and the record rule;
+  `works_on_case` is the upload rule (a working basis, not merely sight)."""
 
 from __future__ import annotations
 
 import uuid
 from typing import Any, Literal
 
-from sqlalchemy import ColumnElement, Select, exists, false, literal, or_, select, text, true
+from sqlalchemy import ColumnElement, Select, and_, case, exists, false, literal, or_, select, text, true
 from sqlalchemy.orm import Session
 
 from aslms.domain.cases import Case, CaseStatus
+from aslms.domain.documents import DocGroup, Document, Order, Visibility
 from aslms.domain.org import Office, User
 from aslms.domain.ownership import (
     CaseOwnership,
@@ -294,3 +301,107 @@ def require_visible(session: Session, user: User, case: Case) -> list[str]:
     if not basis:
         raise NotVisibleCase("no such case")
     return basis
+
+
+# ------------------------------------------------------------------------------------------------ documents
+
+WORKING_BASES = frozenset({"owner", "allotted", "custody", "request", "counsel"})
+STATE_WIDE_PERMISSIONS = (Permission.CASES_VIEW_ALL,)
+
+
+class NotVisibleDocument(LookupError):
+    """The document exists but the caller may not see it (HTTP 404 "no such document")."""
+
+
+def state_wide(session: Session, user: User) -> bool:
+    """A State-wide reader: the super admin or a holder of `cases.view_all` (oversight, central operator,
+    auditor). Sees every case and every document, private ones included."""
+    return access.is_super_admin(user) or access.has(session, user, Permission.CASES_VIEW_ALL)
+
+
+def works_on_case(session: Session, user: User, case: Case | uuid.UUID) -> bool:
+    """Decision 5: the case is visible through a working basis (not only `state`, `recommended` or `pool`)."""
+    return bool(WORKING_BASES & set(access_basis(session, user, case)))
+
+
+def record_visibility_condition(
+    session: Session,
+    user: User,
+    *,
+    visibility: Any,
+    office_id: Any,
+    author_user_id: Any,
+    group: Any = None,
+) -> ColumnElement[bool]:
+    """Part (c) of the document rule, generic over the record's visibility, office and author columns (notes
+    reuse it). `group` is the `doc_group` column when the record has one: court records are open to all."""
+    if state_wide(session, user):
+        return true()
+    own = session.get(Office, user.office_id)
+    dept = department_of(session, own)
+    whole = dept is not None and whole_department(session, user)
+    counsel = Role(user.role) == Role.STANDING_COUNSEL
+    author = author_user_id == user.id
+    private_office = [office_id == user.office_id, author]
+    if whole:
+        private_office.append(office_id.in_(subtree_ids(dept)))
+    conds = [
+        (visibility == Visibility.COUNSEL_SHARED, true()),
+        (visibility == Visibility.CASE_SCOPE, author if counsel else true()),
+        (visibility == Visibility.PRIVATE_TO_OFFICE, or_(*private_office)),
+    ]
+    if group is not None:
+        conds.insert(0, (group == DocGroup.COURT_RECORD, true()))
+    return case(*conds, else_=false())
+
+
+def document_case_condition(session: Session, user: User) -> ColumnElement[bool]:
+    """Part (b): a visible case the document belongs to — `documents.case_id`, or the case of any order whose
+    PDF this document is (one order PDF may serve connected cases)."""
+    visible = visible_case_condition(session, user)
+    direct = exists(select(literal(1)).select_from(Case).where(Case.id == Document.case_id, visible))
+    via_order = exists(
+        select(literal(1))
+        .select_from(Order)
+        .join(Case, Case.id == Order.case_id)
+        .where(Order.document_id == Document.id, visible)
+    )
+    return or_(direct, via_order)
+
+
+def document_visible_condition(
+    session: Session, user: User, *, permission: Permission = Permission.DOCUMENTS_VIEW
+) -> ColumnElement[bool]:
+    """Decision 7, over `documents`: (a) the function, (b) a visible case, (c) the record's own setting."""
+    if not access.has(session, user, permission):
+        return false()
+    return and_(
+        document_case_condition(session, user),
+        record_visibility_condition(
+            session,
+            user,
+            visibility=Document.visibility,
+            office_id=Document.office_id,
+            author_user_id=Document.actor_user_id,
+            group=Document.doc_group,
+        ),
+    )
+
+
+def can_view_document(
+    session: Session,
+    user: User,
+    doc: Document | uuid.UUID,
+    *,
+    permission: Permission = Permission.DOCUMENTS_VIEW,
+) -> bool:
+    doc_id = doc if isinstance(doc, uuid.UUID) else doc.id
+    cond = document_visible_condition(session, user, permission=permission)
+    return bool(session.scalar(select(cond).select_from(Document).where(Document.id == doc_id)))
+
+
+def require_visible_document(
+    session: Session, user: User, doc: Document, *, permission: Permission = Permission.DOCUMENTS_VIEW
+) -> None:
+    if not can_view_document(session, user, doc, permission=permission):
+        raise NotVisibleDocument("no such document")

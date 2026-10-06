@@ -118,6 +118,7 @@ def test_overview_carries_every_typed_column(api, world, loaded):
         "orders": 3,
         "listings": 2,
         "links": 0,
+        "documents": 0,
         "timeline": body["counts"]["timeline"],
     }
     assert body["counts"]["timeline"] >= 3  # case_created, claimed, allotted, custody_moved, order_found…

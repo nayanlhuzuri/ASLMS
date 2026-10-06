@@ -101,7 +101,9 @@ def store_pdf(
     session: Session, store: LocalStore, data: bytes, *, doc_date: date, description: str
 ) -> tuple[Document, bool]:
     stored = store.put(data, "application/pdf")
-    doc = session.scalar(select(Document).where(Document.sha256 == stored.sha256))
+    doc = session.scalar(
+        select(Document).where(Document.sha256 == stored.sha256, Document.kind == DocKind.CAUSELIST)
+    )
     if doc is not None:
         return doc, False
     doc = Document(

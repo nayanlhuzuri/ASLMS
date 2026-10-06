@@ -9,7 +9,14 @@ from pathlib import Path
 
 from aslms.core.config import get_settings
 
-EXT_FOR_MIME = {"application/pdf": "pdf", "image/png": "png", "image/jpeg": "jpg", "text/plain": "txt"}
+EXT_FOR_MIME = {
+    "application/pdf": "pdf",
+    "image/png": "png",
+    "image/jpeg": "jpg",
+    "text/plain": "txt",
+    "application/msword": "doc",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+}
 
 
 @dataclass(frozen=True)
