@@ -40,6 +40,9 @@ there is no request object. Plan §5.8 "notes cannot be edited or deleted" gains
 - **Draft notes** of the current holder, made permanent in the move's transaction (decisions 12–13).
 - Alerts: `workflow` kind now covers file received, file recalled and due / overdue; `request_due` retired
   (decision 23).
+- (owner review 2026-10-07, from `user-memberships` decisions 21–22) When an officer leaves a department, the
+  exit step hands the files they hold to a successor with a leg of the new reason **`reassigned_on_exit`**;
+  `move_custody` finalises their drafts as for any holder change (decision 13).
 - Migration renumbered **0009_workflow** (0008 is `user-memberships`); the feature branch's `0008_workflow` was
   never applied to `main` and is not used.
 - Kept, adapted: stages, note kinds, corrections, note visibility, attachments with type check and ClamAV,
@@ -180,7 +183,8 @@ answer into a note" (`assistant`, through this item's note service); SMS.
     **Owner check:** the holder cannot "make permanent now"; drafts become permanent only when the file moves.
 
 13. **Drafts become permanent in the move's transaction.** `move_custody`, whenever the new leg's holder
-    membership differs from the previous one (send, recall, allot, take over, transfer), calls
+    membership differs from the previous one (send, recall, allot, take over, transfer, and the exit step's
+    `reassigned_on_exit` — owner review 2026-10-07, `user-memberships` decision 21), calls
     `notes.finalise_drafts` under the same case row lock and in the same transaction: each draft of the previous
     holder membership on the case, oldest first, becomes a `case_notes` row (next `seq_no`, `ref_no` on the
     membership's office, `custody_leg_id` = the leg during which it was written, `drafted_at` = the draft's
@@ -188,7 +192,8 @@ answer into a note" (`assistant`, through this item's note service); SMS.
     `case_note_attachments` rows, and the draft and link rows are deleted. A draft correcting a note that was
     corrected meanwhile supersedes the latest note of that chain (recorded in the audit `after`). One
     `note_added` event and one `note.finalised` audit row per note. If anything fails, the move fails too; a
-    file never moves leaving drafts behind. A deactivated holder's drafts wait for the recall.
+    file never moves leaving drafts behind. A deactivated holder's drafts wait for the recall; an ended membership's drafts are finalised by the exit
+    step's leg (owner review 2026-10-07).
 
 14. **Notes by others are permanent at once.** A caller who is not the personal holder (the owning department's
     nodal officers, the allotted officer while the file is elsewhere, standing counsel, anyone writing on an
@@ -250,12 +255,13 @@ answer into a note" (`assistant`, through this item's note service); SMS.
     of note bodies and remarks — never the text.
 
 22. **Retired request codes and functions.** New functions `custody.recall` and `custody.track` are added by the seed (decisions 6 and 24a, owner review 2026-10-07; enabled for `dept_admin` in the default matrix, granted to officers by their department admin or by the super admin). Seed: `ref_permission` `requests.send` and `requests.answer` set
-    `is_active = false` (and their matrix rows `is_enabled = false`); `access` ignores inactive functions (45 → 43
-    active). `ref_event_type` `request_sent`, `request_answered` and `ref_alert_kind` `request_due` retired;
+    `is_active = false` (and their matrix rows `is_enabled = false`); `access` ignores inactive functions (47 after
+    `user-memberships` adds `users.propose_head` and `admin.tickets`, 49 with the two custody functions → 47
+    active; owner review 2026-10-07). `ref_event_type` `request_sent`, `request_answered` and `ref_alert_kind` `request_due` retired;
     `ref_record_type` `REQ` retired. The Python members stay, marked retired, so old rows still load.
 
 23. **Alerts: kind `workflow` (seed), three sources.** (a) **File received**: `custody_moved` with reason
-    `sent` → the new holder user. (b) **File recalled**: `custody_moved` with reason `recalled`, `allotted`,
+    `sent` or `reassigned_on_exit` (owner review 2026-10-07) → the new holder user. (b) **File recalled**: `custody_moved` with reason `recalled`, `allotted`,
     `taken_over` or `transferred` that took the file from a personal holder → that previous holder (if active and
     not the actor). (c) **Due / overdue**: the date sweep raises one alert per current leg with a due date within
     `REQUEST_DUE_SOON_DAYS` (the existing setting, now also used here) — severity `high` when due soon,
@@ -319,13 +325,14 @@ New tables, for `schema.md` "Phase 2 and 3 tables":
 Changed rows of `schema.md` "Phase 2 and 3 tables" (as built after 0009):
 
 > | `custody` | case_id (PK, → cases RESTRICT), holder_office_id (→ offices RESTRICT), holder_user_id (→ users SET NULL), **holder_membership_id (→ user_memberships RESTRICT, NULL for an office-held leg)**, pending_action, since, due_date, current_leg_id (→ custody_history) | Exists only for claimed cases. Written only by `services/custody.py::move_custody`: ownership moves, `sent`, `recalled`. Partial index `ix_custody_due` (due_date) WHERE due_date IS NOT NULL; index `ix_custody_holder_user` (holder_user_id). `request_id` dropped by 0009. |
-> | `custody_history` (derived, append-only) | id, case_id, seq_no (unique per case), holder_office_id + holder_office_code, holder_user_id + holder_user_name, **holder_membership_id (→ user_memberships RESTRICT) + holder_designation (snapshot, ≤ 200)**, reason (CHECK `ck_custody_history_reason`: `claimed`, `allotted`, `taken_over`, `transferred`, `sent`, `recalled`), pending_action, due_date, **remark (≤ 2,000; CHECK `ck_custody_history_remark`: reason NOT IN ('sent','recalled') OR remark IS NOT NULL)**, started_at, actor snapshot (the sender or recaller), created_at | One row per movement; the chain is the file's movement record. `request_id` dropped by 0009. |
+> | `custody_history` (derived, append-only) | id, case_id, seq_no (unique per case), holder_office_id + holder_office_code, holder_user_id + holder_user_name, **holder_membership_id (→ user_memberships RESTRICT) + holder_designation (snapshot, ≤ 200)**, reason (CHECK `ck_custody_history_reason`: `claimed`, `allotted`, `taken_over`, `transferred`, `sent`, `recalled`, **`reassigned_on_exit`** (owner review 2026-10-07: the exit step of `user-memberships` decision 21; remark required as for `sent`; legs written before 0009 by the exit step already carry the remark, so the CHECK validates)), pending_action, due_date, **remark (≤ 2,000; CHECK `ck_custody_history_remark`: reason NOT IN ('sent','recalled','reassigned_on_exit') OR remark IS NOT NULL)**, started_at, actor snapshot (the sender or recaller), created_at | One row per movement; the chain is the file's movement record. `request_id` dropped by 0009. |
 > | `case_notes` (transaction, append-only) | … as built, + **drafted_at** timestamptz NULL (set when the note came from a draft) | CHECK `ck_case_notes_not_self`; partial unique `ix_case_notes_supersedes`. A note is permanent from insert; drafts live in `case_note_drafts`. |
 > | `case_note_attachments` (transaction, append-only) | as built | Trigger `aslms_forbid_change` added by 0009; no UPDATE for `aslms_app`. |
 > | `case_stages` | as built | Index `ix_case_stages_case_created` (case_id, created_at DESC). |
 
 Removed rows: `requests`, `request_messages`, `ref_request_kind` (dropped by 0009). Conventions: code sets become
-seven `ref_*` tables plus `ref_record_type`; the append-only list adds `case_note_attachments`; the "No deletion"
+eight `ref_*` tables plus `ref_record_type` (nine after `user-memberships` adds `ref_ticket_kind`, minus
+`ref_request_kind`; owner review 2026-10-07); the append-only list adds `case_note_attachments`; the "No deletion"
 paragraph gains: "**Deviation from DB_STANDARD §6 / §9 (owner's rule of 7 Oct 2026):** `aslms_app` may DELETE
 from `case_note_drafts` and `case_note_draft_documents`, which hold unfinished drafts, not legal records";
 `withdrawn_at` on requests is removed from the lifecycle list; the visibility basis list loses `request`.
@@ -351,7 +358,8 @@ retired per decision 22. Enums: `NoteKind.OPINION`, `NoteKind.HAND_OVER`, `Alert
   `create_document`; `change_visibility` and `archive` refuse kind `attachment`.
 - `services/attachments.py` (new): `prepare` (check and scan every file first), `resolve_links` (same case, visible,
   not archived; else 400 `bad_document_ref`), `create_all` (kind `attachment`, group `internal`).
-- `services/custody.py` (extended): `REASONS` (decision 2/27); `move_custody(session, actor, case, *, office,
+- `services/custody.py` (extended): `REASONS` (decision 2/27; `reassigned_on_exit` already added by
+  `user-memberships`); `move_custody(session, actor, case, *, office,
   user=None, membership=None, reason, pending_action=NONE, due_date=None, remark=None)` — writes leg and row,
   calls `notes.finalise_drafts` when the holder membership changes (decision 13), emits `custody_moved`;
   `controls_custody(session, user, custody)` (decision 4); `send(session, actor, user, case, *, to_membership,
@@ -412,7 +420,8 @@ replaces its request block with the custody due block (c). Attachment text extra
 `aslms.extract_document_text` after commit.
 
 ## Tests
-Unit: `test_workflow_rules.py` — reasons equal the CHECK list; pending-action labels cover every enum member;
+Unit: `test_workflow_rules.py` — reasons equal the CHECK list (including `reassigned_on_exit`, owner review
+2026-10-07); pending-action labels cover every enum member;
 stage gaps; note kind selectability (`hand_over` and `opinion` selectable, `correction` retired); retired
 functions excluded from effective functions.
 
