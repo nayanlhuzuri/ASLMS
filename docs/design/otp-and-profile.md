@@ -2,7 +2,7 @@
 
 ```
 slug: otp-and-profile
-status: blocked
+status: awaiting-approval
 author: architect
 date: 2026-10-07
 approved_by: —
@@ -38,6 +38,13 @@ httpOnly cookie handling (`portal-shell`, row 11); per-IP throttling at the reve
 row 16); retention / pruning of old `otp_codes` and `refresh_tokens` rows (deployment checklist).
 
 ## Decisions
+
+> **Owner review 2026-10-07 (binding over the text below):** a code is required at **every** sign-in; a known
+> device never skips it. Build no device-trust mechanism: drop the `AUTH_DEVICE_TRUST_DAYS` setting and the
+> "trusted device returns tokens directly" path of decision 16 and its tests (keep the device record, the
+> new-device notice e-mail and `/me/devices`). The mobile number is mandatory at profile confirmation
+> (`^[6-9][0-9]{9}$`).
+
 1. **Sign-in is two steps: password, then a 6-digit code e-mailed to the login's address.** Step one checks
    e-mail and password; step two takes the challenge id and the code and returns the tokens. Alternatives: a
    code without a password (passwordless) — weaker against a compromised mailbox and not what "verification"
@@ -274,13 +281,9 @@ with `must_change_password = False, must_confirm_profile = False` unless a test 
    shows the rows of the steps above.
 
 ## Open questions
-1. **Does a known device skip the code?** (a) A code at every sign-in, as the plan reads ("OTP verification");
-   a sign-in from a new device additionally triggers a notice e-mail — `AUTH_DEVICE_TRUST_DAYS=0`.
-   **Recommended.** (b) A device that passed a code is trusted for N days (e.g. 30) and signs in with the
-   password alone; any other device is asked a code — the "new-device OTP" reading, a **deviation** from the
-   plan's every-login OTP. (c) Something else (e.g. a code-only sign-in without password). If (b), say N, and
-   whether the super admin should change it in the application (like the scoring settings) or it stays an
-   `.env` setting.
-2. **Is a mobile number mandatory when the profile is confirmed?** It is not verified until an SMS gateway
-   exists (row 27), but SMS alerts for hearings within 48 hours will need it. Recommended: mandatory, Indian
-   10-digit format.
+None. The owner answered both on 2026-10-07:
+1. **A code at every sign-in** (option a, as the plan reads): password plus e-mailed code every time, and a notice
+   e-mail when a new device signs in. `AUTH_DEVICE_TRUST_DAYS` is fixed at 0 and is not offered as a setting in
+   this item; a known device never skips the code.
+2. **The mobile number is mandatory** at profile confirmation, Indian 10-digit format (`^[6-9][0-9]{9}$`, stored
+   without the country code). It is not verified until an SMS gateway exists (backlog row 27).
