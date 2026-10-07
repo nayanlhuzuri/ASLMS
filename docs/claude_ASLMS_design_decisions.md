@@ -785,4 +785,7 @@ after nested requests). Reviewing it, the owner set these rules, which replace t
   with several memberships (department, designation and user type each). They see and act on the cases of all
   their departments with the rights of their type in each. When sending a file, the sender picks the person
   and the membership.
+- **Recall is a grantable function** (owner, 7 Oct 2026): `custody.recall`, on for department admins by default;
+  a department admin grants it to the officers of their department they choose, and the super admin can grant
+  it to anybody. It recalls only cases owned by the department of the membership that holds it.
 

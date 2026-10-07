@@ -110,13 +110,19 @@ answer into a note" (`assistant`, through this item's note service); SMS.
    recall and resend (by the owning department). Alternative: keep "set pending action without a move" —
    rejected: the holder could extend the due date they are measured against.
 
-6. **Recall (owner's rule).** A whole-department membership of the **owning department** (`cases.claim` or
-   `cases.allot`: the department admin and head by default) holding `custody.move` may call the case back at any
-   time, from wherever it is, with a remark (required, 3–2,000). The leg, reason `recalled`, makes the recalling
+6. **Recall is a function the department admin grants (owner review 2026-10-07).** A new function
+   **`custody.recall`** (module `custody`). In the default type matrix it is enabled for **`dept_admin`** only
+   (and the super admin, who holds every function); it is off for every other type. A department admin gives it
+   to the officers they choose with the existing per-user grant (`PUT /admin/users/{id}/permissions/custody.recall`,
+   per membership under user-memberships decision 9), within their own department only — the delegation rule
+   already limits grants to the admin's subtree and to functions the admin holds. The super admin can grant or
+   deny it to anybody, in any department. A membership holding `custody.recall` **in the owning department**
+   may call the case back at any time, from wherever it is, with a remark (required, 3–2,000). Holding it in
+   another department gives no recall over this case. The leg, reason `recalled`, makes the recalling
    membership the holder, pending action `examine`, no due date; the recaller then sends it on as needed. 409
-   `unchanged` when the recaller already holds it. The allotted officer cannot recall (they can ask the nodal
-   officer); **owner check**. Alternative: recall to the department office with no officer — rejected: nobody
-   would be accountable for the file just recalled.
+   `unchanged` when the recaller already holds it; 403 `not_owner_department` / `function_missing` otherwise.
+   Every grant, deny and recall is audited. Alternative: recall to the department office with no officer —
+   rejected: nobody would be accountable for the file just recalled.
 
 7. **Ownership never moves with custody; ownership moves still move custody.** Send and recall never touch
    `case_ownership`. Claim, allot, take over and transfer (recommend-and-claim, built) keep writing their custody
@@ -243,7 +249,7 @@ answer into a note" (`assistant`, through this item's note service); SMS.
     each new file writes the existing `document.uploaded`. `after` holds references, codes, lengths and SHA-256
     of note bodies and remarks — never the text.
 
-22. **Retired request codes and functions.** Seed: `ref_permission` `requests.send` and `requests.answer` set
+22. **Retired request codes and functions.** New function `custody.recall` is added by the seed (decision 6, owner review 2026-10-07; enabled for `dept_admin` in the default matrix, granted to officers by their department admin or by the super admin). Seed: `ref_permission` `requests.send` and `requests.answer` set
     `is_active = false` (and their matrix rows `is_enabled = false`); `access` ignores inactive functions (45 → 43
     active). `ref_event_type` `request_sent`, `request_answered` and `ref_alert_kind` `request_due` retired;
     `ref_record_type` `REQ` retired. The Python members stay, marked retired, so old rows still load.
@@ -254,7 +260,7 @@ answer into a note" (`assistant`, through this item's note service); SMS.
     not the actor). (c) **Due / overdue**: the date sweep raises one alert per current leg with a due date within
     `REQUEST_DUE_SOON_DAYS` (the existing setting, now also used here) — severity `high` when due soon,
     `critical` when overdue — to the holder (custody-holder rule of alerts decision 14) and, when overdue, also to
-    the owning department's users holding `cases.allot` (so they can recall); key `workflow_due:<leg id>`, closed
+    the owning department's users holding `custody.recall` (so they can recall); key `workflow_due:<leg id>`, closed
     `done` when the case's current leg changes. (a) and (b) are informational (expire after
     `ALERT_INFO_EXPIRE_DAYS`; severity `high` when the due date is within the window, else `normal`). Addressed
     office = the holder office (a, c) or the previous holder office (b). Text: kind label, offices, officer
@@ -366,7 +372,7 @@ New router `api/routers/workflow.py`. `{ref}` = case id, CNR or dash-form `ref_n
 | `GET /cases/{ref}/custody` | `read` | `limit`, `offset` | `{card, legs: [{seq_no, holder_office, holder_user, holder_designation, reason, pending_action, due_date, remark?, started_at, actor_name, actor_designation, actor_office_code}], total}` | Remark per decision 11. |
 | `GET /custody/recipients` | `cases.view_scope` | `department?`, `q?`, `limit`, `offset` | without `department`: `[{code, name}]` departments; with it: `[{membership_id, full_name, designation, office_code, office_name, role_label}]` | Decision 3 targets only. |
 | `POST /cases/{ref}/custody/send` | `cases.view_scope` (gate); the holder, or `custody.move` + control for an office-held leg | `{to_membership, pending_action, due_date?, remark, stage?}` | `{card, leg, finalised_notes: [ref_no]}` 201 | Decisions 3, 4, 13, 19; 409 `not_owned`, `unchanged`; 403 `not_in_control`; 400 `bad_target`, `bad_due_date`. |
-| `POST /cases/{ref}/custody/recall` | `custody.move` (in a whole-department membership of the owning department) | `{remark}` | `{card, leg, finalised_notes}` 201 | Decision 6; 403 `not_owner_department`; 409 `unchanged`. |
+| `POST /cases/{ref}/custody/recall` | `custody.recall` (in a membership of the owning department) | `{remark}` | `{card, leg, finalised_notes}` 201 | Decision 6; 403 `not_owner_department`; 409 `unchanged`. |
 | `GET /custody/held` | `read` | `scope=me|office|owned`, `overdue?`, `holder_department?`, `limit`, `offset` | `{items: [{case summary, card}], total}` | Decision 24; visible cases only; `owned` needs a whole-department membership (else 403). |
 | `GET /custody/sent` | `read` | `limit`, `offset` | `{items: [{case summary, leg}], total}` | Legs the caller wrote. |
 | `GET /cases/{ref}/stages` | `read` | — | `{current, history, gaps}` | Case visible. |
@@ -404,7 +410,9 @@ scanner/store fakes):
   past → 400; `stage` with send recorded or refused without `stages.set` (nothing written).
 - `test_custody_recall.py`: **`test_recall_from_any_depth`** (EDU → HEALTH officer → HEALTH directorate officer →
   FIN officer; the EDU admin recalls in one step; the card shows the admin; every holder's drafts permanent);
-  recall by the allotted officer or by a HEALTH nodal officer → 403; recall when already holding → 409; an
+  recall by an EDU officer without `custody.recall` → 403, then the EDU admin grants it and the same officer
+  recalls → 201; the super admin grants it to a HEALTH officer → recall of an EDU case still 403
+  (`not_owner_department`); a HEALTH nodal officer → 403; recall when already holding → 409; an
   ownership move (allot) while the file is out acts as recall and alerts the previous holder.
 - `test_holder_access.py`: the holder from another department sees the case, uploads, sets a stage, writes
   drafts, cannot allot, claim, transfer or recall; after sending on they lose sight (404) unless another basis;
@@ -450,7 +458,8 @@ scanner/store fakes):
 None. Points the owner is asked to check at approval (decisions taken, reversible):
 - standing counsel are valid targets of a send; State-wide types are not (3);
 - the holder may send on without `custody.move`; holding is the authority (4);
-- only the owning department's nodal officers recall, not the allotted officer (6);
+- recall is the `custody.recall` function: on for department admins by default, granted to chosen officers by
+  their department admin, and to anybody by the super admin; it works only in the owning department (6);
 - previous holders lose sight of the case once it moves on, keeping only their "sent" list (9);
 - the holder may set the case stage while holding (9, 19);
 - drafts become permanent only when the file moves; there is no "make permanent now"; drafts link existing
