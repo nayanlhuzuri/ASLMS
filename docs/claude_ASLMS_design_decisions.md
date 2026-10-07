@@ -765,3 +765,24 @@ Branch `feature/alerts-notifications`; design `docs/design/alerts-notifications.
 **Left for later**
 - Row 26 (next dates from orders); row 27 (SMS, order-text compliance directions, live Mailtrap check); the alert screens and calendar in the portal (`portal-workflow`).
 - 2026-10-07 — custody-workflow: approved by the owner as written (docs/design/custody-workflow.md)
+
+## Custody and file movement — owner's rules (7 Oct 2026, product owner)
+The custody-workflow cycle stopped on a blocking review finding (custody stranded with a receiving department
+after nested requests). Reviewing it, the owner set these rules, which replace the request-based design:
+- **Custody is accountability.** When something is pending with an officer, the case shows as held by that
+  officer and their office, so pending work is measured against the right person.
+- **Sending the file replaces requests.** The holder sends the case (its control) to any registered user in
+  any department: pick the department, then the officer. The send carries a remark, a pending action and an
+  optional due date. No separate request object.
+- **Chain, as in eOffice.** Whoever holds the case can send it on to anyone; every movement is recorded in the
+  custody history.
+- **Recall.** The owning department can call the case back at any time, with a remark, from wherever it is.
+  Ownership never moves with custody; only claim and transfer change ownership.
+- **No deletion once claimed.** Nothing in a claimed case is deleted. The only exception is draft notes: a
+  note the current holder writes stays a draft, editable and deletable, while that holder still has the case;
+  when the case is sent on (or recalled), the drafts become permanent, append-only notes of the case.
+- **One person, several departments.** A user can hold designations in more than one department: one login
+  with several memberships (department, designation and user type each). They see and act on the cases of all
+  their departments with the rights of their type in each. When sending a file, the sender picks the person
+  and the membership.
+
