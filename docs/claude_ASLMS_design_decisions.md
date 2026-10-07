@@ -764,4 +764,4 @@ Branch `feature/alerts-notifications`; design `docs/design/alerts-notifications.
 
 **Left for later**
 - Row 26 (next dates from orders); row 27 (SMS, order-text compliance directions, live Mailtrap check); the alert screens and calendar in the portal (`portal-workflow`).
-
+- 2026-10-07 — custody-workflow: approved by the owner as written (docs/design/custody-workflow.md)
