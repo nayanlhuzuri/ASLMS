@@ -1,0 +1,319 @@
+"""The alert rules without a database (design `alerts-notifications`, decisions 4, 6, 10, 11, 17, 19):
+severities from dates, the recency window, dedupe keys, the e-mail preference rules with their defaults, and
+the rendering of alert titles, bodies, mails and the daily digest. Nothing here reads a note, a document
+description or an internal document name: a mail carries the alert title, the case number, CNR, court, the
+date and a link."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import date, datetime, time, timedelta
+from typing import Any
+from zoneinfo import ZoneInfo
+
+from aslms.domain.alerts import Severity
+from aslms.domain.org import Channel, DigestMode, UserNotificationPreference
+from aslms.domain.reference import AlertKind
+
+IST = ZoneInfo("Asia/Kolkata")
+TITLE_MAX = 300
+HEARING_GRACE = timedelta(hours=12)  # a hearing alert expires this long after its due time
+SEVERITY_RANK = {Severity.NORMAL: 0, Severity.HIGH: 1, Severity.CRITICAL: 2}
+INFO_KINDS = frozenset(
+    {
+        AlertKind.NEXT_DATE_CHANGED,
+        AlertKind.NEW_ORDER,
+        AlertKind.STATUS_CHANGED,
+        AlertKind.OWNERSHIP,
+        AlertKind.NEW_DOCUMENT,
+    }
+)
+CASE_KINDS = INFO_KINDS | {AlertKind.HEARING_DUE, AlertKind.COMPLIANCE_DUE}
+
+
+def higher(a: Severity, b: Severity) -> bool:
+    return SEVERITY_RANK[Severity(a)] > SEVERITY_RANK[Severity(b)]
+
+
+# ------------------------------------------------------------------------------------------------ dates
+
+
+def parse_sitting_time(value: str) -> time:
+    h, _, m = (value or "10:30").partition(":")
+    return time(int(h), int(m or 0))
+
+
+def hearing_due_at(d: date, sitting_time: str | time = "10:30") -> datetime:
+    """The date at the court's sitting time, IST."""
+    t = sitting_time if isinstance(sitting_time, time) else parse_sitting_time(sitting_time)
+    return datetime.combine(d, t, tzinfo=IST)
+
+
+def today_ist(now: datetime) -> date:
+    return now.astimezone(IST).date()
+
+
+def severity_for_hearing(due_at: datetime, now: datetime, critical_hours: int = 48) -> Severity | None:
+    """Decision 6: `high` inside the look-ahead window, `critical` within `critical_hours`; none once the
+    sitting time has passed."""
+    if due_at <= now:
+        return None
+    if due_at - now <= timedelta(hours=critical_hours):
+        return Severity.CRITICAL
+    return Severity.HIGH
+
+
+def severity_for_due(due_date: date, today: date, soon_days: int = 2) -> Severity | None:
+    """Decision 11 (requests): within `soon_days` → high; today and overdue → critical; later → none."""
+    days = (due_date - today).days
+    if days > soon_days:
+        return None
+    if days <= 0:
+        return Severity.CRITICAL
+    return Severity.HIGH
+
+
+def severity_for_compliance(
+    due_date: date, today: date, window_days: int = 7, critical_days: int = 2
+) -> Severity | None:
+    """Decision 10: raised within `window_days` or past; `critical` from `critical_days` before and when
+    overdue, else `high`."""
+    days = (due_date - today).days
+    if days > window_days:
+        return None
+    if days <= critical_days:
+        return Severity.CRITICAL
+    return Severity.HIGH
+
+
+def is_recent(court_date: date | None, today: date, max_age_days: int = 14) -> bool:
+    """Decision 4: a court date within `max_age_days` of today (future dates count as recent); an unknown
+    date is not recent."""
+    if court_date is None:
+        return False
+    return court_date >= today - timedelta(days=max_age_days)
+
+
+def hearing_expired(due_at: datetime, now: datetime) -> bool:
+    return due_at + HEARING_GRACE < now
+
+
+# ------------------------------------------------------------------------------------------------ keys
+
+
+def dedupe_key(kind: AlertKind | str, *parts: Any) -> str:
+    code = kind.value if isinstance(kind, AlertKind) else str(kind)
+    return ":".join([code, *(str(p) for p in parts)])[:300]
+
+
+def notification_key(alert_id: Any, user_id: Any, channel: Channel | str, severity: Severity | str) -> str:
+    ch = channel.value if isinstance(channel, Channel) else str(channel)
+    sev = severity.value if isinstance(severity, Severity) else str(severity)
+    return f"n:{alert_id}:{user_id}:{ch}:{sev}"[:300]
+
+
+# ------------------------------------------------------------------------------------------------ preferences
+
+
+@dataclass(frozen=True)
+class Prefs:
+    """Decision 17's defaults: e-mail on, the daily digest, not critical-only; in-app always on."""
+
+    email_enabled: bool = True
+    digest: DigestMode = DigestMode.DAILY
+    critical_only: bool = False
+
+
+def effective_preferences(rows: list[UserNotificationPreference] | None) -> Prefs:
+    for row in rows or []:
+        if Channel(row.channel) == Channel.EMAIL:
+            return Prefs(
+                email_enabled=bool(row.enabled),
+                digest=DigestMode(row.digest),
+                critical_only=bool(row.critical_only),
+            )
+    return Prefs()
+
+
+def immediate_email(prefs: Prefs, severity: Severity | str) -> bool:
+    """An e-mail at once when e-mail is enabled and the alert is critical, or the user asked for no digest
+    and not critical-only."""
+    if not prefs.email_enabled:
+        return False
+    if Severity(severity) == Severity.CRITICAL:
+        return True
+    return prefs.digest == DigestMode.NONE and not prefs.critical_only
+
+
+def wants_digest(prefs: Prefs) -> bool:
+    return prefs.email_enabled and prefs.digest == DigestMode.DAILY
+
+
+# ------------------------------------------------------------------------------------------------ rendering
+
+
+def _d(value: Any) -> str:
+    if value is None:
+        return "?"
+    if isinstance(value, datetime):
+        return value.astimezone(IST).strftime("%d %b %Y")
+    if isinstance(value, date):
+        return value.strftime("%d %b %Y")
+    try:
+        return date.fromisoformat(str(value)[:10]).strftime("%d %b %Y")
+    except ValueError:
+        return str(value)
+
+
+def case_label(case: Any) -> str:
+    """The case as a user names it: the printed number, else the CNR, else the reference number."""
+    return getattr(case, "case_no_text", None) or getattr(case, "cnr", None) or getattr(case, "ref_no", "?")
+
+
+def _title(text: str) -> str:
+    text = " ".join(text.split())
+    return text if len(text) <= TITLE_MAX else text[: TITLE_MAX - 1] + "…"
+
+
+def render_alert(kind: AlertKind | str, case: Any, data: dict[str, Any]) -> tuple[str, str]:
+    """The title (≤ 300 characters) and body of an alert; never a note, a document description or an
+    internal document name (a `new_document` alert names only the document type)."""
+    kind = AlertKind(kind)
+    label = case_label(case)
+    d = data or {}
+    if kind == AlertKind.HEARING_DUE:
+        title = f"Hearing on {_d(d.get('hearing_date'))}: {label}"
+        if d.get("source") == "causelist":
+            where = []
+            if d.get("item_no"):
+                where.append(f"item {d['item_no']}")
+            if d.get("court_no"):
+                where.append(f"court {d['court_no']}")
+            body = f"Listed in the cause list of {_d(d.get('hearing_date'))}" + (
+                ", " + ", ".join(where) if where else ""
+            )
+            if d.get("purpose"):
+                body += f" ({d['purpose']})"
+            body += "."
+        elif d.get("source") == "next_date":
+            body = "Next date entered or read from an order."
+        else:
+            body = "Next date per court records."
+            if d.get("purpose"):
+                body = f"Next date per court records ({d['purpose']})."
+    elif kind == AlertKind.NEXT_DATE_CHANGED:
+        title = f"Next date changed to {_d(d.get('hearing_date'))}: {label}"
+        body = f"Previously {_d(d.get('previous_date'))}."
+    elif kind == AlertKind.NEW_ORDER:
+        title = f"New order of {_d(d.get('order_date'))}: {label}"
+        body = f"Order {d.get('order_no') or ''} dated {_d(d.get('order_date'))} is available in the portal."
+    elif kind == AlertKind.STATUS_CHANGED:
+        status = d.get("status") or "unknown"
+        if status == "disposed":
+            title = f"Case disposed on {_d(d.get('disposal_date'))}: {label}"
+            body = f"The court records show the case disposed ({d.get('disposal_nature') or 'nature not stated'})."
+        else:
+            title = f"Status changed to {status}: {label}"
+            body = f"Previously {d.get('previous_status') or 'unknown'}."
+    elif kind == AlertKind.COMPLIANCE_DUE:
+        title = f"Compliance due {_d(d.get('compliance_by_date'))}: {label}"
+        body = (
+            f"Objections raised on scrutiny of {_d(d.get('scrutiny_date'))} are to be complied with by "
+            f"{_d(d.get('compliance_by_date'))}."
+        )
+    elif kind == AlertKind.REQUEST_DUE:
+        overdue = d.get("overdue")
+        when = _d(d.get("due_date"))
+        title = (f"Request overdue since {when}: " if overdue else f"Request due {when}: ") + label
+        body = f"{d.get('request_kind_label') or 'Request'} from {d.get('from_office') or 'another office'}."
+    elif kind == AlertKind.RECOMMENDATION:
+        title = f"Strong match for {d.get('office_code') or 'your department'}: {label}"
+        body = f"Recommended with score {d.get('score')}; claim or dismiss it in the inbox."
+    elif kind == AlertKind.OWNERSHIP:
+        sub = d.get("event") or "ownership"
+        if sub == "allotted":
+            title = f"Case allotted: {label}"
+            body = f"Allotted to {d.get('officer_name') or d.get('unit_code') or 'your unit'} by {d.get('actor_name') or 'the department'}."
+        elif sub == "case_taken_over":
+            title = f"Case taken over by {d.get('to_user_name') or 'a colleague'}: {label}"
+            body = f"The case allotted to you was taken over by {d.get('to_user_name') or 'a colleague'}."
+        elif sub == "transfer_requested":
+            title = f"Transfer requested by {d.get('from_office_code') or '?'}: {label}"
+            body = f"{d.get('from_office_code') or 'A department'} asks {d.get('to_office_code') or 'your department'} to take the case."
+        elif sub == "transfer_decided":
+            title = f"Transfer {d.get('decision') or 'decided'} by {d.get('to_office_code') or '?'}: {label}"
+            body = f"Your transfer request {d.get('ref_no') or ''} was {d.get('decision') or 'decided'}."
+        else:
+            title = f"Ownership change: {label}"
+            body = ""
+    elif kind == AlertKind.NEW_DOCUMENT:
+        title = f"New {d.get('doc_type_label') or d.get('doc_type') or 'document'} uploaded: {label}"
+        body = f"A document of type {d.get('doc_type_label') or d.get('doc_type') or 'unknown'} was uploaded by {d.get('office_code') or 'an office'}."
+    else:
+        title = f"{kind.value}: {label}"
+        body = ""
+    return _title(title), body
+
+
+def render_mail(
+    alert: Any, case: Any, court_name: str | None, portal_base_url: str, case_url_ref: str
+) -> tuple[str, str]:
+    """Subject and text of a single-alert mail (decision 19's content rule)."""
+    sev = Severity(alert.severity).value.upper()
+    subject = _title(f"[ASLMS {sev}] {alert.title}")
+    lines = [
+        alert.title,
+        "",
+        f"Case: {getattr(case, 'case_no_text', None) or '-'}",
+        f"CNR: {getattr(case, 'cnr', None) or '-'}",
+        f"Court: {court_name or '-'}",
+    ]
+    if alert.due_at is not None:
+        lines.append(f"Date: {alert.due_at.astimezone(IST).strftime('%d %b %Y %H:%M IST')}")
+    if alert.body:
+        lines += ["", alert.body]
+    lines += [
+        "",
+        f"Open: {portal_base_url.rstrip('/')}/cases/{case_url_ref}",
+        "",
+        "ASLMS - Legal Case Monitoring Portal",
+    ]
+    return subject, "\n".join(lines)
+
+
+def render_digest(
+    digest_date: date,
+    groups: list[tuple[str, list[dict[str, Any]]]],
+    hearings: list[dict[str, Any]],
+    hearings_total: int,
+    medium_recommendations: int | None,
+    portal_base_url: str,
+) -> tuple[str, str]:
+    """Subject and text of the daily digest: alerts since the last digest grouped by kind, the hearings of
+    the next seven days (capped, with the count), the department's possible matches."""
+    base = portal_base_url.rstrip("/")
+    subject = f"ASLMS daily digest - {digest_date.strftime('%d %b %Y')}"
+    lines = [f"Your ASLMS digest for {digest_date.strftime('%d %b %Y')}", ""]
+    if groups:
+        lines.append("New alerts")
+        for label, items in groups:
+            lines.append(f"  {label} ({len(items)})")
+            for it in items:
+                lines.append(f"    - {it['title']}  {base}/cases/{it['case_ref']}")
+        lines.append("")
+    if hearings_total:
+        lines.append(f"Hearings today and in the next 7 days ({hearings_total})")
+        for h in hearings:
+            lines.append(
+                f"    - {_d(h['date'])}  {h['case_label']}  [{h['source']}]  {base}/cases/{h['case_ref']}"
+            )
+        if hearings_total > len(hearings):
+            lines.append(f"    ... and {hearings_total - len(hearings)} more in the portal calendar")
+        lines.append("")
+    if medium_recommendations:
+        lines.append(
+            f"Possible matches awaiting a decision in your department's inbox: {medium_recommendations}"
+        )
+        lines.append("")
+    lines.append("ASLMS - Legal Case Monitoring Portal")
+    return subject, "\n".join(lines)

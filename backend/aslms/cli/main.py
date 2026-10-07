@@ -1,4 +1,4 @@
-"""`aslms` command line: NAPIX checks and probes, `seed`, `db-check`, the load pipeline (`load`, `queue-run`, `queue-status`, `sync-masters`, `refetch-date`, `refetch-case`), the matching engine (`rescore`, `codes unmapped`), the `cases` group (`reindex-search`, `show`), the `documents` group (`extract`, `scan-check`), and the `users`, `access` and `offices` administration groups."""
+"""`aslms` command line: NAPIX checks and probes, `seed`, `db-check`, the load pipeline (`load`, `queue-run`, `queue-status`, `sync-masters`, `refetch-date`, `refetch-case`), the matching engine (`rescore`, `codes unmapped`), the `cases` group (`reindex-search`, `show`), the `documents` group (`extract`, `scan-check`), the `alerts` group (`run`, `send`, `digest`, `status`, `test-mail`), and the `users`, `access` and `offices` administration groups."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ import typer
 from rich import print as rprint
 
 from aslms import __version__
+from aslms.cli.alerts import alerts_app
 from aslms.cli.cases import cases_app
 from aslms.cli.db import db_check, seed
 from aslms.cli.documents import documents_app
@@ -51,6 +52,7 @@ app.add_typer(offices_app, name="offices")
 app.add_typer(codes_app, name="codes")
 app.add_typer(cases_app, name="cases")
 app.add_typer(documents_app, name="documents")
+app.add_typer(alerts_app, name="alerts")
 
 
 @app.callback()

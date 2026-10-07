@@ -4,7 +4,10 @@ the fetching itself is done by `aslms queue-worker`, so the broker only carries 
 settings changed since the last rescore (design recommend-and-claim, decision 4); a scoring-settings save
 also dispatches it at once. `extract-text` (every 5 minutes) extracts the text of pending documents
 (orders, uploads) in batches of `TEXT_EXTRACT_BATCH`; an upload also dispatches `extract_document_text` at
-once (design documents-uploads, decision 10). No NAPIX call.
+once (design documents-uploads, decision 10). The alert jobs (design alerts-notifications, "Jobs"):
+`alerts-scan-events` every 5 minutes, `alerts-sweep-dates` hourly at minute 10, `notifications-send` every
+2 minutes (also dispatched after a scan or sweep that queued e-mail) and `digests-build` daily at 08:00 IST;
+each writes a `job_runs` row with its counters; nothing here calls NAPIX.
 Run: `celery -A aslms.jobs.celery_app worker -B --concurrency 1` (the Compose `scheduler` service)."""
 
 from __future__ import annotations
@@ -18,7 +21,8 @@ from celery.schedules import crontab
 from aslms.core.config import get_settings
 from aslms.db.session import get_sessionmaker, session_scope
 from aslms.domain.ops import JobRun, JobStatus
-from aslms.services import matching, schedules, text_extract
+from aslms.services import alerts, matching, notifications, schedules, text_extract
+from aslms.services.mailer import get_mailer
 from aslms.services.storage import LocalStore
 
 settings = get_settings()
@@ -39,6 +43,10 @@ app.conf.update(
         },
         "rescore-dirty": {"task": "aslms.rescore_if_dirty", "schedule": crontab(minute="*/15")},
         "extract-text": {"task": "aslms.extract_pending_text", "schedule": crontab(minute="*/5")},
+        "alerts-scan-events": {"task": "aslms.alerts_scan_events", "schedule": crontab(minute="*/5")},
+        "alerts-sweep-dates": {"task": "aslms.alerts_sweep_dates", "schedule": crontab(minute=10)},
+        "notifications-send": {"task": "aslms.notifications_send", "schedule": crontab(minute="*/2")},
+        "digests-build": {"task": "aslms.digests_build", "schedule": crontab(hour=8, minute=0)},
     },
 )
 
@@ -101,3 +109,60 @@ def extract_document_text(document_id: str) -> dict:
     store = LocalStore(settings.storage_dir)
     with session_scope() as s:
         return text_extract.extract_pending(s, store, batch=1, document_id=uuid.UUID(document_id))
+
+
+# ------------------------------------------------------------------------------------------------ alerts
+
+
+def _dispatch_sender(counters: dict) -> None:
+    """After a scan or sweep that queued e-mail, send at once (best effort; the 2-minute beat is the net)."""
+    if counters.get("notifications"):
+        try:
+            notifications_send.delay()
+        except Exception:  # noqa: BLE001 — no broker reachable: the beat entry sends later
+            pass
+
+
+@app.task(name="aslms.alerts_scan_events")
+def alerts_scan_events() -> dict:
+    """The event scan (design alerts-notifications, decision 2): new events in the window become alerts."""
+    with session_scope() as s:
+        counters = alerts.scan_events(s, config=alerts.AlertConfig.from_settings(settings))
+    _dispatch_sender(counters)
+    return counters
+
+
+@app.task(name="aslms.alerts_sweep_dates")
+def alerts_sweep_dates() -> dict:
+    """The date sweep (decisions 6, 10, 11): hearing, compliance and request alerts, and the closures."""
+    with session_scope() as s:
+        counters = alerts.sweep_dates(s, config=alerts.AlertConfig.from_settings(settings))
+    _dispatch_sender(counters)
+    return counters
+
+
+@app.task(name="aslms.notifications_send")
+def notifications_send() -> dict:
+    """Queued and due-for-retry e-mail notifications and digests through the configured mailer."""
+    mailer = get_mailer(settings)
+    with session_scope() as s:
+        return notifications.send_pending(
+            s,
+            mailer,
+            batch=settings.notify_batch,
+            max_attempts=settings.notify_max_attempts,
+            portal_base_url=settings.portal_base_url,
+        )
+
+
+@app.task(name="aslms.digests_build")
+def digests_build() -> dict:
+    """The 08:00 IST digest rows, then the sender."""
+    with session_scope() as s:
+        counters = notifications.build_digests(s, portal_base_url=settings.portal_base_url)
+    if counters.get("built"):
+        try:
+            notifications_send.delay()
+        except Exception:  # noqa: BLE001
+            pass
+    return counters

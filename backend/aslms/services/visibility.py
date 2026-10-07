@@ -18,16 +18,34 @@ ownership predicates come from `recommend-and-claim`, decisions 15, 16, 23).
   standing counsel, `private_to_office` to the office itself, its department-wide callers and the author;
   State-wide readers see all); `document_case_condition` is "a visible case the document belongs to, directly
   or through an order"; `document_visible_condition` ANDs the function, the case and the record rule;
-  `works_on_case` is the upload rule (a working basis, not merely sight)."""
+  `works_on_case` is the upload rule (a working basis, not merely sight).
+- Alerts (design `alerts-notifications`, decision 14, review of 2026-10-06): a `new_document` alert names
+  its document (id, type, uploading office), so every read of an alert applies the document rule as well:
+  `alert_document_condition` over `alerts`, `can_view_alert_document` for one row."""
 
 from __future__ import annotations
 
 import uuid
 from typing import Any, Literal
 
-from sqlalchemy import ColumnElement, Select, and_, case, exists, false, literal, or_, select, text, true
+from sqlalchemy import (
+    ColumnElement,
+    Select,
+    and_,
+    case,
+    cast,
+    exists,
+    false,
+    literal,
+    or_,
+    select,
+    text,
+    true,
+)
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Session
 
+from aslms.domain.alerts import Alert, Notification
 from aslms.domain.cases import Case, CaseStatus
 from aslms.domain.documents import DocGroup, Document, Order, Visibility
 from aslms.domain.org import Office, User
@@ -39,7 +57,7 @@ from aslms.domain.ownership import (
     Recommendation,
     RecommendationStatus,
 )
-from aslms.domain.reference import OfficeKind, Permission, Role
+from aslms.domain.reference import AlertKind, OfficeKind, Permission, Role
 from aslms.domain.workflow import Custody, Request, RequestStatus
 from aslms.services import access
 
@@ -405,3 +423,60 @@ def require_visible_document(
 ) -> None:
     if not can_view_document(session, user, doc, permission=permission):
         raise NotVisibleDocument("no such document")
+
+
+# ------------------------------------------------------------------------------------------------ alerts
+
+
+def alert_document_condition(session: Session, user: User) -> ColumnElement[bool]:
+    """Over `alerts`: any kind but `new_document` passes; a `new_document` alert passes only when the document
+    it names (`data.document_id`) is visible to the caller under `document_visible_condition`. An alert whose
+    document id is missing or unknown is hidden, never shown."""
+    doc_id = cast(Alert.data["document_id"].astext, PG_UUID(as_uuid=True))
+    visible_doc = exists(
+        select(literal(1))
+        .select_from(Document)
+        .where(Document.id == doc_id, document_visible_condition(session, user))
+    )
+    return or_(Alert.kind != AlertKind.NEW_DOCUMENT, visible_doc)
+
+
+def alert_office_condition(session: Session, user: User) -> ColumnElement[bool]:
+    """Over `alerts`: an alert is addressed to one office (`alerts.office_id`). A State-wide reader passes
+    every alert; anyone else passes an alert addressed to an office of their own department (the department
+    or any office under it) or one they were themselves notified of. An alert addressed to another
+    department (`recommendation` for a different department, `transfer_requested` to the receiving
+    department) is hidden although the caller works on the case (review of 2026-10-06, blocking)."""
+    if state_wide(session, user):
+        return true()
+    notified = exists(
+        select(literal(1))
+        .select_from(Notification)
+        .where(Notification.alert_id == Alert.id, Notification.user_id == user.id)
+    )
+    dept = user_department(session, user)
+    if dept is None:
+        return notified
+    return or_(Alert.office_id.in_(subtree_ids(dept)), notified)
+
+
+def addressed_to_department(session: Session, user: User, alert: Alert) -> bool:
+    """`alert_office_condition` without the notification branch, for one alert, in Python: a State-wide
+    reader, or the alert's office under the caller's department."""
+    if state_wide(session, user):
+        return True
+    dept = user_department(session, user)
+    office = session.get(Office, alert.office_id)
+    return dept is not None and office is not None and in_subtree(office, dept)
+
+
+def can_view_alert_document(session: Session, user: User, alert: Alert) -> bool:
+    """`alert_document_condition` for one alert, in Python."""
+    if AlertKind(alert.kind) != AlertKind.NEW_DOCUMENT:
+        return True
+    raw = (alert.data or {}).get("document_id")
+    try:
+        doc_id = uuid.UUID(str(raw)) if raw else None
+    except ValueError:
+        doc_id = None
+    return doc_id is not None and can_view_document(session, user, doc_id)

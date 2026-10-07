@@ -79,7 +79,11 @@ ALERT_SEVERITY = {
     AlertKind.NEXT_DATE_CHANGED: "high",
     AlertKind.NEW_ORDER: "high",
     AlertKind.COMPLIANCE_DUE: "high",
+    AlertKind.OWNERSHIP: "normal",
+    AlertKind.NEW_DOCUMENT: "normal",
 }
+# labels that differ from the code (design alerts-notifications, decision 13; new databases only)
+ALERT_KIND_LABELS = {AlertKind.OWNERSHIP: "Ownership change", AlertKind.NEW_DOCUMENT: "New document"}
 TRACKING_CARD_EVENTS = {
     EventType.CASE_CREATED,
     EventType.CASE_DISPOSED,
@@ -106,7 +110,10 @@ def _extra_columns(model: type, member: enum.Enum) -> dict:
             out["label"] = DOC_TYPE_LABELS[member]
         return out
     if model is RefAlertKind:
-        return {"default_severity": ALERT_SEVERITY.get(member, "normal")}
+        out = {"default_severity": ALERT_SEVERITY.get(member, "normal")}
+        if member in ALERT_KIND_LABELS:
+            out["label"] = ALERT_KIND_LABELS[member]
+        return out
     if model is RefPermission:
         label, description = PERMISSION_LABELS[member]
         return {"label": label, "description": description, "module": member.module}

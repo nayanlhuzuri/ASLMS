@@ -109,6 +109,8 @@ class AlertKind(enum.StrEnum):
     COMPLIANCE_DUE = "compliance_due"
     REQUEST_DUE = "request_due"
     RECOMMENDATION = "recommendation"
+    OWNERSHIP = "ownership"  # allotted, taken over, transfer requested / decided
+    NEW_DOCUMENT = "new_document"
 
 
 class EventType(enum.StrEnum):

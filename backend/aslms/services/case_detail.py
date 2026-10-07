@@ -13,6 +13,7 @@ from sqlalchemy import Select, cast, exists, func, literal, or_, select
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Session
 
+from aslms.domain.alerts import Alert
 from aslms.domain.cases import (
     Case,
     CaseAct,
@@ -36,6 +37,7 @@ from aslms.domain.reference import EventType, Permission, RefEventType
 from aslms.domain.workflow import Custody
 from aslms.services import access, inbox
 from aslms.services.visibility import (
+    alert_document_condition,
     document_visible_condition,
     never_owned,
     require_visible,
@@ -144,7 +146,15 @@ OWNERSHIP_EVENTS = (
     EventType.OWNERSHIP_RELEASED,
     EventType.CUSTODY_MOVED,
 )
-DEPARTMENT_EVENTS = (EventType.RECOMMENDATION_MADE, EventType.DISMISSED, EventType.SUGGESTED_ELSEWHERE)
+# shown to the department named in the payload (`office_code`, `from_office_code`, `to_office_code`) and to
+# State-wide readers; `alert_raised` (design alerts-notifications, decision 15) carries the office addressed
+# and, for a `new_document` alert, is shown only with the document (`_alert_events_rule`)
+DEPARTMENT_EVENTS = (
+    EventType.RECOMMENDATION_MADE,
+    EventType.DISMISSED,
+    EventType.SUGGESTED_ELSEWHERE,
+    EventType.ALERT_RAISED,
+)
 
 
 @dataclass
@@ -630,12 +640,34 @@ def _document_events(session: Session, user: User | None, *, unrestricted: bool)
     return is_doc & visible_doc
 
 
+def _alert_events_rule(session: Session, user: User | None, *, unrestricted: bool):
+    """ANDed onto the department rule: an `alert_raised` row for a `new_document` alert is shown only when the
+    document the alert names is visible to the caller (design alerts-notifications, deviation 12); every
+    other row passes; every row when counting unrestricted."""
+    if unrestricted:
+        return literal(True)
+    if user is None:
+        return literal(False)
+    visible_alert = exists(
+        select(literal(1))
+        .select_from(Alert)
+        .where(
+            Alert.id == cast(Event.payload["alert_id"].astext, PG_UUID(as_uuid=True)),
+            alert_document_condition(session, user),
+        )
+    )
+    return or_(Event.type != EventType.ALERT_RAISED, visible_alert)
+
+
 def _timeline_stmt(session: Session, user: User | None, case: Case, *, unrestricted: bool = False) -> Select:
     types = list(COURT_EVENTS + OWNERSHIP_EVENTS)
     stmt = select(Event).where(Event.case_id == case.id)
     docs = _document_events(session, user, unrestricted=unrestricted)
+    dept_rows = Event.type.in_(list(DEPARTMENT_EVENTS)) & _alert_events_rule(
+        session, user, unrestricted=unrestricted
+    )
     if unrestricted or (user is not None and access.has(session, user, Permission.CASES_VIEW_ALL)):
-        return stmt.where(or_(Event.type.in_(types + list(DEPARTMENT_EVENTS)), docs))
+        return stmt.where(or_(Event.type.in_(types), dept_rows, docs))
     dept = user_department(session, user) if user is not None else None
     if dept is None:
         return stmt.where(or_(Event.type.in_(types), docs))
@@ -644,7 +676,7 @@ def _timeline_stmt(session: Session, user: User | None, case: Case, *, unrestric
         Event.payload["from_office_code"].astext == dept.code,
         Event.payload["to_office_code"].astext == dept.code,
     )
-    return stmt.where(or_(Event.type.in_(types), (Event.type.in_(list(DEPARTMENT_EVENTS))) & mine, docs))
+    return stmt.where(or_(Event.type.in_(types), dept_rows & mine, docs))
 
 
 def timeline(session: Session, user: User, case: Case, *, limit=None, offset=None) -> Page:

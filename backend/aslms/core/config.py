@@ -69,6 +69,32 @@ class Settings(BaseSettings):
     clamav_timeout_seconds: float = 30.0
     text_extract_batch: int = 50  # documents per `aslms.extract_pending_text` run
 
+    # --- mail and alerts (design alerts-notifications, decisions 2, 4, 6, 10, 11, 15, 17, 19) -------------
+    mail_backend: str = (
+        "auto"  # auto | api | smtp | console; auto prefers the API token, then SMTP, then console
+    )
+    mailtrap_api_token: SecretStr | None = None  # never logged
+    mailtrap_api_url: str | None = None  # the sending or the sandbox URL
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_user: str | None = None
+    smtp_password: SecretStr | None = None  # never logged
+    smtp_starttls: bool = True
+    smtp_from: str | None = None  # the sender address (every backend), on a verified domain
+    smtp_from_name: str = "ASLMS"
+    mail_timeout_seconds: float = 20.0
+    portal_base_url: str = "http://localhost:3000"  # links in mails: <base>/cases/<ref>
+    alert_hearing_lookahead_days: int = 7
+    alert_critical_hours: int = 48
+    court_sitting_time: str = "10:30"  # IST; the hearing alert's due time on its date
+    alert_event_max_age_days: int = 14  # an order or a disposal older than this raises no alert
+    alert_event_overlap_minutes: int = 30  # the event scan re-reads this much of the previous run's window
+    alert_info_expire_days: int = 14  # informational alerts expire after this
+    alert_compliance_expire_days: int = 30
+    request_due_soon_days: int = 2
+    notify_max_attempts: int = 3
+    notify_batch: int = 200
+
     # --- SourceTrace ---------------------------------------------------------------------
     sourcetrace_base_url: str | None = None
     sourcetrace_api_key: SecretStr | None = None

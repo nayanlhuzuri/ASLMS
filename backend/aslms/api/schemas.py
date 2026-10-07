@@ -1040,3 +1040,117 @@ class DocumentVisibilityIn(BaseModel):
 
 class DocumentArchiveIn(BaseModel):
     reason: str = Field(..., min_length=3, max_length=500)
+
+
+# ------------------------------------------------------------------------------------------------ alerts
+
+
+class AlertCaseOut(BaseModel):
+    id: uuid.UUID
+    ref_no: str
+    cnr: str | None
+    case_no_text: str | None
+
+
+class AlertItemOut(BaseModel):
+    id: uuid.UUID
+    ref_no: str
+    kind: str
+    kind_label: str
+    severity: str
+    status: str
+    title: str
+    body: str | None
+    due_at: datetime | None
+    case: AlertCaseOut
+    data: dict[str, Any]
+    notified_at: datetime | None
+    read_at: datetime | None
+    acknowledged_by: UserRefOut | None
+    acknowledged_at: datetime | None
+    closed_at: datetime | None
+    created_at: datetime
+
+
+class AlertDetailOut(AlertItemOut):
+    recipients_count: int
+
+
+class AlertListOut(BaseModel):
+    items: list[AlertItemOut]
+    total: int
+
+
+class AlertOpenCountsOut(BaseModel):
+    critical: int
+    high: int
+    normal: int
+
+
+class AlertCountsOut(BaseModel):
+    unread: int
+    open: AlertOpenCountsOut
+
+
+class AlertNoteIn(BaseModel):
+    note: Annotated[str | None, Field(max_length=500)] = None
+
+
+class AlertsReadIn(BaseModel):
+    alert_ids: list[uuid.UUID] | None = None
+    all: bool = False
+
+
+class AlertsReadOut(BaseModel):
+    marked: int
+
+
+class CalendarItemOut(BaseModel):
+    date: date
+    case: AlertCaseOut
+    source: str
+    court_no: str | None
+    item_no: str | None
+    purpose: str | None
+    critical: bool
+    this_week: bool
+
+
+class CalendarOut(BaseModel):
+    items: list[CalendarItemOut]
+
+
+class InAppPrefOut(BaseModel):
+    enabled: bool
+
+
+class EmailPrefOut(BaseModel):
+    enabled: bool
+    digest: str
+    critical_only: bool
+
+
+class SmsPrefOut(BaseModel):
+    available: bool
+
+
+class NotificationPreferencesOut(BaseModel):
+    in_app: InAppPrefOut
+    email: EmailPrefOut
+    sms: SmsPrefOut
+
+
+class EmailPrefIn(BaseModel):
+    enabled: bool | None = None
+    digest: str | None = None
+    critical_only: bool | None = None
+
+
+class InAppPrefIn(BaseModel):
+    enabled: bool | None = None
+
+
+class NotificationPreferencesIn(BaseModel):
+    email: EmailPrefIn | None = None
+    in_app: InAppPrefIn | None = None
+    sms: dict[str, Any] | None = None

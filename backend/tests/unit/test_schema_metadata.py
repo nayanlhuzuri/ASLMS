@@ -87,3 +87,30 @@ def test_ref_no_columns_are_unique():
 def test_napix_verbatim_stores_exist():
     assert {"napix_responses", "case_snapshots", "documents", "napix_call_log", "fetch_queue"} <= set(TABLES)
     assert TABLES["napix_responses"].c.payload.type.__class__.__name__ == "JSONB"
+
+
+def test_alert_tables_carry_the_design_columns_and_checks():
+    """Design alerts-notifications, "Data": the columns migration 0007 adds and the three CHECKs."""
+    alerts = TABLES["alerts"]
+    assert {"office_id", "data", "closed_at", "closed_by_user_id"} <= set(alerts.c.keys())
+    assert alerts.c.office_id.foreign_keys and not alerts.c.office_id.nullable
+    checks = {c.name for c in alerts.constraints if isinstance(c, sa.CheckConstraint)}
+    assert {"ck_alerts_closed", "ck_alerts_acknowledged"} <= checks
+    assert {i.name for i in alerts.indexes} >= {
+        "ix_alerts_case_status",
+        "ix_alerts_open_kind",
+        "ix_alerts_office_id",
+    }
+    notifications = TABLES["notifications"]
+    assert {"severity", "attempts", "next_attempt_at"} <= set(notifications.c.keys())
+    assert {c.name for c in notifications.constraints if isinstance(c, sa.CheckConstraint)} >= {
+        "ck_notifications_read"
+    }
+    assert {i.name for i in notifications.indexes} >= {
+        "ix_notifications_user_inbox",
+        "ix_notifications_outbox",
+    }
+    digests = TABLES["digests"]
+    assert {"status", "item_count", "attempts", "next_attempt_at", "error", "body", "alert_ids"} <= set(
+        digests.c.keys()
+    )

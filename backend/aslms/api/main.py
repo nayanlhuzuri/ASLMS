@@ -9,6 +9,7 @@ from fastapi import FastAPI
 
 from aslms import __version__
 from aslms.api.routers import access as access_router
+from aslms.api.routers import alerts as alerts_router
 from aslms.api.routers import auth as auth_router
 from aslms.api.routers import cases as cases_router
 from aslms.api.routers import documents as documents_router
@@ -45,6 +46,7 @@ def create_app(settings: Settings | None = None, session_factory=None) -> FastAP
     app.include_router(documents_router.router)
     documents_router.upload_size_guard(app)
     app.include_router(ownership_router.router)
+    app.include_router(alerts_router.router)
 
     @app.get("/health", tags=["ops"])
     def health() -> dict[str, str]:

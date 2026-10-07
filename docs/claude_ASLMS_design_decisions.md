@@ -737,3 +737,31 @@ documents; no OCR; ClamAV required to test uploads locally.
   and filings (`sourcetrace-connector`); alerts on a new document (`alerts-notifications`); the upload screens
   (`portal-workflow`).
 - 2026-10-06 — alerts-notifications: approved by the owner as written (docs/design/alerts-notifications.md)
+
+## Alerts and notifications (2026-10-06)
+Branch `feature/alerts-notifications`; design `docs/design/alerts-notifications.md` (approved 2026-10-06); migration 0007.
+
+**Built**
+- Tables (migration 0007): `alerts` gains `office_id`, `data` jsonb, `closed_at`, `closed_by_user_id`, two CHECKs and indexes; `notifications` gains `severity`, `attempts`, `next_attempt_at` and the outbox index; `digests` gains its sending state. `ref_alert_kind` gains `ownership` and `new_document` (seed only). Details in `docs/schema/schema.md` group 7.
+- Services: `alert_rules` (severities, keys, preference rules, rendering), `alerts` (raise with dedupe and ALR allocation, event scan, date sweep, acknowledge / done, readers filtered by visibility in SQL), `recipients`, `notifications` (in-app and e-mail rows, sender with retries, daily digest, preferences), `mailer` (Mailtrap API, SMTP, console, recording; chosen by `MAIL_BACKEND`), `calendar`.
+- API: `/alerts` (list, counts, by reference, acknowledge, done, read), `/cases/{ref}/alerts`, `/calendar`, `/me/notification-preferences`. `alert_raised` joins the case timeline.
+- Jobs: `aslms.alerts_scan_events` (5 min), `aslms.alerts_sweep_dates` (hourly at :10), `aslms.notifications_send` (2 min), `aslms.digests_build` (08:00 IST). CLI `aslms alerts run / send / digest / status / test-mail`. Settings in `.env.example` (mail, `ALERT_*`, `NOTIFY_*`, `REQUEST_DUE_SOON_DAYS`, `PORTAL_BASE_URL`).
+
+**Decisions (reasons in the design note)**
+- Two generators (event scan over a time window, date sweep), idempotent through `dedupe_key`; history is never back-filled (first scan starts at now minus the overlap; only recent orders and dispositions alert).
+- Case alerts only for cases with an active owner or watcher; recipients are custody holder, owner and watchers, always filtered by visibility. Recommendation alerts only for strong matches of pending cases.
+- Default delivery: in-app always; critical alerts e-mailed at once, the rest in the 08:00 IST digest; SMS refused until a gateway exists.
+- Mail content carries title, case number, CNR, court, date and a link; never note text or internal document names.
+- `/calendar` added here as plan section 5.5 requires.
+
+**Deviations (thirteen, numbered in the design note's Deviations section)**
+- Ownership notices (`case_taken_over`, `transfer_requested`, `transfer_decided`) skip the case-visibility filter, since their recipients cannot see the case (1).
+- The in-app list shows one row per alert (2); compliance severity window 7 days, critical band 2 days (4); `get_mailer` requires `SMTP_FROM` (8).
+- Migration 0007 written as a new file after the scaffold was removed (9); the 0006 cycle test now compares with the script head (10).
+- Review fixes: a `new_document` alert is read only with its document (12); an alert is read and acted on only by the office addressed (13).
+
+**Scope notes for the owner**: next dates read from order text are the separate row 26 (`next-date-extraction`), so the plan's Phase 1 "alerts for orders with specific dates" completes there; compliance alerts come only from scrutiny `compliance_by_date`.
+
+**Left for later**
+- Row 26 (next dates from orders); row 27 (SMS, order-text compliance directions, live Mailtrap check); the alert screens and calendar in the portal (`portal-workflow`).
+

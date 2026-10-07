@@ -392,8 +392,11 @@ def test_migration_0006_cycles_with_documents_and_refuses_duplicate_sha(api, wor
             == 0
         )
     command.upgrade(cfg, "head")
+    from alembic.script import ScriptDirectory
+
+    head = ScriptDirectory.from_config(cfg).get_current_head()
     with world.Session() as s:
-        assert s.execute(sa.text("select version_num from alembic_version")).scalar() == "0006"
+        assert s.execute(sa.text("select version_num from alembic_version")).scalar() == head
         assert s.execute(sa.text("select count(*) from documents where archive_reason is null")).scalar() == 3
         assert (
             s.execute(
@@ -406,5 +409,5 @@ def test_migration_0006_cycles_with_documents_and_refuses_duplicate_sha(api, wor
     with pytest.raises(RuntimeError, match="cannot downgrade 0006"):
         command.downgrade(cfg, "0005")
     with world.Session() as s:
-        assert s.execute(sa.text("select version_num from alembic_version")).scalar() == "0006"
+        assert s.execute(sa.text("select version_num from alembic_version")).scalar() == head
         assert s.execute(sa.text("select count(*) from documents")).scalar() == 4
