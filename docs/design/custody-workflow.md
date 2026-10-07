@@ -1,458 +1,462 @@
-# Design: Custody and workflow — custody moves and hand-over, requests and answers, case stages, the notes trail with attachments and per-note visibility
+# Design: Custody and workflow — sending the file and recall, case stages, the notes trail with drafts, attachments and per-note visibility
 
 ```
 slug: custody-workflow
-status: approved
+status: awaiting-approval
 author: architect
 date: 2026-10-07
-approved_by: product owner (nayan.semt@gmail.com) on 2026-10-07
+approved_by: — (revision of 7 Oct 2026 awaiting the product owner; the first version was approved on 2026-10-07 and is superseded)
 ```
 
 ## Context
 Plan §5.7 (Custody and Workflow): "Shows, for every case, which office and officer currently hold it and what
 action is pending, similar to file movement in eOffice"; custody card (holder office and officer, pending action,
-since when, due date); "Requests between offices, for example a department asking a directorate for parawise
-comments, with stages and due dates"; "Hand-over of a case to another office, recorded with a note"; portal
-database only, no court API; links to notes trail, alerts, dashboard, reports (pending actions by office).
-Plan §5.8 (Case Notes Trail): an official noting history that belongs to the case and follows it across every
-custody move; notes by type "general, instruction, opinion, hearing note, compliance, decision, hand-over"; each
-note records the author's name, designation and office at the time; notes cannot be edited or deleted,
-corrections are new notes linked to the original; attachments on notes; visibility per note (whole case, shared
-with counsel, private to the office). Plan §5.13: notes, custody moves and uploads are audited. Plan §3.2 / §5.9:
-notes and internal documents are never sent to SourceTrace. Plan §5.1 (officer: own pending actions; department:
-cases with pending action, cases in custody of each office). Backlog row 6.
+since when, due date); "Requests between offices … with stages and due dates"; "Hand-over of a case to another
+office, recorded with a note"; portal database only; links to notes trail, alerts, dashboard, reports (pending
+actions by office). Plan §5.8 (Case Notes Trail): a noting history that belongs to the case and follows it across
+every custody move; note kinds "general, instruction, opinion, hearing note, compliance, decision, hand-over";
+author's name, designation and office at the time; no edits or deletes, corrections are new notes linked to the
+original; attachments; visibility per note. Plan §5.13: notes, custody moves and uploads are audited. Plan §3.2 /
+§5.9: notes and internal documents are never sent to SourceTrace. Backlog row 6.
 
-Earlier decisions in the log that this design follows:
-- 25 Sep "CUSTODY" (eOffice-style, derived from requests, stages and assignments; tracking card visible, contents
-  scoped) and "CASE NOTES / NOTING TRAIL" (append-only, author snapshot, per-case `seq_no`, custody leg recorded,
-  corrections via `supersedes`, attachments are `documents` rows through `case_note_attachments`, reusable across
-  notes; three visibility values; State tier sees all; hand-over = hand-over note + custody move in one step;
-  event and audit row per note).
-- 26 Sep "Custody is derived" (request sent → receiving office with the request's due date; answered or withdrawn
-  → back to the requester; hand-over → explicit move with a mandatory note), "Scope widened by workflow"
-  (custody and request bases, personal for department-office officers and referral reviewers), "Stages" (the 17
-  stages, any stage may be set, skipped main-track stages shown as a gap), "Notes" (attachments are internal
-  documents, excluded from SourceTrace), "Request alerts".
-- recommend-and-claim decision 11 and its review: custody follows primary ownership (`claimed`, `allotted`,
-  `taken_over`, `transferred`); "release → the next primary owner" is superseded (no return to the pool).
-- cases-api: one case-visibility rule (`services/visibility.py`), 404 for an invisible case, the custody card
-  in the overview, decision 15 ("notes, documents, requests, stages and alerts join the timeline in their own
-  items with their own visibility").
-- documents-uploads: type by content, ClamAV before storage, `UPLOAD_MAX_BYTES` (20 MB), `record_visibility_
-  condition` (reused by notes), `works_on_case` (a working basis), `DOC` numbers on the uploader's office, the
-  CHECK `ck_documents_internal_not_sent`; "the Documents tab lists uploads and order PDFs, not note attachments
-  (`custody-workflow` owns those)".
-- alerts-notifications decision 11 (request due: within 2 days high, overdue critical, done when answered or
-  withdrawn; recipients the addressee or the receiving office's `requests.answer` holders — built, waiting for
-  requests) and decision 14 (recipients: custody holder, owner, watchers).
+**Binding: the owner's rules of 7 Oct 2026** (decisions log, "Custody and file movement — owner's rules"):
+custody is accountability; sending the file replaces requests; chain as in eOffice; recall by the owning
+department at any time; ownership never moves with custody; no deletion once claimed except draft notes, which
+become permanent when the case is sent on or recalled; one person, several departments (memberships). They
+replace the request-based design.
 
-What is in place:
-- Tables from migration 0001 (Phase 2): `custody` (1:1 with the case), `custody_history` (append-only trigger),
-  `requests` (+ `request_status` enum `open` / `answered` / `withdrawn`), `request_messages`, `case_stages`
-  (append-only, + `response_mode` enum `department` / `counsel` / `none`), `case_notes` (append-only, `ref_no`,
-  `seq_no` unique per case, `visibility` on `doc_visibility`, `custody_leg_id`, `supersedes_id`, `source` enum
-  `user` / `system`), `case_note_attachments` (unique `(note_id, document_id)`). Enum `pending_action`
-  (`none` / `examine` / `reply` / `file` / `comply` / `review`). All FKs RESTRICT; actor snapshots present.
-- Code sets: `ref_case_stage` (17 stages with `phase`), `ref_request_kind` (8), `ref_note_kind` (`general`,
-  `decision`, `instruction`, `hearing`, `counsel_advice`, `compliance`, `file_noting`, `correction`).
-  `RecordType` `REQ` and `NOTE`. Event types `custody_moved`, `request_sent`, `request_answered`, `stage_set`,
-  `note_added`.
-- Functions `custody.move`, `requests.send`, `requests.answer`, `stages.set`, `notes.add`,
-  `notes.view_counsel_shared`, `notes.view_private_office` (in `_CASE_WORK`: dept head, dept admin, dept
-  officer, directorate user; referral reviewer: `notes.add`, `stages.set`, `requests.answer`; standing counsel:
-  `notes.add`, `notes.view_counsel_shared`). No new function is needed.
-- `services/custody.py::move_custody` (ownership reasons only; it never sets `pending_action`, `due_date` or
-  `request_id`, and leaves a stale `custody.request_id` in place). `services/documents.py::upload` already
-  accepts `kind=attachment`, but scans, stores and writes the row in one call. `visibility.py` already has the
-  `custody` and `request` bases. Nothing writes requests, stages or notes; there are no endpoints.
+**Deviation from the plan, set by the owner (flagged):** plan §5.7 "Requests between offices" and the data group
+"Custody records, requests between offices, and their stages" are replaced by sending the file (decision 3);
+there is no request object. Plan §5.8 "notes cannot be edited or deleted" gains the owner's draft exception
+(decision 12).
 
-Not covered: the portal screens (`portal-workflow`); dashboards and the "pending actions by office" report
-(`reports-dashboards`, which reads these tables); the Case Assistant's "copy an answer into a note" (`assistant`,
-which will write an ordinary note through this item's service); SMS; custody due-date alerts
-beyond requests (decision 21).
+**What changed from the approved version of 7 Oct (this revision):**
+- Requests, request messages, request attachments, `with_custody`, assign, answer, withdraw and the request
+  visibility rule are **removed**; the `requests` and `request_messages` tables (migration 0001, empty) are
+  dropped by a new migration and `request_attachments` is never created (decision 27).
+- **Send** (to any registered officer, by membership, in any department) and **recall** (by the owning
+  department) replace hand-over, requests and "pending action without a move" (decisions 3–7).
+- The holder is a **membership** (office + officer + designation) — depends on `user-memberships` (row 28).
+- **Draft notes** of the current holder, made permanent in the move's transaction (decisions 12–13).
+- Alerts: `workflow` kind now covers file received, file recalled and due / overdue; `request_due` retired
+  (decision 23).
+- Migration renumbered **0009_workflow** (0008 is `user-memberships`); the feature branch's `0008_workflow` was
+  never applied to `main` and is not used.
+- Kept, adapted: stages, note kinds, corrections, note visibility, attachments with type check and ClamAV,
+  audit without note text, timeline, case row locks.
+- The reviewer's blocking finding is answered in decision 8.
+
+Earlier decisions that still apply: 25 Sep "CASE NOTES / NOTING TRAIL" (append-only, author snapshot, per-case
+`seq_no`, custody leg recorded, `supersedes`, attachments as `documents` through `case_note_attachments`, three
+visibility values, event and audit row per note); 26 Sep "Stages" (17 stages, any may be set, gaps shown) and
+"Notes" (attachments are internal documents, excluded from SourceTrace); recommend-and-claim decision 11 (custody
+follows primary ownership moves; no return to the pool); cases-api (one visibility rule, 404 for an invisible
+case, custody card in the overview, decision 15); documents-uploads (type by content, ClamAV, 20 MB,
+`record_visibility_condition`, `works_on_case`, `ck_documents_internal_not_sent`); alerts-notifications decision
+14 (recipients: custody holder, owner, watchers).
+
+What is in place on `main`: tables of migration 0001 — `custody` (1:1), `custody_history` (append-only),
+`requests` / `request_messages` (empty, nothing writes them), `case_stages` (append-only), `case_notes`
+(append-only, `ref_no`, `seq_no`, `visibility`, `custody_leg_id`, `supersedes_id`, `source`),
+`case_note_attachments`; native enum `pending_action` (`none`, `examine`, `reply`, `file`, `comply`, `review`);
+`ref_case_stage`, `ref_request_kind`, `ref_note_kind`; functions `custody.move`, `requests.send`,
+`requests.answer`, `stages.set`, `notes.add`, `notes.view_counsel_shared`, `notes.view_private_office`;
+`services/custody.py::move_custody` (ownership reasons only); `visibility.py` with `custody` and `request` bases;
+`alerts.py` sweeping open requests for `request_due` (never fires: no requests exist). The unmerged
+`feature/custody-workflow` branch is left as it is; the developer may read and reuse its notes, stages,
+attachments and documents-split code where this note keeps the same rule, and discards its requests code and its
+`0008_workflow`.
+
+Not covered: portal screens (`portal-workflow`); dashboards and the "pending actions by office" report
+(`reports-dashboards`, reading the columns and the `held` query of this item); the Case Assistant's "copy an
+answer into a note" (`assistant`, through this item's note service); SMS.
 
 ## Decisions
-1. **Custody exists only for a claimed case.** Every write of this item (hand-over, action, request, stage, note)
-   requires an active primary owner; on an unclaimed case it answers 409 `not_owned`. Alternative: allow notes on
-   pool cases — rejected: the plan places the notes trail with the owning department's handling, and the pool
-   has no custody to attach a leg to.
+1. **Custody exists only for a claimed case.** Every write of this item (send, recall, stage, note, draft)
+   requires an active primary owner; otherwise 409 `not_owned`. Alternative: notes on pool cases — rejected: the
+   pool has no custody to attach a leg to.
 
-2. **Custody reasons (one CHECK).** `custody_history.reason` ∈ `claimed`, `allotted`, `taken_over`,
-   `transferred` (existing), `handed_over`, `request_sent`, `request_assigned`, `request_answered`,
-   `request_withdrawn`, `action_set`. `move_custody` gains `pending_action`, `due_date` and `request_id`
-   parameters and writes them to both the leg and `custody`; the ownership reasons pass none, so an ownership
-   move (allot, take over, transfer) clears `custody.request_id` and pulls the file back (ownership decisions
-   win; any open request stays open and can still be answered or withdrawn, its answer simply no longer moves
-   custody). Alternative: ownership moves leave custody alone while a request is out — rejected: it contradicts
-   recommend-and-claim decision 11 already built and tested.
+2. **Custody is accountability: the holder is a membership.** `custody` and every `custody_history` leg name the
+   holder office, the holder user and the **holder membership** (the officer's office, designation and type —
+   `user-memberships`), with a designation snapshot on the leg. Legs written by ownership moves may name an
+   office only (`claimed`, `transferred` → the department; `allotted` to a unit → the unit), as built. Pending
+   action, since and due date always describe the current holder, so pending work is measured against that
+   officer and office (owner's rule 1).
 
-3. **Who controls custody (`controls_custody`).** The caller is the holder user; or the holder has no user, the
-   holder office is not Department-tier, and the caller's office is the holder office; or the caller is a
-   whole-department caller (`cases.claim` or `cases.allot`) of the department that contains the holder office
-   (for a Department-tier holder with no user, only these nodal officers — the same rule as alerts decision 14).
-   Hand-over and action setting need `custody.move` plus control; sending a request with custody needs
-   `requests.send` plus control. Alternative: any `custody.move` holder working on the case — rejected: an
-   officer could pull a file another office is working on.
+3. **Sending the file replaces requests and hand-over (deviation, owner's rule).** The sender picks a department
+   (any active Department-tier office, the Advocate General's office included), then an officer: an **active
+   membership** of an active login at an active office in that department's subtree. Excluded targets: the
+   State-wide types (`super_admin`, `state_oversight`, `central_operator`, `auditor` — they hold no department
+   work) and the current holder membership (409 `unchanged`). The send carries a **remark** (required, 3–2,000
+   characters), a **pending action** (required, not `none`; decision 10) and an optional **due date** (today IST
+   to 365 days ahead). It writes one leg, reason `sent`, holder = the target membership. Sending never changes
+   ownership or allotment. Alternative: keep requests beside sending — rejected by the owner ("no separate
+   request object"). Standing counsel memberships are valid targets (the owner said "any registered user");
+   **owner check**.
 
-4. **Hand-over (plan "recorded with a note") is one step:** move + a `hand_over` note written in the same
-   transaction, the note body mandatory, with optional attachments. Target: an active office and optionally an
-   active user of that office holding `cases.view_scope`; it must differ from the current holder (409
-   `unchanged`). **Scope:** when custody is not under a request, the target lies in the owning department's
-   subtree (department, directorates, units); when custody is under a request, the target lies in that
-   request's receiving office's subtree and the leg carries the `request_id` forward (the obligation travels
-   with the file, and the answer still returns it). Moving a case to another department is an ownership
-   transfer (recommend-and-claim), and asking an office outside the department is a request. Pending action
-   (default `examine`) and due date (optional) are set on the new leg. Hand-over never changes allotment.
-   Alternative: hand-over to any office — rejected: it would give an office outside the department custody
-   without ownership or a request, bypassing the transfer decision. **Flagged for the owner** (plan says "another
-   office" without limits).
+4. **Who may send.** (a) The holder: the caller whose membership is the holder membership. Holding the case is
+   the authority; no function is required, because any registered officer can receive the file and must be able
+   to pass it on (a referral reviewer has no `custody.move`). (b) When the leg names an office and no user (after
+   claim, allot to a unit, transfer): a holder of `custody.move` who controls the office — a user whose
+   membership is at that office when the office is not Department-tier, or a whole-department membership
+   (`cases.claim` or `cases.allot`) of the department containing it (the built rule of alerts decision 14). Anyone
+   else → 403 `not_in_control`. Alternative: any `custody.move` holder working on the case — rejected: an officer
+   could pull a file another officer is accountable for.
 
-5. **Pending action without a move.** `PUT /cases/{ref}/custody/action` sets `pending_action` and `due_date` for
-   the current holder; it appends a leg with reason `action_set` and the same holder (history stays
-   append-only). Due date, when given, is today (IST) or later, at most 365 days ahead.
+5. **Chain, as in eOffice.** Whoever holds the case sends it on to anyone (decision 3); there is no "return
+   path", no nesting and no open obligation outside the custody row. Every movement is a leg (from = the previous
+   leg, to = the new holder membership, remark, pending action, due date, sender's actor snapshot). The holder
+   cannot change their own pending action or due date: a new due date is a new send (by the holder onwards) or a
+   recall and resend (by the owning department). Alternative: keep "set pending action without a move" —
+   rejected: the holder could extend the due date they are measured against.
 
-6. **Requests and custody.** A request is sent by a `requests.send` holder working on the case to any active
-   office other than the sender's own office (a directorate, another department's office, the Advocate General,
-   a counsel office), optionally to a named user inside that office's subtree. `with_custody` (default true)
-   decides whether the file goes with it:
-   - `with_custody = true` needs `controls_custody`, and is refused (409 `custody_out_on_request`) when custody
-     is under an open request that the caller's side did not receive (send it without custody or withdraw the
-     first). Custody moves to the receiving office (and the addressee), reason `request_sent`, pending action
-     from the request (default per kind: `opinion` → `review`, `compliance` → `comply`, every other kind →
-     `reply`), due date = the request's due date, `request_id` = the request. `requests.moves_custody = true`.
-   - `with_custody = false` moves nothing (parallel requests: a department asking two directorates at once).
-   - **Answer** or **withdraw**: when `custody.request_id` is this request, custody returns to the leg that was
-     current just before this request's `request_sent` leg (its holder office and user; a user since deactivated
-     is dropped and the office kept), reason `request_answered` (pending action `examine`, the earlier leg's due
-     date and `request_id` — so a sub-request inside a directorate returns the file to the directorate still
-     owing its own answer; a `request_id` whose request is no longer open is cleared) or `request_withdrawn`
-     (the earlier leg's pending action restored). When custody has meanwhile moved for another reason, the
-     answer is recorded and custody is not touched (the response says `custody_moved: false`).
-   Alternative: one open request per case — rejected: parallel parawise comments from two directorates are the
-   plan's own example of normal work. Alternative: every request moves custody — rejected: the second request
-   would silently take the file from the first office.
+6. **Recall (owner's rule).** A whole-department membership of the **owning department** (`cases.claim` or
+   `cases.allot`: the department admin and head by default) holding `custody.move` may call the case back at any
+   time, from wherever it is, with a remark (required, 3–2,000). The leg, reason `recalled`, makes the recalling
+   membership the holder, pending action `examine`, no due date; the recaller then sends it on as needed. 409
+   `unchanged` when the recaller already holds it. The allotted officer cannot recall (they can ask the nodal
+   officer); **owner check**. Alternative: recall to the department office with no officer — rejected: nobody
+   would be accountable for the file just recalled.
 
-7. **Request life cycle.** `open` → `answered` (by the receiving side, with an answer body, optional
-   attachments, sets `answered_at`, `answered_by_user_id`, writes a `request_messages` row with `is_answer =
-   true`) or `withdrawn` (by the sending side, reason required, sets `withdrawn_at`, `withdraw_reason`). While
-   open: either side adds messages (sending side `requests.send`, receiving side `requests.answer`; messages
-   and their attachments append-only); the sending side may change the due date (`PATCH`, audited; custody's due
-   date follows when custody is under this request); the receiving side may **assign** an addressee (decision
-   8). No reopening; a new request is sent instead. Request "stages" in the plan are this life cycle plus the
-   case stages recorded with it (decision 12).
+7. **Ownership never moves with custody; ownership moves still move custody.** Send and recall never touch
+   `case_ownership`. Claim, allot, take over and transfer (recommend-and-claim, built) keep writing their custody
+   legs; when such a leg takes the file from a personal holder it acts as a recall (the holder's drafts are made
+   permanent, decision 13; the previous holder is alerted, decision 23). Alternative: ownership moves leave
+   custody alone — rejected: it would contradict recommend-and-claim decision 11, built and tested.
 
-8. **Assign an addressee (eOffice "mark to").** A request addressed to an office reaches its nodal officers
-   (the request basis is office-wide only for whole-department callers; department-office officers and referral
-   reviewers see personally — cases-api decision 2). So the receiving side's whole-department caller, or the
-   current addressee, holding `requests.answer`, may set `to_user_id` to an active user in the receiving
-   office's subtree; when custody is under this request it moves to that user (reason `request_assigned`).
-   Without this a request to the Law Department could never reach its referral reviewers. Audited.
+8. **The reviewer's blocking finding cannot recur.** The finding: "An answer or withdrawal only returns custody
+   when `custody.request_id` is that exact request; if the file is out on a sub-request sent by the receiving
+   side, nothing moves, and the receiving department can keep the case indefinitely without ownership or a
+   request." It arose because custody could only come back through the request that took it. In this design
+   custody is one pointer moved only by explicit legs; there are no requests, so nothing waits on a particular
+   request and no leg depends on another; the owning department's recall (decision 6) moves the file from any
+   holder, at any depth of the chain, in one step; and an ownership move does the same. A department other than
+   the owner holds the file only while an accountable officer of it is the named holder, visible on the card and
+   in the owner's `held?scope=owned` list with its due date (decision 24). Test
+   `test_recall_from_any_depth` proves it.
 
-9. **Who answers.** The addressee; or, with no addressee, a `requests.answer` holder whose office is in the
-   receiving office's subtree and who sees it under the request rule (decision 10); or a whole-department caller
-   of the receiving office's department. 409 `not_open` on a closed request.
+9. **The holder's working access (any department), while holding.** The holder membership gets the `custody`
+   visibility basis (personal: the holder user; office-wide for callers whose subtree contains the holder office,
+   as built), which is a working basis, so it may: read the case and its records under the record rules; write
+   notes (as drafts, decision 12) with `notes.add`; upload documents with `documents.upload`; set the case stage
+   with `stages.set` (justified: the officer doing the work records `parawise_comments_received` or
+   `affidavit_vetted`; the stage row records the setter's office; no ownership effect); send the file on
+   (decision 4). Functions still come from the holding membership's type and overrides, so the super admin's
+   matrix stays meaningful. The holder may not claim, dismiss, allot, take over, transfer, stop watching or
+   recall (all need a membership in the owning department). When the file leaves, the previous holder loses the
+   custody basis (other bases, such as ownership, stay); their permanent notes and uploads remain on the case.
+   They keep a "sent" list of the legs they wrote (decision 24). Alternative: previous holders keep read access —
+   rejected: sight follows the current hold and ownership (least privilege); **owner check**.
 
-10. **Request visibility (`request_visible_condition`, SQL, over `requests`).** The case must be visible, and:
-    State-wide readers see all; the sender (`actor_user_id`) and the addressee; the sending side and the
-    receiving side (office in the subtree of `from_office_id` / `to_office_id` of the caller's root — the
-    department for whole-department callers, else the caller's own office; personal callers only as sender or
-    addressee); the owning department's whole-department callers and the case's allotted officer or unit (they
-    handle the case). Everyone else who sees the case sees only the timeline line (kind, offices, dates, no
-    subject or body). Standing counsel see a request only when their counsel office is a side.
+10. **Pending actions.** The native enum `pending_action` gains `parawise_comments` ("Parawise comments"),
+    `report` ("Report"), `documents` ("Furnish documents"), `opinion` ("Opinion"), `instructions` ("Instructions
+    to counsel"), `clarification` ("Clarification"), `other` ("Other — see remark") beside `examine`, `reply`,
+    `file` ("File in court"), `comply` ("Comply"), `review` ("Review"), `none` (ownership legs only). Labels come
+    from `domain/workflow.py::PENDING_ACTION_LABELS` through `GET /workflow/codes`. Alternative: a `ref_*` table —
+    rejected: converting the column of the append-only `custody_history` for a set the design fixes is not worth
+    it; the former request kinds are absorbed here.
 
-11. **Request attachments.** A new table `request_attachments` links documents to a request (the request
-    itself, `message_id` NULL) or to one message. New files are `documents` rows of kind `attachment`, group
-    `internal`, visibility chosen by the sender from `case_scope` (default) or `counsel_shared` —
-    `private_to_office` is refused because the other side could not open it. Existing documents of the same
-    case visible to the caller may be linked by reference. Alternative: reuse `case_note_attachments` by writing
-    each message as a note — rejected: requests are correspondence between offices, not the noting trail.
+11. **Remark visibility.** A leg's remark is shown to callers with a working basis on the case and to State-wide
+    readers; everyone else who sees the case (recommended, pool) sees the leg without the remark. Events and audit
+    never carry the remark text (decision 21).
 
-12. **Case stages.** One stage track per case; the current stage is the latest `case_stages` row; any stage
-    may be set (guided, not enforced, 26 Sep), by a `stages.set` holder with a working basis — so the Law
-    Department's reviewer answering a request may record `affidavit_vetted`. `office_id` = the setter's office;
-    `response_mode` defaults to the previous row's (else `department`); `note` ≤ 2,000 characters; setting the
-    current stage and mode again → 409 `unchanged`. The read returns the history and the **gaps**: main-phase
-    stages ordered before the current stage (by `sort_order`) never recorded, when the current stage is a main
-    one. Sending and answering a request accept an optional `stage` recorded in the same step (for example
-    `parawise_comments_sought` / `parawise_comments_received`) — explicit, never automatic. No stage is set by
-    the system. Alternative: per-office stage tracks — rejected: the plan's case card shows one stage.
+12. **Draft notes (owner's exception to "no deletion").** A note written by the **current holder** (the caller's
+    membership is the holder membership) is a **draft**: stored in `case_note_drafts`, visible only to its author
+    (no other reader, State-wide readers included), editable (kind, body, visibility, supersedes, linked
+    documents) and deletable by its author while that membership still holds the case. A draft has no `ref_no`
+    and no `seq_no` (both are allocated once, at finalisation, and never change). Up to 20 drafts per holder per
+    case (`NOTE_DRAFTS_MAX`). A draft carries **links** to documents already on the case (visible to the author,
+    not archived), not new files: a new file is uploaded to the case first (`POST /cases/{ref}/documents`,
+    permanent, scanned, its own visibility) and then linked, so deleting a draft never deletes a document. When
+    custody is office-held with no user, nobody holds personally and notes are permanent at once (decision 14).
+    Alternative: drafts as `case_notes` rows with a status — rejected: `case_notes` is append-only by trigger
+    and must stay so. Alternative: files on drafts — rejected: deleting the draft would orphan or delete files.
+    **Owner check:** the holder cannot "make permanent now"; drafts become permanent only when the file moves.
 
-13. **Note kinds (deviation, small).** The plan lists seven: general, instruction, opinion, hearing note,
-    compliance, decision, hand-over. The built set lacks `opinion` and `hand_over`; both are added (seed).
-    `hearing` is labelled "Hearing note". `hand_over` is written only by the hand-over step (decision 4); a
-    plain note with that kind → 400. A correction carries the original note's kind (decision 15), so the
-    built code `correction` is retired (`is_active = false`, set by the seed). **Deviation, flagged:** the
-    built extras `counsel_advice` and `file_noting` are kept selectable beyond the plan's seven.
+13. **Drafts become permanent in the move's transaction.** `move_custody`, whenever the new leg's holder
+    membership differs from the previous one (send, recall, allot, take over, transfer), calls
+    `notes.finalise_drafts` under the same case row lock and in the same transaction: each draft of the previous
+    holder membership on the case, oldest first, becomes a `case_notes` row (next `seq_no`, `ref_no` on the
+    membership's office, `custody_leg_id` = the leg during which it was written, `drafted_at` = the draft's
+    creation time, the author snapshot of the draft's membership, `source = user`), its links become
+    `case_note_attachments` rows, and the draft and link rows are deleted. A draft correcting a note that was
+    corrected meanwhile supersedes the latest note of that chain (recorded in the audit `after`). One
+    `note_added` event and one `note.finalised` audit row per note. If anything fails, the move fails too; a
+    file never moves leaving drafts behind. A deactivated holder's drafts wait for the recall.
 
-14. **Writing a note.** `notes.add` and a working basis (`owner`, `allotted`, `custody`, `request`, `counsel`).
-    Body 1–20,000 characters (`NOTE_MAX_CHARS`). Visibility is required (`case_scope`, `counsel_shared`,
-    `private_to_office`; no default, as for documents). The note records `office_id` (the author's office),
-    `author_role` (the user type), the actor snapshot (name, designation, office code at the time), `seq_no`
-    (max + 1 under the case row lock), `custody_leg_id` = `custody.current_leg_id`, `source = user` (no system
-    notes are written in this item), `ref_no` `ASLMS/<author office>/NOTE/<yyyy>/<n>`.
+14. **Notes by others are permanent at once.** A caller who is not the personal holder (the owning department's
+    nodal officers, the allotted officer while the file is elsewhere, standing counsel, anyone writing on an
+    office-held leg) writes a permanent note: `notes.add` in the acting membership (`user-memberships` decision
+    6) and a working basis (`owner`, `allotted`, `custody`, `counsel`). Body 1–20,000 characters
+    (`NOTE_MAX_CHARS`); visibility required (`case_scope`, `counsel_shared`, `private_to_office`); `office_id`,
+    `author_role`, actor snapshot from the acting membership; `seq_no` max + 1 under the case row lock;
+    `custody_leg_id` = `custody.current_leg_id`; `ref_no` `ASLMS/<author office>/NOTE/<yyyy>/<n>`. The response
+    says `draft: false`; a holder's write returns the draft with `draft: true`.
 
-15. **Corrections.** `supersedes` names a note of the same case that the caller can see and that is not
-    already superseded (409 `already_superseded`; the partial unique index guards the race — correct the latest
-    note of the chain). Only the original author or a whole-department caller of the original note's
-    department may correct it (403 `not_author`). The correction keeps the original's kind and visibility
-    (a different visibility → 400): a correction is never a way to widen or narrow who reads the matter. Both
-    notes are kept and listed; the original shows `superseded_by`.
+15. **Note kinds (deviation, small).** The plan lists seven: general, instruction, opinion, hearing note,
+    compliance, decision, hand-over. `opinion` and `hand_over` are added (seed), both selectable (hand-over is
+    now an ordinary note kind: the send's remark is on the leg). `hearing` is labelled "Hearing note".
+    `correction` is retired (`is_active = false`): a correction carries the original's kind (decision 16).
+    **Deviation, flagged:** the built extras `counsel_advice` and `file_noting` stay selectable.
 
-16. **Note visibility (`note_visible_condition`, SQL, over `case_notes`).** A visible case, and
-    `record_visibility_condition` (documents decision 7: `counsel_shared` to everyone on the case, `case_scope`
-    to everyone but standing counsel unless the author, `private_to_office` to the office, its department-wide
-    callers and the author; State-wide readers see all), and the two note functions as switches:
-    `private_to_office` needs `notes.view_private_office` (except the author and State-wide readers);
-    for standing counsel, `counsel_shared` needs `notes.view_counsel_shared`. Both are on by default for every
-    type that can reach such notes, so the defaults equal the document rule; the super admin can switch them off
-    per type or user. Alternative: ignore the two seeded functions — rejected: they exist in the matrix and
-    would be dead switches.
+16. **Corrections.** `supersedes` names a permanent note of the same case that the caller can see and that is not
+    already superseded (409 `already_superseded`; partial unique index). Only the original author or a
+    whole-department membership of the original note's department may correct (403 `not_author`). The correction
+    keeps the original's kind and visibility (400 on a different visibility). A correction written by the holder
+    is a draft like any other (decision 13 resolves a meanwhile-corrected target). Both notes are listed; the
+    original shows `superseded_by`.
 
-17. **Note attachments.** Up to `ATTACHMENTS_MAX_FILES` (5) new files per call, each within
-    `UPLOAD_MAX_BYTES`, type by content and ClamAV scan exactly as uploads; they become `documents` rows of kind
-    `attachment`, group `internal` (so never sent to SourceTrace, enforced by `ck_documents_internal_not_sent`),
-    `doc_type` from the internal group (default `correspondence`), `doc_date` today, description "Attachment to
-    <note ref_no>", visibility = the note's. Existing documents of the same case that the caller can see (not
-    archived) may be linked instead (`document_refs`); a linked document keeps its own visibility, and a reader
-    sees an attachment entry only when the document rule lets them see that document (a link never widens).
-    **All files are checked and scanned before anything is written**; one refused file refuses the whole call
-    (its rejection audit row is committed, as for uploads). An attachment's visibility follows its note, so
-    `PATCH /documents/{doc}` (visibility) and archive on a kind-`attachment` document answer 409
-    `attachment_follows_note`. Attachments stay out of the Documents tab (documents-uploads deviation) and are
-    found by the content search under the document rule.
+17. **Note visibility (`note_visible_condition`, SQL, over `case_notes`).** A visible case and
+    `record_visibility_condition` (OR-ed over the caller's memberships, `user-memberships` decision 7), with the
+    two note functions as switches: `private_to_office` needs `notes.view_private_office` (except the author and
+    State-wide readers); for standing counsel `counsel_shared` needs `notes.view_counsel_shared`. Drafts are never
+    in this rule; they are read only by their author through the drafts endpoints.
 
-18. **One multipart form per write that carries files.** `POST` notes, hand-over, requests, request messages and
-    answers are `multipart/form-data` (text fields + repeated `files`, `file_doc_types`, `document_refs`), so a
-    note and its files are written atomically and no orphan attachment can exist. The upload size guard
-    middleware is extended to these paths with the limit `ATTACHMENTS_MAX_FILES × UPLOAD_MAX_BYTES` + overhead;
-    each file is still counted against `UPLOAD_MAX_BYTES`. Alternative: upload attachments first, then cite them —
-    rejected: orphan rows visible only through search.
+18. **Attachments on permanent notes.** As approved before: up to `ATTACHMENTS_MAX_FILES` (5) new files per
+    call, each within `UPLOAD_MAX_BYTES`, type by content and ClamAV scan as uploads, all checked before anything
+    is written (one refused file refuses the call; its rejection audit row is committed); they become `documents`
+    of kind `attachment`, group `internal` (never sent to SourceTrace, `ck_documents_internal_not_sent`), default
+    `doc_type` `correspondence`, visibility = the note's; existing case documents may be linked
+    (`document_refs`), keeping their own visibility (a link never widens). `PATCH /documents/{doc}` visibility
+    and archive on a kind-`attachment` document → 409 `attachment_follows_note`. Attachments stay out of the
+    Documents tab and are found by content search under the document rule. `POST` notes is
+    `multipart/form-data`; the upload size guard covers it with `ATTACHMENTS_MAX_FILES × UPLOAD_MAX_BYTES` +
+    overhead.
 
-19. **Events (payloads never carry note text, request subject or body).** `note_added` (scoped; note id,
-    `ref_no`, `seq_no`, kind, visibility, office code, superseded `ref_no`), `custody_moved` (existing; payload
-    gains `pending_action`, `due_date`, `request_ref_no`), `request_sent`, `request_answered`, the new
-    `request_withdrawn` (request id, `ref_no`, kind, `from_office_code`, `to_office_code`, `due_date`,
-    `moves_custody`), `stage_set` (stage, label, phase, response mode, office code). Dedupe keys
-    `<type>:<row id>`. Timeline: request and stage events are shown to everyone who sees the case (the file
-    movement is the eOffice tracking view; contents stay behind decision 10); `note_added` is shown only when
-    the note is visible to the caller (joined through `payload.note_id`, as `document_uploaded` is).
+19. **Case stages.** One track per case; the latest `case_stages` row is current; any stage may be set (guided,
+    not enforced) by a `stages.set` holder with a working basis (the personal holder included, decision 9);
+    `office_id` = the acting membership's office; `response_mode` carried from the previous row (else
+    `department`); note ≤ 2,000; the same stage and mode again → 409 `unchanged`. The read returns history and
+    the **gaps** (main-phase stages before the current one, by `sort_order`, never recorded). A send accepts an
+    optional `stage` recorded in the same step (e.g. `parawise_comments_sought`), needing `stages.set` (403 before
+    anything is written). No stage is set by the system.
 
-20. **Audit rows** (actor snapshot, IP, user agent): `custody.handed_over`, `custody.action_set`,
-    `request.sent`, `request.message_added`, `request.assigned`, `request.due_changed`, `request.answered`,
-    `request.withdrawn`, `stage.set`, `note.added`; each attachment file writes the existing `document.uploaded`
-    (kind `attachment`). Audit `after` holds references, codes and a body length and SHA-256 — never the note
-    or message text (the append-only rows are the record; auditors read them through the normal rule).
+20. **Events.** `custody_moved` (existing; payload: reason, holder office code, holder user name, holder
+    designation, membership id, pending action, due date, seq no, previous holder user id — never the remark),
+    `note_added` (note id, `ref_no`, `seq_no`, kind, visibility, office code, superseded `ref_no`, `finalised`
+    true when it came from a draft), `stage_set`. Dedupe `<type>:<row id>` (`custody_moved:<case>:<seq>` as
+    built). Timeline: `custody_moved` and `stage_set` for everyone who sees the case (the eOffice tracking view);
+    `note_added` only when the note is visible to the caller. Drafts write no event.
 
-21. **Alerts: one new kind `workflow` (seed only), informational.** The event scan raises it for
-    `request_sent` (to the addressee, else the receiving office's `requests.answer` holders —
-    `Resolver.for_request`), `request_answered` (to the sender if active, else the sending office's
-    `requests.send` holders), `request_withdrawn` (as `request_sent`), and `custody_moved` with reason
-    `handed_over` or `request_assigned` (to the new holder by the custody-holder rule of alerts decision 14).
-    `custody_moved` with `request_sent` raises nothing (the `request_sent` alert covers it). Key
-    `workflow:<event_id>`, addressed office = the receiving / returning / new holder office; severity `high` when
-    the due date is within `REQUEST_DUE_SOON_DAYS`, else `normal`; expires after `ALERT_INFO_EXPIRE_DAYS`;
-    recipients filtered by case visibility, never the actor. Mail and in-app text: kind label, offices, case
-    number, due date — never the subject, body or note. Custody due dates of hand-overs raise no alert (the plan's
-    alert list has request due only; overdue pending actions appear in the reports item). **Flagged:** like
-    `ownership`, `workflow` is a kind beyond the plan's list, added so the plan's "alerts go to the current custody
-    holder" reaches a new holder at once.
+21. **Audit rows** (actor snapshot of the acting membership, IP, user agent): `custody.sent`, `custody.recalled`,
+    `stage.set`, `note.added`, `note.finalised`, `note.draft_saved`, `note.draft_updated`, `note.draft_deleted`;
+    each new file writes the existing `document.uploaded`. `after` holds references, codes, lengths and SHA-256
+    of note bodies and remarks — never the text.
 
-22. **Case detail.** The overview's custody card gains `request` (`ref_no`, kind, only when the request is
-    visible to the caller, else just `under_request: true`), `leg_seq_no`; a `stage` block (code, label, phase,
-    response mode, set at, office code). `counts` gains `notes` and `requests` (visible to the caller). The
-    tabs are served by the new endpoints below.
+22. **Retired request codes and functions.** Seed: `ref_permission` `requests.send` and `requests.answer` set
+    `is_active = false` (and their matrix rows `is_enabled = false`); `access` ignores inactive functions (45 → 43
+    active). `ref_event_type` `request_sent`, `request_answered` and `ref_alert_kind` `request_due` retired;
+    `ref_record_type` `REQ` retired. The Python members stay, marked retired, so old rows still load.
 
-23. **Locks.** Every write takes the case row lock (`SELECT … FOR UPDATE`, as ownership does) before computing
-    `seq_no`, reading custody or checking control; request answer, withdraw, assign and due change also lock the
-    request row. A unique violation on `(case_id, seq_no)` or `ix_case_notes_supersedes` maps to 409.
+23. **Alerts: kind `workflow` (seed), three sources.** (a) **File received**: `custody_moved` with reason
+    `sent` → the new holder user. (b) **File recalled**: `custody_moved` with reason `recalled`, `allotted`,
+    `taken_over` or `transferred` that took the file from a personal holder → that previous holder (if active and
+    not the actor). (c) **Due / overdue**: the date sweep raises one alert per current leg with a due date within
+    `REQUEST_DUE_SOON_DAYS` (the existing setting, now also used here) — severity `high` when due soon,
+    `critical` when overdue — to the holder (custody-holder rule of alerts decision 14) and, when overdue, also to
+    the owning department's users holding `cases.allot` (so they can recall); key `workflow_due:<leg id>`, closed
+    `done` when the case's current leg changes. (a) and (b) are informational (expire after
+    `ALERT_INFO_EXPIRE_DAYS`; severity `high` when the due date is within the window, else `normal`). Addressed
+    office = the holder office (a, c) or the previous holder office (b). Text: kind label, offices, officer
+    designation, case number, pending action, due date — never the remark or a note. The `request_due` sweep and
+    `Resolver.for_request` are removed. **Flagged:** `workflow` is a kind beyond the plan's list, so that "alerts
+    go to the current custody holder" reaches a new holder at once.
+
+24. **Accountability views.** `GET /custody/held`: `scope=me` (cases whose holder user is the caller, any
+    membership), `scope=office` (holder office in the subtree of any of the caller's memberships' roots — the
+    department for whole-department memberships, else the own office), `scope=owned` (cases owned by a department
+    where the caller has a whole-department membership, wherever they are held, showing holder office, officer,
+    pending action, since, due date, overdue days); filter `overdue`, `holder_department`; ordered by due date then
+    since; always ANDed with `visible_case_condition`. `GET /custody/sent`: the legs the caller wrote (sends and
+    recalls) with the case summary (searchable facts only) and the leg; detail still needs visibility. The
+    dashboards and the "pending actions by office" report (`reports-dashboards`) read the same columns.
+
+25. **Case detail.** The custody card: holder office, holder officer (name, designation), pending action (code,
+    label), since, due date, `overdue`, sent by (actor name, designation, office code), remark (decision 11),
+    `leg_seq_no`, `can_send`, `can_recall`; a `stage` block; `counts` gains `notes` (visible permanent notes) and
+    `my_drafts`. `requests` disappears from counts and tabs.
+
+26. **Locks.** Send, recall, ownership moves, every note write, draft save, update and delete take the case row
+    lock (`SELECT … FOR UPDATE`) before reading custody, computing `seq_no` or checking the holder. A draft edit
+    racing a send waits, then finds the draft finalised → 409 `draft_finalised`. Unique violations on
+    `(case_id, seq_no)` or `ix_case_notes_supersedes` map to 409.
+
+27. **The request tables are dropped, by a new migration.** `requests`, `request_messages`, `ref_request_kind`,
+    the `request_status` enum and the `request_id` columns of `custody` and `custody_history` were created by the
+    applied 0001 and have never held a row (nothing writes them). Migration 0009 drops them after checking they
+    are empty (it stops otherwise: no legal record is dropped); 0001 is not edited. The `request` visibility basis
+    goes. Alternative: leave them unused — rejected: dead tables and columns in an approved schema invite misuse
+    and keep `custody.request_id` pointing at a concept the owner removed.
 
 ## Data
-Migration **0008_workflow** (new file; 0001–0007 are applied and untouched).
+Migration **0009_workflow** (new file; depends on `0008_memberships`; 0001–0007 applied and untouched).
 
-New table, for `schema.md` "Phase 2 and 3 tables":
+New tables, for `schema.md` "Phase 2 and 3 tables":
 
-> | `request_attachments` (transaction, append-only) | id (uuid v7 PK), request_id (→ requests RESTRICT), message_id (→ request_messages RESTRICT, NULL = attached to the request itself), document_id (→ documents RESTRICT), created_at, actor snapshot (`actor_user_id` → users SET NULL, `actor_name`, `actor_designation`, `actor_office_code`) | Unique `uq_request_attachments` (request_id, message_id, document_id) NULLS NOT DISTINCT. Indexes on request_id, message_id, document_id. The message, when set, belongs to the request (checked by the service). New files are `documents` of kind `attachment`, group `internal`, visibility `case_scope` or `counsel_shared`; existing documents of the same case may be linked. Trigger `aslms_forbid_change`; no UPDATE grant for `aslms_app`. Design `custody-workflow` decision 11. |
+> | `case_note_drafts` (transaction, **mutable and deletable**) | id (uuid v7 PK), case_id (→ cases RESTRICT), membership_id (→ user_memberships RESTRICT; the holder membership that wrote it), author_user_id (→ users RESTRICT), custody_leg_id (→ custody_history RESTRICT; the leg during which written), kind (→ `ref_note_kind`), body (1–20,000), visibility (`doc_visibility`), supersedes_id (→ case_notes RESTRICT, NULL), created_at, updated_at, actor snapshot | Index `ix_case_note_drafts_case_membership` (case_id, membership_id). Visible only to `author_user_id`. Exists only while `membership_id` holds the case; turned into `case_notes` rows and deleted in the transaction that moves custody away (design `custody-workflow` decisions 12–13). `aslms_app` has DELETE on this table. |
+> | `case_note_draft_documents` (transaction, deletable with its draft) | id, draft_id (→ case_note_drafts RESTRICT), document_id (→ documents RESTRICT), created_at | Unique (draft_id, document_id). The document belongs to the draft's case. Rows deleted by the service before their draft; become `case_note_attachments` on finalisation. `aslms_app` has DELETE. |
 
-Changed rows of `schema.md` "Phase 2 and 3 tables" (as built after 0008):
+Changed rows of `schema.md` "Phase 2 and 3 tables" (as built after 0009):
 
-> | `custody` | case_id (PK, → cases RESTRICT), holder_office_id (→ offices RESTRICT), holder_user_id (→ users SET NULL), pending_action (`none` / `examine` / `reply` / `file` / `comply` / `review`), since, due_date, request_id (→ requests RESTRICT; the open request the file is out on), current_leg_id (→ custody_history), created_at, updated_at | Exists only for claimed cases. Written only by `services/custody.py::move_custody`: ownership moves (clear `request_id`), hand-over (carries `request_id`), request sent / assigned / answered / withdrawn, action set (design `custody-workflow`). |
-> | `custody_history` (derived, append-only) | id, case_id, seq_no (unique per case), holder_office_id + holder_office_code, holder_user_id + holder_user_name, reason (CHECK `ck_custody_history_reason`: `claimed`, `allotted`, `taken_over`, `transferred`, `handed_over`, `request_sent`, `request_assigned`, `request_answered`, `request_withdrawn`, `action_set`), pending_action, due_date, request_id (→ requests RESTRICT), started_at, actor snapshot, created_at | One row per leg; an answered or withdrawn request returns custody to the leg before its `request_sent` leg. |
-> | `requests` (transaction) | ref_no (unique, `ASLMS/<from office>/REQ/<yyyy>/<n>`), case_id (→ cases RESTRICT), kind (→ `ref_request_kind`), from_office_id, to_office_id (→ offices RESTRICT; CHECK `ck_requests_offices`: different), to_user_id (→ users SET NULL; inside the receiving office's subtree), subject (3–300), body, due_date, **moves_custody** boolean NOT NULL default false, status (`open` / `answered` / `withdrawn`), answered_at, answered_by_user_id (→ users SET NULL), withdrawn_at, **withdraw_reason** text, actor snapshot (the sender), created_at, updated_at | CHECKs `ck_requests_answered` ((status = 'answered') = (answered_at IS NOT NULL)), `ck_requests_withdrawn` ((status = 'withdrawn') = (withdrawn_at IS NOT NULL AND withdraw_reason IS NOT NULL)). Partial index `ix_requests_open_due` (due_date) WHERE status = 'open'; index `ix_requests_to_office_status` (to_office_id, status). With `moves_custody` the file goes to the receiving office and comes back on answer or withdrawal. Visible under `request_visible_condition`. |
-> | `request_messages` (transaction, append-only) | id, request_id (→ requests RESTRICT), body (1–20,000), is_answer, actor snapshot, created_at | Trigger `aslms_forbid_change` added by 0008; exactly one `is_answer` row for an answered request (service). |
-> | `case_stages` (transaction, append-only) | id, case_id, office_id (the setter's office), stage (→ `ref_case_stage`), response_mode (`department` / `counsel` / `none`), note (≤ 2,000), actor snapshot, created_at | Latest row is the current stage; index `ix_case_stages_case_created` (case_id, created_at DESC). Guided, not enforced; gaps are computed on read. |
-> | `case_notes` (transaction, append-only) | ref_no (unique, `ASLMS/<author office>/NOTE/<yyyy>/<n>`), case_id, seq_no (unique per case), kind (→ `ref_note_kind`), body (1–20,000), visibility (`case_scope` / `counsel_shared` / `private_to_office`), office_id (the author's office), author_role, custody_leg_id (→ custody_history), supersedes_id (→ case_notes RESTRICT), source (`user`; `system` reserved), actor snapshot, created_at | CHECK `ck_case_notes_not_self` (supersedes_id <> id); partial unique `ix_case_notes_supersedes` (supersedes_id) WHERE supersedes_id IS NOT NULL (a note is corrected once; chains continue from the latest). A correction keeps the original's kind and visibility. Visible under `note_visible_condition`. |
-> | `case_note_attachments` (transaction, append-only) | id, note_id (→ case_notes RESTRICT), document_id (→ documents RESTRICT), created_at | Unique (note_id, document_id). Trigger `aslms_forbid_change` added by 0008. New files are internal `attachment` documents with the note's visibility; linked documents keep theirs; never sent to SourceTrace. |
+> | `custody` | case_id (PK, → cases RESTRICT), holder_office_id (→ offices RESTRICT), holder_user_id (→ users SET NULL), **holder_membership_id (→ user_memberships RESTRICT, NULL for an office-held leg)**, pending_action, since, due_date, current_leg_id (→ custody_history) | Exists only for claimed cases. Written only by `services/custody.py::move_custody`: ownership moves, `sent`, `recalled`. Partial index `ix_custody_due` (due_date) WHERE due_date IS NOT NULL; index `ix_custody_holder_user` (holder_user_id). `request_id` dropped by 0009. |
+> | `custody_history` (derived, append-only) | id, case_id, seq_no (unique per case), holder_office_id + holder_office_code, holder_user_id + holder_user_name, **holder_membership_id (→ user_memberships RESTRICT) + holder_designation (snapshot, ≤ 200)**, reason (CHECK `ck_custody_history_reason`: `claimed`, `allotted`, `taken_over`, `transferred`, `sent`, `recalled`), pending_action, due_date, **remark (≤ 2,000; CHECK `ck_custody_history_remark`: reason NOT IN ('sent','recalled') OR remark IS NOT NULL)**, started_at, actor snapshot (the sender or recaller), created_at | One row per movement; the chain is the file's movement record. `request_id` dropped by 0009. |
+> | `case_notes` (transaction, append-only) | … as built, + **drafted_at** timestamptz NULL (set when the note came from a draft) | CHECK `ck_case_notes_not_self`; partial unique `ix_case_notes_supersedes`. A note is permanent from insert; drafts live in `case_note_drafts`. |
+> | `case_note_attachments` (transaction, append-only) | as built | Trigger `aslms_forbid_change` added by 0009; no UPDATE for `aslms_app`. |
+> | `case_stages` | as built | Index `ix_case_stages_case_created` (case_id, created_at DESC). |
 
-Conventions paragraph: the append-only list becomes `events`, `audit_log`, `case_notes`, `custody_history`,
-`case_stages`, `request_messages`, `request_attachments`, `case_note_attachments`; "Notes reuse
-`record_visibility_condition`" gains "plus the switches `notes.view_private_office` and (for standing counsel)
-`notes.view_counsel_shared`; requests use `request_visible_condition`".
+Removed rows: `requests`, `request_messages`, `ref_request_kind` (dropped by 0009). Conventions: code sets become
+seven `ref_*` tables plus `ref_record_type`; the append-only list adds `case_note_attachments`; the "No deletion"
+paragraph gains: "**Deviation from DB_STANDARD §6 / §9 (owner's rule of 7 Oct 2026):** `aslms_app` may DELETE
+from `case_note_drafts` and `case_note_draft_documents`, which hold unfinished drafts, not legal records";
+`withdrawn_at` on requests is removed from the lifecycle list; the visibility basis list loses `request`.
 
-Migration 0008 contents: create `request_attachments`; add `requests.moves_custody`, `requests.withdraw_reason`;
-the CHECKs and indexes above; triggers on `request_messages`, `request_attachments`, `case_note_attachments`;
-`REVOKE UPDATE … FROM aslms_app` on those three; `COMMENT ON TABLE request_attachments IS 'class=transaction'`.
-Downgrade drops exactly these. No data changes in the migration.
+Migration 0009 contents: guard (stop unless `requests` and `request_messages` are empty and no `custody` /
+`custody_history` row has `request_id`); drop the `request_id` FKs, indexes and columns, `request_messages`,
+`requests`, `ref_request_kind`, enum `request_status`; `ALTER TYPE pending_action ADD VALUE` × 7 (decision 10);
+add `custody.holder_membership_id`, `custody_history.holder_membership_id`, `holder_designation`, `remark`,
+`case_notes.drafted_at`; the CHECKs and indexes above; create the two draft tables (`class=transaction`
+comments, grants SELECT/INSERT/UPDATE/DELETE for `aslms_app`, `set_updated_at` on `case_note_drafts`); trigger and
+`REVOKE UPDATE` on `case_note_attachments`. Downgrade: stops while drafts exist or any leg uses the new reasons;
+recreates the dropped tables and columns empty (0001 shapes); leaves the added enum values (PostgreSQL cannot drop
+them; harmless).
 
-Reference codes (seed only, `aslms seed`): `ref_note_kind` + `opinion` ("Opinion"), `hand_over` ("Hand-over");
-labels refreshed on every seed run for `hearing` ("Hearing note") and the two new codes (as permission labels
-are); `correction` set `is_active = false` by the seed (a retired-codes map). `ref_event_type` + `request_withdrawn`
-(timeline label "Request withdrawn"). `ref_alert_kind` + `workflow` ("Workflow", default severity `normal`).
-Enums in `domain/reference.py`: `NoteKind.OPINION`, `NoteKind.HAND_OVER`, `EventType.REQUEST_WITHDRAWN`,
-`AlertKind.WORKFLOW`. Model: `Request.moves_custody`, `Request.withdraw_reason`, `RequestAttachment` in
-`domain/workflow.py`. No new function.
+Reference codes (seed only): `ref_note_kind` + `opinion` ("Opinion"), `hand_over` ("Hand-over"); `hearing`
+relabelled "Hearing note"; `correction` retired. `ref_alert_kind` + `workflow` ("Workflow", default `normal`);
+retired per decision 22. Enums: `NoteKind.OPINION`, `NoteKind.HAND_OVER`, `AlertKind.WORKFLOW`, the seven
+`PendingAction` members; models `CaseNoteDraft`, `CaseNoteDraftDocument` in `domain/workflow.py`; `Request`,
+`RequestMessage`, `RefRequestKind`, `RequestKind` removed. No new function.
 
 ## Services
-- `services/documents.py` (refactor, behaviour unchanged for uploads): split `upload` into
-  `check_file(data, filename, *, scanner, max_bytes, session, actor, case) -> CheckedFile` (size, type by
-  content, scan; writes the rejection audit row and raises `UploadRefused` as today) and
-  `create_document(session, actor, user, case, checked, *, kind, doc_type, doc_group, doc_date, description,
-  visibility, store) -> Document` (store, row, event, audit). `upload` = both. `change_visibility` and `archive`
-  refuse kind `attachment` (`AttachmentFollowsNote`, 409).
-- `services/attachments.py` (new): `prepare(session, actor, user, case, files, doc_types, *, max_files) ->
-  list[CheckedFile]` (all checks and scans first; doc types from the internal group, default `correspondence`);
-  `resolve_links(session, user, case, refs) -> list[Document]` (same case directly or through an order, visible,
-  not archived; else 400 `bad_document_ref`); `create_all(...)` (kind `attachment`, group `internal`).
-- `services/custody.py` (extended): `REASONS` per decision 2; `move_custody(..., pending_action=NONE,
-  due_date=None, request_id=None)`; `controls_custody(session, user, custody) -> bool` (decision 3);
-  `hand_over(session, actor, user, case, *, to_office, to_user, pending_action, due_date, note_body,
-  note_visibility, files, document_refs, scanner, store)` (decision 4; writes the note through
-  `notes.add_note(kind=HAND_OVER)` after the move, so the note's `custody_leg_id` is the new leg);
-  `set_action(...)` (decision 5); `return_from_request(session, actor, case, request, reason)` (decision 6);
-  `card(session, user, case)` and `history(session, user, case, limit, offset)`; `held(session, user, scope,
-  overdue, limit, offset)` (cases held by the caller — holder user, or the caller's office with no user — or,
-  with `scope=office`, by any office of the caller's root; filtered by `visible_case_condition`; ordered by due
-  date then `since`).
-- `services/requests.py` (new): `send`, `add_message`, `answer`, `withdraw`, `assign`, `change_due`, `get`,
-  `list_for_case`, `inbox(box=received|sent, status)`, `request_out`. Rules of decisions 6–11; each under the
-  locks of decision 23; each writes its audit row and event; `send` and `answer` call `stages.set_stage` when
-  `stage` is given (needs `stages.set`, else 403 before anything is written).
-- `services/stages.py` (new): `set_stage(session, actor, user, case, *, stage, response_mode, note)`,
-  `current(session, case)`, `history_with_gaps(session, user, case)`, `catalogue(session)`.
-- `services/notes.py` (new): `add_note(session, actor, user, case, *, kind, body, visibility, supersedes, files,
-  doc_types, document_refs, scanner, store, _allow_hand_over=False)`; `list_for_case(session, user, case, kind,
-  include_superseded=True, limit, offset)` (ordered by `seq_no`); `get(session, user, ref)`; `note_out`
-  (attachments filtered by `document_visible_condition`, `superseded_by`, author snapshot, custody leg
-  `seq_no`); `visible_count`.
-- `services/visibility.py` (extended): `note_visible_condition(session, user)`, `can_view_note`;
-  `request_visible_condition(session, user)`, `can_view_request`. In SQL, as every other rule.
-- `services/case_detail.py`: decision 22; `WORKFLOW_EVENTS` (`request_sent`, `request_answered`,
-  `request_withdrawn`, `stage_set`) joined to the timeline for everyone who sees the case; `note_added` through
-  `note_visible_condition`.
-- `services/alerts.py`, `alert_rules.py`, `recipients.py`: decision 21 (`HANDLED_EVENTS` + the four sources;
-  `Resolver.for_request_reply(req)`; `render` for `workflow`).
-- `services/workflow_codes.py` (or in `stages.py`): `codes(session)` — active note kinds (with
-  `selectable`), request kinds with their default pending action, pending actions, stages with phase, response
-  modes, custody reasons with labels.
-- Settings (`.env.example`): `ATTACHMENTS_MAX_FILES=5`, `NOTE_MAX_CHARS=20000`.
+- `services/documents.py` (refactor, uploads unchanged): split `upload` into `check_file` and
+  `create_document`; `change_visibility` and `archive` refuse kind `attachment`.
+- `services/attachments.py` (new): `prepare` (check and scan every file first), `resolve_links` (same case, visible,
+  not archived; else 400 `bad_document_ref`), `create_all` (kind `attachment`, group `internal`).
+- `services/custody.py` (extended): `REASONS` (decision 2/27); `move_custody(session, actor, case, *, office,
+  user=None, membership=None, reason, pending_action=NONE, due_date=None, remark=None)` — writes leg and row,
+  calls `notes.finalise_drafts` when the holder membership changes (decision 13), emits `custody_moved`;
+  `controls_custody(session, user, custody)` (decision 4); `send(session, actor, user, case, *, to_membership,
+  pending_action, due_date, remark, stage)` (decisions 3, 4, 19); `recall(session, actor, user, case, *, remark)`
+  (decision 6); `recipients(session, user, department, q, limit, offset)` (decision 3 targets); `card`,
+  `history` (remark per decision 11), `held(session, user, scope, overdue, holder_department, limit, offset)`,
+  `sent(session, user, limit, offset)` (decision 24). Every write re-snapshots the actor with the acting
+  membership (`user-memberships` decision 10) and writes its audit row.
+- `services/notes.py` (new): `add_note(...)` (draft for the personal holder, permanent otherwise — decisions
+  12, 14; files only for permanent notes); `update_draft`, `delete_draft`, `list_drafts` (author only, holder
+  check under the case lock); `finalise_drafts(session, actor, case, membership_id)` (decision 13);
+  `list_for_case`, `get`, `note_out`, `visible_count`.
+- `services/stages.py` (new): `set_stage`, `current`, `history_with_gaps`, `catalogue`.
+- `services/visibility.py`: `request` basis removed; `note_visible_condition`, `can_view_note`; custody basis
+  per membership (`user-memberships` decision 7); `WORKING_BASES` without `request`.
+- `services/ownership.py`: its `move_custody` calls pass the officer's membership in the department.
+- `services/case_detail.py`: decision 25; timeline per decision 20.
+- `services/alerts.py`, `alert_rules.py`, `recipients.py`: decision 23 (`for_request` and the request sweep
+  removed; `render` for `workflow`; `Resolver.previous_holder(payload)`).
+- `services/workflow_codes.py`: note kinds (with `selectable`), pending actions with labels, stages with phase,
+  response modes, custody reasons with labels.
+- Settings (`.env.example`): `ATTACHMENTS_MAX_FILES=5`, `NOTE_MAX_CHARS=20000`, `NOTE_DRAFTS_MAX=20`.
 
 ## API
-New router `api/routers/workflow.py`. `{ref}` accepts a case id, CNR or dash-form `ref_no`; `{req}` and `{note}`
-accept an id or dash-form `ref_no`. Every case-scoped endpoint first applies `require_visible` (404 "no such
-case"); `read` = `cases.view_scope` or `cases.view_all`. Errors use the `{code, message}` shape.
+New router `api/routers/workflow.py`. `{ref}` = case id, CNR or dash-form `ref_no`; `{note}` = id or dash-form
+`ref_no`; `{draft}` = id. Every case-scoped endpoint first applies `require_visible` (404 "no such case");
+`read` = `cases.view_scope` or `cases.view_all`. Errors `{code, message}`.
 
 | Method and path | Function | Request | Response | Rule |
 |---|---|---|---|---|
-| `GET /workflow/codes` | `read` | — | note kinds, request kinds (+ default action), pending actions, stages (+ phase), response modes, custody reasons | Labels from the `ref_*` tables. |
-| `GET /cases/{ref}/custody` | `read` | `limit`, `offset` | `{card, legs: [{seq_no, holder_office, holder_user, reason, pending_action, due_date, request_ref_no?, started_at, actor_name}], total}` | Case visible; `request_ref_no` only when the request is visible. |
-| `POST /cases/{ref}/custody/hand-over` | `custody.move` | multipart: `to_office` (code), `to_user?` (id), `pending_action?`, `due_date?`, `note_body`, `note_visibility`, `files[]`, `file_doc_types[]`, `document_refs[]` | `{card, leg, note}` 201 | Decisions 3, 4, 17; 409 `not_owned`, `unchanged`; 403 `not_in_control`; 400 `target_out_of_scope`. |
-| `PUT /cases/{ref}/custody/action` | `custody.move` | `{pending_action, due_date?}` | `{card, leg}` | Decision 5; 409 `unchanged`. |
-| `GET /custody/held` | `read` | `scope=me|office`, `overdue?`, `limit`, `offset` | `{items: [{case summary, card}], total}` | Visible cases only; `scope=office` = the caller's root. |
-| `GET /cases/{ref}/requests` | `read` | `status?` | `{items: [request summary], total}` | `request_visible_condition`. |
-| `POST /cases/{ref}/requests` | `requests.send` | multipart: `kind`, `to_office`, `to_user?`, `subject`, `body?`, `due_date?`, `with_custody` (default true), `pending_action?`, `stage?`, `attachment_visibility` (`case_scope` default / `counsel_shared`), `files[]`, `file_doc_types[]`, `document_refs[]` | request detail 201 (+ `custody_moved`) | Decisions 6, 11, 12; working basis; 409 `not_owned`, `custody_out_on_request`; 403 `not_in_control` (with custody). |
-| `GET /requests` | `requests.answer` (box `received`) or `requests.send` (box `sent`) | `box`, `status?`, `overdue?`, `limit`, `offset` | `{items, total}` | Received: addressed to the caller or (non-personal) the caller's root; sent: sent by the caller or the caller's root. Always ANDed with `request_visible_condition`. |
-| `GET /requests/{req}` | `read` | — | detail: header, messages, attachments (visible ones), `can_answer`, `can_withdraw`, `can_assign` | 404 when not visible. |
-| `POST /requests/{req}/messages` | `requests.send` or `requests.answer` (by side) | multipart: `body`, files, refs | message 201 | Decision 7; 409 `not_open`. |
-| `POST /requests/{req}/answer` | `requests.answer` | multipart: `body`, `stage?`, files, refs | detail (+ `custody_moved`) | Decisions 6, 9; 409 `not_open`. |
-| `POST /requests/{req}/withdraw` | `requests.send` | `{reason}` (3–500) | detail (+ `custody_moved`) | Sending side; 409 `not_open`. |
-| `POST /requests/{req}/assign` | `requests.answer` | `{to_user}` | detail | Decision 8; 409 `not_open`, 400 `user_out_of_scope`. |
-| `PATCH /requests/{req}` | `requests.send` | `{due_date}` | detail | Sending side, open only; audited. |
-| `GET /cases/{ref}/stages` | `read` | — | `{current, history: [...], gaps: [codes]}` | Case visible. |
-| `POST /cases/{ref}/stages` | `stages.set` | `{stage, response_mode?, note?}` | `{current}` 201 | Decision 12; working basis; 409 `not_owned`, `unchanged`. |
-| `GET /cases/{ref}/notes` | `read` | `kind?`, `include_superseded` (default true), `limit` (50, max 200), `offset` | `{items: [note], total}` | `note_visible_condition`; ordered by `seq_no`. |
-| `POST /cases/{ref}/notes` | `notes.add` | multipart: `kind`, `body`, `visibility`, `supersedes?` (note ref), `files[]`, `file_doc_types[]`, `document_refs[]` | note 201 | Decisions 13–17; 400 `bad_field` (kind `hand_over`, visibility mismatch on correction); 403 `not_author`; 409 `not_owned`, `already_superseded`; 413/415/422/503 as uploads. |
+| `GET /workflow/codes` | `read` | — | note kinds, pending actions, stages, response modes, custody reasons | Labels. |
+| `GET /cases/{ref}/custody` | `read` | `limit`, `offset` | `{card, legs: [{seq_no, holder_office, holder_user, holder_designation, reason, pending_action, due_date, remark?, started_at, actor_name, actor_designation, actor_office_code}], total}` | Remark per decision 11. |
+| `GET /custody/recipients` | `cases.view_scope` | `department?`, `q?`, `limit`, `offset` | without `department`: `[{code, name}]` departments; with it: `[{membership_id, full_name, designation, office_code, office_name, role_label}]` | Decision 3 targets only. |
+| `POST /cases/{ref}/custody/send` | `cases.view_scope` (gate); the holder, or `custody.move` + control for an office-held leg | `{to_membership, pending_action, due_date?, remark, stage?}` | `{card, leg, finalised_notes: [ref_no]}` 201 | Decisions 3, 4, 13, 19; 409 `not_owned`, `unchanged`; 403 `not_in_control`; 400 `bad_target`, `bad_due_date`. |
+| `POST /cases/{ref}/custody/recall` | `custody.move` (in a whole-department membership of the owning department) | `{remark}` | `{card, leg, finalised_notes}` 201 | Decision 6; 403 `not_owner_department`; 409 `unchanged`. |
+| `GET /custody/held` | `read` | `scope=me|office|owned`, `overdue?`, `holder_department?`, `limit`, `offset` | `{items: [{case summary, card}], total}` | Decision 24; visible cases only; `owned` needs a whole-department membership (else 403). |
+| `GET /custody/sent` | `read` | `limit`, `offset` | `{items: [{case summary, leg}], total}` | Legs the caller wrote. |
+| `GET /cases/{ref}/stages` | `read` | — | `{current, history, gaps}` | Case visible. |
+| `POST /cases/{ref}/stages` | `stages.set` | `{stage, response_mode?, note?}` | `{current}` 201 | Decision 19; working basis; 409 `not_owned`, `unchanged`. |
+| `GET /cases/{ref}/notes` | `read` | `kind?`, `include_superseded` (true), `limit` (50, max 200), `offset` | `{items: [note], total}` | `note_visible_condition`; by `seq_no`; drafts never listed. |
+| `POST /cases/{ref}/notes` | `notes.add` | multipart: `kind`, `body`, `visibility`, `supersedes?`, `document_refs[]`, and (permanent notes only) `files[]`, `file_doc_types[]` | note (`draft: false`) or draft (`draft: true`) 201 | Decisions 12–18; files sent by the holder → 400 `drafts_take_links_only`; 400 `bad_field`; 403 `not_author`; 409 `not_owned`, `already_superseded`, `too_many_drafts`; 413/415/422/503 as uploads. |
+| `GET /cases/{ref}/notes/drafts` | `notes.add` | — | `{items: [draft]}` | The caller's own drafts on the case. |
+| `PATCH /notes/drafts/{draft}` | `notes.add` | `{kind?, body?, visibility?, supersedes?, document_refs?}` | draft | Author, still holding; 404 for anyone else; 409 `draft_finalised`. |
+| `DELETE /notes/drafts/{draft}` | `notes.add` | — | 204 | Author, still holding; the only delete in the case's records (owner's rule). |
 | `GET /notes/{note}` | `read` | — | note | 404 when not visible. |
 
 Note shape: `{id, ref_no, seq_no, kind, kind_label, body, visibility, author: {name, designation, office_code,
-role}, created_at, custody_leg_seq_no, supersedes: {ref_no, seq_no}?, superseded_by: {ref_no, seq_no}?,
-attachments: [{ref_no, original_filename, doc_type, mime, size_bytes, linked}]}`.
-Changed: `GET /cases/{ref}` (decision 22); `GET /cases/{ref}/timeline` (decision 19); `PATCH /documents/{doc}`
-and `POST /documents/{doc}/archive` (409 for attachments); the upload size guard (decision 18).
+role}, created_at, drafted_at?, custody_leg_seq_no, supersedes?, superseded_by?, attachments: [{ref_no,
+original_filename, doc_type, mime, size_bytes, linked}]}`. Draft shape: `{id, kind, body, visibility,
+supersedes?, documents: [{ref_no, original_filename}], created_at, updated_at, draft: true}`.
+Changed: `GET /cases/{ref}` (decision 25), `GET /cases/{ref}/timeline` (decision 20), `PATCH /documents/{doc}`
+and `POST /documents/{doc}/archive` (409 for attachments), the upload size guard (notes path).
 
 ## Jobs
-No new job. The existing `aslms.alerts_scan_events` (every 5 minutes) handles the four new event sources
-(decision 21); `aslms.alerts_sweep_dates` already raises `request_due` from open requests. Text extraction of
-attachment PDFs/DOCX goes through the existing `aslms.extract_document_text` dispatch after commit.
+No new job. `aslms.alerts_scan_events` handles `custody_moved` for decision 23 (a, b); `aslms.alerts_sweep_dates`
+replaces its request block with the custody due block (c). Attachment text extraction goes through the existing
+`aslms.extract_document_text` after commit.
 
 ## Tests
-Unit (`tests/unit/`):
-- `test_workflow_rules.py`: default pending action per request kind; custody reason set equals the CHECK list;
-  stage gaps (main phase only, by sort order; none for appeal/contempt current stage); note kind selectability
-  (`hand_over` not selectable, `correction` retired).
+Unit: `test_workflow_rules.py` — reasons equal the CHECK list; pending-action labels cover every enum member;
+stage gaps; note kind selectability (`hand_over` and `opinion` selectable, `correction` retired); retired
+functions excluded from effective functions.
 
-Database (`tests/db/`, using `world.py` and the scripted scanner/store fakes of documents-uploads):
-- `test_custody_workflow.py`: hand-over within the department writes leg + `hand_over` note in one transaction
-  (note's `custody_leg_id` = new leg); hand-over outside the department → `target_out_of_scope`; non-holder
-  officer → 403; dept officer in the department office cannot move an unallotted department-held case; action
-  set appends `action_set` leg; unclaimed case → `not_owned`; ownership move clears `custody.request_id`.
-- `test_requests.py`: send with custody moves it (reason, due date, pending action, `moves_custody`); answer
-  returns it to the previous leg with `examine`; withdraw restores the previous pending action; sub-request
-  inside a directorate returns the file to the directorate still under the parent request; parallel request
-  without custody moves nothing; second request with custody while the first is out → `custody_out_on_request`;
-  answer after an ownership move records the answer and leaves custody (`custody_moved: false`); assign moves
-  custody to the assignee; due change updates custody due date; answered / withdrawn requests refuse messages,
-  answers, withdraw (409); CHECKs reject inconsistent status rows; `request_messages` and
-  `request_attachments` refuse UPDATE and DELETE (trigger).
-- `test_request_visibility.py`: sender side, receiving side, addressee, owning department nodal officer and
-  allotted officer see the request; another directorate of the same department and standing counsel (not a
-  side) do not, but see the timeline line without subject; a referral reviewer sees a request only once
-  assigned; State-wide reader sees all.
-- `test_stages.py`: any stage may be set; `unchanged` 409; response mode carried forward; a referral reviewer
-  with a request basis may set a stage; `stage` given with send / answer is recorded in the same transaction
-  and refused (nothing written) without `stages.set`.
-- `test_notes.py`: seq_no increments per case under concurrency (two sessions); author snapshot frozen
-  (renaming the user later leaves the note unchanged); UPDATE/DELETE on `case_notes` and
-  `case_note_attachments` refused; correction keeps kind and visibility, a different visibility → 400; second
-  correction of the same note → 409 (service and index); only author or department nodal officer may correct;
-  plain note with kind `hand_over` → 400; a working basis is required (State-wide reader cannot write).
-- `test_note_visibility.py`: the matrix of the three visibilities × dept officer, directorate user of another
-  unit, standing counsel, referral reviewer, State oversight, author; switching off `notes.view_private_office`
-  for a type hides private notes except the author's own; standing counsel without
-  `notes.view_counsel_shared` see no counsel-shared notes; timeline `note_added` follows the same rule.
-- `test_note_attachments.py`: files become internal `attachment` documents with the note's visibility and
-  `sourcetrace_status = not_applicable`; one infected file among three refuses the note, writes no document
-  row, keeps the rejection audit row; more than `ATTACHMENTS_MAX_FILES` → 400; linked document of another case →
-  400; a linked private document is listed only to readers who can see it; `PATCH` visibility and archive of an
-  attachment → 409; attachments absent from the Documents tab, present in content search under the rule.
-- `test_workflow_alerts.py`: `request_sent` raises one `workflow` alert to the addressee (not to the sender);
-  `request_answered` alerts the sender; hand-over alerts the new holder; `custody_moved` with `request_sent`
-  raises nothing; rendered text contains no subject or note body; existing `request_due` alert closes on answer.
-- `test_api_workflow.py`: each endpoint's function check (403), invisible case (404), happy path shapes,
-  multipart size guard on the new paths (413), audit rows written with no note or message text in `after`.
-- Migration test: 0008 upgrade → downgrade → upgrade; `test_schema_metadata.py` in step with `schema.md`.
+Database (`tests/db/`, `world.py` with the two-department person of `user-memberships` and the scripted
+scanner/store fakes):
+- `test_custody_send.py`: the holder sends to an officer of another department (leg `sent`, membership,
+  designation snapshot, remark, pending action, due date; ownership unchanged); a referral reviewer holding the
+  file sends it on without `custody.move`; a non-holder → 403; office-held leg sent by a nodal officer and by a
+  unit user with `custody.move`; State-wide target, inactive membership, same holder → 400/409; due date in the
+  past → 400; `stage` with send recorded or refused without `stages.set` (nothing written).
+- `test_custody_recall.py`: **`test_recall_from_any_depth`** (EDU → HEALTH officer → HEALTH directorate officer →
+  FIN officer; the EDU admin recalls in one step; the card shows the admin; every holder's drafts permanent);
+  recall by the allotted officer or by a HEALTH nodal officer → 403; recall when already holding → 409; an
+  ownership move (allot) while the file is out acts as recall and alerts the previous holder.
+- `test_holder_access.py`: the holder from another department sees the case, uploads, sets a stage, writes
+  drafts, cannot allot, claim, transfer or recall; after sending on they lose sight (404) unless another basis;
+  `GET /custody/sent` still lists the leg.
+- `test_note_drafts.py`: holder's note is a draft (no `ref_no`, invisible to State-wide reader and owner);
+  author edits and deletes; others get 404; links only (files → 400); send finalises all drafts in order with
+  consecutive `seq_no`, `drafted_at`, `custody_leg_id` = the holder's leg, attachments from links, draft rows
+  gone, one `note_added` event each — all in the send's transaction (a forced failure after finalisation rolls
+  back both); a draft correction whose target was corrected meanwhile supersedes the latest; edit racing a send →
+  409 `draft_finalised` (two sessions); `too_many_drafts`.
+- `test_notes.py`: non-holder notes permanent; `seq_no` under concurrency; author snapshot frozen and taken from
+  the acting membership; UPDATE/DELETE on `case_notes` and `case_note_attachments` refused; correction rules.
+- `test_note_visibility.py`: the three visibilities × types, the two switches, a two-membership reader sees
+  private notes of both offices; timeline follows the rule.
+- `test_note_attachments.py`: as approved before (internal `attachment`, scan refusal writes nothing, limits,
+  link never widens, `attachment_follows_note`, absent from Documents tab).
+- `test_stages.py`: as before, plus the personal holder from another department may set a stage.
+- `test_workflow_alerts.py`: send → `workflow` alert to the new holder only; recall → previous holder; due soon
+  `high`, overdue `critical` with the owning department's `cases.allot` holders added; closed when the leg
+  changes; text has no remark or note body; no `request_due` alert is raised.
+- `test_api_workflow.py`: each endpoint's function check (403), invisible case (404), shapes, remark hidden from a
+  recommended-department reader, size guard (413), audit rows with no note or remark text.
+- Migration test: 0009 upgrade → downgrade → upgrade on an empty database; the guard stops on a seeded request
+  row; `test_schema_metadata.py` in step with `schema.md`; `DELETE` on `case_note_drafts` allowed for
+  `aslms_app`, on `case_notes` refused.
 
 ## Verification
-1. `docker compose run --rm api alembic upgrade head` → head `0008_workflow`; `docker compose run --rm api aslms
-   seed` reports `ref_note_kind` +2, `ref_event_type` +1, `ref_alert_kind` +1; `correction` inactive.
-2. `ruff check` clean; `pytest -q` green (count reported in the cycle report).
-3. With Compose up, on a claimed case of the loaded data (claim one with a dept admin of the `world`-style dev
-   accounts if none is claimed): allot to a directorate → custody card shows the directorate; send a
-   `parawise_comments` request from the department to that directorate with `stage=parawise_comments_sought`
-   and a due date → `GET /cases/{ref}/custody` shows a `request_sent` leg with the due date and pending action
-   `reply`; `GET /requests?box=received` as the directorate user lists it; answer with a PDF attachment and
-   `stage=parawise_comments_received` → custody back with pending action `examine`; `GET /cases/{ref}/stages`
-   shows both stages and the gaps before them.
-4. Add a `private_to_office` note as the department officer and a `counsel_shared` note; as standing counsel
-   `GET /cases/{ref}/notes` returns only the counsel-shared one; correct the first note → both listed,
-   `superseded_by` set; a second correction of the same note → 409.
-5. Hand-over to a section officer with a note → `hand_over` note at the next `seq_no`, `workflow` alert for the
-   officer after the next `aslms alerts run`.
-6. `psql`: `UPDATE case_notes SET body='x'` and `DELETE FROM request_messages` fail with the append-only error;
-   `SELECT count(*) FROM documents WHERE kind='attachment' AND doc_group<>'internal'` = 0; `audit_log` rows for
-   each action, none containing the note text.
+1. `alembic upgrade head` → `0009_workflow` (after `0008_memberships`); `aslms seed` reports `ref_note_kind` +2,
+   `ref_alert_kind` +1 and the retired codes; `\dt requests` → no relation.
+2. `ruff check` clean; `pytest -q` green (count in the cycle report).
+3. With Compose up, on a claimed EDU case: as the EDU admin `GET /custody/recipients?department=HEALTH`, then
+   `POST /cases/{ref}/custody/send` to a HEALTH officer with `pending_action=parawise_comments`, a due date and a
+   remark → the card shows the HEALTH officer, designation and due date; as that officer `POST
+   /cases/{ref}/notes` → `draft: true`; send on to a HEALTH directorate officer → `finalised_notes` lists one
+   `ref_no`; `GET /cases/{ref}/notes` as the EDU admin shows it.
+4. As the EDU admin `POST /cases/{ref}/custody/recall` with a remark → card shows the admin; `GET
+   /custody/held?scope=owned` lists the case with no due date; after `aslms alerts run` the directorate officer
+   has a `workflow` "recalled" alert.
+5. `psql`: `UPDATE case_notes SET body='x'` fails; `SELECT count(*) FROM case_note_drafts` = 0 for the case;
+   `audit_log` rows for `custody.sent`, `custody.recalled`, `note.finalised`, none containing note or remark text.
 
 ## Open questions
-None. Points the owner is asked to check at approval (decisions taken, reversible): hand-over limited to the
-owning department's offices, or to the request's receiving office while a request is out (4); `workflow`
-alert kind added beyond the plan's list (21); the plan's seven note kinds plus the kept `counsel_advice` and
-`file_noting`, `correction` retired (13); request attachments limited to `case_scope` / `counsel_shared` (11);
-up to five attachment files per note or message (17).
+None. Points the owner is asked to check at approval (decisions taken, reversible):
+- standing counsel are valid targets of a send; State-wide types are not (3);
+- the holder may send on without `custody.move`; holding is the authority (4);
+- only the owning department's nodal officers recall, not the allotted officer (6);
+- previous holders lose sight of the case once it moves on, keeping only their "sent" list (9);
+- the holder may set the case stage while holding (9, 19);
+- drafts become permanent only when the file moves; there is no "make permanent now"; drafts link existing
+  documents rather than carry new files (12);
+- the holder cannot change their own pending action or due date (5);
+- overdue files alert the owning department's nodal officers as well as the holder (23);
+- the request tables are dropped by migration 0009 rather than left unused (27);
+- the DB_STANDARD deviation: DELETE allowed on the two draft tables (Data);
+- the plan's seven note kinds plus `counsel_advice` and `file_noting`, `correction` retired (15).
