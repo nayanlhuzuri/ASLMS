@@ -42,6 +42,7 @@ class DocKind(enum.StrEnum):
     ORDER = "order"
     UPLOAD = "upload"
     ATTACHMENT = "attachment"
+    ADMIN = "admin"  # a document of an administrative record (admin ticket, membership), never of a case
 
 
 class DocGroup(enum.StrEnum):
@@ -107,11 +108,15 @@ class Document(TimestampMixin, OptionalRefNoMixin, ActorSnapshotMixin, Base):
             "doc_group <> 'internal' OR sourcetrace_status = 'not_applicable'", name="internal_not_sent"
         ),
         CheckConstraint(
-            "kind NOT IN ('upload', 'attachment') OR (ref_no IS NOT NULL AND office_id IS NOT NULL "
+            "kind NOT IN ('upload', 'attachment', 'admin') OR (ref_no IS NOT NULL AND office_id IS NOT NULL "
             "AND doc_date IS NOT NULL AND virus_scan_status = 'clean' AND doc_group <> 'court_record')",
             name="user_file",
         ),
         CheckConstraint("kind <> 'upload' OR case_id IS NOT NULL", name="upload_case"),
+        CheckConstraint(
+            "kind <> 'admin' OR (case_id IS NULL AND doc_group = 'internal' AND visibility = 'private_to_office')",
+            name="admin_file",
+        ),
         CheckConstraint("archived_at IS NULL OR archive_reason IS NOT NULL", name="archive_reason"),
     )
     id: Mapped[uuid.UUID] = uuid_pk()

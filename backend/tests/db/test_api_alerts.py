@@ -179,7 +179,7 @@ def test_acknowledge_rules_and_audit(api, world, alerted):
         rows = s.scalars(
             sa.select(AuditLog)
             .where(AuditLog.entity_type == "alert", AuditLog.entity_id == alerted["edu_alert"])
-            .order_by(AuditLog.created_at)
+            .order_by(AuditLog.created_at, AuditLog.id)
         ).all()
         assert [r.action for r in rows] == ["alert.acknowledged", "alert.done"]
         assert rows[0].before["status"] == "open" and rows[0].after["status"] == "acknowledged"

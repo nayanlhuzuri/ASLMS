@@ -47,7 +47,11 @@ def recommend(s, world, case, code, *, score=0.95, band=ScoreBand.HIGH):
 
 def audits(s, case_id) -> list[str]:
     return list(
-        s.scalars(sa.select(AuditLog.action).where(AuditLog.case_id == case_id).order_by(AuditLog.created_at))
+        s.scalars(
+            sa.select(AuditLog.action)
+            .where(AuditLog.case_id == case_id)
+            .order_by(AuditLog.created_at, AuditLog.id)
+        )
     )
 
 

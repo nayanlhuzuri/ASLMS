@@ -10,7 +10,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from aslms.api.security import read_access_token
-from aslms.domain.org import Office, User
+from aslms.domain.org import User
 from aslms.domain.reference import Permission
 from aslms.services import access
 from aslms.services.audit import Actor
@@ -77,10 +77,11 @@ def require_any(*permissions: Permission):
 
 
 def actor_of(request: Request, user: User, session: Session) -> Actor:
-    office = session.get(Office, user.office_id)
+    """The actor snapshot from the login's primary membership (design `user-memberships`, decision 10);
+    services re-snapshot with the acting membership before writing."""
     return access.actor_for(
         user,
-        office,
+        None,
         ip=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
     )

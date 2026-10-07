@@ -16,7 +16,7 @@ from aslms.api.deps import current_user, get_session
 from aslms.domain.org import User
 from aslms.services import inbox
 from aslms.services.access import Forbidden
-from aslms.services.inbox import InboxError
+from aslms.services.inbox import InboxError, OfficeRequired
 
 router = APIRouter(prefix="/inbox", tags=["inbox"])
 
@@ -24,6 +24,11 @@ router = APIRouter(prefix="/inbox", tags=["inbox"])
 def _http(exc: Exception) -> HTTPException:
     if isinstance(exc, Forbidden):
         return HTTPException(status.HTTP_403_FORBIDDEN, str(exc))
+    if isinstance(exc, OfficeRequired) and exc.candidates:
+        return HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            {"code": "office_required", "message": str(exc), "candidates": exc.candidates},
+        )
     if isinstance(exc, InboxError | ValueError):
         return HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
     raise exc
@@ -137,14 +142,15 @@ def transfers(
     return schemas.TransferListOut(items=page.items, total=page.total)
 
 
-@router.get("/counts", response_model=schemas.InboxCountsOut)
+@router.get("/counts", response_model=schemas.InboxCountsListOut)
 def counts(
     office: str | None = None,
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
-) -> schemas.InboxCountsOut:
-    """The dashboard counters; a count is null when the caller lacks that tab's function."""
+) -> schemas.InboxCountsListOut:
+    """The dashboard counters, one block per department the caller works in (design `user-memberships`); a
+    count is null when the caller lacks that tab's function in that department."""
     try:
-        return schemas.InboxCountsOut(**inbox.counts(session, user, office=office))
+        return schemas.InboxCountsListOut(**inbox.counts(session, user, office=office))
     except (Forbidden, ValueError) as exc:
         raise _http(exc) from exc

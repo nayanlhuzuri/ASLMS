@@ -1,7 +1,12 @@
 """Case documents (design `documents-uploads`): upload after a clean virus scan, the Documents tab, metadata,
 file serving, order PDFs, visibility changes and archiving, the uploadable types and the content search.
 Every read applies `visibility.document_visible_condition` in SQL (nothing is filtered after the query);
-every write audits. No delete: after upload only the visibility and the archive flag can change."""
+every write audits. No delete: after upload only the visibility and the archive flag can change.
+
+Memberships (design `user-memberships`, decisions 6 and 20): a case upload is written by the caller's
+membership with a working basis on the case that holds `documents.upload` (the `DOC` number and the office come
+from it); kind `admin` stores the supporting document of an admin ticket — no case, no working-relation check,
+the ticket kind's types only, group `internal`, `private_to_office`, no case-timeline event."""
 
 from __future__ import annotations
 
@@ -30,6 +35,7 @@ from aslms.domain.documents import (
 from aslms.domain.org import Office, User
 from aslms.domain.reference import DocType, EventType, Permission, RecordType, RefDocType
 from aslms.services import access, inbox, visibility
+from aslms.services.access import Member
 from aslms.services.audit import Actor, write_audit
 from aslms.services.cases import CaseNotFound, emit_event, ref_no_from_url, resolve_case_ref
 from aslms.services.filetypes import INLINE_MIMES, EmptyFile, TypeNotAllowed, detect, safe_filename
@@ -38,17 +44,19 @@ from aslms.services.refno import allocate_ref_no
 from aslms.services.scanner import Scanner, ScannerUnavailable
 from aslms.services.storage import EXT_FOR_MIME, LocalStore
 from aslms.services.visibility import (
-    WORKING_BASES,
     NotVisibleCase,
     NotVisibleDocument,
     access_basis,
+    acting_member_for_case,
     document_visible_condition,
     require_visible,
     require_visible_document,
 )
 
 SYSTEM_TYPES = frozenset({DocType.CAUSELIST, DocType.ORDER, DocType.JUDGMENT})
+ADMIN_TYPES = frozenset({DocType.GOVERNMENT_ORDER})  # supporting documents of admin tickets, never of a case
 USER_KINDS = (DocKind.UPLOAD, DocKind.ATTACHMENT)
+WRITE_KINDS = (DocKind.UPLOAD, DocKind.ATTACHMENT, DocKind.ADMIN)
 EARLIEST_DOC_DATE = date(1950, 1, 1)
 MIN_TEXT, MAX_TEXT = 3, 500
 MAX_SEARCH_LIMIT = 50
@@ -154,14 +162,18 @@ def _clean_text(value: str | None, name: str) -> str:
     return s
 
 
-def _doc_type(session: Session, code: str | None) -> RefDocType:
+def _doc_type(session: Session, code: str | None, allowed: frozenset[DocType] | None = None) -> RefDocType:
+    """A case upload never takes a system type or an admin type; an `admin` document takes only `allowed`."""
     try:
         member = DocType(str(code or "").strip().lower())
     except ValueError as exc:
         raise UploadRefused("bad_field", f"unknown doc_type {code!r}") from exc
     row = session.get(RefDocType, member.value)
-    if row is None or not row.is_active or member in SYSTEM_TYPES:
-        raise UploadRefused("bad_field", f"doc_type {member.value} cannot be uploaded")
+    refused = (
+        member not in allowed if allowed is not None else (member in SYSTEM_TYPES or member in ADMIN_TYPES)
+    )
+    if row is None or not row.is_active or refused:
+        raise UploadRefused("bad_field", f"doc_type {member.value} cannot be uploaded here")
     return row
 
 
@@ -224,49 +236,19 @@ def _reject_audit(
 # ------------------------------------------------------------------------------------------------ upload
 
 
-def upload(
+def inspect_file(
     session: Session,
     actor: Actor,
-    user: User,
     case: Case | None,
     *,
     data: bytes,
     filename: str,
-    doc_type: str,
-    doc_group: str | None,
-    doc_date: date | None,
-    description: str | None,
-    visibility: str,
     scanner: Scanner,
-    store: LocalStore,
-    kind: DocKind = DocKind.UPLOAD,
     max_bytes: int,
-) -> Document:
-    """Decisions 3–6, 9, 12. Order: fields → working relation → size → type → scan → store → row, event,
-    audit. Raises `NotVisibleCase` (404) or `UploadRefused`."""
-    if kind not in USER_KINDS:
-        raise ValueError("upload() writes upload and attachment rows only")
-    if kind == DocKind.UPLOAD and case is None:
-        raise UploadRefused("bad_field", "an upload needs a case")
-    type_row = _doc_type(session, doc_type)
-    group = _group_for(type_row, doc_group)
-    when = _doc_date(doc_date)
-    text_ = _clean_text(description, "description")
-    vis = _visibility(visibility)
+):
+    """Size, type by content and the virus scan of one file, before anything is stored (decisions 3-5). A
+    refused type or an infected file writes a `document.upload_rejected` audit row (`audited=True`)."""
     name = safe_filename(filename)
-    if case is not None:
-        bases = access_basis(session, user, case)
-        if not bases:
-            raise NotVisibleCase("no such case")
-        if not WORKING_BASES & set(bases):
-            raise UploadRefused(
-                "not_working_on_case",
-                "your office does not own, hold or appear in this case",
-                extra={"access_basis": bases},
-            )
-    office = session.get(Office, user.office_id)
-    if office is None:
-        raise UploadRefused("bad_field", "the uploader has no office")
     if len(data) > max_bytes:
         raise UploadRefused("too_large", f"the file exceeds {max_bytes} bytes")
     try:
@@ -302,6 +284,77 @@ def upload(
             audited=True,
             extra={"signature": verdict.signature},
         )
+    return ftype
+
+
+def upload(
+    session: Session,
+    actor: Actor,
+    user: User,
+    case: Case | None,
+    *,
+    data: bytes,
+    filename: str,
+    doc_type: str,
+    doc_group: str | None,
+    doc_date: date | None,
+    description: str | None,
+    visibility: str,
+    scanner: Scanner,
+    store: LocalStore,
+    kind: DocKind = DocKind.UPLOAD,
+    max_bytes: int,
+    member: Member | None = None,
+    allowed_types: frozenset[DocType] | None = None,
+    inspected=None,
+) -> Document:
+    """Decisions 3–6, 9, 12. Order: fields → working relation → size → type → scan → store → row, event,
+    audit. Raises `NotVisibleCase` (404) or `UploadRefused`. Kind `admin` (design `user-memberships`, decision
+    20): `member` is the uploader's acting membership and `allowed_types` the ticket kind's `doc_types`."""
+    if kind not in WRITE_KINDS:
+        raise ValueError("upload() writes upload, attachment and admin rows only")
+    if kind == DocKind.UPLOAD and case is None:
+        raise UploadRefused("bad_field", "an upload needs a case")
+    if kind == DocKind.ADMIN:
+        if case is not None or member is None:
+            raise ValueError("an admin document has no case and needs the acting membership")
+        type_row = _doc_type(session, doc_type, allowed_types or frozenset())
+        group = DocGroup.INTERNAL
+        vis = Visibility.PRIVATE_TO_OFFICE
+        text_ = (description or "").strip()[:MAX_TEXT] or type_row.label
+    else:
+        type_row = _doc_type(session, doc_type)
+        group = _group_for(type_row, doc_group)
+        text_ = _clean_text(description, "description")
+        vis = _visibility(visibility)
+    if kind == DocKind.ADMIN and doc_date is None:
+        doc_date = datetime.now(UTC).date()
+    when = _doc_date(doc_date)
+    name = safe_filename(filename)
+    if case is not None:
+        bases = access_basis(session, user, case)
+        if not bases:
+            raise NotVisibleCase("no such case")
+        member = acting_member_for_case(session, user, case, Permission.DOCUMENTS_UPLOAD)
+        if member is None:
+            raise UploadRefused(
+                "not_working_on_case",
+                "your office does not own, hold or appear in this case",
+                extra={"access_basis": bases},
+            )
+    if member is None:
+        member = access.primary_member(session, user)
+    office = member.office if member is not None else None
+    if office is None:
+        raise UploadRefused("bad_field", "the uploader has no office")
+    actor = access.actor_as(actor, member)
+    ftype = (
+        inspected
+        if inspected is not None
+        else inspect_file(
+            session, actor, case, data=data, filename=name, scanner=scanner, max_bytes=max_bytes
+        )
+    )
     sha = hashlib.sha256(data).hexdigest()
     if case is not None and kind == DocKind.UPLOAD:
         existing = session.scalar(
@@ -347,6 +400,25 @@ def upload(
     )
     session.add(doc)
     session.flush()
+    if kind == DocKind.ADMIN:
+        write_audit(
+            session,
+            actor,
+            "document.uploaded",
+            "document",
+            doc.id,
+            after={
+                "ref_no": doc.ref_no,
+                "kind": "admin",
+                "doc_type": doc.doc_type.value,
+                "original_filename": name,
+                "mime": ftype.mime,
+                "size_bytes": stored.size,
+                "sha256": stored.sha256,
+            },
+        )
+        session.flush()
+        return doc
     payload = {
         "document_id": str(doc.id),
         "ref_no": doc.ref_no,
@@ -404,15 +476,21 @@ def can_manage(session: Session, user: User, doc: Document) -> bool:
     admin; never on a court record."""
     if DocGroup(doc.doc_group) == DocGroup.COURT_RECORD or DocKind(doc.kind) not in USER_KINDS:
         return False
-    if not access.has(session, user, Permission.DOCUMENTS_UPLOAD) and not access.is_super_admin(user):
-        return False
-    if access.is_super_admin(user) or doc.actor_user_id == user.id:
+    members = access.members(session, user)
+    if any(m.is_super_admin for m in members):
         return True
-    if not visibility.whole_department(session, user):
+    uploaders = [m for m in members if m.holds(Permission.DOCUMENTS_UPLOAD)]
+    if not uploaders:
         return False
-    dept = visibility.user_department(session, user)
+    if doc.actor_user_id == user.id:
+        return True
     office = session.get(Office, doc.office_id) if doc.office_id else None
-    return dept is not None and office is not None and visibility.in_subtree(office, dept)
+    return office is not None and any(
+        m.department is not None
+        and visibility.whole_department(session, m)
+        and visibility.in_subtree(office, m.department)
+        for m in uploaders
+    )
 
 
 def document_out(
@@ -740,7 +818,7 @@ def upload_types(session: Session) -> list[dict[str, Any]]:
             "group_choosable": DocType(r.code) == DocType.OTHER,
         }
         for r in rows
-        if DocType(r.code) not in SYSTEM_TYPES
+        if DocType(r.code) not in SYSTEM_TYPES and DocType(r.code) not in ADMIN_TYPES
     ]
 
 

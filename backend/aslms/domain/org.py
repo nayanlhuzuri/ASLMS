@@ -6,7 +6,17 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Integer, String, Text, UniqueConstraint, text
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -49,6 +59,9 @@ class Designation(TimestampMixin, MasterMixin, CreatedByMixin, Base):
 
 
 class User(TimestampMixin, MasterMixin, CreatedByMixin, Base):
+    """A login (design `user-memberships`, decision 1). `office_id`, `role`, `designation` and `designation_id`
+    mirror the primary membership: written only by `services/memberships.py`, never read for authorisation."""
+
     __tablename__ = "users"
     __table_class__ = TableClass.MASTER
     id: Mapped[uuid.UUID] = uuid_pk()
@@ -64,6 +77,64 @@ class User(TimestampMixin, MasterMixin, CreatedByMixin, Base):
     must_confirm_profile: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
 
     office = relationship("Office", foreign_keys=[office_id])
+
+
+class UserMembership(TimestampMixin, MasterMixin, CreatedByMixin, Base):
+    """One office a person serves in, with that office's designation and user type (design `user-memberships`,
+    decisions 1-3, 13-15). The unit of authority: functions, scope and visibility are computed per membership.
+    `department_id` is the Department-tier ancestor of the office (NULL at the State tier), derived at insert and
+    never changed. At most one active membership per person per department, one primary per login, one active
+    super admin in the system, one active department admin and one active head per department. Ended, never
+    deleted."""
+
+    __tablename__ = "user_memberships"
+    __table_class__ = TableClass.MASTER
+    __table_args__ = (
+        Index(
+            "ix_user_memberships_one_per_department",
+            "user_id",
+            "department_id",
+            unique=True,
+            postgresql_where=text("is_active"),
+            postgresql_nulls_not_distinct=True,
+        ),
+        Index(
+            "ix_user_memberships_primary",
+            "user_id",
+            unique=True,
+            postgresql_where=text("is_primary AND is_active"),
+        ),
+        Index(
+            "ix_user_memberships_one_super_admin",
+            "role",
+            unique=True,
+            postgresql_where=text("role = 'super_admin' AND is_active"),
+        ),
+        Index(
+            "ix_user_memberships_one_dept_admin",
+            "department_id",
+            unique=True,
+            postgresql_where=text("role = 'dept_admin' AND is_active"),
+        ),
+        Index(
+            "ix_user_memberships_one_dept_head",
+            "department_id",
+            unique=True,
+            postgresql_where=text("role = 'dept_head' AND is_active"),
+        ),
+        Index("ix_user_memberships_office_active", "office_id", postgresql_where=text("is_active")),
+        CheckConstraint("is_active = (deactivated_at IS NULL)", name="active"),
+        CheckConstraint("NOT is_primary OR is_active", name="primary_active"),
+    )
+    id: Mapped[uuid.UUID] = uuid_pk()
+    user_id: Mapped[uuid.UUID] = uuid_fk("users.id")
+    office_id: Mapped[uuid.UUID] = uuid_fk("offices.id")
+    department_id: Mapped[uuid.UUID | None] = uuid_fk("offices.id", nullable=True)
+    role: Mapped[Role] = ref_code(Role, "ref_role")
+    designation: Mapped[str | None] = mapped_column(String(200))
+    designation_id: Mapped[uuid.UUID | None] = uuid_fk("designations.id", nullable=True)
+    is_primary: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    end_reason: Mapped[str | None] = mapped_column(String(500))
 
 
 class RolePermission(TimestampMixin, CreatedByMixin, Base):
@@ -85,15 +156,16 @@ class PermissionEffect(enum.StrEnum):
 
 
 class UserPermission(TimestampMixin, MasterMixin, ActorSnapshotMixin, Base):
-    """A per-user override on top of the type matrix: a function granted that the type lacks, or one denied
-    that the type has. `granted_by_user_id` and the actor snapshot say who; `valid_to` / `is_active` end it
-    (rows are never deleted)."""
+    """A per-membership override on top of the type matrix (design `user-memberships`, decision 9): a function
+    granted that the type lacks, or one denied that the type has. `user_id` equals the membership's user.
+    `granted_by_user_id` and the actor snapshot say who; `valid_to` / `is_active` end it (never deleted)."""
 
     __tablename__ = "user_permissions"
     __table_class__ = TableClass.MASTER
-    __table_args__ = (UniqueConstraint("user_id", "permission"),)
+    __table_args__ = (UniqueConstraint("membership_id", "permission"),)
     id: Mapped[uuid.UUID] = uuid_pk()
     user_id: Mapped[uuid.UUID] = uuid_fk("users.id")
+    membership_id: Mapped[uuid.UUID] = uuid_fk("user_memberships.id")
     permission: Mapped[Permission] = ref_code(Permission, "ref_permission")
     effect: Mapped[PermissionEffect] = mapped_column(
         pg_enum(PermissionEffect, "permission_effect"), nullable=False, server_default="grant"
@@ -174,6 +246,7 @@ __all__ = [
     "OtpPurpose",
     "RefreshToken",
     "User",
+    "UserMembership",
     "UserNotificationPreference",
     "UUID",
 ]

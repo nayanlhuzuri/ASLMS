@@ -7,8 +7,9 @@ holding `cases.allot` receive), the primary owner (the allotted officer; else th
 holding `alerts.acknowledge`; else the department's users holding `cases.allot`) and each watcher (its
 officer, else that department's users holding `cases.allot`). The set is de-duplicated; inactive users, the
 user whose action caused the event, and anyone who cannot see the case (or, for `new_document`, the
-document) are removed. Standing counsel are not recipients. Function checks use `effective_permissions`,
-cached for the run."""
+document) are removed. Standing counsel are not recipients. Function checks are per membership (design
+`user-memberships`, decision 11): an office's users are the logins with an active membership **at that office**
+whose membership holds the function; cached for the run."""
 
 from __future__ import annotations
 
@@ -19,7 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from aslms.domain.cases import Case
-from aslms.domain.org import Office, User
+from aslms.domain.org import Office, User, UserMembership
 from aslms.domain.ownership import (
     CaseOwnership,
     OwnershipRole,
@@ -57,7 +58,7 @@ class Resolver:
     def __init__(self, session: Session):
         self.session = session
         self._perms: dict[uuid.UUID, set[Permission]] = {}
-        self._office_users: dict[uuid.UUID, list[User]] = {}
+        self._office_members: dict[uuid.UUID, list[access.Member]] = {}
         self._users: dict[uuid.UUID, User | None] = {}
 
     # ------------------------------------------------------------------------------------------ primitives
@@ -78,20 +79,28 @@ class Resolver:
         return self._users[uid]
 
     def office_users(self, office: Office | uuid.UUID | None, permission: Permission) -> list[User]:
-        """The active users whose office is `office` (that office alone, not its subtree) holding the
-        function."""
+        """The active logins with an active membership at `office` (that office alone, not its subtree) whose
+        membership holds the function; each person once."""
         if office is None:
             return []
         office_id = office if isinstance(office, uuid.UUID) else office.id
-        if office_id not in self._office_users:
-            self._office_users[office_id] = list(
-                self.session.scalars(
-                    select(User)
-                    .where(User.office_id == office_id, User.is_active.is_(True))
-                    .order_by(User.email)
-                ).all()
-            )
-        return [u for u in self._office_users[office_id] if self.holds(u, permission)]
+        if office_id not in self._office_members:
+            rows = self.session.execute(
+                select(UserMembership, User)
+                .join(User, User.id == UserMembership.user_id)
+                .where(
+                    UserMembership.office_id == office_id,
+                    UserMembership.is_active.is_(True),
+                    User.is_active.is_(True),
+                )
+                .order_by(User.email)
+            ).all()
+            self._office_members[office_id] = [access.member_of(self.session, m, u) for m, u in rows]
+        out: list[User] = []
+        for m in self._office_members[office_id]:
+            if m.holds(permission) and all(u.id != m.user.id for u in out):
+                out.append(m.user)
+        return out
 
     def department_holders(self, office: Office | None, permission: Permission) -> list[User]:
         """The users of the office's Department-tier ancestor holding the function (the nodal officers:
@@ -188,7 +197,8 @@ class Resolver:
             if u is None or u.id in seen or not u.is_active or u.id == excluded:
                 continue
             seen.add(u.id)
-            if Role(u.role) == Role.STANDING_COUNSEL:
+            roles = {m.role for m in access.members(self.session, u)}
+            if roles and roles <= {Role.STANDING_COUNSEL}:
                 continue
             if require_case_access and not visibility.can_view_case(self.session, u, case):
                 continue

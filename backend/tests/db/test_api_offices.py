@@ -4,6 +4,9 @@ refused with counts, designations for a department officer, and the audit rows e
 
 from __future__ import annotations
 
+import hashlib
+import json
+
 import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
@@ -81,6 +84,41 @@ def world(engine):
         yield client, Session
 
 
+EMPTY_FP = hashlib.sha256(b"").hexdigest()  # the exit fingerprint of a membership holding nothing
+
+
+def fin_head() -> dict:
+    """The head named when FIN is created (design `user-memberships`, decision 24)."""
+    return {
+        "email": "head.fin@example.org",
+        "full_name": "Head FIN",
+        "designation": "Secretary",
+        "password": PW,
+    }
+
+
+def end_head(api, root, code: str) -> None:
+    """The super admin ends the department's head (nothing held), leaving it headless."""
+    request = {
+        "department": code,
+        "operation": "end",
+        "outgoing": {"mode": "exit", "assignments": [], "items_fingerprint": EMPTY_FP, "reason": "abolished"},
+    }
+    r = api.post("/admin/tickets/head-change", data={"request": json.dumps(request)}, headers=root)
+    assert r.status_code == 201, r.text
+
+
+def end_membership(api, root, user_id: str, office_code: str) -> None:
+    ms = api.get(f"/admin/users/{user_id}/memberships", headers=root).json()
+    mid = next(m["id"] for m in ms if m["office"]["code"] == office_code)
+    r = api.post(
+        f"/admin/users/{user_id}/memberships/{mid}/end",
+        json={"reason": "post abolished", "items_fingerprint": EMPTY_FP, "assignments": []},
+        headers=root,
+    )
+    assert r.status_code == 200, r.text
+
+
 def login(client: TestClient, email: str) -> dict:
     r = client.post("/auth/login", json={"email": email, "password": PW})
     assert r.status_code == 200, r.text
@@ -89,7 +127,7 @@ def login(client: TestClient, email: str) -> dict:
 
 def audit_actions(Session, entity_id=None) -> list[str]:
     with Session() as s:
-        stmt = sa.select(AuditLog.action).order_by(AuditLog.created_at)
+        stmt = sa.select(AuditLog.action).order_by(AuditLog.created_at, AuditLog.id)
         if entity_id is not None:
             stmt = stmt.where(AuditLog.entity_id == entity_id)
         return list(s.scalars(stmt).all())
@@ -141,6 +179,9 @@ def test_create_patch_deactivate_reactivate(world):
     admin = login(api, "admin.edu@example.org")
     body = {"code": "fin", "name": "Finance", "kind": "department", "parent_code": "goa"}
     r = api.post("/admin/offices", json=body, headers=root)
+    assert r.status_code == 400 and r.json()["detail"]["code"] == "head_required"  # a department has a head
+    body["head"] = fin_head()
+    r = api.post("/admin/offices", json=body, headers=root)
     assert r.status_code == 201, r.text
     fin = r.json()
     assert fin["code"] == "FIN" and fin["path"] == "GOA/FIN" and fin["tier"] == "department"
@@ -182,7 +223,9 @@ def test_create_patch_deactivate_reactivate(world):
     )
     assert r.status_code == 200 and r.json()["name"] == "Finance Department" and r.json()["code"] == "FIN"
     assert r.json()["notes"] == "Dispur" and r.json()["valid_from"] == "2001-04-01"
-    # deactivate FIN (no dependants), then it is hidden from the default list and shown with the flag
+    # deactivate FIN: refused while its head is active; the super admin ends the head first
+    assert api.post("/admin/offices/FIN/deactivate", headers=root).status_code == 409
+    end_head(api, root, "FIN")
     r = api.post("/admin/offices/FIN/deactivate", headers=root)
     assert r.status_code == 200 and r.json()["is_active"] is False and r.json()["valid_to"] is not None
     codes = [o["code"] for o in api.get("/admin/offices", headers=root).json()]
@@ -198,6 +241,10 @@ def test_create_patch_deactivate_reactivate(world):
     assert api.get("/admin/offices/FIN", headers=admin).status_code == 404
     assert api.get("/admin/offices/FIN", headers=root).json()["is_active"] is False
     r = api.post("/admin/offices/FIN/reactivate", headers=root)
+    assert r.status_code == 400 and r.json()["detail"]["code"] == "head_required"
+    r = api.post(
+        "/admin/offices/FIN/reactivate", json={"head": {"email": "head.fin@example.org"}}, headers=root
+    )
     assert r.status_code == 200 and r.json()["is_active"] is True and r.json()["valid_to"] is None
     assert api.post("/admin/offices/GOA/deactivate", headers=root).status_code == 400
     # audit rows per entity
@@ -216,7 +263,13 @@ def test_first_department_admin_then_deactivation_with_counts(world):
     admin = login(api, "admin.edu@example.org")
     r = api.post(
         "/admin/offices",
-        json={"code": "FIN", "name": "Finance", "kind": "department", "parent_code": "GOA"},
+        json={
+            "code": "FIN",
+            "name": "Finance",
+            "kind": "department",
+            "parent_code": "GOA",
+            "head": fin_head(),
+        },
         headers=root,
     )
     fin_id = r.json()["id"]
@@ -243,9 +296,8 @@ def test_first_department_admin_then_deactivation_with_counts(world):
     new_admin = r.json()
     assert new_admin["role"] == "dept_admin" and new_admin["office"]["code"] == "FIN"
     assert new_admin["must_confirm_profile"] is True
-    assert (
-        api.post("/admin/offices/FIN/admins", json=nodal, headers=root).status_code == 400
-    )  # duplicate e-mail
+    r = api.post("/admin/offices/FIN/admins", json=nodal, headers=root)
+    assert r.status_code == 409 and r.json()["detail"]["code"] == "admin_exists"  # one admin per department
     assert [u["email"] for u in api.get("/admin/offices/FIN/admins", headers=root).json()] == [
         "nodal.fin@example.org"
     ]
@@ -281,11 +333,12 @@ def test_first_department_admin_then_deactivation_with_counts(world):
         headers=fin_admin,
     )
     assert r.status_code == 201, r.text
-    # deactivating FIN is refused with the counts; after disabling the users and the directorate it succeeds
+    # deactivating FIN is refused with the counts (the users are its active memberships: the admin and the
+    # head); after ending the memberships and deactivating the directorate it succeeds
     r = api.post("/admin/offices/FIN/deactivate", headers=root)
     assert r.status_code == 409 and r.json()["detail"]["counts"] == {
         "children": 1,
-        "users": 1,
+        "users": 2,
         "ownership": 0,
         "custody": 0,
     }
@@ -295,8 +348,13 @@ def test_first_department_admin_then_deactivation_with_counts(world):
         u for u in api.get("/admin/users?office=FIN", headers=root).json() if u["email"] == "dt@example.org"
     ][0]["id"]
     assert api.post(f"/admin/users/{dt_id}/disable", headers=root).status_code == 200
+    # a disabled login still holds its membership; the membership is ended (nothing held)
+    assert api.post("/admin/offices/FIN-DT/deactivate", headers=root).status_code == 409
+    end_membership(api, root, dt_id, "FIN-DT")
     assert api.post("/admin/offices/FIN-DT/deactivate", headers=root).status_code == 200
     assert api.post(f"/admin/users/{new_admin['id']}/disable", headers=root).status_code == 200
+    end_membership(api, root, new_admin["id"], "FIN")
+    end_head(api, root, "FIN")
     r = api.post("/admin/offices/FIN/deactivate", headers=root)
     assert r.status_code == 200 and r.json()["is_active"] is False
     assert api.get("/me", headers=fin_admin).status_code == 401

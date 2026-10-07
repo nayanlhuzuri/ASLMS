@@ -1,5 +1,6 @@
-"""Users: creation with a type and an office, passwords (argon2id), authentication. Rights to do any of this
-are checked in `services/access.py`; this module only performs and audits."""
+"""Users (logins): creation with a first membership (type and office), passwords (argon2id), authentication.
+Rights to do any of this are checked in `services/access.py`; this module only performs and audits. The
+membership rows are written by `services/memberships.py` (design `user-memberships`)."""
 
 from __future__ import annotations
 
@@ -42,6 +43,7 @@ def verify_password(password_hash: str, password: str) -> bool:
 
 
 def user_summary(user: User) -> dict:
+    """The login as audited (the mirror columns name its primary membership)."""
     return {
         "id": str(user.id),
         "email": user.email,
@@ -74,6 +76,8 @@ def create_user(
         raise UserError("a user with this e-mail already exists")
     if designation_id is not None and session.get(Designation, designation_id) is None:
         raise UserError("unknown designation")
+    if not office.is_active:
+        raise UserError(f"the office {office.code} is inactive")
     user = User(
         email=email,
         password_hash=hash_password(password),
@@ -89,6 +93,18 @@ def create_user(
     )
     session.add(user)
     session.flush()
+    from aslms.services import memberships
+
+    memberships.insert_membership(
+        session,
+        actor,
+        user,
+        office=office,
+        role=role,
+        designation=user.designation,
+        designation_id=designation_id,
+        audit=False,
+    )
     write_audit(session, actor, "user.create", "user", user.id, after=user_summary(user))
     session.add(
         Event(
@@ -112,15 +128,29 @@ def update_profile(
     designation_id: uuid.UUID | None = None,
     mobile: str | None = None,
 ) -> User:
+    """Login-level fields. `designation` / `designation_id` change the primary membership's designation (the
+    compatibility path of `PATCH /admin/users/{id}`); the mirror follows."""
     before = user_summary(user)
     if full_name is not None:
         user.full_name = full_name.strip()[:200]
-    if designation is not None:
-        user.designation = designation.strip()[:200] or None
-    if designation_id is not None:
-        if session.get(Designation, designation_id) is None:
+    if designation is not None or designation_id is not None:
+        if designation_id is not None and session.get(Designation, designation_id) is None:
             raise UserError("unknown designation")
-        user.designation_id = designation_id
+        from aslms.domain.org import UserMembership
+
+        primary = session.scalar(
+            select(UserMembership).where(
+                UserMembership.user_id == user.id,
+                UserMembership.is_primary.is_(True),
+                UserMembership.is_active.is_(True),
+            )
+        )
+        if primary is not None:
+            if designation is not None:
+                primary.designation = designation.strip()[:200] or None
+            if designation_id is not None:
+                primary.designation_id = designation_id
+            user.designation, user.designation_id = primary.designation, primary.designation_id
     if mobile is not None:
         user.mobile = mobile.strip()[:20] or None
     user.updated_by = actor.user_id

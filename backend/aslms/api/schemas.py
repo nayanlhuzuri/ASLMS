@@ -54,10 +54,12 @@ class UserOut(BaseModel):
     must_confirm_profile: bool
     last_login_at: datetime | None
     created_at: datetime
+    memberships: list[MembershipOut] = Field(default_factory=list)
 
 
 class MeOut(BaseModel):
     user: UserOut
+    memberships: list[MembershipOut] = Field(default_factory=list)
     functions: list[Permission]
 
 
@@ -172,6 +174,7 @@ class OfficeCreateIn(BaseModel):
     parent_code: str = Field(min_length=1, max_length=40)
     notes: str | None = Field(None, max_length=4000)
     valid_from: date | None = None
+    head: HeadIn | None = Field(None, description="required for a Department-tier kind (user-memberships)")
 
 
 class OfficePatchIn(BaseModel):
@@ -482,12 +485,17 @@ class TransferListOut(BaseModel):
 
 
 class InboxCountsOut(BaseModel):
+    office_code: str | None = None
     recommended_high: int | None
     recommended_medium: int | None
     claimed_active: int | None
     claimed_disposed: int | None
     transfers_in_open: int | None
     pool_with_hearing_7d: int | None
+
+
+class InboxCountsListOut(BaseModel):
+    departments: list[InboxCountsOut]
 
 
 # ------------------------------------------------------------------------------------------------ ownership
@@ -501,7 +509,12 @@ class CaseOwnershipViewOut(BaseModel):
 
 
 class ClaimIn(BaseModel):
-    office_code: str | None = Field(None, min_length=1, max_length=40, description="super admin only")
+    office_code: str | None = Field(
+        None,
+        min_length=1,
+        max_length=40,
+        description="the department to act for: one the caller has a membership in (the super admin: any)",
+    )
     unit_code: str | None = Field(None, min_length=1, max_length=40)
     officer_user_id: uuid.UUID | None = None
     note: str | None = Field(None, max_length=500)
@@ -1062,7 +1075,8 @@ class AlertItemOut(BaseModel):
     title: str
     body: str | None
     due_at: datetime | None
-    case: AlertCaseOut
+    case: AlertCaseOut | None
+    ticket_ref: str | None = None
     data: dict[str, Any]
     notified_at: datetime | None
     read_at: datetime | None
@@ -1154,3 +1168,282 @@ class NotificationPreferencesIn(BaseModel):
     email: EmailPrefIn | None = None
     in_app: InAppPrefIn | None = None
     sms: dict[str, Any] | None = None
+
+
+# ------------------------------------------------------------------------------------------------ memberships
+
+
+class MembershipOfficeOut(BaseModel):
+    code: str
+    name: str
+    kind: str
+
+
+class MembershipOut(BaseModel):
+    """One office a person serves in, with its designation and user type (design `user-memberships`)."""
+
+    id: uuid.UUID
+    office: MembershipOfficeOut
+    department_code: str | None
+    designation: str | None
+    designation_id: uuid.UUID | None = None
+    role: Role
+    is_primary: bool
+    is_active: bool = True
+    valid_from: date | None = None
+    valid_to: date | None = None
+    end_reason: str | None = None
+    functions: list[Permission] | None = None
+
+
+class MembershipIn(BaseModel):
+    office: str = Field(min_length=1, max_length=40, description="the office code")
+    role: Role
+    designation: str | None = Field(None, max_length=200)
+    designation_id: uuid.UUID | None = None
+
+
+class MembershipPatchIn(BaseModel):
+    designation: str | None = Field(None, max_length=200)
+    designation_id: uuid.UUID | None = None
+    role: Role | None = None
+
+
+class ExitAssignmentIn(BaseModel):
+    key: str = Field(min_length=1, max_length=200)
+    to_membership: uuid.UUID
+    pending_action: str | None = None
+    due_date: date | None = None
+    remark: str | None = Field(None, max_length=2000)
+
+
+class MembershipEndIn(BaseModel):
+    reason: str = Field(min_length=3, max_length=500)
+    items_fingerprint: str | None = Field(None, max_length=64)
+    assignments: list[ExitAssignmentIn] = Field(default_factory=list)
+
+
+class ExitCaseOut(BaseModel):
+    ref_no: str
+    case_no: str | None
+    cnr: str | None
+    court: str | None
+    owning_department: str | None
+    visible: bool
+
+
+class ExitItemOut(BaseModel):
+    key: str
+    kind: str
+    case: ExitCaseOut
+    ownership_role: str | None = None
+    pending_action: str | None = None
+    due_date: date | None = None
+    since: datetime | None = None
+    leg_seq_no: int | None = None
+    open_alerts: int
+
+
+class ExitCountsOut(BaseModel):
+    allotments: int
+    files: int
+    drafts: int
+    open_alerts: int
+
+
+class ExitTargetOut(BaseModel):
+    membership: uuid.UUID
+    name: str
+    designation: str | None
+    office_code: str
+    role: Role
+
+
+class ExitPreviewOut(BaseModel):
+    items: list[ExitItemOut]
+    counts: ExitCountsOut
+    items_fingerprint: str
+    targets: list[ExitTargetOut]
+    primary_after: uuid.UUID | None
+
+
+class ReassignedOut(BaseModel):
+    key: str
+    kind: str
+    case_ref: str
+    to_membership: uuid.UUID
+
+
+class ExitResultCountsOut(BaseModel):
+    allotments: int
+    files: int
+    notes_finalised: int
+    alerts: int
+
+
+class MembershipEndOut(BaseModel):
+    membership: MembershipOut
+    reassigned: list[ReassignedOut]
+    counts: ExitResultCountsOut
+
+
+class PrimaryMembershipIn(BaseModel):
+    membership: uuid.UUID
+
+
+class LookupMembershipOut(BaseModel):
+    office_code: str
+    designation: str | None
+    role: Role
+
+
+class UserLookupOut(BaseModel):
+    id: uuid.UUID
+    full_name: str
+    memberships: list[LookupMembershipOut]
+
+
+class MembershipFunctionsOut(BaseModel):
+    membership_id: uuid.UUID
+    role: Role
+    type_functions: list[Permission]
+    overrides: list[OverrideOut]
+    effective: list[Permission]
+
+
+class MembershipDocumentOut(BaseModel):
+    id: uuid.UUID
+    ref_no: str | None
+    doc_type: str
+    doc_date: date | None
+    description: str | None
+    ticket_ref: str | None
+    archived: bool
+    attached_by: str | None
+    attached_at: datetime
+
+
+class HeadIn(BaseModel):
+    """The head of a department being created or reactivated: an existing login by e-mail, or a new login
+    (e-mail, name, password)."""
+
+    email: EmailStr
+    full_name: str | None = Field(None, min_length=2, max_length=200)
+    designation: str | None = Field(None, max_length=200)
+    designation_id: uuid.UUID | None = None
+    mobile: str | None = Field(None, max_length=20)
+    password: str | None = Field(None, min_length=10, max_length=200)
+
+
+class OfficeReactivateIn(BaseModel):
+    head: HeadIn | None = None
+
+
+class AdminSwapIn(BaseModel):
+    incoming: dict[str, Any] = Field(
+        description="{membership} | {user, designation?} | {email, password, full_name, designation?, mobile?}"
+    )
+    outgoing: Literal["dept_officer", "end"] = "dept_officer"
+    reason: str = Field(min_length=3, max_length=500)
+    items_fingerprint: str | None = Field(None, max_length=64)
+    assignments: list[ExitAssignmentIn] | None = None
+
+
+class AdminSwapOutgoingOut(BaseModel):
+    membership: uuid.UUID | None
+    reassigned: list[ReassignedOut] | None = None
+
+
+class AdminSwapOut(BaseModel):
+    admin: MembershipOut
+    outgoing: AdminSwapOutgoingOut
+
+
+# ------------------------------------------------------------------------------------------------ admin tickets
+
+
+class TicketTargetOut(BaseModel):
+    user_name: str | None
+    designation: str | None
+    role_from: str | None
+    role_to: str | None
+
+
+class TicketPersonOut(BaseModel):
+    name: str | None
+    designation: str | None
+    office_code: str | None
+
+
+class TicketItemOut(BaseModel):
+    ref_no: str
+    kind: str
+    status: str
+    department_code: str | None
+    operation: str | None
+    target: TicketTargetOut
+    requested_by: TicketPersonOut
+    created_at: datetime
+    age_days: int
+    documents_count: int
+    decided_at: datetime | None
+
+
+class TicketCountsOut(BaseModel):
+    open: int
+    open_by_kind: dict[str, int]
+    open_by_department: dict[str, int]
+    oldest_open_at: datetime | None
+    departments_without_head: int | None = None
+
+
+class TicketListOut(BaseModel):
+    items: list[TicketItemOut]
+    total: int
+    counts: TicketCountsOut
+
+
+class TicketDocumentOut(BaseModel):
+    id: uuid.UUID
+    ref_no: str | None
+    doc_type: str
+    doc_date: date | None
+    description: str | None
+    original_filename: str | None
+    mime: str
+    size_bytes: int
+    archived: bool
+    archive_reason: str | None
+    attached_by: str | None
+    attached_at: datetime
+
+
+class TicketDetailOut(TicketItemOut):
+    payload: dict[str, Any]
+    request_remark: str | None
+    decision_remark: str | None
+    result: dict[str, Any] | None
+    decided_by: TicketPersonOut | None
+    documents: list[TicketDocumentOut]
+    outgoing_detail: dict[str, Any] | None
+    can_approve: bool
+    can_withdraw: bool
+    can_attach: bool
+
+
+class TicketRemarkIn(BaseModel):
+    remark: str | None = Field(None, max_length=2000)
+
+
+class TicketRejectIn(BaseModel):
+    remark: str = Field(min_length=3, max_length=2000)
+
+
+class TicketArchiveIn(BaseModel):
+    reason: str = Field(min_length=3, max_length=500)
+
+
+UserOut.model_rebuild()
+MeOut.model_rebuild()
+TokenOut.model_rebuild()
+OfficeCreateIn.model_rebuild()

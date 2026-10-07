@@ -158,7 +158,9 @@ def recipient_emails(s: Session, alert: Alert, channel: Channel = Channel.IN_APP
 def audit_actions(s: Session, entity_id) -> list[str]:
     return list(
         s.scalars(
-            sa.select(AuditLog.action).where(AuditLog.entity_id == entity_id).order_by(AuditLog.created_at)
+            sa.select(AuditLog.action)
+            .where(AuditLog.entity_id == entity_id)
+            .order_by(AuditLog.created_at, AuditLog.id)
         ).all()
     )
 

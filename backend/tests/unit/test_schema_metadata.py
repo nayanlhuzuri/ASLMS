@@ -59,7 +59,7 @@ def test_mutable_tables_have_updated_at_and_append_only_do_not():
 
 
 def test_ref_tables_match_the_enums():
-    assert len(REF_TABLES) == 10
+    assert len(REF_TABLES) == 11
     for table, (model, enum_cls) in REF_TABLES.items():
         assert model.__tablename__ == table
         assert TABLES[table].comment == "class=reference"

@@ -67,8 +67,8 @@ def test_seed_builds_the_full_matrix(session):
     wipe(session)
     seed_all(session)
     n = session.scalar(sa.select(sa.func.count()).select_from(RolePermission))
-    assert n == len(DEFAULT_MATRIX) * len(Permission) == 9 * 45
-    assert session.scalar(sa.text("select count(*) from ref_permission")) == 45
+    assert n == len(DEFAULT_MATRIX) * len(Permission) == 9 * 47
+    assert session.scalar(sa.text("select count(*) from ref_permission")) == 47
     assert session.scalar(sa.text("select count(*) from ref_role")) == 10
     m = access.matrix(session)
     assert m["dept_admin"]["users.create"] and not m["dept_officer"]["users.create"]
@@ -119,7 +119,7 @@ def test_effective_functions(session, world):
         access.set_override(session, sup_actor, sup, sup, Permission.AUDIT_VIEW, PermissionEffect.DENY)
     with pytest.raises(Forbidden):
         access.set_enabled(session, sup_actor, sup, sup, False)
-    audits = session.scalars(sa.select(AuditLog.action).order_by(AuditLog.created_at)).all()
+    audits = session.scalars(sa.select(AuditLog.action).order_by(AuditLog.created_at, AuditLog.id)).all()
     assert audits.count("access.override") == 3 and "access.matrix" in audits and "user.disable" in audits
     assert (
         session.scalar(sa.select(sa.func.count()).select_from(Event).where(Event.type == "access_changed"))

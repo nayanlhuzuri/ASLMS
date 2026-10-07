@@ -25,7 +25,9 @@ from tests.db.world import make_case
 def audit_actions(s, entity_id) -> list[str]:
     return list(
         s.scalars(
-            sa.select(AuditLog.action).where(AuditLog.entity_id == entity_id).order_by(AuditLog.created_at)
+            sa.select(AuditLog.action)
+            .where(AuditLog.entity_id == entity_id)
+            .order_by(AuditLog.created_at, AuditLog.id)
         ).all()
     )
 

@@ -179,8 +179,10 @@ def render_alert(kind: AlertKind | str, case: Any, data: dict[str, Any]) -> tupl
     """The title (≤ 300 characters) and body of an alert; never a note, a document description or an
     internal document name (a `new_document` alert names only the document type)."""
     kind = AlertKind(kind)
-    label = case_label(case)
     d = data or {}
+    if kind == AlertKind.ADMIN_TICKET:
+        return render_ticket_alert(d)
+    label = case_label(case)
     if kind == AlertKind.HEARING_DUE:
         title = f"Hearing on {_d(d.get('hearing_date'))}: {label}"
         if d.get("source") == "causelist":
@@ -255,6 +257,54 @@ def render_alert(kind: AlertKind | str, case: Any, data: dict[str, Any]) -> tupl
     return _title(title), body
 
 
+def render_ticket_alert(d: dict[str, Any]) -> tuple[str, str]:
+    """An `admin_ticket` alert (design `user-memberships`, decision 19): the ticket ref, kind and department;
+    never the payload."""
+    ref = d.get("ticket_ref") or "?"
+    kind = d.get("kind_label") or d.get("kind") or "request"
+    dept = d.get("department_code") or "?"
+    event = d.get("event") or "opened"
+    if event == "opened":
+        title = f"Admin ticket {ref} awaits your decision: {kind}, {dept}"
+        body = (
+            f"Requested by {d.get('requested_by') or 'a department admin'}. Open the ticket panel to decide."
+        )
+    else:
+        title = f"Admin ticket {ref} {event}: {kind}, {dept}"
+        body = f"The super admin {event} the request."
+        if d.get("remark"):
+            body += f" Remark: {d['remark']}"
+    return _title(title), body
+
+
+def ticket_url_ref(ref: str | None) -> str:
+    return (ref or "").replace("/", "-")
+
+
+def render_ticket_mail(alert: Any, portal_base_url: str) -> tuple[str, str]:
+    """Subject and text of a single `admin_ticket` alert mail: the ticket ref, kind, department and the panel
+    link, never the payload."""
+    d = alert.data or {}
+    sev = Severity(alert.severity).value.upper()
+    subject = _title(f"[ASLMS {sev}] {alert.title}")
+    lines = [
+        alert.title,
+        "",
+        f"Ticket: {d.get('ticket_ref') or '-'}",
+        f"Kind: {d.get('kind_label') or d.get('kind') or '-'}",
+        f"Department: {d.get('department_code') or '-'}",
+    ]
+    if alert.body:
+        lines += ["", alert.body]
+    lines += [
+        "",
+        f"Open: {portal_base_url.rstrip('/')}/admin/tickets/{ticket_url_ref(d.get('ticket_ref'))}",
+        "",
+        "ASLMS - Legal Case Monitoring Portal",
+    ]
+    return subject, "\n".join(lines)
+
+
 def render_mail(
     alert: Any, case: Any, court_name: str | None, portal_base_url: str, case_url_ref: str
 ) -> tuple[str, str]:
@@ -299,7 +349,8 @@ def render_digest(
         for label, items in groups:
             lines.append(f"  {label} ({len(items)})")
             for it in items:
-                lines.append(f"    - {it['title']}  {base}/cases/{it['case_ref']}")
+                link = it.get("link") or f"{base}/cases/{it['case_ref']}"
+                lines.append(f"    - {it['title']}  {link}")
         lines.append("")
     if hearings_total:
         lines.append(f"Hearings today and in the next 7 days ({hearings_total})")

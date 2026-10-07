@@ -99,6 +99,7 @@ class DocType(enum.StrEnum):
     CORRESPONDENCE = "correspondence"
     INSTRUCTIONS_TO_COUNSEL = "instructions_to_counsel"
     OTHER = "other"
+    GOVERNMENT_ORDER = "government_order"  # supporting order of an admin ticket (design user-memberships)
 
 
 class AlertKind(enum.StrEnum):
@@ -111,6 +112,7 @@ class AlertKind(enum.StrEnum):
     RECOMMENDATION = "recommendation"
     OWNERSHIP = "ownership"  # allotted, taken over, transfer requested / decided
     NEW_DOCUMENT = "new_document"
+    ADMIN_TICKET = "admin_ticket"  # case-less: an admin ticket opened or decided (design user-memberships)
 
 
 class EventType(enum.StrEnum):
@@ -161,6 +163,7 @@ class Permission(enum.StrEnum):
     USERS_ENABLE_DISABLE = "users.enable_disable"
     USERS_GRANT = "users.grant"
     USERS_RESET_PASSWORD = "users.reset_password"
+    USERS_PROPOSE_HEAD = "users.propose_head"
     ACCESS_MANAGE_TYPES = "access.manage_types"
     # administration
     OFFICES_MANAGE = "offices.manage"
@@ -172,6 +175,7 @@ class Permission(enum.StrEnum):
     ADMIN_CONFIG = "admin.config"
     ADMIN_DESIGNATIONS = "admin.designations"
     ADMIN_SCORING = "admin.scoring"
+    ADMIN_TICKETS = "admin.tickets"  # reserved: the super admin's ticket panel, never granted
     # cases and ownership
     CASES_VIEW_SCOPE = "cases.view_scope"
     CASES_VIEW_ALL = "cases.view_all"
@@ -220,6 +224,13 @@ class RecordType(enum.StrEnum):
     TRF = "TRF"
     NXT = "NXT"
     ALR = "ALR"
+    TKT = "TKT"
+
+
+class TicketKind(enum.StrEnum):
+    """Requests that need the super admin's decision (design `user-memberships`, decision 17)."""
+
+    HEAD_CHANGE = "head_change"
 
 
 # ---------------------------------------------------------------------- tables
@@ -274,6 +285,10 @@ class RefRecordType(RefMixin, Base):
     __tablename__ = "ref_record_type"
 
 
+class RefTicketKind(RefMixin, Base):
+    __tablename__ = "ref_ticket_kind"
+
+
 class RefPermission(RefMixin, Base):
     __tablename__ = "ref_permission"
     module: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
@@ -303,4 +318,5 @@ REF_TABLES: dict[str, tuple[type, type[enum.Enum]]] = {
     "ref_event_type": (RefEventType, EventType),
     "ref_record_type": (RefRecordType, RecordType),
     "ref_permission": (RefPermission, Permission),
+    "ref_ticket_kind": (RefTicketKind, TicketKind),
 }

@@ -98,7 +98,7 @@ def audit_rows(s: Session, action: str, **where) -> list[AuditLog]:
     stmt = sa.select(AuditLog).where(AuditLog.action == action)
     for k, v in where.items():
         stmt = stmt.where(getattr(AuditLog, k) == v)
-    return list(s.scalars(stmt.order_by(AuditLog.created_at)).all())
+    return list(s.scalars(stmt.order_by(AuditLog.created_at, AuditLog.id)).all())
 
 
 def stored_order(

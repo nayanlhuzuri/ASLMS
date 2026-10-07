@@ -37,7 +37,6 @@ from aslms.services import access, matching, queue
 from aslms.services import scoring_settings as ss
 from aslms.services.audit import Actor, snapshot, write_audit
 from aslms.services.cases import emit_event
-from aslms.services.visibility import department_of
 
 
 class RuleError(ValueError):
@@ -64,9 +63,16 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
-def _scope(session: Session, actor_user: User, office: Office) -> None:
-    if not access.in_scope(session, actor_user, office):
+def _scope(session: Session, actor_user: User, office: Office, permission: Permission | None = None) -> None:
+    """The caller's membership covering `office` must hold the function (design `user-memberships`,
+    decision 6)."""
+    if not access.in_scope(session, actor_user, office, permission=permission):
         raise access.Forbidden("the office is outside your offices")
+
+
+def _scope_roots(session: Session, actor_user: User, permission: Permission) -> list[Office]:
+    """The offices of the caller's memberships holding the function."""
+    return [m.office for m in access.holders_in(session, actor_user, permission)]
 
 
 def _active_office(office: Office | None) -> Office:
@@ -168,7 +174,7 @@ def create_counsel_code(
 ) -> CounselCode:
     access.require(session, actor_user, Permission.ADMIN_COUNSEL_CODES)
     office = _active_office(office)
-    _scope(session, actor_user, office)
+    _scope(session, actor_user, office, Permission.ADMIN_COUNSEL_CODES)
     w = _weight(session, actor_user, weight)
     norm = matching.normalise_counsel_code(code)
     if not norm or len(norm) > 60:
@@ -181,7 +187,9 @@ def create_counsel_code(
                 f"the code {norm} is already mapped to {_office_code(session, row.office_id)}"
             )
         old_office = session.get(Office, row.office_id)
-        if old_office is not None and not access.in_scope(session, actor_user, old_office):
+        if old_office is not None and not access.in_scope(
+            session, actor_user, old_office, permission=Permission.ADMIN_COUNSEL_CODES
+        ):
             raise DuplicateRule(f"the code {norm} belongs to another office")
         before = counsel_code_summary(session, row)
         _set_active(row, True)
@@ -218,12 +226,12 @@ def update_counsel_code(
     notes: str | None = None,
 ) -> CounselCode:
     access.require(session, actor_user, Permission.ADMIN_COUNSEL_CODES)
-    _scope(session, actor_user, session.get(Office, row.office_id))
+    _scope(session, actor_user, session.get(Office, row.office_id), Permission.ADMIN_COUNSEL_CODES)
     w = _weight(session, actor_user, weight)
     before = counsel_code_summary(session, row)
     if office is not None and office.id != row.office_id:
         office = _active_office(office)
-        _scope(session, actor_user, office)
+        _scope(session, actor_user, office, Permission.ADMIN_COUNSEL_CODES)
         _check_code_office(office, row.is_generic_state)
         row.office_id = office.id
     if w is not UNSET and _w(w) != _w(row.weight):
@@ -243,7 +251,7 @@ def set_counsel_code_active(
 ) -> CounselCode:
     access.require(session, actor_user, Permission.ADMIN_COUNSEL_CODES)
     office = session.get(Office, row.office_id)
-    _scope(session, actor_user, office)
+    _scope(session, actor_user, office, Permission.ADMIN_COUNSEL_CODES)
     if row.is_active == enabled:
         raise RuleError(f"the code is already {'active' if enabled else 'inactive'}")
     if enabled:
@@ -269,12 +277,11 @@ def list_counsel_codes(
     access.require(session, actor_user, Permission.ADMIN_COUNSEL_CODES)
     stmt = select(CounselCode).join(Office, Office.id == CounselCode.office_id)
     if not access.is_super_admin(actor_user):
-        own = session.get(Office, actor_user.office_id)
+        roots = _scope_roots(session, actor_user, Permission.ADMIN_COUNSEL_CODES)
         stmt = stmt.where(
             or_(
                 CounselCode.is_generic_state.is_(True),
-                Office.id == own.id,
-                Office.path.like(own.path + "/%"),
+                *[or_(Office.id == r.id, Office.path.like(r.path + "/%")) for r in roots],
             )
         )
     if office is not None:
@@ -303,7 +310,7 @@ def create_keyword(
 ) -> OfficeKeyword:
     access.require(session, actor_user, Permission.ADMIN_KEYWORDS)
     office = _active_office(office)
-    _scope(session, actor_user, office)
+    _scope(session, actor_user, office, Permission.ADMIN_KEYWORDS)
     w = _weight(session, actor_user, weight)
     norm = matching.normalise_term(keyword)
     if not norm or len(norm) > 200:
@@ -337,7 +344,7 @@ def update_keyword(
     session: Session, actor: Actor, actor_user: User, row: OfficeKeyword, *, weight: Any = UNSET
 ) -> OfficeKeyword:
     access.require(session, actor_user, Permission.ADMIN_KEYWORDS)
-    _scope(session, actor_user, session.get(Office, row.office_id))
+    _scope(session, actor_user, session.get(Office, row.office_id), Permission.ADMIN_KEYWORDS)
     w = _weight(session, actor_user, weight)
     before = keyword_summary(session, row)
     if w is not UNSET and _w(w) != _w(row.weight):
@@ -355,7 +362,7 @@ def set_keyword_active(
 ) -> OfficeKeyword:
     access.require(session, actor_user, Permission.ADMIN_KEYWORDS)
     office = session.get(Office, row.office_id)
-    _scope(session, actor_user, office)
+    _scope(session, actor_user, office, Permission.ADMIN_KEYWORDS)
     if row.is_active == enabled:
         raise RuleError(f"the keyword is already {'active' if enabled else 'inactive'}")
     if enabled:
@@ -406,7 +413,7 @@ def create_name_pattern(
 ) -> OfficeNamePattern:
     access.require(session, actor_user, Permission.ADMIN_KEYWORDS)
     office = _active_office(office)
-    _scope(session, actor_user, office)
+    _scope(session, actor_user, office, Permission.ADMIN_KEYWORDS)
     try:
         kind = PatternKind(kind)
     except ValueError as exc:
@@ -447,7 +454,7 @@ def update_name_pattern(
     session: Session, actor: Actor, actor_user: User, row: OfficeNamePattern, *, weight: Any = UNSET
 ) -> OfficeNamePattern:
     access.require(session, actor_user, Permission.ADMIN_KEYWORDS)
-    _scope(session, actor_user, session.get(Office, row.office_id))
+    _scope(session, actor_user, session.get(Office, row.office_id), Permission.ADMIN_KEYWORDS)
     w = _weight(session, actor_user, weight)
     before = pattern_summary(session, row)
     if w is not UNSET and _w(w) != _w(row.weight):
@@ -465,7 +472,7 @@ def set_name_pattern_active(
 ) -> OfficeNamePattern:
     access.require(session, actor_user, Permission.ADMIN_KEYWORDS)
     office = session.get(Office, row.office_id)
-    _scope(session, actor_user, office)
+    _scope(session, actor_user, office, Permission.ADMIN_KEYWORDS)
     if row.is_active == enabled:
         raise RuleError(f"the pattern is already {'active' if enabled else 'inactive'}")
     if enabled:
@@ -486,8 +493,10 @@ def list_rules(
     access.require(session, actor_user, permission)
     stmt = select(model).join(Office, Office.id == model.office_id)
     if not access.is_super_admin(actor_user):
-        own = session.get(Office, actor_user.office_id)
-        stmt = stmt.where(or_(Office.id == own.id, Office.path.like(own.path + "/%")))
+        roots = _scope_roots(session, actor_user, permission)
+        if not roots:
+            return []
+        stmt = stmt.where(or_(*[or_(Office.id == r.id, Office.path.like(r.path + "/%")) for r in roots]))
     if office is not None:
         stmt = stmt.where(or_(Office.id == office.id, Office.path.like(office.path + "/%")))
     if not include_inactive:
@@ -531,11 +540,18 @@ def add_watch(
     if not matching.CNR_RE.match(cnr):
         raise RuleError("a CNR is four letters and twelve digits")
     if office is None:
-        office = department_of(session, session.get(Office, actor_user.office_id))
-        if office is None:
+        depts = [
+            m.department
+            for m in access.holders_in(session, actor_user, Permission.ADMIN_WATCHLIST)
+            if m.department is not None
+        ]
+        if not depts:
             raise RuleError("office_code is required: you do not belong to a department")
+        if len({d.id for d in depts}) > 1:
+            raise RuleError("office_code is required: you work in " + ", ".join(d.code for d in depts))
+        office = depts[0]
     office = _active_office(office)
-    _scope(session, actor_user, office)
+    _scope(session, actor_user, office, Permission.ADMIN_WATCHLIST)
     if office.parent_id is None:
         raise RuleError("a watchlist entry belongs to a department or one of its offices")
     w = _weight(session, actor_user, weight)
@@ -587,7 +603,7 @@ def update_watch(
     weight: Any = UNSET,
 ) -> OfficeWatchlist:
     access.require(session, actor_user, Permission.ADMIN_WATCHLIST)
-    _scope(session, actor_user, session.get(Office, row.office_id))
+    _scope(session, actor_user, session.get(Office, row.office_id), Permission.ADMIN_WATCHLIST)
     w = _weight(session, actor_user, weight)
     before = watch_summary(session, row)
     if w is not UNSET and _w(w) != _w(row.weight):
@@ -609,7 +625,7 @@ def set_watch_active(
 ) -> OfficeWatchlist:
     access.require(session, actor_user, Permission.ADMIN_WATCHLIST)
     office = session.get(Office, row.office_id)
-    _scope(session, actor_user, office)
+    _scope(session, actor_user, office, Permission.ADMIN_WATCHLIST)
     if row.is_active == enabled:
         raise RuleError(f"the watchlist entry is already {'active' if enabled else 'inactive'}")
     if enabled:

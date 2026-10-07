@@ -7,7 +7,9 @@
          └─ CENTRAL (central)
 
 and one user per role that the tests act as. Users are inserted with one shared password hash (hashing once
-keeps the fixture fast); `PW` signs in through the API."""
+keeps the fixture fast), each with its primary membership (design `user-memberships`); `PW` signs in through
+the API. `add_membership` gives a login a further membership (the two-department person of the membership
+tests is the EDU admin with a HEALTH officer membership)."""
 
 from __future__ import annotations
 
@@ -19,9 +21,9 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from aslms.domain.cases import Case, CaseStatus, FirstSeenSource
 from aslms.domain.courts import Court
-from aslms.domain.org import Office, User
+from aslms.domain.org import Office, User, UserMembership
 from aslms.domain.reference import OfficeKind, Role
-from aslms.services import access
+from aslms.services import access, memberships
 from aslms.services.audit import Actor
 from aslms.services.refno import allocate_ref_no
 from aslms.services.seed import seed_all
@@ -63,7 +65,23 @@ class World:
 
     def actor(self, s: Session, key: str) -> tuple[Actor, User]:
         u = self.user(s, key)
-        return access.actor_for(u, s.get(Office, u.office_id)), u
+        return access.actor_for(u), u
+
+    def membership(self, s: Session, key: str, office_code: str | None = None) -> UserMembership:
+        """The user's active membership (at `office_code`'s department when given, else the primary)."""
+        u = self.user(s, key)
+        ms = access.active_memberships(s, u)
+        if office_code is None:
+            return next(m for m in ms if m.is_primary)
+        dept = access.department_of(s, self.office(s, office_code))
+        return next(m for m in ms if m.department_id == (dept.id if dept else None))
+
+
+def add_membership(s: Session, user: User, office: Office, role: Role, designation: str | None = None):
+    """A further membership for a login, written directly (tests only; no authority check)."""
+    return memberships.insert_membership(
+        s, Actor.system("test"), user, office=office, role=role, designation=designation, audit=False
+    )
 
 
 def build_world(engine) -> World:
@@ -100,6 +118,9 @@ def build_world(engine) -> World:
             )
             s.add(u)
             s.flush()
+            memberships.insert_membership(
+                s, Actor.system("test"), u, office=w.offices[code], role=role, audit=False
+            )
             w.users[key] = u
         s.commit()
     return w

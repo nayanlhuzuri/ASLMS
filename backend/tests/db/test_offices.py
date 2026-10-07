@@ -16,12 +16,12 @@ from aslms.domain.org import Designation, Office, PermissionEffect, RolePermissi
 from aslms.domain.ownership import CaseOwnership, OwnershipStatus
 from aslms.domain.reference import OfficeKind, Permission, Role
 from aslms.domain.workflow import Custody
-from aslms.services import access, offices
+from aslms.services import access, memberships, offices, tickets
 from aslms.services.access import Forbidden
 from aslms.services.access_seed import DEFAULT_MATRIX
 from aslms.services.audit import Actor
 from aslms.services.cases import get_or_create_case
-from aslms.services.offices import DuplicateCode, OfficeError, OfficeInUse
+from aslms.services.offices import AdminExists, DuplicateCode, OfficeError, OfficeInUse
 from aslms.services.seed import seed_all
 from aslms.services.users import create_user
 from tests.db.conftest import wipe
@@ -30,10 +30,41 @@ SYS = Actor.system("test")
 PW = "correct-horse-battery"
 
 
+def head(code: str) -> dict:
+    """A new login as the head of a department being created (design `user-memberships`, decision 24)."""
+    return {
+        "email": f"head.{code.lower()}@example.org",
+        "full_name": f"Head {code}",
+        "designation": "Commissioner & Secretary",
+        "password": PW,
+    }
+
+
+def end_head(session, sup, dept) -> None:
+    """The super admin ends the department's head (exit with nothing held), leaving it headless."""
+    current = memberships.head_of(session, dept)
+    fp = memberships.fingerprint(memberships.exit_items(session, current))
+    tickets.request_head_change(
+        session,
+        access.actor_for(sup),
+        sup,
+        {
+            "operation": "end",
+            "department_code": dept.code,
+            "outgoing": {
+                "mode": "exit",
+                "assignments": [],
+                "items_fingerprint": fp,
+                "reason": "post abolished",
+            },
+        },
+    )
+
+
 @pytest.fixture()
 def world(session):
-    """GOA (seeded root); a super admin in GOA; HEALTH (department) with no users; a dept admin of EDU once
-    the test creates EDU."""
+    """GOA (seeded root); a super admin in GOA; EDU and HEALTH (departments, each created with its head); a
+    dept admin of EDU."""
     wipe(session)
     seed_all(session)
     goa = session.scalar(sa.select(Office).where(Office.code == "GOA"))
@@ -48,10 +79,17 @@ def world(session):
     )
     sup_actor = access.actor_for(sup, goa)
     edu = offices.create_office(
-        session, sup_actor, sup, code="edu", name="Education", kind="department", parent=goa
+        session, sup_actor, sup, code="edu", name="Education", kind="department", parent=goa, head=head("EDU")
     )
     health = offices.create_office(
-        session, sup_actor, sup, code="HEALTH", name="Health", kind=OfficeKind.DEPARTMENT, parent=goa
+        session,
+        sup_actor,
+        sup,
+        code="HEALTH",
+        name="Health",
+        kind=OfficeKind.DEPARTMENT,
+        parent=goa,
+        head=head("HEALTH"),
     )
     admin = create_user(
         session,
@@ -74,7 +112,7 @@ def world(session):
 
 
 def audits(session, action: str, entity_id=None) -> list[AuditLog]:
-    stmt = sa.select(AuditLog).where(AuditLog.action == action).order_by(AuditLog.created_at)
+    stmt = sa.select(AuditLog).where(AuditLog.action == action).order_by(AuditLog.created_at, AuditLog.id)
     if entity_id is not None:
         stmt = stmt.where(AuditLog.entity_id == entity_id)
     return list(session.scalars(stmt).all())
@@ -182,11 +220,18 @@ def test_deactivation_is_refused_while_in_use(session, world):
     session.flush()
     with pytest.raises(OfficeInUse) as exc:
         offices.deactivate_office(session, actor, sup, edu)
-    assert exc.value.counts == {"children": 1, "users": 1, "ownership": 1, "custody": 1}
+    # the users count is the office's active memberships: the admin and the head
+    assert exc.value.counts == {"children": 1, "users": 2, "ownership": 1, "custody": 1}
     assert edu.is_active and not audits(session, "office.deactivate")
-    # remove each dependency in turn
+    # remove each dependency in turn: a disabled login still holds its membership
     offices.deactivate_office(session, actor, sup, dse)
     access.set_enabled(session, actor, sup, admin, False)
+    assert offices.dependents(session, edu)["users"] == 2
+    admin_m = memberships.admin_of(session, edu)
+    memberships.end(
+        session, actor, sup, admin_m, reason="post abolished", assignments=[], items_fingerprint=None
+    )
+    end_head(session, sup, edu)
     own.status = OwnershipStatus.TRANSFERRED  # a primary row is never released (recommend-and-claim)
     session.flush()
     with pytest.raises(OfficeInUse) as exc:
@@ -205,7 +250,10 @@ def test_deactivation_is_refused_while_in_use(session, world):
     # reactivation: the child fails under an inactive parent, succeeds once the parent is back
     with pytest.raises(OfficeError, match="parent office is inactive"):
         offices.reactivate_office(session, actor, sup, dse)
-    offices.reactivate_office(session, actor, sup, edu)
+    with pytest.raises(offices.HeadRequired):
+        offices.reactivate_office(session, actor, sup, edu)
+    offices.reactivate_office(session, actor, sup, edu, head={"email": "head.edu@example.org"})
+    assert memberships.head_of(session, edu) is not None
     assert edu.is_active and edu.deactivated_at is None and edu.valid_to is None
     offices.reactivate_office(session, actor, sup, dse)
     assert dse.is_active
@@ -215,17 +263,20 @@ def test_deactivation_is_refused_while_in_use(session, world):
     # the root and the actor's own office are never deactivated
     with pytest.raises(OfficeError, match="root"):
         offices.deactivate_office(session, actor, sup, goa)
-    sup2 = create_user(
+    # someone holding offices.manage cannot deactivate the office they sit in (one super admin only, so a
+    # directorate user with the function granted stands in for the old second super admin)
+    keeper = create_user(
         session,
         SYS,
-        email="root2@example.org",
+        email="keeper@example.org",
         password=PW,
-        full_name="Root 2",
-        role=Role.SUPER_ADMIN,
-        office=edu,
+        full_name="Keeper",
+        role=Role.DIRECTORATE_USER,
+        office=dse,
     )
+    access.set_override(session, actor, sup, keeper, Permission.OFFICES_MANAGE, PermissionEffect.GRANT)
     with pytest.raises(Forbidden, match="own office"):
-        offices.deactivate_office(session, access.actor_for(sup2, edu), sup2, edu)
+        offices.deactivate_office(session, access.actor_for(keeper), keeper, dse)
 
 
 # ------------------------------------------------------------------------------------------------ delegation
@@ -271,25 +322,32 @@ def test_department_admin_delegation(session, world):
 
 def test_add_department_admin(session, world):
     edu, sup, actor, admin = world["edu"], world["super"], world["sup_actor"], world["admin"]
+    health = world["health"]
+    # EDU has its admin: a second one is refused before anything is written (decision 14)
+    with pytest.raises(AdminExists):
+        offices.add_department_admin(
+            session, actor, sup, edu, email="admin.edu@example.org", password=PW, full_name="Again"
+        )
+    assert offices.department_admins(session, edu) == [admin]
     user = offices.add_department_admin(
         session,
         actor,
         sup,
-        edu,
-        email="Nodal.EDU@example.org",
+        health,
+        email="Nodal.HEALTH@example.org",
         password=PW,
         full_name="Nodal Officer",
         designation="Joint Secretary",
     )
-    assert user.role == Role.DEPT_ADMIN and user.office_id == edu.id and user.must_confirm_profile
-    assert user.email == "nodal.edu@example.org"
-    assert len(audits(session, "office.admin_added", edu.id)) == 1
-    assert audits(session, "office.admin_added", edu.id)[0].after == {
+    assert user.role == Role.DEPT_ADMIN and user.office_id == health.id and user.must_confirm_profile
+    assert user.email == "nodal.health@example.org"
+    assert len(audits(session, "office.admin_added", health.id)) == 1
+    assert audits(session, "office.admin_added", health.id)[0].after == {
         "user_id": str(user.id),
         "email": user.email,
     }
     assert len(audits(session, "user.create", user.id)) == 1
-    assert offices.department_admins(session, edu) == [admin, user]
+    assert offices.department_admins(session, health) == [user]
     assert Permission.USERS_CREATE in access.effective_permissions(session, user)
     # the directorate tier and an inactive office are refused
     dse = offices.create_office(
@@ -299,11 +357,21 @@ def test_add_department_admin(session, world):
         offices.add_department_admin(
             session, actor, sup, dse, email="d@example.org", password=PW, full_name="D"
         )
-    health = world["health"]
-    offices.deactivate_office(session, actor, sup, health)
+    agri = offices.create_office(
+        session,
+        actor,
+        sup,
+        code="AGRI",
+        name="Agriculture",
+        kind="department",
+        parent=world["goa"],
+        head=head("AGRI"),
+    )
+    end_head(session, sup, agri)
+    offices.deactivate_office(session, actor, sup, agri)
     with pytest.raises(OfficeError, match="inactive"):
         offices.add_department_admin(
-            session, actor, sup, health, email="h@example.org", password=PW, full_name="H"
+            session, actor, sup, agri, email="h@example.org", password=PW, full_name="H"
         )
     # the dept admin cannot: dept_admin is not a delegable type
     with pytest.raises(Forbidden, match="super admin"):
@@ -375,7 +443,7 @@ def test_office_tree_and_dependents(session, world):
     assert [n.office.code for n in tree] == ["GOA"] and tree[0].tier == "state" and tree[0].users_active == 1
     kids = {n.office.code: n for n in tree[0].children}
     assert (
-        set(kids) == {"EDU", "HEALTH"} and kids["EDU"].users_active == 1 and kids["HEALTH"].users_active == 0
+        set(kids) == {"EDU", "HEALTH"} and kids["EDU"].users_active == 2 and kids["HEALTH"].users_active == 1
     )
     assert [n.office.code for n in kids["EDU"].children] == ["EDU-DSE"] and kids["EDU"].children[0].depth == 2
     full = offices.office_tree(session, [world["goa"]], include_inactive=True)
@@ -384,9 +452,9 @@ def test_office_tree_and_dependents(session, world):
     assert [n.office.code for n in scoped] == ["EDU"] and "HEALTH" not in str(
         [c.office.code for c in scoped[0].children]
     )
-    assert offices.dependents(session, edu) == {"children": 1, "users": 1, "ownership": 0, "custody": 0}
+    assert offices.dependents(session, edu) == {"children": 1, "users": 2, "ownership": 0, "custody": 0}
     assert offices.dependents(session, dse) == {"children": 0, "users": 0, "ownership": 0, "custody": 0}
-    assert offices.dependents(session, health)["users"] == 0
+    assert offices.dependents(session, health)["users"] == 1  # its head
 
 
 # ------------------------------------------------------------------------------------------------ seed
@@ -395,10 +463,10 @@ def test_office_tree_and_dependents(session, world):
 def test_seed_is_idempotent_with_the_43rd_function(session):
     wipe(session)
     first = seed_all(session)
-    assert first.inserted["ref_permission"] == 45 and first.inserted["role_permissions"] == 9 * 45
+    assert first.inserted["ref_permission"] == 47 and first.inserted["role_permissions"] == 9 * 47
     second = seed_all(session)
     assert second.total == 0
-    assert session.scalar(sa.select(sa.func.count()).select_from(RolePermission)) == len(DEFAULT_MATRIX) * 45
+    assert session.scalar(sa.select(sa.func.count()).select_from(RolePermission)) == len(DEFAULT_MATRIX) * 47
     assert (
         session.scalar(
             sa.select(RolePermission.is_enabled).where(

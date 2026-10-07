@@ -38,10 +38,11 @@ from aslms.domain.workflow import Custody
 from aslms.services import access, inbox
 from aslms.services.visibility import (
     alert_document_condition,
+    claim_departments,
+    departments,
     document_visible_condition,
     never_owned,
     require_visible,
-    user_department,
     visible_case_condition,
 )
 
@@ -263,7 +264,7 @@ def _custody(session: Session, case: Case) -> dict[str, Any] | None:
 
 
 def _claimable(session: Session, user: User, case: Case) -> bool:
-    if not access.has(session, user, Permission.CASES_CLAIM) or user_department(session, user) is None:
+    if not claim_departments(session, user):
         return False
     return bool(session.scalar(select(never_owned()).select_from(Case).where(Case.id == case.id)))
 
@@ -668,13 +669,13 @@ def _timeline_stmt(session: Session, user: User | None, case: Case, *, unrestric
     )
     if unrestricted or (user is not None and access.has(session, user, Permission.CASES_VIEW_ALL)):
         return stmt.where(or_(Event.type.in_(types), dept_rows, docs))
-    dept = user_department(session, user) if user is not None else None
-    if dept is None:
+    codes = [d.code for d in departments(session, user)] if user is not None else []
+    if not codes:
         return stmt.where(or_(Event.type.in_(types), docs))
     mine = or_(
-        Event.payload["office_code"].astext == dept.code,
-        Event.payload["from_office_code"].astext == dept.code,
-        Event.payload["to_office_code"].astext == dept.code,
+        Event.payload["office_code"].astext.in_(codes),
+        Event.payload["from_office_code"].astext.in_(codes),
+        Event.payload["to_office_code"].astext.in_(codes),
     )
     return stmt.where(or_(Event.type.in_(types), dept_rows & mine, docs))
 

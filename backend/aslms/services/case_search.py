@@ -24,16 +24,15 @@ from aslms.domain.causelists import Causelist, CauselistEntry
 from aslms.domain.courts import CaseType
 from aslms.domain.org import User
 from aslms.domain.ownership import CaseOwnership, OwnershipRole, OwnershipStatus
-from aslms.domain.reference import Permission
-from aslms.services import access, inbox
+from aslms.services import inbox
 from aslms.services.cases import ref_no_from_url
 from aslms.services.offices import find_office
 from aslms.services.visibility import (
     CaseState,
     case_state_condition,
+    claim_departments,
     is_department,
     never_owned,
-    user_department,
     visible_case_condition,
 )
 
@@ -317,9 +316,7 @@ def _items(
     cases = [c for c, _, _ in rows]
     summ = inbox.summaries(session, cases)
     owners = inbox.primary_codes(session, [c.id for c in cases])
-    may_claim = (
-        access.has(session, user, Permission.CASES_CLAIM) and user_department(session, user) is not None
-    )
+    may_claim = bool(claim_departments(session, user))
     return [
         {
             "case": summ[c.id],

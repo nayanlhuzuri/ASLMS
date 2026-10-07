@@ -28,6 +28,10 @@ PERMISSION_LABELS: dict[P, tuple[str, str]] = {
     P.USERS_ENABLE_DISABLE: ("Enable or disable users", "Switch a user's access on or off"),
     P.USERS_GRANT: ("Grant functions", "Grant or deny single functions to a user"),
     P.USERS_RESET_PASSWORD: ("Reset passwords", "Set a new password for a user"),
+    P.USERS_PROPOSE_HEAD: (
+        "Propose the head of department",
+        "Request a head-of-department change for the super admin's approval, and follow its tickets",
+    ),
     P.ACCESS_MANAGE_TYPES: ("Manage type matrix", "Switch functions on or off per user type"),
     P.OFFICES_MANAGE: ("Manage offices", "Create and edit departments and directorates"),
     P.ADMIN_COUNSEL_CODES: ("Counsel codes", "Map standing-counsel codes to departments"),
@@ -38,6 +42,10 @@ PERMISSION_LABELS: dict[P, tuple[str, str]] = {
     P.ADMIN_CONFIG: ("Configuration", "Change system configuration"),
     P.ADMIN_DESIGNATIONS: ("Designations", "Create and edit the State-wide designation list"),
     P.ADMIN_SCORING: ("Scoring settings", "Change the matching weights and recommendation thresholds"),
+    P.ADMIN_TICKETS: (
+        "Admin tickets",
+        "Decide the requests that need the super admin's approval (reserved to the super admin)",
+    ),
     P.CASES_VIEW_SCOPE: ("View cases in scope", "Cases of the offices the user belongs to"),
     P.CASES_VIEW_ALL: ("View all cases", "Every case across all departments"),
     P.CASES_SEARCH_COURT: ("Search the court", "Search NAPIX by case number, party or advocate"),
@@ -103,6 +111,7 @@ _DEPT_ADMIN = {
     P.USERS_ENABLE_DISABLE,
     P.USERS_GRANT,
     P.USERS_RESET_PASSWORD,
+    P.USERS_PROPOSE_HEAD,
     P.ADMIN_COUNSEL_CODES,
     P.ADMIN_KEYWORDS,
     P.ADMIN_WATCHLIST,
@@ -153,12 +162,21 @@ def seed_matrix(session: Session, report) -> None:
 
 
 def seed_super_admin(session: Session, report, root_office: Office) -> User | None:
-    """The first super admin, from ASLMS_SUPERADMIN_EMAIL / ASLMS_SUPERADMIN_PASSWORD; created once (the
-    password is not changed on later runs). Nothing is logged about it."""
+    """The first super admin, from ASLMS_SUPERADMIN_EMAIL / ASLMS_SUPERADMIN_PASSWORD; created only on a system
+    with no active super admin (design `user-memberships`, decision 13: exactly one, replaced only from the CLI).
+    The password is never changed on later runs and nothing secret is logged."""
+    from aslms.services.memberships import super_admin_membership
+
     s = get_settings()
     if not s.aslms_superadmin_email or s.aslms_superadmin_password is None:
         return None
     email = s.aslms_superadmin_email.strip().lower()
+    current = super_admin_membership(session)
+    if current is not None:
+        holder = session.get(User, current.user_id)
+        if holder is not None and holder.email != email:
+            report.notes.append(f"super admin exists ({holder.email}); .env not used")
+        return holder
     user = session.scalar(select(User).where(User.email == email))
     if user is not None:
         return user

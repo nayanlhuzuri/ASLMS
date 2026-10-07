@@ -1,7 +1,9 @@
 """`/admin/offices/*` and `/admin/designations/*`: the government hierarchy (list, tree, detail, create, edit,
 deactivate, reactivate), the first department admins of a department, and the State-wide designation list.
 Reads are filtered to the caller's office subtree on the server; every write goes through
-`services/offices.py`, which enforces the delegation rule and audits."""
+`services/offices.py`, which enforces the delegation rule and audits. Since `user-memberships`: a department
+is created and reactivated with its head, has at most one admin (`POST .../admins` → 409 `admin_exists`;
+`PUT .../admin` is the super admin's swap), and `missing_head=true` lists departments without a head."""
 
 from __future__ import annotations
 
@@ -11,12 +13,15 @@ from sqlalchemy.orm import Session
 
 from aslms.api import schemas
 from aslms.api.deps import actor_of, current_user, get_session, require
+from aslms.api.errors import http_error
 from aslms.api.routers.auth import user_out
 from aslms.domain.org import Designation, Office, User
 from aslms.domain.reference import OfficeKind, Permission
-from aslms.services import access, offices
-from aslms.services.access import Forbidden
-from aslms.services.offices import DuplicateCode, OfficeError, OfficeInUse, OfficeNode
+from aslms.services import access, memberships, offices
+from aslms.services.access import Conflict, Forbidden
+from aslms.services.memberships import MembershipError
+from aslms.services.offices import OfficeError, OfficeNode
+from aslms.services.tickets import TicketError
 from aslms.services.users import UserError
 
 router = APIRouter(prefix="/admin", tags=["offices"])
@@ -26,15 +31,10 @@ router = APIRouter(prefix="/admin", tags=["offices"])
 
 
 def _http(exc: Exception) -> HTTPException:
-    if isinstance(exc, Forbidden):
-        return HTTPException(status.HTTP_403_FORBIDDEN, str(exc))
-    if isinstance(exc, OfficeInUse):
-        return HTTPException(status.HTTP_409_CONFLICT, {"message": str(exc), "counts": exc.counts})
-    if isinstance(exc, DuplicateCode):
-        return HTTPException(status.HTTP_409_CONFLICT, str(exc))
-    if isinstance(exc, OfficeError | UserError):
-        return HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
-    raise exc
+    return http_error(exc)
+
+
+HANDLED = (Forbidden, Conflict, OfficeError, UserError, MembershipError, TicketError)
 
 
 def _sees_everything(session: Session, user: User) -> bool:
@@ -45,8 +45,11 @@ def _scope_roots(session: Session, user: User) -> list[Office]:
     """The roots of what the caller may see: the root office(s) for a State-wide view, else their own office."""
     if _sees_everything(session, user):
         return list(session.scalars(select(Office).where(Office.parent_id.is_(None)).order_by(Office.path)))
-    own = session.get(Office, user.office_id)
-    return [own] if own is not None else []
+    roots: list[Office] = []
+    for m in access.members(session, user):
+        if all(not access.subtree_contains(r, m.office) for r in roots):
+            roots = [r for r in roots if not access.subtree_contains(m.office, r)] + [m.office]
+    return sorted(roots, key=lambda o: o.path)
 
 
 def _may_see_inactive(session: Session, user: User, include_inactive: bool) -> bool:
@@ -116,10 +119,18 @@ def _load_designation(session: Session, code: str) -> Designation:
 def list_offices(
     kind: OfficeKind | None = None,
     include_inactive: bool = False,
+    missing_head: bool = False,
     session: Session = Depends(get_session),
     user: User = Depends(require(Permission.USERS_VIEW)),
 ) -> list[schemas.OfficeOut]:
-    """The offices in the caller's scope, ordered by path."""
+    """The offices in the caller's scope, ordered by path. `missing_head=true` (`offices.manage`): the active
+    departments without a head (design `user-memberships`, decision 24)."""
+    if missing_head:
+        if not access.has(session, user, Permission.OFFICES_MANAGE):
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN, "offices.manage is needed to list departments without a head"
+            )
+        return [schemas.OfficeOut.from_office(o) for o in offices.departments_without_head(session)]
     inactive = _may_see_inactive(session, user, include_inactive)
     roots = _scope_roots(session, user)
 
@@ -168,8 +179,9 @@ def create_office(
             parent=parent,
             notes=body.notes,
             valid_from=body.valid_from,
+            head=body.head.model_dump(exclude_none=True) if body.head else None,
         )
-    except (Forbidden, OfficeError) as exc:
+    except HANDLED as exc:
         raise _http(exc) from exc
     return _detail(session, office)
 
@@ -194,7 +206,7 @@ def patch_office(
         offices.update_office(
             session, actor_of(request, caller, session), caller, office, **body.model_dump(exclude_unset=True)
         )
-    except (Forbidden, OfficeError) as exc:
+    except HANDLED as exc:
         raise _http(exc) from exc
     return _detail(session, office)
 
@@ -209,7 +221,7 @@ def deactivate_office(
     office = _load_office(session, caller, code)
     try:
         offices.deactivate_office(session, actor_of(request, caller, session), caller, office)
-    except (Forbidden, OfficeError) as exc:
+    except HANDLED as exc:
         raise _http(exc) from exc
     return _detail(session, office)
 
@@ -218,13 +230,16 @@ def deactivate_office(
 def reactivate_office(
     code: str,
     request: Request,
+    body: schemas.OfficeReactivateIn | None = None,
     session: Session = Depends(get_session),
     caller: User = Depends(require(Permission.OFFICES_MANAGE)),
 ) -> schemas.OfficeDetailOut:
+    """A Department-tier office is reactivated with its head (`head`, as in creation)."""
     office = _load_office(session, caller, code)
+    head = body.head.model_dump(exclude_none=True) if body is not None and body.head else None
     try:
-        offices.reactivate_office(session, actor_of(request, caller, session), caller, office)
-    except (Forbidden, OfficeError) as exc:
+        offices.reactivate_office(session, actor_of(request, caller, session), caller, office, head=head)
+    except HANDLED as exc:
         raise _http(exc) from exc
     return _detail(session, office)
 
@@ -236,7 +251,7 @@ def reactivate_office(
 def list_department_admins(
     code: str, session: Session = Depends(get_session), caller: User = Depends(require(Permission.USERS_VIEW))
 ) -> list[schemas.UserOut]:
-    """Who runs this department: its users of type `dept_admin`."""
+    """Who runs this department: its admin (zero or one)."""
     office = _load_office(session, caller, code)
     return [user_out(session, u) for u in offices.department_admins(session, office)]
 
@@ -249,13 +264,14 @@ def add_department_admin(
     session: Session = Depends(get_session),
     caller: User = Depends(require(Permission.USERS_CREATE)),
 ) -> schemas.UserOut:
-    """The first department admin (type `dept_admin`) of a Department-tier office; super admin only."""
+    """The first department admin (type `dept_admin`) of a Department-tier office; super admin only; 409
+    `admin_exists` when the department has one (use the swap)."""
     office = _load_office(session, caller, code)
     try:
         user = offices.add_department_admin(
             session, actor_of(request, caller, session), caller, office, **body.model_dump()
         )
-    except (Forbidden, OfficeError, UserError) as exc:
+    except HANDLED as exc:
         raise _http(exc) from exc
     return user_out(session, user)
 
@@ -296,7 +312,7 @@ def create_designation(
             name=body.name,
             sort_order=body.sort_order,
         )
-    except (Forbidden, OfficeError) as exc:
+    except HANDLED as exc:
         raise _http(exc) from exc
     return _designation_out(row)
 
@@ -314,7 +330,7 @@ def patch_designation(
         offices.update_designation(
             session, actor_of(request, caller, session), caller, row, **body.model_dump(exclude_unset=True)
         )
-    except (Forbidden, OfficeError) as exc:
+    except HANDLED as exc:
         raise _http(exc) from exc
     return _designation_out(row)
 
@@ -345,6 +361,41 @@ def _set_designation(
     row = _load_designation(session, code)
     try:
         offices.set_designation_active(session, actor_of(request, caller, session), caller, row, enabled)
-    except (Forbidden, OfficeError) as exc:
+    except HANDLED as exc:
         raise _http(exc) from exc
     return _designation_out(row)
+
+
+@router.put("/offices/{code}/admin", response_model=schemas.AdminSwapOut)
+def replace_department_admin(
+    code: str,
+    body: schemas.AdminSwapIn,
+    request: Request,
+    session: Session = Depends(get_session),
+    caller: User = Depends(require(Permission.USERS_CREATE)),
+) -> schemas.AdminSwapOut:
+    """The super admin's swap (design `user-memberships`, decision 14): the outgoing admin becomes an officer
+    (`dept_officer`, default) or leaves through the per-item exit (`end`, with `assignments` and the
+    `items_fingerprint` of the exit preview), then the incoming admin is made; 403 for anyone else."""
+    office = _load_office(session, caller, code)
+    try:
+        admin, out = memberships.replace_department_admin(
+            session,
+            actor_of(request, caller, session),
+            caller,
+            office,
+            incoming=body.incoming,
+            outgoing=body.outgoing,
+            reason=body.reason,
+            assignments=[a.model_dump(mode="json") for a in body.assignments or []],
+            items_fingerprint=body.items_fingerprint,
+        )
+    except HANDLED as exc:
+        raise _http(exc) from exc
+    return schemas.AdminSwapOut(
+        admin=schemas.MembershipOut(**memberships.membership_out(session, admin)),
+        outgoing=schemas.AdminSwapOutgoingOut(
+            membership=out["membership"],
+            reassigned=[schemas.ReassignedOut(**r) for r in out["reassigned"]] if out["reassigned"] else None,
+        ),
+    )

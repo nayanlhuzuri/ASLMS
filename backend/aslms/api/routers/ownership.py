@@ -37,6 +37,11 @@ def _http(exc: Exception) -> HTTPException:
         return HTTPException(status.HTTP_404_NOT_FOUND, "no such case")
     if isinstance(exc, OwnershipConflict):
         return HTTPException(status.HTTP_409_CONFLICT, {"code": exc.code, "message": str(exc)})
+    if isinstance(exc, own.OfficeRequired):
+        return HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            {"code": "office_required", "message": str(exc), "candidates": exc.candidates},
+        )
     if isinstance(exc, IntegrityError):
         return HTTPException(
             status.HTTP_409_CONFLICT,

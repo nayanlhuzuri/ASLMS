@@ -4,9 +4,9 @@ ownership predicates come from `recommend-and-claim`, decisions 15, 16, 23).
 - `department_of(session, office)`: the Department-tier ancestor of an office (the second segment of
   `offices.path`), or None for the State root.
 - `claimed_conditions(...)`: the Claimed-tab predicate over `case_ownership` joined to `cases`: the whole
-  department for callers holding `cases.claim` or `cases.allot` (or reading another office with
-  `cases.view_all`); otherwise the rows allotted to the caller, or to a unit in the caller's subtree when the
-  caller sits below the department.
+  department for a membership holding `cases.claim` or `cases.allot` (or reading another office with
+  `cases.view_all`); otherwise the rows allotted to the person, or to a unit in the membership's subtree when
+  the membership sits below the department.
 - `owned_case_filter(session, user)`: the same predicate as a filter on `cases.id`.
 - `visibility_bases(session, user)`: every basis on which the caller may see a case, each a name and a boolean
   condition over `cases` (correlated `EXISTS` subqueries): `state`, `owner`, `recommended`, `pool`, `allotted`,
@@ -17,11 +17,16 @@ ownership predicates come from `recommend-and-claim`, decisions 15, 16, 23).
   shared with notes (court records and `counsel_shared` to everyone on the case, `case_scope` to everyone but
   standing counsel, `private_to_office` to the office itself, its department-wide callers and the author;
   State-wide readers see all); `document_case_condition` is "a visible case the document belongs to, directly
-  or through an order"; `document_visible_condition` ANDs the function, the case and the record rule;
+  or through an order"; `document_visible_condition` requires the function, the case and the record rule of
+  one and the same membership (OR over memberships);
   `works_on_case` is the upload rule (a working basis, not merely sight).
 - Alerts (design `alerts-notifications`, decision 14, review of 2026-10-06): a `new_document` alert names
   its document (id, type, uploading office), so every read of an alert applies the document rule as well:
-  `alert_document_condition` over `alerts`, `can_view_alert_document` for one row."""
+  `alert_document_condition` over `alerts`, `can_view_alert_document` for one row.
+- Memberships (design `user-memberships`, decision 7): every basis is computed per active membership
+  (`member_bases`) and the caller's set is the OR over their memberships; `record_visibility_condition` and the
+  alert office rule are OR-ed the same way. `basis_by_member` says which membership produced each basis, and
+  `acting_member_for_case` picks the membership that writes on a case (decision 6). Everything stays in SQL."""
 
 from __future__ import annotations
 
@@ -57,11 +62,14 @@ from aslms.domain.ownership import (
     Recommendation,
     RecommendationStatus,
 )
-from aslms.domain.reference import AlertKind, OfficeKind, Permission, Role
+from aslms.domain.reference import AlertKind, Permission, Role
 from aslms.domain.workflow import Custody, Request, RequestStatus
 from aslms.services import access
+from aslms.services.access import DEPARTMENT_TIER_KINDS as DEPARTMENT_TIER_KINDS
+from aslms.services.access import Member
+from aslms.services.access import department_of as department_of
+from aslms.services.access import is_department as is_department
 
-DEPARTMENT_TIER_KINDS = frozenset({OfficeKind.DEPARTMENT, OfficeKind.CENTRAL, OfficeKind.ADVOCATE_GENERAL})
 CaseState = Literal["active", "disposed", "all"]
 Basis = tuple[str, ColumnElement[bool]]
 
@@ -74,26 +82,18 @@ class NotVisibleCase(LookupError):
     """The case exists but the caller may not see it (HTTP 404 "no such case")."""
 
 
-def is_department(office: Office | None) -> bool:
-    return (
-        office is not None
-        and office.path.count("/") == 1
-        and OfficeKind(office.kind) in DEPARTMENT_TIER_KINDS
-    )
+def departments(session: Session, user: User | Member) -> list[Office]:
+    """The departments the caller works in, one per active membership with a department (primary first)."""
+    return access.departments(session, user)
 
 
-def department_of(session: Session, office: Office | None) -> Office | None:
-    if office is None:
-        return None
-    parts = office.path.split("/")
-    if len(parts) < 2:
-        return None
-    dept = office if len(parts) == 2 else session.scalar(select(Office).where(Office.code == parts[1]))
-    return dept if is_department(dept) else None
-
-
-def user_department(session: Session, user: User) -> Office | None:
-    return department_of(session, session.get(Office, user.office_id))
+def claim_departments(session: Session, user: User | Member) -> list[Office]:
+    """The departments where the caller's membership holds `cases.claim`."""
+    return [
+        m.department
+        for m in access.members(session, user)
+        if m.department is not None and m.holds(Permission.CASES_CLAIM)
+    ]
 
 
 def in_subtree(office: Office, root: Office) -> bool:
@@ -113,35 +113,38 @@ def case_state_condition(case_state: CaseState):
     return None
 
 
-def whole_department(session: Session, user: User) -> bool:
-    return access.has(session, user, Permission.CASES_CLAIM) or access.has(
-        session, user, Permission.CASES_ALLOT
+def whole_department(session: Session, member: Member | User) -> bool:
+    """The membership sees its whole department (holds `cases.claim` or `cases.allot`). For a login: any of its
+    memberships does (a gate only)."""
+    return access.has(session, member, Permission.CASES_CLAIM) or access.has(
+        session, member, Permission.CASES_ALLOT
     )
 
 
 def claimed_conditions(
     session: Session,
-    user: User,
+    user: User | Member,
     department: Office,
     *,
     case_state: CaseState = "active",
     whole: bool | None = None,
 ) -> list:
     """Conditions over `CaseOwnership` (and `Case`, which the caller joins) for the department's active
-    ownership rows the user may see in the Claimed tab."""
+    ownership rows the caller may see in the Claimed tab, through their membership in that department."""
     conds = [CaseOwnership.office_id == department.id, CaseOwnership.status == OwnershipStatus.ACTIVE]
+    member = user if isinstance(user, Member) else access.member_in_department(session, user, department)
     if whole is None:
-        whole = whole_department(session, user)
+        whole = member is not None and whole_department(session, member)
     if not whole:
-        own = session.get(Office, user.office_id)
+        own = member.office if member is not None else None
         if own is None or not in_subtree(own, department):
             return [false()]
         if own.id == department.id:
-            conds.append(CaseOwnership.officer_user_id == user.id)
+            conds.append(CaseOwnership.officer_user_id == member.id)
         else:
             conds.append(
                 or_(
-                    CaseOwnership.officer_user_id == user.id,
+                    CaseOwnership.officer_user_id == member.id,
                     CaseOwnership.unit_office_id.in_(subtree_ids(own)),
                 )
             )
@@ -151,17 +154,22 @@ def claimed_conditions(
     return conds
 
 
-def owned_case_filter(session: Session, user: User, *, case_state: CaseState = "active"):
-    """A filter on `Case.id`: the cases of the user's own department that the user may see by ownership."""
-    dept = user_department(session, user)
-    if dept is None:
+def owned_case_filter(session: Session, user: User | Member, *, case_state: CaseState = "active"):
+    """A filter on `Case.id`: the cases of the caller's departments that they may see by ownership (OR over
+    their memberships)."""
+    conds = []
+    for member in access.members(session, user):
+        if member.department is None:
+            continue
+        sub = (
+            select(CaseOwnership.case_id)
+            .join(Case, Case.id == CaseOwnership.case_id)
+            .where(*claimed_conditions(session, member, member.department, case_state=case_state))
+        )
+        conds.append(Case.id.in_(sub))
+    if not conds:
         return false()
-    sub = (
-        select(CaseOwnership.case_id)
-        .join(Case, Case.id == CaseOwnership.case_id)
-        .where(*claimed_conditions(session, user, dept, case_state=case_state))
-    )
-    return Case.id.in_(sub)
+    return conds[0] if len(conds) == 1 else or_(*conds)
 
 
 # ------------------------------------------------------------------------------------------------ the bases
@@ -213,19 +221,23 @@ def counsel_department_codes(session: Session, department: Office) -> list[str]:
     return sorted({normalise_counsel_code(c) for c in rows if c})
 
 
-def visibility_bases(session: Session, user: User) -> list[Basis]:
-    """Decision 2. Empty when the caller holds neither `cases.view_scope` nor `cases.view_all` (or belongs to
-    no department); `[("state", true)]` for State-wide readers."""
-    if access.is_super_admin(user) or access.has(session, user, Permission.CASES_VIEW_ALL):
+def _state_wide_member(member: Member) -> bool:
+    return member.is_super_admin or member.holds(Permission.CASES_VIEW_ALL)
+
+
+def member_bases(session: Session, member: Member) -> list[Basis]:
+    """Decision 2 of `cases-api`, for one membership: empty without `cases.view_scope` (or outside every
+    department); `[("state", true)]` for a State-wide membership."""
+    if _state_wide_member(member):
         return [("state", true())]
-    if not access.has(session, user, Permission.CASES_VIEW_SCOPE):
+    if not member.holds(Permission.CASES_VIEW_SCOPE):
         return []
-    own = session.get(Office, user.office_id)
-    dept = department_of(session, own)
+    own = member.office
+    dept = member.department
     if own is None or dept is None:
         return []
-    whole = whole_department(session, user)
-    role = Role(user.role)
+    whole = whole_department(session, member)
+    role = member.role
     bases: list[Basis] = []
     if whole:
         bases.append(
@@ -248,7 +260,7 @@ def visibility_bases(session: Session, user: User) -> list[Basis]:
                 ),
             )
         )
-    if access.has(session, user, Permission.CASES_CLAIM):
+    if member.holds(Permission.CASES_CLAIM):
         bases.append(("pool", never_owned()))
     if not whole:
         bases.append(
@@ -256,18 +268,18 @@ def visibility_bases(session: Session, user: User) -> list[Basis]:
                 "allotted",
                 exists().where(
                     CaseOwnership.case_id == Case.id,
-                    *claimed_conditions(session, user, dept, case_state="all", whole=False),
+                    *claimed_conditions(session, member, dept, case_state="all", whole=False),
                 ),
             )
         )
     # custody and requests: office-wide over a subtree, or personal (decision 2, table rows custody / request)
     personal = role == Role.REFERRAL_REVIEWER or (own.id == dept.id and not whole)
     if personal:
-        custody_cond = exists().where(Custody.case_id == Case.id, Custody.holder_user_id == user.id)
+        custody_cond = exists().where(Custody.case_id == Case.id, Custody.holder_user_id == member.id)
         request_cond = exists().where(
             Request.case_id == Case.id,
             Request.status != RequestStatus.WITHDRAWN,
-            Request.to_user_id == user.id,
+            Request.to_user_id == member.id,
         )
     else:
         root = dept if whole else own
@@ -286,7 +298,19 @@ def visibility_bases(session: Session, user: User) -> list[Basis]:
     return bases
 
 
-def visible_case_condition(session: Session, user: User) -> ColumnElement[bool]:
+def visibility_bases(session: Session, user: User | Member) -> list[Basis]:
+    """Decision 7: the OR over the caller's active memberships of each one's bases, one entry per basis name
+    (the same name from two memberships is OR-ed). `[("state", true)]` when any membership is State-wide."""
+    merged: dict[str, list[ColumnElement[bool]]] = {}
+    for member in access.members(session, user):
+        for name, cond in member_bases(session, member):
+            if name == "state":
+                return [("state", true())]
+            merged.setdefault(name, []).append(cond)
+    return [(name, conds[0] if len(conds) == 1 else or_(*conds)) for name, conds in merged.items()]
+
+
+def visible_case_condition(session: Session, user: User | Member) -> ColumnElement[bool]:
     """The OR of the caller's bases: a filter for every list, a selected boolean column for search."""
     bases = visibility_bases(session, user)
     if not bases:
@@ -296,12 +320,9 @@ def visible_case_condition(session: Session, user: User) -> ColumnElement[bool]:
     return or_(*[cond for _, cond in bases])
 
 
-def access_basis(session: Session, user: User, case: Case | uuid.UUID) -> list[str]:
-    """The names of the bases that make `case` visible to `user` (one SELECT evaluating every basis)."""
-    bases = visibility_bases(session, user)
+def _evaluate(session: Session, bases: list[Basis], case_id: uuid.UUID) -> list[str]:
     if not bases:
         return []
-    case_id = case if isinstance(case, uuid.UUID) else case.id
     row = session.execute(
         select(*[cond.label(name) for name, cond in bases]).select_from(Case).where(Case.id == case_id)
     ).one_or_none()
@@ -310,11 +331,26 @@ def access_basis(session: Session, user: User, case: Case | uuid.UUID) -> list[s
     return [name for (name, _), value in zip(bases, row, strict=True) if value]
 
 
-def can_view_case(session: Session, user: User, case: Case | uuid.UUID) -> bool:
+def access_basis(session: Session, user: User | Member, case: Case | uuid.UUID) -> list[str]:
+    """The names of the bases that make `case` visible to `user` (one SELECT evaluating every basis)."""
+    case_id = case if isinstance(case, uuid.UUID) else case.id
+    return _evaluate(session, visibility_bases(session, user), case_id)
+
+
+def basis_by_member(
+    session: Session, user: User | Member, case: Case | uuid.UUID
+) -> list[tuple[Member, list[str]]]:
+    """For each active membership, the names of its bases that make `case` visible (decision 6 uses it to pick
+    the membership that acts)."""
+    case_id = case if isinstance(case, uuid.UUID) else case.id
+    return [(m, _evaluate(session, member_bases(session, m), case_id)) for m in access.members(session, user)]
+
+
+def can_view_case(session: Session, user: User | Member, case: Case | uuid.UUID) -> bool:
     return bool(access_basis(session, user, case))
 
 
-def require_visible(session: Session, user: User, case: Case) -> list[str]:
+def require_visible(session: Session, user: User | Member, case: Case) -> list[str]:
     basis = access_basis(session, user, case)
     if not basis:
         raise NotVisibleCase("no such case")
@@ -331,36 +367,48 @@ class NotVisibleDocument(LookupError):
     """The document exists but the caller may not see it (HTTP 404 "no such document")."""
 
 
-def state_wide(session: Session, user: User) -> bool:
-    """A State-wide reader: the super admin or a holder of `cases.view_all` (oversight, central operator,
-    auditor). Sees every case and every document, private ones included."""
-    return access.is_super_admin(user) or access.has(session, user, Permission.CASES_VIEW_ALL)
+def acting_member_for_case(
+    session: Session, user: User | Member, case: Case, permission: Permission
+) -> Member | None:
+    """Decision 6, a write on a case: the membership with a working basis on the case that holds the function —
+    the one holding custody personally first, then the one in the owning department, then any other."""
+    custody = session.get(Custody, case.id)
+    holder_office = session.get(Office, custody.holder_office_id) if custody is not None else None
+    ranked: list[tuple[int, int, Member]] = []
+    for order, (member, names) in enumerate(basis_by_member(session, user, case)):
+        if not (WORKING_BASES & set(names)) or not member.holds(permission):
+            continue
+        holds_file = (
+            custody is not None
+            and custody.holder_user_id == member.id
+            and holder_office is not None
+            and in_subtree(holder_office, member.department or member.office)
+        )
+        rank = 0 if holds_file else (1 if "owner" in names else 2)
+        ranked.append((rank, order, member))
+    ranked.sort(key=lambda t: (t[0], t[1]))
+    return ranked[0][2] if ranked else None
 
 
-def works_on_case(session: Session, user: User, case: Case | uuid.UUID) -> bool:
+def state_wide(session: Session, user: User | Member) -> bool:
+    """A State-wide reader: a membership of the super admin or holding `cases.view_all` (oversight, central
+    operator, auditor). Sees every case and every document, private ones included."""
+    return any(_state_wide_member(m) for m in access.members(session, user))
+
+
+def works_on_case(session: Session, user: User | Member, case: Case | uuid.UUID) -> bool:
     """Decision 5: the case is visible through a working basis (not only `state`, `recommended` or `pool`)."""
     return bool(WORKING_BASES & set(access_basis(session, user, case)))
 
 
-def record_visibility_condition(
-    session: Session,
-    user: User,
-    *,
-    visibility: Any,
-    office_id: Any,
-    author_user_id: Any,
-    group: Any = None,
+def _record_condition_for(
+    session: Session, member: Member, *, visibility: Any, office_id: Any, author_user_id: Any, group: Any
 ) -> ColumnElement[bool]:
-    """Part (c) of the document rule, generic over the record's visibility, office and author columns (notes
-    reuse it). `group` is the `doc_group` column when the record has one: court records are open to all."""
-    if state_wide(session, user):
-        return true()
-    own = session.get(Office, user.office_id)
-    dept = department_of(session, own)
-    whole = dept is not None and whole_department(session, user)
-    counsel = Role(user.role) == Role.STANDING_COUNSEL
-    author = author_user_id == user.id
-    private_office = [office_id == user.office_id, author]
+    dept = member.department
+    whole = dept is not None and whole_department(session, member)
+    counsel = member.role == Role.STANDING_COUNSEL
+    author = author_user_id == member.id
+    private_office = [office_id == member.office.id, author]
     if whole:
         private_office.append(office_id.in_(subtree_ids(dept)))
     conds = [
@@ -373,10 +421,34 @@ def record_visibility_condition(
     return case(*conds, else_=false())
 
 
-def document_case_condition(session: Session, user: User) -> ColumnElement[bool]:
-    """Part (b): a visible case the document belongs to — `documents.case_id`, or the case of any order whose
-    PDF this document is (one order PDF may serve connected cases)."""
-    visible = visible_case_condition(session, user)
+def record_visibility_condition(
+    session: Session,
+    user: User | Member,
+    *,
+    visibility: Any,
+    office_id: Any,
+    author_user_id: Any,
+    group: Any = None,
+) -> ColumnElement[bool]:
+    """Part (c) of the document rule, generic over the record's visibility, office and author columns (notes
+    reuse it), OR-ed over the caller's memberships. `group` is the `doc_group` column when the record has one:
+    court records are open to all."""
+    if state_wide(session, user):
+        return true()
+    conds = [
+        _record_condition_for(
+            session, m, visibility=visibility, office_id=office_id, author_user_id=author_user_id, group=group
+        )
+        for m in access.members(session, user)
+    ]
+    if not conds:
+        return false()
+    return conds[0] if len(conds) == 1 else or_(*conds)
+
+
+def _case_of_document(visible: ColumnElement[bool]) -> ColumnElement[bool]:
+    """A case passing `visible` that the document belongs to — `documents.case_id`, or the case of any order
+    whose PDF this document is (one order PDF may serve connected cases)."""
     direct = exists(select(literal(1)).select_from(Case).where(Case.id == Document.case_id, visible))
     via_order = exists(
         select(literal(1))
@@ -387,28 +459,54 @@ def document_case_condition(session: Session, user: User) -> ColumnElement[bool]
     return or_(direct, via_order)
 
 
-def document_visible_condition(
-    session: Session, user: User, *, permission: Permission = Permission.DOCUMENTS_VIEW
-) -> ColumnElement[bool]:
-    """Decision 7, over `documents`: (a) the function, (b) a visible case, (c) the record's own setting."""
-    if not access.has(session, user, permission):
+def document_case_condition(session: Session, user: User | Member) -> ColumnElement[bool]:
+    """Part (b): a case visible to the caller (any membership) that the document belongs to. A document with no
+    case (an `admin` document of a ticket) never passes. On its own it is not the document rule: see
+    `document_visible_condition`, which requires (b) and (c) of the same membership."""
+    return _case_of_document(visible_case_condition(session, user))
+
+
+def _member_document_condition(session: Session, member: Member) -> ColumnElement[bool]:
+    """(b) and (c) for one membership: a case visible through this membership's own bases, and the record
+    setting passed by this same membership (so one membership's counsel rule is never lifted by another
+    membership that cannot see the case)."""
+    bases = member_bases(session, member)
+    if not bases:
         return false()
-    return and_(
-        document_case_condition(session, user),
-        record_visibility_condition(
-            session,
-            user,
-            visibility=Document.visibility,
-            office_id=Document.office_id,
-            author_user_id=Document.actor_user_id,
-            group=Document.doc_group,
-        ),
+    visible = bases[0][1] if len(bases) == 1 else or_(*[cond for _, cond in bases])
+    record = _record_condition_for(
+        session,
+        member,
+        visibility=Document.visibility,
+        office_id=Document.office_id,
+        author_user_id=Document.actor_user_id,
+        group=Document.doc_group,
     )
+    return and_(_case_of_document(visible), record)
+
+
+def document_visible_condition(
+    session: Session, user: User | Member, *, permission: Permission = Permission.DOCUMENTS_VIEW
+) -> ColumnElement[bool]:
+    """Decision 7, over `documents`: the OR over the caller's memberships of (a) the function held by that
+    membership, (b) a case visible through that membership and (c) the record's setting for that membership
+    (`user-memberships` decision 7, review fix). A State-wide membership holding the function passes every
+    document that has a case."""
+    conds: list[ColumnElement[bool]] = []
+    for member in access.members(session, user):
+        if not member.holds(permission):
+            continue
+        if _state_wide_member(member):
+            return _case_of_document(true())
+        conds.append(_member_document_condition(session, member))
+    if not conds:
+        return false()
+    return conds[0] if len(conds) == 1 else or_(*conds)
 
 
 def can_view_document(
     session: Session,
-    user: User,
+    user: User | Member,
     doc: Document | uuid.UUID,
     *,
     permission: Permission = Permission.DOCUMENTS_VIEW,
@@ -419,7 +517,11 @@ def can_view_document(
 
 
 def require_visible_document(
-    session: Session, user: User, doc: Document, *, permission: Permission = Permission.DOCUMENTS_VIEW
+    session: Session,
+    user: User | Member,
+    doc: Document,
+    *,
+    permission: Permission = Permission.DOCUMENTS_VIEW,
 ) -> None:
     if not can_view_document(session, user, doc, permission=permission):
         raise NotVisibleDocument("no such document")
@@ -428,7 +530,7 @@ def require_visible_document(
 # ------------------------------------------------------------------------------------------------ alerts
 
 
-def alert_document_condition(session: Session, user: User) -> ColumnElement[bool]:
+def alert_document_condition(session: Session, user: User | Member) -> ColumnElement[bool]:
     """Over `alerts`: any kind but `new_document` passes; a `new_document` alert passes only when the document
     it names (`data.document_id`) is visible to the caller under `document_visible_condition`. An alert whose
     document id is missing or unknown is hidden, never shown."""
@@ -441,9 +543,9 @@ def alert_document_condition(session: Session, user: User) -> ColumnElement[bool
     return or_(Alert.kind != AlertKind.NEW_DOCUMENT, visible_doc)
 
 
-def alert_office_condition(session: Session, user: User) -> ColumnElement[bool]:
+def alert_office_condition(session: Session, user: User | Member) -> ColumnElement[bool]:
     """Over `alerts`: an alert is addressed to one office (`alerts.office_id`). A State-wide reader passes
-    every alert; anyone else passes an alert addressed to an office of their own department (the department
+    every alert; anyone else passes an alert addressed to an office of one of their departments (the department
     or any office under it) or one they were themselves notified of. An alert addressed to another
     department (`recommendation` for a different department, `transfer_requested` to the receiving
     department) is hidden although the caller works on the case (review of 2026-10-06, blocking)."""
@@ -454,23 +556,22 @@ def alert_office_condition(session: Session, user: User) -> ColumnElement[bool]:
         .select_from(Notification)
         .where(Notification.alert_id == Alert.id, Notification.user_id == user.id)
     )
-    dept = user_department(session, user)
-    if dept is None:
+    depts = departments(session, user)
+    if not depts:
         return notified
-    return or_(Alert.office_id.in_(subtree_ids(dept)), notified)
+    return or_(*[Alert.office_id.in_(subtree_ids(d)) for d in depts], notified)
 
 
-def addressed_to_department(session: Session, user: User, alert: Alert) -> bool:
+def addressed_to_department(session: Session, user: User | Member, alert: Alert) -> bool:
     """`alert_office_condition` without the notification branch, for one alert, in Python: a State-wide
-    reader, or the alert's office under the caller's department."""
+    reader, or the alert's office under one of the caller's departments."""
     if state_wide(session, user):
         return True
-    dept = user_department(session, user)
     office = session.get(Office, alert.office_id)
-    return dept is not None and office is not None and in_subtree(office, dept)
+    return office is not None and any(in_subtree(office, d) for d in departments(session, user))
 
 
-def can_view_alert_document(session: Session, user: User, alert: Alert) -> bool:
+def can_view_alert_document(session: Session, user: User | Member, alert: Alert) -> bool:
     """`alert_document_condition` for one alert, in Python."""
     if AlertKind(alert.kind) != AlertKind.NEW_DOCUMENT:
         return True

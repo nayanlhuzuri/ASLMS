@@ -6,7 +6,12 @@ Every list checks the caller's function on the server: Recommended needs `cases.
 (`cases.view_all` for any office, read-only); Claimed needs `cases.view_scope` and shows the rows of
 `visibility.claimed_conditions`; the pool needs `cases.claim` or `cases.view_all`; Transfers need
 `cases.transfer_request` or `cases.transfer_decide` for the own department, `cases.view_all` for any.
-Lists return `(items, total)` with `limit` <= 200 (default 50) and `offset`."""
+Lists return `(items, total)` with `limit` <= 200 (default 50) and `offset`.
+
+Memberships (design `user-memberships`, decision 6): the department a tab is read for is the caller's
+membership in it — the one named by `office`, else the primary membership's department when it holds the
+tab's function, else the single membership that does, else 400 `office_required`. `counts` returns one block
+per department the caller works in."""
 
 from __future__ import annotations
 
@@ -41,7 +46,6 @@ from aslms.services.visibility import (
     claimed_conditions,
     codes_condition,
     is_department,
-    user_department,
 )
 from aslms.services.visibility import never_owned as visibility_never_owned
 
@@ -56,7 +60,14 @@ class InboxError(ValueError):
 
 
 class OfficeRequired(InboxError):
-    """The caller sits outside every department and named no `office`."""
+    """The caller sits outside every department (or works in several) and named no `office`. `candidates`
+    lists the department codes when there are several."""
+
+    code = "office_required"
+
+    def __init__(self, message: str, candidates: list[str] | None = None) -> None:
+        super().__init__(message)
+        self.candidates = candidates or []
 
 
 CaseSummary = dict[str, Any]  # the CaseSummaryOut shape of the API
@@ -80,27 +91,38 @@ def clamp(limit: int | None, offset: int | None) -> tuple[int, int]:
 def target_department(
     session: Session, user: User, office_code: str | None, *, own_permission: Permission | None
 ) -> tuple[Office, bool]:
-    """The department a tab is read for and whether the caller reads it as a State-wide reader. The own
-    department needs `own_permission` (when given); another department, or no own department, needs
-    `cases.view_all`. A `cases.view_all` holder without `own_permission` reads the own department too."""
+    """The department a tab is read for and whether the caller reads it as a State-wide reader. A department
+    the caller works in needs `own_permission` (when given) in that membership; another department, or none
+    of one's own, needs `cases.view_all`. A `cases.view_all` holder without `own_permission` reads their own
+    department too."""
     view_all = access.has(session, user, Permission.CASES_VIEW_ALL)
-    own = user_department(session, user)
+    members = [m for m in access.members(session, user) if m.department is not None]
     if office_code:
         office = find_office(session, office_code)
         if office is None or not is_department(office):
             raise InboxError(f"{office_code!r} is not a department")
-        if own is None or own.id != office.id:
+        mine = next((m for m in members if m.department.id == office.id), None)
+        if mine is None:
             if not view_all:
                 raise access.Forbidden("cases.view_all is needed to read another department's inbox")
             return office, True
-    if own is None:
+        if own_permission is None or mine.holds(own_permission):
+            return office, view_all
+        if view_all:
+            return office, True
+        raise access.Forbidden(f"{own_permission.value} is not enabled for you in {office.code}")
+    if not members:
         if view_all:
             raise OfficeRequired("office is required: you do not belong to a department")
         raise access.Forbidden("you do not belong to a department")
-    if own_permission is None or access.has(session, user, own_permission):
-        return own, view_all
+    qualifying = [m for m in members if own_permission is None or m.holds(own_permission)]
+    if qualifying:
+        if qualifying[0] is members[0] or len(qualifying) == 1:
+            return qualifying[0].department, view_all
+        codes = [m.department.code for m in qualifying]
+        raise OfficeRequired("office is required: you work in " + ", ".join(codes), codes)
     if view_all:
-        return own, True
+        return members[0].department, True
     raise access.Forbidden(f"{own_permission.value} is not enabled for you")
 
 
@@ -576,21 +598,26 @@ def transfers(
     offset: int | None = None,
 ) -> Page:
     view_all = access.has(session, user, Permission.CASES_VIEW_ALL)
-    own = user_department(session, user)
     if office:
         dept = find_office(session, office)
         if dept is None or not is_department(dept):
             raise InboxError(f"{office!r} is not a department")
-        if not (view_all or (own is not None and own.id == dept.id and _transfers_allowed(session, user))):
+        mine = access.member_in_department(session, user, dept)
+        if not (view_all or (mine is not None and _transfers_allowed(session, mine))):
             raise access.Forbidden("cases.view_all is needed to read another department's transfers")
     else:
-        if own is None:
+        members = [m for m in access.members(session, user) if m.department is not None]
+        if not members:
             if view_all:
                 raise OfficeRequired("office is required: you do not belong to a department")
             raise access.Forbidden("you do not belong to a department")
-        if not (_transfers_allowed(session, user) or view_all):
+        qualifying = [m for m in members if _transfers_allowed(session, m)]
+        if not qualifying and not view_all:
             raise access.Forbidden("cases.transfer_request or cases.transfer_decide is needed")
-        dept = own
+        if qualifying and qualifying[0] is not members[0] and len(qualifying) > 1:
+            codes = [m.department.code for m in qualifying]
+            raise OfficeRequired("office is required: you work in " + ", ".join(codes), codes)
+        dept = (qualifying or members)[0].department
     if direction is not None and direction not in ("in", "out"):
         raise InboxError("direction is in or out")
     status_v = TransferStatus(status) if status else None
@@ -631,12 +658,9 @@ def transfer_item(session: Session, t: OwnershipTransfer, case: CaseSummary | No
 # ------------------------------------------------------------------------------------------------ counts
 
 
-def counts(session: Session, user: User, *, office: str | None = None, today: date | None = None) -> dict:
-    """The dashboard counters, each under the rule of its tab; a count is None when the caller lacks that
-    tab's function (or has no department and named no office)."""
-    access.require(session, user, Permission.CASES_VIEW_SCOPE)
-    today = today or date.today()
-    out: dict[str, int | None] = {
+def _counts_for(session: Session, user: User, dept: Office | None, *, today: date) -> dict:
+    out: dict[str, Any] = {
+        "office_code": dept.code if dept is not None else None,
         "recommended_high": None,
         "recommended_medium": None,
         "claimed_active": None,
@@ -645,20 +669,9 @@ def counts(session: Session, user: User, *, office: str | None = None, today: da
         "pool_with_hearing_7d": None,
     }
     view_all = access.has(session, user, Permission.CASES_VIEW_ALL)
-    own = user_department(session, user)
-    dept: Office | None = None
-    if office:
-        o = find_office(session, office)
-        if o is None or not is_department(o):
-            raise InboxError(f"{office!r} is not a department")
-        if not (view_all or (own is not None and own.id == o.id)):
-            raise access.Forbidden("cases.view_all is needed to read another department's counts")
-        dept = o
-    else:
-        dept = own
-    reading_own = dept is not None and own is not None and dept.id == own.id
+    mine = access.member_in_department(session, user, dept) if dept is not None else None
     if dept is not None:
-        if view_all or (reading_own and access.has(session, user, Permission.CASES_CLAIM)):
+        if view_all or (mine is not None and mine.holds(Permission.CASES_CLAIM)):
             out["recommended_high"] = _count(session, recommended_stmt(dept, band=ScoreBand.HIGH))
             out["recommended_medium"] = _count(session, recommended_stmt(dept, band=ScoreBand.MEDIUM))
         whole = True if view_all else None
@@ -668,7 +681,7 @@ def counts(session: Session, user: User, *, office: str | None = None, today: da
         out["claimed_disposed"] = _count(
             session, claimed_stmt(session, user, dept, case_state="disposed", whole=whole)
         )
-        if view_all or (reading_own and _transfers_allowed(session, user)):
+        if view_all or (mine is not None and _transfers_allowed(session, mine)):
             out["transfers_in_open"] = _count(
                 session, transfers_stmt(dept, direction="in", status=TransferStatus.REQUESTED)
             )
@@ -680,3 +693,23 @@ def counts(session: Session, user: User, *, office: str | None = None, today: da
             ),
         )
     return out
+
+
+def counts(session: Session, user: User, *, office: str | None = None, today: date | None = None) -> dict:
+    """The dashboard counters, one block per department the caller works in (or the department named by
+    `office`), each under the rule of its tab; a count is None when the caller lacks that tab's function in
+    that department. A caller with no department gets one block with `office_code` None (the pool count).
+    Shape: `{"departments": [{office_code, ...counts}]}` (design `user-memberships`, flagged shape change)."""
+    access.require(session, user, Permission.CASES_VIEW_SCOPE)
+    today = today or date.today()
+    view_all = access.has(session, user, Permission.CASES_VIEW_ALL)
+    if office:
+        o = find_office(session, office)
+        if o is None or not is_department(o):
+            raise InboxError(f"{office!r} is not a department")
+        if not (view_all or access.member_in_department(session, user, o) is not None):
+            raise access.Forbidden("cases.view_all is needed to read another department's counts")
+        depts: list[Office | None] = [o]
+    else:
+        depts = list(access.departments(session, user)) or [None]
+    return {"departments": [_counts_for(session, user, d, today=today) for d in depts]}

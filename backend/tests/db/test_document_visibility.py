@@ -24,7 +24,7 @@ from aslms.services.users import hash_password
 from tests import samplefiles as sf
 from tests.db import docs_support as ds
 from tests.db.test_case_visibility import entry_with_codes
-from tests.db.world import PW, USERS, make_case
+from tests.db.world import PW, USERS, add_membership, make_case
 
 
 @pytest.fixture()
@@ -57,6 +57,7 @@ def scene(api, world):
         )
         s.add(dse2)
         s.flush()
+        add_membership(s, dse2, world.office(s, "EDU-DSE"), Role.DIRECTORATE_USER)
         order, order_doc = ds.stored_order(
             s, api.store, case, sf.text_pdf(["Foxtrot order of the court passed on the tenth of January."])
         )
@@ -341,3 +342,31 @@ def test_order_file_not_stored_and_other_case(api, world, scene):
         api.get(f"/cases/{scene['case']}", headers=ds.login(api, "dhe_user")).json()["counts"]["documents"]
         == 4
     )
+
+
+def test_counsel_rule_is_not_lifted_by_another_membership(world, scene):
+    """Review of 2026-10-07 (blocking): the counsel who is also an officer of another department sees the case
+    only through the counsel membership, so that membership's record rule applies — the officer membership,
+    which cannot see the case, does not open its `case_scope` documents."""
+    d = scene["docs"]
+    with world.Session() as s:
+        add_membership(s, world.user(s, "edu_counsel"), world.office(s, "HEALTH"), Role.DEPT_OFFICER)
+        s.commit()
+    with world.Session() as s:
+        person = world.user(s, "edu_counsel")
+        assert {m.department.code for m in access.members(s, person)} == {"EDU", "HEALTH"}
+        assert vis.can_view_case(s, person, scene["case"])
+        listed = set(
+            s.scalars(
+                sa.select(Document.id).where(
+                    Document.case_id == scene["case"], vis.document_visible_condition(s, person)
+                )
+            )
+        )
+    assert d["case_scope"] not in listed and not can(world, "edu_counsel", d["case_scope"])
+    assert not can(world, "edu_counsel", d["edu_private"]) and not can(world, "edu_counsel", d["dse_private"])
+    assert can(world, "edu_counsel", d["counsel_shared"]) and can(
+        world, "edu_counsel", d["counsel_case_scope"]
+    )
+    assert can(world, "edu_counsel", d["order"])
+    assert {d["counsel_shared"], d["counsel_case_scope"]} <= listed

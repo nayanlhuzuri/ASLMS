@@ -36,6 +36,7 @@ from aslms.services.access_seed import PERMISSION_LABELS, seed_matrix, seed_supe
 @dataclass
 class SeedReport:
     inserted: dict[str, int] = field(default_factory=dict)
+    notes: list[str] = field(default_factory=list)
 
     def add(self, table: str, n: int = 1) -> None:
         self.inserted[table] = self.inserted.get(table, 0) + n
@@ -71,9 +72,13 @@ DOC_GROUP = {
     DocType.INTERLOCUTORY_APPLICATION: "court_filing",
     DocType.ANNEXURE: "court_filing",
     DocType.INSTRUCTIONS_TO_COUNSEL: "internal",
+    DocType.GOVERNMENT_ORDER: "internal",
 }
 # labels that differ from the code (design documents-uploads, decision 6; new databases only)
-DOC_TYPE_LABELS = {DocType.COUNTER_AFFIDAVIT: "Affidavit-in-opposition (counter affidavit)"}
+DOC_TYPE_LABELS = {
+    DocType.COUNTER_AFFIDAVIT: "Affidavit-in-opposition (counter affidavit)",
+    DocType.GOVERNMENT_ORDER: "Government order / notification",
+}
 ALERT_SEVERITY = {
     AlertKind.HEARING_DUE: "high",
     AlertKind.NEXT_DATE_CHANGED: "high",
@@ -83,7 +88,11 @@ ALERT_SEVERITY = {
     AlertKind.NEW_DOCUMENT: "normal",
 }
 # labels that differ from the code (design alerts-notifications, decision 13; new databases only)
-ALERT_KIND_LABELS = {AlertKind.OWNERSHIP: "Ownership change", AlertKind.NEW_DOCUMENT: "New document"}
+ALERT_KIND_LABELS = {
+    AlertKind.OWNERSHIP: "Ownership change",
+    AlertKind.NEW_DOCUMENT: "New document",
+    AlertKind.ADMIN_TICKET: "Admin ticket",
+}
 TRACKING_CARD_EVENTS = {
     EventType.CASE_CREATED,
     EventType.CASE_DISPOSED,

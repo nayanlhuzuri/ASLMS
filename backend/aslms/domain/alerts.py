@@ -102,6 +102,7 @@ class Alert(TimestampMixin, RefNoMixin, Base):
     __table_args__ = (
         CheckConstraint("(status IN ('done', 'expired')) = (closed_at IS NOT NULL)", name="closed"),
         CheckConstraint("status <> 'acknowledged' OR acknowledged_at IS NOT NULL", name="acknowledged"),
+        CheckConstraint("(case_id IS NULL) = (kind = 'admin_ticket')", name="case"),
         Index("ix_alerts_case_status", "case_id", "status"),
         Index(
             "ix_alerts_open_kind",
@@ -111,7 +112,7 @@ class Alert(TimestampMixin, RefNoMixin, Base):
         ),
     )
     id: Mapped[uuid.UUID] = uuid_pk()
-    case_id: Mapped[uuid.UUID] = uuid_fk("cases.id")
+    case_id: Mapped[uuid.UUID | None] = uuid_fk("cases.id", nullable=True)  # NULL only for `admin_ticket`
     kind: Mapped[AlertKind] = ref_code(AlertKind, "ref_alert_kind")
     office_id: Mapped[uuid.UUID] = uuid_fk("offices.id")
     due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)

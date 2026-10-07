@@ -56,7 +56,15 @@ CASCADE_TABLES = frozenset(
 # Tables with an updated_at column; the migration adds the set_updated_at() trigger to each.
 MUTABLE_TABLES: set[str] = set()
 # Append-only tables (trigger aslms_forbid_change).
-APPEND_ONLY_TABLES = ("events", "audit_log", "case_notes", "custody_history", "case_stages")
+APPEND_ONLY_TABLES = (
+    "events",
+    "audit_log",
+    "case_notes",
+    "custody_history",
+    "case_stages",
+    "admin_ticket_documents",
+    "membership_documents",
+)
 
 
 class Base(DeclarativeBase):

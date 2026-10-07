@@ -155,10 +155,10 @@ def test_claimed_tab_by_role_and_case_state(api, world):
     assert api.get("/inbox/claimed?office=EDU", headers=health).status_code == 403
     assert api.get("/inbox/claimed?office=EDU", headers=login(api, "oversight")).json()["total"] == 2
     # counts agree with the lists
-    counts = api.get("/inbox/counts", headers=admin).json()
+    counts = api.get("/inbox/counts", headers=admin).json()["departments"][0]
     assert counts["claimed_active"] == 2 and counts["claimed_disposed"] == 1
     assert counts["recommended_high"] == 0 and counts["transfers_in_open"] == 0
-    counts = api.get("/inbox/counts", headers=login(api, "edu_off1")).json()
+    counts = api.get("/inbox/counts", headers=login(api, "edu_off1")).json()["departments"][0]
     assert counts["claimed_active"] == 1 and counts["recommended_high"] is None
     assert counts["pool_with_hearing_7d"] is None and counts["transfers_in_open"] is None
 
@@ -223,11 +223,11 @@ def test_pool_excludes_owned_and_filters(api, world):
     inbox_in = api.get("/inbox/transfers?direction=in", headers=health).json()
     assert inbox_in["total"] == 1 and inbox_in["items"][0]["id"] == trf["id"]
     assert api.get("/inbox/transfers?direction=out", headers=health).json()["total"] == 0
-    assert api.get("/inbox/counts", headers=health).json()["transfers_in_open"] == 1
+    assert api.get("/inbox/counts", headers=health).json()["departments"][0]["transfers_in_open"] == 1
     assert api.get("/inbox/transfers", headers=login(api, "health_off")).status_code == 403
     r = api.post(f"/transfers/{trf['id']}/accept", json={"note": "ok"}, headers=health)
     assert r.status_code == 200 and r.json()["status"] == "accepted" and r.json()["decision_note"] == "ok"
-    assert api.get("/inbox/counts", headers=health).json()["transfers_in_open"] == 0
+    assert api.get("/inbox/counts", headers=health).json()["departments"][0]["transfers_in_open"] == 0
     # the pool
     pool = api.get("/inbox/pool", headers=admin).json()
     assert set(ids(pool)) == {q["q1"], q["q4"], q["q5"], q["q6"]}
@@ -246,7 +246,7 @@ def test_pool_excludes_owned_and_filters(api, world):
     assert api.get("/inbox/pool", headers=root).json()["total"] == 4
     assert api.get("/inbox/pool", headers=login(api, "central_op")).json()["total"] == 4
     assert api.get("/inbox/pool", headers=login(api, "health_off")).status_code == 403
-    assert api.get("/inbox/counts", headers=admin).json()["pool_with_hearing_7d"] == 1
+    assert api.get("/inbox/counts", headers=admin).json()["departments"][0]["pool_with_hearing_7d"] == 1
 
 
 # ------------------------------------------------------------------------------------------------ claim refs, ownership view
@@ -337,7 +337,9 @@ def test_take_over_and_stop_watching(api, world):
     with world.Session() as s:
         actions = list(
             s.scalars(
-                sa.select(AuditLog.action).where(AuditLog.case_id == t1.id).order_by(AuditLog.created_at)
+                sa.select(AuditLog.action)
+                .where(AuditLog.case_id == t1.id)
+                .order_by(AuditLog.created_at, AuditLog.id)
             )
         )
     assert actions == [

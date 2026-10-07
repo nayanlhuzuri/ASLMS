@@ -16,6 +16,8 @@ def seed(
     """Insert the reference rows the system needs; a second run inserts nothing."""
     with session_scope(url) as session:
         report = seed_all(session)
+    for note in report.notes:
+        rprint(f"[yellow]seed: {note}[/yellow]")
     if report.total == 0:
         rprint("[green]seed: nothing to insert (already seeded)[/green]")
     else:

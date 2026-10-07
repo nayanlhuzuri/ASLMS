@@ -13,5 +13,6 @@ from aslms.domain import (  # noqa: F401
     org,
     ownership,
     reference,
+    tickets,
     workflow,
 )

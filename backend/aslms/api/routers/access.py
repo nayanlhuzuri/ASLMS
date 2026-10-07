@@ -60,4 +60,6 @@ def set_role_function(
         access.set_matrix(session, actor_of(request, caller, session), caller, role, permission, body.enabled)
     except Forbidden as exc:
         raise HTTPException(status.HTTP_403_FORBIDDEN, str(exc)) from exc
+    except access.ReservedFunction as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, {"code": exc.code, "message": str(exc)}) from exc
     return access.matrix(session, role).get(role.value, {})

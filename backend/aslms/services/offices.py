@@ -8,8 +8,11 @@ hierarchy, designations, and the first department admins.
   `ref_no` and actor snapshot). `kind` and `parent_id` are immutable too (no re-parenting).
 - Writes need `offices.manage`. The super admin acts anywhere; anyone else only strictly inside their own
   office subtree and only on `directorate` and `unit` offices (the shape of the user-delegation rule).
-- Deactivation never deletes and is refused while active children, users, ownership or custody point at the
-  office. Every write is audited and office writes emit one `config_changed` event.
+- Deactivation never deletes and is refused while active children, memberships, ownership or custody point at
+  the office. Every write is audited and office writes emit one `config_changed` event.
+- Memberships (design `user-memberships`, decisions 14 and 24): a department has at most one admin
+  (`add_department_admin` answers 409 `admin_exists`; the swap is `memberships.replace_department_admin`) and
+  is created or reactivated with its head, in one transaction, recorded as an approved head-change ticket.
 """
 
 from __future__ import annotations
@@ -23,7 +26,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from aslms.domain.events import Event, EventVisibility
-from aslms.domain.org import Designation, Office, User
+from aslms.domain.org import Designation, Office, User, UserMembership
 from aslms.domain.ownership import CaseOwnership, OwnershipStatus
 from aslms.domain.reference import EventType, OfficeKind, Permission, Role
 from aslms.domain.workflow import Custody
@@ -40,6 +43,18 @@ class OfficeError(ValueError):
 
 class DuplicateCode(OfficeError):
     """The code is already taken (HTTP 409)."""
+
+
+class AdminExists(OfficeError):
+    """The department already has an active admin (HTTP 409 `admin_exists`; use the swap)."""
+
+    code = "admin_exists"
+
+
+class HeadRequired(OfficeError):
+    """A Department-tier office is created or reactivated with its head (HTTP 400 `head_required`)."""
+
+    code = "head_required"
 
 
 class OfficeInUse(OfficeError):
@@ -153,12 +168,15 @@ def assert_can_manage_office(
             f"only a super admin may create or change offices of kind {_as_kind(kind).value}"
         )
     if office is not None:
-        if office.id == actor_user.office_id:
-            raise access.Forbidden("you cannot change your own office")
-        if not access.in_scope(session, actor_user, office):
+        member = access.acting_member_for_office(
+            session, actor_user, office, permission=Permission.OFFICES_MANAGE
+        )
+        if member is None:
             raise access.Forbidden("the office is outside your offices")
+        if member.office.id == office.id:
+            raise access.Forbidden("you cannot change your own office")
     elif parent is not None:
-        if not access.in_scope(session, actor_user, parent):
+        if not access.in_scope(session, actor_user, parent, permission=Permission.OFFICES_MANAGE):
             raise access.Forbidden("the parent office is outside your offices")
     else:
         raise access.Forbidden("no office to act on")
@@ -168,8 +186,8 @@ def assert_can_manage_office(
 
 
 def dependents(session: Session, office: Office) -> dict[str, int]:
-    """What still points at the office: active children, active users, active ownership (as owner or unit),
-    custody held."""
+    """What still points at the office: active children, active memberships (`users`), active ownership (as
+    owner or unit), custody held."""
 
     def count(stmt) -> int:
         return int(session.scalar(stmt) or 0)
@@ -178,7 +196,11 @@ def dependents(session: Session, office: Office) -> dict[str, int]:
         "children": count(
             select(func.count()).where(Office.parent_id == office.id, Office.is_active.is_(True))
         ),
-        "users": count(select(func.count()).where(User.office_id == office.id, User.is_active.is_(True))),
+        "users": count(
+            select(func.count()).where(
+                UserMembership.office_id == office.id, UserMembership.is_active.is_(True)
+            )
+        ),
         "ownership": count(
             select(func.count()).where(
                 or_(CaseOwnership.office_id == office.id, CaseOwnership.unit_office_id == office.id),
@@ -211,9 +233,9 @@ def office_tree(session: Session, roots: list[Office], *, include_inactive: bool
     offices = {o.id: o for o in session.scalars(stmt.order_by(Office.path)).all()}
     counts = dict(
         session.execute(
-            select(User.office_id, func.count())
-            .where(User.office_id.in_(list(offices)), User.is_active.is_(True))
-            .group_by(User.office_id)
+            select(UserMembership.office_id, func.count())
+            .where(UserMembership.office_id.in_(list(offices)), UserMembership.is_active.is_(True))
+            .group_by(UserMembership.office_id)
         ).all()
     )
     nodes = {
@@ -265,7 +287,11 @@ def create_office(
     parent: Office,
     notes: str | None = None,
     valid_from: date | None = None,
+    head: dict | None = None,
 ) -> Office:
+    """A Department-tier office needs `head` (decision 24 of `user-memberships`): an existing login by e-mail
+    (with designation) or a new login (e-mail, name, designation, password); the office and the head membership
+    are created together and recorded as an approved head-change ticket."""
     kind = _as_kind(kind)
     assert_can_manage_office(session, actor_user, parent=parent, kind=kind)
     if kind == OfficeKind.STATE:
@@ -283,6 +309,8 @@ def create_office(
         )
     if find_office(session, code) is not None:
         raise DuplicateCode(f"an office with code {code} already exists")
+    if kind in DEPARTMENT_TIER_KINDS and not head:
+        raise HeadRequired("a department is created with its head")
     office = Office(
         code=code,
         name=name[:200],
@@ -298,10 +326,32 @@ def create_office(
     session.add(office)
     session.flush()
     session.refresh(office)
-    write_audit(session, actor, "office.create", "office", office.id, after=office_summary(office))
+    head_after = None
+    if kind in DEPARTMENT_TIER_KINDS:
+        head_after = _set_head(session, actor, actor_user, office, head)
+    write_audit(
+        session,
+        actor,
+        "office.create",
+        "office",
+        office.id,
+        after={**office_summary(office), "head": head_after},
+    )
     _event(session, office, "create")
     session.flush()
     return office
+
+
+def _set_head(session: Session, actor: Actor, actor_user: User, office: Office, head: dict | None) -> dict:
+    """The head of a department being created or reactivated, by the super admin: applied at once and
+    recorded as an approved `head_change` ticket (`operation=set`)."""
+    from aslms.services import tickets
+
+    if not head or not head.get("email"):
+        raise HeadRequired("the head is named by e-mail")
+    incoming = {k: v for k, v in head.items() if v is not None}
+    ticket = tickets.record_direct_set(session, actor, actor_user, office, incoming)
+    return {"ticket_ref": ticket.ref_no, **(ticket.result or {}).get("incoming", {})}
 
 
 def update_office(
@@ -347,7 +397,9 @@ def deactivate_office(session: Session, actor: Actor, actor_user: User, office: 
     assert_can_manage_office(session, actor_user, office=office, kind=office.kind)
     if office.parent_id is None:
         raise OfficeError("the root office cannot be deactivated")
-    if office.id == actor_user.office_id:
+    if not access.is_super_admin(actor_user) and any(
+        m.office.id == office.id for m in access.members(session, actor_user)
+    ):
         raise access.Forbidden("you cannot deactivate your own office")
     if not office.is_active:
         raise OfficeError(f"the office {office.code} is already inactive")
@@ -368,10 +420,15 @@ def deactivate_office(session: Session, actor: Actor, actor_user: User, office: 
     return office
 
 
-def reactivate_office(session: Session, actor: Actor, actor_user: User, office: Office) -> Office:
+def reactivate_office(
+    session: Session, actor: Actor, actor_user: User, office: Office, *, head: dict | None = None
+) -> Office:
     assert_can_manage_office(session, actor_user, office=office, kind=office.kind)
     if office.is_active:
         raise OfficeError(f"the office {office.code} is already active")
+    dept_tier = _as_kind(office.kind) in DEPARTMENT_TIER_KINDS and tier_of(office) == "department"
+    if dept_tier and not head:
+        raise HeadRequired("a department is reactivated with its head")
     parent = session.get(Office, office.parent_id) if office.parent_id else None
     if parent is None or not parent.is_active:
         raise OfficeError("the parent office is inactive; reactivate it first")
@@ -381,8 +438,15 @@ def reactivate_office(session: Session, actor: Actor, actor_user: User, office: 
     office.valid_to = None
     office.updated_by = actor.user_id
     session.flush()
+    head_after = _set_head(session, actor, actor_user, office, head) if dept_tier else None
     write_audit(
-        session, actor, "office.reactivate", "office", office.id, before=before, after=office_summary(office)
+        session,
+        actor,
+        "office.reactivate",
+        "office",
+        office.id,
+        before=before,
+        after={**office_summary(office), "head": head_after},
     )
     _event(session, office, "reactivate")
     session.flush()
@@ -390,11 +454,37 @@ def reactivate_office(session: Session, actor: Actor, actor_user: User, office: 
 
 
 def department_admins(session: Session, office: Office) -> list[User]:
+    """The department's admin (zero or one: decision 14 of `user-memberships`), from the memberships."""
     return list(
         session.scalars(
-            select(User).where(User.office_id == office.id, User.role == Role.DEPT_ADMIN).order_by(User.email)
+            select(User)
+            .join(UserMembership, UserMembership.user_id == User.id)
+            .where(
+                UserMembership.department_id == office.id,
+                UserMembership.role == Role.DEPT_ADMIN,
+                UserMembership.is_active.is_(True),
+            )
+            .order_by(User.email)
         ).all()
     )
+
+
+def departments_without_head(session: Session) -> list[Office]:
+    """Active Department-tier offices with no active `dept_head` membership (decision 24)."""
+    heads = select(UserMembership.department_id).where(
+        UserMembership.role == Role.DEPT_HEAD, UserMembership.is_active.is_(True)
+    )
+    rows = session.scalars(
+        select(Office)
+        .where(
+            Office.is_active.is_(True),
+            Office.parent_id.is_not(None),
+            Office.kind.in_(list(DEPARTMENT_TIER_KINDS)),
+            Office.id.not_in(heads),
+        )
+        .order_by(Office.code)
+    ).all()
+    return [o for o in rows if tier_of(o) == "department"]
 
 
 def add_department_admin(
@@ -420,6 +510,8 @@ def add_department_admin(
             f"a department admin belongs to a Department-tier office; {office.code} is a "
             f"{_as_kind(office.kind).value} at the {tier_of(office)} tier"
         )
+    if department_admins(session, office):
+        raise AdminExists(f"{office.code} already has a department admin; use the swap")
     user = create_user(
         session,
         actor,

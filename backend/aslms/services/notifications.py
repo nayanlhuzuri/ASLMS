@@ -22,9 +22,9 @@ from aslms.domain.courts import Court
 from aslms.domain.ops import JobRun, JobStatus
 from aslms.domain.org import Channel, DigestMode, User, UserNotificationPreference
 from aslms.domain.ownership import Recommendation, RecommendationStatus, ScoreBand
-from aslms.domain.reference import Permission, RefAlertKind
-from aslms.services import access, calendar, visibility
+from aslms.domain.reference import AlertKind, RefAlertKind
 from aslms.services import alert_rules as rules
+from aslms.services import calendar, visibility
 from aslms.services.audit import Actor, write_audit
 from aslms.services.mailer import Mailer
 
@@ -153,7 +153,21 @@ def send_pending(
     for n in rows:
         user = session.get(User, n.user_id)
         alert = session.get(Alert, n.alert_id)
-        case = session.get(Case, alert.case_id) if alert is not None else None
+        case = session.get(Case, alert.case_id) if alert is not None and alert.case_id is not None else None
+        if alert is not None and case is None and AlertKind(alert.kind) == AlertKind.ADMIN_TICKET:
+            if user is None or not user.is_active:
+                n.status, n.error, n.attempts, n.next_attempt_at = (
+                    NotificationStatus.FAILED,
+                    "recipient no longer available",
+                    max_attempts,
+                    None,
+                )
+                counters["skipped"] += 1
+                continue
+            subject, text = rules.render_ticket_mail(alert, portal_base_url)
+            ok = _deliver(mailer, n, user.email, subject, text, now=now, max_attempts=max_attempts)
+            counters["sent" if ok else "failed"] += 1
+            continue
         if user is None or not user.is_active or alert is None or case is None:
             n.status, n.error, n.attempts, n.next_attempt_at = (
                 NotificationStatus.FAILED,
@@ -263,7 +277,7 @@ def build_digests(
         rows = session.execute(
             select(Notification, Alert, Case)
             .join(Alert, Alert.id == Notification.alert_id)
-            .join(Case, Case.id == Alert.case_id)
+            .join(Case, Case.id == Alert.case_id, isouter=True)
             .where(
                 Notification.user_id == user.id,
                 Notification.channel == Channel.IN_APP,
@@ -277,9 +291,16 @@ def build_digests(
         alert_ids: list[uuid.UUID] = []
         for n, a, c in rows:
             kind = a.kind.value if hasattr(a.kind, "value") else str(a.kind)
-            groups.setdefault(labels.get(kind, kind), []).append(
-                {"title": n.title, "case_ref": c.ref_no.replace("/", "-")}
-            )
+            if c is None:
+                ref = rules.ticket_url_ref((a.data or {}).get("ticket_ref"))
+                item = {
+                    "title": n.title,
+                    "case_ref": None,
+                    "link": f"{portal_base_url.rstrip('/')}/admin/tickets/{ref}",
+                }
+            else:
+                item = {"title": n.title, "case_ref": c.ref_no.replace("/", "-")}
+            groups.setdefault(labels.get(kind, kind), []).append(item)
             alert_ids.append(a.id)
         hearings = calendar.calendar_for_user(
             session, user, from_=today, to=today + timedelta(days=DIGEST_LOOKAHEAD_DAYS), now=now
@@ -294,12 +315,12 @@ def build_digests(
             for h in hearings[:DIGEST_HEARINGS_CAP]
         ]
         medium = None
-        dept = visibility.user_department(session, user)
-        if dept is not None and access.has(session, user, Permission.CASES_CLAIM):
+        claim_depts = visibility.claim_departments(session, user)
+        if claim_depts:
             medium = int(
                 session.scalar(
                     select(func.count(Recommendation.id)).where(
-                        Recommendation.office_id == dept.id,
+                        Recommendation.office_id.in_([d.id for d in claim_depts]),
                         Recommendation.status == RecommendationStatus.RECOMMENDED,
                         Recommendation.band == ScoreBand.MEDIUM,
                     )

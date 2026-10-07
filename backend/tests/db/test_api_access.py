@@ -88,7 +88,7 @@ def test_login_me_refresh_logout(api):
     h = login(api, "root@example.org")
     me = api.get("/me", headers={"Authorization": h["Authorization"]}).json()
     assert me["user"]["role"] == "super_admin" and me["user"]["office"]["code"] == "GOA"
-    assert len(me["functions"]) == 45
+    assert len(me["functions"]) == 47
     r = api.post("/auth/refresh", json={"refresh_token": h["_refresh"]})
     assert r.status_code == 200 and r.json()["refresh_token"] != h["_refresh"]
     assert api.post("/auth/refresh", json={"refresh_token": h["_refresh"]}).status_code == 401  # rotated
@@ -180,7 +180,7 @@ def test_department_admin_creates_users_within_scope(api):
         == 403
     )
     perms = api.get("/admin/permissions", headers=root).json()
-    assert len(perms) == 45 and {p["module"] for p in perms} >= {"users", "cases", "notes"}
+    assert len(perms) == 47 and {p["module"] for p in perms} >= {"users", "cases", "notes"}
     # root sees everyone; audit rows exist for the changes
     assert len(api.get("/admin/users", headers=root).json()) == 4
     assert api.get("/admin/offices", headers=admin).json()[0]["code"] == "EDU"

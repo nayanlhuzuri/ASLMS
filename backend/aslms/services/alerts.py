@@ -180,7 +180,7 @@ def case_url_ref(case: Case) -> str:
 def raise_alert(
     session: Session,
     *,
-    case: Case,
+    case: Case | None,
     kind: AlertKind,
     key: str,
     office: Office,
@@ -194,7 +194,10 @@ def raise_alert(
 ) -> tuple[Alert, bool]:
     """Looks the key up (`FOR UPDATE`); new → allocate `ALR` on `GOA`, insert in a savepoint (a unique race
     re-reads the winner), emit `alert_raised`, notify; existing and open with a higher severity → raise the
-    severity, notify again; otherwise nothing. Returns (alert, changed)."""
+    severity, notify again; otherwise nothing. Returns (alert, changed). Only an `admin_ticket` alert has no
+    case (design `user-memberships`, decision 19); it emits no case event."""
+    if (case is None) != (AlertKind(kind) == AlertKind.ADMIN_TICKET):
+        raise AlertError("only an admin_ticket alert is raised without a case")
     now = now or _now()
     counters = counters if counters is not None else {}
     data = _jsonable(data or {})
@@ -202,7 +205,7 @@ def raise_alert(
     title, body = rules.render_alert(kind, case, data)
     if existing is None:
         alert = Alert(
-            case_id=case.id,
+            case_id=case.id if case is not None else None,
             kind=kind,
             office_id=office.id,
             due_at=due_at,
@@ -224,21 +227,22 @@ def raise_alert(
             if winner is None:
                 raise
             return winner, False
-        emit_event(
-            session,
-            EventType.ALERT_RAISED,
-            case,
-            {
-                "alert_id": str(alert.id),
-                "ref_no": alert.ref_no,
-                "kind": kind.value,
-                "severity": Severity(severity).value,
-                "office_code": office.code,
-                "title": title,
-            },
-            dedupe=f"alert_raised:{alert.id}",
-            scoped=True,
-        )
+        if case is not None:
+            emit_event(
+                session,
+                EventType.ALERT_RAISED,
+                case,
+                {
+                    "alert_id": str(alert.id),
+                    "ref_no": alert.ref_no,
+                    "kind": kind.value,
+                    "severity": Severity(severity).value,
+                    "office_code": office.code,
+                    "title": title,
+                },
+                dedupe=f"alert_raised:{alert.id}",
+                scoped=True,
+            )
         counters["alerts_new"] = counters.get("alerts_new", 0) + 1
     elif AlertStatus(existing.status) in OPEN_STATUSES and rules.higher(severity, existing.severity):
         existing.severity = severity
@@ -854,7 +858,7 @@ def notification_visible_condition(session: Session, user: User):
     """The visibility rule for the caller's own notifications: a visible case, or an ownership notice whose
     recipient the design names (deviation 1: the case may not be visible to them); and, for `new_document`,
     the document still visible to the caller (deviation 12)."""
-    return and_(
+    case_rule = and_(
         or_(
             visibility.visible_case_condition(session, user),
             and_(
@@ -864,14 +868,21 @@ def notification_visible_condition(session: Session, user: User):
         ),
         visibility.alert_document_condition(session, user),
     )
+    # a case-less (`admin_ticket`) alert: the caller's own notification is the whole rule (decision 19)
+    return or_(and_(Alert.case_id.is_(None), Alert.kind == AlertKind.ADMIN_TICKET), case_rule)
 
 
-def _may_act_on(session: Session, user: User, alert: Alert) -> Case:
+def _may_act_on(session: Session, user: User, alert: Alert) -> Case | None:
     """The case must be visible and the user a recipient, or working on the case with the alert addressed
     to their own department (or reading State-wide); else 404. The named recipient of an ownership notice
     may read and act on it although the case is not visible to them. A `new_document` alert is 404 unless
     the document it names is visible to the user (deviation 12). An alert addressed to another department
-    is 404 for a non-recipient however they work on the case (deviation 13)."""
+    is 404 for a non-recipient however they work on the case (deviation 13). A case-less `admin_ticket` alert
+    is visible and actionable only to its notified recipients (design `user-memberships`, decision 19)."""
+    if alert.case_id is None:
+        if AlertKind(alert.kind) == AlertKind.ADMIN_TICKET and is_recipient(session, user, alert):
+            return None
+        raise AlertNotFound("no such alert")
     case = session.get(Case, alert.case_id)
     if case is None:
         raise AlertNotFound("no such alert")
@@ -952,7 +963,7 @@ def acknowledge(session: Session, actor: Actor, user: User, alert: Alert, note: 
         alert.id,
         before=before,
         after={**alert_summary(alert), "note": note},
-        case_id=case.id,
+        case_id=case.id if case is not None else None,
     )
     return alert
 
@@ -974,7 +985,7 @@ def mark_done(session: Session, actor: Actor, user: User, alert: Alert, note: st
         alert.id,
         before=before,
         after={**alert_summary(alert), "note": note},
-        case_id=case.id,
+        case_id=case.id if case is not None else None,
     )
     return alert
 
@@ -1022,7 +1033,7 @@ def _labels(session: Session) -> dict[str, str]:
 def alert_item(
     session: Session,
     alert: Alert,
-    case: Case,
+    case: Case | None,
     *,
     labels: dict[str, str],
     users: dict[uuid.UUID, User],
@@ -1041,7 +1052,8 @@ def alert_item(
         "title": alert.title,
         "body": alert.body,
         "due_at": alert.due_at,
-        "case": calendar.case_ref(case),
+        "case": calendar.case_ref(case) if case is not None else None,
+        "ticket_ref": (alert.data or {}).get("ticket_ref") if case is None else None,
         "data": alert.data or {},
         "notified_at": notified_at,
         "read_at": read_at,
@@ -1101,7 +1113,7 @@ def list_for_user(
     base = (
         select(Alert, Case, n.c.created_at, n.c.read_at)
         .join(n, n.c.alert_id == Alert.id)
-        .join(Case, Case.id == Alert.case_id)
+        .join(Case, Case.id == Alert.case_id, isouter=True)
     )
     base = base.where(*conds)
     total = int(session.scalar(select(func.count()).select_from(base.subquery())) or 0)
@@ -1122,7 +1134,7 @@ def counts_for_user(session: Session, user: User) -> dict[str, Any]:
     base = (
         select(Alert.severity, n.c.status)
         .join(n, n.c.alert_id == Alert.id)
-        .join(Case, Case.id == Alert.case_id)
+        .join(Case, Case.id == Alert.case_id, isouter=True)
         .where(notification_visible_condition(session, user), Alert.status.in_(list(OPEN_STATUSES)))
     )
     unread = 0
@@ -1192,7 +1204,7 @@ def alerts_for_case(
 
 def detail_item(session: Session, user: User, alert: Alert) -> dict[str, Any]:
     """One alert as the caller sees it (their latest in-app notification) plus `recipients_count`."""
-    case = session.get(Case, alert.case_id)
+    case = session.get(Case, alert.case_id) if alert.case_id is not None else None
     row = session.execute(
         select(Notification.created_at, Notification.read_at)
         .where(

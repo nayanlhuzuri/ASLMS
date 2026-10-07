@@ -794,3 +794,45 @@ after nested requests). Reviewing it, the owner set these rules, which replace t
   overdue alerts and see the department's pending and overdue files and counts, wherever the files are held.
 - 2026-10-07 — user-memberships: approved by the owner after review (single super admin and department admin, one head with super-admin approval of changes, admin tickets, government order, per-item exit; docs/design/user-memberships.md)
 - 2026-10-07 — custody-workflow (revised): approved by the owner after review (send the file to any officer, chain, recall and tracking as granted functions, draft notes; docs/design/custody-workflow.md)
+
+## User memberships: one login, several offices (2026-10-07)
+Design: `docs/design/user-memberships.md` (approved by the owner on 2026-10-07; backlog row 28). Migration 0008.
+
+**Built**
+- Tables: `user_memberships` (office, derived `department_id`, designation, user type, `is_primary`, validity),
+  `admin_tickets` (`TKT` numbers), `admin_ticket_documents` and `membership_documents` (append-only), `ref_ticket_kind`;
+  `user_permissions` gains `membership_id` (overrides are per membership); `documents.kind` gains `admin`.
+  Partial unique indexes: one active membership per person per department, one super admin, one department admin and
+  one head per department. Details are in `docs/schema/schema.md`.
+- Services: `services/memberships.py` (add, update, end with the per-item exit, reactivate, primary, department admin
+  swap, super admin replacement), `services/tickets.py` (generic admin ticket queue, `head_change` the first kind,
+  government-order documents), and authority, scope, visibility, recipients, alerts, ownership, inbox, documents and
+  offices reworked to take the acting membership (`access.Member`).
+- API: membership endpoints under `/admin/users/{id}/memberships`, `/admin/tickets` (head change, list, counts, detail,
+  approve, reject, withdraw, documents), `PUT /admin/offices/{code}/admin`, `/me` with memberships, `/inbox/counts` per
+  department. CLI: `aslms users replace-super-admin`, `aslms users memberships list|add|end`.
+
+**Decisions**
+- A membership is the unit of authority; functions, scope, visibility bases and the actor snapshot come from it. Visibility
+  is the union of the memberships' bases; documents are evaluated per whole membership (review fix, so a counsel
+  rule is not lifted by another membership).
+- At most one active membership per person per department, so "the membership in department D" is unambiguous.
+- `users.office_id`, `role`, `designation`, `designation_id` stay as a mirror of the primary membership, written only by
+  the membership service and never read for authorisation (guarded by a test).
+- Exactly one super admin, replaced only from the CLI; exactly one department admin per department, changed only by
+  the super admin as a swap; the super admin is never subject to approval or delegation limits.
+- Head changes: a department admin requests, the super admin approves through a ticket; the super admin changes it
+  directly; a department admin can never leave a department headless; a department is created or reactivated with a head.
+- Exit step: ending a membership reassigns each allotment and held file to an officer of the department, after a preview.
+- Disabled logins are the super admin's: adding or reactivating a membership on one gives 409 `login_inactive` otherwise.
+
+**Deviations** (the design note's Deviations section lists all 13): admin paths sit under the existing `/admin/users`
+prefix with one added read endpoint; the exit leg's remark is kept in the `custody_moved` event and audit row because
+`custody_history` has no remark column before migration 0009; migration 0008 gives disabled logins an ended membership;
+a department admin may preview the head's exit; `/inbox/counts` changes shape (no portal consumes it yet).
+
+**Left for later**
+- The dev database is still at 0007 (the historical load runs against it); the integrator upgrades it.
+- Portal screens for memberships, the ticket panel and the exit dialog (`portal-shell`).
+- Custody-workflow builds on this item (sending a file to a membership). Follow-up rows 29 (drop the mirror columns)
+  and 30 (further ticket kinds) added to the backlog.

@@ -71,7 +71,11 @@ def count(world, table: str, where: str = "true") -> int:
 def audits(world, action: str) -> list[AuditLog]:
     with world.Session() as s:
         return list(
-            s.scalars(sa.select(AuditLog).where(AuditLog.action == action).order_by(AuditLog.created_at))
+            s.scalars(
+                sa.select(AuditLog)
+                .where(AuditLog.action == action)
+                .order_by(AuditLog.created_at, AuditLog.id)
+            )
         )
 
 
