@@ -107,10 +107,10 @@ profile confirmation per login (`otp-and-profile`, unchanged: one login, one pro
    the super admin is never subject to an approval step or to the delegation limits — no ticket waits for
    anyone when the super admin acts, no scope or delegable-type check applies, and grants are not limited to
    functions held. What still binds the super admin: the database invariants (one super admin, one department
-   admin per department, one head per department and a department always has a head — decisions 13, 14, 15,
-   24; one membership per person per department — decision 2), the no-deletion rules (memberships ended,
-   documents archived, tickets closed, never deleted), the paths that keep records complete (head changes
-   through the head-change endpoint so the change and its order are recorded; the super admin's own
+   admin per department, at most one head per department — decisions 13, 14, 15; one membership per person per department — decision 2), the no-deletion rules (memberships ended,
+   documents archived, tickets closed, never deleted), the paths that keep records complete (head changes,
+   including ending a head, through the head-change endpoint so the change and its order are recorded;
+   a department is created or reactivated with a head, decision 24; the super admin's own
    replacement only from the CLI), and the audit of every action.
 
 5. **Effective functions per membership.** `functions(membership)` = the membership type's enabled matrix rows
@@ -167,7 +167,8 @@ profile confirmation per login (`otp-and-profile`, unchanged: one login, one pro
    - (owner review 2026-10-07) **`dept_head` changes only through the head-change request** (decision 15):
      the membership endpoints refuse any add or reactivation that makes a `dept_head` (409
      `use_head_change`) and any end, type change or exit of the current head's membership (409
-     `head_required`, decision 24), for every caller including the super admin; a department admin's request opens a ticket, the
+     `head_required`: the only path is the head-change endpoint, decision 24), for every caller including the
+     super admin; a department admin's request opens a ticket, the
      super admin's is applied at once and recorded. `dept_admin` stays outside every department admin's reach
      (decision 14); `super_admin` is outside the API (decision 13).
    - **End / reactivate a membership** (`users.enable_disable`): scope as above; never deleted (`is_active`,
@@ -186,7 +187,8 @@ profile confirmation per login (`otp-and-profile`, unchanged: one login, one pro
      membership to a HEALTH officer cannot reset that officer's password or disable the login. (owner review
      2026-10-07) A login with no active membership (decision 22): the super admin only. The super admin's own
      login cannot be disabled through the API (403 `super_admin_cli_only`). Disabling the login of a person
-     who is a department's head is refused (409 `head_required`; replace the head first, decision 24).
+     who is a department's head is refused (409 `head_required`; replace the head first, or — the super admin
+     only — end it through the head-change endpoint, decision 24).
    - **Grants and denies** (`users.grant`): per membership, only within the actor's scope over that membership,
      only functions the actor holds **in the acting membership** (decision 6), never on a super admin's
      membership. (owner review 2026-10-07) `admin.tickets` is never granted (decision 18).
@@ -320,22 +322,27 @@ profile confirmation per login (`otp-and-profile`, unchanged: one login, one pro
 
 15. **Head changes: exactly one head per department; a department admin requests and the super admin
     approves; the super admin changes it directly (owner review 2026-10-07; revised with the owner's answers:
-    one head, always a head, no approval for the super admin).** A partial unique index
+    one head; a department admin always keeps a head; the super admin may end it; no approval for the super
+    admin).** A partial unique index
     `ix_user_memberships_one_dept_head` (department_id) WHERE role = 'dept_head' AND is_active allows at most one
     active head per department, at the department office (400 `head_at_department` elsewhere); the services
     answer 409 `one_dept_head` and the index refuses a racing insert. Every head change goes through **`POST
     /admin/tickets/head-change`** (multipart: the request plus optional documents, decision 20); the membership
     endpoints refuse to make a head (409 `use_head_change`) or to remove one (409 `head_required`, decision 24).
     Operations (the ticket's `payload.operation`):
-    - **`set`** — only for a department with no head (a department created before this change, decision 24;
-      409 `head_exists` otherwise): the incoming head is an existing membership of the department of a
+    - **`set`** — only for a department with no head (created before this change, or headless after the super
+      admin ended its head, decision 24; 409 `head_exists` otherwise): the incoming head is an existing membership of the department of a
       delegable type (changed to `dept_head`; an ended membership of the department is reactivated as head) or a
       new membership at the department office for a person found by exact e-mail who has no active membership
       there;
     - **`replace`** — the department has a head (409 `no_head` otherwise): the incoming head as for `set`,
       plus the outgoing head's fate (decision 16), applied together;
-    - ~~**`end`**~~ — removed (owner review 2026-10-07): a department always has a head, so a head leaves only by
-      `replace`.
+    - **`end`** — **super admin only** (403 `super_admin_only` for anyone else; owner review 2026-10-07, restored
+      after a short removal): the department has a head (409 `no_head` otherwise); the outgoing head's fate
+      (decision 16: `retype` or per-item `exit`) as in a replace; applied at once and recorded as an approved
+      ticket like the super admin's other changes; the department is then headless (decision 24).
+    A department admin can only `set` (when there is no head) or `replace`: nothing they request may leave the
+    department headless.
     **Department admin:** the request comes from a membership holding **`users.propose_head`** (decision 18) in
     that department and opens a ticket. Rules checked at request and again at approval: the requester never
     touches a `dept_admin` or `super_admin` membership (403 `not_delegable` — so a department admin cannot
@@ -351,14 +358,14 @@ profile confirmation per login (`otp-and-profile`, unchanged: one login, one pro
     while a department admin's ticket is open closes that ticket as `rejected` with the remark "superseded by
     the super admin's change <TKT ref>".
     Either way the outgoing change is applied first and then the incoming one, in one transaction (so the
-    one-head index holds at every statement and the department is never left without a head).
+    one-head index holds at every statement and a `replace` never leaves the department without a head).
     ~~Heads are not limited in number~~ (the flag is withdrawn: the owner set one head per department).
     Alternative: proposals through the membership endpoints with 202 (an earlier revision) — replaced: the
     request must carry its documents (multipart) and names two memberships (incoming and outgoing), which a
     single-membership endpoint expresses badly.
 
 16. **The outgoing head's fate is part of the replacement (owner review 2026-10-07; revised with the owner's
-    answers).** A `replace` request states, in `payload.outgoing`, one of:
+    answers).** A `replace` request, and the super admin's `end`, states in `payload.outgoing` one of:
     - (a) **`retype`** — the outgoing head's membership changes from `dept_head` to `dept_officer` (default) or
       another delegable type (`role_to`; never `dept_admin`). The person stays in the department and keeps their
       allotments and files (their membership is still active and an eligible officer); nothing moves
@@ -461,7 +468,7 @@ profile confirmation per login (`otp-and-profile`, unchanged: one login, one pro
 
 21. **The exit step: the department admin reassigns every item, one by one (owner review 2026-10-07,
     revised the same day: no successor).** Ending a membership (`users.enable_disable`, scope as decision 8; a
-    `dept_head` only as the outgoing side of a `replace`, decisions 15–16 and 24; a `dept_admin` through the super admin's swap, decision 14) is
+    `dept_head` only as the outgoing side of a `replace` or the super admin's `end`, decisions 15–16 and 24; a `dept_admin` through the super admin's swap, decision 14) is
     possible only when every **item** of the leaving membership has a target. Items, computed by
     `memberships.exit_items` (the same function serves the preview and the end call):
     - an **allotment** item per active ownership row of that department whose `officer_user_id` is the leaving
@@ -535,45 +542,55 @@ profile confirmation per login (`otp-and-profile`, unchanged: one login, one pro
     - (owner review 2026-10-07, decision 24) `services/offices.py::create_office` and `reactivate_office`,
       `POST /admin/offices`, `POST /admin/offices/{code}/reactivate`, CLI `aslms offices create` (new options
       `--head-email`, `--head-name`, `--head-designation`, password prompted for a new login): a Department-tier
-      office needs a head; `deactivate_office` ends the head membership as described in decision 24;
+      office needs a head (creation and reactivation); `deactivate_office` is unchanged (decision 24);
       `aslms offices list --missing-head`. Tests that create Department-tier offices through the service or the
       API (`tests/db/test_offices.py`, `tests/db/test_api_offices.py`, `tests/db/test_api_access.py`) pass a
       head; `world.py` builds offices directly (no service), so its departments start without a head —
       `world.py` gives each department a head membership so the data-health count is 0 in tests, and one test
       builds a headless department on purpose for the count and for `set`.
 
-24. **A department always has a head (owner review 2026-10-07).** Every active Department-tier office
-    (`department`, `central`, `advocate_general` kinds) has exactly one active `dept_head` membership;
-    directorates and units have none (decision 15 keeps heads at the department office).
-    - **Creation:** the super admin's department creation (`POST /admin/offices` with a Department-tier kind;
-      `aslms offices create`) must name the head — an existing login by exact e-mail (with designation) or a new
-      login (e-mail, name, designation, mobile?, password; `must_confirm_profile`) — and the office and the head
-      membership are created in one transaction (400 `head_required` when missing; a login that already has an
-      active membership elsewhere is fine — it gains this one). Audit `office.created` gains the head;
-      `membership.added` and the opened-and-approved `head_change` ticket record it like any direct super admin
-      change (decision 15), so an order can be attached at creation. Reactivating a Department-tier office
-      names a head the same way. Directorates and units: unchanged, no head.
-    - **No removal by another path:** ending, retyping or exiting the current head's membership through the
-      membership endpoints, the compatibility type endpoint or the CLI is refused (409 `head_required`), also for
-      the super admin; disabling the head's login likewise (decision 8). A head leaves only by `replace`
-      (decisions 15–16). The super admin's department-admin swap (decision 14) cannot touch a head.
-    - **Deactivating a department** keeps its rule (no active members left, offices-admin): the head's
-      membership is not counted as blocking; when it is the last active membership of the department's subtree
-      and holds no items (decision 21), the deactivation ends it in the same transaction (`end_reason`
-      "department deactivated"), the only way a department loses its head; if it holds items → the existing
-      409 `office_in_use` with the counts.
+24. **A department admin always keeps a head; only the super admin may leave a department headless (owner
+    review 2026-10-07; refined: the super admin may end the head, no deactivation side effect).** A
+    Department-tier office (`department`, `central`, `advocate_general` kinds) has at most one active `dept_head`
+    membership, at the department office; directorates and units have none.
+    - **Creation and reactivation:** the super admin's department creation (`POST /admin/offices` with a
+      Department-tier kind; `aslms offices create`) must name the head — an existing login by exact e-mail (with
+      designation) or a new login (e-mail, name, designation, mobile?, password; `must_confirm_profile`) — and
+      the office and the head membership are created in one transaction (400 `head_required` when missing; a
+      login that already has an active membership elsewhere is fine — it gains this one). Audit `office.created`
+      gains the head; `membership.added` and the approved `head_change` ticket record it like any direct super
+      admin change (decision 15), so an order can be attached. Reactivating a Department-tier office names a head
+      the same way. Directorates and units: unchanged, no head.
+    - **The department admin keeps a head:** they can only `set` (no head) or `replace`; no request of theirs
+      leaves the department headless (403 `super_admin_only` on `end`).
+    - **The only path is the head-change endpoint:** ending, retyping or exiting the current head's membership
+      through the membership endpoints, the compatibility type endpoint or the CLI membership commands is refused
+      (409 `head_required`) for everyone, the super admin included; disabling the head's login likewise
+      (decision 8). The super admin's department-admin swap (decision 14) cannot touch a head.
+    - **The super admin may end the head** (`end`, decision 15), at once, recorded as an approved ticket.
+    - **Deactivating a department** needs no special path: the super admin ends the head first (`end`, with the
+      head's items retyped or exited), then deactivates as today (no active members). ~~The deactivation ends the
+      head in the same transaction~~ (withdrawn).
+    - **While a department is headless** (after the super admin's `end`, or created before this change) nothing
+      is substituted and nothing is assigned automatically: every department-wide default resolves by functions,
+      not by the head type, so it reaches whoever holds the function — `custody.track` overdue and due-soon
+      alerts (custody-workflow decision 24a) reach the department admin and any officers granted
+      `custody.track`; ownership actions (claim, allot, take over, transfer decisions) and recommendation alerts
+      reach the `dept_admin` and other holders of those functions; department reports (`reports.department`) stay
+      with their holders. No alert, report or rule is addressed to "the head" as such, so nothing is lost or
+      queued; the department admin requests a `set` (with approval) or the super admin sets a head at once.
     - **Departments created before this change** (dev data only; the database starts empty in production):
       migration 0008 does not invent heads (no fabricated data); it prints the departments without an active
-      head (`NOTICE`) and does not stop. They are fixed with the head-change `set` (decision 15) by the super
-      admin directly or by the department admin with approval, or from the CLI (`aslms users memberships add
-      --type dept_head`, which goes through the same service).
+      head (`NOTICE`) and does not stop. They are fixed with `set` by the super admin directly or by the
+      department admin with approval, or from the CLI (`aslms users memberships add --type dept_head`, which
+      goes through the same head-change service and records the ticket).
     - **Data health:** `GET /admin/tickets/counts` returns `departments_without_head` to `admin.tickets` holders
-      and `GET /admin/offices?missing_head=true` (`offices.manage`) lists them; the count is expected to be 0
-      once the dev data is fixed, and the integrator records it in the cycle report.
-    The rule is enforced by the services (a "one row exists" rule across rows cannot be a CHECK); the partial
-    unique index of decision 15 enforces "at most one". Alternative: allow a headless department for a while
-    after a head leaves — rejected by the owner ("a department must always have a head").
-
+      and `GET /admin/offices?missing_head=true` (`offices.manage`) lists them (whatever the cause); the
+      integrator records the count in the cycle report.
+    The rules are enforced by the services (a "one row exists" rule across rows cannot be a CHECK); the partial
+    unique index of decision 15 enforces "at most one". Alternative: a head is required at every moment with
+    deactivation ending it (the previous refinement) — replaced by the owner: the super admin may end a head, the
+    department admin may not.
 
 ## Data
 Migration **0008_memberships** (new file; 0001–0007 are applied and untouched; the feature branch's
@@ -654,7 +671,7 @@ restores `alerts.case_id` NOT NULL and recreates `doc_kind` without `admin` (ren
   assignments?, items_fingerprint?)` (decision 14); `replace_super_admin(session, *, email, name, designation, password)` (CLI only,
   decision 13). Unique violations on the new indexes map to 409 with the same codes.
 - `services/tickets.py` (new, owner review 2026-10-07): `KINDS` registry (decision 17) with `HeadChange`
-  (`validate` → a pydantic `HeadChangePayload`: operation `set` / `replace` (`end` removed), department_code,
+  (`validate` → a pydantic `HeadChangePayload`: operation `set` / `replace` / `end` (super admin only), department_code,
   incoming {membership_id | email, designation, designation_id; role_from}, outgoing {membership_id, mode
   `retype` (role_to) | `exit` (assignments, items_fingerprint, reason)}; `doc_types = {government_order}`;
   `check`; `apply` through `memberships` with `via_ticket`, outgoing first; `describe`);
@@ -699,7 +716,7 @@ Existing endpoints keep their paths; the changes:
 | `POST /users/{id}/memberships` | `users.create` | `{office, role, designation?, designation_id?}` | membership 201 | Decision 8; 409 `one_per_department`, `super_admin_single`, `one_dept_admin`, (owner review 2026-10-07) `use_head_change` for role `dept_head`; 403 out of scope / non-delegable type / `super_admin_cli_only`. |
 | `PATCH /users/{id}/memberships/{mid}` | `users.edit` (designation) / `users.set_type` (role) | `{designation?, designation_id?, role?}` | membership | Scope over that membership's office; decision 14; (owner review 2026-10-07) 409 `use_head_change` for a type change to `dept_head`, 409 `head_required` for a type change of the current head (designation edits of a head stay here). |
 | `GET /users/{id}/memberships/{mid}/exit-preview` | `users.enable_disable` | — | `{items: [{key, kind: allotment \| file, case: {ref_no, case_no, cnr, court, owning_department, visible}, ownership_role?, pending_action?, due_date?, since?, leg_seq_no?, open_alerts}], counts: {allotments, files, drafts, open_alerts}, items_fingerprint, targets: [{membership, name, designation, office_code, role}], primary_after: membership \| null}` | (owner review 2026-10-07, revised: no successor) Decision 22; scope as ending; writes nothing. |
-| `POST /users/{id}/memberships/{mid}/end` | `users.enable_disable` | `{reason (3–500), items_fingerprint, assignments: [{key, to_membership, pending_action?, due_date?, remark? (≤ 2,000)}]}` (empty list when nothing is held) | `{membership, reassigned: [{key, kind, case_ref, to_membership}], counts: {allotments, files, notes_finalised, alerts}}` | (owner review 2026-10-07, revised: no successor) Decision 21; 409 `unassigned_items` (listing them), `stale_exit` (current items); 400 `bad_target`, `duplicate_item`; 403 `dept_admin` / `super_admin` memberships; 409 `head_required` for the current head's membership, also for the super admin (owner review 2026-10-07, decision 24). ~~409 `holds_custody`, `has_allotments`, `primary_membership`.~~ |
+| `POST /users/{id}/memberships/{mid}/end` | `users.enable_disable` | `{reason (3–500), items_fingerprint, assignments: [{key, to_membership, pending_action?, due_date?, remark? (≤ 2,000)}]}` (empty list when nothing is held) | `{membership, reassigned: [{key, kind, case_ref, to_membership}], counts: {allotments, files, notes_finalised, alerts}}` | (owner review 2026-10-07, revised: no successor) Decision 21; 409 `unassigned_items` (listing them), `stale_exit` (current items); 400 `bad_target`, `duplicate_item`; 403 `dept_admin` / `super_admin` memberships; 409 `head_required` for the current head's membership, for everyone including the super admin — the only path is the head-change endpoint (owner review 2026-10-07, decision 24). ~~409 `holds_custody`, `has_allotments`, `primary_membership`.~~ |
 | `POST /users/{id}/memberships/{mid}/reactivate` | `users.enable_disable` | — | membership | 409 `one_per_department` when another active one exists in that department; `one_dept_admin`; `use_head_change` for a `dept_head` membership. |
 | `PUT /users/{id}/primary-membership` | `users.edit` | `{membership}` | user | Decision 8. |
 | `GET /users/{id}/memberships/{mid}/permissions` | `users.view` | — | `{type_functions, overrides, effective}` | Scope over the membership. |
@@ -709,12 +726,12 @@ Existing endpoints keep their paths; the changes:
 | `PATCH /users/{id}`, `POST /users/{id}/enable|disable`, `POST /users/{id}/password` | as today | unchanged | unchanged | Scope over the **primary** membership's office (login-level); super admin only for a login with no membership; disabling the super admin → 403 `super_admin_cli_only`; (owner review 2026-10-07) disabling a head's login → 409 `head_required`. |
 | `POST /admin/offices/{code}/admins` | `users.create` (super admin) | as built | user 201 | (owner review 2026-10-07) 409 `admin_exists` when the department has an active admin. |
 | `PUT /admin/offices/{code}/admin` | `users.create` + super admin membership | `{incoming: {membership} \| {user, designation?, designation_id?} \| {email, password, full_name, designation?, designation_id?, mobile?}, outgoing: "dept_officer" \| "end", reason (3–500), items_fingerprint? and assignments? (required with `outgoing: "end"`, as the end call)}` | `{admin, outgoing: {membership, reassigned?}}` | (owner review 2026-10-07) Decision 14; 403 for anyone else; with `end`: 409 `unassigned_items`, `stale_exit` as the end call (targets are existing memberships). |
-| `POST /admin/tickets/head-change` | `users.propose_head` (in the department) or the super admin | multipart: `request` (JSON: `{department, operation: set \| replace, incoming?: {membership} \| {email, designation?, designation_id?}, outgoing?: {mode: retype, role_to?} \| {mode: exit, reason, items_fingerprint, assignments}, request_remark?}`), `files[]` optional (≤ 5; each with `doc_type` = `government_order`, `doc_date?`, `description?`) | ticket 202 (department admin) / ticket 201 already `approved` with the applied result (super admin: applied at once, no approval) | (owner review 2026-10-07) Decisions 15, 16, 20, 24; 409 `head_exists`, `no_head`, `one_dept_head`, `ticket_open`, `login_inactive`, `unassigned_items`, `stale_exit`; 403 `not_delegable`, out of scope; 413 / 415 / 422 as uploads (whole request refused). |
+| `POST /admin/tickets/head-change` | `users.propose_head` (in the department) or the super admin | multipart: `request` (JSON: `{department, operation: set \| replace \| end (super admin only), incoming?: {membership} \| {email, designation?, designation_id?}, outgoing?: {mode: retype, role_to?} \| {mode: exit, reason, items_fingerprint, assignments}, request_remark?}`), `files[]` optional (≤ 5; each with `doc_type` = `government_order`, `doc_date?`, `description?`) | ticket 202 (department admin) / ticket 201 already `approved` with the applied result (super admin: applied at once, no approval) | (owner review 2026-10-07) Decisions 15, 16, 20, 24; 403 `super_admin_only` (`end` by anyone else); 409 `head_exists`, `no_head`, `one_dept_head`, `ticket_open`, `login_inactive`, `unassigned_items`, `stale_exit`; 403 `not_delegable`, out of scope; 413 / 415 / 422 as uploads (whole request refused). |
 | `GET /admin/tickets` | `admin.tickets` or `users.propose_head` (`require_any`) | `status?` (default `open`; `all`), `kind?`, `department?`, `mine?`, `limit`, `offset` | `{items: [{ref_no, kind, status, department_code, target: {user_name, designation, role_from, role_to}, requested_by: {name, designation, office_code}, created_at, age_days, documents_count, decided_at?}], total, counts: {open, open_by_kind, oldest_open_at}}` | (owner review 2026-10-07) Oldest first; decision 18 visibility. |
 | `GET /admin/tickets/counts` | `admin.tickets` or `users.propose_head` | — | `{open, open_by_kind: {...}, open_by_department: {...}, oldest_open_at, departments_without_head?}` | For the dashboard panel; same visibility; `departments_without_head` only for `admin.tickets` holders (decision 24). |
 | `POST /admin/offices` | `offices.manage` (as built) | as built + `head` (required for a Department-tier kind): `{email, designation?, designation_id?}` for an existing login or `{email, full_name, designation?, designation_id?, mobile?, password}` for a new one, `documents?` none (attach on the recorded ticket) | office detail with `head` 201 | (owner review 2026-10-07) Decision 24; 400 `head_required`; office and head membership in one transaction. |
 | `POST /admin/offices/{code}/reactivate` | as built | + `head` for a Department-tier office | office detail | (owner review 2026-10-07) Decision 24. |
-| `POST /admin/offices/{code}/deactivate` | as built | as built | office detail | (owner review 2026-10-07) Ends the head membership in the same transaction when it is the last and holds no items (decision 24). |
+| `POST /admin/offices/{code}/deactivate` | as built | as built | office detail | (owner review 2026-10-07) Unchanged: no active members (the super admin ends the head first with the head-change `end`, decision 24). |
 | `GET /admin/offices` | as built | + `missing_head=true` | as built | (owner review 2026-10-07) Departments without an active head (decision 24). |
 | `GET /admin/tickets/{ref}` | as list | — | ticket detail: payload described, request and decision remarks, result, documents, for the super admin the outgoing membership's overrides and held counts, `can_approve`, `can_withdraw`, `can_attach` | 404 when not visible. |
 | `POST /admin/tickets/{ref}/approve` | `admin.tickets` + super admin membership | `{remark?}` (≤ 2,000) | ticket | 409 `ticket_closed`, `ticket_stale` (with reason). |
@@ -738,8 +755,8 @@ Unit (`tests/unit/`):
 - `test_membership_rules.py`: department derivation from a path; acting-membership preference order for case
   writes; union gate vs per-membership check.
 - (owner review 2026-10-07) `test_ticket_kinds.py`: every `TicketKind` member has a handler and a
-  `ref_ticket_kind` seed row; `HeadChangePayload` refuses unknown operations (including the removed `end`), `set`
-  with an outgoing part, `replace` without one, `dept_admin` / `super_admin` as `role_to`, `exit` without a complete
+  `ref_ticket_kind` seed row; `HeadChangePayload` refuses unknown operations, `set` with an outgoing part,
+  `replace` / `end` without one, `dept_admin` / `super_admin` as `role_to`, `exit` without a complete
   assignment list; `RESERVED_FUNCTIONS` contains `admin.tickets`; every kind's `doc_types` are group `internal`;
   `head_change.doc_types == {government_order}`.
 
@@ -778,7 +795,9 @@ Database (`tests/db/`; `world.py` gains a two-department person: `dept_admin` in
   insert); `replace` with `retype` → in one transaction the old head becomes `dept_officer` (keeping custody and
   allotments) and the new head is set; `replace` with `exit` → the old head's items go to their targets and the
   membership ends, the new head is set; `exit` with items changed since the preview → 409 `ticket_stale` at
-  approval, ticket still open; `replace` with no head → 409 `no_head`; an `end` operation → 400; the
+  approval, ticket still open; `replace` with no head → 409 `no_head`; `end` by the EDU admin → 403
+  `super_admin_only`; `end` by the super admin with `retype` and with `exit` → applied at once, approved ticket
+  recorded, department headless; the
   membership endpoints refuse to make a head (409 `use_head_change`) and to end, retype or exit the current head
   (409 `head_required`), also for the super admin; disabling the head's login → 409 `head_required`; the super
   admin's direct `replace` is applied at once with no approval step (an `approved` ticket recorded, no
@@ -791,9 +810,11 @@ Database (`tests/db/`; `world.py` gains a two-department person: `dept_admin` in
 - (owner review 2026-10-07) `test_department_head_required.py`: creating a Department-tier office without a
   head → 400 `head_required`; with an existing login (who keeps their other memberships) and with a new login →
   the office and the head membership exist together (a forced failure creating the membership leaves no office);
-  a directorate and a unit need no head; reactivating a department needs a head; deactivating a department whose
-  only remaining member is the head ends the head membership in the same transaction, and refuses (409
-  `office_in_use`) while the head holds items; a headless department built on purpose is counted in
+  a directorate and a unit need no head; reactivating a department needs a head; deactivating a department
+  while its head is active → the existing 409 `office_in_use`; after the super admin's `end` (and no other
+  members) → deactivated; while headless, an overdue `workflow` alert of an owned case reaches the department
+  admin and an officer granted `custody.track` and nobody is assigned anything; a headless department built on
+  purpose is counted in
   `departments_without_head` and listed by `GET /admin/offices?missing_head=true`, and `set` fixes it; the
   migration on a database with a headless department prints the notice and completes without creating rows;
   the super admin is not stopped by `not_delegable` (makes the department admin's membership the head, the
@@ -872,7 +893,9 @@ Database (`tests/db/`; `world.py` gains a two-department person: `dept_admin` in
    with a new person and `outgoing=dept_officer` → one EDU admin; `docker compose run --rm api aslms users
    create-super-admin …` → refused. As the super admin `POST /admin/offices` for a new department `TST` without
    `head` → 400 `head_required`, with `head` → 201 and the head's `/me` lists the `TST` membership; `POST
-   /users/{id}/memberships/{mid}/end` on that head → 409 `head_required`.
+   /users/{id}/memberships/{mid}/end` on that head → 409 `head_required`; as the TST admin a head-change `end` →
+   403 `super_admin_only`; as the super admin `end` (`retype`) → 201, `departments_without_head` rises by one,
+   then `POST /admin/offices/TST/deactivate` once no members remain → 200.
 6. (owner review 2026-10-07, revised: no successor) With two claimed EDU cases allotted to an EDU officer who
    holds both files: as the EDU admin `GET /users/{id}/memberships/{mid}/exit-preview` → 4 items and a
    fingerprint; `POST …/end` with three assignments → 409 `unassigned_items` naming the fourth; with all four
@@ -881,8 +904,9 @@ Database (`tests/db/`; `world.py` gains a two-department person: `dept_admin` in
    legs, `audit_log` has one `membership.exit` row listing the four items and their targets.
 
 ## Open questions
-None. Settled by the owner's answers (owner review 2026-10-07): one head per department and always a head,
-named when the department is created (15, 24); the super admin changes the head at once, with no approval, and
+None. Settled by the owner's answers (owner review 2026-10-07): one head per department, named when the
+department is created or reactivated; a department admin always keeps a head; only the super admin may end
+one (15, 24); the super admin changes the head at once, with no approval, and
 is never subject to approval or delegation limits (4, 15); the outgoing head's fate stated in the replacement,
 retype or per-item exit (16); `normal` severity for new tickets (19); the
 order uploaded with the request, attachable only while open (20). Points the owner is asked to check at
@@ -895,9 +919,10 @@ approval (decisions taken, reversible):
   e-mail; login-level actions (password, disable) stay with the primary office's admins (8);
 - `GET /inbox/counts` changes shape to one block per department (API table);
 - (owner review 2026-10-07) up to 5 files per head-change request, `government_order` only (20);
-- (owner review 2026-10-07) deactivating a department ends its head membership when it is the last member and
-  holds no items (24); a super admin's direct head change closes an open department-admin ticket as superseded
-  (15);
+- (owner review 2026-10-07) a super admin's direct head change closes an open department-admin ticket as
+  superseded (15);
+- (owner review 2026-10-07) while a department is headless, department-wide defaults reach the function
+  holders (department admin, granted `custody.track` holders); nothing is substituted (24);
 - (owner review 2026-10-07) the replaced super admin's login is disabled (13);
 - (owner review 2026-10-07, revised) no successor: every allotted case and held file gets a target chosen by
   the admin, one by one; the exit is refused until all have one (21);
