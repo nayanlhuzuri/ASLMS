@@ -2,11 +2,11 @@
 
 ```
 slug: user-memberships
-status: awaiting-approval
+status: approved
 author: architect
 date: 2026-10-07 (revised the same day with the owner's review: head changes with a second-level check,
       the admin ticket queue, the government order, one super admin and one department admin, the exit step)
-approved_by: — (awaiting the product owner)
+approved_by: product owner (nayan.semt@gmail.com) on 2026-10-07
 ```
 
 ## Context

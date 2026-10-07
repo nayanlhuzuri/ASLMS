@@ -2,10 +2,10 @@
 
 ```
 slug: custody-workflow
-status: awaiting-approval
+status: approved
 author: architect
 date: 2026-10-07
-approved_by: — (revision of 7 Oct 2026 awaiting the product owner; the first version was approved on 2026-10-07 and is superseded)
+approved_by: product owner (nayan.semt@gmail.com) on 2026-10-07
 ```
 
 ## Context

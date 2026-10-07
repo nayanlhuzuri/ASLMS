@@ -792,4 +792,5 @@ after nested requests). Reviewing it, the owner set these rules, which replace t
   department head (seniormost officer) and the department admin by default; the department admin grants it to
   any officer of the department, the super admin to anybody. Holders receive the department's due-soon and
   overdue alerts and see the department's pending and overdue files and counts, wherever the files are held.
-
+- 2026-10-07 — user-memberships: approved by the owner after review (single super admin and department admin, one head with super-admin approval of changes, admin tickets, government order, per-item exit; docs/design/user-memberships.md)
+- 2026-10-07 — custody-workflow (revised): approved by the owner after review (send the file to any officer, chain, recall and tracking as granted functions, draft notes; docs/design/custody-workflow.md)
