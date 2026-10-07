@@ -41,8 +41,11 @@ there is no request object. Plan §5.8 "notes cannot be edited or deleted" gains
 - Alerts: `workflow` kind now covers file received, file recalled and due / overdue; `request_due` retired
   (decision 23).
 - (owner review 2026-10-07, from `user-memberships` decisions 21–22) When an officer leaves a department, the
-  exit step hands the files they hold to a successor with a leg of the new reason **`reassigned_on_exit`**;
-  `move_custody` finalises their drafts as for any holder change (decision 13).
+  department admin assigns each file they hold to an officer of the department, one by one (no successor;
+  the exit is refused until every file and allotment has a target), and each file gets a leg of the new reason
+  **`reassigned_on_exit`** to its own target, with the pending action and due date carried over unless the admin
+  changes them; `move_custody` finalises the leaver's drafts as for any holder change (decision 13). Files can
+  also be moved before the exit with the ordinary recall and send.
 - Migration renumbered **0009_workflow** (0008 is `user-memberships`); the feature branch's `0008_workflow` was
   never applied to `main` and is not used.
 - Kept, adapted: stages, note kinds, corrections, note visibility, attachments with type check and ClamAV,

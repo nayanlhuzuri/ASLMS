@@ -26,8 +26,9 @@ first (backlog row 28, placed above row 6).
    the decision, and stays findable on the membership it authorised.
 4. Exactly one super admin in the system and exactly one department admin per department ("creating too many
    admins loses the purpose of admin roles"), enforced in the database and the services.
-5. When an officer is transferred out of a department, their allotted cases and the files they hold go to a
-   successor named by the department admin, in one step, after a preview.
+5. When an officer is transferred out of a department, the department admin reassigns each of their allotted
+   cases and held files to an officer of the department (no successor; revised the same day), after a preview;
+   the exit completes in one step once every item has a target.
 
 **Deviation from the plan, set by the owner (flagged):** the plan's Table 1 and §5.1 give each user one type and
 one office; schema.md `users` says "One type (role) per user". This item replaces that with memberships. **Further
@@ -161,9 +162,9 @@ profile confirmation per login (`otp-and-profile`, unchanged: one login, one pro
      `deactivated_at`, `valid_to`). ~~Ending is refused while the membership holds custody personally (409
      `holds_custody`) or is the allotted officer of an active ownership row (409 `has_allotments`); the primary
      membership cannot be ended (409 `primary_membership`).~~ (owner review 2026-10-07) **Replaced by the exit
-     step (decisions 21–22):** ending a membership that holds files or allotments hands them to a successor in
-     the same transaction; ending the primary membership passes the primary flag to another active membership,
-     or leaves the login without one. Ending or reactivating a `dept_head` membership by a department admin is a
+     step (decisions 21–22):** ending a membership that holds files or allotments needs a target officer for
+     each of them, chosen by the admin and applied in the same transaction (no successor); ending the primary membership passes
+     the primary flag to another active membership, or leaves the login without one. Ending or reactivating a `dept_head` membership by a department admin is a
      `head_change` ticket (decision 15); a `dept_admin` membership only through the super admin's swap
      (decision 14); a `super_admin` membership never through the API (decision 13).
    - **Make another membership primary** (`users.edit`): the super admin, or an actor whose scope contains both
@@ -257,7 +258,7 @@ profile confirmation per login (`otp-and-profile`, unchanged: one login, one pro
     e-mail is sent for membership changes (the owner may ask for one later). (owner review 2026-10-07) Added
     audit actions: `ticket.opened`, `ticket.approved`, `ticket.rejected`, `ticket.withdrawn`,
     `ticket.approve_refused` (stale proposal, decision 17), `ticket.document_attached`,
-    `ticket.document_archived`, `membership.exit` (decision 21, with counts and case ids),
+    `ticket.document_archived`, `membership.exit` (decision 21, every item with its target, and the counts),
     `ownership.reallotted_on_exit` (one per case), `office.admin_replaced` (decision 14),
     `membership.super_admin_replaced` (decision 13); `membership.added` / `membership.updated` carry `ticket_ref`
     in `after` when a ticket authorised them. One new alert kind, `admin_ticket` (decision 19). No new event
@@ -291,12 +292,13 @@ profile confirmation per login (`otp-and-profile`, unchanged: one login, one pro
       is active) or by adding / changing a membership (409 `one_dept_admin` when one is active);
     - replaces the admin only through **`PUT /admin/offices/{code}/admin`** — one transaction: lock the current
       admin membership; apply the outgoing choice first — `dept_officer` (default; the person stays in the
-      department, keeping custody and allotments) or `end` (the exit step of decision 21, successor default =
-      the incoming admin); then make the incoming admin: an existing membership of the department changed to
+      department, keeping custody and allotments) or `end` (the per-item exit of decision 21, done by the super admin with
+      an assignment for every item to existing memberships of the department; to give items to a brand-new
+      incoming admin, the super admin first swaps with `dept_officer` and then exits the old admin); then make the incoming admin: an existing membership of the department changed to
       `dept_admin` (its office must be the department office — else it is ended and re-added there in the same
       step), or a new membership for an existing login found by exact e-mail, or a new login with its first
       membership (the `add_department_admin` fields); audit `office.admin_replaced` (before/after: user ids,
-      membership ids, outgoing choice, counts handed over) plus the membership audits; `user_updated` events.
+      membership ids, outgoing choice, the exit's items and targets) plus the membership audits; `user_updated` events.
     A department may be left without an admin only by ending the admin with no replacement, which only the
     super admin can do (decision 8). Alternative: allow several admins and let the super admin decide —
     rejected by the owner. Alternative: let the outgoing admin hand over — rejected: the owner said only the
@@ -311,8 +313,9 @@ profile confirmation per login (`otp-and-profile`, unchanged: one login, one pro
     - `set_type` — an existing membership of the department changed **to** `dept_head` (from a delegable type)
       or **from** `dept_head` (to a delegable type);
     - `replace` — `set_type` or `add` for the incoming head together with the named outgoing head (decision 16);
-    - `end` — a `dept_head` membership ended through the exit step (decision 21) with its successor named in
-      the proposal.
+    - `end` — a `dept_head` membership ended through the exit step (decision 21) with the full item
+      assignment and `items_fingerprint` in the proposal; at approval a changed item set makes the ticket
+      stale (409 `ticket_stale`) and the admin proposes again.
     Rules checked at proposal and again at approval: the target office is the department office (a head heads
     the department: 400 `head_at_department`); the proposer never touches a `dept_admin` or `super_admin`
     membership (403 `not_delegable` — so a department admin cannot propose themselves); the target login is
@@ -413,44 +416,61 @@ profile confirmation per login (`otp-and-profile`, unchanged: one login, one pro
     placeholder case — rejected (fabricated record). Alternative: a `ticket_id` column on `documents` —
     rejected: one order may authorise several memberships and later kinds; link tables keep `documents` generic.
 
-21. **The exit step: a transferred officer hands over to a successor (owner review 2026-10-07).** Ending a
-    membership (`users.enable_disable`, scope as decision 8; a `dept_head` through a ticket, decision 15; a
-    `dept_admin` through the swap, decision 14) names a **successor**: an active membership of an active login
-    in the **same department**, not the leaving one, of an officer type (`eligible_officer`); default = the
-    acting department admin's own membership (for the super admin: the department's admin membership; none →
-    400 `successor_required` when anything is held). In one transaction, under the membership row lock and then
-    each case row lock in case-id order:
-    - **allotments** — every active ownership row of that department whose `officer_user_id` is the leaving
-      person is re-allotted to the successor (`ownership.reallot_on_exit`; the officer field only, no `allotted`
-      custody leg); event `allotted` (`on_exit: true`), audit `ownership.reallotted_on_exit` per case;
-    - **files held** — every custody row whose holder is the leaving membership (before `custody-workflow`'s
-      0009: `holder_user_id` = the person and `holder_office_id` in the department's subtree; after it:
-      `holder_membership_id`) gets one leg, reason **`reassigned_on_exit`**, holder = the successor membership,
-      pending action and due date carried over, remark "Reassigned on the transfer of <name, designation> out of
-      <department>: <reason>"; this covers files of other departments' cases sent to the leaver — they stay
-      with the leaver's department, as the sender chose it;
+21. **The exit step: the department admin reassigns every item, one by one (owner review 2026-10-07,
+    revised the same day: no successor).** Ending a membership (`users.enable_disable`, scope as decision 8; a
+    `dept_head` through a ticket, decision 15; a `dept_admin` through the super admin's swap, decision 14) is
+    possible only when every **item** of the leaving membership has a target. Items, computed by
+    `memberships.exit_items` (the same function serves the preview and the end call):
+    - an **allotment** item per active ownership row of that department whose `officer_user_id` is the leaving
+      person (key: ownership row id);
+    - a **file** item per custody row whose holder is the leaving membership (before `custody-workflow`'s 0009:
+      `holder_user_id` = the person and `holder_office_id` in the department's subtree; after it:
+      `holder_membership_id`; key: case id + current leg id). This includes files of other departments' cases
+      sent to the leaver: they stay with the leaver's department, as the sender chose it. A case allotted to and
+      held by the leaver gives two items, which may go to different officers.
+    The admin submits an **assignment for each item**: target = an active membership of an active login in the
+    **same department**, not the leaving one, of an officer type (`eligible_officer`); one target per item;
+    different items may go to different officers; for a file item, `pending_action` and `due_date` carry over
+    unless the assignment changes them (same validation as a send: not `none`, today IST to 365 days ahead),
+    with an optional per-item remark. There is **no default and no successor**: the admin decides each case.
+    The end call carries the full list and the preview's `items_fingerprint` (SHA-256 of the sorted item keys).
+    Under the membership row lock it recomputes the items and refuses, before anything is written, with
+    **409 `stale_exit`** (the current items in the body) when the fingerprint differs or an assignment names an
+    item that is no longer there; with **409 `unassigned_items`** (listing them) when any allotted case or held
+    file has no assignment; with 400 `bad_target` / `duplicate_item` (per item) for a wrong target or a doubled
+    item. Then, in one transaction, taking each case row lock in case-id order:
+    - **allotment items** — re-allotted to their targets (`ownership.reallot_on_exit`; the officer field only, no
+      `allotted` custody leg); event `allotted` (`on_exit: true`), audit `ownership.reallotted_on_exit` per case;
+    - **file items** — one leg each, reason **`reassigned_on_exit`**, holder = the item's target membership,
+      pending action and due date as carried or changed, remark "Reassigned on the transfer of <name,
+      designation> out of <department>: <item remark, else the exit reason>";
     - **drafts** — the leaver's draft notes on those cases become permanent in that move (`custody-workflow`
       decision 13, called by `move_custody` whenever the holder membership changes — nothing extra here);
     - **open alerts** — open or acknowledged alerts on those cases addressed to an office of the department
-      for which the leaver was notified: the successor is notified (`notifications.notify` at the alert's
-      severity); an alert the leaver had acknowledged goes back to `open`; the leaver's notification rows stay
-      as the record;
-    - the membership is ended (`valid_to`, reason) and, if primary, decision 22 applies; one
-      `membership.exit` audit row lists the counts (allotments, files, notes finalised, alerts) and the case ids.
-    The person's login and their memberships in other departments are untouched; the new department's admin adds
-    their new membership (decision 8). If any step fails, nothing changes. **Owner check:** one successor per
-    exit — the admin then spreads the cases with ordinary allot and send; splitting among several officers in
-    the exit dialog could come later. Alternative: refuse the exit until the admin has moved everything by hand
-    (the earlier rule) — rejected by the owner's question: the admin removing the user must be able to finish
-    in one step.
+      for which the leaver was notified: each target of an item on that case is notified
+      (`notifications.notify` at the alert's severity); an alert the leaver had acknowledged goes back to
+      `open`; the leaver's notification rows stay as the record;
+    - the membership is ended (`valid_to`, `end_reason`) and, if primary, decision 22 applies; one
+      `membership.exit` audit row lists every item with its target (item kind, case id, target membership id;
+      for files the pending action and due date before / after) and the counts (allotments, files, notes
+      finalised, alerts).
+    **Reassigning ahead:** the admin may move items before the exit with the ordinary actions — allot
+    (`cases.allot`) for allotments; recall (`custody.recall`) and send for files — so fewer items remain at
+    exit; a membership with no items is ended with an empty list. The person's login and their memberships in
+    other departments are untouched; the new department's admin adds their new membership (decision 8). If any
+    step fails, nothing changes. Alternative: one successor for everything (the previous revision) — rejected
+    by the owner: the admin decides which case goes to which officer. Alternative: refuse the exit until every
+    item was moved by hand — rejected: once each item has a target, the admin finishes in one step.
 
-22. **Exit preview, the primary flag and the login after an exit (owner review 2026-10-07).**
-    `GET /users/{id}/memberships/{mid}/exit-preview` (same function and scope as ending) returns the counts and
-    lists (allotted cases; files held with pending action, due date, since; drafts after `custody-workflow`;
-    open alerts) and the default successor; cases not otherwise visible to the admin (files of other
-    departments' cases) are listed with searchable facts only (case number, CNR, court, owning department),
-    as `custody/sent` does. The preview is advisory: the end call recomputes under the locks. When the ended
-    membership is the primary one, the oldest other active membership becomes primary (mirror rewritten,
+22. **Exit preview, the primary flag and the login after an exit (owner review 2026-10-07, revised: no
+    successor).** `GET /users/{id}/memberships/{mid}/exit-preview` (same function and scope as ending) returns
+    every item — allotments (case, ownership role) and held files (case, pending action, due date, since, leg
+    seq no) — with its key, the counts, the drafts count (after `custody-workflow`), the open alerts per case,
+    the `items_fingerprint`, and the eligible target memberships of the department (name, designation, office,
+    type) for the picker. Cases not otherwise visible to the admin (files of other departments' cases) are
+    listed with searchable facts only (case number, CNR, court, owning department), as `custody/sent` does. The
+    preview writes nothing; the end call recomputes under the locks (decision 21). When the ended membership is
+    the primary one, the oldest other active membership becomes primary (mirror rewritten,
     `membership.primary_changed`); when it was the last, the login stays active with no membership — it signs
     in, sees nothing and holds no function (`/me` shows an empty list) until a department admin adds a
     membership, which becomes primary. Alternative: disable the login on its last exit — rejected: a transfer
@@ -535,20 +555,20 @@ restores `alerts.case_id` NOT NULL and recreates `doc_kind` without `admin` (ren
 
 ## Services
 - `services/memberships.py` (new): `add(session, actor, member, user, *, office, role, designation,
-  designation_id)`, `update(..., designation?, designation_id?, role?)`, `end(..., reason, successor?)`,
+  designation_id)`, `update(..., designation?, designation_id?, role?)`, `end(..., reason, assignments, items_fingerprint)`,
   `reactivate`, `make_primary`, `lookup(session, email)`, `membership_out`; each checks decision 8 with the
   acting member, writes the mirror (decision 3), audit (decision 12) and the `user_updated` event. (owner
   review 2026-10-07) `add` / `update` / `end` / `reactivate` route `dept_head` changes by a non-super-admin to
   `tickets.open_head_change` and return the ticket (decision 15); enforce decisions 13–14 (409
-  `super_admin_single`, `one_dept_admin`, 403 `super_admin_cli_only`, `not_delegable`); `exit_preview(session,
-  member, membership)` and the exit inside `end` (decisions 21–22, membership lock then case locks in id
+  `super_admin_single`, `one_dept_admin`, 403 `super_admin_cli_only`, `not_delegable`); `exit_items`, `exit_preview(session,
+  member, membership)` and the per-item exit inside `end` (decisions 21–22, membership lock then case locks in id
   order); `replace_department_admin(session, actor, member, department, *, incoming, outgoing, reason,
-  successor?)` (decision 14); `replace_super_admin(session, *, email, name, designation, password)` (CLI only,
+  assignments?, items_fingerprint?)` (decision 14); `replace_super_admin(session, *, email, name, designation, password)` (CLI only,
   decision 13). Unique violations on the new indexes map to 409 with the same codes.
 - `services/tickets.py` (new, owner review 2026-10-07): `KINDS` registry (decision 17) with `HeadChange`
   (`validate` → a pydantic `HeadChangePayload`: operation, department_code, office_code, user_id, user_email,
   user_name, membership_id, role_from, role_to, designation, designation_id, outgoing {membership_id, user_id,
-  user_name, designation, role_to}, successor_membership_id, end_reason; `check`; `apply` through
+  user_name, designation, role_to}, assignments, items_fingerprint, end_reason; `check`; `apply` through
   `memberships` with `via_ticket`; `describe`); `open_head_change(session, actor, member, payload,
   request_remark)` (allocates `TKT`, raises the "opened" alert, audit `ticket.opened`); `approve(session,
   actor, member, ticket, remark?)`; `reject(..., remark)`; `withdraw(session, actor, member, ticket, remark?)`;
@@ -575,7 +595,7 @@ restores `alerts.case_id` NOT NULL and recreates `doc_kind` without `admin` (ren
 - `api/deps.py`: decision 10; a helper `member_for(request, session, user, *, department=None, office=None,
   case=None, permission)` that routers call to resolve decision 6 and map failures to 403 / 400.
 - CLI (owner review 2026-10-07): `aslms users replace-super-admin`; `create-super-admin` refuses when one
-  exists; `aslms users memberships end --successor <membership id>` runs the exit step.
+  exists; `aslms users memberships end --assignments <json file>` runs the per-item exit.
 
 ## API
 Existing endpoints keep their paths; the changes:
@@ -588,8 +608,8 @@ Existing endpoints keep their paths; the changes:
 | `GET /users/lookup` | `users.create` | `email` (exact) | `{id, full_name, memberships: [{office_code, designation, role}]}` or 404 | For adding a membership to a person outside the actor's scope. |
 | `POST /users/{id}/memberships` | `users.create` (role `dept_head` by a non-super-admin: `users.propose_head`) | `{office, role, designation?, designation_id?, request_remark?, replace_head_membership?, outgoing_role?}` | membership 201, or **ticket 202** for a `dept_head` proposal | Decision 8; 409 `one_per_department`, `super_admin_single`, `one_dept_admin`, `ticket_open`; 403 out of scope / non-delegable type / `super_admin_cli_only`. (owner review 2026-10-07) |
 | `PATCH /users/{id}/memberships/{mid}` | `users.edit` (designation) / `users.set_type` (role; to or from `dept_head` by a non-super-admin: `users.propose_head`) | `{designation?, designation_id?, role?, request_remark?, replace_head_membership?, outgoing_role?}` | membership, or **ticket 202** | Scope over that membership's office; decisions 14–16. |
-| `GET /users/{id}/memberships/{mid}/exit-preview` | `users.enable_disable` | — | `{allotments: {count, cases: [...]}, files_held: {count, cases: [{case, pending_action, due_date, since}]}, drafts: {count}, open_alerts: {count}, default_successor: membership \| null, primary_after: membership \| null}` | (owner review 2026-10-07) Decision 22; scope as ending. |
-| `POST /users/{id}/memberships/{mid}/end` | `users.enable_disable` (a `dept_head` by a non-super-admin: `users.propose_head`, ticket 202) | `{reason}` (3–500), `successor_membership?` | `{membership, handed_over: {allotments, files, notes_finalised, alerts}, successor}` | (owner review 2026-10-07) Decision 21; 400 `successor_required`, `bad_successor`; 403 `dept_admin` / `super_admin` memberships. ~~409 `holds_custody`, `has_allotments`, `primary_membership`.~~ |
+| `GET /users/{id}/memberships/{mid}/exit-preview` | `users.enable_disable` | — | `{items: [{key, kind: allotment \| file, case: {ref_no, case_no, cnr, court, owning_department, visible}, ownership_role?, pending_action?, due_date?, since?, leg_seq_no?, open_alerts}], counts: {allotments, files, drafts, open_alerts}, items_fingerprint, targets: [{membership, name, designation, office_code, role}], primary_after: membership \| null}` | (owner review 2026-10-07, revised: no successor) Decision 22; scope as ending; writes nothing. |
+| `POST /users/{id}/memberships/{mid}/end` | `users.enable_disable` (a `dept_head` by a non-super-admin: `users.propose_head`, ticket 202) | `{reason (3–500), items_fingerprint, assignments: [{key, to_membership, pending_action?, due_date?, remark? (≤ 2,000)}]}` (empty list when nothing is held) | `{membership, reassigned: [{key, kind, case_ref, to_membership}], counts: {allotments, files, notes_finalised, alerts}}` | (owner review 2026-10-07, revised: no successor) Decision 21; 409 `unassigned_items` (listing them), `stale_exit` (current items); 400 `bad_target`, `duplicate_item`; 403 `dept_admin` / `super_admin` memberships. ~~409 `holds_custody`, `has_allotments`, `primary_membership`.~~ |
 | `POST /users/{id}/memberships/{mid}/reactivate` | `users.enable_disable` | — | membership | 409 `one_per_department` when another active one exists in that department; `one_dept_admin`; a `dept_head` by a non-super-admin → ticket 202. |
 | `PUT /users/{id}/primary-membership` | `users.edit` | `{membership}` | user | Decision 8. |
 | `GET /users/{id}/memberships/{mid}/permissions` | `users.view` | — | `{type_functions, overrides, effective}` | Scope over the membership. |
@@ -598,7 +618,7 @@ Existing endpoints keep their paths; the changes:
 | `PUT /users/{id}/type`, `GET/PUT /users/{id}/permissions…` | as today | unchanged | unchanged | Kept for compatibility: act on the **primary** membership (same routing to tickets and limits). |
 | `PATCH /users/{id}`, `POST /users/{id}/enable|disable`, `POST /users/{id}/password` | as today | unchanged | unchanged | Scope over the **primary** membership's office (login-level); super admin only for a login with no membership; disabling the super admin → 403 `super_admin_cli_only`. |
 | `POST /admin/offices/{code}/admins` | `users.create` (super admin) | as built | user 201 | (owner review 2026-10-07) 409 `admin_exists` when the department has an active admin. |
-| `PUT /admin/offices/{code}/admin` | `users.create` + super admin membership | `{incoming: {membership} \| {user, designation?, designation_id?} \| {email, password, full_name, designation?, designation_id?, mobile?}, outgoing: "dept_officer" \| "end", reason (3–500), successor_membership?}` | `{admin, outgoing: {membership, handed_over?}}` | (owner review 2026-10-07) Decision 14; 403 for anyone else; 409 `ticket_open` never applies (not a ticket). |
+| `PUT /admin/offices/{code}/admin` | `users.create` + super admin membership | `{incoming: {membership} \| {user, designation?, designation_id?} \| {email, password, full_name, designation?, designation_id?, mobile?}, outgoing: "dept_officer" \| "end", reason (3–500), items_fingerprint? and assignments? (required with `outgoing: "end"`, as the end call)}` | `{admin, outgoing: {membership, reassigned?}}` | (owner review 2026-10-07) Decision 14; 403 for anyone else; with `end`: 409 `unassigned_items`, `stale_exit` as the end call (targets are existing memberships). |
 | `GET /admin/tickets` | `admin.tickets` or `users.propose_head` (`require_any`) | `status?` (default `open`; `all`), `kind?`, `department?`, `mine?`, `limit`, `offset` | `{items: [{ref_no, kind, status, department_code, target: {user_name, designation, role_from, role_to}, requested_by: {name, designation, office_code}, created_at, age_days, documents_count, decided_at?}], total, counts: {open, open_by_kind, oldest_open_at}}` | (owner review 2026-10-07) Oldest first; decision 18 visibility. |
 | `GET /admin/tickets/counts` | `admin.tickets` or `users.propose_head` | — | `{open, open_by_kind: {...}, open_by_department: {...}, oldest_open_at}` | For the dashboard panel; same visibility. |
 | `GET /admin/tickets/{ref}` | as list | — | ticket detail: payload described, request and decision remarks, result, documents, for the super admin the outgoing membership's overrides and held counts, `can_approve`, `can_withdraw`, `can_attach` | 404 when not visible. |
@@ -624,7 +644,7 @@ Unit (`tests/unit/`):
   writes; union gate vs per-membership check.
 - (owner review 2026-10-07) `test_ticket_kinds.py`: every `TicketKind` member has a handler and a
   `ref_ticket_kind` seed row; `HeadChangePayload` refuses unknown operations, `dept_admin` / `super_admin` as
-  `role_to` or `outgoing_role`, `end` without a successor; `RESERVED_FUNCTIONS` contains `admin.tickets`;
+  `role_to` or `outgoing_role`, `end` without a complete assignment list; `RESERVED_FUNCTIONS` contains `admin.tickets`;
   `ADMIN_DOC_TYPES` are all group `internal`.
 
 Database (`tests/db/`; `world.py` gains a two-department person: `dept_admin` in EDU, `dept_officer` in HEALTH):
@@ -676,16 +696,22 @@ Database (`tests/db/`; `world.py` gains a two-department person: `dept_admin` in
   readable by the super admin and the EDU admin, 404 for an EDU officer and the HEALTH admin;
   `GET /users/{id}/memberships/{mid}/documents` lists it after approval; a case upload with `government_order`
   → 400; duplicate on one ticket → 409; archive keeps the link.
-- (owner review 2026-10-07) `test_membership_exit.py`: preview lists allotments, files held (including a
-  HEALTH-held file of an EDU case, with facts only) and alerts; ending with a successor re-allots every
-  allotment (officer field; no `allotted` leg), writes one `reassigned_on_exit` leg per file held with pending
-  action and due date carried and the remark, notifies the successor of open alerts and reopens alerts the
-  leaver had acknowledged, writes `membership.exit` with counts and ids — all in one transaction (a forced
-  failure on the last case leaves everything unchanged); default successor = the acting admin; successor in
-  another department, ended or State-wide → 400; nothing held → no successor needed; ending the primary passes
-  the flag to the oldest other membership (mirror rewritten); ending the last membership leaves an active login
-  with no functions, and a department admin can then add a membership that becomes primary; the person's
-  HEALTH membership untouched by an EDU exit. After `custody-workflow` lands, its suite adds: the leaver's
+- (owner review 2026-10-07, revised: no successor) `test_membership_exit.py`: the preview lists every
+  allotment and every held file as items (a HEALTH-held file of an EDU case with facts only; a case both allotted
+  to and held by the leaver as two items), the eligible targets and a fingerprint; the end call with every item
+  assigned to different officers re-allots each allotment to its own target (officer field; no `allotted`
+  leg), writes one `reassigned_on_exit` leg per file to its target with pending action and due date carried, or
+  changed where the assignment says, and the remark, notifies each item's target of the case's open alerts and
+  reopens alerts the leaver had acknowledged, writes one `membership.exit` row listing every item and its target
+  — all in one transaction (a forced failure on the last item leaves everything unchanged); a missing item → 409
+  `unassigned_items` naming it, nothing written; an item allotted elsewhere by the admin after the preview → 409
+  `stale_exit` with the current items; a target in another department, ended, State-wide or the leaver → 400
+  `bad_target`; the same item twice → 400 `duplicate_item`; items reassigned ahead with allot and recall + send
+  disappear from the preview; nothing held → ended with an empty list; ending the primary passes the flag to the
+  oldest other membership (mirror rewritten); ending the last membership leaves an active login with no
+  functions, and a department admin can then add a membership that becomes primary; the person's HEALTH
+  membership untouched by an EDU exit; the super admin's swap with `outgoing=end` requires the same full list.
+  After `custody-workflow` lands, its suite adds: the leaver's
   drafts on those cases become permanent in the exit.
 - `test_api_memberships.py`: each endpoint's function check (403), scope errors, shapes; `/me` lists memberships
   with per-membership functions and the union; `inbox/counts` returns a block per department; ownership
@@ -712,7 +738,7 @@ Database (`tests/db/`; `world.py` gains a two-department person: `dept_admin` in
    sign in as the person: `GET /me` shows two memberships; `GET /inbox/counts` shows EDU and HEALTH blocks;
    `POST /cases/{ref}/allot` on a HEALTH-owned case → 403.
 4. As the HEALTH admin `POST /users/{id}/password` → 403; `POST /users/{id}/memberships/{mid}/end` (nothing
-   held, no successor needed) → 200; the person's `/me` lists one membership.
+   held: empty assignment list) → 200; the person's `/me` lists one membership.
 5. (owner review 2026-10-07) As the EDU admin `PATCH /users/{id}/memberships/{mid}` with `role=dept_head` for
    an EDU officer → 202 with `ASLMS/EDU/TKT/2026/000001`; the officer's `/me` still says `dept_officer`;
    `POST /admin/tickets/{ref}/documents` with a PDF → 201; as the super admin `GET /admin/tickets/counts` →
@@ -721,10 +747,12 @@ Database (`tests/db/`; `world.py` gains a two-department person: `dept_admin` in
    `GET /users/{id}/memberships/{mid}/documents` lists the order; a second `POST /admin/offices/EDU/admins` →
    409 `admin_exists`; `PUT /admin/offices/EDU/admin` with a new person and `outgoing=dept_officer` → one
    EDU admin; `docker compose run --rm api aslms users create-super-admin …` → refused.
-6. (owner review 2026-10-07) On a claimed EDU case allotted to an EDU officer who holds the file: as the EDU
-   admin `GET /users/{id}/memberships/{mid}/exit-preview` → 1 allotment, 1 file; `POST …/end` with a reason and
-   no successor → the case is allotted to the admin, the custody card shows the admin with the carried pending
-   action, `custody_history` has a `reassigned_on_exit` leg, `audit_log` has `membership.exit` with counts.
+6. (owner review 2026-10-07, revised: no successor) With two claimed EDU cases allotted to an EDU officer who
+   holds both files: as the EDU admin `GET /users/{id}/memberships/{mid}/exit-preview` → 4 items and a
+   fingerprint; `POST …/end` with three assignments → 409 `unassigned_items` naming the fourth; with all four
+   (case A to officer X, case B to officer Y, B's file with a new due date) → 200; the custody cards show X and
+   Y with the carried or changed pending action and due date, `custody_history` has two `reassigned_on_exit`
+   legs, `audit_log` has one `membership.exit` row listing the four items and their targets.
 
 ## Open questions
 None. Points the owner is asked to check at approval (decisions taken, reversible):
@@ -744,6 +772,7 @@ None. Points the owner is asked to check at approval (decisions taken, reversibl
 - (owner review 2026-10-07) the government order may be attached while the ticket is open or approved, not after
   a reject or withdrawal (20);
 - (owner review 2026-10-07) the replaced super admin's login is disabled (13);
-- (owner review 2026-10-07) one successor per exit; splitting later with ordinary allot and send (21);
+- (owner review 2026-10-07, revised) no successor: every allotted case and held file gets a target chosen by
+  the admin, one by one; the exit is refused until all have one (21);
 - (owner review 2026-10-07) a login whose last membership ends stays active with no functions until its next
   department adds it (22).
