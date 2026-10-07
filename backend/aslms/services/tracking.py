@@ -1,5 +1,7 @@
-"""Pipeline stage 4: keeping cases current. Current Status takes 500 CNRs per call, so the daily refresh of
-every non-disposed case is a handful of `status_batch` queue rows (`<YYYY-MM-DD>:<n>` = the n-th block of 500
+"""Pipeline stage 4: keeping cases current. Current Status takes up to `NAPIX_STATUS_BATCH` CNRs per call (250 by
+default: the gateway refuses longer query strings with HTTP 414, see napix_integration_notes.md §7), so the daily
+refresh of every non-disposed case is a handful of `status_batch` queue rows (`<YYYY-MM-DD>:<n>` = the n-th block of
+`NAPIX_STATUS_BATCH`
 non-disposed CNRs in CNR order on that day). A change in a tracked field updates the case, writes a
 `next_dates` row and an event, and queues a dossier re-fetch. The weekly sweep queues a dossier re-fetch for
 every pending case regardless."""
@@ -22,7 +24,13 @@ from aslms.services import queue
 from aslms.services.cases import apply_status, emit_event
 from aslms.services.napix_values import as_text
 
-BATCH = 500
+
+def batch_size() -> int:
+    from aslms.core.config import get_settings
+
+    return get_settings().napix_status_batch
+
+
 
 
 def non_disposed_cnrs(session: Session, offset: int = 0, limit: int | None = None) -> list[str]:
@@ -38,11 +46,12 @@ def non_disposed_cnrs(session: Session, offset: int = 0, limit: int | None = Non
 
 
 def enqueue_status_batches(session: Session, run_date: date | None = None) -> int:
-    """One `status_batch` row per block of 500 non-disposed CNRs."""
+    """One `status_batch` row per block of `NAPIX_STATUS_BATCH` non-disposed CNRs."""
     run_date = run_date or date.today()
     total = len(non_disposed_cnrs(session))
     n = 0
-    for i in range((total + BATCH - 1) // BATCH):
+    size = batch_size()
+    for i in range((total + size - 1) // size):
         if queue.enqueue(
             session, FetchKind.STATUS_BATCH, f"{run_date.isoformat()}:{i}", queue.PRIORITY["status"]
         ):
@@ -73,8 +82,9 @@ class BatchReport:
 
 async def run_status_batch(session: Session, hc: NapixHighCourt, ref: str) -> BatchReport:
     _day, _, n = ref.partition(":")
-    offset = int(n or 0) * BATCH
-    cnrs = non_disposed_cnrs(session, offset=offset, limit=BATCH)
+    size = batch_size()
+    offset = int(n or 0) * size
+    cnrs = non_disposed_cnrs(session, offset=offset, limit=size)
     report = BatchReport(ref=ref, requested=len(cnrs))
     if not cnrs:
         return report

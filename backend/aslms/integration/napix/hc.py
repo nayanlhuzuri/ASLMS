@@ -154,8 +154,9 @@ class NapixHighCourt:
         return res.data or {}
 
     async def current_status(self, cnrs: list[str]) -> list[dict[str, Any]]:
-        if len(cnrs) > 500:
-            raise ValueError("Current Status takes at most 500 CNRs per call")
+        if len(cnrs) > 300:
+            # the gateway answers HTTP 414 above ~300 (live probe 7 Oct 2026); notes §7
+            raise ValueError("Current Status takes at most 300 CNRs per call through the gateway")
         res = await self._get("current_status", {"cino": ",".join(c.strip().upper() for c in cnrs)}, "POST")
         return nested_list(res.data) or ([res.data] if isinstance(res.data, dict) else [])
 

@@ -884,3 +884,14 @@ Design `docs/design/custody-workflow.md` (revised and approved 7 Oct 2026 under 
 - Upgrade the dev database to 0009 when the merged images are rebuilt (integrator).
 - Portal screens (row 13); request-related reports are replaced by custody and tracking counts.
 - No follow-up rows added; the review left none recorded.
+
+## Current Status batch size fixed (7 Oct 2026)
+- The daily status refresh failed on 7 Oct: all four batches of 500 CNRs were refused by the gateway with
+  HTTP 405 "page not found". Current Status carries the CNRs encrypted in the query string, and a live probe
+  (a handful of calls, switch set for that run) showed the limit: 300 CNRs accepted, 350 refused with HTTP 414
+  "URI too long", 400–500 refused with 405. The spec's "max 500" does not hold through the gateway.
+- `NAPIX_STATUS_BATCH` (default 250, at most 300) now sets the batch size in `services/tracking.py`;
+  `NapixHighCourt.current_status` refuses more than 300. Notes §7 updated. Tests: `tests/unit/test_status_batch_size.py`.
+- Made directly as a small fix (one setting, one service constant, one guard) rather than a team cycle, because
+  the daily refresh was not running.
+

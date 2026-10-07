@@ -47,6 +47,9 @@ class Settings(BaseSettings):
     napix_rate_limit_per_min: int = 60
     napix_rate_window_seconds: int = 3600  # 1,000 calls per clock hour, measured 1 Oct 2026 (notes §6)
     napix_rate_reserve: int = 150  # calls kept for the daily cycle; the load queue stops below this
+    # Current Status sends the CNRs in the query string: the gateway answers HTTP 414 above ~300 CNRs (live probe
+    # 7 Oct 2026: 300 ok, 350 -> 414, 400+ -> 405); 250 leaves margin. The spec's maximum is 500.
+    napix_status_batch: int = Field(250, ge=1, le=300)
     napix_timeout_seconds: float = 40.0
     napix_token_ttl_seconds: int = 3300  # when the token response carries no expires_in (manual: one hour)
     # user court searches (design cases-api, decision 13): refused below this remaining hourly quota, at most

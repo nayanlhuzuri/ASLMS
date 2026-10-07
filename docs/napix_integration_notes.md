@@ -82,7 +82,7 @@ Response headers: `X-RateLimit-Limit: name=default,1000;` and `X-RateLimit-Remai
 | Cause List Details | GET `/hc-causelist-details-api/causelistdetails` | `est_code|causelist_date|bench_id` | ✅ **list metadata, not case rows**: `case{n}.bench, bench_id, causelist_id, cause_list_type` (one row per list the bench published; `cause_list_type` is space-padded) |
 | Show Cause List | GET `/hc-show-causelist-api/showcauselist` | `est_code|bench_id|causelist_id|causelist_date` | ✅ the list PDF as a Base64 JSON string (280 KB for a Lawazima list) |
 | Search by CNR | GET `/hc-cnr-api/CNR` | `cino` | ✅ the full dossier (70 field paths; `/hc-cnr-api/cnr` is a gateway 404) |
-| Current Status | POST `/hc-current-status-api/currentStatus` **with the parameters in the query string** | `cino` (comma-separated, max 500) | ✅ `cases{n}.…` one block per CNR (24 fields) |
+| Current Status | POST `/hc-current-status-api/currentStatus` **with the parameters in the query string** | `cino` (comma-separated; the spec says max 500 but **the gateway refuses more than ~300**: live probe 7 Oct 2026, 300 ok, 350 → HTTP 414 URI too long, 400–500 → HTTP 405; `NAPIX_STATUS_BATCH=250`) | ✅ `cases{n}.…` one block per CNR (24 fields) |
 | Show Order | GET `/hc-order-api/order` | `cino|order_no|order_date` | ✅ the order PDF as a Base64 JSON string |
 | Show Business | GET `/hc-show-business-api/showBusiness` | `cino|business_date` | ✅ `desgname, case_number, business_date, business, short_order_det` |
 | Search by Case Number | GET `/hc-case-search-api/casesearch` | `est_code|case_type|reg_no|reg_year` (`case_type` = the master's numeric code, `case_type_id` in a dossier) | ✅ `establishment_name, casenos.case{n}.…` |
