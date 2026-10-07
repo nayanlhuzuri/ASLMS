@@ -894,4 +894,4 @@ Design `docs/design/custody-workflow.md` (revised and approved 7 Oct 2026 under 
   `NapixHighCourt.current_status` refuses more than 300. Notes §7 updated. Tests: `tests/unit/test_status_batch_size.py`.
 - Made directly as a small fix (one setting, one service constant, one guard) rather than a team cycle, because
   the daily refresh was not running.
-
+- 2026-10-07 — otp-and-profile: approved by the owner (code at every sign-in, mobile mandatory; docs/design/otp-and-profile.md)
