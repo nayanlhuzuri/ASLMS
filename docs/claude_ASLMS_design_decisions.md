@@ -788,4 +788,8 @@ after nested requests). Reviewing it, the owner set these rules, which replace t
 - **Recall is a grantable function** (owner, 7 Oct 2026): `custody.recall`, on for department admins by default;
   a department admin grants it to the officers of their department they choose, and the super admin can grant
   it to anybody. It recalls only cases owned by the department of the membership that holds it.
+- **Tracking pending and overdue files is a grantable function** (owner, 7 Oct 2026): `custody.track`, on for the
+  department head (seniormost officer) and the department admin by default; the department admin grants it to
+  any officer of the department, the super admin to anybody. Holders receive the department's due-soon and
+  overdue alerts and see the department's pending and overdue files and counts, wherever the files are held.
 

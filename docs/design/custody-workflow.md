@@ -249,7 +249,7 @@ answer into a note" (`assistant`, through this item's note service); SMS.
     each new file writes the existing `document.uploaded`. `after` holds references, codes, lengths and SHA-256
     of note bodies and remarks — never the text.
 
-22. **Retired request codes and functions.** New function `custody.recall` is added by the seed (decision 6, owner review 2026-10-07; enabled for `dept_admin` in the default matrix, granted to officers by their department admin or by the super admin). Seed: `ref_permission` `requests.send` and `requests.answer` set
+22. **Retired request codes and functions.** New functions `custody.recall` and `custody.track` are added by the seed (decisions 6 and 24a, owner review 2026-10-07; enabled for `dept_admin` in the default matrix, granted to officers by their department admin or by the super admin). Seed: `ref_permission` `requests.send` and `requests.answer` set
     `is_active = false` (and their matrix rows `is_enabled = false`); `access` ignores inactive functions (45 → 43
     active). `ref_event_type` `request_sent`, `request_answered` and `ref_alert_kind` `request_due` retired;
     `ref_record_type` `REQ` retired. The Python members stay, marked retired, so old rows still load.
@@ -260,7 +260,8 @@ answer into a note" (`assistant`, through this item's note service); SMS.
     not the actor). (c) **Due / overdue**: the date sweep raises one alert per current leg with a due date within
     `REQUEST_DUE_SOON_DAYS` (the existing setting, now also used here) — severity `high` when due soon,
     `critical` when overdue — to the holder (custody-holder rule of alerts decision 14) and, when overdue, also to
-    the owning department's users holding `custody.recall` (so they can recall); key `workflow_due:<leg id>`, closed
+    the owning department's users holding **`custody.track`** (owner review 2026-10-07, see decision 24a); key
+    `workflow_due:<leg id>`, closed
     `done` when the case's current leg changes. (a) and (b) are informational (expire after
     `ALERT_INFO_EXPIRE_DAYS`; severity `high` when the due date is within the window, else `normal`). Addressed
     office = the holder office (a, c) or the previous holder office (b). Text: kind label, offices, officer
@@ -276,6 +277,19 @@ answer into a note" (`assistant`, through this item's note service); SMS.
     since; always ANDed with `visible_case_condition`. `GET /custody/sent`: the legs the caller wrote (sends and
     recalls) with the case summary (searchable facts only) and the leg; detail still needs visibility. The
     dashboards and the "pending actions by office" report (`reports-dashboards`) read the same columns.
+
+24a. **Tracking pending and overdue files is a function the department admin grants (owner review 2026-10-07).**
+    A new function **`custody.track`** (module `custody`). In the default type matrix it is enabled for
+    **`dept_head`** (the seniormost officer) and **`dept_admin`**; off for every other type. A department admin
+    gives it to any other officer of their department with the existing per-user grant (per membership); the
+    super admin can grant or deny it to anybody. A membership holding `custody.track` in a department:
+    (i) receives the overdue (`critical`) and due-soon (`high`) `workflow` alerts for every case that department
+    owns, wherever the file is held, alongside the holder; (ii) may use `GET /custody/held?scope=owned` and
+    `GET /custody/summary` for that department. `GET /custody/summary` (new) returns, per owned department the
+    caller tracks: files held, due within the window, overdue, and the same counts by holder department and by
+    holder office/officer (counts only, no case text). Tracking gives sight of the owned department's files and
+    their custody cards but no recall, no send and no ownership action. It replaces "overdue alerts to the
+    `cases.allot` / `custody.recall` holders". Every grant and deny is audited by the existing override service.
 
 25. **Case detail.** The custody card: holder office, holder officer (name, designation), pending action (code,
     label), since, due date, `overdue`, sent by (actor name, designation, office code), remark (decision 11),
@@ -373,7 +387,8 @@ New router `api/routers/workflow.py`. `{ref}` = case id, CNR or dash-form `ref_n
 | `GET /custody/recipients` | `cases.view_scope` | `department?`, `q?`, `limit`, `offset` | without `department`: `[{code, name}]` departments; with it: `[{membership_id, full_name, designation, office_code, office_name, role_label}]` | Decision 3 targets only. |
 | `POST /cases/{ref}/custody/send` | `cases.view_scope` (gate); the holder, or `custody.move` + control for an office-held leg | `{to_membership, pending_action, due_date?, remark, stage?}` | `{card, leg, finalised_notes: [ref_no]}` 201 | Decisions 3, 4, 13, 19; 409 `not_owned`, `unchanged`; 403 `not_in_control`; 400 `bad_target`, `bad_due_date`. |
 | `POST /cases/{ref}/custody/recall` | `custody.recall` (in a membership of the owning department) | `{remark}` | `{card, leg, finalised_notes}` 201 | Decision 6; 403 `not_owner_department`; 409 `unchanged`. |
-| `GET /custody/held` | `read` | `scope=me|office|owned`, `overdue?`, `holder_department?`, `limit`, `offset` | `{items: [{case summary, card}], total}` | Decision 24; visible cases only; `owned` needs a whole-department membership (else 403). |
+| `GET /custody/summary` | `custody.track` (in the owned department) | `department?` | `{departments: [{code, held, due_soon, overdue, by_holder_department, by_holder}]}` | Decision 24a; counts only. |
+| `GET /custody/held` | `read` (`scope=owned` needs `custody.track` in that department) | `scope=me|office|owned`, `overdue?`, `holder_department?`, `limit`, `offset` | `{items: [{case summary, card}], total}` | Decision 24; visible cases only; `owned` needs a whole-department membership (else 403). |
 | `GET /custody/sent` | `read` | `limit`, `offset` | `{items: [{case summary, leg}], total}` | Legs the caller wrote. |
 | `GET /cases/{ref}/stages` | `read` | — | `{current, history, gaps}` | Case visible. |
 | `POST /cases/{ref}/stages` | `stages.set` | `{stage, response_mode?, note?}` | `{current}` 201 | Decision 19; working basis; 409 `not_owned`, `unchanged`. |
