@@ -106,6 +106,19 @@ class InlineNotSupported(DocumentError):
     code, http_status = "inline_not_supported", 400
 
 
+class AttachmentFollowsNote(DocumentError):
+    """Design custody-workflow, decision 18: an attachment's visibility and archive state follow its note."""
+
+    code, http_status = "attachment_follows_note", 409
+
+
+def _not_attachment(doc: Document) -> None:
+    if DocKind(doc.kind) == DocKind.ATTACHMENT:
+        raise AttachmentFollowsNote(
+            "an attachment follows its note; its visibility and archive state cannot be changed"
+        )
+
+
 class OrderNotStored(LookupError):
     def __init__(self, download_status: str):
         super().__init__("the order's PDF is not stored")
@@ -236,7 +249,7 @@ def _reject_audit(
 # ------------------------------------------------------------------------------------------------ upload
 
 
-def inspect_file(
+def check_file(
     session: Session,
     actor: Actor,
     case: Case | None,
@@ -285,6 +298,9 @@ def inspect_file(
             extra={"signature": verdict.signature},
         )
     return ftype
+
+
+inspect_file = check_file  # the name the ticket documents use (design user-memberships)
 
 
 def upload(
@@ -351,9 +367,7 @@ def upload(
     ftype = (
         inspected
         if inspected is not None
-        else inspect_file(
-            session, actor, case, data=data, filename=name, scanner=scanner, max_bytes=max_bytes
-        )
+        else check_file(session, actor, case, data=data, filename=name, scanner=scanner, max_bytes=max_bytes)
     )
     sha = hashlib.sha256(data).hexdigest()
     if case is not None and kind == DocKind.UPLOAD:
@@ -372,17 +386,58 @@ def upload(
                 f"this file is already on the case as {existing.ref_no}",
                 extra={"existing_ref_no": existing.ref_no},
             )
-    stored = store.put(data, ftype.mime)
+    return create_document(
+        session,
+        actor,
+        user,
+        case,
+        data=data,
+        mime=ftype.mime,
+        filename=name,
+        kind=kind,
+        doc_type=DocType(type_row.code),
+        doc_group=group,
+        doc_date=when,
+        description=text_,
+        visibility=vis,
+        office=office,
+        store=store,
+    )
+
+
+def create_document(
+    session: Session,
+    actor: Actor,
+    user: User,
+    case: Case | None,
+    *,
+    data: bytes,
+    mime: str,
+    filename: str,
+    kind: DocKind,
+    doc_type: DocType,
+    doc_group: DocGroup,
+    doc_date: date,
+    description: str,
+    visibility: Visibility,
+    office: Office,
+    store: LocalStore,
+) -> Document:
+    """Stores a checked file (`check_file`) and writes its row, the `document_uploaded` event (case documents)
+    and the `document.uploaded` audit row (design documents-uploads decisions 5, 9, 12; split out by
+    custody-workflow for note attachments). `actor` is already the acting membership's snapshot."""
+    ftype_mime, name, when, text_, vis, group = mime, filename, doc_date, description, visibility, doc_group
+    stored = store.put(data, ftype_mime)
     now = _now()
     doc = Document(
         ref_no=allocate_ref_no(session, office.code, RecordType.DOC.value),
         sha256=stored.sha256,
         storage_key=stored.key,
-        mime=ftype.mime,
+        mime=ftype_mime,
         size_bytes=stored.size,
         original_filename=name,
         kind=kind,
-        doc_type=DocType(type_row.code),
+        doc_type=doc_type,
         doc_group=group,
         case_id=case.id if case else None,
         doc_date=when,
@@ -391,7 +446,7 @@ def upload(
         office_id=office.id,
         virus_scan_status=ScanStatus.CLEAN,
         scanned_at=now,
-        text_status=_text_status_for(ftype.mime),
+        text_status=_text_status_for(ftype_mime),
         sourcetrace_status=sourcetrace_status_for(group, vis),
         actor_user_id=user.id,
         actor_name=actor.name[:200],
@@ -412,7 +467,7 @@ def upload(
                 "kind": "admin",
                 "doc_type": doc.doc_type.value,
                 "original_filename": name,
-                "mime": ftype.mime,
+                "mime": ftype_mime,
                 "size_bytes": stored.size,
                 "sha256": stored.sha256,
             },
@@ -445,11 +500,12 @@ def upload(
         case_id=case.id if case else None,
         after={
             "ref_no": doc.ref_no,
+            "kind": DocKind(kind).value,
             "doc_type": doc.doc_type.value,
             "doc_group": group.value,
             "visibility": vis.value,
             "original_filename": name,
-            "mime": ftype.mime,
+            "mime": ftype_mime,
             "size_bytes": stored.size,
             "sha256": stored.sha256,
             "sourcetrace_status": doc.sourcetrace_status.value,
@@ -748,6 +804,7 @@ def change_visibility(session: Session, actor: Actor, user: User, doc: Document,
     """Decision 13 with decision 9: the SourceTrace status follows the new visibility; an ingested court filing
     cannot be narrowed to private (409)."""
     require_visible_document(session, user, doc)
+    _not_attachment(doc)
     _manageable(session, user, doc)
     vis = _visibility(new)
     old = Visibility(doc.visibility)
@@ -780,6 +837,7 @@ def change_visibility(session: Session, actor: Actor, user: User, doc: Document,
 
 def archive(session: Session, actor: Actor, user: User, doc: Document, reason: str | None) -> Document:
     require_visible_document(session, user, doc)
+    _not_attachment(doc)
     _manageable(session, user, doc)
     if doc.archived_at is not None:
         raise DocumentError("the document is already archived")

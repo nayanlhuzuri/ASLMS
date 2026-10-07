@@ -28,7 +28,9 @@ INFO_KINDS = frozenset(
         AlertKind.NEW_DOCUMENT,
     }
 )
-CASE_KINDS = INFO_KINDS | {AlertKind.HEARING_DUE, AlertKind.COMPLIANCE_DUE}
+CASE_KINDS = INFO_KINDS | {AlertKind.HEARING_DUE, AlertKind.COMPLIANCE_DUE, AlertKind.WORKFLOW}
+# workflow alerts that are informational (design custody-workflow, decision 23 a, b): expire with the others
+WORKFLOW_INFO_EVENTS = frozenset({"file_received", "file_recalled"})
 
 
 def higher(a: Severity, b: Severity) -> bool:
@@ -71,6 +73,15 @@ def severity_for_due(due_date: date, today: date, soon_days: int = 2) -> Severit
     if days <= 0:
         return Severity.CRITICAL
     return Severity.HIGH
+
+
+def severity_for_custody_due(due_date: date, today: date, soon_days: int = 2) -> Severity | None:
+    """Design custody-workflow, decision 23c: `high` when due within `soon_days` (today included), `critical`
+    once overdue; nothing further out."""
+    days = (due_date - today).days
+    if days > soon_days:
+        return None
+    return Severity.CRITICAL if days < 0 else Severity.HIGH
 
 
 def severity_for_compliance(
@@ -248,6 +259,8 @@ def render_alert(kind: AlertKind | str, case: Any, data: dict[str, Any]) -> tupl
         else:
             title = f"Ownership change: {label}"
             body = ""
+    elif kind == AlertKind.WORKFLOW:
+        title, body = render_workflow(d, label)
     elif kind == AlertKind.NEW_DOCUMENT:
         title = f"New {d.get('doc_type_label') or d.get('doc_type') or 'document'} uploaded: {label}"
         body = f"A document of type {d.get('doc_type_label') or d.get('doc_type') or 'unknown'} was uploaded by {d.get('office_code') or 'an office'}."
@@ -255,6 +268,33 @@ def render_alert(kind: AlertKind | str, case: Any, data: dict[str, Any]) -> tupl
         title = f"{kind.value}: {label}"
         body = ""
     return _title(title), body
+
+
+def _holder(d: dict[str, Any], prefix: str = "holder") -> str:
+    who = d.get(f"{prefix}_designation") or d.get(f"{prefix}_user_name") or "an officer"
+    office = d.get(f"{prefix}_office_code")
+    return f"{who}, {office}" if office else who
+
+
+def render_workflow(d: dict[str, Any], label: str) -> tuple[str, str]:
+    """A `workflow` alert (design custody-workflow, decision 23): kind label, offices, officer designation, case
+    number, pending action and due date; never the remark or a note."""
+    event = d.get("event") or "workflow"
+    action = d.get("pending_action_label") or d.get("pending_action") or "action"
+    due = f", due {_d(d.get('due_date'))}" if d.get("due_date") else ""
+    if event == "file_received":
+        title = f"File received from {d.get('from_office_code') or 'another office'}: {label}"
+        body = f"Sent to {_holder(d)} for {action}{due}."
+    elif event == "file_recalled":
+        title = f"File taken back by {d.get('holder_office_code') or 'the owning department'}: {label}"
+        body = f"The file you held is now with {_holder(d)} ({d.get('reason_label') or d.get('reason') or 'moved'})."
+    elif event == "due":
+        when = _d(d.get("due_date"))
+        title = (f"File overdue since {when}: " if d.get("overdue") else f"File due {when}: ") + label
+        body = f"{action} pending with {_holder(d)}."
+    else:
+        title, body = f"Workflow: {label}", ""
+    return title, body
 
 
 def render_ticket_alert(d: dict[str, Any]) -> tuple[str, str]:

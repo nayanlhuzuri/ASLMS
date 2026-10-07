@@ -756,12 +756,44 @@ class CaseOwnershipCompactOut(BaseModel):
     watchers: list[str]
 
 
+class CustodyHolderOut(BaseModel):
+    id: uuid.UUID
+    full_name: str
+    designation: str | None = None
+
+
+class CustodySentByOut(BaseModel):
+    name: str | None
+    designation: str | None
+    office_code: str | None
+
+
 class CustodyCardOut(BaseModel):
+    """Design custody-workflow, decision 25: the remark only for a working basis or a State-wide reader."""
+
     holder_office: OfficeRefOut | None
-    holder_user: UserRefOut | None
+    holder_user: CustodyHolderOut | None
     pending_action: str
+    pending_action_label: str
     since: datetime
     due_date: date | None
+    overdue: bool
+    overdue_days: int
+    sent_by: CustodySentByOut | None
+    reason: str | None
+    remark: str | None
+    leg_seq_no: int | None
+    can_send: bool
+    can_recall: bool
+
+
+class StageBlockOut(BaseModel):
+    stage: str
+    label: str
+    phase: str | None
+    response_mode: str
+    set_at: datetime
+    office_code: str | None
 
 
 class CaseCountsOut(BaseModel):
@@ -771,6 +803,8 @@ class CaseCountsOut(BaseModel):
     documents: int
     links: int
     timeline: int
+    notes: int
+    my_drafts: int
 
 
 class CaseDetailOut(BaseModel):
@@ -794,6 +828,7 @@ class CaseDetailOut(BaseModel):
     writ_info: list[WritInfoOut]
     ownership: CaseOwnershipCompactOut
     custody: CustodyCardOut | None
+    stage: StageBlockOut | None
     access_basis: list[str]
     claimable: bool
     dossier_status: str
@@ -1447,3 +1482,245 @@ UserOut.model_rebuild()
 MeOut.model_rebuild()
 TokenOut.model_rebuild()
 OfficeCreateIn.model_rebuild()
+
+
+# ------------------------------------------------------------------------------------------------ workflow
+# design custody-workflow: custody, send and recall, stages, notes and drafts
+
+
+class CodeLabelOut(BaseModel):
+    code: str
+    label: str
+
+
+class NoteKindOut(CodeLabelOut):
+    selectable: bool
+
+
+class PendingActionOut(CodeLabelOut):
+    sendable: bool
+
+
+class StageCodeOut(CodeLabelOut):
+    phase: str
+    sort_order: int
+
+
+class WorkflowCodesOut(BaseModel):
+    note_kinds: list[NoteKindOut]
+    pending_actions: list[PendingActionOut]
+    stages: list[StageCodeOut]
+    response_modes: list[CodeLabelOut]
+    custody_reasons: list[CodeLabelOut]
+
+
+class CustodyLegOut(BaseModel):
+    seq_no: int
+    holder_office: OfficeRefOut
+    holder_user: UserRefOut | None
+    holder_designation: str | None
+    reason: str
+    reason_label: str
+    pending_action: str
+    pending_action_label: str
+    due_date: date | None
+    remark: str | None
+    started_at: datetime
+    actor_name: str | None
+    actor_designation: str | None
+    actor_office_code: str | None
+
+
+class CustodyHistoryOut(BaseModel):
+    card: CustodyCardOut | None
+    legs: list[CustodyLegOut]
+    total: int
+
+
+class DepartmentRefOut(BaseModel):
+    code: str
+    name: str
+
+
+class RecipientOut(BaseModel):
+    membership_id: uuid.UUID
+    full_name: str
+    designation: str | None
+    office_code: str
+    office_name: str
+    role_label: str
+
+
+class RecipientListOut(BaseModel):
+    departments: list[DepartmentRefOut] = []
+    items: list[RecipientOut] = []
+    total: int
+
+
+class CustodySendIn(BaseModel):
+    to_membership: uuid.UUID
+    pending_action: str = Field(min_length=1, max_length=40)
+    due_date: date | None = None
+    remark: str = Field(max_length=2000)
+    stage: str | None = Field(None, max_length=40)
+
+
+class CustodyRecallIn(BaseModel):
+    remark: str = Field(max_length=2000)
+
+
+class CustodyMoveOut(BaseModel):
+    card: CustodyCardOut | None
+    leg: CustodyLegOut
+    finalised_notes: list[str]
+
+
+class HeldItemOut(BaseModel):
+    case: CaseSummaryOut
+    card: CustodyCardOut | None
+
+
+class HeldListOut(BaseModel):
+    items: list[HeldItemOut]
+    total: int
+
+
+class SentItemOut(BaseModel):
+    case: CaseSummaryOut
+    leg: CustodyLegOut
+
+
+class SentListOut(BaseModel):
+    items: list[SentItemOut]
+    total: int
+
+
+class CustodyCountsOut(BaseModel):
+    held: int
+    due_soon: int
+    overdue: int
+
+
+class HolderDepartmentCountsOut(CustodyCountsOut):
+    code: str
+
+
+class HolderCountsOut(CustodyCountsOut):
+    office_code: str
+    user_name: str | None
+    designation: str | None
+
+
+class DepartmentCustodySummaryOut(CustodyCountsOut):
+    code: str
+    by_holder_department: list[HolderDepartmentCountsOut]
+    by_holder: list[HolderCountsOut]
+
+
+class CustodySummaryOut(BaseModel):
+    departments: list[DepartmentCustodySummaryOut]
+
+
+class StageOut(BaseModel):
+    id: uuid.UUID
+    stage: str
+    label: str
+    phase: str | None
+    response_mode: str
+    response_mode_label: str | None
+    note: str | None
+    office_code: str | None
+    set_by: str | None
+    set_at: datetime
+
+
+class StageHistoryOut(BaseModel):
+    current: StageOut | None
+    history: list[StageOut]
+    gaps: list[str]
+
+
+class StageSetIn(BaseModel):
+    stage: str = Field(min_length=1, max_length=40)
+    response_mode: str | None = Field(None, max_length=20)
+    note: str | None = Field(None, max_length=2000)
+
+
+class StageSetOut(BaseModel):
+    current: StageOut
+
+
+class NoteAuthorOut(BaseModel):
+    name: str | None
+    designation: str | None
+    office_code: str | None
+    role: str
+
+
+class NoteRefOut(BaseModel):
+    ref_no: str
+    seq_no: int
+
+
+class NoteAttachmentOut(BaseModel):
+    id: uuid.UUID
+    ref_no: str | None
+    original_filename: str | None
+    doc_type: str
+    mime: str
+    size_bytes: int
+    linked: bool
+
+
+class NoteOut(BaseModel):
+    id: uuid.UUID
+    ref_no: str
+    seq_no: int
+    kind: str
+    kind_label: str
+    body: str
+    visibility: str
+    author: NoteAuthorOut
+    created_at: datetime
+    drafted_at: datetime | None
+    custody_leg_seq_no: int | None
+    supersedes: NoteRefOut | None
+    superseded_by: NoteRefOut | None
+    attachments: list[NoteAttachmentOut]
+    draft: Literal[False] = False
+
+
+class NoteListOut(BaseModel):
+    items: list[NoteOut]
+    total: int
+
+
+class DraftDocumentOut(BaseModel):
+    ref_no: str | None
+    original_filename: str | None
+
+
+class DraftOut(BaseModel):
+    id: uuid.UUID
+    kind: str
+    body: str
+    visibility: str
+    supersedes: NoteRefOut | None
+    documents: list[DraftDocumentOut]
+    created_at: datetime
+    updated_at: datetime
+    draft: Literal[True] = True
+
+
+class DraftListOut(BaseModel):
+    items: list[DraftOut]
+
+
+class DraftUpdateIn(BaseModel):
+    """Fields left out are unchanged; `supersedes: null` turns a correction into a plain draft."""
+
+    kind: str | None = Field(None, max_length=40)
+    body: str | None = Field(None, max_length=20_000)
+    visibility: str | None = Field(None, max_length=40)
+    supersedes: str | None = Field(None, max_length=60)
+    document_refs: list[str] | None = None

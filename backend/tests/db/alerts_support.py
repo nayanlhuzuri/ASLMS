@@ -1,5 +1,5 @@
 """Shared helpers for the alert tests over `tests/db/world.py`: claims and allotments through the ownership
-service, events written the way the pipeline writes them, custody and request rows, and readers of the
+service, events written the way the pipeline writes them, custody rows, and readers of the
 alerts and notifications a run produced."""
 
 from __future__ import annotations
@@ -16,10 +16,10 @@ from aslms.domain.cases import Case
 from aslms.domain.events import AuditLog, Event, EventVisibility
 from aslms.domain.org import Channel, User
 from aslms.domain.ownership import Recommendation, RecommendationOrigin, ScoreBand
-from aslms.domain.reference import EventType, RequestKind
-from aslms.domain.workflow import Custody, Request, RequestStatus
+from aslms.domain.reference import EventType
+from aslms.domain.workflow import Custody
+from aslms.services import access
 from aslms.services import ownership as own
-from aslms.services.refno import allocate_ref_no
 
 
 def now_utc() -> datetime:
@@ -100,33 +100,11 @@ def custody_at(s: Session, case: Case, office, user: User | None = None) -> Cust
         s.add(row)
     row.holder_office_id = office.id
     row.holder_user_id = user.id if user else None
-    s.flush()
-    return row
-
-
-def request_to(
-    s: Session,
-    case: Case,
-    *,
-    from_office,
-    to_office,
-    to_user: User | None = None,
-    due: date | None = None,
-    status=RequestStatus.OPEN,
-) -> Request:
-    row = Request(
-        case_id=case.id,
-        kind=RequestKind.REPORT,
-        from_office_id=from_office.id,
-        to_office_id=to_office.id,
-        to_user_id=to_user.id if to_user else None,
-        subject="report please",
-        due_date=due,
-        status=status,
-        ref_no=allocate_ref_no(s, from_office.code, "REQ"),
-        actor_name="test",
-    )
-    s.add(row)
+    member = None
+    if user is not None:
+        member = next((m for m in access.members(s, user) if m.covers(office)), None)
+        member = member or access.primary_member(s, user)
+    row.holder_membership_id = member.membership_id if member is not None else None
     s.flush()
     return row
 

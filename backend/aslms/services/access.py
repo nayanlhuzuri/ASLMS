@@ -30,7 +30,7 @@ from sqlalchemy.orm import Session, object_session
 
 from aslms.domain.events import Event, EventVisibility
 from aslms.domain.org import Office, PermissionEffect, RolePermission, User, UserMembership, UserPermission
-from aslms.domain.reference import EventType, OfficeKind, Permission, Role
+from aslms.domain.reference import RETIRED_PERMISSIONS, EventType, OfficeKind, Permission, Role
 from aslms.services.audit import Actor, write_audit
 
 DELEGABLE_ROLES = frozenset(
@@ -39,6 +39,8 @@ DELEGABLE_ROLES = frozenset(
 # State-wide types (no department of their own) and the types that never act as a department's officer
 NOT_OFFICERS = frozenset({Role.SUPER_ADMIN, Role.STATE_OVERSIGHT, Role.AUDITOR, Role.CENTRAL_OPERATOR})
 RESERVED_FUNCTIONS = frozenset({Permission.ADMIN_TICKETS})
+# retired functions (design custody-workflow, decision 22): nobody holds them, the super admin included
+ACTIVE_FUNCTIONS = frozenset(Permission) - RETIRED_PERMISSIONS
 DEPARTMENT_TIER_KINDS = frozenset({OfficeKind.DEPARTMENT, OfficeKind.CENTRAL, OfficeKind.ADVOCATE_GENERAL})
 MANAGE_PERMISSIONS = {
     "create": Permission.USERS_CREATE,
@@ -72,6 +74,13 @@ class ReservedFunction(ValueError):
     """`admin.tickets` cannot be enabled for a type or overridden (HTTP 400 `reserved_function`)."""
 
     code = "reserved_function"
+
+
+class RetiredFunction(ReservedFunction):
+    """A retired function (`requests.send`, `requests.answer`) cannot be granted, denied or enabled (HTTP 400
+    `retired_function`; design custody-workflow, decision 22)."""
+
+    code = "retired_function"
 
 
 def _as_role(value: Role | str) -> Role:
@@ -183,13 +192,13 @@ event.listen(Session, "after_soft_rollback", _clear_cache)
 def role_functions(session: Session, role: Role | str) -> set[Permission]:
     role = _as_role(role)
     if role == Role.SUPER_ADMIN:
-        return set(Permission)
+        return set(ACTIVE_FUNCTIONS)
     rows = session.scalars(
         select(RolePermission.permission).where(
             RolePermission.role == role, RolePermission.is_enabled.is_(True)
         )
     ).all()
-    return {_as_perm(p) for p in rows} - RESERVED_FUNCTIONS
+    return {_as_perm(p) for p in rows} - RESERVED_FUNCTIONS - RETIRED_PERMISSIONS
 
 
 def membership_overrides(session: Session, membership: UserMembership) -> dict[Permission, PermissionEffect]:
@@ -213,10 +222,10 @@ def membership_functions(
         return set()
     role = _as_role(membership.role)
     if role == Role.SUPER_ADMIN:
-        return set(Permission)
+        return set(ACTIVE_FUNCTIONS)
     perms = role_functions(session, role)
     for perm, effect in membership_overrides(session, membership).items():
-        if perm in RESERVED_FUNCTIONS:
+        if perm in RESERVED_FUNCTIONS or perm in RETIRED_PERMISSIONS:
             continue
         if effect == PermissionEffect.GRANT:
             perms.add(perm)
@@ -498,6 +507,8 @@ def set_override(
     permission = _as_perm(permission)
     if permission in RESERVED_FUNCTIONS:
         raise ReservedFunction(f"{permission.value} is reserved and cannot be granted or denied")
+    if permission in RETIRED_PERMISSIONS:
+        raise RetiredFunction(f"{permission.value} is retired and cannot be granted or denied")
     if isinstance(target, User):
         membership = _primary_membership(session, target)
         if membership is None:
@@ -578,7 +589,7 @@ def matrix(session: Session, role: Role | str | None = None) -> dict[str, dict[s
         r = _as_role(row.role).value
         out.setdefault(r, {})[_as_perm(row.permission).value] = row.is_enabled
     if role is None or _as_role(role) == Role.SUPER_ADMIN:
-        out[Role.SUPER_ADMIN.value] = {p.value: True for p in Permission}
+        out[Role.SUPER_ADMIN.value] = {p.value: p in ACTIVE_FUNCTIONS for p in Permission}
     return out
 
 
@@ -596,6 +607,8 @@ def set_matrix(
         raise Forbidden("the super admin type always has every function")
     if permission in RESERVED_FUNCTIONS:
         raise ReservedFunction(f"{permission.value} is reserved for the super admin")
+    if permission in RETIRED_PERMISSIONS:
+        raise RetiredFunction(f"{permission.value} is retired")
     row = session.scalar(
         select(RolePermission).where(RolePermission.role == role, RolePermission.permission == permission)
     )

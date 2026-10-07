@@ -1,0 +1,140 @@
+"""Note visibility (design custody-workflow, decisions 17, 20): the three visibilities across types, the two
+switches (`notes.view_private_office`, `notes.view_counsel_shared` for counsel), a two-membership reader seeing the
+private notes of both offices, a reader without sight of the case seeing nothing, and the timeline following the
+same rule."""
+
+from __future__ import annotations
+
+import pytest
+
+from aslms.domain.org import PermissionEffect
+from aslms.domain.reference import Permission, Role
+from aslms.services import access, case_detail, notes
+from aslms.services import ownership as own
+from aslms.services.visibility import NotVisibleCase
+from tests.db import workflow_support as w
+from tests.db.world import add_membership, make_case
+
+
+@pytest.fixture()
+def scene(world):
+    """An EDU case allotted to off1, held by the EDU standing counsel, with three notes by the EDU admin."""
+    w.widen(world)
+    with world.Session() as s:
+        case = w.claimed_case(s, world)
+        w.send(s, world, "edu_off1", case, "edu_counsel", pending_action_="opinion")
+        for vis in ("case_scope", "counsel_shared", "private_to_office"):
+            w.note(s, world, "edu_admin", case, body=vis, visibility_=vis)
+        s.commit()
+        return case.id
+
+
+def _bodies(s, world, key, case_id) -> set[str]:
+    from aslms.domain.cases import Case
+
+    _, user = world.actor(s, key)
+    try:
+        return {n["body"] for n in notes.list_for_case(s, user, s.get(Case, case_id)).items}
+    except NotVisibleCase:
+        return set()
+
+
+ALL = {"case_scope", "counsel_shared", "private_to_office"}
+
+
+def test_three_visibilities_by_type(world, scene):
+    with world.Session() as s:
+        assert _bodies(s, world, "oversight", scene) == ALL
+        assert _bodies(s, world, "edu_auditor", scene) == ALL
+        assert _bodies(s, world, "edu_admin", scene) == ALL
+        assert _bodies(s, world, "edu_off1", scene) == ALL
+        assert _bodies(s, world, "edu_counsel", scene) == {"counsel_shared"}
+        assert _bodies(s, world, "health_off", scene) == set()  # no sight of the case
+        assert _bodies(s, world, "dhe_user", scene) == set()
+
+
+def test_the_two_switches(world, scene):
+    with world.Session() as s:
+        actor, root = world.actor(s, "root")
+        access.set_override(
+            s,
+            actor,
+            root,
+            world.membership(s, "edu_off1"),
+            Permission.NOTES_VIEW_PRIVATE_OFFICE,
+            PermissionEffect.DENY,
+        )
+        access.set_override(
+            s,
+            actor,
+            root,
+            world.membership(s, "edu_counsel"),
+            Permission.NOTES_VIEW_COUNSEL_SHARED,
+            PermissionEffect.DENY,
+        )
+        assert _bodies(s, world, "edu_off1", scene) == {"case_scope", "counsel_shared"}
+        assert _bodies(s, world, "edu_counsel", scene) == set()
+        s.rollback()
+
+
+def test_author_always_reads_own_note(world, scene):
+    from aslms.domain.cases import Case
+
+    with world.Session() as s:
+        case = s.get(Case, scene)
+        actor, root = world.actor(s, "root")
+        w.recall(s, world, "edu_admin", case)
+        w.send(s, world, "edu_admin", case, "fin_off")
+        w.note(s, world, "edu_off1", case, body="off1 private", visibility_="private_to_office")
+        access.set_override(
+            s,
+            actor,
+            root,
+            world.membership(s, "edu_off1"),
+            Permission.NOTES_VIEW_PRIVATE_OFFICE,
+            PermissionEffect.DENY,
+        )
+        assert "off1 private" in _bodies(s, world, "edu_off1", scene)
+        assert "private_to_office" not in _bodies(s, world, "edu_off1", scene)
+        assert "off1 private" not in _bodies(s, world, "fin_off", scene)
+        s.rollback()
+
+
+def test_two_membership_reader_sees_private_notes_of_both_offices(world, scene):
+    from aslms.domain.cases import Case
+
+    with world.Session() as s:
+        add_membership(
+            s, world.user(s, "edu_admin"), world.office(s, "HEALTH"), Role.DEPT_OFFICER, "Under Secretary"
+        )
+        h_actor, h_admin = world.actor(s, "health_admin")
+        hcase = make_case(s)
+        own.claim(s, h_actor, h_admin, hcase, officer_user_id=world.user(s, "health_off").id)
+        w.send(s, world, "health_off", hcase, "edu_admin", to_office="HEALTH")
+        w.note(s, world, "health_admin", hcase, body="health private", visibility_="private_to_office")
+        assert _bodies(s, world, "edu_admin", hcase.id) == {"health private"}
+        assert "private_to_office" in _bodies(s, world, "edu_admin", scene)
+        assert _bodies(s, world, "edu_off1", hcase.id) == set()
+        _, person = world.actor(s, "edu_admin")
+        assert notes.get(s, person, [n for n in w.case_notes(s, hcase.id)][0].ref_no)
+        s.rollback()
+        assert s.get(Case, scene) is not None
+
+
+def test_timeline_follows_the_note_rule(world, scene):
+    from aslms.domain.cases import Case
+
+    with world.Session() as s:
+        case = s.get(Case, scene)
+
+        def note_events(key):
+            _, user = world.actor(s, key)
+            page = case_detail.timeline(s, user, case, limit=200)
+            return sorted(i["payload"]["visibility"] for i in page.items if i["type"] == "note_added")
+
+        assert note_events("oversight") == sorted(ALL)
+        assert note_events("edu_counsel") == ["counsel_shared"]
+        # custody moves are on everyone's timeline who sees the case
+        _, counsel = world.actor(s, "edu_counsel")
+        types = {i["type"] for i in case_detail.timeline(s, counsel, case, limit=200).items}
+        assert "custody_moved" in types

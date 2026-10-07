@@ -147,7 +147,8 @@ def test_downgrade_stops_on_a_second_membership(world):
     with pytest.raises(Exception, match="several memberships"):
         command.downgrade(alembic_config(TEST_URL), "0007")
     with world.Session() as s:
-        assert s.execute(sa.text("select version_num from alembic_version")).scalar() == "0008"
+        # the whole downgrade is one transaction: nothing was undone, the head stays
+        assert s.execute(sa.text("select version_num from alembic_version")).scalar() == "0009"
 
 
 def test_downgrade_stops_on_a_ticket(world):
@@ -163,7 +164,8 @@ def test_downgrade_stops_on_a_ticket(world):
     with pytest.raises(Exception, match="admin tickets exist"):
         command.downgrade(alembic_config(TEST_URL), "0007")
     with world.Session() as s:
-        assert s.execute(sa.text("select version_num from alembic_version")).scalar() == "0008"
+        # the whole downgrade is one transaction: nothing was undone, the head stays
+        assert s.execute(sa.text("select version_num from alembic_version")).scalar() == "0009"
 
 
 def test_migration_reports_headless_departments_and_creates_nothing(engine, at_0007):

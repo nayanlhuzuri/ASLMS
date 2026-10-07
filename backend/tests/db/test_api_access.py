@@ -180,7 +180,7 @@ def test_department_admin_creates_users_within_scope(api):
         == 403
     )
     perms = api.get("/admin/permissions", headers=root).json()
-    assert len(perms) == 47 and {p["module"] for p in perms} >= {"users", "cases", "notes"}
+    assert len(perms) == 49 and {p["module"] for p in perms} >= {"users", "cases", "notes"}
     # root sees everyone; audit rows exist for the changes
     assert len(api.get("/admin/users", headers=root).json()) == 4
     assert api.get("/admin/offices", headers=admin).json()[0]["code"] == "EDU"

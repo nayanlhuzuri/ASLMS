@@ -10,7 +10,8 @@ ownership predicates come from `recommend-and-claim`, decisions 15, 16, 23).
 - `owned_case_filter(session, user)`: the same predicate as a filter on `cases.id`.
 - `visibility_bases(session, user)`: every basis on which the caller may see a case, each a name and a boolean
   condition over `cases` (correlated `EXISTS` subqueries): `state`, `owner`, `recommended`, `pool`, `allotted`,
-  `custody`, `request`, `counsel`. `visible_case_condition` ORs them (a filter for lists, a selected column for
+  `custody`, `counsel` (`request` removed by `custody-workflow`; the personal custody basis follows the holder
+  membership). `visible_case_condition` ORs them (a filter for lists, a selected column for
   search); `access_basis` evaluates them for one case; `can_view_case` / `require_visible` decide the detail.
   Nothing is filtered in the portal; nothing is filtered after the query.
 - Documents (design `documents-uploads`, decision 7): `record_visibility_condition` is the per-record rule
@@ -26,7 +27,10 @@ ownership predicates come from `recommend-and-claim`, decisions 15, 16, 23).
 - Memberships (design `user-memberships`, decision 7): every basis is computed per active membership
   (`member_bases`) and the caller's set is the OR over their memberships; `record_visibility_condition` and the
   alert office rule are OR-ed the same way. `basis_by_member` says which membership produced each basis, and
-  `acting_member_for_case` picks the membership that writes on a case (decision 6). Everything stays in SQL."""
+  `acting_member_for_case` picks the membership that writes on a case (decision 6). Everything stays in SQL.
+- Notes (design `custody-workflow`, decision 17): `note_visible_condition` over `case_notes` — a case visible
+  through a membership and `record_visibility_condition` of the same membership, with `notes.view_private_office`
+  and (for standing counsel) `notes.view_counsel_shared` as switches; drafts are never in this rule."""
 
 from __future__ import annotations
 
@@ -63,7 +67,7 @@ from aslms.domain.ownership import (
     RecommendationStatus,
 )
 from aslms.domain.reference import AlertKind, Permission, Role
-from aslms.domain.workflow import Custody, Request, RequestStatus
+from aslms.domain.workflow import CaseNote, Custody
 from aslms.services import access
 from aslms.services.access import DEPARTMENT_TIER_KINDS as DEPARTMENT_TIER_KINDS
 from aslms.services.access import Member
@@ -272,27 +276,18 @@ def member_bases(session: Session, member: Member) -> list[Basis]:
                 ),
             )
         )
-    # custody and requests: office-wide over a subtree, or personal (decision 2, table rows custody / request)
+    # custody: personal (the holder membership itself) or office-wide over a subtree (decision 2 of cases-api;
+    # custody-workflow decision 9: the holder membership, from any department, works on the case while holding)
     personal = role == Role.REFERRAL_REVIEWER or (own.id == dept.id and not whole)
+    holds = Custody.holder_membership_id == member.membership_id
     if personal:
-        custody_cond = exists().where(Custody.case_id == Case.id, Custody.holder_user_id == member.id)
-        request_cond = exists().where(
-            Request.case_id == Case.id,
-            Request.status != RequestStatus.WITHDRAWN,
-            Request.to_user_id == member.id,
-        )
+        custody_cond = exists().where(Custody.case_id == Case.id, holds)
     else:
         root = dept if whole else own
         custody_cond = exists().where(
-            Custody.case_id == Case.id, Custody.holder_office_id.in_(subtree_ids(root))
-        )
-        request_cond = exists().where(
-            Request.case_id == Case.id,
-            Request.status != RequestStatus.WITHDRAWN,
-            Request.to_office_id.in_(subtree_ids(root)),
+            Custody.case_id == Case.id, or_(holds, Custody.holder_office_id.in_(subtree_ids(root)))
         )
     bases.append(("custody", custody_cond))
-    bases.append(("request", request_cond))
     if role == Role.STANDING_COUNSEL:
         bases.append(("counsel", codes_condition(counsel_department_codes(session, dept))))
     return bases
@@ -359,7 +354,7 @@ def require_visible(session: Session, user: User | Member, case: Case) -> list[s
 
 # ------------------------------------------------------------------------------------------------ documents
 
-WORKING_BASES = frozenset({"owner", "allotted", "custody", "request", "counsel"})
+WORKING_BASES = frozenset({"owner", "allotted", "custody", "counsel"})
 STATE_WIDE_PERMISSIONS = (Permission.CASES_VIEW_ALL,)
 
 
@@ -373,17 +368,11 @@ def acting_member_for_case(
     """Decision 6, a write on a case: the membership with a working basis on the case that holds the function —
     the one holding custody personally first, then the one in the owning department, then any other."""
     custody = session.get(Custody, case.id)
-    holder_office = session.get(Office, custody.holder_office_id) if custody is not None else None
     ranked: list[tuple[int, int, Member]] = []
     for order, (member, names) in enumerate(basis_by_member(session, user, case)):
         if not (WORKING_BASES & set(names)) or not member.holds(permission):
             continue
-        holds_file = (
-            custody is not None
-            and custody.holder_user_id == member.id
-            and holder_office is not None
-            and in_subtree(holder_office, member.department or member.office)
-        )
+        holds_file = custody is not None and custody.holder_membership_id == member.membership_id
         rank = 0 if holds_file else (1 if "owner" in names else 2)
         ranked.append((rank, order, member))
     ranked.sort(key=lambda t: (t[0], t[1]))
@@ -525,6 +514,55 @@ def require_visible_document(
 ) -> None:
     if not can_view_document(session, user, doc, permission=permission):
         raise NotVisibleDocument("no such document")
+
+
+# ------------------------------------------------------------------------------------------------ notes
+
+
+class NotVisibleNote(LookupError):
+    """The note exists but the caller may not see it (HTTP 404 "no such note")."""
+
+
+def _member_note_condition(session: Session, member: Member) -> ColumnElement[bool]:
+    """Decision 17 for one membership: a case visible through this membership's bases, the record rule of the
+    same membership, and the two note functions as switches (the author always reads their own note)."""
+    bases = member_bases(session, member)
+    if not bases:
+        return false()
+    visible = bases[0][1] if len(bases) == 1 else or_(*[cond for _, cond in bases])
+    case_ok = exists(select(literal(1)).select_from(Case).where(Case.id == CaseNote.case_id, visible))
+    record = _record_condition_for(
+        session,
+        member,
+        visibility=CaseNote.visibility,
+        office_id=CaseNote.office_id,
+        author_user_id=CaseNote.actor_user_id,
+        group=None,
+    )
+    author = CaseNote.actor_user_id == member.id
+    conds: list[ColumnElement[bool]] = [case_ok, record]
+    if not member.holds(Permission.NOTES_VIEW_PRIVATE_OFFICE):
+        conds.append(or_(CaseNote.visibility != Visibility.PRIVATE_TO_OFFICE, author))
+    if member.role == Role.STANDING_COUNSEL and not member.holds(Permission.NOTES_VIEW_COUNSEL_SHARED):
+        conds.append(or_(CaseNote.visibility != Visibility.COUNSEL_SHARED, author))
+    return and_(*conds)
+
+
+def note_visible_condition(session: Session, user: User | Member) -> ColumnElement[bool]:
+    """Decision 17, over `case_notes`: the OR over the caller's memberships; every note for a State-wide
+    reader. Drafts are never in this rule."""
+    if state_wide(session, user):
+        return true()
+    conds = [_member_note_condition(session, m) for m in access.members(session, user)]
+    if not conds:
+        return false()
+    return conds[0] if len(conds) == 1 else or_(*conds)
+
+
+def can_view_note(session: Session, user: User | Member, note: CaseNote | uuid.UUID) -> bool:
+    note_id = note if isinstance(note, uuid.UUID) else note.id
+    cond = note_visible_condition(session, user)
+    return bool(session.scalar(select(cond).select_from(CaseNote).where(CaseNote.id == note_id)))
 
 
 # ------------------------------------------------------------------------------------------------ alerts

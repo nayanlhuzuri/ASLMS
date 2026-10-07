@@ -79,12 +79,11 @@ def test_a_one_membership_user_is_unchanged(world):
     with world.Session() as s:
         off1 = world.user(s, "edu_off1")
         names = [n for n, _ in vis.visibility_bases(s, off1)]
-        assert names == ["allotted", "custody", "request"]
+        assert names == ["allotted", "custody"]  # `request` removed by custody-workflow
         counsel = world.user(s, "edu_counsel")
         assert [n for n, _ in vis.visibility_bases(s, counsel)] == [
             "allotted",
             "custody",
-            "request",
             "counsel",
         ]
         assert [n for n, _ in vis.visibility_bases(s, world.user(s, "oversight"))] == ["state"]

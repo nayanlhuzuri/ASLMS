@@ -1,7 +1,7 @@
 """The one visibility rule (design cases-api, decisions 1–3): every basis evaluated for the shared world —
 State-wide readers, owner and watcher, recommended, pool, allotted (officer and directorate), a transfer with
-and without `stay_as_watcher`, custody (office-wide and personal), requests (open / withdrawn, office /
-personal), the standing counsel's codes, a denied `cases.view_scope`, and the list-equals-detail check through
+and without `stay_as_watcher`, custody (office-wide and personal: the holder membership, design
+custody-workflow), the standing counsel's codes, a denied `cases.view_scope`, and the list-equals-detail check through
 the API (`GET /cases` returns exactly the cases `can_view_case` admits; `/cases/search` marks exactly those
 visible)."""
 
@@ -26,13 +26,12 @@ from aslms.domain.ownership import (
     ScoreBand,
     TransferStatus,
 )
-from aslms.domain.reference import Permission, RequestKind
-from aslms.domain.workflow import Custody, Request, RequestStatus
+from aslms.domain.reference import Permission
+from aslms.domain.workflow import Custody
 from aslms.services import access
 from aslms.services import ownership as own
 from aslms.services import visibility as vis
 from aslms.services.cases import refresh_search_vector
-from aslms.services.refno import allocate_ref_no
 from tests.db.world import PW, USERS, make_case
 
 # ------------------------------------------------------------------------------------------------ helpers
@@ -58,23 +57,16 @@ def claim(s, world, key, case, **kw):
 
 
 def custody_at(s, case, office, user=None):
-    row = Custody(case_id=case.id, holder_office_id=office.id, holder_user_id=user.id if user else None)
-    s.add(row)
-    s.flush()
-    return row
-
-
-def request_to(s, case, *, from_office, to_office, to_user=None, status=RequestStatus.OPEN):
-    row = Request(
+    """A custody row as `move_custody` writes it: a person holds through their membership (custody-workflow)."""
+    membership = None
+    if user is not None:
+        member = next((m for m in access.members(s, user) if m.covers(office)), None)
+        membership = (member or access.primary_member(s, user)).membership
+    row = Custody(
         case_id=case.id,
-        kind=RequestKind.REPORT,
-        from_office_id=from_office.id,
-        to_office_id=to_office.id,
-        to_user_id=to_user.id if to_user else None,
-        subject="report please",
-        status=status,
-        ref_no=allocate_ref_no(s, from_office.code, "REQ"),
-        actor_name="test",
+        holder_office_id=office.id,
+        holder_user_id=user.id if user else None,
+        holder_membership_id=membership.id if membership else None,
     )
     s.add(row)
     s.flush()
@@ -243,27 +235,17 @@ def test_custody_office_wide_for_units_and_personal_for_officers(world):
         s.rollback()
 
 
-# ------------------------------------------------------------------------------------------------ requests
-
-
-def test_requests_open_withdrawn_office_and_personal(world):
+def test_personal_custody_follows_the_holder_membership(world):
+    """custody-workflow decision 9: a referral reviewer (personal basis) sees a file only while their own
+    membership holds it; an office-held leg at EDU says nothing to them."""
     with world.Session() as s:
-        edu, dhe = world.office(s, "EDU"), world.office(s, "EDU-DHE")
-        open_case, withdrawn_case, personal_case, office_case = (make_case(s) for _ in range(4))
-        request_to(s, open_case, from_office=edu, to_office=dhe)
-        request_to(s, withdrawn_case, from_office=edu, to_office=dhe, status=RequestStatus.WITHDRAWN)
-        reviewer = world.user(s, "edu_reviewer")
-        request_to(s, personal_case, from_office=edu, to_office=edu, to_user=reviewer)
-        request_to(s, office_case, from_office=edu, to_office=edu)
-        assert basis(s, world, "dhe_user", open_case) == ["request"]
-        assert not sees(s, world, "dhe_user", withdrawn_case)
-        assert not sees(s, world, "dse_user", open_case)
-        assert basis(s, world, "edu_reviewer", personal_case) == ["request"]
+        edu = world.office(s, "EDU")
+        personal_case, office_case = make_case(s), make_case(s)
+        custody_at(s, personal_case, edu, world.user(s, "edu_reviewer"))
+        custody_at(s, office_case, edu)
+        assert basis(s, world, "edu_reviewer", personal_case) == ["custody"]
         assert not sees(s, world, "edu_reviewer", office_case)
-        # an answered request still counts
-        answered = make_case(s)
-        request_to(s, answered, from_office=edu, to_office=dhe, status=RequestStatus.ANSWERED)
-        assert sees(s, world, "dhe_user", answered)
+        assert "request" not in {name for name, _ in vis.visibility_bases(s, world.user(s, "edu_admin"))}
         s.rollback()
 
 
@@ -395,16 +377,10 @@ def test_list_and_search_follow_can_view_case_for_every_user(api, world):
         custody_at(s, cases["custody_dhe"], dhe)
         cases["custody_off2"] = make_case(s, pet="STATE OF ASSAM CUST2")
         custody_at(s, cases["custody_off2"], edu, world.user(s, "edu_off2"))
-        cases["request_dse"] = make_case(s, pet="STATE OF ASSAM REQ")
-        request_to(s, cases["request_dse"], from_office=edu, to_office=dse)
-        cases["request_reviewer"] = make_case(s, pet="STATE OF ASSAM REV")
-        request_to(
-            s,
-            cases["request_reviewer"],
-            from_office=edu,
-            to_office=edu,
-            to_user=world.user(s, "edu_reviewer"),
-        )
+        cases["custody_dse"] = make_case(s, pet="STATE OF ASSAM REQ")
+        custody_at(s, cases["custody_dse"], dse)
+        cases["custody_reviewer"] = make_case(s, pet="STATE OF ASSAM REV")
+        custody_at(s, cases["custody_reviewer"], edu, world.user(s, "edu_reviewer"))
         cases["counsel"] = make_case(s, pet="STATE OF ASSAM SC")
         entry_with_codes(s, cases["counsel"], ["SC, EDU"], pet="STATE OF ASSAM SC")
         claim(s, world, "health_admin", cases["counsel"])
@@ -418,9 +394,9 @@ def test_list_and_search_follow_can_view_case_for_every_user(api, world):
         }
         ids = {str(c.id): name for name, c in cases.items()}
     assert expected["edu_off1"] == {"to_off1", "pool"} - {"pool"}
-    assert expected["dse_user"] == {"to_dse", "request_dse"}
+    assert expected["dse_user"] == {"to_dse", "custody_dse"}
     assert expected["edu_counsel"] == {"counsel"}
-    assert expected["edu_reviewer"] == {"request_reviewer"}
+    assert expected["edu_reviewer"] == {"custody_reviewer"}
     assert expected["edu_admin"] >= {
         "edu_owned",
         "edu_recommended",

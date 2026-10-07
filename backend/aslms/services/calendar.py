@@ -118,7 +118,7 @@ def hearing_rows(
 
 
 def working_condition(session: Session, user: User) -> ColumnElement[bool] | None:
-    """The OR of the caller's working bases (owner, allotted, custody, request, counsel); None when the
+    """The OR of the caller's working bases (owner, allotted, custody, counsel); None when the
     caller has none."""
     conds = [c for name, c in visibility.visibility_bases(session, user) if name in visibility.WORKING_BASES]
     if not conds:

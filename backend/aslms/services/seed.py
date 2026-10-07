@@ -1,7 +1,7 @@
 """`aslms seed`: the rows the system needs before any NAPIX data arrives. Idempotent: every row is keyed by its
 code and only inserted when missing (administrators edit labels; a second run inserts nothing).
 
-Seeded here: the nine `ref_*` code sets from the Python enums, Secretariat designations, Assam as a state
+Seeded here: the `ref_*` code sets (retired codes switched off) from the Python enums, Secretariat designations, Assam as a state
 (LGD 18) with its districts by name (LGD codes are entered later, never guessed), the Gauhati High Court
 (NAPIX state code 18, verified live) with its four establishments from the bench master, and the root
 Government of Assam office. Department offices, users and counsel codes are created under Administration."""
@@ -18,14 +18,17 @@ from aslms.domain.courts import Court, CourtLevel, District, HighCourt, State
 from aslms.domain.org import Designation, Office
 from aslms.domain.reference import (
     REF_TABLES,
+    RETIRED_CODES,
     AlertKind,
     DocType,
     EventType,
+    NoteKind,
     OfficeKind,
     RefAlertKind,
     RefCaseStage,
     RefDocType,
     RefEventType,
+    RefNoteKind,
     RefPermission,
     Stage,
 )
@@ -79,6 +82,12 @@ DOC_TYPE_LABELS = {
     DocType.COUNTER_AFFIDAVIT: "Affidavit-in-opposition (counter affidavit)",
     DocType.GOVERNMENT_ORDER: "Government order / notification",
 }
+# labels that differ from the code (design custody-workflow, decision 15; new rows only, plus `hearing` while
+# it still carries its generated label)
+NOTE_KIND_LABELS = {
+    NoteKind.HEARING: "Hearing note",
+    NoteKind.HAND_OVER: "Hand-over",
+}
 ALERT_SEVERITY = {
     AlertKind.HEARING_DUE: "high",
     AlertKind.NEXT_DATE_CHANGED: "high",
@@ -92,6 +101,7 @@ ALERT_KIND_LABELS = {
     AlertKind.OWNERSHIP: "Ownership change",
     AlertKind.NEW_DOCUMENT: "New document",
     AlertKind.ADMIN_TICKET: "Admin ticket",
+    AlertKind.WORKFLOW: "Workflow",
 }
 TRACKING_CARD_EVENTS = {
     EventType.CASE_CREATED,
@@ -126,6 +136,8 @@ def _extra_columns(model: type, member: enum.Enum) -> dict:
     if model is RefPermission:
         label, description = PERMISSION_LABELS[member]
         return {"label": label, "description": description, "module": member.module}
+    if model is RefNoteKind and member in NOTE_KIND_LABELS:
+        return {"label": NOTE_KIND_LABELS[member]}
     if model is RefEventType:
         return {"timeline_label": _label(member.value), "is_tracking_card": member in TRACKING_CARD_EVENTS}
     return {}
@@ -145,6 +157,31 @@ def seed_ref_tables(session: Session, report: SeedReport) -> None:
             columns.update(_extra_columns(model, member))
             session.add(model(**columns))
             report.add(table)
+    session.flush()
+    _retire_codes(session, report)
+    _relabel_note_kinds(session, report)
+
+
+def _retire_codes(session: Session, report: SeedReport) -> None:
+    """Retired codes stay as rows (old rows still point at them) with `is_active = false` (design
+    custody-workflow, decisions 15 and 22)."""
+    for table, codes in RETIRED_CODES.items():
+        model = REF_TABLES[table][0]
+        for row in session.scalars(
+            select(model).where(model.code.in_(codes), model.is_active.is_(True))
+        ).all():
+            row.is_active = False
+            report.add(f"{table}_retired")
+    session.flush()
+
+
+def _relabel_note_kinds(session: Session, report: SeedReport) -> None:
+    """`hearing` reads "Hearing note" (plan §5.8) unless an administrator already changed its label."""
+    for member, label in NOTE_KIND_LABELS.items():
+        row = session.get(RefNoteKind, member.value)
+        if row is not None and row.label == _label(member.value) and row.label != label:
+            row.label = label
+            report.add("ref_note_kind_relabelled")
     session.flush()
 
 

@@ -127,11 +127,18 @@ def test_lost_visibility_drops_the_alert_from_the_list(api, world, alerted):
         alerts.scan_events(s, now=h.now_utc())
         s.commit()
     body = api.get("/alerts", headers=off1).json()
-    # the hearing alert of a case off1 no longer sees is gone; the take-over notice is there
-    assert [i["kind"] for i in body["items"]] == ["ownership"]
-    assert body["items"][0]["data"]["event"] == "case_taken_over"
+    # the hearing alert of a case off1 no longer sees is gone; the take-over notice is there, and (design
+    # custody-workflow, decision 23b) the "file taken back" notice of the custody leg the take-over wrote
+    assert sorted(i["kind"] for i in body["items"]) == ["ownership", "workflow"]
+    taken = next(i for i in body["items"] if i["kind"] == "ownership")
+    assert taken["data"]["event"] == "case_taken_over"
+    recalled = next(i for i in body["items"] if i["kind"] == "workflow")
+    assert (
+        recalled["data"]["event"] == "file_recalled"
+        and api.get(f"/alerts/{recalled['id']}", headers=off1).status_code == 200
+    )
     assert api.get(f"/alerts/{alerted['edu_alert']}", headers=off1).status_code == 404
-    r = api.post(f"/alerts/{body['items'][0]['id']}/acknowledge", json={}, headers=off1)
+    r = api.post(f"/alerts/{taken['id']}/acknowledge", json={}, headers=off1)
     assert r.status_code == 200 and r.json()["status"] == "acknowledged"
 
 

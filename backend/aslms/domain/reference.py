@@ -59,17 +59,6 @@ class Stage(enum.StrEnum):
     CLOSED = "closed"
 
 
-class RequestKind(enum.StrEnum):
-    REPORT = "report"
-    PARAWISE_COMMENTS = "parawise_comments"
-    DOCUMENTS = "documents"
-    OPINION = "opinion"
-    INSTRUCTIONS = "instructions"
-    COMPLIANCE = "compliance"
-    CLARIFICATION = "clarification"
-    OTHER = "other"
-
-
 class NoteKind(enum.StrEnum):
     GENERAL = "general"
     DECISION = "decision"
@@ -78,7 +67,9 @@ class NoteKind(enum.StrEnum):
     COUNSEL_ADVICE = "counsel_advice"
     COMPLIANCE = "compliance"
     FILE_NOTING = "file_noting"
-    CORRECTION = "correction"
+    CORRECTION = "correction"  # retired by custody-workflow: a correction carries the original's kind
+    OPINION = "opinion"
+    HAND_OVER = "hand_over"
 
 
 class DocType(enum.StrEnum):
@@ -108,11 +99,14 @@ class AlertKind(enum.StrEnum):
     NEW_ORDER = "new_order"
     STATUS_CHANGED = "status_changed"
     COMPLIANCE_DUE = "compliance_due"
-    REQUEST_DUE = "request_due"
+    REQUEST_DUE = "request_due"  # retired by custody-workflow (no requests)
     RECOMMENDATION = "recommendation"
     OWNERSHIP = "ownership"  # allotted, taken over, transfer requested / decided
     NEW_DOCUMENT = "new_document"
     ADMIN_TICKET = "admin_ticket"  # case-less: an admin ticket opened or decided (design user-memberships)
+    WORKFLOW = (
+        "workflow"  # file received, file recalled, due / overdue (design custody-workflow, decision 23)
+    )
 
 
 class EventType(enum.StrEnum):
@@ -137,8 +131,8 @@ class EventType(enum.StrEnum):
     OWNERSHIP_RELEASED = "ownership_released"
     ALLOTTED = "allotted"
     CUSTODY_MOVED = "custody_moved"
-    REQUEST_SENT = "request_sent"
-    REQUEST_ANSWERED = "request_answered"
+    REQUEST_SENT = "request_sent"  # retired by custody-workflow
+    REQUEST_ANSWERED = "request_answered"  # retired by custody-workflow
     STAGE_SET = "stage_set"
     NOTE_ADDED = "note_added"
     ALERT_RAISED = "alert_raised"
@@ -190,8 +184,10 @@ class Permission(enum.StrEnum):
     CASES_TAKE_OVER = "cases.take_over"
     # custody and workflow
     CUSTODY_MOVE = "custody.move"
-    REQUESTS_SEND = "requests.send"
-    REQUESTS_ANSWER = "requests.answer"
+    CUSTODY_RECALL = "custody.recall"  # call a case of the own department back (custody-workflow, decision 6)
+    CUSTODY_TRACK = "custody.track"  # pending and overdue files of the department (decision 24a)
+    REQUESTS_SEND = "requests.send"  # retired by custody-workflow (sending the file replaces requests)
+    REQUESTS_ANSWER = "requests.answer"  # retired by custody-workflow
     STAGES_SET = "stages.set"
     NOTES_ADD = "notes.add"
     NOTES_VIEW_COUNSEL_SHARED = "notes.view_counsel_shared"
@@ -218,7 +214,7 @@ class Permission(enum.StrEnum):
 
 class RecordType(enum.StrEnum):
     CASE = "CASE"
-    REQ = "REQ"
+    REQ = "REQ"  # retired by custody-workflow
     NOTE = "NOTE"
     DOC = "DOC"
     TRF = "TRF"
@@ -254,10 +250,6 @@ class RefOfficeKind(RefMixin, Base):
 class RefCaseStage(RefMixin, Base):
     __tablename__ = "ref_case_stage"
     phase: Mapped[str] = mapped_column(String(20), nullable=False, server_default="main")
-
-
-class RefRequestKind(RefMixin, Base):
-    __tablename__ = "ref_request_kind"
 
 
 class RefNoteKind(RefMixin, Base):
@@ -311,7 +303,6 @@ REF_TABLES: dict[str, tuple[type, type[enum.Enum]]] = {
     "ref_role": (RefRole, Role),
     "ref_office_kind": (RefOfficeKind, OfficeKind),
     "ref_case_stage": (RefCaseStage, Stage),
-    "ref_request_kind": (RefRequestKind, RequestKind),
     "ref_note_kind": (RefNoteKind, NoteKind),
     "ref_doc_type": (RefDocType, DocType),
     "ref_alert_kind": (RefAlertKind, AlertKind),
@@ -320,3 +311,15 @@ REF_TABLES: dict[str, tuple[type, type[enum.Enum]]] = {
     "ref_permission": (RefPermission, Permission),
     "ref_ticket_kind": (RefTicketKind, TicketKind),
 }
+
+# Codes kept as Python members (old rows still load) but retired: `aslms seed` sets their `ref_*` rows
+# `is_active = false` and disables the matrix rows of retired functions; access ignores them (design
+# `custody-workflow`, decisions 15 and 22).
+RETIRED_CODES: dict[str, frozenset[str]] = {
+    "ref_note_kind": frozenset({NoteKind.CORRECTION.value}),
+    "ref_alert_kind": frozenset({AlertKind.REQUEST_DUE.value}),
+    "ref_event_type": frozenset({EventType.REQUEST_SENT.value, EventType.REQUEST_ANSWERED.value}),
+    "ref_record_type": frozenset({RecordType.REQ.value}),
+    "ref_permission": frozenset({Permission.REQUESTS_SEND.value, Permission.REQUESTS_ANSWER.value}),
+}
+RETIRED_PERMISSIONS = frozenset({Permission.REQUESTS_SEND, Permission.REQUESTS_ANSWER})

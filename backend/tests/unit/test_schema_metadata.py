@@ -59,7 +59,8 @@ def test_mutable_tables_have_updated_at_and_append_only_do_not():
 
 
 def test_ref_tables_match_the_enums():
-    assert len(REF_TABLES) == 11
+    assert len(REF_TABLES) == 10  # ref_request_kind dropped by custody-workflow (0009)
+    assert "ref_request_kind" not in TABLES and "requests" not in TABLES
     for table, (model, enum_cls) in REF_TABLES.items():
         assert model.__tablename__ == table
         assert TABLES[table].comment == "class=reference"

@@ -289,7 +289,18 @@ def _custody_for(session: Session, actor: Actor, case: Case, row: CaseOwnership,
         return
     office = _office(session, row.unit_office_id) or _office(session, row.office_id)
     user = session.get(User, row.officer_user_id) if row.officer_user_id else None
-    move_custody(session, actor, case, office=office, user=user, reason=reason)
+    # design custody-workflow, decision 2: the officer's membership in the department holds the file
+    dept = _office(session, row.office_id)
+    member = eligible_member(session, dept, user) if user is not None and dept is not None else None
+    move_custody(
+        session,
+        actor,
+        case,
+        office=office,
+        user=user,
+        membership=member.membership if member is not None else None,
+        reason=reason,
+    )
 
 
 # ------------------------------------------------------------------------------------------------ claim

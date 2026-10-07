@@ -1,7 +1,7 @@
 """The two generators (design alerts-notifications, decisions 1–13, 15): the event scan's window and
 idempotence, one alert per court event for owned cases only and only for recent court dates, the date sweep
 (hearing alerts and their upgrade to critical, expiry when the date changes, cause-list listings, compliance,
-requests, recommendations decided, aged informational alerts), the ownership and new-document alerts, and
+recommendations decided, aged informational alerts), the ownership and new-document alerts, and
 the reference numbers (a re-run allocates no serial)."""
 
 from __future__ import annotations
@@ -10,13 +10,12 @@ from datetime import timedelta
 
 import sqlalchemy as sa
 
-from aslms.domain.alerts import Alert, AlertStatus, NextDate, NextDateSource, ReviewStatus, Severity
+from aslms.domain.alerts import AlertStatus, NextDate, NextDateSource, ReviewStatus, Severity
 from aslms.domain.cases import Case, CaseObjection, CaseStatus
 from aslms.domain.events import Event
 from aslms.domain.org import Channel
 from aslms.domain.ownership import RecommendationStatus, ScoreBand
 from aslms.domain.reference import AlertKind, EventType, RecordType, RefSequence
-from aslms.domain.workflow import RequestStatus
 from aslms.services import alert_rules as rules
 from aslms.services import alerts
 from aslms.services import ownership as own
@@ -254,10 +253,12 @@ def test_hearing_from_cause_list_and_manual_next_date(world):
         assert h.alerts_of(s, pending_review) == [] and h.alerts_of(s, unowned) == []
 
 
-# ------------------------------------------------------------------------------------------------ compliance / requests
+# ------------------------------------------------------------------------------------------------ compliance
 
 
-def test_compliance_and_request_alerts(world):
+def test_compliance_alerts(world):
+    """Request alerts are retired (design custody-workflow, decision 23); files due with their holder are
+    covered by tests/db/test_workflow_alerts.py."""
     with world.Session() as s:
         case = make_case(s)
         h.claim(s, world, "edu_admin", case, officer_user_id=world.users["edu_off1"].id)
@@ -265,37 +266,20 @@ def test_compliance_and_request_alerts(world):
         far = make_case(s)
         h.claim(s, world, "edu_admin", far)
         s.add(CaseObjection(case_id=far.id, seq=1, scrutiny_date=d(-10), compliance_by_date=d(20)))
-        edu, dse = world.office(s, "EDU"), world.office(s, "EDU-DSE")
-        soon = h.request_to(s, case, from_office=edu, to_office=dse, due=d(2))
-        overdue = h.request_to(
-            s, case, from_office=edu, to_office=edu, to_user=world.user(s, "edu_off2"), due=d(-1)
-        )
-        later = h.request_to(s, case, from_office=edu, to_office=dse, due=d(9))
         s.commit()
         c = alerts.sweep_dates(s, now=NOW)
         s.commit()
-        assert c["alerts_new"] == 3
+        assert c["alerts_new"] == 1 and "closed_request" not in c
         comp = h.alerts_of(s, case, AlertKind.COMPLIANCE_DUE)
         assert len(comp) == 1 and comp[0].severity == Severity.HIGH
         assert comp[0].dedupe_key == f"compliance_due:{case.id}:{d(-10)}"
         assert h.alerts_of(s, far) == []
-        reqs = {a.data["request_id"]: a for a in h.alerts_of(s, case, AlertKind.REQUEST_DUE)}
-        assert set(reqs) == {str(soon.id), str(overdue.id)} and str(later.id) not in reqs
-        assert reqs[str(soon.id)].severity == Severity.HIGH
-        assert h.recipient_emails(s, reqs[str(soon.id)]) == {"user.dse@example.org"}
-        assert reqs[str(overdue.id)].severity == Severity.CRITICAL
-        assert reqs[str(overdue.id)].title.startswith("Request overdue since")
-        assert h.recipient_emails(s, reqs[str(overdue.id)]) == {"off2.edu@example.org"}
-        assert "report please" not in (reqs[str(soon.id)].body or "")  # the subject is not repeated
-        # two days before the compliance date it becomes critical; the answered request's alert is done
-        soon.status = RequestStatus.ANSWERED
-        s.commit()
-        c2 = alerts.sweep_dates(s, now=NOW + timedelta(days=3))
+        assert h.alerts_of(s, kind=AlertKind.REQUEST_DUE) == []
+        # two days before the compliance date it becomes critical
+        alerts.sweep_dates(s, now=NOW + timedelta(days=3))
         s.commit()
         s.refresh(comp[0])
-        assert comp[0].severity == Severity.CRITICAL and c2["closed_request"] == 1
-        done = s.get(Alert, reqs[str(soon.id)].id)
-        assert done.status == AlertStatus.DONE and done.data["closed_reason"] == "request_answered"
+        assert comp[0].severity == Severity.CRITICAL
         # 31 days after the compliance date the alert expires
         c3 = alerts.sweep_dates(s, now=NOW + timedelta(days=5 + 31))
         s.commit()

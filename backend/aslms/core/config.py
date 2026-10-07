@@ -69,6 +69,11 @@ class Settings(BaseSettings):
     clamav_timeout_seconds: float = 30.0
     text_extract_batch: int = 50  # documents per `aslms.extract_pending_text` run
 
+    # --- custody and workflow (design custody-workflow, decisions 12, 14, 18) ---------------------------
+    attachments_max_files: int = 5  # new files per note, each within UPLOAD_MAX_BYTES
+    note_max_chars: int = 20_000
+    note_drafts_max: int = 20  # drafts per holder per case
+
     # --- mail and alerts (design alerts-notifications, decisions 2, 4, 6, 10, 11, 15, 17, 19) -------------
     mail_backend: str = (
         "auto"  # auto | api | smtp | console; auto prefers the API token, then SMTP, then console

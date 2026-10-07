@@ -6,9 +6,14 @@ reading side with the visibility rule applied in SQL.
   back-filled) become alerts — `next_date_changed`, `new_order`, `status_changed`, `recommendation`,
   `ownership`, `new_document`. Case alerts only for cases with an active owner or watcher (joined in SQL);
   only recent court dates alert (the running historical load raises nothing).
-- `sweep_dates` (decisions 1b, 6, 10, 11, 15): hearing, compliance and request alerts from dates that come
+- `sweep_dates` (decisions 1b, 6, 10, 15): hearing, compliance and custody-due alerts from dates that come
   due, upgraded in place as they approach, and the closures (dates that left the case or passed, aged
-  informational alerts, recommendations decided, requests answered, compliance expired).
+  informational alerts, recommendations decided, files moved on, compliance expired).
+- Workflow (design `custody-workflow`, decision 23): `custody_moved` → `workflow` "file received" (to the new
+  holder) and "file recalled" (to the personal holder an explicit recall or an ownership move took it from);
+  the sweep raises one `workflow_due:<leg id>` alert per current leg due within `REQUEST_DUE_SOON_DAYS`
+  (`high`) or overdue (`critical`) to the holder and the owning department's `custody.track` holders, closed
+  `done` when the leg changes. The request alerts are retired.
 - `raise_alert` is idempotent through `alerts.dedupe_key` (a number is allocated only for a new key); a
   higher severity notifies the recipients again. Every new alert emits one scoped `alert_raised` event.
 - `acknowledge` / `mark_done` need `alerts.acknowledge` and a recipient or working relation; each writes an
@@ -53,14 +58,24 @@ from aslms.domain.reference import (
     RecordType,
     RefAlertKind,
     RefDocType,
-    RefRequestKind,
 )
-from aslms.domain.workflow import Request, RequestStatus
+from aslms.domain.workflow import (
+    CUSTODY_REASON_LABELS,
+    PENDING_ACTION_LABELS,
+    Custody,
+    CustodyHistory,
+    PendingAction,
+)
 from aslms.services import access, calendar, notifications, visibility
 from aslms.services import alert_rules as rules
 from aslms.services.audit import Actor, write_audit
 from aslms.services.cases import CaseNotFound, emit_event, ref_no_from_url, resolve_case_ref
-from aslms.services.recipients import NAMED_RECIPIENT_EVENTS, Resolver, owning_office
+from aslms.services.recipients import (
+    NAMED_RECIPIENT_EVENTS,
+    NAMED_WORKFLOW_EVENTS,
+    Resolver,
+    owning_office,
+)
 from aslms.services.refno import allocate_ref_no
 from aslms.services.visibility import NotVisibleCase
 
@@ -85,7 +100,10 @@ HANDLED_EVENTS = OWNERSHIP_EVENTS | {
     EventType.CASE_DISPOSED,
     EventType.RECOMMENDATION_MADE,
     EventType.DOCUMENT_UPLOADED,
+    EventType.CUSTODY_MOVED,
 }
+RECEIVED_REASONS = frozenset({"sent", "reassigned_on_exit"})
+TAKEN_REASONS = frozenset({"recalled", "allotted", "taken_over", "transferred"})
 DEFAULT_LIMIT, MAX_LIMIT = 50, 200
 MAX_NOTE = 500
 
@@ -351,6 +369,7 @@ def scan_events(
             *in_window,
             Event.type.in_(list(HANDLED_EVENTS)),
             or_(Event.type == EventType.RECOMMENDATION_MADE, owned),
+            _workflow_moves(),
         )
         .order_by(Event.created_at, Event.id)
     ).all()
@@ -592,6 +611,116 @@ def _handle_event(
             now=now,
             counters=counters,
         )
+    elif kind_of_event == EventType.CUSTODY_MOVED:
+        _workflow_event(session, resolver, ev, case, p, today=today, cfg=cfg, now=now, counters=counters)
+    else:
+        counters["skipped_other"] += 1
+
+
+def _workflow_moves():
+    """Only the `custody_moved` events that raise a `workflow` alert are read (decision 23 a, b of
+    custody-workflow): a file received by a person, or a file taken from a personal holder."""
+    reason = Event.payload["reason"].astext
+    return or_(
+        Event.type != EventType.CUSTODY_MOVED,
+        and_(reason.in_(list(RECEIVED_REASONS)), Event.payload["user_id"].astext.is_not(None)),
+        and_(
+            reason.in_(list(TAKEN_REASONS)),
+            Event.payload["previous_user_id"].astext.is_not(None),
+            Event.payload["previous_user_id"].astext.is_distinct_from(Event.payload["user_id"].astext),
+        ),
+    )
+
+
+def _workflow_event(
+    session: Session,
+    resolver: Resolver,
+    ev: Event,
+    case: Case,
+    p: dict[str, Any],
+    *,
+    today: date,
+    cfg: AlertConfig,
+    now: datetime,
+    counters: dict[str, Any],
+) -> None:
+    """Decision 23 (a) and (b) of custody-workflow: file received, file recalled; informational."""
+    from aslms.services.offices import find_office
+
+    reason = p.get("reason")
+    due = _date(p.get("due_date"))
+    severity = (
+        Severity.HIGH
+        if due is not None and (due - today).days <= cfg.request_due_soon_days
+        else Severity.NORMAL
+    )
+    try:
+        action = PendingAction(p.get("pending_action") or "none")
+    except ValueError:
+        action = PendingAction.NONE
+    data = {
+        "reason": reason,
+        "reason_label": CUSTODY_REASON_LABELS.get(reason, reason),
+        "holder_office_code": p.get("office_code"),
+        "holder_user_name": p.get("user_name"),
+        "holder_designation": p.get("holder_designation"),
+        "pending_action": action.value,
+        "pending_action_label": PENDING_ACTION_LABELS[action],
+        "due_date": due,
+        "seq_no": p.get("seq_no"),
+    }
+    if reason in RECEIVED_REASONS and p.get("user_id"):
+        office = find_office(session, p.get("office_code") or "")
+        holder = resolver.user(p.get("user_id"))
+        actor_office = None
+        if ev.actor_user_id is not None:
+            leg = session.scalar(
+                select(CustodyHistory).where(
+                    CustodyHistory.case_id == case.id, CustodyHistory.seq_no == p.get("seq_no")
+                )
+            )
+            actor_office = leg.actor_office_code if leg is not None else None
+        if office is None or holder is None:
+            counters["skipped_other"] += 1
+            return
+        raise_alert(
+            session,
+            case=case,
+            kind=AlertKind.WORKFLOW,
+            key=rules.dedupe_key(AlertKind.WORKFLOW, "received", ev.id),
+            office=office,
+            severity=severity,
+            data={**data, "event": "file_received", "from_office_code": actor_office},
+            source_event_id=ev.id,
+            recipients=lambda: resolver.finalise([holder], case, exclude_user_id=ev.actor_user_id),
+            now=now,
+            counters=counters,
+        )
+    elif (
+        reason in TAKEN_REASONS
+        and p.get("previous_user_id")
+        and p.get("previous_user_id") != p.get("user_id")
+    ):
+        previous = resolver.user(p.get("previous_user_id"))
+        office = find_office(session, p.get("previous_office_code") or "")
+        if previous is None or office is None:
+            counters["skipped_other"] += 1
+            return
+        raise_alert(
+            session,
+            case=case,
+            kind=AlertKind.WORKFLOW,
+            key=rules.dedupe_key(AlertKind.WORKFLOW, "recalled", ev.id),
+            office=office,
+            severity=Severity.NORMAL,
+            data={**data, "event": "file_recalled", "previous_office_code": office.code},
+            source_event_id=ev.id,
+            recipients=lambda: resolver.finalise(
+                [previous], case, exclude_user_id=ev.actor_user_id, require_case_access=False
+            ),
+            now=now,
+            counters=counters,
+        )
     else:
         counters["skipped_other"] += 1
 
@@ -636,7 +765,7 @@ def sweep_dates(
         "closed_hearing": 0,
         "closed_info": 0,
         "closed_recommendation": 0,
-        "closed_request": 0,
+        "closed_workflow": 0,
         "closed_compliance": 0,
     }
     run = _start_run(session, JOB_DATES, now, counters)
@@ -741,51 +870,66 @@ def sweep_dates(
             close_alert(session, a, AlertStatus.EXPIRED, "expired", now=now)
             counters["closed_compliance"] += 1
 
-    # requests (decision 11)
-    kind_labels = {r.code: r.label for r in session.scalars(select(RefRequestKind)).all()}
-    for req, case in session.execute(
-        select(Request, Case)
-        .join(Case, Case.id == Request.case_id)
+    # files due or overdue with their holder (design custody-workflow, decision 23c)
+    current_legs: dict[uuid.UUID, uuid.UUID | None] = {}
+    for custody, case in session.execute(
+        select(Custody, Case)
+        .join(Case, Case.id == Custody.case_id)
         .where(
-            Request.status == RequestStatus.OPEN,
-            Request.due_date.is_not(None),
-            Request.due_date <= today + timedelta(days=cfg.request_due_soon_days),
+            Custody.due_date.is_not(None),
+            Custody.due_date <= today + timedelta(days=cfg.request_due_soon_days),
+            Custody.current_leg_id.is_not(None),
         )
-        .order_by(Request.due_date)
+        .order_by(Custody.due_date, Custody.case_id)
     ).all():
-        severity = rules.severity_for_due(req.due_date, today, cfg.request_due_soon_days)
-        if severity is None:
+        severity = rules.severity_for_custody_due(custody.due_date, today, cfg.request_due_soon_days)
+        office = session.get(Office, custody.holder_office_id)
+        if severity is None or office is None:
             continue
-        office = session.get(Office, req.to_office_id)
-        from_office = session.get(Office, req.from_office_id)
-        kind_code = req.kind.value if hasattr(req.kind, "value") else str(req.kind)
+        overdue = custody.due_date < today
+        leg_id = custody.current_leg_id
+        leg = session.get(CustodyHistory, leg_id)
+        action = PendingAction(custody.pending_action)
+        owner = owning_office(session, case)
+
+        def due_recipients(case=case, owner=owner) -> list[User]:
+            users = resolver.custody_holders(case) + resolver.department_trackers(owner)
+            return resolver.finalise(users, case)
+
         raise_alert(
             session,
             case=case,
-            kind=AlertKind.REQUEST_DUE,
-            key=rules.dedupe_key(AlertKind.REQUEST_DUE, req.id),
+            kind=AlertKind.WORKFLOW,
+            key=f"workflow_due:{leg_id}",
             office=office,
             severity=severity,
-            due_at=rules.hearing_due_at(req.due_date, cfg.sitting_time),
+            due_at=rules.hearing_due_at(custody.due_date, cfg.sitting_time),
             data={
-                "request_id": req.id,
-                "ref_no": req.ref_no,
-                "due_date": req.due_date,
-                "overdue": req.due_date < today,
-                "request_kind": kind_code,
-                "request_kind_label": kind_labels.get(kind_code, kind_code),
-                "from_office": from_office.code if from_office else None,
+                "event": "due",
+                "leg_id": leg_id,
+                "seq_no": leg.seq_no if leg else None,
+                "due_date": custody.due_date,
+                "overdue": overdue,
+                "holder_office_code": office.code,
+                "holder_user_name": leg.holder_user_name if leg else None,
+                "holder_designation": leg.holder_designation if leg else None,
+                "pending_action": action.value,
+                "pending_action_label": PENDING_ACTION_LABELS[action],
             },
-            recipients=lambda req=req, case=case: resolver.finalise(resolver.for_request(req), case),
+            recipients=due_recipients,
             now=now,
             counters=counters,
         )
-    for a in _open_alerts(session, AlertKind.REQUEST_DUE):
-        req = session.get(Request, _uuid((a.data or {}).get("request_id")))
-        if req is None or RequestStatus(req.status) != RequestStatus.OPEN:
-            reason = f"request_{RequestStatus(req.status).value}" if req is not None else "request_missing"
-            close_alert(session, a, AlertStatus.DONE, reason, now=now)
-            counters["closed_request"] += 1
+    for a in _open_alerts(session, AlertKind.WORKFLOW):
+        if (a.data or {}).get("event") != "due":
+            continue
+        if a.case_id not in current_legs:
+            current_legs[a.case_id] = session.scalar(
+                select(Custody.current_leg_id).where(Custody.case_id == a.case_id)
+            )
+        if str(current_legs[a.case_id]) != str((a.data or {}).get("leg_id")):
+            close_alert(session, a, AlertStatus.DONE, "leg_changed", now=now)
+            counters["closed_workflow"] += 1
 
     # recommendations decided (decision 12)
     for a in _open_alerts(session, AlertKind.RECOMMENDATION):
@@ -803,7 +947,13 @@ def sweep_dates(
     aged = session.scalars(
         select(Alert)
         .where(
-            Alert.kind.in_(list(rules.INFO_KINDS)),
+            or_(
+                Alert.kind.in_(list(rules.INFO_KINDS)),
+                and_(
+                    Alert.kind == AlertKind.WORKFLOW,
+                    Alert.data["event"].astext.in_(list(rules.WORKFLOW_INFO_EVENTS)),
+                ),
+            ),
             Alert.status.in_(list(OPEN_STATUSES)),
             Alert.created_at < now - timedelta(days=cfg.info_expire_days),
         )
@@ -848,9 +998,9 @@ def is_recipient(session: Session, user: User, alert: Alert) -> bool:
 def named_recipient_notice(alert: Alert) -> bool:
     """An ownership alert whose recipient the design names regardless of case visibility (decision 13:
     `case_taken_over`, `transfer_requested`, `transfer_decided`)."""
-    return (
-        AlertKind(alert.kind) == AlertKind.OWNERSHIP
-        and (alert.data or {}).get("event") in NAMED_RECIPIENT_EVENTS
+    event = (alert.data or {}).get("event")
+    return (AlertKind(alert.kind) == AlertKind.OWNERSHIP and event in NAMED_RECIPIENT_EVENTS) or (
+        AlertKind(alert.kind) == AlertKind.WORKFLOW and event in NAMED_WORKFLOW_EVENTS
     )
 
 
@@ -864,6 +1014,10 @@ def notification_visible_condition(session: Session, user: User):
             and_(
                 Alert.kind == AlertKind.OWNERSHIP,
                 Alert.data["event"].astext.in_(list(NAMED_RECIPIENT_EVENTS)),
+            ),
+            and_(
+                Alert.kind == AlertKind.WORKFLOW,
+                Alert.data["event"].astext.in_(list(NAMED_WORKFLOW_EVENTS)),
             ),
         ),
         visibility.alert_document_condition(session, user),

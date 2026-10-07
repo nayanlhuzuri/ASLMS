@@ -67,20 +67,24 @@ def test_seed_builds_the_full_matrix(session):
     wipe(session)
     seed_all(session)
     n = session.scalar(sa.select(sa.func.count()).select_from(RolePermission))
-    assert n == len(DEFAULT_MATRIX) * len(Permission) == 9 * 47
-    assert session.scalar(sa.text("select count(*) from ref_permission")) == 47
+    assert n == len(DEFAULT_MATRIX) * len(Permission) == 9 * 49
+    assert session.scalar(sa.text("select count(*) from ref_permission")) == 49
+    # custody-workflow decision 22: the two request functions are retired, 47 stay active
+    assert session.scalar(sa.text("select count(*) from ref_permission where is_active")) == 47
     assert session.scalar(sa.text("select count(*) from ref_role")) == 10
     m = access.matrix(session)
     assert m["dept_admin"]["users.create"] and not m["dept_officer"]["users.create"]
     assert m["auditor"]["audit.view"] and not m["dept_admin"]["audit.view"]
-    assert all(m["super_admin"].values())
+    assert all(v for k, v in m["super_admin"].items() if not k.startswith("requests."))
+    assert not m["super_admin"]["requests.send"] and not m["dept_admin"]["requests.answer"]
     seed_all(session)  # idempotent
     assert session.scalar(sa.select(sa.func.count()).select_from(RolePermission)) == n
 
 
 def test_effective_functions(session, world):
     sup, admin, edu = world["super"], world["admin"], world["edu"]
-    assert access.effective_permissions(session, sup) == set(Permission)
+    assert access.effective_permissions(session, sup) == set(access.ACTIVE_FUNCTIONS)
+    assert Permission.REQUESTS_SEND not in access.effective_permissions(session, sup)
     perms = access.effective_permissions(session, admin)
     assert Permission.USERS_CREATE in perms and Permission.ACCESS_MANAGE_TYPES not in perms
     officer = create_user(

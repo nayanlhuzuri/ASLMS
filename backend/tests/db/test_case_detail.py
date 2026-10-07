@@ -120,6 +120,8 @@ def test_overview_carries_every_typed_column(api, world, loaded):
         "links": 0,
         "documents": 0,
         "timeline": body["counts"]["timeline"],
+        "notes": 0,
+        "my_drafts": 0,
     }
     assert body["counts"]["timeline"] >= 3  # case_created, claimed, allotted, custody_moved, order_found…
     # by ref_no in the URL form and by CNR
@@ -320,7 +322,7 @@ def test_timeline_rule(api, world, loaded):
             Event(
                 case_id=loaded,
                 type=EventType.NOTE_ADDED,
-                payload={"note_id": "x"},
+                payload={"note_id": str(uuid.uuid4())},  # no such note: hidden
                 dedupe_key=f"test-note-{uuid.uuid4()}",
                 visibility=EventVisibility.SCOPED,
             )

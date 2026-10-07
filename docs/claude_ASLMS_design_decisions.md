@@ -836,3 +836,51 @@ a department admin may preview the head's exit; `/inbox/counts` changes shape (n
 - Portal screens for memberships, the ticket panel and the exit dialog (`portal-shell`).
 - Custody-workflow builds on this item (sending a file to a membership). Follow-up rows 29 (drop the mirror columns)
   and 30 (further ticket kinds) added to the backlog.
+
+## Custody workflow: sending the file, recall, stages, notes trail (2026-10-07)
+Design `docs/design/custody-workflow.md` (revised and approved 7 Oct 2026 under the owner's rules above); branch
+`feature/custody-workflow`; tests and review passed.
+
+**Built**
+- Migration 0009 (`0009_workflow.py`): `custody` and `custody_history` gain `holder_membership_id` (and
+  `holder_designation` on the history); history reasons `sent`, `recalled` (and `reassigned_on_exit`) with
+  `ck_custody_history_reason`; `case_notes` gains `drafted_at`; new `case_note_drafts` and
+  `case_note_draft_documents` (the only deletable tables); `case_note_attachments` made append-only; `case_stages`
+  index. Dropped after an emptiness check: `requests`, `request_messages`, `ref_request_kind`, the `request_status`
+  enum and the `request_id` columns. Seed: note kinds `opinion` and `hand_over`, alert kind `workflow`; `request_due`,
+  `request_sent`, `request_answered`, `correction` and record type `REQ` retired (rows kept, inactive).
+- Services: `custody.py` (`move_custody`, send, recall, held / sent / summary), `notes.py` (permanent notes, drafts,
+  finalisation on send or recall, corrections), `stages.py`, `attachments.py`, `workflow_common.py`,
+  `workflow_codes.py`; changes to `visibility.py` (custody basis follows the holder membership, `request` basis
+  removed), `recipients.py`, `alerts.py`, `case_detail.py`, `documents.py`, `memberships.py` (exit leg remark,
+  drafts count), `ownership.py`.
+- API (`api/routers/workflow.py`): `GET /workflow/codes`; `GET /cases/{ref}/custody`; `GET /custody/recipients`,
+  `/summary`, `/held`, `/sent`; `POST /cases/{ref}/custody/send` and `/recall`; `GET|POST /cases/{ref}/stages`;
+  `GET|POST /cases/{ref}/notes`; `GET /cases/{ref}/notes/drafts`; `PATCH|DELETE /notes/drafts/{draft}`;
+  `GET /notes/{note}`. Settings `ATTACHMENTS_MAX_FILES` (5), `NOTE_MAX_CHARS` (20000), `NOTE_DRAFTS_MAX` (20) in
+  `.env.example`. No new job; the alert scan and date sweep handle workflow events and due dates.
+
+**Decisions** (the owner's rules of 7 Oct 2026, implemented as written)
+- Custody is accountability: the holder is a membership (officer and office); sending replaces requests; the chain
+  is open to any holder; `custody.recall` and `custody.track` are grantable functions; ownership never moves with
+  custody.
+- Draft notes are the one exception to no-deletion; they become permanent, append-only notes (new `ref_no`,
+  `drafted_at` kept) when the case is sent on or recalled. DB_STANDARD section 6 / 9 is deviated from for the two
+  draft tables only, recorded in `schema.md`.
+- Notes and their attachments are internal documents and are never sent to SourceTrace.
+- Request tables are dropped, not left unused.
+
+**Deviations** (design note, Deviations section, 9 items)
+- 0009 is not applied to the dev database: the Compose worker and scheduler still run `main`'s code (the request
+  sweep) during the historical load. It runs on the test database every run, including a down-and-up test.
+- 0009 back-fills holder membership and designation on earlier legs; the downgrade stops on drafts, draft-born
+  notes and `sent` / `recalled` legs.
+- Tracking holders receive both due-soon (`high`) and overdue (`critical`) alerts (decision 24a over 23c).
+- Visibility is checked before function checks, so an unseen case gives 404, not 403.
+- A correction keeps the original note's office for visibility; `GET /custody/sent` shows the caller's own remark;
+  the held list aliases `custody` in its visibility `EXISTS`.
+
+**Left for later**
+- Upgrade the dev database to 0009 when the merged images are rebuilt (integrator).
+- Portal screens (row 13); request-related reports are replaced by custody and tracking counts.
+- No follow-up rows added; the review left none recorded.

@@ -9,10 +9,10 @@ import pytest
 import sqlalchemy as sa
 
 from aslms.domain.documents import Document
+from aslms.services import custody
 from aslms.services import ownership as own
 from tests import samplefiles as sf
 from tests.db import docs_support as ds
-from tests.db.test_case_visibility import request_to
 from tests.db.world import make_case
 
 
@@ -29,13 +29,16 @@ def scene(api, world):
         case = make_case(s, case_no="WP(C)/400/2025")
         actor, admin = world.actor(s, "edu_admin")
         own.claim(s, actor, admin, case, officer_user_id=world.user(s, "edu_off1").id)
-        # off2 (an EDU officer, not the uploader) sees the case through a request addressed to them
-        request_to(
+        # off2 (an EDU officer, not the uploader) sees the case because off1 sent them the file
+        a1, off1 = world.actor(s, "edu_off1")
+        custody.send(
             s,
+            a1,
+            off1,
             case,
-            from_office=world.office(s, "EDU"),
-            to_office=world.office(s, "EDU"),
-            to_user=world.user(s, "edu_off2"),
+            to_membership=world.membership(s, "edu_off2").id,
+            pending_action_="examine",
+            remark="for your examination",
         )
         order, order_doc = ds.stored_order(s, api.store, case, sf.text_pdf(["An order"]))
         s.commit()

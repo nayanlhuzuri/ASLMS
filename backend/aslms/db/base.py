@@ -64,7 +64,11 @@ APPEND_ONLY_TABLES = (
     "case_stages",
     "admin_ticket_documents",
     "membership_documents",
+    "case_note_attachments",
 )
+# Tables `aslms_app` may DELETE from although they belong to a case: unfinished drafts, not legal records
+# (design custody-workflow, decisions 12-13; the owner's deviation from DB_STANDARD §6 / §9).
+DRAFT_TABLES = ("case_note_drafts", "case_note_draft_documents")
 
 
 class Base(DeclarativeBase):

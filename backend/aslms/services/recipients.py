@@ -29,7 +29,7 @@ from aslms.domain.ownership import (
     Recommendation,
 )
 from aslms.domain.reference import Permission, Role
-from aslms.domain.workflow import Custody, Request
+from aslms.domain.workflow import Custody
 from aslms.services import access, visibility
 from aslms.services.offices import find_office
 
@@ -37,6 +37,9 @@ from aslms.services.offices import find_office
 # them: the officer a case was taken from, the department asked to take it, the department told of the
 # decision (deviation 1 of the design note)
 NAMED_RECIPIENT_EVENTS = frozenset({"case_taken_over", "transfer_requested", "transfer_decided"})
+# workflow alerts whose recipient the design names although the case is no longer visible to them: the officer a
+# file was taken from (design custody-workflow, decision 23b)
+NAMED_WORKFLOW_EVENTS = frozenset({"file_recalled"})
 
 
 def owning_office(session: Session, case: Case | uuid.UUID) -> Office | None:
@@ -109,20 +112,47 @@ class Resolver:
         return self.office_users(dept, permission) if dept is not None else []
 
     # ------------------------------------------------------------------------------------------ rules
+    def custody_holders(self, case: Case) -> list[User]:
+        """Decision 14's custody-holder rule: the holder user; when the custody is with an office and no user,
+        that office's users holding `alerts.acknowledge` (a Department-tier office: those holding
+        `cases.allot`)."""
+        custody = self.session.get(Custody, case.id)
+        if custody is None:
+            return []
+        holder = self.user(custody.holder_user_id)
+        if holder is not None:
+            return [holder]
+        office = self.session.get(Office, custody.holder_office_id)
+        if visibility.is_department(office):
+            return self.office_users(office, Permission.CASES_ALLOT)
+        return self.office_users(office, Permission.ALERTS_ACKNOWLEDGE)
+
+    def department_trackers(self, department: Office | None) -> list[User]:
+        """The active logins whose membership in the department holds `custody.track` (design custody-workflow,
+        decision 24a), each once."""
+        if department is None:
+            return []
+        rows = self.session.execute(
+            select(UserMembership, User)
+            .join(User, User.id == UserMembership.user_id)
+            .where(
+                UserMembership.department_id == department.id,
+                UserMembership.is_active.is_(True),
+                User.is_active.is_(True),
+            )
+            .order_by(User.email)
+        ).all()
+        out: list[User] = []
+        for m, u in rows:
+            if access.member_of(self.session, m, u).holds(Permission.CUSTODY_TRACK) and all(
+                x.id != u.id for x in out
+            ):
+                out.append(u)
+        return out
+
     def case_recipients(self, case: Case) -> list[User]:
         """Decision 14, before the final filter: custody holder, primary owner, watchers."""
-        out: list[User] = []
-        custody = self.session.get(Custody, case.id)
-        if custody is not None:
-            holder = self.user(custody.holder_user_id)
-            if holder is not None:
-                out.append(holder)
-            else:
-                office = self.session.get(Office, custody.holder_office_id)
-                if visibility.is_department(office):
-                    out += self.office_users(office, Permission.CASES_ALLOT)
-                else:
-                    out += self.office_users(office, Permission.ALERTS_ACKNOWLEDGE)
+        out: list[User] = list(self.custody_holders(case))
         rows = self.session.scalars(
             select(CaseOwnership).where(
                 CaseOwnership.case_id == case.id, CaseOwnership.status == OwnershipStatus.ACTIVE
@@ -143,12 +173,6 @@ class Resolver:
 
     def for_recommendation(self, rec: Recommendation) -> list[User]:
         return self.office_users(rec.office_id, Permission.CASES_CLAIM)
-
-    def for_request(self, req: Request) -> list[User]:
-        addressee = self.user(req.to_user_id)
-        if addressee is not None:
-            return [addressee]
-        return self.office_users(req.to_office_id, Permission.REQUESTS_ANSWER)
 
     def for_ownership_event(self, event_type: str, payload: dict[str, Any]) -> list[User]:
         """Decision 13: `allotted` → the officer, else the unit's users; `case_taken_over` → the previous

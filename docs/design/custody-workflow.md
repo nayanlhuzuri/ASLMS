@@ -496,3 +496,27 @@ None. Points the owner is asked to check at approval (decisions taken, reversibl
 - the request tables are dropped by migration 0009 rather than left unused (27);
 - the DB_STANDARD deviation: DELETE allowed on the two draft tables (Data);
 - the plan's seven note kinds plus `counsel_advice` and `file_noting`, `correction` retired (15).
+
+## Deviations
+Recorded by the developer while building (smallest reasonable choice where the note is silent).
+1. **0009 not applied to the dev database yet.** The Compose worker and scheduler run `main`'s code (the request
+   sweep of `alerts_sweep_dates` reads `requests`) while the historical load runs; upgrading the dev database now
+   would break them. The migration is exercised on the test database by every run (downgrade to base, upgrade to
+   head, `test_migration_0009.py` down to 0008 and up again). Apply it with `alembic upgrade head` when the merged
+   images are rebuilt (Verification step 1).
+2. **Back-fill in 0009.** Legs written before 0009 that name a person get `holder_membership_id` and
+   `holder_designation` from that person's membership covering the holder office; exit-step legs get their remark
+   from their `custody_moved` event (so `ck_custody_history_remark` validates). The append-only trigger of
+   `custody_history` is switched off for the back-fill statement only.
+3. **The downgrade guard** stops on drafts, on notes that came from drafts and on `sent` / `recalled` legs;
+   `reassigned_on_exit` legs do not stop it (the reason predates 0009).
+4. **Tracking alerts.** Decision 24a (later, owner review) is followed over 23c and the test list: the owning
+   department's `custody.track` holders receive both the due-soon (`high`) and the overdue (`critical`) alert.
+5. **Order of checks.** Visibility comes first on every case endpoint, so a caller who cannot see the case gets
+   404 rather than 403 `not_in_control` / `function_missing`.
+6. **A correction's audience.** A correction keeps the original note's office in `case_notes.office_id` (what
+   `private_to_office` reads), while its `ref_no` and author snapshot are the corrector's.
+7. **`GET /custody/sent`** shows the caller's own remark on each leg they wrote.
+8. **Exit preview.** `counts.drafts` (user-memberships exit preview) now counts the leaver's drafts.
+9. **Held list query.** `held` selects custody under an alias: the custody visibility basis is a correlated
+   `EXISTS` over `custody` and must not correlate to the listed row.

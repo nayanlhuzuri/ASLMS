@@ -43,16 +43,31 @@ NOT_FOUND = (NotVisibleCase, NotVisibleDocument, CaseNotFound)
 file_access = require_any(Permission.DOCUMENTS_VIEW, Permission.DOCUMENTS_DOWNLOAD)
 
 
+def _body_limit(request: Request) -> int | None:
+    """The largest body a POST may declare: one file on an upload, `ATTACHMENTS_MAX_FILES` files on a note
+    (design custody-workflow, decision 18; each file is still counted against `UPLOAD_MAX_BYTES` by the
+    endpoint)."""
+    if request.method != "POST":
+        return None
+    settings = request.app.state.settings
+    path = request.url.path.rstrip("/")
+    if path.endswith("/documents"):
+        return settings.upload_max_bytes
+    if path.startswith("/cases/") and path.endswith("/notes"):
+        return settings.attachments_max_files * settings.upload_max_bytes
+    return None
+
+
 def upload_size_guard(app):
-    """Decision 4: a `Content-Length` above `UPLOAD_MAX_BYTES` + 64 KB of multipart overhead is refused with
-    413 before the body is read (FastAPI parses the form before any endpoint code runs, so this is
-    middleware). The endpoint counts the bytes too, for a client that omits or understates the header."""
+    """Decision 4: a `Content-Length` above the limit + 64 KB of multipart overhead is refused with 413 before
+    the body is read (FastAPI parses the form before any endpoint code runs, so this is middleware). The
+    endpoint counts the bytes too, for a client that omits or understates the header."""
 
     @app.middleware("http")
     async def _guard(request: Request, call_next):
-        if request.method == "POST" and request.url.path.endswith("/documents"):
+        limit = _body_limit(request)
+        if limit is not None:
             declared = request.headers.get("content-length")
-            limit = request.app.state.settings.upload_max_bytes
             if declared and declared.isdigit() and int(declared) > limit + MULTIPART_OVERHEAD:
                 return JSONResponse(
                     {"detail": {"code": "too_large", "message": f"the request exceeds {limit} bytes"}},

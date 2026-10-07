@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -32,7 +32,7 @@ from aslms.domain.events import Event, EventVisibility
 from aslms.domain.org import Designation, Office, RefreshToken, User, UserMembership, UserPermission
 from aslms.domain.ownership import CaseOwnership, OwnershipRole, OwnershipStatus
 from aslms.domain.reference import EventType, Role
-from aslms.domain.workflow import Custody, CustodyHistory, PendingAction
+from aslms.domain.workflow import CaseNoteDraft, Custody, CustodyHistory, PendingAction
 from aslms.services import access
 from aslms.services.access import DELEGABLE_ROLES, NOT_OFFICERS, Conflict, Forbidden, Member
 from aslms.services.audit import Actor, write_audit
@@ -649,8 +649,8 @@ def _exit_scope(session: Session, m: UserMembership) -> Office:
 
 def exit_items(session: Session, m: UserMembership) -> list[ExitItem]:
     """Decision 21: an allotment item per active ownership row of the department allotted to the person, a file
-    item per custody row the membership holds (before `custody-workflow`: held by the person at an office of
-    the department's subtree)."""
+    item per custody row the membership holds (`custody.holder_membership_id`, design custody-workflow; a leg
+    naming the person without a membership counts when its office is in the department's subtree)."""
     items: list[ExitItem] = []
     if m.department_id is not None:
         rows = session.scalars(
@@ -677,8 +677,12 @@ def exit_items(session: Session, m: UserMembership) -> list[ExitItem]:
         select(Custody, Office)
         .join(Office, Office.id == Custody.holder_office_id)
         .where(
-            Custody.holder_user_id == m.user_id,
-            (Office.id == root.id) | Office.path.like(root.path + "/%"),
+            (Custody.holder_membership_id == m.id)
+            | (
+                Custody.holder_membership_id.is_(None)
+                & (Custody.holder_user_id == m.user_id)
+                & ((Office.id == root.id) | Office.path.like(root.path + "/%"))
+            )
         )
         .order_by(Custody.case_id)
     ).all()
@@ -832,7 +836,13 @@ def exit_preview(session: Session, actor_user: User | Member, m: UserMembership)
         "counts": {
             "allotments": sum(1 for i in items if i.kind == "allotment"),
             "files": sum(1 for i in items if i.kind == "file"),
-            "drafts": 0,
+            # the leaver's draft notes, made permanent by the exit legs (design custody-workflow, decision 13)
+            "drafts": int(
+                session.scalar(
+                    select(func.count(CaseNoteDraft.id)).where(CaseNoteDraft.membership_id == m.id)
+                )
+                or 0
+            ),
             "open_alerts": len(alerts),
         },
         "items_fingerprint": fingerprint(items),
@@ -942,6 +952,7 @@ def apply_exit(
     audit_items: list[dict[str, Any]] = []
     case_ids = sorted({i.case_id for i in items}, key=str)
     alerts_done = 0
+    notes_finalised = 0
     for case_id in case_ids:
         session.execute(select(Case.id).where(Case.id == case_id).with_for_update())
         case = session.get(Case, case_id)
@@ -968,21 +979,20 @@ def apply_exit(
                 due = _parse_due(a.get("due_date")) if a.get("due_date") is not None else due_before
                 dept = session.get(Office, m.department_id) if m.department_id else office
                 remark = f"Reassigned on the transfer of {leaver.full_name}, {m.designation or _role(m.role).value} out of {dept.code}: {(a.get('remark') or '').strip() or reason_t}"
-                move_custody(
+                leg = move_custody(
                     session,
                     actor,
                     case,
                     office=to_member.office,
                     user=to_member.user,
+                    membership=target,
                     reason="reassigned_on_exit",
                     pending_action=pa,
                     due_date=due,
-                    extra={
-                        "on_exit": True,
-                        "remark": remark[:MAX_REMARK],
-                        "holder_membership_id": str(target.id),
-                    },
+                    remark=remark[:MAX_REMARK],
+                    extra={"on_exit": True},
                 )
+                notes_finalised += len(getattr(leg, "finalised_ref_nos", []))
                 audit_items.append(
                     {
                         "key": item.key,
@@ -1020,7 +1030,7 @@ def apply_exit(
     counts = {
         "allotments": sum(1 for i in items if i.kind == "allotment"),
         "files": sum(1 for i in items if i.kind == "file"),
-        "notes_finalised": 0,
+        "notes_finalised": notes_finalised,
         "alerts": alerts_done,
     }
     write_audit(

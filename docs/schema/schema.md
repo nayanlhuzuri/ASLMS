@@ -19,38 +19,45 @@ written from this document plus the approved addendum. **As built (1 Oct 2026):*
 - **Table classes.** Every table is `reference` (`ref_*`), `master`, `transaction` or `derived`, declared as
   `__table_class__` on the model and written as `COMMENT ON TABLE … 'class=…'` (`\dt+` shows it).
 - **Reference numbers.** Records people quote carry `ref_no varchar(40) NOT NULL UNIQUE`:
-  `ASLMS/<OFFICE>/<TYPE>/<YYYY>/<NNNNNN>` (`ASLMS/GOA/CASE/2026/001842`, `ASLMS/EDU/REQ/2026/000042`); `GOA` when
+  `ASLMS/<OFFICE>/<TYPE>/<YYYY>/<NNNNNN>` (`ASLMS/GOA/CASE/2026/001842`, `ASLMS/EDU/NOTE/2026/000042`); `GOA` when
   the system creates the record before a department owns it. One counter per (office, type, year) in
-  `ref_sequences`; allocated once at insert, never changed. Types: `CASE` cases, `REQ` requests, `NOTE` case
-  notes, `DOC` uploaded court filings and internal documents, `TRF` ownership transfers, `NXT` manual next dates,
+  `ref_sequences`; allocated once at insert, never changed. Types: `CASE` cases, `REQ` requests (retired
+  by `custody-workflow`, never allocated), `NOTE` case notes (allocated at finalisation for a draft), `DOC` uploaded court filings and internal documents, `TRF` ownership transfers, `NXT` manual next dates,
   `ALR` alerts, `TKT` admin tickets (allocated on the target department's code; design `user-memberships`). The API accepts a `ref_no` (also as `ASLMS-GOA-CASE-2026-001842` in a URL) wherever a case id is.
 - **Code sets.** Eight enumerations users see as labels are `ref_*` tables (`code` PK, `label`, `description`,
-  `sort_order`, `is_active`): `ref_role`, `ref_office_kind`, `ref_case_stage` (+ `phase`), `ref_request_kind`,
+  `sort_order`, `is_active`): `ref_role`, `ref_office_kind`, `ref_case_stage` (+ `phase`),
   `ref_note_kind`, `ref_doc_type` (+ `doc_group`), `ref_alert_kind` (+ `default_severity`), `ref_event_type`
   (+ `timeline_label`, `icon_key`, `is_tracking_card`), plus `ref_record_type`; `ref_ticket_kind` added by
-  `user-memberships` (migration 0008). The business columns are
+  `user-memberships` (migration 0008); `ref_request_kind` dropped by `custody-workflow` (migration 0009), so
+  eight `ref_*` tables plus `ref_record_type` and `ref_ticket_kind`. Retired codes stay as rows with
+  `is_active = false` (the Python members stay, so old rows still load). The business columns are
   `varchar(40) REFERENCES ref_*(code)`; the Python enums stay the ORM type (their values are the codes) and the seed
   upserts one row per member. The other 48 enumerations (statuses, sources, channels, scan states…) stay native
   Postgres enum types.
 - **Timestamps.** `timestamptz` in UTC, IST in the API; court dates as `date`. `created_at` everywhere, `updated_at`
-  on the 39 mutable tables, maintained by the `set_updated_at()` trigger.
+  on the mutable tables (`case_note_drafts` added by `custody-workflow`), maintained by the `set_updated_at()` trigger.
 - **Audit columns.** `ActorSnapshotMixin` (`actor_user_id`, `actor_name`, `actor_designation`, `actor_office_code`)
   where accountability matters; `created_by` / `updated_by` (FK `users`, SET NULL, NULL for system writes) on
   masters and on transactions users write that carry no snapshot.
 - **No deletion.** Every foreign key to a legal-record table is `ON DELETE RESTRICT`. CASCADE remains only on
   `otp_codes`, `refresh_tokens`, `user_notification_preferences`, `notifications`, `digests`, `case_office_scores`,
   `causelist_reconciliations`, `document_text`, `sourcetrace_ingestions`, `assistant_messages`,
-  `napix_call_log`. Lifecycle is state: `cases.closed_at`, `documents.archived_at`, `withdrawn_at` on requests and
+  `napix_call_log`. Lifecycle is state: `cases.closed_at`, `documents.archived_at`, `withdrawn_at` on
   transfers, `is_current` on parties and advocates. Masters are deactivated (`is_active`, `deactivated_at`),
   organisation masters versioned (`valid_from`, `valid_to`).
+  **Deviation from DB_STANDARD §6 / §9 (owner's rule of 7 Oct 2026):** `aslms_app` may DELETE from
+  `case_note_drafts` and `case_note_draft_documents`, which hold unfinished drafts, not legal records (design
+  `custody-workflow`, decisions 12–13).
 - **Append-only** (trigger `aslms_forbid_change`): `events`, `audit_log`, `case_notes`, `custody_history`,
-  `case_stages`, `admin_ticket_documents`, `membership_documents` (the last two added by `user-memberships`).
+  `case_stages`, `admin_ticket_documents`, `membership_documents` (the last two added by `user-memberships`),
+  `case_note_attachments` (added by `custody-workflow`, migration 0009).
 - **Roles.** `aslms_owner` (migrations), `aslms_app` (API, workers, CLI: SELECT/INSERT/UPDATE; INSERT only on the
   append-only tables; DELETE only on the cascade list; no DDL), `aslms_readonly` (SELECT).
 - Data received from NAPIX is kept verbatim in a `raw jsonb` column beside the parsed columns; scope checks use
   `offices.path` prefix matching, in SQL only.
 - Case visibility is one rule (`services/visibility.py::visibility_bases`, design `cases-api`): the bases
-  `state`, `owner`, `recommended`, `pool`, `allotted`, `custody`, `request`, `counsel`, OR-ed in SQL for every
+  `state`, `owner`, `recommended`, `pool`, `allotted`, `custody`, `counsel` (`request` removed by
+  `custody-workflow`; the custody basis follows the holder membership), OR-ed in SQL for every
   list and evaluated for one case on every detail; summaries of any case are searchable, details only within
   the rule. (user-memberships, migration 0008) The rule is evaluated per active membership and OR-ed;
   functions are per membership (type matrix + the membership's overrides); the union is only a gate.
@@ -64,12 +71,12 @@ written from this document plus the approved addendum. **As built (1 Oct 2026):*
 ## Group 0 — Code sets and sequences (reference)
 | Table | Columns | Notes |
 |---|---|---|
-| `ref_role`, `ref_office_kind`, `ref_request_kind`, `ref_note_kind`, `ref_record_type` | code (PK), label, description, sort_order, is_active | Seeded from `Role`, `OfficeKind`, `RequestKind`, `NoteKind`, `RecordType`. |
+| `ref_role`, `ref_office_kind`, `ref_note_kind`, `ref_record_type` | code (PK), label, description, sort_order, is_active | Seeded from `Role`, `OfficeKind`, `NoteKind`, `RecordType`. (custody-workflow) `ref_note_kind` + `opinion`, `hand_over`; `hearing` labelled "Hearing note"; `correction` retired; `ref_record_type` `REQ` retired. `ref_request_kind` dropped by migration 0009. |
 | `ref_case_stage` | + phase (`main` / `appeal` / `contempt` / `counsel`) | The 17 lifecycle stages in order. |
 | `ref_doc_type` | + doc_group (`court_record` / `court_filing` / `internal`) | The filing vocabulary. |
-| `ref_alert_kind` | + default_severity | |
-| `ref_event_type` | + timeline_label, icon_key, is_tracking_card | Timeline labels live in data. `case_taken_over` (tracking card) added by recommend-and-claim (seed only). |
-| `ref_permission` | + module (`users`, `access`, `admin`, `cases`, `custody`, `requests`, `stages`, `notes`, `documents`, `alerts`, `next_dates`, `reports`, `dashboard`, `assistant`, `audit`) | The functions of the application, seeded from `Permission` (added 1 Oct 2026, migration 0003); `admin.designations` added 4 Oct 2026 (43 functions, seed only, no migration); `admin.scoring` and `cases.take_over` added by recommend-and-claim (45 functions, seed only), `cases.release` relabelled "Stop watching"; `users.propose_head` and `admin.tickets` (reserved: enabled for no type, never overridden) added by `user-memberships` (47 functions, seed only); `seed` refreshes labels and descriptions from `PERMISSION_LABELS`. |
+| `ref_alert_kind` | + default_severity | (custody-workflow) + `workflow` ("Workflow", `normal`); `request_due` retired. |
+| `ref_event_type` | + timeline_label, icon_key, is_tracking_card | Timeline labels live in data. `case_taken_over` (tracking card) added by recommend-and-claim (seed only). (custody-workflow) `request_sent`, `request_answered` retired. |
+| `ref_permission` | + module (`users`, `access`, `admin`, `cases`, `custody`, `requests`, `stages`, `notes`, `documents`, `alerts`, `next_dates`, `reports`, `dashboard`, `assistant`, `audit`) | The functions of the application, seeded from `Permission` (added 1 Oct 2026, migration 0003); `admin.designations` added 4 Oct 2026 (43 functions, seed only, no migration); `admin.scoring` and `cases.take_over` added by recommend-and-claim (45 functions, seed only), `cases.release` relabelled "Stop watching"; `users.propose_head` and `admin.tickets` (reserved: enabled for no type, never overridden) added by `user-memberships` (47 functions, seed only); `custody.recall` and `custody.track` added and `requests.send`, `requests.answer` retired (`is_active = false`, matrix rows disabled, ignored by access) by `custody-workflow` (49 rows, 47 active, seed only); `seed` refreshes labels and descriptions from `PERMISSION_LABELS`. |
 | `ref_ticket_kind` | code (PK), label, description, sort_order, is_active | Seeded from `TicketKind`: `head_change` ("Head of department change"). Added by `user-memberships` (migration 0008). |
 | `ref_sequences` | office_code, record_type (FK ref_record_type), year, last_value; PK (office_code, record_type, year) | Locked row by row by `allocate_ref_no`. |
 
@@ -147,7 +154,8 @@ because the convention's generated name (`ix_<table>_<column>`) is already used 
 | `ownership_transfers` | ref_no (unique, `ASLMS/<from office>/TRF/<yyyy>/<n>`), case_id, from_office_id, to_office_id, status (`requested` / `accepted` / `declined` / `withdrawn`), reason, stay_as_watcher boolean default false, decision_note, decided_by_user_id, decided_at, withdrawn_at, actor snapshot | Partial unique `ix_ownership_transfers_open` (case_id) WHERE status = 'requested'. The inbox "Transfers" tab. |
 
 `custody` / `custody_history` (Phase 2 tables) are first written by `recommend-and-claim`, for primary-ownership
-moves only; `custody_history.reason` codes `claimed`, `allotted`, `taken_over`, `transferred`.
+moves only; `custody_history.reason` codes `claimed`, `allotted`, `taken_over`, `transferred`; `custody-workflow`
+adds `sent`, `recalled` and (with `user-memberships`) `reassigned_on_exit`.
 
 ## Group 6 — Documents and orders
 | Table | Columns | Notes |
@@ -161,7 +169,7 @@ As built by `alerts-notifications` (migration 0007, 6 Oct 2026): `alerts` gains 
 | Table | Columns | Notes |
 |---|---|---|
 | `next_dates` | ref_no (unique, manual entries only), case_id, next_date, source (`causelist` / `current_status` / `order_specific` / `order_period` / `manual`), order_id, confidence, needs_review, review_status, reviewed_by_user_id, reviewed_at, note, created_by, updated_by | Unique (case_id, next_date, source, order_id). |
-| `alerts` (transaction) | ref_no (unique, `ASLMS/GOA/ALR/<yyyy>/<n>`, allocated only for a new dedupe key), case_id (→ cases RESTRICT, NULL only for `admin_ticket`), kind (→ `ref_alert_kind`: `hearing_due`, `next_date_changed`, `new_order`, `status_changed`, `compliance_due`, `request_due`, `recommendation`, `ownership`, `new_document`, `admin_ticket`), office_id (→ offices RESTRICT; the office addressed), due_at, severity (`critical` / `high` / `normal`; may only rise), status (`open` / `acknowledged` / `done` / `expired`), title, body, data jsonb (links and dates: `order_id`, `document_id`, `recommendation_id`, `request_id`, `transfer_id`, `hearing_date`, `previous_date`, `source`, `closed_reason`), source_event_id (→ events), dedupe_key (unique, `<kind>:<subject>`), acknowledged_by_user_id, acknowledged_at, closed_at, closed_by_user_id (→ users SET NULL), created_at, updated_at | CHECKs `ck_alerts_closed` (done/expired ⇔ closed_at), `ck_alerts_acknowledged`, `ck_alerts_case` ((case_id IS NULL) = (kind = 'admin_ticket'); user-memberships, migration 0008: a case-less alert is visible only to its notified recipients). Indexes `ix_alerts_case_status`, partial `ix_alerts_open_kind`, `ix_alerts_office_id`. Written by the event scan and the date sweep (design `alerts-notifications`); raised only for cases with an active owner or watcher, except `recommendation`. Never deleted; closed by state. |
+| `alerts` (transaction) | ref_no (unique, `ASLMS/GOA/ALR/<yyyy>/<n>`, allocated only for a new dedupe key), case_id (→ cases RESTRICT, NULL only for `admin_ticket`), kind (→ `ref_alert_kind`: `hearing_due`, `next_date_changed`, `new_order`, `status_changed`, `compliance_due`, `request_due` (retired), `recommendation`, `ownership`, `new_document`, `admin_ticket`, `workflow` (custody-workflow: file received, file recalled, due / overdue; key `workflow_due:<leg id>` for the date alert)), office_id (→ offices RESTRICT; the office addressed), due_at, severity (`critical` / `high` / `normal`; may only rise), status (`open` / `acknowledged` / `done` / `expired`), title, body, data jsonb (links and dates: `order_id`, `document_id`, `recommendation_id`, `request_id`, `transfer_id`, `hearing_date`, `previous_date`, `source`, `closed_reason`), source_event_id (→ events), dedupe_key (unique, `<kind>:<subject>`), acknowledged_by_user_id, acknowledged_at, closed_at, closed_by_user_id (→ users SET NULL), created_at, updated_at | CHECKs `ck_alerts_closed` (done/expired ⇔ closed_at), `ck_alerts_acknowledged`, `ck_alerts_case` ((case_id IS NULL) = (kind = 'admin_ticket'); user-memberships, migration 0008: a case-less alert is visible only to its notified recipients). Indexes `ix_alerts_case_status`, partial `ix_alerts_open_kind`, `ix_alerts_office_id`. Written by the event scan and the date sweep (design `alerts-notifications`); raised only for cases with an active owner or watcher, except `recommendation`. Never deleted; closed by state. |
 | `notifications` (derived) | alert_id (CASCADE), user_id (CASCADE), channel (`in_app` / `email`; `sms` reserved), status (`queued` / `sent` / `failed` / `read`), severity (the level notified), title, body, attempts, next_attempt_at, sent_at, read_at, error, dedupe_key (unique, `n:<alert>:<user>:<channel>:<severity>`), created_at | CHECK `ck_notifications_read` (`read` only for in-app, with read_at). Indexes `ix_notifications_user_inbox`, partial `ix_notifications_outbox`. In-app rows are `sent` on insert; e-mail rows are sent by the sender job, retried up to 3 times. |
 | `digests` (derived) | user_id (CASCADE), digest_date (unique per user), status (`queued` / `sent` / `failed`), item_count, alert_ids uuid[], body, attempts, next_attempt_at, sent_at, error, created_at | Daily 08:00 IST digest; no row when there is nothing to send. |
 
@@ -181,19 +189,23 @@ As built by `alerts-notifications` (migration 0007, 6 Oct 2026): `alerts` gains 
 ## Phase 2 and 3 tables
 | Table | Columns (key ones) | Notes |
 |---|---|---|
-| `custody` | case_id (PK), holder_office_id, holder_user_id, pending_action, since, due_date, request_id, current_leg_id | Where the case is now; derived from claims, allotments, transfers, requests and hand-overs. |
-| `custody_history` (derived, append-only) | case_id, seq_no, holder_office_id + code snapshot, holder_user_id + name snapshot, reason, pending_action, due_date, request_id, started_at, actor snapshot | One row per leg. |
-| `requests` | ref_no (unique), case_id, kind (→ `ref_request_kind`), from_office_id, to_office_id, to_user_id, subject, body, due_date, status (`open` / `answered` / `withdrawn`), answered_at, answered_by_user_id, withdrawn_at, actor snapshot | Sending moves custody to the receiving office; answering or withdrawing brings it back. |
-| `request_messages` | request_id, body, is_answer, actor snapshot | |
-| `case_stages` (append-only) | case_id, office_id, stage (→ `ref_case_stage`), response_mode, note, actor snapshot | Latest row is the current stage. Guided, not enforced. |
-| `case_notes` (append-only) | ref_no (unique), case_id, seq_no (unique per case), kind (→ `ref_note_kind`), body, visibility, office_id, author_role, custody_leg_id, supersedes_id, source, actor snapshot | The noting trail; corrections supersede, both kept. |
-| `case_note_attachments` | note_id, document_id | Internal documents; never sent to SourceTrace. |
+| `custody` | case_id (PK, → cases RESTRICT), holder_office_id (→ offices RESTRICT), holder_user_id (→ users SET NULL), holder_membership_id (→ user_memberships RESTRICT, NULL for an office-held leg), pending_action, since, due_date, current_leg_id (→ custody_history) | Exists only for claimed cases. Written only by `services/custody.py::move_custody`: ownership moves, `sent`, `recalled`, `reassigned_on_exit`. Partial index `ix_custody_due` (due_date) WHERE due_date IS NOT NULL; index `ix_custody_holder_user_id` (holder_user_id). `request_id` dropped by 0009. |
+| `custody_history` (derived, append-only) | id, case_id, seq_no (unique per case), holder_office_id + holder_office_code, holder_user_id + holder_user_name, holder_membership_id (→ user_memberships RESTRICT) + holder_designation (snapshot, ≤ 200), reason (CHECK `ck_custody_history_reason`: `claimed`, `allotted`, `taken_over`, `transferred`, `sent`, `recalled`, `reassigned_on_exit`), pending_action, due_date, remark (≤ 2,000; CHECK `ck_custody_history_remark`: reason NOT IN ('sent','recalled','reassigned_on_exit') OR remark IS NOT NULL), started_at, actor snapshot (the sender or recaller), created_at | One row per movement; the chain is the file's movement record. `request_id` dropped by 0009; exit-step legs written before 0009 get their remark back-filled from their `custody_moved` event. |
+| `case_stages` (append-only) | case_id, office_id, stage (→ `ref_case_stage`), response_mode, note, actor snapshot | Latest row is the current stage. Guided, not enforced. Index `ix_case_stages_case_created` (case_id, created_at DESC). |
+| `case_notes` (transaction, append-only) | ref_no (unique), case_id, seq_no (unique per case), kind (→ `ref_note_kind`), body, visibility, office_id, author_role, custody_leg_id, supersedes_id, source, drafted_at timestamptz NULL (set when the note came from a draft), actor snapshot | The noting trail; corrections supersede, both kept. CHECK `ck_case_notes_not_self`; partial unique `ix_case_notes_supersedes` (supersedes_id) WHERE supersedes_id IS NOT NULL. A note is permanent from insert; drafts live in `case_note_drafts`. |
+| `case_note_attachments` (transaction, append-only) | note_id, document_id | Internal documents; never sent to SourceTrace. Trigger `aslms_forbid_change` added by 0009; no UPDATE for `aslms_app`. |
+| `case_note_drafts` (transaction, **mutable and deletable**) | id (uuid v7 PK), case_id (→ cases RESTRICT), membership_id (→ user_memberships RESTRICT; the holder membership that wrote it), author_user_id (→ users RESTRICT), custody_leg_id (→ custody_history RESTRICT; the leg during which written), kind (→ `ref_note_kind`), body (1–20,000), visibility (`doc_visibility`), supersedes_id (→ case_notes RESTRICT, NULL), created_at, updated_at, actor snapshot | Index `ix_case_note_drafts_case_membership` (case_id, membership_id). Visible only to `author_user_id`. Exists only while `membership_id` holds the case; turned into `case_notes` rows and deleted in the transaction that moves custody away (design `custody-workflow` decisions 12–13). `aslms_app` has DELETE on this table. |
+| `case_note_draft_documents` (transaction, deletable with its draft) | id, draft_id (→ case_note_drafts RESTRICT), document_id (→ documents RESTRICT), created_at | Unique (draft_id, document_id). The document belongs to the draft's case. Rows deleted by the service before their draft; become `case_note_attachments` on finalisation. `aslms_app` has DELETE. |
 | `sourcetrace_ingestions` (derived) | document_id (CASCADE), attempt, ok, reference, error, metadata_sent | |
 | `assistant_conversations` | user_id, case_id, scope, title, last_message_at | Private to the user. |
 | `assistant_messages` | conversation_id (CASCADE), role, content, citations jsonb, model_info jsonb | |
 
 Still deferred: district-court rows in `courts` and the NAPIX DC integration (Phase 3; no DC API specification in
 the repository yet); PostgreSQL schemas per bounded context (DB_STANDARD §9, revisited with Phase 3).
+
+Removed by `custody-workflow` (migration 0009, after checking they are empty): `requests`, `request_messages`,
+`ref_request_kind`, the `request_status` enum and the `request_id` columns of `custody` and `custody_history`
+(sending the file replaces requests, owner's rule of 7 Oct 2026).
 
 ## Not carried over from the prototype's 56 tables
 AI and knowledge-base tables (ai_jobs, research_*, document_chunks, chunk_embeddings, order_analyses,

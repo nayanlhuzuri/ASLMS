@@ -34,8 +34,8 @@ from aslms.domain.events import Event
 from aslms.domain.org import Office, User
 from aslms.domain.ownership import CaseOwnership, OwnershipRole, OwnershipStatus
 from aslms.domain.reference import EventType, Permission, RefEventType
-from aslms.domain.workflow import Custody
-from aslms.services import access, inbox
+from aslms.domain.workflow import CaseNote
+from aslms.services import access, inbox, stages
 from aslms.services.visibility import (
     alert_document_condition,
     claim_departments,
@@ -123,8 +123,9 @@ PORTAL = (
     "updated_by",
 )
 
-# decision 15: the event types the timeline shows now; notes, documents, requests, stages and alerts join
-# in their own items with their own visibility
+# decision 15: the event types the timeline shows now; documents, notes and alerts join with their own
+# visibility (custody-workflow decision 20: `custody_moved` and `stage_set` for everyone who sees the case,
+# `note_added` only when the note is visible to the caller)
 COURT_EVENTS = (
     EventType.CASE_CREATED,
     EventType.CASE_UPDATED,
@@ -146,6 +147,7 @@ OWNERSHIP_EVENTS = (
     EventType.TRANSFER_DECIDED,
     EventType.OWNERSHIP_RELEASED,
     EventType.CUSTODY_MOVED,
+    EventType.STAGE_SET,
 )
 # shown to the department named in the payload (`office_code`, `from_office_code`, `to_office_code`) and to
 # State-wide readers; `alert_raised` (design alerts-notifications, decision 15) carries the office addressed
@@ -248,19 +250,11 @@ def _ownership(session: Session, case: Case) -> dict[str, Any]:
     return out
 
 
-def _custody(session: Session, case: Case) -> dict[str, Any] | None:
-    row = session.get(Custody, case.id)
-    if row is None:
-        return None
-    office = session.get(Office, row.holder_office_id)
-    user = session.get(User, row.holder_user_id) if row.holder_user_id else None
-    return {
-        "holder_office": {"code": office.code, "name": office.name} if office else None,
-        "holder_user": {"id": user.id, "full_name": user.full_name} if user else None,
-        "pending_action": _value(row.pending_action),
-        "since": row.since,
-        "due_date": row.due_date,
-    }
+def _custody(session: Session, user: User, case: Case, basis: list[str]) -> dict[str, Any] | None:
+    """Design custody-workflow, decision 25: the custody card (remark per decision 11)."""
+    from aslms.services import custody
+
+    return custody.card(session, user, case, bases=basis)
 
 
 def _claimable(session: Session, user: User, case: Case) -> bool:
@@ -270,6 +264,7 @@ def _claimable(session: Session, user: User, case: Case) -> bool:
 
 
 def _counts(session: Session, user: User, case: Case) -> dict[str, int]:
+    from aslms.services import notes
     from aslms.services.documents import visible_count
 
     def n(stmt: Select) -> int:
@@ -282,6 +277,8 @@ def _counts(session: Session, user: User, case: Case) -> dict[str, int]:
         "links": n(_links_stmt(case)),
         "documents": visible_count(session, user, case),  # visible to the caller, not archived
         "timeline": _count(session, _timeline_stmt(session, None, case, unrestricted=True)),
+        "notes": notes.visible_count(session, user, case),  # visible permanent notes (custody-workflow)
+        "my_drafts": notes.my_draft_count(session, user, case),
     }
 
 
@@ -371,7 +368,8 @@ def overview(session: Session, user: User, case: Case) -> dict[str, Any]:
             for w in session.scalars(select(CaseWritInfo).where(CaseWritInfo.case_id == case.id)).all()
         ],
         "ownership": _ownership(session, case),
-        "custody": _custody(session, case),
+        "custody": _custody(session, user, case, basis),
+        "stage": stages.current_block(session, case),
         "access_basis": basis,
         "claimable": _claimable(session, user, case),
         "dossier_status": "fetched" if case.last_full_refresh_at is not None else "not_fetched",
@@ -641,6 +639,26 @@ def _document_events(session: Session, user: User | None, *, unrestricted: bool)
     return is_doc & visible_doc
 
 
+def _note_events(session: Session, user: User | None, *, unrestricted: bool):
+    """`note_added` rows, shown only when the note is visible to the caller (custody-workflow, decision 20)."""
+    is_note = Event.type == EventType.NOTE_ADDED
+    if unrestricted:
+        return is_note
+    if user is None:
+        return literal(False)
+    from aslms.services.visibility import note_visible_condition
+
+    visible_note = exists(
+        select(literal(1))
+        .select_from(CaseNote)
+        .where(
+            CaseNote.id == cast(Event.payload["note_id"].astext, PG_UUID(as_uuid=True)),
+            note_visible_condition(session, user),
+        )
+    )
+    return is_note & visible_note
+
+
 def _alert_events_rule(session: Session, user: User | None, *, unrestricted: bool):
     """ANDed onto the department rule: an `alert_raised` row for a `new_document` alert is shown only when the
     document the alert names is visible to the caller (design alerts-notifications, deviation 12); every
@@ -663,7 +681,10 @@ def _alert_events_rule(session: Session, user: User | None, *, unrestricted: boo
 def _timeline_stmt(session: Session, user: User | None, case: Case, *, unrestricted: bool = False) -> Select:
     types = list(COURT_EVENTS + OWNERSHIP_EVENTS)
     stmt = select(Event).where(Event.case_id == case.id)
-    docs = _document_events(session, user, unrestricted=unrestricted)
+    docs = or_(
+        _document_events(session, user, unrestricted=unrestricted),
+        _note_events(session, user, unrestricted=unrestricted),
+    )
     dept_rows = Event.type.in_(list(DEPARTMENT_EVENTS)) & _alert_events_rule(
         session, user, unrestricted=unrestricted
     )

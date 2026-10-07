@@ -5,7 +5,7 @@ Table 1 (plan, "Users and access"): State oversight — read-only view of all ca
 reports. Department head — all cases of the department and its directorates, approvals and oversight.
 Department admin — manages the department's users, codes and keywords, reviews recommendations and claims.
 Department officer — allotted cases, custody, notes, files, alerts. Directorate user — own directorate's
-cases and requests. Standing counsel — cases they appear in, notes and files shared with counsel. Central
+cases. Standing counsel — cases they appear in, notes and files shared with counsel. Central
 operator — unclaimed cases and data quality. Auditor — read-only case records and the audit log. The referral
 reviewer (in the approved role list, not in Table 1) gets the reviewing functions of a department officer
 without ownership or custody."""
@@ -17,8 +17,8 @@ from sqlalchemy.orm import Session
 
 from aslms.core.config import get_settings
 from aslms.domain.org import Office, RolePermission, User
+from aslms.domain.reference import RETIRED_PERMISSIONS, Role
 from aslms.domain.reference import Permission as P
-from aslms.domain.reference import Role
 
 PERMISSION_LABELS: dict[P, tuple[str, str]] = {
     P.USERS_VIEW: ("View users", "See the users of the offices in scope"),
@@ -60,9 +60,17 @@ PERMISSION_LABELS: dict[P, tuple[str, str]] = {
         "Take over a case",
         "Take over a case allotted to a colleague in the same department",
     ),
-    P.CUSTODY_MOVE: ("Move custody", "Hand a case to another office or officer"),
-    P.REQUESTS_SEND: ("Send requests", "Send a request (report, comments, documents) to an office"),
-    P.REQUESTS_ANSWER: ("Answer requests", "Answer a request sent to the user's office"),
+    P.CUSTODY_MOVE: ("Move custody", "Send a file held by an office (no officer) on to an officer"),
+    P.CUSTODY_RECALL: (
+        "Recall files",
+        "Call a case of the own department back from wherever it is held",
+    ),
+    P.CUSTODY_TRACK: (
+        "Track pending files",
+        "Pending and overdue files of the own department, wherever they are held, with their alerts",
+    ),
+    P.REQUESTS_SEND: ("Send requests (retired)", "Retired: sending the file replaces requests"),
+    P.REQUESTS_ANSWER: ("Answer requests (retired)", "Retired: sending the file replaces requests"),
     P.STAGES_SET: ("Set case stage", "Record the lifecycle stage of a case"),
     P.NOTES_ADD: ("Add notes", "Add a note to the case notes trail"),
     P.NOTES_VIEW_COUNSEL_SHARED: ("View counsel-shared notes", "Notes and files shared with counsel"),
@@ -83,8 +91,6 @@ _READ_CASES = {P.CASES_VIEW_SCOPE, P.DOCUMENTS_VIEW, P.DOCUMENTS_DOWNLOAD, P.ASS
 _CASE_WORK = _READ_CASES | {
     P.CASES_SEARCH_COURT,
     P.CUSTODY_MOVE,
-    P.REQUESTS_SEND,
-    P.REQUESTS_ANSWER,
     P.STAGES_SET,
     P.NOTES_ADD,
     P.NOTES_VIEW_PRIVATE_OFFICE,
@@ -121,12 +127,11 @@ _DEPT_ADMIN = {
 DEFAULT_MATRIX: dict[Role, set[P]] = {
     Role.STATE_OVERSIGHT: _READ_CASES
     | {P.CASES_VIEW_ALL, P.DASHBOARD_STATE, P.REPORTS_STATE, P.REPORTS_DEPARTMENT, P.USERS_VIEW},
-    Role.DEPT_HEAD: _CASE_WORK | _OWNERSHIP | {P.REPORTS_DEPARTMENT, P.USERS_VIEW},
-    Role.DEPT_ADMIN: _CASE_WORK | _OWNERSHIP | _DEPT_ADMIN,
+    Role.DEPT_HEAD: _CASE_WORK | _OWNERSHIP | {P.REPORTS_DEPARTMENT, P.USERS_VIEW, P.CUSTODY_TRACK},
+    Role.DEPT_ADMIN: _CASE_WORK | _OWNERSHIP | _DEPT_ADMIN | {P.CUSTODY_RECALL, P.CUSTODY_TRACK},
     Role.DEPT_OFFICER: _CASE_WORK,
     Role.DIRECTORATE_USER: _CASE_WORK - {P.CASES_SEARCH_COURT},
-    Role.REFERRAL_REVIEWER: _READ_CASES
-    | {P.NOTES_ADD, P.STAGES_SET, P.REQUESTS_ANSWER, P.ALERTS_ACKNOWLEDGE},
+    Role.REFERRAL_REVIEWER: _READ_CASES | {P.NOTES_ADD, P.STAGES_SET, P.ALERTS_ACKNOWLEDGE},
     Role.STANDING_COUNSEL: _READ_CASES | {P.NOTES_ADD, P.NOTES_VIEW_COUNSEL_SHARED, P.DOCUMENTS_UPLOAD},
     Role.CENTRAL_OPERATOR: _READ_CASES
     | {
@@ -144,7 +149,8 @@ DEFAULT_MATRIX: dict[Role, set[P]] = {
 
 
 def seed_matrix(session: Session, report) -> None:
-    """One row per (type, function) for every type except super_admin (which always has everything)."""
+    """One row per (type, function) for every type except super_admin (which always has everything). The rows of
+    a retired function are switched off (design custody-workflow, decision 22)."""
     existing = {
         (
             str(r.role.value if isinstance(r.role, Role) else r.role),
@@ -158,6 +164,13 @@ def seed_matrix(session: Session, report) -> None:
                 continue
             session.add(RolePermission(role=role, permission=perm, is_enabled=perm in enabled))
             report.add("role_permissions")
+    for row in session.scalars(
+        select(RolePermission).where(
+            RolePermission.permission.in_(list(RETIRED_PERMISSIONS)), RolePermission.is_enabled.is_(True)
+        )
+    ).all():
+        row.is_enabled = False
+        report.add("role_permissions_retired")
     session.flush()
 
 
