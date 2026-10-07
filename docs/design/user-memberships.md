@@ -18,12 +18,14 @@ their type in each. When sending a file, the sender picks the person and the mem
 first (backlog row 28, placed above row 6).
 
 **Owner's review of 7 Oct 2026 (folded into this revision, each change marked "(owner review 2026-10-07)"):**
-1. A department admin may assign the head (`dept_head`) of their own department, subject to the super admin's
+1. A department admin may assign the head (`dept_head`, exactly one per department — owner's answer) of their
+   own department, subject to the super admin's
    approval; until approved, nothing changes.
 2. Such proposals reach the super admin as tickets in a panel; the mechanism is generic (`head_change` is the
    first kind).
-3. An optional supporting document (the government order) may be attached to the ticket, also later, also after
-   the decision, and stays findable on the membership it authorised.
+3. An optional supporting document (the government order) is uploaded with the head-change request, or later
+   while the ticket is open (not after the decision — owner's answer), and stays findable on the membership it
+   authorised.
 4. Exactly one super admin in the system and exactly one department admin per department ("creating too many
    admins loses the purpose of admin roles"), enforced in the database and the services.
 5. When an officer is transferred out of a department, the department admin reassigns each of their allotted
@@ -154,18 +156,19 @@ profile confirmation per login (`otp-and-profile`, unchanged: one login, one pro
      type) — no list of other departments' users.
    - **Change a membership's designation** (`users.edit`) or **type** (`users.set_type`): actor's scope must
      contain that membership's office; type changes only between delegable types (as today).
-   - (owner review 2026-10-07) **`dept_head` is proposed, not set, by a department admin.** A membership
-     request (add or type change) that makes or unmakes a `dept_head`, made by anyone but the super admin, opens
-     a `head_change` ticket instead of changing anything (decision 15; 202 with the ticket). `dept_admin` stays
-     outside every department admin's reach (decision 14); `super_admin` is outside the API (decision 13).
+   - (owner review 2026-10-07) **`dept_head` changes only through the head-change request** (decision 15):
+     the membership endpoints refuse any add, type change, end or reactivation that makes or unmakes a
+     `dept_head`, for every caller (409 `use_head_change`); a department admin's request opens a ticket, the
+     super admin's is applied at once and recorded. `dept_admin` stays outside every department admin's reach
+     (decision 14); `super_admin` is outside the API (decision 13).
    - **End / reactivate a membership** (`users.enable_disable`): scope as above; never deleted (`is_active`,
      `deactivated_at`, `valid_to`). ~~Ending is refused while the membership holds custody personally (409
      `holds_custody`) or is the allotted officer of an active ownership row (409 `has_allotments`); the primary
      membership cannot be ended (409 `primary_membership`).~~ (owner review 2026-10-07) **Replaced by the exit
      step (decisions 21–22):** ending a membership that holds files or allotments needs a target officer for
      each of them, chosen by the admin and applied in the same transaction (no successor); ending the primary membership passes
-     the primary flag to another active membership, or leaves the login without one. Ending or reactivating a `dept_head` membership by a department admin is a
-     `head_change` ticket (decision 15); a `dept_admin` membership only through the super admin's swap
+     the primary flag to another active membership, or leaves the login without one. Ending or reactivating a `dept_head`
+     membership goes through the head-change request (decision 15); a `dept_admin` membership only through the super admin's swap
      (decision 14); a `super_admin` membership never through the API (decision 13).
    - **Make another membership primary** (`users.edit`): the super admin, or an actor whose scope contains both
      the old and the new primary office.
@@ -230,7 +233,7 @@ profile confirmation per login (`otp-and-profile`, unchanged: one login, one pro
       `matching_rules.py`: their `user.office_id` reads go through `Member` (uploads: the `DOC` number and
       `documents.office_id` come from the acting membership's office). (owner review 2026-10-07)
       `documents.py`: the upload path accepts kind `admin` (decision 20) — no case, no working-relation check,
-      types limited to `ADMIN_DOC_TYPES`, group `internal`, no `document_uploaded` event (that event is a case
+      types limited to the ticket kind's `doc_types` (decision 20), group `internal`, no `document_uploaded` event (that event is a case
       timeline entry); case uploads refuse `government_order` (400 `bad_field`); `upload_types()` leaves it out.
     - `services/alerts.py`, `notifications.py`, `mailer` message builder (owner review 2026-10-07): case-less
       `admin_ticket` alerts (decision 19) — the in-app list, counts, detail, acknowledge / done and the
@@ -294,7 +297,8 @@ profile confirmation per login (`otp-and-profile`, unchanged: one login, one pro
       admin membership; apply the outgoing choice first — `dept_officer` (default; the person stays in the
       department, keeping custody and allotments) or `end` (the per-item exit of decision 21, done by the super admin with
       an assignment for every item to existing memberships of the department; to give items to a brand-new
-      incoming admin, the super admin first swaps with `dept_officer` and then exits the old admin); then make the incoming admin: an existing membership of the department changed to
+      incoming admin, the super admin first swaps with `dept_officer` and then exits the old admin);
+      then make the incoming admin: an existing membership of the department changed to
       `dept_admin` (its office must be the department office — else it is ended and re-added there in the same
       step), or a new membership for an existing login found by exact e-mail, or a new login with its first
       membership (the `add_department_admin` fields); audit `office.admin_replaced` (before/after: user ids,
@@ -304,42 +308,50 @@ profile confirmation per login (`otp-and-profile`, unchanged: one login, one pro
     rejected by the owner. Alternative: let the outgoing admin hand over — rejected: the owner said only the
     super admin changes department admins.
 
-15. **Head changes: a department admin proposes, the super admin approves (owner review 2026-10-07).** A
-    proposal is a `head_change` ticket (decision 17) made by a membership holding **`users.propose_head`**
-    (decision 18) in that department, through the ordinary membership endpoints (202 with the ticket instead of
-    the membership). Operations (the `payload.operation` of the ticket):
-    - `add` — a new `dept_head` membership in the department for a person found by exact e-mail (the person
-      must not already have an active membership there: else use `set_type`);
-    - `set_type` — an existing membership of the department changed **to** `dept_head` (from a delegable type)
-      or **from** `dept_head` (to a delegable type);
-    - `replace` — `set_type` or `add` for the incoming head together with the named outgoing head (decision 16);
-    - `end` — a `dept_head` membership ended through the exit step (decision 21) with the full item
-      assignment and `items_fingerprint` in the proposal; at approval a changed item set makes the ticket
-      stale (409 `ticket_stale`) and the admin proposes again.
-    Rules checked at proposal and again at approval: the target office is the department office (a head heads
-    the department: 400 `head_at_department`); the proposer never touches a `dept_admin` or `super_admin`
-    membership (403 `not_delegable` — so a department admin cannot propose themselves); the target login is
-    active (409 `login_inactive`); the `dept_head` type is set only at the department office; one open
-    `head_change` ticket per department (409 `ticket_open`, partial unique index). **Until approval nothing
-    changes**: the person keeps their previous type (or has no membership, for `add`). The super admin acting
-    on these endpoints directly applies the change at once and the service records a ticket opened and approved
-    in the same transaction (`decided_by` = the super admin), so every head change has one record and a place
-    for its government order (decision 20). **Heads are not limited in number** (the owner set no limit);
-    **flagged:** the owner's wording "the current head" suggests one head per department — a one-line partial
-    unique index would enforce it if the owner wants. Alternative: a separate proposal endpoint — rejected:
-    the membership endpoints already carry every field and rule; one path keeps scope checks in one place.
+15. **Head changes: exactly one head per department; a department admin requests, the super admin approves
+    (owner review 2026-10-07; revised with the owner's answers: one head, three operations).** A partial unique
+    index `ix_user_memberships_one_dept_head` (department_id) WHERE role = 'dept_head' AND is_active allows at
+    most one active head per department, at the department office (400 `head_at_department` elsewhere); the
+    services answer 409 `one_dept_head` and the index refuses a racing insert. Every head change goes through
+    **`POST /admin/tickets/head-change`** (multipart: the request plus optional documents, decision 20); the
+    membership endpoints refuse `dept_head` changes (409 `use_head_change`, decision 8). Operations (the ticket's
+    `payload.operation`):
+    - **`set`** — the department has no head (409 `head_exists` otherwise): the incoming head is an existing
+      membership of the department of a delegable type (changed to `dept_head`; an ended membership of the
+      department is reactivated as head) or a new membership at the department office for a person found by
+      exact e-mail who has no active membership there;
+    - **`replace`** — the department has a head (409 `no_head` otherwise): the incoming head as for `set`,
+      plus the outgoing head's fate (decision 16);
+    - **`end`** — the department has a head: the outgoing head's fate (decision 16), leaving the department
+      without a head until a `set`.
+    A request comes from a membership holding **`users.propose_head`** (decision 18) in that department. Rules
+    checked at request and again at approval: the requester never touches a `dept_admin` or `super_admin`
+    membership (403 `not_delegable` — so a department admin cannot request themselves); the logins involved are
+    active (409 `login_inactive`); one open `head_change` ticket per department (409 `ticket_open`, partial
+    unique index). **Until approval nothing changes**: the incoming person keeps their previous type (or has no
+    membership), the current head stays head. Approval applies the outgoing change first and then the incoming
+    one, in one transaction (so the one-head index holds at every statement). The super admin using the same
+    endpoint has the change applied at once, and the service records a ticket opened and approved in the same
+    transaction (`decided_by` = the super admin), so every head change has one record and its documents.
+    ~~Heads are not limited in number~~ (the flag is withdrawn: the owner set one head per department).
+    Alternative: proposals through the membership endpoints with 202 (the previous revision) — replaced: the
+    request must carry its documents (multipart) and names two memberships (incoming and outgoing), which a
+    single-membership endpoint expresses badly.
 
-16. **The outgoing head on a replacement (owner review 2026-10-07).** In the same approval the outgoing head's
-    membership changes from `dept_head` to `dept_officer` (default) or another delegable type named in the
-    proposal (`outgoing_role`; never `dept_admin`). The outgoing person stays in the department: their custody
-    (membership-held legs) and their allotments stay with them, because their membership is still active and
-    an eligible officer (decision 11, `eligible_officer`); nothing moves automatically (no auto-assignment).
-    Their per-membership overrides stay; the ticket detail shows the super admin the outgoing membership's
-    active overrides and its counts of files held and allotments, so the approver sees what the person keeps.
-    The new head (holding `cases.allot`) can re-allot afterwards with the ordinary actions. If the outgoing head
-    is leaving the department, the proposal uses `end` (decision 21) instead. Alternative: hand the outgoing
-    head's cases to the new head automatically — rejected: the outgoing officer is still in the department and
-    may be the right person for those cases; a move should be a decision.
+16. **The outgoing head's fate is part of the request (owner review 2026-10-07; revised with the owner's
+    answers).** A `replace` or `end` request states, in `payload.outgoing`, one of:
+    - (a) **`retype`** — the outgoing head's membership changes from `dept_head` to `dept_officer` (default) or
+      another delegable type (`role_to`; never `dept_admin`). The person stays in the department and keeps their
+      allotments and files (their membership is still active and an eligible officer); nothing moves
+      automatically; their per-membership overrides stay;
+    - (b) **`exit`** — the outgoing head is transferred out through the per-item exit (decision 21): the request
+      carries the full `assignments` list, the `items_fingerprint` from the exit preview and the exit `reason`;
+      at approval a changed item set refuses with 409 `ticket_stale` (the admin withdraws and requests again
+      with a fresh preview).
+    The super admin's approval applies the outgoing change and the incoming change atomically. The ticket detail
+    shows the approver the outgoing membership's active overrides, its counts of files held and allotments
+    and, for `exit`, every item with its target. Alternative: hand the outgoing head's cases to the new head
+    automatically — rejected: a move must be a decision (option (b) makes it item by item).
 
 17. **A generic admin ticket mechanism (owner review 2026-10-07).** `admin_tickets` (Data) holds one request
     needing the super admin's decision: `ref_no` `ASLMS/<department>/TKT/<yyyy>/<n>` (`GOA` for a case with no
@@ -352,7 +364,8 @@ profile confirmation per login (`otp-and-profile`, unchanged: one login, one pro
     (re-run at approval), `apply(session, actor, ticket)` and `describe(ticket)`; adding a kind later is a
     `ref_ticket_kind` row, a handler and its tests — no table change. Approval locks the ticket and every
     membership it names, re-runs `check` against the current state; if the world has moved (the membership was
-    ended or changed, the person got a membership meanwhile, the outgoing head is no longer head) it refuses
+    ended or changed, the person got a membership meanwhile, the outgoing head is no longer head, a head was set
+    meanwhile, the exit items changed) it refuses
     with 409 `ticket_stale` and the reason, audited as `ticket.approve_refused`, and the ticket stays open for a
     reject. Withdraw: the proposer (same user, while their proposing membership is active) while open. No expiry
     and no job: the panel shows each ticket's age. Alternative: approval rows on `user_memberships` (a pending
@@ -362,8 +375,8 @@ profile confirmation per login (`otp-and-profile`, unchanged: one login, one pro
 
 18. **Who sees and decides tickets (owner review 2026-10-07).** Two new functions (seed): **`users.propose_head`**
     (module `users`; default matrix: `dept_admin` only) — open `head_change` tickets in the departments where
-    the acting membership holds it, list and read that department's tickets, attach documents to them, and
-    withdraw one's own; and **`admin.tickets`** (module `admin`) — the panel over every ticket, held only by the
+    the acting membership holds it, list and read that department's tickets, attach documents to them while
+    open, and withdraw one's own; and **`admin.tickets`** (module `admin`) — the panel over every ticket, held only by the
     super admin: enabled for no type and **reserved** (the matrix editor and the override service refuse it,
     400 `reserved_function`), so the second-level check stays with the one super admin (decision 13). Approve
     and reject also require the caller's membership to be the super admin's. Visibility in SQL
@@ -377,10 +390,11 @@ profile confirmation per login (`otp-and-profile`, unchanged: one login, one pro
     **`admin_ticket`** ("Admin ticket", default `normal`). `alerts.case_id` becomes nullable, only for this kind
     (CHECK `ck_alerts_case`: (case_id IS NULL) = (kind = 'admin_ticket')). The ticket service raises the
     alerts directly in its transaction (no event scan: the scan reads case events only):
-    - **opened** → one alert addressed to the State root, severity **`critical`**, recipients every active
-      super admin (one, decision 13), key `admin_ticket:<ticket id>:opened`, `data` {ticket_id, ticket_ref,
-      kind, department_code}; so under the default preferences the super admin gets an immediate e-mail ("at
-      the earliest"); closed `done` when the ticket is decided or withdrawn;
+    - **opened** → one alert addressed to the State root, severity **`normal`** (owner's answer: all tickets
+      are equally important; ~~`critical`~~), recipients every active super admin (one, decision 13), key
+      `admin_ticket:<ticket id>:opened`, `data` {ticket_id, ticket_ref, kind, department_code}; e-mail follows
+      the super admin's own preferences (the daily digest by default, immediate if they choose); the panel's
+      counts are the working queue; closed `done` when the ticket is decided or withdrawn;
     - **decided** (approved / rejected) → one alert addressed to the department office, severity `normal`,
       recipient the proposer, key `admin_ticket:<ticket id>:<status>`, body naming the decision and the remark;
       the proposer acknowledges or marks it done as any alert.
@@ -388,33 +402,43 @@ profile confirmation per login (`otp-and-profile`, unchanged: one login, one pro
     not widen it); the in-app list and counts outer-join `cases`; the e-mail names the ticket ref, kind,
     department and the panel link, never the payload. Alternative: no alert, only the panel — rejected: the
     owner asked for a notification both ways. Alternative: reuse `ownership` — rejected: it is case-scoped and
-    its recipients and wording are ownership's. **Owner check:** `critical` for a new ticket (it e-mails at
-    once by default; the label is editable in `ref_alert_kind`, the severity of "opened" is a service constant).
+    its recipients and wording are ownership's. (The `critical` owner check of the previous revision is
+    settled: `normal`, the kind's default severity in `ref_alert_kind`.)
 
-20. **The supporting document: a government order (owner review 2026-10-07).** Optional, attachable at
-    proposal and any time later, while the ticket is `open` or `approved` (409 `ticket_closed` for `rejected` /
-    `withdrawn`). Stored through the documents service (type check by content, ClamAV scan before storage,
-    `UPLOAD_MAX_BYTES`, `DOC` number on the uploader's acting membership's office) as:
+20. **The supporting document belongs to the request (owner review 2026-10-07; revised with the owner's
+    answers).** The government order is uploaded **with** the head-change request (the multipart parts of
+    `POST /admin/tickets/head-change`), so the super admin sees it while evaluating. It stays optional (the order
+    often comes later): it may be attached while the ticket is **open** (`POST /admin/tickets/{ref}/documents`),
+    never after the decision (409 `ticket_closed` for `approved`, `rejected`, `withdrawn`; ~~attach after
+    approval~~). Supporting uploads are defined **per ticket kind**: each handler in `KINDS` declares
+    `doc_types` — `head_change`: {`government_order`}; a kind with none refuses uploads (409
+    `uploads_not_allowed`); later kinds decide their own. Every file is checked and scanned before the ticket
+    row is written: one refused file refuses the whole request (nothing stored, the refusal audited as today).
+    Stored through the documents service (type check by content, ClamAV scan before storage, `UPLOAD_MAX_BYTES`
+    per file, at most 5 files per request, `DOC` number on the uploader's acting membership's office) as:
     - a new `doc_kind` value **`admin`** — a document of an administrative record, never of a case: CHECK
       `ck_documents_admin_file` (kind <> 'admin' OR (case_id IS NULL AND doc_group = 'internal' AND visibility =
       'private_to_office')), and the existing `ck_documents_user_file` extended to `admin` (ref_no, office,
       doc_date, clean scan);
-    - a new `ref_doc_type` **`government_order`** ("Government order / notification", group `internal`);
-      `ADMIN_DOC_TYPES` = {`government_order`, `correspondence`}; case uploads refuse `government_order`;
+    - a new `ref_doc_type` **`government_order`** ("Government order / notification", group `internal`); case
+      uploads refuse it and `upload_types()` leaves it out;
     - group `internal`, so `sourcetrace_status = not_applicable` by the existing CHECK — never sent to
       SourceTrace; text is extracted by the existing job (searchable later in the panel) but the case documents
       search never returns it (`document_case_condition` needs a case);
-    - linked by `admin_ticket_documents` (ticket ↔ document) and, on approval — or at attachment time when the
-      ticket is already approved — by `membership_documents` (membership ↔ document, with the ticket) for every
-      membership the ticket changed (the incoming head's and, for `replace`, the outgoing head's), so the order
-      stays on the membership after the ticket is history;
+    - linked by `admin_ticket_documents` (ticket ↔ document) and, on approval, by `membership_documents`
+      (membership ↔ document, with the ticket) for every membership the ticket changed (the incoming head's
+      and, for `replace` / `end`, the outgoing head's), so the order stays on the membership after the ticket is
+      history; a super admin's direct change links at once;
     - visible (SQL, `tickets.admin_document_condition`) to `admin.tickets` holders and to callers holding
       `users.propose_head` in the department of a ticket or membership it is linked to — the super admin and
-      the department's admin; downloads audited as today (`document.downloaded`); never deleted — archived by
-      its uploader or the super admin with a reason (`ticket.document_archived`), still listed as archived.
-    Duplicates: the same file twice on one ticket → 409 `duplicate`. Alternative: `documents.case_id` with a
-    placeholder case — rejected (fabricated record). Alternative: a `ticket_id` column on `documents` —
-    rejected: one order may authorise several memberships and later kinds; link tables keep `documents` generic.
+      the department's admin; downloads audited as today (`document.downloaded`); never deleted — while the
+      ticket is open, archived by its uploader or the super admin with a reason (`ticket.document_archived`),
+      still listed as archived.
+    Duplicates: the same file twice on one ticket → 409 `duplicate`. A government order that arrives after the
+    decision is not attached to the closed ticket; recording it would be a later ticket kind or item (not asked
+    for). Alternative: `documents.case_id` with a placeholder case — rejected (fabricated record). Alternative: a
+    `ticket_id` column on `documents` — rejected: one order may authorise several memberships and later kinds;
+    link tables keep `documents` generic.
 
 21. **The exit step: the department admin reassigns every item, one by one (owner review 2026-10-07,
     revised the same day: no successor).** Ending a membership (`users.enable_disable`, scope as decision 8; a
@@ -496,7 +520,7 @@ Migration **0008_memberships** (new file; 0001–0007 are applied and untouched;
 
 New table, for `schema.md` "Group 1 — organisation and access":
 
-> | `user_memberships` (master, versioned) | id (uuid v7 PK), user_id (→ users RESTRICT), office_id (→ offices RESTRICT), department_id (→ offices RESTRICT; the Department-tier ancestor of office_id, NULL for a State-tier office; derived at insert, immutable), role (→ `ref_role`), designation (text as shown, ≤ 200), designation_id (→ designations RESTRICT, NULL allowed), is_primary boolean NOT NULL default false, is_active, deactivated_at, valid_from, valid_to, **end_reason (text ≤ 500, NULL; set when ended)**, created_at, updated_at, created_by, updated_by (→ users SET NULL) | One row per office a person serves in, with that office's designation and user type. Partial unique `ix_user_memberships_one_per_department` (user_id, department_id) NULLS NOT DISTINCT WHERE is_active; partial unique `ix_user_memberships_primary` (user_id) WHERE is_primary AND is_active; **partial unique `ix_user_memberships_one_super_admin` (role) WHERE role = 'super_admin' AND is_active; partial unique `ix_user_memberships_one_dept_admin` (department_id) WHERE role = 'dept_admin' AND is_active** (owner review 2026-10-07); index `ix_user_memberships_office_active` (office_id) WHERE is_active. CHECKs `ck_user_memberships_active` (is_active = (deactivated_at IS NULL)), `ck_user_memberships_primary_active` (NOT is_primary OR is_active). A `super_admin` membership is the login's only membership and is written only by the CLI; `dept_admin` and `dept_head` sit at the department office (service). A login may have no active membership after an exit. Ended, never deleted. Functions per membership = type matrix + the membership's overrides; visibility = the union over active memberships (design `user-memberships`). |
+> | `user_memberships` (master, versioned) | id (uuid v7 PK), user_id (→ users RESTRICT), office_id (→ offices RESTRICT), department_id (→ offices RESTRICT; the Department-tier ancestor of office_id, NULL for a State-tier office; derived at insert, immutable), role (→ `ref_role`), designation (text as shown, ≤ 200), designation_id (→ designations RESTRICT, NULL allowed), is_primary boolean NOT NULL default false, is_active, deactivated_at, valid_from, valid_to, **end_reason (text ≤ 500, NULL; set when ended)**, created_at, updated_at, created_by, updated_by (→ users SET NULL) | One row per office a person serves in, with that office's designation and user type. Partial unique `ix_user_memberships_one_per_department` (user_id, department_id) NULLS NOT DISTINCT WHERE is_active; partial unique `ix_user_memberships_primary` (user_id) WHERE is_primary AND is_active; **partial unique `ix_user_memberships_one_super_admin` (role) WHERE role = 'super_admin' AND is_active; partial unique `ix_user_memberships_one_dept_admin` (department_id) WHERE role = 'dept_admin' AND is_active; partial unique `ix_user_memberships_one_dept_head` (department_id) WHERE role = 'dept_head' AND is_active** (owner review 2026-10-07); index `ix_user_memberships_office_active` (office_id) WHERE is_active. CHECKs `ck_user_memberships_active` (is_active = (deactivated_at IS NULL)), `ck_user_memberships_primary_active` (NOT is_primary OR is_active). A `super_admin` membership is the login's only membership and is written only by the CLI; `dept_admin` and `dept_head` sit at the department office (service). A login may have no active membership after an exit. Ended, never deleted. Functions per membership = type matrix + the membership's overrides; visibility = the union over active memberships (design `user-memberships`). |
 
 New tables (owner review 2026-10-07), for `schema.md` "Group 1 — organisation and access":
 
@@ -533,7 +557,8 @@ Reference codes (seed, owner review 2026-10-07): `ref_record_type` + `TKT`; `ref
 
 Migration 0008 contents:
 1. **Guard** (owner review 2026-10-07): stop, listing the rows, if more than one active user has role
-   `super_admin`, or more than one active user of one department has role `dept_admin`.
+   `super_admin`, or more than one active user of one department has role `dept_admin`, or (owner's answer)
+   role `dept_head`.
 2. Create `user_memberships` with the indexes and CHECKs, grants (SELECT/INSERT/UPDATE for `aslms_app`),
    `COMMENT ON TABLE … 'class=master'`, the `set_updated_at` trigger; back-fill one primary membership per
    existing user (`office_id`, `role`, `designation`, `designation_id`, `is_active` from `users`;
@@ -558,35 +583,36 @@ restores `alerts.case_id` NOT NULL and recreates `doc_kind` without `admin` (ren
   designation_id)`, `update(..., designation?, designation_id?, role?)`, `end(..., reason, assignments, items_fingerprint)`,
   `reactivate`, `make_primary`, `lookup(session, email)`, `membership_out`; each checks decision 8 with the
   acting member, writes the mirror (decision 3), audit (decision 12) and the `user_updated` event. (owner
-  review 2026-10-07) `add` / `update` / `end` / `reactivate` route `dept_head` changes by a non-super-admin to
-  `tickets.open_head_change` and return the ticket (decision 15); enforce decisions 13–14 (409
-  `super_admin_single`, `one_dept_admin`, 403 `super_admin_cli_only`, `not_delegable`); `exit_items`, `exit_preview(session,
+  review 2026-10-07) `add` / `update` / `end` / `reactivate` refuse `dept_head` changes (409 `use_head_change`,
+  decision 15) and offer `apply_head_change(..., via_ticket)` to the ticket handler; enforce decisions 13–15
+  (409 `super_admin_single`, `one_dept_admin`, `one_dept_head`, 403 `super_admin_cli_only`, `not_delegable`); `exit_items`, `exit_preview(session,
   member, membership)` and the per-item exit inside `end` (decisions 21–22, membership lock then case locks in id
   order); `replace_department_admin(session, actor, member, department, *, incoming, outgoing, reason,
   assignments?, items_fingerprint?)` (decision 14); `replace_super_admin(session, *, email, name, designation, password)` (CLI only,
   decision 13). Unique violations on the new indexes map to 409 with the same codes.
 - `services/tickets.py` (new, owner review 2026-10-07): `KINDS` registry (decision 17) with `HeadChange`
-  (`validate` → a pydantic `HeadChangePayload`: operation, department_code, office_code, user_id, user_email,
-  user_name, membership_id, role_from, role_to, designation, designation_id, outgoing {membership_id, user_id,
-  user_name, designation, role_to}, assignments, items_fingerprint, end_reason; `check`; `apply` through
-  `memberships` with `via_ticket`; `describe`); `open_head_change(session, actor, member, payload,
-  request_remark)` (allocates `TKT`, raises the "opened" alert, audit `ticket.opened`); `approve(session,
+  (`validate` → a pydantic `HeadChangePayload`: operation `set` / `replace` / `end`, department_code,
+  incoming {membership_id | email, designation, designation_id; role_from}, outgoing {membership_id, mode
+  `retype` (role_to) | `exit` (assignments, items_fingerprint, reason)}; `doc_types = {government_order}`;
+  `check`; `apply` through `memberships` with `via_ticket`, outgoing first; `describe`);
+  `request_head_change(session, actor, member, payload, request_remark, files)` (files checked and scanned
+  first; allocates `TKT`; raises the "opened" alert; audit `ticket.opened`; for the super admin applies at once
+  and records the ticket approved); `approve(session,
   actor, member, ticket, remark?)`; `reject(..., remark)`; `withdraw(session, actor, member, ticket, remark?)`;
-  `record_direct(session, actor, member, payload, result)` (super admin's direct head change, decision 15);
   `list_tickets(session, user, *, status='open', kind, department, mine, limit, offset)` (oldest first),
   `counts(session, user)` (open total, open by kind, by department, oldest open `created_at`), `get`,
   `ticket_out` (payload described with names, the outgoing membership's overrides and held counts for the
   super admin, documents); `visible_condition`, `admin_document_condition` (decisions 18, 20);
   `attach_document(session, actor, member, ticket, *, data, filename, doc_type, doc_date, description,
-  scanner, store, max_bytes)` (documents service, kind `admin`; links per decision 20);
-  `archive_document`, `open_document` (download, audited). Every step writes its audit row with the actor
+  scanner, store, max_bytes)` (documents service, kind `admin`; open tickets only;
+  the kind's `doc_types`; links per decision 20); `archive_document` (open tickets only), `open_document` (download, audited). Every step writes its audit row with the actor
   snapshot of the acting membership; decisions close the "opened" alert and raise the "decided" one.
 - `services/alerts.py`, `notifications.py` (owner review 2026-10-07): `raise_alert` accepts `case=None` for
   `admin_ticket`; `notification_visible_condition` gains the case-less branch (notified recipient only);
   `list_for_user`, `counts_for_user`, `detail_item`, `_may_act_on`, the single-alert e-mail and the digest
   outer-join `cases`.
-- `services/documents.py` (owner review 2026-10-07): kind `admin` in the upload path (decision 11);
-  `ADMIN_DOC_TYPES`; case upload refuses `government_order`.
+- `services/documents.py` (owner review 2026-10-07): kind `admin` in the upload path (decision 11); the
+  allowed types come from the ticket kind; case upload refuses `government_order`.
 - `services/ownership.py` (owner review 2026-10-07): `reallot_on_exit`; `services/custody.py`: reason
   `reassigned_on_exit`.
 - `services/access.py`, `visibility.py`, `ownership.py`, `inbox.py`, `recipients.py`, `documents.py`,
@@ -606,28 +632,29 @@ Existing endpoints keep their paths; the changes:
 | `POST /auth/login`, `/auth/refresh` | — | unchanged | `user` gains `memberships` (as above, without functions) | — |
 | `GET /users` | `users.view` | unchanged filters + `office?` | each user with `memberships` | Logins with an active membership in the actor's scope (decision 8). |
 | `GET /users/lookup` | `users.create` | `email` (exact) | `{id, full_name, memberships: [{office_code, designation, role}]}` or 404 | For adding a membership to a person outside the actor's scope. |
-| `POST /users/{id}/memberships` | `users.create` (role `dept_head` by a non-super-admin: `users.propose_head`) | `{office, role, designation?, designation_id?, request_remark?, replace_head_membership?, outgoing_role?}` | membership 201, or **ticket 202** for a `dept_head` proposal | Decision 8; 409 `one_per_department`, `super_admin_single`, `one_dept_admin`, `ticket_open`; 403 out of scope / non-delegable type / `super_admin_cli_only`. (owner review 2026-10-07) |
-| `PATCH /users/{id}/memberships/{mid}` | `users.edit` (designation) / `users.set_type` (role; to or from `dept_head` by a non-super-admin: `users.propose_head`) | `{designation?, designation_id?, role?, request_remark?, replace_head_membership?, outgoing_role?}` | membership, or **ticket 202** | Scope over that membership's office; decisions 14–16. |
+| `POST /users/{id}/memberships` | `users.create` | `{office, role, designation?, designation_id?}` | membership 201 | Decision 8; 409 `one_per_department`, `super_admin_single`, `one_dept_admin`, (owner review 2026-10-07) `use_head_change` for role `dept_head`; 403 out of scope / non-delegable type / `super_admin_cli_only`. |
+| `PATCH /users/{id}/memberships/{mid}` | `users.edit` (designation) / `users.set_type` (role) | `{designation?, designation_id?, role?}` | membership | Scope over that membership's office; decision 14; (owner review 2026-10-07) 409 `use_head_change` for a type change to or from `dept_head` (designation edits of a head stay here). |
 | `GET /users/{id}/memberships/{mid}/exit-preview` | `users.enable_disable` | — | `{items: [{key, kind: allotment \| file, case: {ref_no, case_no, cnr, court, owning_department, visible}, ownership_role?, pending_action?, due_date?, since?, leg_seq_no?, open_alerts}], counts: {allotments, files, drafts, open_alerts}, items_fingerprint, targets: [{membership, name, designation, office_code, role}], primary_after: membership \| null}` | (owner review 2026-10-07, revised: no successor) Decision 22; scope as ending; writes nothing. |
-| `POST /users/{id}/memberships/{mid}/end` | `users.enable_disable` (a `dept_head` by a non-super-admin: `users.propose_head`, ticket 202) | `{reason (3–500), items_fingerprint, assignments: [{key, to_membership, pending_action?, due_date?, remark? (≤ 2,000)}]}` (empty list when nothing is held) | `{membership, reassigned: [{key, kind, case_ref, to_membership}], counts: {allotments, files, notes_finalised, alerts}}` | (owner review 2026-10-07, revised: no successor) Decision 21; 409 `unassigned_items` (listing them), `stale_exit` (current items); 400 `bad_target`, `duplicate_item`; 403 `dept_admin` / `super_admin` memberships. ~~409 `holds_custody`, `has_allotments`, `primary_membership`.~~ |
-| `POST /users/{id}/memberships/{mid}/reactivate` | `users.enable_disable` | — | membership | 409 `one_per_department` when another active one exists in that department; `one_dept_admin`; a `dept_head` by a non-super-admin → ticket 202. |
+| `POST /users/{id}/memberships/{mid}/end` | `users.enable_disable` | `{reason (3–500), items_fingerprint, assignments: [{key, to_membership, pending_action?, due_date?, remark? (≤ 2,000)}]}` (empty list when nothing is held) | `{membership, reassigned: [{key, kind, case_ref, to_membership}], counts: {allotments, files, notes_finalised, alerts}}` | (owner review 2026-10-07, revised: no successor) Decision 21; 409 `unassigned_items` (listing them), `stale_exit` (current items); 400 `bad_target`, `duplicate_item`; 403 `dept_admin` / `super_admin` memberships; 409 `use_head_change` for a `dept_head` membership (owner review 2026-10-07). ~~409 `holds_custody`, `has_allotments`, `primary_membership`.~~ |
+| `POST /users/{id}/memberships/{mid}/reactivate` | `users.enable_disable` | — | membership | 409 `one_per_department` when another active one exists in that department; `one_dept_admin`; `use_head_change` for a `dept_head` membership. |
 | `PUT /users/{id}/primary-membership` | `users.edit` | `{membership}` | user | Decision 8. |
 | `GET /users/{id}/memberships/{mid}/permissions` | `users.view` | — | `{type_functions, overrides, effective}` | Scope over the membership. |
 | `PUT /users/{id}/memberships/{mid}/permissions/{permission}` | `users.grant` | `{effect: grant|deny|null, reason?}` | as above | Decision 8 (grant only what the acting membership holds); 400 `reserved_function` for `admin.tickets`. |
 | `GET /users/{id}/memberships/{mid}/documents` | `users.propose_head` or `admin.tickets` | — | `[{ref_no, doc_type, doc_date, description, ticket_ref, archived, attached_by, attached_at}]` | (owner review 2026-10-07) Decision 20 visibility; 404 otherwise. |
-| `PUT /users/{id}/type`, `GET/PUT /users/{id}/permissions…` | as today | unchanged | unchanged | Kept for compatibility: act on the **primary** membership (same routing to tickets and limits). |
+| `PUT /users/{id}/type`, `GET/PUT /users/{id}/permissions…` | as today | unchanged | unchanged | Kept for compatibility: act on the **primary** membership (same limits; `use_head_change`). |
 | `PATCH /users/{id}`, `POST /users/{id}/enable|disable`, `POST /users/{id}/password` | as today | unchanged | unchanged | Scope over the **primary** membership's office (login-level); super admin only for a login with no membership; disabling the super admin → 403 `super_admin_cli_only`. |
 | `POST /admin/offices/{code}/admins` | `users.create` (super admin) | as built | user 201 | (owner review 2026-10-07) 409 `admin_exists` when the department has an active admin. |
 | `PUT /admin/offices/{code}/admin` | `users.create` + super admin membership | `{incoming: {membership} \| {user, designation?, designation_id?} \| {email, password, full_name, designation?, designation_id?, mobile?}, outgoing: "dept_officer" \| "end", reason (3–500), items_fingerprint? and assignments? (required with `outgoing: "end"`, as the end call)}` | `{admin, outgoing: {membership, reassigned?}}` | (owner review 2026-10-07) Decision 14; 403 for anyone else; with `end`: 409 `unassigned_items`, `stale_exit` as the end call (targets are existing memberships). |
+| `POST /admin/tickets/head-change` | `users.propose_head` (in the department) or the super admin | multipart: `request` (JSON: `{department, operation: set \| replace \| end, incoming?: {membership} \| {email, designation?, designation_id?}, outgoing?: {mode: retype, role_to?} \| {mode: exit, reason, items_fingerprint, assignments}, request_remark?}`), `files[]` optional (≤ 5; each with `doc_type` = `government_order`, `doc_date?`, `description?`) | ticket 202 (department admin) / ticket 201 already `approved` with the applied result (super admin) | (owner review 2026-10-07) Decisions 15, 16, 20; 409 `head_exists`, `no_head`, `one_dept_head`, `ticket_open`, `login_inactive`, `unassigned_items`, `stale_exit`; 403 `not_delegable`, out of scope; 413 / 415 / 422 as uploads (whole request refused). |
 | `GET /admin/tickets` | `admin.tickets` or `users.propose_head` (`require_any`) | `status?` (default `open`; `all`), `kind?`, `department?`, `mine?`, `limit`, `offset` | `{items: [{ref_no, kind, status, department_code, target: {user_name, designation, role_from, role_to}, requested_by: {name, designation, office_code}, created_at, age_days, documents_count, decided_at?}], total, counts: {open, open_by_kind, oldest_open_at}}` | (owner review 2026-10-07) Oldest first; decision 18 visibility. |
 | `GET /admin/tickets/counts` | `admin.tickets` or `users.propose_head` | — | `{open, open_by_kind: {...}, open_by_department: {...}, oldest_open_at}` | For the dashboard panel; same visibility. |
 | `GET /admin/tickets/{ref}` | as list | — | ticket detail: payload described, request and decision remarks, result, documents, for the super admin the outgoing membership's overrides and held counts, `can_approve`, `can_withdraw`, `can_attach` | 404 when not visible. |
 | `POST /admin/tickets/{ref}/approve` | `admin.tickets` + super admin membership | `{remark?}` (≤ 2,000) | ticket | 409 `ticket_closed`, `ticket_stale` (with reason). |
 | `POST /admin/tickets/{ref}/reject` | `admin.tickets` + super admin membership | `{remark}` (3–2,000) | ticket | 409 `ticket_closed`. |
 | `POST /admin/tickets/{ref}/withdraw` | `users.propose_head` | `{remark?}` | ticket | The proposer only; 409 `ticket_closed`; 403 otherwise. |
-| `POST /admin/tickets/{ref}/documents` | `users.propose_head` (in the ticket's department) or `admin.tickets` | multipart `file`, `doc_type` (`government_order` default, `correspondence`), `doc_date?`, `description?` | document 201 | Decision 20; 409 `ticket_closed`, `duplicate`; 413 / 415 / 422 as uploads (`too_large`, `type_not_allowed`, `infected`, `scanner_unavailable`). |
+| `POST /admin/tickets/{ref}/documents` | `users.propose_head` (in the ticket's department) or `admin.tickets` | multipart `file`, `doc_type` (from the kind's `doc_types`; `government_order` for `head_change`), `doc_date?`, `description?` | document 201 | (owner review 2026-10-07) Decision 20; open tickets only — 409 `ticket_closed` after any decision; 409 `uploads_not_allowed` for a kind without uploads, `duplicate`; 413 / 415 / 422 as uploads (`too_large`, `type_not_allowed`, `infected`, `scanner_unavailable`). |
 | `GET /admin/tickets/{ref}/documents/{doc}/file` | as attach | `disposition?` | the file | Audited download. |
-| `POST /admin/tickets/{ref}/documents/{doc}/archive` | the uploader or the super admin | `{reason}` | document | Never deleted. |
+| `POST /admin/tickets/{ref}/documents/{doc}/archive` | the uploader or the super admin | `{reason}` | document | Open tickets only (409 `ticket_closed`); never deleted. |
 | `GET /inbox/counts` | as today | `office?` | **`{departments: [{office_code, …counts}]}`** | Shape change: one block per department the caller works in (flagged; no portal consumes it yet). |
 | Ownership and inbox endpoints with `office_code` / `office` | unchanged | the parameter is honoured for any caller with a membership in that department | unchanged | Decision 6; 400 `office_required` with candidates when ambiguous. |
 | `GET /alerts`, `/alerts/counts`, `/alerts/{ref}` and actions | as today | unchanged | items may have `case: null` and `ticket_ref` (kind `admin_ticket`) | (owner review 2026-10-07) Decision 19. |
@@ -643,9 +670,10 @@ Unit (`tests/unit/`):
 - `test_membership_rules.py`: department derivation from a path; acting-membership preference order for case
   writes; union gate vs per-membership check.
 - (owner review 2026-10-07) `test_ticket_kinds.py`: every `TicketKind` member has a handler and a
-  `ref_ticket_kind` seed row; `HeadChangePayload` refuses unknown operations, `dept_admin` / `super_admin` as
-  `role_to` or `outgoing_role`, `end` without a complete assignment list; `RESERVED_FUNCTIONS` contains `admin.tickets`;
-  `ADMIN_DOC_TYPES` are all group `internal`.
+  `ref_ticket_kind` seed row; `HeadChangePayload` refuses unknown operations, `set` with an outgoing part,
+  `replace` / `end` without one, `dept_admin` / `super_admin` as `role_to`, `exit` without a complete
+  assignment list; `RESERVED_FUNCTIONS` contains `admin.tickets`; every kind's `doc_types` are group `internal`;
+  `head_change.doc_types == {government_order}`.
 
 Database (`tests/db/`; `world.py` gains a two-department person: `dept_admin` in EDU, `dept_officer` in HEALTH):
 - `test_memberships.py`: migration back-fill gives every user exactly one primary membership equal to the mirror
@@ -671,31 +699,39 @@ Database (`tests/db/`; `world.py` gains a two-department person: `dept_admin` in
   existing super admin of another e-mail creates nothing; a second `dept_admin` in a department refused (409
   `one_dept_admin`, `admin_exists` on the first-admin endpoint, index on a racing insert); `dept_admin` at a
   directorate refused; the swap with `outgoing=dept_officer` (old admin keeps custody and allotments) and with
-  `outgoing=end` (exit to the incoming admin) leaves exactly one admin, audited `office.admin_replaced`; a
+  `outgoing=end` (per-item exit to existing memberships; refused while any item is unassigned) leaves exactly one admin, audited `office.admin_replaced`; a
   department admin cannot call the swap (403); the migration guard stops on two seeded super admins.
-- (owner review 2026-10-07) `test_head_change_tickets.py`: the EDU admin proposes `add` (person from HEALTH
-  by e-mail) → 202 ticket, no membership yet, the person's `/me` unchanged; the super admin approves → the
-  membership exists as `dept_head`, `target_membership_id` and `result` set, `membership.added` carries
-  `ticket_ref`; `set_type` to and from `dept_head`; `replace` → the outgoing head becomes `dept_officer` in the
-  same transaction and keeps their custody and allotment; `end` → the exit step runs on approval; reject needs
-  a remark and changes nothing; withdraw by the proposer only, while open; second open ticket in the same
-  department → 409 `ticket_open` (and the index under a race); stale approval (the target membership ended
-  meanwhile) → 409 `ticket_stale`, ticket still open, `ticket.approve_refused` audited; a closed ticket cannot
-  be updated (trigger); a department admin cannot propose on a `dept_admin` (themselves) or in another
-  department (403); the super admin's direct head change writes an opened-and-approved ticket; audit rows for
-  every step; a HEALTH admin sees EDU tickets → 404.
-- (owner review 2026-10-07) `test_ticket_alerts.py`: opening raises one `admin_ticket` alert (case NULL,
-  `critical`) to the super admin with in-app and immediate e-mail notifications; approval closes it `done` and
-  raises a `normal` alert to the proposer only; other users never see either (list, counts, detail 404); the
-  digest and the single-alert e-mail name the ticket ref and no payload; `ck_alerts_case` refuses a case-less
-  alert of another kind.
-- (owner review 2026-10-07) `test_ticket_documents.py`: attach at proposal, later while open, and after
-  approval (then also linked to the membership); refused after reject / withdraw (409); type check, scan
-  refusal, size limit as uploads (nothing stored, audit row); `sourcetrace_status = not_applicable`; the
-  document is invisible through `GET /documents/{ref}`, the case documents search and every case tab;
-  readable by the super admin and the EDU admin, 404 for an EDU officer and the HEALTH admin;
-  `GET /users/{id}/memberships/{mid}/documents` lists it after approval; a case upload with `government_order`
-  → 400; duplicate on one ticket → 409; archive keeps the link.
+- (owner review 2026-10-07; revised with the owner's answers) `test_head_change_tickets.py`: the EDU admin
+  requests `set` for a person from HEALTH by e-mail with a government order → 202 ticket with one document, no
+  membership yet, the person's `/me` unchanged; the super admin approves → the membership exists as
+  `dept_head`, `target_membership_id` and `result` set, `membership.added` carries `ticket_ref`, the order is
+  linked to the membership; `set` with an existing EDU officer membership; `set` when a head exists → 409
+  `head_exists`; a second active head refused by the service (409 `one_dept_head`) and by the index (racing
+  insert); `replace` with `retype` → in one transaction the old head becomes `dept_officer` (keeping custody and
+  allotments) and the new head is set; `replace` with `exit` → the old head's items go to their targets and the
+  membership ends, the new head is set; `exit` with items changed since the preview → 409 `ticket_stale` at
+  approval, ticket still open; `end` with `retype` leaves no head; `replace` / `end` with no head → 409
+  `no_head`; the membership endpoints refuse every `dept_head` change, also for the super admin (409
+  `use_head_change`); reject needs a remark and changes nothing; withdraw by the proposer only, while open;
+  second open ticket in the same department → 409 `ticket_open` (and the index under a race); a closed ticket
+  cannot be updated (trigger); a department admin cannot request on a `dept_admin` (themselves) or in another
+  department (403); the super admin's request is applied at once and recorded as an approved ticket with its
+  documents linked; audit rows for every step; a HEALTH admin sees EDU tickets → 404.
+- (owner review 2026-10-07; revised with the owner's answers) `test_ticket_alerts.py`: opening raises one
+  `admin_ticket` alert (case NULL, severity `normal`) to the super admin — an in-app notification, and under
+  the default preferences no immediate e-mail (it goes to the digest); with `digest = none` an immediate e-mail;
+  approval closes it `done` and raises a `normal` alert to the proposer only; other users never see either
+  (list, counts, detail 404); the digest and the single-alert e-mail name the ticket ref and no payload;
+  `ck_alerts_case` refuses a case-less alert of another kind.
+- (owner review 2026-10-07; revised with the owner's answers) `test_ticket_documents.py`: documents uploaded
+  with the request are on the ticket when the super admin opens it; a request without documents is accepted and
+  one is attached later while open; attaching after approval, reject or withdrawal → 409 `ticket_closed`; a
+  type other than `government_order` → 400; one infected file in a request refuses the whole request (no ticket,
+  nothing stored, audit row); type check and size limit as uploads; `sourcetrace_status = not_applicable`; the
+  document is invisible through `GET /documents/{ref}`, the case documents search and every case tab; readable
+  by the super admin and the EDU admin, 404 for an EDU officer and the HEALTH admin;
+  `GET /users/{id}/memberships/{mid}/documents` lists it after approval (incoming and outgoing memberships); a
+  case upload with `government_order` → 400; duplicate on one ticket → 409; archive while open keeps the link.
 - (owner review 2026-10-07, revised: no successor) `test_membership_exit.py`: the preview lists every
   allotment and every held file as items (a HEALTH-held file of an EDU case with facts only; a case both allotted
   to and held by the leaver as two items), the eligible targets and a fingerprint; the end call with every item
@@ -715,7 +751,8 @@ Database (`tests/db/`; `world.py` gains a two-department person: `dept_admin` in
   drafts on those cases become permanent in the exit.
 - `test_api_memberships.py`: each endpoint's function check (403), scope errors, shapes; `/me` lists memberships
   with per-membership functions and the union; `inbox/counts` returns a block per department; ownership
-  endpoint with `office_code` of a second department; (owner review 2026-10-07) 202-with-ticket shapes,
+  endpoint with `office_code` of a second department; (owner review 2026-10-07) the head-change multipart request (202 / 201 shapes),
+  `use_head_change` on the membership endpoints,
   exit-preview and end shapes, `/admin/tickets` list (oldest first, filters, counts), detail, approve, reject,
   withdraw, attach, download, `reserved_function` on granting `admin.tickets`.
 - Existing suites stay green (`test_access.py`, `test_ownership.py`, `test_case_visibility.py`,
@@ -739,14 +776,17 @@ Database (`tests/db/`; `world.py` gains a two-department person: `dept_admin` in
    `POST /cases/{ref}/allot` on a HEALTH-owned case → 403.
 4. As the HEALTH admin `POST /users/{id}/password` → 403; `POST /users/{id}/memberships/{mid}/end` (nothing
    held: empty assignment list) → 200; the person's `/me` lists one membership.
-5. (owner review 2026-10-07) As the EDU admin `PATCH /users/{id}/memberships/{mid}` with `role=dept_head` for
-   an EDU officer → 202 with `ASLMS/EDU/TKT/2026/000001`; the officer's `/me` still says `dept_officer`;
-   `POST /admin/tickets/{ref}/documents` with a PDF → 201; as the super admin `GET /admin/tickets/counts` →
-   `open: 1`, the in-app `admin_ticket` alert is listed and a queued e-mail row exists; `POST
-   /admin/tickets/{ref}/approve` → the officer's `/me` says `dept_head`; the EDU admin has a "decided" alert;
-   `GET /users/{id}/memberships/{mid}/documents` lists the order; a second `POST /admin/offices/EDU/admins` →
-   409 `admin_exists`; `PUT /admin/offices/EDU/admin` with a new person and `outgoing=dept_officer` → one
-   EDU admin; `docker compose run --rm api aslms users create-super-admin …` → refused.
+5. (owner review 2026-10-07; revised with the owner's answers) As the EDU admin `POST
+   /admin/tickets/head-change` (multipart: `operation=set`, `incoming.membership` = an EDU officer, one PDF
+   government order) → 202 with `ASLMS/EDU/TKT/2026/000001` and one document; the officer's `/me` still says
+   `dept_officer`; `PATCH /users/{id}/memberships/{mid}` with `role=dept_head` → 409 `use_head_change`; as the
+   super admin `GET /admin/tickets/counts` → `open: 1`, the in-app `admin_ticket` alert is listed with severity
+   `normal`; `GET /admin/tickets/{ref}` shows the order; `POST /admin/tickets/{ref}/approve` → the officer's
+   `/me` says `dept_head`; the EDU admin has a "decided" alert; `POST /admin/tickets/{ref}/documents` → 409
+   `ticket_closed`; `GET /users/{id}/memberships/{mid}/documents` lists the order; a second `set` for EDU → 409
+   `head_exists`; a second `POST /admin/offices/EDU/admins` → 409 `admin_exists`; `PUT /admin/offices/EDU/admin`
+   with a new person and `outgoing=dept_officer` → one EDU admin; `docker compose run --rm api aslms users
+   create-super-admin …` → refused.
 6. (owner review 2026-10-07, revised: no successor) With two claimed EDU cases allotted to an EDU officer who
    holds both files: as the EDU admin `GET /users/{id}/memberships/{mid}/exit-preview` → 4 items and a
    fingerprint; `POST …/end` with three assignments → 409 `unassigned_items` naming the fourth; with all four
@@ -755,7 +795,10 @@ Database (`tests/db/`; `world.py` gains a two-department person: `dept_admin` in
    legs, `audit_log` has one `membership.exit` row listing the four items and their targets.
 
 ## Open questions
-None. Points the owner is asked to check at approval (decisions taken, reversible):
+None. Settled by the owner's answers (owner review 2026-10-07): one head per department (15); the outgoing
+head's fate stated in the request, retype or per-item exit (16); `normal` severity for new tickets (19); the
+order uploaded with the request, attachable only while open (20). Points the owner is asked to check at
+approval (decisions taken, reversible):
 - one active membership per person per department (2) — two posts in one department become one membership;
 - the `users` office, type and designation columns kept as a mirror of the primary membership (3), dropped in a
   later migration;
@@ -763,14 +806,7 @@ None. Points the owner is asked to check at approval (decisions taken, reversibl
 - a department admin may add a membership for their department to a person from any department, found by exact
   e-mail; login-level actions (password, disable) stay with the primary office's admins (8);
 - `GET /inbox/counts` changes shape to one block per department (API table);
-- (owner review 2026-10-07) heads are not limited in number (15) — the wording "the current head" suggests one;
-  say so and an index enforces it;
-- (owner review 2026-10-07) on a replacement the outgoing head becomes `dept_officer` and keeps their files and
-  allotments (16);
-- (owner review 2026-10-07) a new ticket alerts the super admin at `critical`, which e-mails at once under the
-  default preferences (19);
-- (owner review 2026-10-07) the government order may be attached while the ticket is open or approved, not after
-  a reject or withdrawal (20);
+- (owner review 2026-10-07) up to 5 files per head-change request, `government_order` only (20);
 - (owner review 2026-10-07) the replaced super admin's login is disabled (13);
 - (owner review 2026-10-07, revised) no successor: every allotted case and held file gets a target chosen by
   the admin, one by one; the exit is refused until all have one (21);
