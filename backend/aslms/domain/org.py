@@ -7,6 +7,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
+    CHAR,
     Boolean,
     CheckConstraint,
     DateTime,
@@ -75,6 +76,11 @@ class User(TimestampMixin, MasterMixin, CreatedByMixin, Base):
     role: Mapped[Role] = ref_code(Role, "ref_role")
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     must_confirm_profile: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    # design `otp-and-profile` (migration 0010): access tokens issued before `password_changed_at` are refused;
+    # `must_change_password` is set when someone else set the password; `profile_confirmed_at` the first confirm
+    password_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    must_change_password: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    profile_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     office = relationship("Office", foreign_keys=[office_id])
 
@@ -181,8 +187,12 @@ class OtpPurpose(enum.StrEnum):
 
 
 class OtpCode(Base):
+    """A one-time code; the `id` is the challenge id (design `otp-and-profile`, decision 2). `code_hash` is the
+    HMAC-SHA256 of the code keyed with `ASLMS_JWT_SECRET`."""
+
     __tablename__ = "otp_codes"
     __table_class__ = TableClass.DERIVED
+    __table_args__ = (Index("ix_otp_codes_user_purpose_created", "user_id", "purpose", "created_at"),)
     id: Mapped[uuid.UUID] = uuid_pk()
     user_id: Mapped[uuid.UUID] = uuid_fk("users.id", ondelete="CASCADE")
     purpose: Mapped[OtpPurpose] = mapped_column(pg_enum(OtpPurpose, "otp_purpose"), nullable=False)
@@ -204,9 +214,35 @@ class RefreshToken(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     device_label: Mapped[str | None] = mapped_column(String(200))
+    device_id: Mapped[uuid.UUID | None] = uuid_fk("user_devices.id", nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )
+
+
+class UserDevice(TimestampMixin, Base):
+    """A client a login signed in from (design `otp-and-profile`, decision 6): the device token is held by the
+    client and stored here as its SHA-256. A code is still asked at every sign-in; the record drives the
+    new-device notice and `/me/devices`. Written only by `services/auth.py`; never deleted."""
+
+    __tablename__ = "user_devices"
+    __table_class__ = TableClass.DERIVED
+    __table_args__ = (CheckConstraint("last_seen_at >= first_seen_at", name="seen"),)
+    id: Mapped[uuid.UUID] = uuid_pk()
+    user_id: Mapped[uuid.UUID] = uuid_fk("users.id")
+    token_hash: Mapped[str] = mapped_column(CHAR(64), nullable=False, unique=True)
+    label: Mapped[str | None] = mapped_column(String(200))
+    user_agent: Mapped[str | None] = mapped_column(String(400))
+    first_ip: Mapped[str | None] = mapped_column(String(64))
+    last_ip: Mapped[str | None] = mapped_column(String(64))
+    first_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class Channel(enum.StrEnum):
@@ -246,6 +282,7 @@ __all__ = [
     "OtpPurpose",
     "RefreshToken",
     "User",
+    "UserDevice",
     "UserMembership",
     "UserNotificationPreference",
     "UUID",

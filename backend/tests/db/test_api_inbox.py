@@ -25,6 +25,7 @@ from aslms.domain.ownership import (
     RecommendationStatus,
     ScoreBand,
 )
+from tests.db.auth_support import bearer
 from tests.db.world import PW, USERS, make_case
 
 
@@ -41,9 +42,7 @@ def api(world):
 
 
 def login(api: TestClient, key: str) -> dict:
-    r = api.post("/auth/login", json={"email": USERS[key][0], "password": PW})
-    assert r.status_code == 200, r.text
-    return {"Authorization": f"Bearer {r.json()['access_token']}"}
+    return bearer(api, USERS[key][0], PW)
 
 
 def recommend(s, world, case, code, *, score=0.95, band=ScoreBand.HIGH, signals=True):

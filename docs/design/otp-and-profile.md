@@ -287,3 +287,68 @@ None. The owner answered both on 2026-10-07:
    this item; a known device never skips the code.
 2. **The mobile number is mandatory** at profile confirmation, Indian 10-digit format (`^[6-9][0-9]{9}$`, stored
    without the country code). It is not verified until an SMS gateway exists (backlog row 27).
+
+## Deviations
+Recorded by the developer while building (7 Oct 2026); none changes a business rule.
+1. **No device trust (owner's review).** No `AUTH_DEVICE_TRUST_DAYS`; `POST /auth/login` always answers
+   `step: "otp"` with purpose `login`; `/me/devices` has no `trusted_until`. The `new_device` purpose stays in the
+   enum and `verify` accepts it, but nothing issues it.
+2. **`current` in `/me/devices`** is the device named by an optional `X-Device-Token` request header (access tokens
+   keep their shape, so the server cannot tell the device from the token alone); without the header every
+   `current` is false.
+3. **Reset confirm answers every failed code alike**: wrong, expired, spent and unknown challenges all give 401
+   `otp_invalid` without `attempts_left`, so a reset challenge for an unknown e-mail cannot be told from a real one
+   (decision 7 over the "401 as verify" of the API table). Sign-in verify keeps `otp_invalid` with `attempts_left`
+   and `otp_expired` (its challenges exist only after a correct password).
+4. **Reset request stays neutral**: while the login is locked, or when the reset mail fails, the request answers the
+   same 202 and sends nothing (logged), instead of 429 / 502, so the answer never discloses an account.
+   `503 mail_not_configured` is server-wide and is kept. Reset confirm while locked answers 429 `locked` as designed.
+5. **A failed send leaves no row**: the unsent `otp_codes` row is removed (the older codes stay consumed), so a mail
+   outage costs no resend wait and does not count towards the hourly cap.
+6. **Sign-in resend** is allowed for a live challenge or one spent by wrong codes; a challenge already used or
+   superseded answers 401 `otp_expired` (a used challenge must never yield a code without the password).
+7. **Reuse detection**: a presented refresh token counts as reused when it was revoked after the login's last
+   password set and its device is live. Tokens ended by a password set or e-mail change (revoked at
+   `password_changed_at`), by signing a device out, or by disabling the login answer plain `refresh_invalid`.
+8. **Audit details**: the CLI sign-out writes `auth.signed_out` (`{tokens_revoked, devices_revoked}`); a wrong
+   current password at `POST /me/password` writes `auth.login_failed` with `{reason: password, step:
+   change_password}`; `auth.password_reset_requested` carries `{sent, reason}` (`inactive`, `locked`, `wait`,
+   `mail_failed`); `auth.new_device` has entity type `user_device` with `user_id` in `after`.
+9. **Out-of-scope e-mail change answers 404**, not 403: `PATCH /admin/users/{id}` already answers 404 for a login the
+   caller cannot see, and that rule is kept.
+10. **A reset revokes refresh tokens, not devices** (there is no device trust to revoke); devices stay known, so the
+    next sign-in from them sends no new-device notice.
+11. **A logged-out refresh token is not reuse**: `POST /auth/logout` revokes the token and sets its `expires_at` to
+    the same instant, with no schema change. `refresh` treats a revoked token with `expires_at <= revoked_at` as
+    logged out and answers plain `refresh_invalid` without ending the login's other sessions; only a rotated
+    token (`expires_at > revoked_at`) counts as reuse under decision 10.
+11. **`UserError` lives in `services/passwords.py`** (re-exported by `services/users.py`) so `WeakPassword` is a
+    `UserError` and every existing refusal path also refuses a weak password; the API maps it to 422
+    `weak_password`. `PasswordIn.password` accepts any length so the policy, not the schema, answers.
+12. **The seeded super admin's `.env` password must pass the policy** (10+ characters, a letter and a digit), since the
+    seed creates it through `create_user`; an existing super admin is untouched.
+13. **Tests**: the session fixture and the migration tests wipe the test database before going down (0010's
+    downgrade refuses while `user_devices` rows exist); test passwords gained a digit; `auth_support.sign_in`
+    ages the login's earlier codes when a test signs the same login in twice inside the resend wait.
+14. **A change of password or e-mail spends every live code of the login** (`users.end_codes`, every purpose, in
+    the same transaction as `end_sessions`): a sign-in challenge begun with the old password, or a sign-in or
+    reset code mailed to the old address, answers 401 afterwards. A reset confirmation is unaffected (its own code
+    is spent by the check before the password is set).
+15. **Refusals that are returned (and therefore committed) never half-apply**: `PATCH /me/profile` checks name
+    and mobile before assigning either; `notifications.set_preferences` checks every field before it touches the
+    row, so a refused `POST /me/profile/confirm` leaves the preferences as they were.
+16. **Logout revokes only the caller's own refresh token**; another login's token is treated as not found (still
+    204, the `auth.logout` row is written for the caller).
+17. **Sign-in resend is narrower than deviation 6** (review of 8 Oct 2026). A challenge is resent only while
+    (a) it is live or was spent by wrong codes, (b) it has not expired, (c) it is the newest code of its purpose for the
+    login, and (d) it was created after the login's `password_changed_at`, which a password set, a reset or an e-mail
+    change moves. Any other challenge answers 401 `otp_expired`. A challenge spent by codes therefore stops
+    yielding codes once the credentials change (decision 9, deviation 14). An old challenge id cannot be replayed
+    after its resend. A live code that has expired means signing in again.
+18. **Sign-in steps of one login are serialised by row locks**, with no schema change. Every step that reads or
+    writes the lock counter or a code first takes `SELECT ... FOR UPDATE` on the login's `users` row
+    (`otp.lock_user`): password step, code verify, resend, reset request and confirm, own password change, and `otp.issue`.
+    `otp.verify` then locks the `otp_codes` row. The lock order is always `users` first, then `otp_codes`. Parallel
+    requests therefore get at most 5 tries per code and at most 10 failures per lock window. They cannot leave two live
+    codes for one purpose or redeem one code twice. Requests for one login wait for each other, and requests for
+    different logins do not.

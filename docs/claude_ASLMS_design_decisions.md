@@ -895,3 +895,78 @@ Design `docs/design/custody-workflow.md` (revised and approved 7 Oct 2026 under 
 - Made directly as a small fix (one setting, one service constant, one guard) rather than a team cycle, because
   the daily refresh was not running.
 - 2026-10-07 — otp-and-profile: approved by the owner (code at every sign-in, mobile mandatory; docs/design/otp-and-profile.md)
+
+## OTP sign-in, devices, password reset and first-sign-in confirmation (2026-10-07)
+Design `docs/design/otp-and-profile.md` (approved 7 Oct 2026 with the owner's two answers); branch
+`feature/otp-and-profile`; tests and review passed (review of 8 Oct 2026 produced deviations 17 and 18).
+
+**Built**
+- Migration 0010 (`0010_otp_profile.py`): `users` gains `password_changed_at`, `must_change_password` (back-filled
+  from `must_confirm_profile`) and `profile_confirmed_at`; new table `user_devices` (never deleted); `refresh_tokens`
+  gains `device_id`; index `ix_otp_codes_user_purpose_created`. No `ref_*` code, enum value or `Permission` added.
+  The downgrade refuses while a `user_devices` row exists. `schema.md` updated before the migration.
+- Services: `otp.py` (issue, verify, resend wait, `mask_email`, `lock_user`), `auth.py` (start and complete login,
+  resend, password reset request and confirm, own password change, refresh with reuse detection, devices, lock check,
+  `sign_out_everywhere`), `passwords.py` (policy, hash and verify moved here), `profile.py` (get, confirm, update);
+  changes to `users.py` (e-mail change, `set_password` with `by_self`, `end_sessions`, `end_codes`), `notifications.py`
+  (`set_preferences` checks before it writes), `mailer.py`, `api/deps.py` (token-age check, first-sign-in gate,
+  `current_user_pending`, `get_mailer`), `api/security.py`.
+- API: `POST /auth/login` (now step one, answers `step: "otp"`), `/auth/otp/verify`, `/auth/otp/resend`,
+  `/auth/password-reset/request` and `/confirm`, `/auth/refresh`, `/auth/logout`; `POST /me/password`, `GET`, `PATCH`
+  `/me/profile`, `POST /me/profile/confirm`, `GET /me/devices`, `POST /me/devices/{id}/revoke`; `PATCH
+  /admin/users/{id}` accepts `email`; `POST /admin/users/{id}/password` now forces a change.
+- CLI: `aslms users set-password` forces a change and applies the password policy; new `aslms users sign-out --email`.
+- Settings in `.env.example`: `OTP_TTL_MINUTES` (10), `OTP_MAX_ATTEMPTS` (5), `OTP_RESEND_SECONDS` (120),
+  `OTP_MAX_PER_HOUR` (10), `LOGIN_MAX_FAILURES` (10), `LOGIN_LOCK_MINUTES` (15).
+- Tests: `tests/unit/test_auth_rules.py`; `tests/db/` `test_auth_otp.py`, `test_auth_resend_and_races.py`,
+  `test_profile.py`, `test_api_auth.py`, `test_api_auth_gaps.py`, `test_api_auth_negative.py`,
+  `test_migration_0010.py`; the helper `tests/db/auth_support.py::sign_in` replaces the direct logins of every
+  existing API test.
+
+**Decisions**
+- Sign-in is password, then a 6-digit code e-mailed to the login, at every sign-in. Owner's answer: a known device
+  never skips the code, so no device-trust setting or mechanism exists. Devices are still recorded: the first
+  verified sign-in from a client issues a device token, a new device triggers a notice e-mail, and the user lists
+  and signs out their devices.
+- Codes are HMAC-SHA256 keyed with `ASLMS_JWT_SECRET`, valid 10 minutes, 5 tries, one live code per login and
+  purpose; a new code at most every 120 seconds and 10 an hour; never logged, audited or returned.
+- Lock: 10 failed passwords or codes in 15 minutes refuse sign-in and reset for that login (429 `locked`), counted
+  from audit rows, no counter column, and not a permanent lock.
+- Failures are returned, not raised, so the attempt count, spent code, audit row and revocations commit with the 401.
+- Password reset answers 202 alike for any e-mail and sends mail only for a live account outside the wait; it ends
+  every session and does not sign in.
+- Password policy for every path: 10+ characters, a letter and a digit, not the current password.
+- Credential changes (reset, own change, administrator reset, e-mail change) set `password_changed_at`, revoke
+  refresh tokens and spend live codes; an older access token is refused at once. A rotated refresh token presented
+  again ends every session of the login.
+- First sign-in is enforced on the server: while `must_change_password` or `must_confirm_profile` is set only the
+  first-sign-in endpoints answer (403 `password_change_required` / `profile_confirmation_required`); password first.
+- Profile confirmation shows memberships read only and saves name, mobile and notification preferences. The mobile
+  number is mandatory, Indian 10-digit (`^[6-9][0-9]{9}$`), stored without the country code and not verified.
+- Administrators can correct a login's e-mail (a wrong address would lock the person out for good), under the
+  existing `users.edit` scope; the old address gets a notice. Administrator and CLI password sets force a change; the
+  seeded super admin's `.env` password is a bootstrap secret and also forces one.
+- Mail is required to sign in: failure answers 502 `mail_failed`; the console backend with `APP_ENV=prod` answers 503
+  `mail_not_configured`; there is no bypass. Development uses the Mailtrap sandbox URL in `.env`.
+
+**Deviations** (design note, Deviations section, 18 items; none changes a business rule)
+- No device trust (owner's review): `new_device` stays in the enum but nothing issues it; `/me/devices` has no
+  `trusted_until`; `current` follows an optional `X-Device-Token` header.
+- Reset confirm answers every failed code alike (401 `otp_invalid`, no `attempts_left`), and a reset request stays a
+  neutral 202 when the login is locked or the mail fails, so an account is never disclosed.
+- A failed send leaves no `otp_codes` row, so an outage costs no wait and no hourly cap.
+- Sign-in resend is narrower (deviation 17): only the newest, unexpired challenge, live or spent by wrong codes, and
+  created after the login's `password_changed_at`. Sign-in steps of one login are serialised by `SELECT ... FOR
+  UPDATE` on the `users` row, then the `otp_codes` row (deviation 18).
+- A logged-out refresh token is not reuse (logout sets `expires_at` to the revocation instant, no schema change); a
+  reset revokes tokens but not devices; an out-of-scope e-mail change answers 404 like the rest of `PATCH
+  /admin/users/{id}`; `UserError` moved to `passwords.py`; the seeded super admin's `.env` password must pass the policy.
+- A refused profile confirmation or update never half-applies; logout revokes only the caller's own token.
+
+**Left for later**
+- Portal sign-in screens and httpOnly cookie handling (row 11); SMS channel (row 27); per-IP throttling at the reverse
+  proxy (row 16).
+- New rows: 33 `auth-retention` (pruning of old `otp_codes` and `refresh_tokens`), 34 `mobile-verification` (SMS
+  verification of the mobile number).
+- Design Verification steps 2 to 7 (Compose with the Mailtrap sandbox in `.env`) are the live check; upgrade the dev
+  database to 0010 when the merged images are rebuilt (integrator).

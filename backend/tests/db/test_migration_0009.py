@@ -10,7 +10,7 @@ import pytest
 import sqlalchemy as sa
 from alembic import command
 
-from tests.db.conftest import alembic_config
+from tests.db.conftest import alembic_config, wipe_if_migrated
 
 
 def _scalar(conn, sql: str, **params):
@@ -48,6 +48,7 @@ def test_request_tables_gone_and_draft_grants(engine: sa.Engine):
 
 def test_guard_stops_on_a_request_row_and_downgrade_guard(db_url: str, engine: sa.Engine):
     cfg = alembic_config(db_url)
+    wipe_if_migrated(db_url)  # 0010's downgrade refuses while user_devices rows exist
     command.downgrade(cfg, "0008")
     try:
         with engine.begin() as conn:
@@ -91,4 +92,4 @@ def test_guard_stops_on_a_request_row_and_downgrade_guard(db_url: str, engine: s
                 conn.execute(sa.text("delete from requests"))
         command.upgrade(cfg, "head")
     with engine.connect() as conn:
-        assert _scalar(conn, "select version_num from alembic_version") == "0009"
+        assert _scalar(conn, "select version_num from alembic_version") == "0010"

@@ -117,6 +117,18 @@ class ConsoleMailer:
 
 
 @dataclass
+class UnconfiguredMailer:
+    """Stands in when the configured backend cannot be built (a missing sender or token): every send fails, and
+    the sign-in code path answers 503 `mail_not_configured` before trying (design `otp-and-profile`)."""
+
+    reason: str = "mail is not configured"
+    name: str = "unconfigured"
+
+    def send(self, to: str, subject: str, text: str, html: str | None = None) -> None:
+        raise MailError(self.reason)
+
+
+@dataclass
 class Mail:
     to: str
     subject: str

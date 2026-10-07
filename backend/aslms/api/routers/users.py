@@ -13,12 +13,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from aslms.api import schemas
-from aslms.api.deps import actor_of, get_session, require, require_any
+from aslms.api.deps import actor_of, get_mailer, get_session, require, require_any
 from aslms.api.errors import HANDLED, http_error
 from aslms.api.routers.auth import user_out
 from aslms.domain.org import Office, PermissionEffect, User, UserMembership
 from aslms.domain.reference import Permission
 from aslms.services import access, memberships, tickets
+from aslms.services.mailer import Mailer
 from aslms.services.users import create_user, set_password, update_profile
 
 router = APIRouter(prefix="/admin/users", tags=["users"])
@@ -197,12 +198,16 @@ def patch_user(
     request: Request,
     session: Session = Depends(get_session),
     caller: User = Depends(require(Permission.USERS_EDIT)),
+    mailer: Mailer = Depends(get_mailer),
 ) -> schemas.UserOut:
-    """Login-level fields (name, mobile; `designation` changes the primary membership's): the super admin or a
-    caller whose scope covers the primary membership's office."""
+    """Login-level fields (name, mobile, e-mail; `designation` changes the primary membership's): the super admin
+    or a caller whose scope covers the primary membership's office. An e-mail change (design `otp-and-profile`,
+    decision 13) ends the login's sessions and mails a notice to the old address; 409 `email_taken`; the super
+    admin's own login 403 `super_admin_cli_only`."""
     user = _load(session, caller, user_id)
+    fields = body.model_dump(exclude_unset=True)
     try:
-        if access.is_super_admin(user) and not access.is_super_admin(caller):
+        if access.is_super_admin(user) and (not access.is_super_admin(caller) or fields.get("email")):
             raise access.Forbidden(
                 "the super admin is changed only from the server's command line", "super_admin_cli_only"
             )
@@ -211,7 +216,8 @@ def patch_user(
             session,
             access.actor_as(actor_of(request, caller, session), member),
             user,
-            **body.model_dump(exclude_unset=True),
+            mailer=mailer,
+            **fields,
         )
     except HANDLED as exc:
         raise http_error(exc) from exc
@@ -274,7 +280,9 @@ def reset_password(
     session: Session = Depends(get_session),
     caller: User = Depends(require(Permission.USERS_RESET_PASSWORD)),
 ) -> None:
-    """Login-level: the super admin or a caller whose scope covers the primary membership's office."""
+    """Login-level: the super admin or a caller whose scope covers the primary membership's office. Sets
+    `must_change_password` and ends the login's sessions (design `otp-and-profile`, decisions 9, 14); 422
+    `weak_password`."""
     user = _load(session, caller, user_id)
     try:
         if access.is_super_admin(user) and not access.is_super_admin(caller):

@@ -472,6 +472,10 @@ def set_enabled(session: Session, actor: Actor, actor_user: User | Member, user:
     user.is_active = enabled
     user.deactivated_at = None if enabled else datetime.now(UTC)
     user.updated_by = actor.user_id
+    if not enabled:  # design otp-and-profile, decision 9: disabling ends the login's sessions
+        from aslms.services.users import end_sessions
+
+        end_sessions(session, user)
     session.flush()
     write_audit(
         session,

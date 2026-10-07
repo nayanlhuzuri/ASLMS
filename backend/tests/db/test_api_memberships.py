@@ -95,7 +95,7 @@ def test_lookup_add_me_counts_password_and_end(world, api):
         api.post(f"/cases/{case_ref}/allot", json={"officer_user_id": uid}, headers=person).status_code == 403
     )
     # login-level actions follow the primary office (EDU): the HEALTH admin is refused
-    r = api.post(f"/admin/users/{uid}/password", json={"password": "another-long-password"}, headers=health)
+    r = api.post(f"/admin/users/{uid}/password", json={"password": "another-long-password-8"}, headers=health)
     assert r.status_code == 403
     p = api.get(f"/admin/users/{uid}/memberships/{hm['id']}/exit-preview", headers=health).json()
     assert p["items"] == [] and p["counts"]["files"] == 0 and len(p["items_fingerprint"]) == 64
@@ -295,7 +295,7 @@ def test_department_admin_cannot_revive_a_disabled_login(world, api):
             ms.reactivate(s, a_actor, a_user, s.get(UserMembership, uuid.UUID(mid)))
         assert exc.value.code == "login_inactive"
     assert api.post(f"/admin/users/{uid}/enable", headers=admin).status_code in (403, 404)
-    r = api.post(f"/admin/users/{uid}/password", json={"password": "another-long-password"}, headers=admin)
+    r = api.post(f"/admin/users/{uid}/password", json={"password": "another-long-password-8"}, headers=admin)
     assert r.status_code in (403, 404)
     r = api.post(f"/admin/users/{uid}/memberships/{mid}/reactivate", headers=root)
     assert r.status_code == 200, r.text

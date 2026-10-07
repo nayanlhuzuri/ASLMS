@@ -30,6 +30,7 @@ from aslms.domain.events import AuditLog
 from aslms.domain.reference import DocType
 from aslms.services.scanner import FakeScanner
 from aslms.services.storage import LocalStore
+from tests.db.auth_support import bearer
 from tests.db.world import PW, USERS
 
 JWT = "test-secret-of-at-least-thirty-two-characters"
@@ -58,9 +59,7 @@ def make_api(world, tmp_path: Path, **overrides) -> TestClient:
 
 
 def login(api: TestClient, key: str) -> dict:
-    r = api.post("/auth/login", json={"email": USERS[key][0], "password": PW})
-    assert r.status_code == 200, r.text
-    return {"Authorization": f"Bearer {r.json()['access_token']}"}
+    return bearer(api, USERS[key][0], PW)
 
 
 def upload(

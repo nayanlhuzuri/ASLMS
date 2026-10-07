@@ -27,7 +27,7 @@ from aslms.services.users import create_user
 from tests.db.conftest import wipe
 
 SYS = Actor.system("test")
-PW = "correct-horse-battery"
+PW = "correct-horse-battery-7"
 
 
 def head(code: str) -> dict:
@@ -132,7 +132,10 @@ def events(session, action: str) -> list[Event]:
 def test_super_admin_creates_a_department(session, world):
     edu, sup = world["edu"], world["super"]
     assert edu.path == "GOA/EDU" and edu.code == "EDU" and edu.kind == OfficeKind.DEPARTMENT
-    assert edu.created_by == sup.id and edu.valid_from == date.today() and edu.is_active
+    db_today = session.scalar(
+        sa.select(sa.func.current_date())
+    )  # `valid_from` is the database's current_date
+    assert edu.created_by == sup.id and edu.valid_from == db_today and edu.is_active
     assert offices.tier_of(edu) == "department"
     rows = audits(session, "office.create", edu.id)
     assert len(rows) == 1 and rows[0].after["path"] == "GOA/EDU" and rows[0].actor_user_id == sup.id

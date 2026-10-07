@@ -15,6 +15,7 @@ from aslms.domain.reference import OfficeKind, Permission, Role
 class LoginIn(BaseModel):
     email: EmailStr
     password: str = Field(min_length=1, max_length=200)
+    device_token: str | None = Field(None, max_length=200)
     device_label: str | None = Field(None, max_length=200)
 
 
@@ -52,6 +53,8 @@ class UserOut(BaseModel):
     mobile: str | None
     is_active: bool
     must_confirm_profile: bool
+    must_change_password: bool = False
+    profile_confirmed_at: datetime | None = None
     last_login_at: datetime | None
     created_at: datetime
     memberships: list[MembershipOut] = Field(default_factory=list)
@@ -69,6 +72,8 @@ class TokenOut(BaseModel):
     token_type: str = "bearer"
     expires_in: int
     user: UserOut
+    next_step: Literal["ready", "change_password", "confirm_profile"] = "ready"
+    device_token: str | None = Field(None, description="issued once, when the device is new; keep it")
 
 
 class UserCreateIn(BaseModel):
@@ -90,6 +95,7 @@ class UserPatchIn(BaseModel):
     designation: str | None = Field(None, max_length=200)
     designation_id: uuid.UUID | None = None
     mobile: str | None = Field(None, max_length=20)
+    email: EmailStr | None = None
 
 
 class TypeIn(BaseModel):
@@ -97,7 +103,7 @@ class TypeIn(BaseModel):
 
 
 class PasswordIn(BaseModel):
-    password: str = Field(min_length=10, max_length=200)
+    password: str = Field(min_length=1, max_length=200, description="the policy answers 422 weak_password")
 
 
 class OverrideIn(BaseModel):
@@ -1476,6 +1482,91 @@ class TicketRejectIn(BaseModel):
 
 class TicketArchiveIn(BaseModel):
     reason: str = Field(min_length=3, max_length=500)
+
+
+# ------------------------------------------------------------------------------------------------ otp and profile
+
+
+class LoginStepOut(BaseModel):
+    step: Literal["otp"] = "otp"
+    challenge_id: uuid.UUID
+    purpose: str
+    sent_to: str
+    expires_in: int
+    resend_after: int
+
+
+class OtpVerifyIn(BaseModel):
+    challenge_id: uuid.UUID
+    code: str = Field(pattern=r"^[0-9]{6}$")
+    device_token: str | None = Field(None, max_length=200)
+    device_label: str | None = Field(None, max_length=200)
+
+
+class OtpResendIn(BaseModel):
+    challenge_id: uuid.UUID
+
+
+class ResetRequestIn(BaseModel):
+    email: str = Field(min_length=1, max_length=254)
+
+
+class ResetStepOut(BaseModel):
+    challenge_id: uuid.UUID
+    expires_in: int
+    resend_after: int
+
+
+class ResetConfirmIn(BaseModel):
+    challenge_id: uuid.UUID
+    code: str = Field(pattern=r"^[0-9]{6}$")
+    new_password: str = Field(min_length=1, max_length=200)
+
+
+class PasswordChangeIn(BaseModel):
+    current_password: str = Field(min_length=1, max_length=200)
+    new_password: str = Field(min_length=1, max_length=200)
+    device_token: str | None = Field(None, max_length=200)
+
+
+class ProfileMembershipOut(BaseModel):
+    office: MembershipOfficeOut
+    designation: str | None
+    role: Role
+    is_primary: bool
+
+
+class ProfileOut(BaseModel):
+    email: str
+    full_name: str
+    mobile: str | None
+    memberships: list[ProfileMembershipOut]
+    must_change_password: bool
+    must_confirm_profile: bool
+    profile_confirmed_at: datetime | None
+    notification_preferences: NotificationPreferencesOut
+
+
+class ProfileConfirmIn(BaseModel):
+    full_name: str = Field(min_length=1, max_length=200)
+    mobile: str | None = Field(None, max_length=20, description="mandatory: an Indian 10-digit number")
+    notification_preferences: NotificationPreferencesIn | None = None
+
+
+class ProfilePatchIn(BaseModel):
+    full_name: str | None = Field(None, min_length=1, max_length=200)
+    mobile: str | None = Field(None, max_length=20)
+
+
+class DeviceOut(BaseModel):
+    id: uuid.UUID
+    label: str | None
+    user_agent: str | None
+    first_seen_at: datetime
+    last_seen_at: datetime
+    verified_at: datetime | None
+    revoked_at: datetime | None
+    current: bool
 
 
 UserOut.model_rebuild()

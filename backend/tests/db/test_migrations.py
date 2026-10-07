@@ -12,7 +12,7 @@ from alembic.runtime.migration import MigrationContext
 
 import aslms.domain  # noqa: F401
 from aslms.db.base import APPEND_ONLY_TABLES, MUTABLE_TABLES, Base
-from tests.db.conftest import alembic_config
+from tests.db.conftest import alembic_config, wipe_if_migrated
 
 
 def _scalar(engine: sa.Engine, sql: str):
@@ -22,6 +22,7 @@ def _scalar(engine: sa.Engine, sql: str):
 
 def test_upgrade_downgrade_upgrade(db_url: str):
     cfg = alembic_config(db_url)
+    wipe_if_migrated(db_url)  # the downgrades refuse to strip populated tables
     command.downgrade(cfg, "base")
     engine = sa.create_engine(db_url, poolclass=sa.pool.NullPool)
     assert (

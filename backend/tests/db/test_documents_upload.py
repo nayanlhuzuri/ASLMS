@@ -21,6 +21,7 @@ from aslms.services.orders import fetch_order_pdf
 from aslms.services.scanner import eicar_test_string
 from tests import samplefiles as sf
 from tests.db import docs_support as ds
+from tests.db.auth_support import forget_devices
 from tests.db.test_case_visibility import entry_with_codes
 from tests.db.world import make_case
 
@@ -379,6 +380,7 @@ def test_migration_0006_cycles_with_documents_and_refuses_duplicate_sha(api, wor
         case = s.get(Case, owned["owned"])
         ds.stored_order(s, api.store, case, sf.text_pdf(["An order"]))
         store_pdf(s, api.store, sf.text_pdf(["A cause list"]), doc_date=date(2025, 1, 6), description="list")
+        forget_devices(s)  # 0010's downgrade refuses while sign-in records exist
         s.commit()
     cfg = alembic_config(TEST_URL)
     command.downgrade(cfg, "0005")
@@ -406,6 +408,9 @@ def test_migration_0006_cycles_with_documents_and_refuses_duplicate_sha(api, wor
         )
     # the same bytes uploaded by another office: two rows, one sha256 → the downgrade refuses
     assert ds.upload(api, ds.login(api, "dse_user"), owned["owned"], pdf).status_code == 201
+    with world.Session() as s:
+        forget_devices(s)
+        s.commit()
     with pytest.raises(RuntimeError, match="cannot downgrade 0006"):
         command.downgrade(cfg, "0005")
     with world.Session() as s:

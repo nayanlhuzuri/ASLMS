@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
 from aslms.api import schemas
-from aslms.api.deps import actor_of, current_user, get_session, require, require_any
+from aslms.api.deps import actor_of, current_user, current_user_pending, get_session, require, require_any
 from aslms.domain.org import User
 from aslms.domain.reference import Permission
 from aslms.services import alerts, calendar, notifications
@@ -225,7 +225,7 @@ def hearing_calendar(
 
 @router.get("/me/notification-preferences", response_model=schemas.NotificationPreferencesOut)
 def get_preferences(
-    session: Session = Depends(get_session), user: User = Depends(current_user)
+    session: Session = Depends(get_session), user: User = Depends(current_user_pending)
 ) -> schemas.NotificationPreferencesOut:
     return schemas.NotificationPreferencesOut(**notifications.get_preferences(session, user))
 
@@ -235,7 +235,7 @@ def set_preferences(
     body: schemas.NotificationPreferencesIn,
     request: Request,
     session: Session = Depends(get_session),
-    user: User = Depends(current_user),
+    user: User = Depends(current_user_pending),  # reachable during the first-sign-in confirmation
 ) -> schemas.NotificationPreferencesOut:
     changes = body.model_dump(exclude_unset=True)
     try:

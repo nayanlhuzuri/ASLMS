@@ -10,7 +10,7 @@ from aslms.services.access import Conflict, Forbidden, ReservedFunction
 from aslms.services.memberships import MembershipError
 from aslms.services.offices import AdminExists, DuplicateCode, HeadRequired, OfficeError, OfficeInUse
 from aslms.services.tickets import TicketError
-from aslms.services.users import UserError
+from aslms.services.users import EmailTaken, UserError, WeakPassword
 
 HANDLED = (
     Forbidden,
@@ -48,6 +48,10 @@ def http_error(exc: Exception) -> HTTPException:
         return HTTPException(status.HTTP_409_CONFLICT, {"message": str(exc), "counts": exc.counts})
     if isinstance(exc, DuplicateCode):
         return HTTPException(status.HTTP_409_CONFLICT, str(exc))
+    if isinstance(exc, WeakPassword):
+        return HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail("weak_password", str(exc)))
+    if isinstance(exc, EmailTaken):
+        return HTTPException(status.HTTP_409_CONFLICT, detail("email_taken", str(exc)))
     if isinstance(exc, OfficeError | UserError):
         return HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
     raise exc

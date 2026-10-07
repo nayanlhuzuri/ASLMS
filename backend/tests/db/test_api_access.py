@@ -15,9 +15,10 @@ from aslms.domain.reference import OfficeKind, Role
 from aslms.services.audit import Actor
 from aslms.services.seed import seed_all
 from aslms.services.users import create_user
+from tests.db.auth_support import last_code, mailer_of, ready_all, sign_in
 from tests.db.conftest import wipe
 
-PW = "correct-horse-battery"
+PW = "correct-horse-battery-7"
 
 
 @pytest.fixture()
@@ -58,6 +59,7 @@ def api(engine):
             role=Role.DEPT_ADMIN,
             office=edu,
         )
+        ready_all(s)
         s.commit()
     settings = Settings(
         _env_file=None,
@@ -70,36 +72,54 @@ def api(engine):
 
 
 def login(client: TestClient, email: str) -> dict:
-    r = client.post("/auth/login", json={"email": email, "password": PW})
-    assert r.status_code == 200, r.text
-    tok = r.json()
+    tok = sign_in(client, email, PW)
     return {"Authorization": f"Bearer {tok['access_token']}", "_refresh": tok["refresh_token"]}
 
 
 def test_login_me_refresh_logout(api):
+    """Two steps (design otp-and-profile): the password gives a challenge and no token; the e-mailed code gives
+    the tokens; refresh rotates; a rotated token presented again ends every session; logout revokes."""
     assert api.get("/health").json()["status"] == "ok"
     assert api.get("/me").status_code == 401
-    assert (
-        api.post(
-            "/auth/login", json={"email": "root@example.org", "password": "wrong-password-1"}
-        ).status_code
-        == 401
+    mailer = mailer_of(api)
+    r = api.post("/auth/login", json={"email": "root@example.org", "password": "wrong-password-1"})
+    assert r.status_code == 401 and r.json()["detail"]["code"] == "invalid_credentials"
+    step = api.post("/auth/login", json={"email": "root@example.org", "password": PW})
+    assert step.status_code == 200
+    body = step.json()
+    assert body["step"] == "otp" and body["purpose"] == "login" and "access_token" not in body
+    assert body["sent_to"] == "r***@example.org" and body["expires_in"] == 600 and body["resend_after"] == 120
+    assert mailer.sent[-1].to == "root@example.org" and mailer.sent[-1].subject == "ASLMS sign-in code"
+    v = api.post(
+        "/auth/otp/verify",
+        json={"challenge_id": body["challenge_id"], "code": last_code(api, "root@example.org")},
     )
-    h = login(api, "root@example.org")
-    me = api.get("/me", headers={"Authorization": h["Authorization"]}).json()
+    assert v.status_code == 200, v.text
+    tok = v.json()
+    assert tok["next_step"] == "ready" and tok["device_token"]
+    h = {"Authorization": f"Bearer {tok['access_token']}"}
+    me = api.get("/me", headers=h).json()
     assert me["user"]["role"] == "super_admin" and me["user"]["office"]["code"] == "GOA"
+    assert me["user"]["must_change_password"] is False
     assert len(me["functions"]) == 47
-    r = api.post("/auth/refresh", json={"refresh_token": h["_refresh"]})
-    assert r.status_code == 200 and r.json()["refresh_token"] != h["_refresh"]
-    assert api.post("/auth/refresh", json={"refresh_token": h["_refresh"]}).status_code == 401  # rotated
+    r = api.post("/auth/refresh", json={"refresh_token": tok["refresh_token"]})
+    assert r.status_code == 200 and r.json()["refresh_token"] != tok["refresh_token"]
     new = r.json()
+    # the rotated token again: theft is assumed, every session of the login ends
+    r = api.post("/auth/refresh", json={"refresh_token": tok["refresh_token"]})
+    assert r.status_code == 401 and r.json()["detail"]["code"] == "session_ended"
+    assert api.post("/auth/refresh", json={"refresh_token": new["refresh_token"]}).status_code == 401
+    # a fresh sign-in, then logout
+    again = sign_in(api, "root@example.org", PW, device_token=tok["device_token"])
+    assert again["device_token"] is None  # a known device gets no new token
     r = api.post(
         "/auth/logout",
-        json={"refresh_token": new["refresh_token"]},
-        headers={"Authorization": f"Bearer {new['access_token']}"},
+        json={"refresh_token": again["refresh_token"]},
+        headers={"Authorization": f"Bearer {again['access_token']}"},
     )
     assert r.status_code == 204
-    assert api.post("/auth/refresh", json={"refresh_token": new["refresh_token"]}).status_code == 401
+    r = api.post("/auth/refresh", json={"refresh_token": again["refresh_token"]})
+    assert r.status_code == 401
     assert api.get("/me", headers={"Authorization": "Bearer not-a-token"}).status_code == 401
 
 

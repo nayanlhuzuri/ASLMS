@@ -64,6 +64,13 @@ class Settings(BaseSettings):
     aslms_refresh_token_days: int = 14
     aslms_superadmin_email: str | None = None  # created by `aslms seed` when both are set; never logged
     aslms_superadmin_password: SecretStr | None = None
+    # e-mailed sign-in codes (design otp-and-profile, decisions 2-4): a code at every sign-in, no device trust
+    otp_ttl_minutes: int = 10
+    otp_max_attempts: int = 5
+    otp_resend_seconds: int = 120  # a new code for the same login and purpose at most this often
+    otp_max_per_hour: int = 10  # codes per login per hour across purposes
+    login_max_failures: int = 10  # failed passwords or codes per login inside the window lock it
+    login_lock_minutes: int = 15
 
     # --- documents and uploads (design documents-uploads, decisions 1, 2, 4, 10) -----------------------
     upload_max_bytes: int = 20 * 1024 * 1024  # 20 MB per file, below ClamAV's default StreamMaxLength (25 MB)

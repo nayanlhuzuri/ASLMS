@@ -32,6 +32,7 @@ from aslms.services import access
 from aslms.services import ownership as own
 from aslms.services import visibility as vis
 from aslms.services.cases import refresh_search_vector
+from tests.db.auth_support import bearer
 from tests.db.world import PW, USERS, make_case
 
 # ------------------------------------------------------------------------------------------------ helpers
@@ -349,9 +350,7 @@ def api(world):
 
 
 def login(api: TestClient, key: str) -> dict:
-    r = api.post("/auth/login", json={"email": USERS[key][0], "password": PW})
-    assert r.status_code == 200, r.text
-    return {"Authorization": f"Bearer {r.json()['access_token']}"}
+    return bearer(api, USERS[key][0], PW)
 
 
 def test_list_and_search_follow_can_view_case_for_every_user(api, world):

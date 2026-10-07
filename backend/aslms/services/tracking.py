@@ -31,8 +31,6 @@ def batch_size() -> int:
     return get_settings().napix_status_batch
 
 
-
-
 def non_disposed_cnrs(session: Session, offset: int = 0, limit: int | None = None) -> list[str]:
     stmt = (
         select(Case.cnr)

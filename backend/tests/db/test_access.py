@@ -46,7 +46,7 @@ def world(session):
         session,
         SYS,
         email="root@example.org",
-        password="correct-horse-battery",
+        password="correct-horse-battery-7",
         full_name="Root",
         role=Role.SUPER_ADMIN,
         office=goa,
@@ -55,7 +55,7 @@ def world(session):
         session,
         SYS,
         email="admin.edu@example.org",
-        password="correct-horse-battery",
+        password="correct-horse-battery-7",
         full_name="EDU Admin",
         role=Role.DEPT_ADMIN,
         office=edu,
@@ -91,7 +91,7 @@ def test_effective_functions(session, world):
         session,
         SYS,
         email="off@example.org",
-        password="correct-horse-battery",
+        password="correct-horse-battery-7",
         full_name="Officer",
         role=Role.DEPT_OFFICER,
         office=edu,
@@ -140,7 +140,7 @@ def test_delegation_rules(session, world):
         session,
         actor,
         email="dse@example.org",
-        password="correct-horse-battery",
+        password="correct-horse-battery-7",
         full_name="DSE User",
         role=Role.DIRECTORATE_USER,
         office=dse,
@@ -178,7 +178,7 @@ def test_create_user_validation_and_login(session, world):
             session,
             SYS,
             email="not-an-email",
-            password="correct-horse-battery",
+            password="correct-horse-battery-7",
             full_name="x",
             role=Role.DEPT_OFFICER,
             office=edu,
@@ -198,19 +198,19 @@ def test_create_user_validation_and_login(session, world):
             session,
             SYS,
             email="ADMIN.EDU@example.org",
-            password="correct-horse-battery",
+            password="correct-horse-battery-7",
             full_name="dup",
             role=Role.DEPT_OFFICER,
             office=edu,
         )
-    assert authenticate(session, "Admin.EDU@example.org", "correct-horse-battery") is not None
+    assert authenticate(session, "Admin.EDU@example.org", "correct-horse-battery-7") is not None
     assert authenticate(session, "admin.edu@example.org", "wrong-password-xx") is None
-    assert authenticate(session, "nobody@example.org", "correct-horse-battery") is None
+    assert authenticate(session, "nobody@example.org", "correct-horse-battery-7") is None
     admin = world["admin"]
     assert admin.last_login_at is not None
     sup_actor = access.actor_for(world["super"], world["goa"])
     access.set_enabled(session, sup_actor, world["super"], admin, False)
-    assert authenticate(session, "admin.edu@example.org", "correct-horse-battery") is None
+    assert authenticate(session, "admin.edu@example.org", "correct-horse-battery-7") is None
     assert session.scalar(sa.select(sa.func.count()).select_from(User)) == 2
     assert (
         session.scalar(sa.select(sa.func.count()).select_from(Event).where(Event.type == "user_created")) == 2

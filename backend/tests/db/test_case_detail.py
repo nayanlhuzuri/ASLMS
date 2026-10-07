@@ -19,6 +19,7 @@ from aslms.domain.reference import EventType
 from aslms.services import ownership as own
 from aslms.services.cases import apply_dossier, refresh_search_vector
 from aslms.services.orders import enqueue_order_pdfs
+from tests.db.auth_support import bearer
 from tests.db.conftest import sample
 from tests.db.test_matching import entry, load_list
 from tests.db.world import PW, USERS, make_case
@@ -41,9 +42,7 @@ def api(world):
 
 
 def login(api: TestClient, key: str) -> dict:
-    r = api.post("/auth/login", json={"email": USERS[key][0], "password": PW})
-    assert r.status_code == 200, r.text
-    return {"Authorization": f"Bearer {r.json()['access_token']}"}
+    return bearer(api, USERS[key][0], PW)
 
 
 @pytest.fixture()

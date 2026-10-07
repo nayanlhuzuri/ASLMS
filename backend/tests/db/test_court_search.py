@@ -22,6 +22,7 @@ from aslms.domain.ops import FetchKind, FetchQueueItem
 from aslms.domain.ownership import CaseOfficeScore, OfficeKeyword
 from aslms.services.audit import write_audit
 from aslms.services.cases import apply_dossier
+from tests.db.auth_support import bearer
 from tests.db.conftest import sample
 from tests.db.world import PW, USERS, make_case
 
@@ -58,9 +59,7 @@ def types(world):
 
 
 def login(api: TestClient, key: str) -> dict:
-    r = api.post("/auth/login", json={"email": USERS[key][0], "password": PW})
-    assert r.status_code == 200, r.text
-    return {"Authorization": f"Bearer {r.json()['access_token']}"}
+    return bearer(api, USERS[key][0], PW)
 
 
 def count(world, table: str, where: str = "true") -> int:

@@ -245,10 +245,28 @@ def set_password_cmd(
     email: str,
     password: str = typer.Option(..., "--password", prompt=True, hide_input=True, confirmation_prompt=True),
 ) -> None:
+    """Set a login's password (the policy applies); the person must change it at the next sign-in and every
+    session of the login ends (design `otp-and-profile`, decisions 9, 14)."""
     with session_scope() as s:
         actor, _ = _actor(s)
-        set_password(s, actor, _user(s, email), password)
-        rprint(f"password set for {email}")
+        try:
+            set_password(s, actor, _user(s, email), password)
+        except UserError as exc:
+            raise typer.BadParameter(str(exc)) from exc
+        rprint(f"password set for {email}; it must be changed at the next sign-in")
+
+
+@users_app.command("sign-out")
+def sign_out(email: str = typer.Option(..., "--email")) -> None:
+    """Revoke every refresh token and device of a login (audited as the super admin)."""
+    from aslms.services.auth import sign_out_everywhere
+
+    with session_scope() as s:
+        actor, _ = _actor(s)
+        counts = sign_out_everywhere(s, actor, _user(s, email))
+        rprint(
+            f"{email} signed out: {counts['tokens_revoked']} session(s), {counts['devices_revoked']} device(s)"
+        )
 
 
 @memberships_app.command("list")

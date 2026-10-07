@@ -20,9 +20,10 @@ from aslms.domain.reference import OfficeKind, Role
 from aslms.services.audit import Actor
 from aslms.services.seed import seed_all
 from aslms.services.users import create_user
+from tests.db.auth_support import bearer, ready, ready_all
 from tests.db.conftest import wipe
 
-PW = "correct-horse-battery"
+PW = "correct-horse-battery-7"
 
 
 @pytest.fixture()
@@ -73,6 +74,7 @@ def world(engine):
             role=Role.DEPT_OFFICER,
             office=dse,
         )
+        ready_all(s)
         s.commit()
     settings = Settings(
         _env_file=None,
@@ -120,9 +122,7 @@ def end_membership(api, root, user_id: str, office_code: str) -> None:
 
 
 def login(client: TestClient, email: str) -> dict:
-    r = client.post("/auth/login", json={"email": email, "password": PW})
-    assert r.status_code == 200, r.text
-    return {"Authorization": f"Bearer {r.json()['access_token']}"}
+    return bearer(client, email, PW)
 
 
 def audit_actions(Session, entity_id=None) -> list[str]:
@@ -303,6 +303,7 @@ def test_first_department_admin_then_deactivation_with_counts(world):
     ]
     assert api.get("/admin/offices/FIN/admins", headers=admin).status_code == 404
     # the new admin signs in, sees a tree rooted at FIN, and creates a directorate and its user
+    ready(api, "nodal.fin@example.org")  # first-sign-in steps are tested in test_api_auth.py
     fin_admin = login(api, "nodal.fin@example.org")
     me = api.get("/me", headers=fin_admin).json()
     assert me["user"]["role"] == "dept_admin" and "users.create" in me["functions"]
@@ -359,7 +360,12 @@ def test_first_department_admin_then_deactivation_with_counts(world):
     assert r.status_code == 200 and r.json()["is_active"] is False
     assert api.get("/me", headers=fin_admin).status_code == 401
     assert audit_actions(Session, fin_id) == ["office.create", "office.admin_added", "office.deactivate"]
-    assert audit_actions(Session, new_admin["id"]) == ["user.create", "auth.login", "user.disable"]
+    assert audit_actions(Session, new_admin["id"]) == [
+        "user.create",
+        "auth.otp_sent",
+        "auth.login",
+        "user.disable",
+    ]
 
 
 def test_designations(world):

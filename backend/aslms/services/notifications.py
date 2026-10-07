@@ -391,6 +391,12 @@ def set_preferences(session: Session, actor: Actor, user: User, changes: dict[st
     email = changes.get("email") or {}
     if not isinstance(email, dict):
         raise PreferenceError("invalid", "email must be an object")
+    digest = None
+    if email.get("digest") is not None:  # every field is checked before the row is touched
+        try:
+            digest = DigestMode(str(email["digest"]).strip().lower())
+        except ValueError as exc:
+            raise PreferenceError("invalid", "digest is none or daily") from exc
     row = session.scalar(
         select(UserNotificationPreference).where(
             UserNotificationPreference.user_id == user.id,
@@ -409,11 +415,8 @@ def set_preferences(session: Session, actor: Actor, user: User, changes: dict[st
         session.add(row)
     if "enabled" in email and email["enabled"] is not None:
         row.enabled = bool(email["enabled"])
-    if "digest" in email and email["digest"] is not None:
-        try:
-            row.digest = DigestMode(str(email["digest"]).strip().lower())
-        except ValueError as exc:
-            raise PreferenceError("invalid", "digest is none or daily") from exc
+    if digest is not None:
+        row.digest = digest
     if "critical_only" in email and email["critical_only"] is not None:
         row.critical_only = bool(email["critical_only"])
     session.flush()

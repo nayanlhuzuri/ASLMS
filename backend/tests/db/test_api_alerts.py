@@ -30,6 +30,7 @@ from aslms.services import ownership as own
 from tests import samplefiles as sf
 from tests.db import alerts_support as h
 from tests.db import docs_support as ds
+from tests.db.auth_support import bearer
 from tests.db.world import PW, USERS, make_case
 
 NOW = h.now_utc()
@@ -53,19 +54,18 @@ def api(world):
 
 
 def login(api: TestClient, key: str) -> dict:
-    r = api.post("/auth/login", json={"email": USERS[key][0], "password": PW})
-    assert r.status_code == 200, r.text
-    return {"Authorization": f"Bearer {r.json()['access_token']}"}
+    return bearer(api, USERS[key][0], PW)
 
 
 @pytest.fixture()
 def alerted(world):
     """An EDU case allotted to off1 with a hearing in three days (one high alert to off1) and a HEALTH case
-    allotted to the HEALTH officer (one alert to them)."""
+    allotted to the HEALTH officer with a hearing tomorrow (one alert to them; within the 48-hour critical
+    window at any time of day, which a hearing in two days is not before the sitting time)."""
     with world.Session() as s:
         edu_case = make_case(s, next_hearing=d(3))
         h.claim(s, world, "edu_admin", edu_case, officer_user_id=world.users["edu_off1"].id)
-        health_case = make_case(s, next_hearing=d(2))
+        health_case = make_case(s, next_hearing=d(1))
         h.claim(s, world, "health_admin", health_case, officer_user_id=world.users["health_off"].id)
         s.commit()
         alerts.sweep_dates(s, now=NOW)

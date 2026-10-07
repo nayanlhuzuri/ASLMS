@@ -20,6 +20,7 @@ from aslms.services import custody, memberships, notes
 from aslms.services import ownership as own
 from aslms.services.audit import Actor
 from aslms.services.users import hash_password
+from tests.db.auth_support import bearer
 from tests.db.world import PW, World, make_case
 
 EXTRA = {
@@ -74,9 +75,7 @@ def email_of(key: str) -> str:
 
 
 def login(api: TestClient, key: str) -> dict:
-    r = api.post("/auth/login", json={"email": email_of(key), "password": PW})
-    assert r.status_code == 200, r.text
-    return {"Authorization": f"Bearer {r.json()['access_token']}"}
+    return bearer(api, email_of(key), PW)
 
 
 def claimed_case(s: Session, world: World, *, officer: str | None = "edu_off1", case_no=None) -> Case:

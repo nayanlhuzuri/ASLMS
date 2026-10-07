@@ -30,7 +30,7 @@ from aslms.services.seed import seed_all
 from aslms.services.users import hash_password
 from tests.db.conftest import wipe
 
-PW = "correct-horse-battery"
+PW = "correct-horse-battery-7"
 
 USERS = {
     # key: (email, role, office code)

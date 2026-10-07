@@ -49,8 +49,10 @@ def db_url() -> str:
 
 @pytest.fixture(scope="session")
 def migrated(db_url: str) -> Iterator[str]:
-    """Head of the migration chain on a clean test database."""
+    """Head of the migration chain on a clean test database. Rows left by an earlier run are wiped first: the
+    downgrades refuse to strip populated tables (e.g. 0010 with `user_devices` rows)."""
     cfg = alembic_config(db_url)
+    wipe_if_migrated(db_url)
     command.downgrade(cfg, "base")
     command.upgrade(cfg, "head")
     yield db_url
@@ -93,6 +95,17 @@ def wipe(conn_or_session) -> None:
     for t in rows:
         conn_or_session.execute(sa.text(f"DELETE FROM {t}"))
     conn_or_session.execute(sa.text("SET session_replication_role = DEFAULT"))
+
+
+def wipe_if_migrated(url: str) -> None:
+    """`wipe` on a database that has tables (no-op on an empty one)."""
+    eng = sa.create_engine(url, poolclass=sa.pool.NullPool)
+    try:
+        with eng.begin() as conn:
+            if conn.execute(sa.text("select to_regclass('alembic_version')")).scalar() is not None:
+                wipe(conn)
+    finally:
+        eng.dispose()
 
 
 # ---------------------------------------------------------------- the scripted NAPIX gateway and a seeded DB
