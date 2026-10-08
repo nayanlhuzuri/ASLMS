@@ -970,3 +970,5 @@ Design `docs/design/otp-and-profile.md` (approved 7 Oct 2026 with the owner's tw
   verification of the mobile number).
 - Design Verification steps 2 to 7 (Compose with the Mailtrap sandbox in `.env`) are the live check; upgrade the dev
   database to 0010 when the merged images are rebuilt (integrator).
+
+- 2026-10-08 — sourcetrace-connector: approved by the owner (court orders and court filings only, court-public metadata, filings on provisional cases wait for the CNR, append-only ingestion records, admin.sourcetrace; docs/design/sourcetrace-connector.md)
