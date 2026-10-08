@@ -972,3 +972,95 @@ Design `docs/design/otp-and-profile.md` (approved 7 Oct 2026 with the owner's tw
   database to 0010 when the merged images are rebuilt (integrator).
 
 - 2026-10-08 — sourcetrace-connector: approved by the owner (court orders and court filings only, court-public metadata, filings on provisional cases wait for the CNR, append-only ingestion records, admin.sourcetrace; docs/design/sourcetrace-connector.md)
+
+## SourceTrace connector: interface, fake, ingestion of court records and filings (2026-10-08)
+Design `docs/design/sourcetrace-connector.md` (approved by the owner on 8 Oct 2026); branch
+`feature/sourcetrace-connector`; tests and review passed. Backlog row 8, status `review`.
+
+**Built**
+- Migration 0011 (`0011_sourcetrace.py`): `documents` gains `sourcetrace_attempts`, `sourcetrace_next_at`,
+  `sourcetrace_ingested_at`, the CHECKs `ck_documents_sourcetrace_kind`, `ck_documents_private_not_sent` and
+  `ck_documents_sourcetrace_ingested`, and the partial index `ix_documents_sourcetrace_due`;
+  `sourcetrace_ingestions` gains `connector`, `error_family`, `duration_ms`, `response`, `metadata_sent` NOT NULL,
+  the CHECK `ck_sourcetrace_ingestions_outcome`, the index `ix_sourcetrace_ingestions_document_created` and the
+  append-only trigger (`aslms_app` loses UPDATE and DELETE). It back-fills archived `pending` / `failed`
+  documents to `not_applicable` and stops if any ingestion row exists; its downgrade stops if any ingestion row
+  exists or a document has attempts or an ingested time. `schema.md` updated.
+- Connector package `backend/aslms/integration/sourcetrace/`: the `SourceTraceConnector` protocol (`name` and one
+  async method, `ingest(item) -> IngestResult`), `IngestItem`, `IngestResult`, the errors
+  `SourceTraceUnavailable` and `SourceTraceRejected`, `connector_state(settings)` and `get_connector(settings)`,
+  and `FakeSourceTrace` for tests.
+- Service `services/sourcetrace_ingest.py`: `build_metadata`, `assert_sendable`, `backoff`, `claim_due`,
+  `ingest_one`, `ingest_pending`, `run`, `status`, `failed`, `retry`, `retry_all_failed`. Changes to
+  `services/documents.py` (`lock_document`, `change_visibility`, `archive`, `document_out`).
+- API: `GET /admin/sourcetrace/status`, `GET /admin/sourcetrace/failed`, `POST
+  /admin/sourcetrace/documents/{doc}/retry` (all behind the new function `admin.sourcetrace`); `PATCH
+  /documents/{doc}` and `POST /documents/{doc}/archive` may answer 409 `document_busy`; `GET /documents/{doc}` adds
+  `sourcetrace_ingested_at`.
+- CLI `aslms sourcetrace`: `status`, `run [--batch N] [--document ID]`, `retry --document ID | --all-failed`,
+  `check`.
+- Job: Celery task `aslms.sourcetrace_ingest`, beat entry `sourcetrace-ingest` every 5 minutes in the `scheduler`
+  service.
+- Permission `admin.sourcetrace` (seed only; 50 rows, 48 active), enabled by default for `central_operator`.
+- Settings in `.env.example`: `SOURCETRACE_BATCH` (20), `SOURCETRACE_RUN_SECONDS` (240),
+  `SOURCETRACE_TIMEOUT_SECONDS` (60), `SOURCETRACE_MAX_ATTEMPTS` (5), next to the existing `SOURCETRACE_ENABLED`,
+  `SOURCETRACE_BASE_URL` and `SOURCETRACE_API_KEY`.
+- Tests: `tests/unit/test_sourcetrace.py` (7); `tests/db/test_sourcetrace.py` (23), `test_sourcetrace_gaps.py`
+  (8: guard under the lock, idempotence, retry paths, CLI, 401 paths, no uploader text in ingestion rows) and
+  `test_api_sourcetrace.py` (5); the helper `tests/db/st_support.py`; existing tests adjusted for 50 functions.
+
+**Decisions**
+- There is no real connector. `get_connector` returns `None` and `connector_state` answers `disabled`, or
+  `not_implemented` when `SOURCETRACE_ENABLED` is true; it never returns the fake, because a fake reference in the
+  real database would be a fabricated identifier. With either state the job sends nothing and writes no `job_runs`
+  row; documents keep accumulating as `pending`, to be sent in batches once the connector exists.
+- The protocol is ingestion only. The query side (`ask`, next-date reading) is added by the items that use it,
+  when their shapes are known.
+- Only court orders and court filings are sent, decided by the document's own nature and checked three times: the
+  claim query, `assert_sendable` again under the row lock just before the bytes leave (a refusal sends nothing and
+  writes a `source_failures` row of kind `sourcetrace_guard`), and the database CHECKs. A court filing that a
+  note links to is still sent; the note, its text and its attachments never are.
+- The metadata is fixed and court-public (document identity and type, date, CNR, case number, court, and for
+  orders the order number, kind and judge, plus synthetic filename, mime, size and hash). The uploader's
+  description and original filename, office, visibility and anything from notes, custody or ownership are never
+  sent. It is built by one pure function and stored verbatim in `sourcetrace_ingestions.metadata_sent`.
+- The `pending` status is the queue: one document per transaction, claimed with `FOR UPDATE ... SKIP LOCKED`,
+  uploads before orders and then newest first. No `fetch_queue` kind, so SourceTrace work does not compete with the
+  NAPIX quota.
+- Retries back off 10, 20, 40 and 80 minutes and the fifth failure marks the document `failed`; a refusal or a
+  malformed reference fails at once; a missing file fails at once (family `store`). The run stops after the first
+  unavailable or timeout. Every `failed` writes a `source_failures` row and a later success resolves it.
+- A visibility change or an archive on a document being sent answers 409 `document_busy` (the row is locked
+  `NOWAIT`), so a change cannot overwrite `ingested`. Archiving stops sending of `pending` and `failed` documents;
+  an `ingested` one keeps its reference (no known removal endpoint). Widening a private filing re-queues it with no
+  attempts.
+- Batches: every 5 minutes, at most 20 documents, no new claim after 240 seconds (ceiling 5,760 a day, adjustable).
+  The 5-minute beat is the "job placed in the background queue".
+- System sends write no `audit_log` row; the append-only ingestion record is the trail. Human actions are audited:
+  `sourcetrace.retry_requested` and `sourcetrace.retry_all_failed`.
+- A new function `admin.sourcetrace` rather than reusing `admin.napix_refetch`; the failure list applies the document
+  visibility rule.
+
+**Deviations from the plan and the design** (the first three were flagged and approved with the design)
+- Plan §3.2 names four case details; the metadata adds document identity, type, order number and kind so citations
+  can open the document and the assistant can keep related-case retrieval to orders and judgments.
+- A court filing on a provisional case waits for the CNR, where the plan sends it "when uploaded" (SourceTrace keys
+  material by CNR and a provisional case may be merged).
+- Archiving stops sending; this takes over "archive stops SourceTrace queueing" from row 25.
+- Built differently from the letter of the design (design note, Deviations section, 10 items): migration 0011 was
+  written as a new file because the repository guard treats every file in the versions directory as applied;
+  `build_metadata` takes the type label as an argument; `FakeSourceTrace` has an `error` outcome, an `on_ingest`
+  hook and `timeout_sleep`; `claim_due` takes `exclude` and an explicit document id skips its back-off; a guard
+  refusal counts as `guarded` and makes the run `partial`; `retry` of a `pending` document is accepted only while it
+  waits on back-off; widening an archived private filing does not queue it; `aslms sourcetrace check` does not
+  count filings waiting for a CNR or archived ingested documents; `connector` is `null` in the status until a real
+  connector is ready; the settings have bounds.
+
+**Left for later**
+- New rows 36 `sourcetrace-http-connector` (blocked on the SourceTrace API documentation) and 37
+  `sourcetrace-next-dates`. Removal of archived ingested documents from SourceTrace, if an endpoint exists.
+- Row 14 (`assistant`) must pass only references of documents the asking user may see, never archived ones, and
+  keep related-case retrieval to court orders; row 25 loses the archive item.
+- Verification step 7 cannot be done until the real connector exists; the fake-backed tests are the proof. Before
+  deployment: `alembic upgrade head` on the dev database (0011), `aslms seed`, then `aslms sourcetrace status` and
+  `check` (the integrator).

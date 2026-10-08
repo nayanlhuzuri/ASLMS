@@ -106,6 +106,8 @@ def test_court_records_and_ingested_filings(api, world, scene):
     with world.Session() as s:
         doc = s.get(Document, uuid.UUID(scene["filing"]))
         doc.sourcetrace_status = "ingested"
+        doc.sourcetrace_ref = "st-ref-1"  # ck_documents_sourcetrace_ingested (sourcetrace-connector)
+        doc.sourcetrace_ingested_at = sa.func.now()
         s.commit()
     r = api.patch(f"/documents/{scene['filing']}", headers=h, json={"visibility": "private_to_office"})
     assert r.status_code == 409 and r.json()["detail"]["code"] == "already_ingested"

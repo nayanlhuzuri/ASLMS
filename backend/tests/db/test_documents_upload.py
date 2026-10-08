@@ -404,7 +404,7 @@ def test_migration_0006_cycles_with_documents_and_refuses_duplicate_sha(api, wor
             s.execute(
                 sa.text("select count(*) from pg_constraint where conname like 'ck_documents_%'")
             ).scalar()
-            == 5  # 0006's four, plus ck_documents_admin_file (0008, user-memberships)
+            == 8  # 0006's four, ck_documents_admin_file (0008, user-memberships), three of 0011 (sourcetrace)
         )
     # the same bytes uploaded by another office: two rows, one sha256 → the downgrade refuses
     assert ds.upload(api, ds.login(api, "dse_user"), owned["owned"], pdf).status_code == 201

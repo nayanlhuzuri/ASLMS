@@ -110,10 +110,14 @@ class Settings(BaseSettings):
     notify_max_attempts: int = 3
     notify_batch: int = 200
 
-    # --- SourceTrace ---------------------------------------------------------------------
+    # --- SourceTrace (design sourcetrace-connector, decisions 2, 7, 14, 15) ------------------
     sourcetrace_base_url: str | None = None
-    sourcetrace_api_key: SecretStr | None = None
-    sourcetrace_enabled: bool = False
+    sourcetrace_api_key: SecretStr | None = None  # never logged, never stored in an ingestion record
+    sourcetrace_enabled: bool = False  # off: nothing is sent; on: still nothing until a real connector exists
+    sourcetrace_batch: int = Field(20, ge=1, le=1000)  # documents per 5-minute run
+    sourcetrace_run_seconds: float = Field(240.0, gt=0)  # a run stops claiming after this
+    sourcetrace_timeout_seconds: float = Field(60.0, gt=0)  # one send, the document row locked meanwhile
+    sourcetrace_max_attempts: int = Field(5, ge=1, le=20)  # then the document is `failed`
 
     @property
     def is_prod(self) -> bool:

@@ -10,7 +10,7 @@ import pytest
 import sqlalchemy as sa
 from alembic import command
 
-from tests.db.conftest import TEST_URL, alembic_config, wipe_if_migrated
+from tests.db.conftest import TEST_URL, alembic_config, head_revision, wipe_if_migrated
 
 
 def test_migration_0010_cycles_and_refuses_with_a_device(db_url, engine):
@@ -50,7 +50,9 @@ def test_migration_0010_cycles_and_refuses_with_a_device(db_url, engine):
         with pytest.raises(RuntimeError, match="cannot downgrade 0010"):
             command.downgrade(cfg, "0009")
         with engine.connect() as conn:
-            assert conn.execute(sa.text("select version_num from alembic_version")).scalar() == "0010"
+            assert (
+                conn.execute(sa.text("select version_num from alembic_version")).scalar() == head_revision()
+            )
             assert conn.execute(sa.text("select count(*) from user_devices")).scalar() == 1
     finally:
         with engine.begin() as conn:

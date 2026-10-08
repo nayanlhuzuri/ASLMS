@@ -391,7 +391,9 @@ def test_list_and_counts_drop_a_new_document_alert_whose_document_is_hidden(worl
     assert api.get(f"/alerts/{alr}", headers=off1).status_code == 200
     unread_before = api.get("/alerts/counts", headers=off1).json()["unread"]
     with world.Session() as s:
-        s.get(Document, uuid.UUID(doc_id)).visibility = Visibility.PRIVATE_TO_OFFICE
+        d = s.get(Document, uuid.UUID(doc_id))
+        d.visibility = Visibility.PRIVATE_TO_OFFICE
+        d.sourcetrace_status = "not_applicable"  # ck_documents_private_not_sent (sourcetrace-connector)
         s.commit()
     assert api.get("/alerts?kind=new_document", headers=off1).json()["total"] == 0
     assert api.get(f"/alerts/{alr}", headers=off1).status_code == 404

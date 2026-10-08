@@ -16,7 +16,7 @@ from aslms.domain.org import UserMembership
 from aslms.domain.reference import Permission, Role
 from aslms.services import access, memberships
 from aslms.services.access import Conflict, Forbidden
-from tests.db.conftest import TEST_URL, alembic_config, wipe
+from tests.db.conftest import TEST_URL, alembic_config, head_revision, wipe
 
 
 def audits(s, action: str, entity_id=None) -> list[AuditLog]:
@@ -148,7 +148,7 @@ def test_downgrade_stops_on_a_second_membership(world):
         command.downgrade(alembic_config(TEST_URL), "0007")
     with world.Session() as s:
         # the whole downgrade is one transaction: nothing was undone, the head stays
-        assert s.execute(sa.text("select version_num from alembic_version")).scalar() == "0010"
+        assert s.execute(sa.text("select version_num from alembic_version")).scalar() == head_revision()
 
 
 def test_downgrade_stops_on_a_ticket(world):
@@ -165,7 +165,7 @@ def test_downgrade_stops_on_a_ticket(world):
         command.downgrade(alembic_config(TEST_URL), "0007")
     with world.Session() as s:
         # the whole downgrade is one transaction: nothing was undone, the head stays
-        assert s.execute(sa.text("select version_num from alembic_version")).scalar() == "0010"
+        assert s.execute(sa.text("select version_num from alembic_version")).scalar() == head_revision()
 
 
 def test_migration_reports_headless_departments_and_creates_nothing(engine, at_0007):

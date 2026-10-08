@@ -17,6 +17,7 @@ from aslms.api.routers import inbox as inbox_router
 from aslms.api.routers import matching as matching_router
 from aslms.api.routers import offices as offices_router
 from aslms.api.routers import ownership as ownership_router
+from aslms.api.routers import sourcetrace as sourcetrace_router
 from aslms.api.routers import tickets as tickets_router
 from aslms.api.routers import users as users_router
 from aslms.api.routers import workflow as workflow_router
@@ -51,6 +52,7 @@ def create_app(settings: Settings | None = None, session_factory=None) -> FastAP
     app.include_router(alerts_router.router)
     app.include_router(tickets_router.router)
     app.include_router(workflow_router.router)
+    app.include_router(sourcetrace_router.router)
 
     @app.get("/health", tags=["ops"])
     def health() -> dict[str, str]:

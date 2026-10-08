@@ -1052,6 +1052,7 @@ class DocumentOut(BaseModel):
     page_count: int | None
     text_extracted_at: datetime | None
     sourcetrace_status: str
+    sourcetrace_ingested_at: datetime | None = None
     assistant_available: bool
     archived_at: datetime | None
     archive_reason: str | None
@@ -1815,3 +1816,61 @@ class DraftUpdateIn(BaseModel):
     visibility: str | None = Field(None, max_length=40)
     supersedes: str | None = Field(None, max_length=60)
     document_refs: list[str] | None = None
+
+
+# ------------------------------------------------------------------------------------------------ SourceTrace
+
+
+class SourcetraceCountsOut(BaseModel):
+    pending: int
+    ingested: int
+    failed: int
+    not_applicable: int
+
+
+class SourcetraceRunOut(BaseModel):
+    started_at: datetime
+    finished_at: datetime | None
+    status: str
+    counters: dict[str, Any]
+
+
+class SourcetraceStatusOut(BaseModel):
+    state: Literal["disabled", "not_implemented", "ready"]
+    connector: str | None
+    counts: SourcetraceCountsOut
+    waiting_cnr: int
+    due_now: int
+    oldest_pending_at: datetime | None
+    last_run: SourcetraceRunOut | None
+
+
+class SourcetraceCaseOut(BaseModel):
+    id: uuid.UUID
+    ref_no: str | None
+    cnr: str | None = None
+    case_no_text: str | None = None
+
+
+class SourcetraceFailedItemOut(BaseModel):
+    document_id: uuid.UUID
+    ref_no: str | None = None
+    kind: str
+    doc_type: str
+    doc_date: date | None
+    case: SourcetraceCaseOut | None
+    attempts: int
+    last_error: str | None
+    error_family: str | None
+    last_attempt_at: datetime | None
+
+
+class SourcetraceFailedOut(BaseModel):
+    total: int
+    items: list[SourcetraceFailedItemOut]
+
+
+class SourcetraceRetryOut(BaseModel):
+    document_id: uuid.UUID
+    sourcetrace_status: str
+    sourcetrace_attempts: int

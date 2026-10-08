@@ -27,6 +27,13 @@ TEST_URL = os.environ.get(
 )
 
 
+def head_revision() -> str:
+    """The head of the migration chain (a refused downgrade leaves the database here)."""
+    from alembic.script import ScriptDirectory
+
+    return ScriptDirectory.from_config(alembic_config(TEST_URL)).get_current_head()
+
+
 def alembic_config(url: str) -> Config:
     cfg = Config(str(BACKEND / "alembic.ini"))
     cfg.set_main_option("script_location", str(BACKEND / "migrations"))

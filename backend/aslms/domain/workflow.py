@@ -258,12 +258,28 @@ class CaseNoteDraftDocument(CreatedAtMixin, Base):
 
 
 class SourcetraceIngestion(CreatedAtMixin, Base):
+    """One row per attempt to send a document to SourceTrace (design `sourcetrace-connector`, decision 12):
+    append-only, written only by `services/sourcetrace_ingest.py` in the transaction that records the outcome
+    on the document. Never holds secrets, note text or internal documents."""
+
     __tablename__ = "sourcetrace_ingestions"
     __table_class__ = TableClass.DERIVED
+    __table_args__ = (
+        CheckConstraint(
+            "(ok AND reference IS NOT NULL AND error_family IS NULL) OR "
+            "(NOT ok AND error IS NOT NULL AND error_family IS NOT NULL)",
+            name="outcome",
+        ),
+        Index("ix_sourcetrace_ingestions_document_created", "document_id", "created_at"),
+    )
     id: Mapped[uuid.UUID] = uuid_pk()
-    document_id: Mapped[uuid.UUID] = uuid_fk("documents.id", ondelete="CASCADE")
+    document_id: Mapped[uuid.UUID] = uuid_fk("documents.id", ondelete="CASCADE", index=False)
     attempt: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("1"))
     ok: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    connector: Mapped[str] = mapped_column(String(40), nullable=False)
     reference: Mapped[str | None] = mapped_column(String(200))
     error: Mapped[str | None] = mapped_column(Text)
-    metadata_sent: Mapped[dict | None] = mapped_column(JSONB)
+    error_family: Mapped[str | None] = mapped_column(String(40))
+    duration_ms: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    metadata_sent: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    response: Mapped[dict | None] = mapped_column(JSONB)

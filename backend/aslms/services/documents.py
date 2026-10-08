@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from sqlalchemy import Select, func, or_, select, text
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from aslms.domain.cases import Case
@@ -100,6 +101,12 @@ class NotAllowed(DocumentError):
 
 class AlreadyIngested(DocumentError):
     code, http_status = "already_ingested", 409
+
+
+class DocumentBusy(DocumentError):
+    """Design sourcetrace-connector, decision 6: the row is locked by a send to SourceTrace in flight."""
+
+    code, http_status = "document_busy", 409
 
 
 class InlineNotSupported(DocumentError):
@@ -598,6 +605,11 @@ def document_out(
         "page_count": doc.page_count,
         "text_extracted_at": doc.text_extracted_at,
         "sourcetrace_status": _value(doc.sourcetrace_status),
+        "sourcetrace_ingested_at": (
+            doc.sourcetrace_ingested_at
+            if SourcetraceStatus(doc.sourcetrace_status) == SourcetraceStatus.INGESTED
+            else None
+        ),
         "assistant_available": SourcetraceStatus(doc.sourcetrace_status) == SourcetraceStatus.INGESTED,
         "archived_at": doc.archived_at,
         "archive_reason": doc.archive_reason,
@@ -800,13 +812,34 @@ def _manageable(session: Session, user: User, doc: Document) -> None:
         )
 
 
+def lock_document(session: Session, doc: Document) -> Document:
+    """Design sourcetrace-connector, decision 6: the row `FOR UPDATE NOWAIT`, re-read under the lock; a row being
+    sent to SourceTrace raises `DocumentBusy` (409) instead of waiting for the connector's timeout."""
+    try:
+        with session.begin_nested():
+            locked = session.scalar(
+                select(Document)
+                .where(Document.id == doc.id)
+                .with_for_update(nowait=True)
+                .execution_options(populate_existing=True)
+            )
+    except OperationalError as exc:
+        if getattr(getattr(exc, "orig", None), "sqlstate", None) == "55P03":  # lock_not_available
+            raise DocumentBusy("the document is being sent to SourceTrace; try again in a minute") from exc
+        raise
+    return locked if locked is not None else doc
+
+
 def change_visibility(session: Session, actor: Actor, user: User, doc: Document, new: str) -> Document:
     """Decision 13 with decision 9: the SourceTrace status follows the new visibility; an ingested court filing
-    cannot be narrowed to private (409)."""
+    cannot be narrowed to private (409). Design sourcetrace-connector, decisions 6 and 10: the row is locked first
+    (409 `document_busy` during a send); widening a private filing re-queues it with no attempts and no wait; a
+    change between `case_scope` and `counsel_shared` touches nothing; an archived filing is never re-queued."""
     require_visible_document(session, user, doc)
     _not_attachment(doc)
     _manageable(session, user, doc)
     vis = _visibility(new)
+    doc = lock_document(session, doc)
     old = Visibility(doc.visibility)
     if vis == old:
         return doc
@@ -818,8 +851,10 @@ def change_visibility(session: Session, actor: Actor, user: User, doc: Document,
             if status == SourcetraceStatus.INGESTED:
                 raise AlreadyIngested("the document is already available to the Case Assistant")
             doc.sourcetrace_status = SourcetraceStatus.NOT_APPLICABLE
-        elif status == SourcetraceStatus.NOT_APPLICABLE:
+        elif old == Visibility.PRIVATE_TO_OFFICE and doc.archived_at is None:
             doc.sourcetrace_status = SourcetraceStatus.PENDING
+            doc.sourcetrace_attempts = 0
+            doc.sourcetrace_next_at = None
     doc.visibility = vis
     session.flush()
     write_audit(
@@ -836,6 +871,9 @@ def change_visibility(session: Session, actor: Actor, user: User, doc: Document,
 
 
 def archive(session: Session, actor: Actor, user: User, doc: Document, reason: str | None) -> Document:
+    """Design sourcetrace-connector, decisions 6 and 9: the row is locked first (409 `document_busy` during a
+    send); a `pending` or `failed` document stops being sent (`not_applicable`); an `ingested` one keeps its
+    reference. The status change is in the audit row's before / after."""
     require_visible_document(session, user, doc)
     _not_attachment(doc)
     _manageable(session, user, doc)
@@ -844,6 +882,13 @@ def archive(session: Session, actor: Actor, user: User, doc: Document, reason: s
     text_ = (reason or "").strip()
     if not MIN_TEXT <= len(text_) <= MAX_TEXT:
         raise DocumentError(f"reason must be {MIN_TEXT} to {MAX_TEXT} characters")
+    doc = lock_document(session, doc)
+    if doc.archived_at is not None:
+        raise DocumentError("the document is already archived")
+    before_status = _value(doc.sourcetrace_status)
+    if SourcetraceStatus(doc.sourcetrace_status) in (SourcetraceStatus.PENDING, SourcetraceStatus.FAILED):
+        doc.sourcetrace_status = SourcetraceStatus.NOT_APPLICABLE
+        doc.sourcetrace_next_at = None
     doc.archived_at = _now()
     doc.archive_reason = text_
     session.flush()
@@ -854,7 +899,8 @@ def archive(session: Session, actor: Actor, user: User, doc: Document, reason: s
         "document",
         doc.id,
         case_id=doc.case_id,
-        after={"ref_no": doc.ref_no, "reason": text_},
+        before={"sourcetrace_status": before_status},
+        after={"ref_no": doc.ref_no, "reason": text_, "sourcetrace_status": _value(doc.sourcetrace_status)},
     )
     return doc
 

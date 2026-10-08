@@ -46,6 +46,10 @@ PERMISSION_LABELS: dict[P, tuple[str, str]] = {
         "Admin tickets",
         "Decide the requests that need the super admin's approval (reserved to the super admin)",
     ),
+    P.ADMIN_SOURCETRACE: (
+        "SourceTrace ingestion",
+        "See the SourceTrace ingestion status and the failed documents, and retry them",
+    ),
     P.CASES_VIEW_SCOPE: ("View cases in scope", "Cases of the offices the user belongs to"),
     P.CASES_VIEW_ALL: ("View all cases", "Every case across all departments"),
     P.CASES_SEARCH_COURT: ("Search the court", "Search NAPIX by case number, party or advocate"),
@@ -140,6 +144,7 @@ DEFAULT_MATRIX: dict[Role, set[P]] = {
         P.CASES_SUGGEST_ELSEWHERE,
         P.ADMIN_MASTERS_SYNC,
         P.ADMIN_NAPIX_REFETCH,
+        P.ADMIN_SOURCETRACE,
         P.ADMIN_WATCHLIST,
         P.REPORTS_STATE,
         P.USERS_VIEW,

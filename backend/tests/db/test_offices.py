@@ -466,10 +466,10 @@ def test_office_tree_and_dependents(session, world):
 def test_seed_is_idempotent_with_the_43rd_function(session):
     wipe(session)
     first = seed_all(session)
-    assert first.inserted["ref_permission"] == 49 and first.inserted["role_permissions"] == 9 * 49
+    assert first.inserted["ref_permission"] == 50 and first.inserted["role_permissions"] == 9 * 50
     second = seed_all(session)
     assert second.total == 0
-    assert session.scalar(sa.select(sa.func.count()).select_from(RolePermission)) == len(DEFAULT_MATRIX) * 49
+    assert session.scalar(sa.select(sa.func.count()).select_from(RolePermission)) == len(DEFAULT_MATRIX) * 50
     assert (
         session.scalar(
             sa.select(RolePermission.is_enabled).where(

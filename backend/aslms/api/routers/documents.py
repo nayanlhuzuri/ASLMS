@@ -396,7 +396,11 @@ def change_visibility(
 @router.post(
     "/documents/{doc}/archive",
     response_model=schemas.DocumentOut,
-    responses={400: {"model": schemas.ErrorOut}, 403: {"model": schemas.ErrorOut}},
+    responses={
+        400: {"model": schemas.ErrorOut},
+        403: {"model": schemas.ErrorOut},
+        409: {"model": schemas.ErrorOut},
+    },
 )
 def archive_document(
     doc: str,

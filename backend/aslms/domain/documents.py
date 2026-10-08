@@ -118,6 +118,25 @@ class Document(TimestampMixin, OptionalRefNoMixin, ActorSnapshotMixin, Base):
             name="admin_file",
         ),
         CheckConstraint("archived_at IS NULL OR archive_reason IS NOT NULL", name="archive_reason"),
+        # design sourcetrace-connector (migration 0011): only orders and uploads are ever sent, never a private
+        # filing, and an ingested document carries SourceTrace's reference and the time
+        CheckConstraint(
+            "sourcetrace_status = 'not_applicable' OR kind IN ('order', 'upload')", name="sourcetrace_kind"
+        ),
+        CheckConstraint(
+            "visibility <> 'private_to_office' OR sourcetrace_status = 'not_applicable'",
+            name="private_not_sent",
+        ),
+        CheckConstraint(
+            "sourcetrace_status <> 'ingested' OR (sourcetrace_ref IS NOT NULL AND sourcetrace_ingested_at IS NOT "
+            "NULL)",
+            name="sourcetrace_ingested",
+        ),
+        Index(
+            "ix_documents_sourcetrace_due",
+            "sourcetrace_next_at",
+            postgresql_where=text("sourcetrace_status = 'pending'"),
+        ),
     )
     id: Mapped[uuid.UUID] = uuid_pk()
     sha256: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -147,6 +166,10 @@ class Document(TimestampMixin, OptionalRefNoMixin, ActorSnapshotMixin, Base):
         pg_enum(SourcetraceStatus, "sourcetrace_status"), nullable=False, server_default="not_applicable"
     )
     sourcetrace_ref: Mapped[str | None] = mapped_column(String(200))
+    # written only by services/sourcetrace_ingest.py, except the transitions of services/documents.py
+    sourcetrace_attempts: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    sourcetrace_next_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    sourcetrace_ingested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     archive_reason: Mapped[str | None] = mapped_column(Text)
     page_count: Mapped[int | None] = mapped_column(Integer)

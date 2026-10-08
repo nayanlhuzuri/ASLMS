@@ -7,11 +7,14 @@ also dispatches it at once. `extract-text` (every 5 minutes) extracts the text o
 once (design documents-uploads, decision 10). The alert jobs (design alerts-notifications, "Jobs"):
 `alerts-scan-events` every 5 minutes, `alerts-sweep-dates` hourly at minute 10, `notifications-send` every
 2 minutes (also dispatched after a scan or sweep that queued e-mail) and `digests-build` daily at 08:00 IST;
-each writes a `job_runs` row with its counters; nothing here calls NAPIX.
+each writes a `job_runs` row with its counters; nothing here calls NAPIX. `sourcetrace-ingest` (every 5 minutes)
+sends due court orders and court filings to SourceTrace (design sourcetrace-connector, decisions 14-15): while
+the connector is `disabled` or `not_implemented` it returns at once, sends nothing and writes no `job_runs` row.
 Run: `celery -A aslms.jobs.celery_app worker -B --concurrency 1` (the Compose `scheduler` service)."""
 
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import UTC, date, datetime
 
@@ -21,10 +24,12 @@ from celery.schedules import crontab
 from aslms.core.config import get_settings
 from aslms.db.session import get_sessionmaker, session_scope
 from aslms.domain.ops import JobRun, JobStatus
-from aslms.services import alerts, matching, notifications, schedules, text_extract
+from aslms.integration.sourcetrace import connector_state, get_connector
+from aslms.services import alerts, matching, notifications, schedules, sourcetrace_ingest, text_extract
 from aslms.services.mailer import get_mailer
 from aslms.services.storage import LocalStore
 
+log = logging.getLogger(__name__)
 settings = get_settings()
 app = Celery("aslms", broker=settings.redis_url or "redis://localhost:6379/0")
 app.conf.update(
@@ -47,6 +52,7 @@ app.conf.update(
         "alerts-sweep-dates": {"task": "aslms.alerts_sweep_dates", "schedule": crontab(minute=10)},
         "notifications-send": {"task": "aslms.notifications_send", "schedule": crontab(minute="*/2")},
         "digests-build": {"task": "aslms.digests_build", "schedule": crontab(hour=8, minute=0)},
+        "sourcetrace-ingest": {"task": "aslms.sourcetrace_ingest", "schedule": crontab(minute="*/5")},
     },
 )
 
@@ -166,3 +172,28 @@ def digests_build() -> dict:
         except Exception:  # noqa: BLE001
             pass
     return counters
+
+
+# ------------------------------------------------------------------------------------------------ SourceTrace
+
+
+@app.task(name="aslms.sourcetrace_ingest")
+def sourcetrace_ingest_task() -> dict:
+    """Decision 15: nothing runs until a real connector exists (`{"state": ...}`, no `job_runs` row); then at most
+    `SOURCETRACE_BATCH` documents within `SOURCETRACE_RUN_SECONDS`, recorded as a `job_runs` row."""
+    state = connector_state(settings)
+    if state != "ready":
+        if state == "not_implemented":
+            log.warning(
+                "sourcetrace-ingest: SOURCETRACE_ENABLED is set but no connector exists; nothing sent"
+            )
+        return {"state": state}
+    connector = get_connector(settings)
+    if connector is None:
+        return {"state": state}
+    return sourcetrace_ingest.run(
+        get_sessionmaker(),
+        connector,
+        LocalStore(settings.storage_dir),
+        sourcetrace_ingest.IngestConfig.from_settings(settings),
+    )

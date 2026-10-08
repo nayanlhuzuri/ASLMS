@@ -170,6 +170,9 @@ class Permission(enum.StrEnum):
     ADMIN_DESIGNATIONS = "admin.designations"
     ADMIN_SCORING = "admin.scoring"
     ADMIN_TICKETS = "admin.tickets"  # reserved: the super admin's ticket panel, never granted
+    ADMIN_SOURCETRACE = (
+        "admin.sourcetrace"  # SourceTrace ingestion status and retries (sourcetrace-connector)
+    )
     # cases and ownership
     CASES_VIEW_SCOPE = "cases.view_scope"
     CASES_VIEW_ALL = "cases.view_all"
