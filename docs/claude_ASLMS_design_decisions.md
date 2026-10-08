@@ -1117,3 +1117,5 @@ Design: `docs/design/reports-dashboards.md` (approved by the owner on 2026-10-08
   a `napix_call_log` retention job (bounds the data-health history). Row 10 reads the same tables for the live
   data-health screen; row 26 fills the dashboard's next dates from orders.
 - Before deployment (integrator): `alembic upgrade head` on the dev database (0012).
+
+- 2026-10-08 — audit-screens: approved by the owner (audit log read by the super admin and the Auditor type; reading not audited; health screen and re-fetch buttons that only enqueue; docs/design/audit-screens.md)
