@@ -15,12 +15,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
 from aslms.api import schemas
-from aslms.api.deps import actor_of, get_session, require, require_any
+from aslms.api.deps import actor_of, get_session, napix_client, require, require_any
 from aslms.domain.cases import Case
 from aslms.domain.org import User
 from aslms.domain.reference import Permission
-from aslms.integration.napix.client import NapixClient
-from aslms.integration.napix.hc import NapixHighCourt
 from aslms.services import case_detail, case_search, court_search
 from aslms.services.case_search import SearchError
 from aslms.services.cases import CaseNotFound, resolve_case_ref
@@ -31,7 +29,6 @@ from aslms.services.court_search import (
     NotFoundAtCourt,
 )
 from aslms.services.napix_store import NapixRecorder
-from aslms.services.runner import open_hc
 from aslms.services.visibility import NotVisibleCase
 
 router = APIRouter(prefix="/cases", tags=["cases"])
@@ -266,14 +263,6 @@ def case_timeline(
 # ------------------------------------------------------------------------------------------------ the court
 
 
-def _napix(request: Request) -> tuple[NapixClient, NapixHighCourt]:
-    """The integration-layer client: a factory on `app.state` (tests) or the configured one."""
-    factory = getattr(request.app.state, "napix_factory", None)
-    if factory is not None:
-        return factory()
-    return open_hc(request.app.state.settings)
-
-
 def _court_http(exc: Exception) -> HTTPException:
     if isinstance(exc, CourtSearchFailure):
         headers = {"Retry-After": str(exc.retry_after)} if exc.retry_after else None
@@ -295,7 +284,7 @@ COURT_HANDLED = (CourtSearchFailure, AlreadyFetched, NotFoundAtCourt, CourtSearc
 
 
 async def _with_napix(request: Request, fn):
-    client, hc = _napix(request)
+    client, hc = napix_client(request)
     recorder = NapixRecorder()
     client.on_call = recorder.on_call
     async with client:

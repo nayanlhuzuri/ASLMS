@@ -1119,3 +1119,51 @@ Design: `docs/design/reports-dashboards.md` (approved by the owner on 2026-10-08
 - Before deployment (integrator): `alembic upgrade head` on the dev database (0012).
 
 - 2026-10-08 — audit-screens: approved by the owner (audit log read by the super admin and the Auditor type; reading not audited; health screen and re-fetch buttons that only enqueue; docs/design/audit-screens.md)
+
+## Audit screens: audit search, data-health screen, NAPIX buttons (2026-10-08)
+
+**Built** (design `docs/design/audit-screens.md`, approved by the owner on 2026-10-08)
+- Migration 0013 `audit_indexes`: `ix_audit_log_created_at` and `ix_audit_log_actor_created`; no table or column.
+- `services/audit_search.py` and `api/routers/audit.py`: `GET /audit` (filters by actor, subject login, case with
+  merged duplicates, office subtree, action exact or prefix, entity, IST date range; newest first, keyset paging
+  with `next_cursor`, `limit` 1-200), `GET /audit/{id}`, `GET /audit/actions`.
+- `services/data_health.py` and `services/napix_admin.py`, router `api/routers/napix_admin.py`:
+  `GET /admin/data-health` (live snapshot), `GET /admin/napix/health`, `/admin/napix/queue`, `/admin/napix/calls`,
+  `GET /admin/failures`; buttons `POST /admin/napix/sync-masters`, `refetch/day`, `refetch/case`, `refetch/order`,
+  `queue/{id}/retry`, `queue/retry-failed`; `POST /admin/napix/health/check` (one Overview call).
+- `api/deps.napix_client` replaces the cases router's private factory; shared daily-cycle helpers in
+  `reporting_common` (the period report is unchanged); `queue.get_state`; function labels refreshed by seed.
+- CLI: `aslms audit search`, `aslms data-health`; `refetch-date` and `refetch-case` now go through the service and
+  are audited. Setting `NAPIX_HEALTH_CHECK_MIN_SECONDS` (60) in `.env.example`.
+
+**Decisions** (numbers follow the design note)
+- 1, 4: one audit search with keyset paging (no total, no offsets); indexes serve the actor, time and case searches;
+  searches run under the report statement timeout (503 `search_timeout`).
+- 2: the log is read only by `audit.view` in a State-wide membership (super admin, or `cases.view_all`; the default
+  Auditor has both), else 403 `audit_scope`. Owner's answer: the super admin and the Auditor type read the log; the
+  super admin can switch access off for the type or a single user.
+- 3: reading the log and the health screens writes nothing.
+- 5, 6: the data-health snapshot is counts and operational references only; visible to `reports.state`,
+  `admin.napix_refetch` or `admin.masters_sync`. Failure rows tied to documents follow the document rule (7).
+- 8, 9: buttons only enqueue `fetch_queue` rows through `queue.enqueue` (priority 10 masters, 20 day, 30 case, order
+  and retry); the API never fetches. Enqueuing is allowed while the switch is off.
+- 10: the connectivity check is the only call, guarded (`napix_off` 409, `check_too_soon` and `napix_budget` 429),
+  logged like every call; GET endpoints never call NAPIX.
+- 11: every button writes an audit row (`napix.*`). 12: re-running Current Status batches early is not a button.
+
+**Deviations** (design note, Deviations section, 9 items; the main ones)
+- The check's call-log key is the API path `overview/overview`, not `overview` (item 1).
+- Services take the caller and pick the acting membership holding the function; the CLI passes the super admin's
+  membership (item 2). `aslms refetch-case` takes a case reference and refuses a case not in the database (item 3).
+- Extra 400 codes `bad_actor`, `bad_period`, `bad_cursor`; stale document-kind failure refs are shown to the super
+  admin only (items 4, 6). Migration 0013 keeps Alembic's generated docstring (item 7).
+- `aslms data-health` needs no super admin; checked on the dev database (item 9).
+
+**Left for later**
+- Department-scoped audit view (a vigilance officer reading only the department's offices), and `audit.searched`
+  rows recording who searched the log, if the owner or vigilance asks.
+- Export of an audit search; a button re-running today's Current Status batches.
+- Portal screens for audit and data health (rows 11 and 39); the `napix_call_log` retention job (row 39).
+- Before deployment (integrator): `alembic upgrade head` on the dev database (0013); the live Overview check is run
+  by the owner with `NAPIX_ENABLED` set for that run.
+

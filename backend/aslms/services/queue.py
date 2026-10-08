@@ -130,6 +130,15 @@ def requeue_stale(session: Session) -> int:
     return n or 0
 
 
+def get_state(session: Session, kind: FetchKind, ref: str) -> FetchQueueItem | None:
+    """The row of (kind, ref) as stored now (re-read: `enqueue` writes through SQL), or None."""
+    return session.scalar(
+        select(FetchQueueItem)
+        .where(FetchQueueItem.kind == kind, FetchQueueItem.ref == ref)
+        .execution_options(populate_existing=True)
+    )
+
+
 def status_counts(session: Session) -> list[tuple[str, str, int]]:
     rows = session.execute(
         text("SELECT kind::text, status::text, count(*) FROM fetch_queue GROUP BY 1, 2 ORDER BY 1, 2")

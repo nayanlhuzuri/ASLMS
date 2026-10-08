@@ -14,6 +14,9 @@ from sqlalchemy.orm import Session
 
 from aslms.core.config import Settings, get_settings
 from aslms.domain.cases import Case
+from aslms.domain.causelists import Causelist
+from aslms.domain.causelists import ParseStatus as CauselistParseStatus
+from aslms.domain.ops import FetchKind, FetchQueueItem
 from aslms.domain.org import Office
 from aslms.domain.ownership import CaseOwnership, OwnershipRole, OwnershipStatus
 from aslms.services import access
@@ -190,6 +193,54 @@ def age_label(key: str) -> str:
     if key == AGE_UNKNOWN[0]:
         return AGE_UNKNOWN[1]
     return next(label for k, label, _l, _h in AGE_BANDS if k == key)
+
+
+def _enum_value(v: Any) -> Any:
+    return v.value if hasattr(v, "value") else v
+
+
+def causelist_day_rows(session: Session, days: list[date]) -> dict[date, dict[str, Any]]:
+    """The daily cycle's `causelist_day` queue row of each date (shared by the `data-health` report and the live
+    data-health screen, design `audit-screens`): status, attempts, finished_at and last_error. Dates without a
+    row are absent."""
+    refs = {d.isoformat(): d for d in days}
+    if not refs:
+        return {}
+    out: dict[date, dict[str, Any]] = {}
+    for ref, status, attempts, finished_at, last_error in session.execute(
+        select(
+            FetchQueueItem.ref,
+            FetchQueueItem.status,
+            FetchQueueItem.attempts,
+            FetchQueueItem.finished_at,
+            FetchQueueItem.last_error,
+        ).where(FetchQueueItem.kind == FetchKind.CAUSELIST_DAY, FetchQueueItem.ref.in_(list(refs)))
+    ).all():
+        out[refs[ref]] = {
+            "status": _enum_value(status),
+            "attempts": attempts,
+            "finished_at": finished_at,
+            "last_error": last_error,
+        }
+    return out
+
+
+def causelist_counts(session: Session, from_: date, to: date) -> dict[date, dict[str, int]]:
+    """Per list date in [from_, to]: the cause lists stored, the entries parsed and the lists that failed to
+    parse (shared by the report and the live screen). Dates without a list are absent."""
+    out: dict[date, dict[str, int]] = {}
+    for d, n, entries, failed in session.execute(
+        select(
+            Causelist.list_date,
+            func.count(),
+            func.coalesce(func.sum(Causelist.entry_count), 0),
+            func.count().filter(Causelist.parse_status == CauselistParseStatus.FAILED),
+        )
+        .where(Causelist.list_date.between(from_, to))
+        .group_by(Causelist.list_date)
+    ).all():
+        out[d] = {"lists_stored": int(n), "entries_parsed": int(entries), "lists_parse_failed": int(failed)}
+    return out
 
 
 def office_ref(o: Office | None) -> dict[str, Any] | None:

@@ -6,7 +6,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, String, text
+from sqlalchemy import DateTime, Index, String, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -48,6 +48,11 @@ class Event(CreatedAtMixin, Base):
 class AuditLog(CreatedAtMixin, ActorSnapshotMixin, Base):
     __tablename__ = "audit_log"
     __table_class__ = TableClass.DERIVED
+    # the audit search (design audit-screens, migration 0013): by time, and by actor then time
+    __table_args__ = (
+        Index("ix_audit_log_created_at", "created_at"),
+        Index("ix_audit_log_actor_created", "actor_user_id", "created_at"),
+    )
     id: Mapped[uuid.UUID] = uuid_pk()
     action: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
     entity_type: Mapped[str] = mapped_column(String(60), nullable=False)

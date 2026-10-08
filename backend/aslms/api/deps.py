@@ -1,6 +1,7 @@
 """Request dependencies: the database session, the current user (with the first-sign-in gate) and
 `current_user_pending` (without it), `require(function)`, `require_any(...)`, the audit actor, the virus scanner
-behind uploads (`app.state.scanner` in tests, `clamd` otherwise) and the mailer (`app.state.mailer` in tests)."""
+behind uploads (`app.state.scanner` in tests, `clamd` otherwise), the mailer (`app.state.mailer` in tests) and the
+NAPIX client of the integration layer (`app.state.napix_factory` in tests, design `audit-screens` decision 13)."""
 
 from __future__ import annotations
 
@@ -13,10 +14,13 @@ from sqlalchemy.orm import Session
 from aslms.api.security import issued_before, read_access_claims
 from aslms.domain.org import User
 from aslms.domain.reference import Permission
+from aslms.integration.napix.client import NapixClient
+from aslms.integration.napix.hc import NapixHighCourt
 from aslms.services import access
 from aslms.services.audit import Actor
 from aslms.services.mailer import Mailer, MailError, UnconfiguredMailer
 from aslms.services.mailer import get_mailer as _configured_mailer
+from aslms.services.runner import open_hc
 from aslms.services.scanner import Scanner
 from aslms.services.scanner import get_scanner as _configured_scanner
 
@@ -128,3 +132,12 @@ def get_mailer(request: Request) -> Mailer:
         return _configured_mailer(request.app.state.settings)
     except MailError as exc:
         return UnconfiguredMailer(str(exc))
+
+
+def napix_client(request: Request) -> tuple[NapixClient, NapixHighCourt]:
+    """The integration-layer client for the court search and the connectivity check: a factory on `app.state`
+    (tests) or the configured one (`runner.open_hc`). NAPIX is reached only through `aslms.integration.napix`."""
+    factory = getattr(request.app.state, "napix_factory", None)
+    if factory is not None:
+        return factory()
+    return open_hc(request.app.state.settings)

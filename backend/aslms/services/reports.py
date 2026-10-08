@@ -28,7 +28,6 @@ from aslms.core.config import Settings, get_settings
 from aslms.domain.alerts import Alert
 from aslms.domain.cases import Case, CaseHearing, CaseStatus
 from aslms.domain.causelists import Causelist, CauselistEntry
-from aslms.domain.causelists import ParseStatus as CauselistParseStatus
 from aslms.domain.courts import Court
 from aslms.domain.ops import FetchKind, FetchQueueItem, FetchStatus, NapixCallLog, SourceFailure
 from aslms.domain.org import Office, User
@@ -55,6 +54,8 @@ from aslms.services.reporting_common import (
     ReportConfig,
     ReportError,
     age_band_expr,
+    causelist_counts,
+    causelist_day_rows,
     department_rows,
     ist_date,
     primary_owned_condition,
@@ -969,24 +970,11 @@ def data_health(
         row["causelist_day_attempts"] = None
         row["napix_error_families"] = ""
     refs = {d.isoformat(): d for d in days}
-    for ref, status, attempts in session.execute(
-        select(FetchQueueItem.ref, FetchQueueItem.status, FetchQueueItem.attempts).where(
-            FetchQueueItem.kind == FetchKind.CAUSELIST_DAY, FetchQueueItem.ref.in_(list(refs))
-        )
-    ).all():
-        rows[refs[ref]]["causelist_day_status"] = _value(status)
-        rows[refs[ref]]["causelist_day_attempts"] = attempts
-    for d, n, entries, failed in session.execute(
-        select(
-            Causelist.list_date,
-            func.count(),
-            func.coalesce(func.sum(Causelist.entry_count), 0),
-            func.count().filter(Causelist.parse_status == CauselistParseStatus.FAILED),
-        )
-        .where(Causelist.list_date.between(from_, to))
-        .group_by(Causelist.list_date)
-    ).all():
-        rows[d].update(lists_stored=n, entries_parsed=int(entries), lists_parse_failed=failed)
+    for d, day in causelist_day_rows(session, days).items():
+        rows[d]["causelist_day_status"] = day["status"]
+        rows[d]["causelist_day_attempts"] = day["attempts"]
+    for d, counts in causelist_counts(session, from_, to).items():
+        rows[d].update(counts)
     batch_day = func.split_part(FetchQueueItem.ref, ":", 1)
     for ref, done, failed in session.execute(
         select(

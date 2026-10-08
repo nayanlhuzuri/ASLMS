@@ -2101,3 +2101,271 @@ class ReportOut(BaseModel):
     generated_by: ReportGeneratedByOut
     as_of_note: str
     sections: list[ReportSectionOut]
+
+
+# ------------------------------------------------------------------ audit log and data health (audit-screens)
+
+
+class AuditCaseOut(BaseModel):
+    id: uuid.UUID
+    ref_no: str | None
+    cnr: str | None = None
+    case_no_text: str | None = None
+
+
+class AuditActorOut(BaseModel):
+    user_id: uuid.UUID | None
+    name: str | None
+    designation: str | None
+    office_code: str | None
+
+
+class AuditRowOut(BaseModel):
+    id: uuid.UUID
+    at: datetime
+    action: str
+    entity_type: str
+    entity_id: uuid.UUID | None
+    case: AuditCaseOut | None
+    actor: AuditActorOut
+    ip: str | None
+    user_agent: str | None
+    before: Any = None
+    after: Any = None
+
+
+class AuditPageOut(BaseModel):
+    items: list[AuditRowOut]
+    next_cursor: str | None
+
+
+class AuditActionsOut(BaseModel):
+    actions: list[str]
+
+
+class NapixHourOut(BaseModel):
+    started_at: datetime
+    calls: int
+    failed: int
+    latest_remaining: int | None
+    reserve: int
+    search_floor: int
+    seconds_to_next_hour: int
+
+
+class NapixTodayOut(BaseModel):
+    calls: int
+    failed: int
+    by_family: dict[str, int]
+    token_unverified: int
+
+
+class NapixLastFailureOut(BaseModel):
+    called_at: datetime
+    api: str
+    http_status: int | None
+    napix_status: int | None
+    error_family: str | None
+
+
+class NapixLastCheckOut(BaseModel):
+    called_at: datetime
+    ok: bool
+    duration_ms: int
+    token_verified: bool | None
+    error_family: str | None
+
+
+class NapixHealthOut(BaseModel):
+    enabled: bool
+    est_code: str
+    hour: NapixHourOut
+    today: NapixTodayOut
+    last_call_at: datetime | None
+    last_ok_at: datetime | None
+    last_failure: NapixLastFailureOut | None
+    last_check: NapixLastCheckOut | None
+
+
+class QueueKindOut(BaseModel):
+    kind: str
+    pending: int
+    runnable: int
+    waiting: int
+    running: int
+    stale: int
+    failed: int
+    skipped: int
+    done: int
+
+
+class QueueDepthsOut(BaseModel):
+    by_kind: list[QueueKindOut]
+    oldest_runnable_at: datetime | None
+    failed_total: int
+
+
+class CauselistDayRowOut(BaseModel):
+    status: str
+    attempts: int
+    finished_at: datetime | None
+    last_error: str | None
+
+
+class DailyCycleDayOut(BaseModel):
+    date: date
+    label: str
+    causelist_day: CauselistDayRowOut | None
+    lists_stored: int
+    entries_parsed: int
+    lists_parse_failed: int
+
+
+class StatusBatchesOut(BaseModel):
+    date: date | str
+    done: int
+    failed: int
+    pending: int
+    running: int
+
+
+class MasterSyncOut(BaseModel):
+    master: str
+    fetched_at: datetime
+    row_count: int
+
+
+class JobRunOut(BaseModel):
+    job: str
+    started_at: datetime
+    finished_at: datetime | None
+    status: str
+    counters: dict[str, Any]
+
+
+class MailOutboxOut(BaseModel):
+    email_queued: int
+    email_failed: int
+    email_oldest_queued_at: datetime | None
+    digests_queued: int
+    digests_failed: int
+
+
+class FailureKindOut(BaseModel):
+    kind: str
+    open: int
+    oldest_first_seen: datetime | None
+
+
+class DataHealthOut(BaseModel):
+    as_of: datetime
+    napix: NapixHealthOut
+    queue: QueueDepthsOut
+    daily_cycle: list[DailyCycleDayOut]
+    status_batches: StatusBatchesOut | None
+    masters: list[MasterSyncOut]
+    jobs: list[JobRunOut]
+    mail: MailOutboxOut
+    sourcetrace: SourcetraceStatusOut
+    failures: list[FailureKindOut]
+
+
+class QueueRowOut(BaseModel):
+    id: uuid.UUID
+    kind: str
+    ref: str
+    priority: int
+    status: str
+    attempts: int
+    not_before: datetime | None
+    started_at: datetime | None
+    finished_at: datetime | None
+    last_error: str | None
+    result: Any = None
+    updated_at: datetime | None
+
+
+class QueueListOut(BaseModel):
+    total: int
+    items: list[QueueRowOut]
+
+
+class CallRowOut(BaseModel):
+    id: uuid.UUID
+    called_at: datetime
+    api: str
+    http_status: int | None
+    napix_status: int | None
+    ok: bool
+    error_family: str | None
+    error: str | None
+    duration_ms: int
+    token_verified: bool | None
+    rate_limit_remaining: int | None
+    job_run_id: uuid.UUID | None
+
+
+class CallListOut(BaseModel):
+    items: list[CallRowOut]
+    next_cursor: str | None
+
+
+class FailureRowOut(BaseModel):
+    id: uuid.UUID
+    kind: str
+    ref: str
+    error: str | None
+    error_family: str | None
+    first_seen: datetime
+    last_seen: datetime
+    attempts: int
+    resolved_at: datetime | None
+
+
+class FailureListOut(BaseModel):
+    total: int
+    items: list[FailureRowOut]
+
+
+class HealthCheckOut(BaseModel):
+    ok: bool
+    called_at: datetime
+    http_status: int | None
+    napix_status: int | None
+    error_family: str | None
+    duration_ms: int
+    token_verified: bool | None
+    remaining: int | None
+
+
+class QueueStateOut(BaseModel):
+    kind: str
+    ref: str
+    queue_id: uuid.UUID | None
+    status: str | None
+    priority: int | None
+    attempts: int
+    not_before: datetime | None
+    napix_enabled: bool
+
+
+class RefetchDayIn(BaseModel):
+    date: date
+
+
+class RefetchCaseIn(BaseModel):
+    case: str = Field(min_length=1, max_length=200)
+
+
+class RefetchOrderIn(BaseModel):
+    case: str = Field(min_length=1, max_length=200)
+    order_id: uuid.UUID
+
+
+class RetryFailedIn(BaseModel):
+    kind: Literal["masters", "causelist_day", "dossier", "status_batch", "order_pdf"]
+
+
+class RetryFailedOut(BaseModel):
+    kind: str
+    retried: int

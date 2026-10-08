@@ -37,8 +37,14 @@ PERMISSION_LABELS: dict[P, tuple[str, str]] = {
     P.ADMIN_COUNSEL_CODES: ("Counsel codes", "Map standing-counsel codes to departments"),
     P.ADMIN_KEYWORDS: ("Keywords and patterns", "Department keywords and name patterns for matching"),
     P.ADMIN_WATCHLIST: ("Watchlist", "Cases a department asks to follow"),
-    P.ADMIN_MASTERS_SYNC: ("Sync court masters", "Refresh the NAPIX masters now"),
-    P.ADMIN_NAPIX_REFETCH: ("Re-fetch court data", "Re-fetch a cause-list day or a case from NAPIX"),
+    P.ADMIN_MASTERS_SYNC: (
+        "Sync court masters",
+        "Queue a refresh of the NAPIX masters and run the connectivity check",
+    ),
+    P.ADMIN_NAPIX_REFETCH: (
+        "Re-fetch court data",
+        "Re-fetch a cause-list day, a case or an order PDF from NAPIX, and retry failed fetches",
+    ),
     P.ADMIN_CONFIG: ("Configuration", "Change system configuration"),
     P.ADMIN_DESIGNATIONS: ("Designations", "Create and edit the State-wide designation list"),
     P.ADMIN_SCORING: ("Scoring settings", "Change the matching weights and recommendation thresholds"),

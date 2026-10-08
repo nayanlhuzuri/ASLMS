@@ -93,19 +93,46 @@ def sync_masters_cmd() -> None:
     asyncio.run(go())
 
 
+def _cli_actor(session):
+    """The single active super admin acting through its super-admin membership (design `audit-screens`, decision
+    11), or the `system` actor before one exists."""
+    from aslms.cli.users import _actor
+    from aslms.services import access
+
+    actor, user = _actor(session)
+    member = access.super_admin_member(session, user) if user is not None else None
+    return actor, member
+
+
 def refetch_date(list_date: str = typer.Argument(..., help="YYYY-MM-DD")) -> None:
-    """Queue a cause-list day again at top priority."""
+    """Queue a cause-list day again at top priority (audited `napix.refetch_requested`)."""
+    from aslms.services import napix_admin
+
     d = _date(list_date)
     with session_scope() as s:
-        queue.enqueue(s, FetchKind.CAUSELIST_DAY, d.isoformat(), queue.PRIORITY["list_today"], requeue=True)
-    rprint(f"queued {d}")
+        actor, member = _cli_actor(s)
+        try:
+            state = napix_admin.refetch_day(s, actor, member, d, get_settings())
+        except napix_admin.AdminInputError as exc:
+            raise typer.BadParameter(f"{exc.code}: {exc}") from exc
+    rprint(f"queued {d} ({state['status']}, priority {state['priority']})")
 
 
-def refetch_case(cnr: str = typer.Argument(..., help="the CNR")) -> None:
-    """Queue a dossier fetch for one case at high priority."""
+def refetch_case(ref: str = typer.Argument(..., help="the case: CNR, ref_no or id")) -> None:
+    """Queue a dossier fetch for one case at priority 30 (audited `napix.refetch_requested`)."""
+    from aslms.services import napix_admin
+    from aslms.services.cases import CaseNotFound, resolve_case_ref
+
     with session_scope() as s:
-        queue.enqueue(s, FetchKind.DOSSIER, cnr.strip().upper(), queue.PRIORITY["status"], requeue=True)
-    rprint(f"queued dossier {cnr.strip().upper()}")
+        actor, member = _cli_actor(s)
+        try:
+            case = resolve_case_ref(s, ref)
+            state = napix_admin.refetch_case(s, actor, member, case, get_settings())
+        except CaseNotFound as exc:
+            raise typer.BadParameter(f"no such case {ref}; search the court for a new one") from exc
+        except napix_admin.AdminConflict as exc:
+            raise typer.BadParameter(f"{exc.code}: {exc}") from exc
+    rprint(f"queued dossier {state['ref']} ({state['status']}, priority {state['priority']})")
 
 
 def queue_worker(

@@ -186,12 +186,22 @@ As built by `alerts-notifications` (migration 0007, 6 Oct 2026): `alerts` gains 
 | `events` | case_id, type (→ `ref_event_type`), occurred_at, actor_user_id, payload jsonb, dedupe_key (unique), visibility (`tracking_card` / `scoped`) | Every state change emits one event; timelines, alerts and dashboards read from here. |
 | `audit_log` | action, entity_type, entity_id, case_id, ip, user_agent, before jsonb, after jsonb, actor snapshot | Searchable by user, case and date; read-only for auditors. |
 
+> Audit search indexes (audit-screens, migration 0013, no table or column): `ix_audit_log_created_at`
+> (created_at) and `ix_audit_log_actor_created` (actor_user_id, created_at). The log is read by
+> `services/audit_search.py` only (`GET /audit`, keyset on `(created_at, id)`, IST date bounds), by holders of
+> `audit.view` in a State-wide membership; reading writes nothing. `audit_log` stays append-only (`aslms_app`
+> SELECT / INSERT), class `derived`, FKs unchanged (`case_id` → cases RESTRICT, `actor_user_id` → users SET NULL).
+
 ## Group 9 — Integration and operations (data-collection health)
 | Table | Columns | Notes |
 |---|---|---|
 | `job_runs` (derived) | job, run_date, started_at, finished_at, status, counters jsonb, error | |
 | `napix_call_log` (derived) | api, params_sha256, http_status, napix_status (6xx), duration_ms, ok, error, called_at, job_run_id (CASCADE) | Indexed on called_at; pruned after a retention period (the one allowed deletion). |
 | `source_failures` (derived) | kind, ref, error, first_seen, last_seen, attempts, resolved_at | Read by the administration "needs attention" screen. |
+
+> `napix_call_log`, `fetch_queue` and `source_failures` are read live by `services/data_health.py`
+> (`/admin/data-health`, `/admin/napix/*`, design `audit-screens`); the re-fetch and sync buttons write
+> `fetch_queue` rows only through `queue.enqueue`.
 
 ## Phase 2 and 3 tables
 | Table | Columns (key ones) | Notes |

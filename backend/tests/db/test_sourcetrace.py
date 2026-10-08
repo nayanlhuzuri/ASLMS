@@ -618,7 +618,9 @@ def test_migration_0011_back_fills_archived_and_down_up(db_url, engine):
             command.downgrade(cfg, "0010")
         with engine.connect() as conn:
             # a refused downgrade rolls back whole: the database stays at the head (0012 and later included)
-            assert conn.execute(sa.text("SELECT version_num FROM alembic_version")).scalar() == head_revision()
+            assert (
+                conn.execute(sa.text("SELECT version_num FROM alembic_version")).scalar() == head_revision()
+            )
     finally:
         wipe_if_migrated(db_url)
         command.upgrade(cfg, "head")

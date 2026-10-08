@@ -1,4 +1,4 @@
-"""`aslms` command line: NAPIX checks and probes, `seed`, `db-check`, the load pipeline (`load`, `queue-run`, `queue-status`, `sync-masters`, `refetch-date`, `refetch-case`), the matching engine (`rescore`, `codes unmapped`), the `cases` group (`reindex-search`, `show`), the `documents` group (`extract`, `scan-check`), the `alerts` group (`run`, `send`, `digest`, `status`, `test-mail`), the `sourcetrace` group (`status`, `run`, `retry`, `check`), the `reports` group (`run`, `dashboard`), and the `users`, `access` and `offices` administration groups."""
+"""`aslms` command line: NAPIX checks and probes, `seed`, `db-check`, the load pipeline (`load`, `queue-run`, `queue-status`, `sync-masters`, `refetch-date`, `refetch-case`), the matching engine (`rescore`, `codes unmapped`), the `cases` group (`reindex-search`, `show`), the `documents` group (`extract`, `scan-check`), the `alerts` group (`run`, `send`, `digest`, `status`, `test-mail`), the `sourcetrace` group (`status`, `run`, `retry`, `check`), the `reports` group (`run`, `dashboard`), the `audit` group (`search`), `data-health`, and the `users`, `access` and `offices` administration groups."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from rich import print as rprint
 
 from aslms import __version__
 from aslms.cli.alerts import alerts_app
+from aslms.cli.audit import audit_app, data_health_cmd
 from aslms.cli.cases import cases_app
 from aslms.cli.db import db_check, seed
 from aslms.cli.documents import documents_app
@@ -47,6 +48,7 @@ app.command(name="refetch-date")(refetch_date)
 app.command(name="refetch-case")(refetch_case)
 app.command(name="queue-worker")(queue_worker)
 app.command(name="daily-cycle")(daily_cycle)
+app.command(name="data-health")(data_health_cmd)
 app.command(name="rescore")(rescore)
 app.add_typer(users_app, name="users")
 app.add_typer(access_app, name="access")
@@ -57,6 +59,7 @@ app.add_typer(documents_app, name="documents")
 app.add_typer(alerts_app, name="alerts")
 app.add_typer(sourcetrace_app, name="sourcetrace")
 app.add_typer(reports_app, name="reports")
+app.add_typer(audit_app, name="audit")
 
 
 @app.callback()

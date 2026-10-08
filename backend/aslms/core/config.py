@@ -57,6 +57,8 @@ class Settings(BaseSettings):
     napix_search_floor: int = 50
     napix_search_per_user_hour: int = 30
     napix_search_timeout_seconds: float = 60.0
+    # the data-health connectivity check (design audit-screens, decision 10): one Overview call at most this often
+    napix_health_check_min_seconds: int = Field(60, ge=10, le=3600)
 
     # --- authentication and the first super admin ------------------------------------------
     aslms_jwt_secret: SecretStr | None = None  # required to issue tokens; the API refuses to start without it
