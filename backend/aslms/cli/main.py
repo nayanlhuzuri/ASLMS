@@ -1,4 +1,4 @@
-"""`aslms` command line: NAPIX checks and probes, `seed`, `db-check`, the load pipeline (`load`, `queue-run`, `queue-status`, `sync-masters`, `refetch-date`, `refetch-case`), the matching engine (`rescore`, `codes unmapped`), the `cases` group (`reindex-search`, `show`), the `documents` group (`extract`, `scan-check`), the `alerts` group (`run`, `send`, `digest`, `status`, `test-mail`), the `sourcetrace` group (`status`, `run`, `retry`, `check`), and the `users`, `access` and `offices` administration groups."""
+"""`aslms` command line: NAPIX checks and probes, `seed`, `db-check`, the load pipeline (`load`, `queue-run`, `queue-status`, `sync-masters`, `refetch-date`, `refetch-case`), the matching engine (`rescore`, `codes unmapped`), the `cases` group (`reindex-search`, `show`), the `documents` group (`extract`, `scan-check`), the `alerts` group (`run`, `send`, `digest`, `status`, `test-mail`), the `sourcetrace` group (`status`, `run`, `retry`, `check`), the `reports` group (`run`, `dashboard`), and the `users`, `access` and `offices` administration groups."""
 
 from __future__ import annotations
 
@@ -28,6 +28,7 @@ from aslms.cli.pipeline import (
     refetch_date,
     sync_masters_cmd,
 )
+from aslms.cli.reports import reports_app
 from aslms.cli.sourcetrace import sourcetrace_app
 from aslms.cli.users import access_app, users_app
 from aslms.core.logging import configure_logging
@@ -55,6 +56,7 @@ app.add_typer(cases_app, name="cases")
 app.add_typer(documents_app, name="documents")
 app.add_typer(alerts_app, name="alerts")
 app.add_typer(sourcetrace_app, name="sourcetrace")
+app.add_typer(reports_app, name="reports")
 
 
 @app.callback()

@@ -720,44 +720,91 @@ def summary(
         depts = [d for d in depts if d.code == code]
         if not depts:
             raise forbidden("forbidden", f"you do not track {code}")
-    today = today_ist()
+    return {"departments": summary_for(session, depts, soon_days=soon_days)}
+
+
+def summary_for(
+    session: Session,
+    depts: list[Office],
+    *,
+    soon_days: int = DEFAULT_DUE_SOON_DAYS,
+    today: date | None = None,
+) -> list[dict[str, Any]]:
+    """Decision 24a's counts for the given departments, without the `custody.track` check (design
+    `reports-dashboards`: the department dashboard and the reports call it under their own gates). Per
+    department: files held (every custody row of its primary-owned cases), due within `soon_days`, overdue, by
+    holder department and by holder office/officer; plus, for the dashboard, files with a pending action, those
+    without a due date (`pending_no_due_date`) and the counts by holder office (`by_holder_office`). One query;
+    names and designations come from the current leg's snapshot."""
+    today = today or today_ist()
+    if not depts:
+        return []
+    leg = aliased(CustodyHistory, name="current_leg")
+    rows = session.execute(
+        select(
+            CaseOwnership.office_id,
+            Custody.due_date,
+            Custody.pending_action,
+            Office.code,
+            Office.name,
+            Office.path,
+            leg.holder_user_name,
+            leg.holder_designation,
+        )
+        .select_from(Custody)
+        .join(Office, Office.id == Custody.holder_office_id)
+        .join(
+            CaseOwnership,
+            (CaseOwnership.case_id == Custody.case_id)
+            & (CaseOwnership.status == OwnershipStatus.ACTIVE)
+            & (CaseOwnership.role == OwnershipRole.PRIMARY),
+        )
+        .outerjoin(leg, leg.id == Custody.current_leg_id)
+        .where(CaseOwnership.office_id.in_([d.id for d in depts]))
+    ).all()
+    dept_codes = {
+        o.code
+        for o in session.scalars(
+            select(Office).where(Office.code.in_({(r.path.split("/") + ["", ""])[1] for r in rows}))
+        ).all()
+        if access.is_department(o)
+    }
+    per: dict[Any, dict[str, Any]] = {
+        d.id: {"totals": Counter(), "by_dept": {}, "by_holder": {}, "by_office": {}} for d in depts
+    }
+    for owner_id, due, action, code, name, path, user_name, designation in rows:
+        flags = {"held": 1}
+        if due is not None and due < today:
+            flags["overdue"] = 1
+        elif due is not None and due <= today + timedelta(days=soon_days):
+            flags["due_soon"] = 1
+        if PendingAction(action) != PendingAction.NONE:
+            flags["with_pending_action"] = 1
+            if due is None:
+                flags["pending_no_due_date"] = 1
+        parts = path.split("/")
+        dkey = parts[1] if len(parts) >= 2 and parts[1] in dept_codes else code
+        bucket = per[owner_id]
+        for k, v in flags.items():
+            bucket["totals"][k] += v
+            bucket["by_dept"].setdefault(dkey, Counter())[k] += v
+            bucket["by_holder"].setdefault((code, user_name, designation), Counter())[k] += v
+            bucket["by_office"].setdefault((dkey, code, name), Counter())[k] += v
     out = []
     for dept in depts:
-        rows = session.execute(
-            select(Custody, Office)
-            .join(Office, Office.id == Custody.holder_office_id)
-            .where(_owned_by([dept]))
-        ).all()
-        totals = Counter()
-        by_dept: dict[str, Counter] = {}
-        by_holder: dict[tuple, Counter] = {}
-        for c, office in rows:
-            flags = {"held": 1}
-            if c.due_date is not None and c.due_date < today:
-                flags["overdue"] = 1
-            elif c.due_date is not None and c.due_date <= today + timedelta(days=soon_days):
-                flags["due_soon"] = 1
-            holder_dept = access.department_of(session, office)
-            dkey = holder_dept.code if holder_dept is not None else office.code
-            leg = session.get(CustodyHistory, c.current_leg_id) if c.current_leg_id else None
-            hkey = (
-                office.code,
-                leg.holder_user_name if leg is not None else None,
-                leg.holder_designation if leg is not None else None,
-            )
-            for k, v in flags.items():
-                totals[k] += v
-                by_dept.setdefault(dkey, Counter())[k] += v
-                by_holder.setdefault(hkey, Counter())[k] += v
+        b = per[dept.id]
+        totals = b["totals"]
         out.append(
             {
                 "code": dept.code,
                 "held": totals["held"],
                 "due_soon": totals["due_soon"],
                 "overdue": totals["overdue"],
+                "with_pending_action": totals["with_pending_action"],
+                "pending_no_due_date": totals["pending_no_due_date"],
                 "by_holder_department": [
                     {"code": k, "held": v["held"], "due_soon": v["due_soon"], "overdue": v["overdue"]}
-                    for k, v in sorted(by_dept.items())
+                    for k, v in sorted(b["by_dept"].items())
                 ],
                 "by_holder": [
                     {
@@ -768,8 +815,20 @@ def summary(
                         "due_soon": v["due_soon"],
                         "overdue": v["overdue"],
                     }
-                    for k, v in sorted(by_holder.items(), key=lambda kv: (kv[0][0], kv[0][1] or ""))
+                    for k, v in sorted(b["by_holder"].items(), key=lambda kv: (kv[0][0], kv[0][1] or ""))
+                ],
+                "by_holder_office": [
+                    {
+                        "holder_department_code": k[0],
+                        "office_code": k[1],
+                        "office_name": k[2],
+                        "held": v["held"],
+                        "with_pending_action": v["with_pending_action"],
+                        "due_soon": v["due_soon"],
+                        "overdue": v["overdue"],
+                    }
+                    for k, v in sorted(b["by_office"].items())
                 ],
             }
         )
-    return {"departments": out}
+    return out

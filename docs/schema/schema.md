@@ -39,6 +39,7 @@ written from this document plus the approved addendum. **As built (1 Oct 2026):*
 - **Audit columns.** `ActorSnapshotMixin` (`actor_user_id`, `actor_name`, `actor_designation`, `actor_office_code`)
   where accountability matters; `created_by` / `updated_by` (FK `users`, SET NULL, NULL for system writes) on
   masters and on transactions users write that carry no snapshot.
+  Report exports write one `audit_log` row (`report.exported`) (design `reports-dashboards`).
 - **No deletion.** Every foreign key to a legal-record table is `ON DELETE RESTRICT`. CASCADE remains only on
   `otp_codes`, `refresh_tokens`, `user_notification_preferences`, `notifications`, `digests`, `case_office_scores`,
   `causelist_reconciliations`, `document_text`, `sourcetrace_ingestions`, `assistant_messages`,
@@ -130,6 +131,11 @@ written from this document plus the approved addendum. **As built (1 Oct 2026):*
 > `services/cases.py::refresh_search_vector` after every dossier apply, cause-list apply and court-search store;
 > never written by hand. GIN index `ix_cases_search_vector_gin`; expression index `ix_cases_case_no_compact` on
 > the upper-cased case number without white space.
+
+> Reporting indexes (reports-dashboards, migration 0012, no table or column): partial index
+> `ix_cases_disposal_date` (disposal_date) WHERE disposal_date IS NOT NULL; index
+> `ix_case_hearings_business_date` (business_date). Dashboards and reports (`services/dashboard.py`,
+> `services/reports.py`) only read; they store nothing. Export files are streamed, never kept in `documents`.
 
 ## Group 4 — Cause lists
 | Table | Columns | Notes |

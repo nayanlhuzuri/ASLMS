@@ -119,6 +119,14 @@ class Settings(BaseSettings):
     sourcetrace_timeout_seconds: float = Field(60.0, gt=0)  # one send, the document row locked meanwhile
     sourcetrace_max_attempts: int = Field(5, ge=1, le=20)  # then the document is `failed`
 
+    # --- dashboards and reports (design reports-dashboards, decisions 2, 5, 12) ------------------
+    report_max_range_days: int = Field(366, ge=1, le=1000)  # hearings-disposals period
+    report_health_max_days: int = Field(92, ge=1, le=1000)  # data-health period
+    report_xlsx_max_rows: int = Field(5000, ge=1, le=50_000)  # case rows per Excel section
+    report_pdf_max_rows: int = Field(1000, ge=1, le=50_000)  # case rows per PDF section
+    report_statement_timeout_seconds: int = Field(30, ge=1, le=300)  # SET LOCAL statement_timeout
+    dashboard_list_size: int = Field(10, ge=1, le=50)  # rows in each dashboard list
+
     @property
     def is_prod(self) -> bool:
         return self.app_env == "prod"

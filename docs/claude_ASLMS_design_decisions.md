@@ -1066,3 +1066,54 @@ Design `docs/design/sourcetrace-connector.md` (approved by the owner on 8 Oct 20
   `check` (the integrator).
 
 - 2026-10-08 — reports-dashboards: approved by the owner (dashboards by function and membership, live counts, four reports with Excel and PDF export, NJDG age bands, exports audited; docs/design/reports-dashboards.md)
+
+
+## Dashboards and reports (2026-10-08)
+
+Design: `docs/design/reports-dashboards.md` (approved by the owner on 2026-10-08). Backlog row 9, status `review`.
+
+**What was built**
+- `services/reporting_common.py` (today in IST, `ReportConfig`, `SET LOCAL statement_timeout`, Department-tier
+  rows, current primary owner, NJDG age bands), `services/dashboard.py`, `services/reports.py`,
+  `services/report_export.py` (XlsxWriter workbook, PyMuPDF A4 landscape PDF with repeated headers, page numbers
+  and row caps), and `custody.summary_for` factored out of `custody.summary`.
+- Endpoints: `GET /dashboard` (which blocks the caller has), `/dashboard/me`, `/dashboard/department`,
+  `/dashboard/state`; `GET /reports` and the four reports `pending-cases`, `hearings-disposals`,
+  `pending-actions`, `data-health` with `format=json|xlsx|pdf` (files streamed no-store, never stored in
+  `documents`, each export audited as `report.exported`).
+- CLI `aslms reports run` and `aslms reports dashboard`, acting as the super admin (exports audited).
+- Settings `REPORT_MAX_RANGE_DAYS` (366), `REPORT_HEALTH_MAX_DAYS` (92), `REPORT_XLSX_MAX_ROWS` (5000),
+  `REPORT_PDF_MAX_ROWS` (1000), `REPORT_STATEMENT_TIMEOUT_SECONDS` (30), `DASHBOARD_LIST_SIZE` (10), in
+  `.env.example`; dependency `xlsxwriter`.
+- Migration 0012: indexes `ix_cases_disposal_date` (partial) and `ix_case_hearings_business_date`; no table or
+  column. The 0011 migration test now reads the head instead of a fixed revision.
+
+**Decisions** (numbers follow the design note)
+- 1, 3, 9, 10, 11: dashboards are composed by function and membership, not user type: personal block always,
+  a department block per department where a membership holds `cases.claim`, `cases.allot`, `custody.track` or
+  `reports.department`, the State block with `dashboard.state`. Blocks load through separate endpoints so one
+  slow section does not delay the first screen; department sections are gated (recommendations by
+  `cases.claim`, pending actions and custody by `custody.track` or `reports.department`).
+- 2, 4: every figure is computed live in SQL from existing tables; no snapshot tables. Stock measures are "as of
+  now", period measures come from dated rows; a case counts for its current primary owner.
+- 5, 6: four reports cover the plan's §5.10 bullets; NJDG age bands (up to 1, 1-3, 3-5, 5-10, 10-20, 20-30, over
+  30 years, plus age not known), a constant the owner may change.
+- 7, 8: department scope needs `reports.department` in that department or `reports.state`; `data-health` is
+  State only. Aggregates follow the function; every row that names a case is also filtered by the caller's case
+  visibility, and the custody remark, notes and documents never appear.
+
+**Deviations from the design** (design note, Deviations section, 16 items; the main ones)
+- Claimed counts are primary ownership only, so they differ from `/inbox/counts` by watcher rows (item 1).
+- The Excel file is built in memory, because `constant_memory` writes temporary files holding case data; the
+  row cap bounds its size (item 5). The PDF exporter paginates tables itself, as PyMuPDF `Story` does not repeat
+  headers (item 6).
+- `custody.summary_for` is one query and `/custody/summary` gains `with_pending_action`, `pending_no_due_date`
+  and `by_holder_office` (additive, item 12). `data-health` takes `from` and `to` together or not at all
+  (item 11). `hearings-disposals` leaves merged duplicates out (item 8).
+
+**Left for later**
+- New row 39 `portal-reports` (reports screen, Excel and PDF buttons); the dashboard goes into row 11.
+- If the owner asks: snapshot tables for past-date figures and trends, scheduled e-mailed reports,
+  a `napix_call_log` retention job (bounds the data-health history). Row 10 reads the same tables for the live
+  data-health screen; row 26 fills the dashboard's next dates from orders.
+- Before deployment (integrator): `alembic upgrade head` on the dev database (0012).

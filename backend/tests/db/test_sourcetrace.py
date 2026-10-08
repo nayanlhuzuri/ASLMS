@@ -28,7 +28,7 @@ from tests import samplefiles as sf
 from tests.db import docs_support as ds
 from tests.db import st_support as h
 from tests.db import workflow_support as w
-from tests.db.conftest import alembic_config, wipe_if_migrated
+from tests.db.conftest import alembic_config, head_revision, wipe_if_migrated
 from tests.db.world import make_case
 
 
@@ -617,7 +617,8 @@ def test_migration_0011_back_fills_archived_and_down_up(db_url, engine):
         with pytest.raises(RuntimeError, match="cannot downgrade 0011"):
             command.downgrade(cfg, "0010")
         with engine.connect() as conn:
-            assert conn.execute(sa.text("SELECT version_num FROM alembic_version")).scalar() == "0011"
+            # a refused downgrade rolls back whole: the database stays at the head (0012 and later included)
+            assert conn.execute(sa.text("SELECT version_num FROM alembic_version")).scalar() == head_revision()
     finally:
         wipe_if_migrated(db_url)
         command.upgrade(cfg, "head")

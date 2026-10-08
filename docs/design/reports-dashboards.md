@@ -409,3 +409,47 @@ None. Points for the owner to check at approval (decided here, reversible):
 - Row 10 (`audit-screens`) reads the same operations tables for the live data-health screen and the re-fetch
   buttons; row 26 fills the dashboard's "next dates read from orders"; a `napix_call_log` retention job (none
   exists yet) bounds the data-health report's call history.
+
+## Deviations
+Written by the developer while building (smallest reasonable choices where the design was silent):
+1. **Claimed counts are primary ownership.** `claimed_active` / `claimed_disposed` of the department and State
+   blocks count primary rows only (the inbox Claimed tab with `role=primary`); `watching_active` is separate.
+   `/inbox/counts` counts watcher rows too, so the two differ by `watching_active` where a department watches
+   cases. Without watchers they are equal (tested).
+2. **Department-block `cases` are department totals** for every eligible membership, including a
+   `reports.department` or `custody.track` grantee below the department office (decision 8 applied to that
+   section, as to the hearing count).
+3. **Which "owned" rule per section.** Hearings use the calendar's `department_owned_condition` (primary or
+   watcher), so the count equals `/calendar?office=`; files, compliance alerts and next dates use the current
+   primary owner (as `custody.summary` does), so a State row equals the department block.
+4. `ReportConfig` also carries `critical_hours` and `sitting_time` (`ALERT_CRITICAL_HOURS`,
+   `COURT_SITTING_TIME`) for the 48-hour flag of the hearing lists.
+5. **Excel in memory, not `constant_memory`.** XlsxWriter's `constant_memory` writes temporary files to disk
+   (they would hold case data) and `in_memory` overrides it; the workbook is built with `in_memory` and the
+   5,000-row cap bounds its size.
+6. **PDF pagination by the exporter.** PyMuPDF `Story` does not repeat `<thead>` on a new page, so the exporter
+   lays each table out page by page (a probe layout counts the rows that fit, the header row is repeated, the
+   continuation is titled "(continued)"); each section starts on a new page. The PDF text uses ligatures
+   (e.g. "ffi"); its text layer maps them back to letters (search works; tests extract without ligatures).
+7. The JSON `include_cases` section is capped at `REPORT_XLSX_MAX_ROWS` too ("first N of M rows").
+8. `hearings-disposals` leaves merged duplicates out (as the calendar and `pending-cases` do). On the dev data
+   of 8 Oct 2026 this changes nothing (January 2025: listings 11,483 and disposals 1,703, equal to the SQL of
+   Verification 5).
+9. Verification 4: `pending-cases` counts active cases only, so its "Not claimed" rows equal the never-owned
+   pool filtered to status `pending` / `unknown` (`/inbox/pool` also lists disposed never-owned cases).
+10. `holder_department` of `pending-actions` filters the two file sections, not the compliance section (which
+    is by addressed office).
+11. `data-health`: dossier and order-PDF rows are counted on the IST day of `fetch_queue.finished_at` (one row
+    per reference, so a re-fetched row counts on its latest finish only); `from` and `to` are given together or
+    not at all (default the last 7 days; one alone is 422).
+12. `custody.summary_for` (factored out of `custody.summary` as the design asks) is one query instead of a loop
+    reading the leg and department per file, and also returns `with_pending_action`, `pending_no_due_date` and
+    `by_holder_office`; `/custody/summary` keeps its keys and gains these (additive).
+13. `pending-cases` flattens group x court x age band into two sections: `by_group` and `by_group_court`, the
+    age bands as columns. Group codes of the fixed rows: `NC-REC`, `NC-NONE` (State) and `DEPT` (department).
+14. The State block's `not_claimed.hearing_7d` counts never-owned active cases with a date in the calendar's
+    union (listing, `next_hearing_date`, confirmed next date) in the next 7 days, not only `next_hearing_date`.
+15. `GET /dashboard/me` alert items carry a subset of the alert list item (`id, ref_no, kind, kind_label,
+    severity, status, title, due_at, case, created_at`); `counsel_active` is `null` for a membership that is
+    not standing counsel.
+16. `GET /reports` gives a `reports.state` holder every Department-tier code as the departments it may name.

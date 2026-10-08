@@ -1874,3 +1874,230 @@ class SourcetraceRetryOut(BaseModel):
     document_id: uuid.UUID
     sourcetrace_status: str
     sourcetrace_attempts: int
+
+
+# ------------------------------------------------------------------ dashboards and reports (reports-dashboards)
+
+
+class DashboardDepartmentRefOut(BaseModel):
+    code: str
+    name: str
+
+
+class DashboardIndexOut(BaseModel):
+    me: bool
+    departments: list[DashboardDepartmentRefOut]
+    state: bool
+
+
+class DashboardFileOut(BaseModel):
+    case: AlertCaseOut
+    pending_action: str
+    since: datetime
+    due_date: date | None
+    overdue_days: int
+    holder_office_code: str | None
+
+
+class DashboardHearingOut(BaseModel):
+    date: date
+    case: AlertCaseOut
+    court_no: str | None
+    item_no: str | None
+    critical: bool
+
+
+class DashboardHearingsOut(BaseModel):
+    total: int
+    critical: int
+    items: list[DashboardHearingOut]
+
+
+class DashboardOwnCasesOut(BaseModel):
+    department_code: str
+    allotted_active: int
+    allotted_disposed: int
+    counsel_active: int | None = None
+
+
+class DashboardFilesOut(BaseModel):
+    held: int
+    with_pending_action: int
+    overdue: int
+    items: list[DashboardFileOut]
+
+
+class DashboardAlertOut(BaseModel):
+    id: uuid.UUID
+    ref_no: str
+    kind: str
+    kind_label: str
+    severity: str
+    status: str
+    title: str
+    due_at: datetime | None
+    case: AlertCaseOut | None
+    created_at: datetime
+
+
+class DashboardAlertsOut(BaseModel):
+    unread: int
+    open: AlertOpenCountsOut
+    items: list[DashboardAlertOut]
+
+
+class DashboardMeOut(BaseModel):
+    generated_at: datetime
+    cases: list[DashboardOwnCasesOut]
+    files: DashboardFilesOut
+    alerts: DashboardAlertsOut
+    hearings: DashboardHearingsOut
+    drafts: int
+
+
+class DashboardRecommendationsOut(BaseModel):
+    high: int
+    medium: int
+    transfers_in_open: int
+
+
+class DashboardCasesOut(BaseModel):
+    claimed_active: int
+    claimed_disposed: int
+    watching_active: int
+    not_allotted_active: int
+
+
+class DashboardPendingActionsOut(BaseModel):
+    held: int
+    due_soon: int
+    overdue: int
+    no_due_date: int
+    items: list[DashboardFileOut] | None = None
+
+
+class DashboardCustodyOfficeOut(BaseModel):
+    holder_department_code: str
+    office_code: str
+    office_name: str
+    held: int
+    with_pending_action: int
+    overdue: int
+
+
+class DashboardOrderNextDateOut(BaseModel):
+    case: AlertCaseOut
+    next_date: date
+    source: str
+    review_status: str
+
+
+class DashboardAttentionOut(BaseModel):
+    next_dates_to_review: int | None
+    recent_order_next_dates: list[DashboardOrderNextDateOut]
+    compliance_due_soon: int
+    compliance_overdue: int
+
+
+class DashboardDepartmentOut(BaseModel):
+    generated_at: datetime
+    department: DashboardDepartmentRefOut
+    recommendations: DashboardRecommendationsOut | None
+    cases: DashboardCasesOut
+    hearings: DashboardHearingsOut
+    pending_actions: DashboardPendingActionsOut | None
+    custody_by_office: list[DashboardCustodyOfficeOut] | None
+    attention: DashboardAttentionOut
+
+
+class DashboardStateRowOut(BaseModel):
+    code: str
+    name: str
+    is_active: bool
+    claimed_active: int
+    claimed_disposed: int
+    recommended_high: int
+    recommended_medium: int
+    hearings_7d: int
+    pending_actions: int
+    overdue_actions: int
+    compliance_due_soon: int
+    compliance_overdue: int
+
+
+class DashboardNotClaimedOut(BaseModel):
+    active: int
+    recommended: int
+    hearing_7d: int
+
+
+class DashboardCodeCountOut(BaseModel):
+    code: str
+    overdue: int
+
+
+class DashboardOverdueActionsOut(BaseModel):
+    total: int
+    by_owner: list[DashboardCodeCountOut]
+    by_holder: list[DashboardCodeCountOut]
+
+
+class DashboardComplianceOut(BaseModel):
+    due_soon: int
+    overdue: int
+
+
+class DashboardStateOut(BaseModel):
+    generated_at: datetime
+    by_department: list[DashboardStateRowOut]
+    not_claimed: DashboardNotClaimedOut
+    hearings: DashboardHearingsOut
+    overdue_actions: DashboardOverdueActionsOut
+    compliance: DashboardComplianceOut
+
+
+class ReportCatalogueItemOut(BaseModel):
+    key: str
+    title: str
+    params: list[str]
+    scopes: list[str]
+    departments: list[str]
+
+
+class ReportCatalogueOut(BaseModel):
+    reports: list[ReportCatalogueItemOut]
+
+
+class ReportColumnOut(BaseModel):
+    key: str
+    label: str
+    kind: str
+
+
+class ReportSectionOut(BaseModel):
+    key: str
+    title: str
+    columns: list[ReportColumnOut]
+    rows: list[dict[str, Any]]
+    totals: dict[str, Any] | None
+    note: str | None
+    total_rows: int
+    truncated: bool
+
+
+class ReportGeneratedByOut(BaseModel):
+    name: str
+    designation: str | None
+    office_code: str | None
+
+
+class ReportOut(BaseModel):
+    key: str
+    title: str
+    scope: str
+    department_code: str | None
+    params: dict[str, Any]
+    generated_at: datetime
+    generated_by: ReportGeneratedByOut
+    as_of_note: str
+    sections: list[ReportSectionOut]

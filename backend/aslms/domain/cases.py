@@ -56,6 +56,8 @@ class Case(TimestampMixin, RefNoMixin, CreatedByMixin, Base):
         Index("ix_cases_search_vector_gin", "search_vector", postgresql_using="gin"),
         # number search: the printed case number upper-cased without white space
         Index("ix_cases_case_no_compact", text(r"upper(regexp_replace(case_no_text, '\s', '', 'g'))")),
+        # the disposals of a period (design reports-dashboards, migration 0012)
+        Index("ix_cases_disposal_date", "disposal_date", postgresql_where=text("disposal_date IS NOT NULL")),
     )
     id: Mapped[uuid.UUID] = uuid_pk()
     cnr: Mapped[str | None] = mapped_column(String(16), unique=True)  # null only when provisional
@@ -187,7 +189,11 @@ class CaseHearing(TimestampMixin, Base):
 
     __tablename__ = "case_hearings"
     __table_class__ = TableClass.TRANSACTION
-    __table_args__ = (UniqueConstraint("case_id", "business_date", "purpose"),)
+    __table_args__ = (
+        UniqueConstraint("case_id", "business_date", "purpose"),
+        # the proceedings of a period (design reports-dashboards, migration 0012)
+        Index("ix_case_hearings_business_date", "business_date"),
+    )
     id: Mapped[uuid.UUID] = uuid_pk()
     case_id: Mapped[uuid.UUID] = uuid_fk("cases.id")
     business_date: Mapped[date | None] = mapped_column(Date)
