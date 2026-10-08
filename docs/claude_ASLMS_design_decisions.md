@@ -1064,3 +1064,5 @@ Design `docs/design/sourcetrace-connector.md` (approved by the owner on 8 Oct 20
 - Verification step 7 cannot be done until the real connector exists; the fake-backed tests are the proof. Before
   deployment: `alembic upgrade head` on the dev database (0011), `aslms seed`, then `aslms sourcetrace status` and
   `check` (the integrator).
+
+- 2026-10-08 — reports-dashboards: approved by the owner (dashboards by function and membership, live counts, four reports with Excel and PDF export, NJDG age bands, exports audited; docs/design/reports-dashboards.md)
