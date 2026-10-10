@@ -1167,3 +1167,5 @@ Design: `docs/design/reports-dashboards.md` (approved by the owner on 2026-10-08
 - Before deployment (integrator): `alembic upgrade head` on the dev database (0013); the live Overview check is run
   by the owner with `NAPIX_ENABLED` set for that run.
 
+
+- 2026-10-10 — portal-shell: approved by the owner (Next.js portal with a backend-for-frontend, tokens in httpOnly cookies, sign-in screens, shell, dashboard and administration screens; npm commands added to the team allowlist; docs/design/portal-shell.md)
