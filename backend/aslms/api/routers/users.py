@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from aslms.api import schemas
@@ -17,7 +17,7 @@ from aslms.api.deps import actor_of, get_mailer, get_session, require, require_a
 from aslms.api.errors import HANDLED, http_error
 from aslms.api.routers.auth import user_out
 from aslms.domain.org import Office, PermissionEffect, User, UserMembership
-from aslms.domain.reference import Permission
+from aslms.domain.reference import Permission, Role
 from aslms.services import access, memberships, tickets
 from aslms.services.mailer import Mailer
 from aslms.services.users import create_user, set_password, update_profile
@@ -75,34 +75,78 @@ def _m_out(session: Session, m: UserMembership, *, functions: bool = False) -> s
 # ------------------------------------------------------------------------------------------------ logins
 
 
+def _bad_field(message: str) -> HTTPException:
+    return HTTPException(status.HTTP_400_BAD_REQUEST, {"code": "bad_field", "message": message})
+
+
+def _like(text: str) -> str:
+    escaped = text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
+
+
 @router.get("", response_model=list[schemas.UserOut])
 def list_users(
+    response: Response,
     office: str | None = None,
+    q: str | None = None,
+    role: Role | None = None,
+    include_ended: bool = False,
+    limit: int | None = None,
+    offset: int = 0,
     session: Session = Depends(get_session),
     caller: User = Depends(require(Permission.USERS_VIEW)),
 ) -> list[schemas.UserOut]:
     """Logins with an active membership in the caller's scope (optionally under `office`), each with all of its
-    memberships (decision 8)."""
+    memberships (decision 8). Design `portal-shell`, decision 16b: `q` (2+ characters, name or e-mail), `role`
+    (of an active membership in scope), `include_ended` (State-wide scope only: logins with no active membership
+    too), `limit` (1-200) and `offset`; `X-Total-Count` counts the same filters. Without `limit` every row."""
+    if q is not None and len(q.strip()) < 2:
+        raise _bad_field("q needs at least 2 characters")
+    if limit is not None and not 1 <= limit <= 200:
+        raise _bad_field("limit must be between 1 and 200")
+    if offset < 0:
+        raise _bad_field("offset must be 0 or more")
     roots = _scope_roots(session, caller)
-    stmt = (
-        select(User)
-        .join(UserMembership, UserMembership.user_id == User.id)
+    if include_ended and roots is not None:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            {"code": "scope", "message": "only a State-wide view lists logins without an active membership"},
+        )
+    if roots is not None and not roots:
+        response.headers["X-Total-Count"] = "0"
+        return []
+    membership = (
+        select(UserMembership.id)
         .join(Office, Office.id == UserMembership.office_id)
-        .where(UserMembership.is_active.is_(True))
+        .where(UserMembership.user_id == User.id, UserMembership.is_active.is_(True))
     )
+    filtered = membership
     if office:
         root = session.scalar(select(Office).where(Office.code == office.strip().upper()))
         if root is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "no such office")
-        stmt = stmt.where((Office.id == root.id) | Office.path.like(root.path + "/%"))
+        filtered = filtered.where((Office.id == root.id) | Office.path.like(root.path + "/%"))
     if roots is not None:
-        if not roots:
-            return []
-        from sqlalchemy import or_
-
-        stmt = stmt.where(or_(*[(Office.id == r.id) | Office.path.like(r.path + "/%") for r in roots]))
-    users = session.scalars(stmt.distinct().order_by(User.email)).all()
-    return [user_out(session, u) for u in users]
+        filtered = filtered.where(
+            or_(*[(Office.id == r.id) | Office.path.like(r.path + "/%") for r in roots])
+        )
+    if role is not None:
+        filtered = filtered.where(UserMembership.role == role)
+    condition = filtered.exists()
+    if include_ended and not office and role is None:
+        condition = condition | ~membership.exists()
+    stmt = select(User).where(condition)
+    if q is not None:
+        pattern = _like(q.strip())
+        stmt = stmt.where(User.full_name.ilike(pattern, escape="\\") | User.email.ilike(pattern, escape="\\"))
+    total = session.scalar(select(func.count()).select_from(stmt.subquery()))
+    response.headers["X-Total-Count"] = str(total)
+    stmt = stmt.order_by(User.email, User.id)
+    if limit is not None:
+        stmt = stmt.limit(limit).offset(offset)
+    elif offset:
+        stmt = stmt.offset(offset)
+    return [user_out(session, u) for u in session.scalars(stmt).all()]
 
 
 @router.get("/lookup", response_model=schemas.UserLookupOut)

@@ -139,6 +139,26 @@ class MatrixEntryIn(BaseModel):
     enabled: bool
 
 
+class UserTypeLabelOut(BaseModel):
+    code: str
+    label: str
+    description: str | None = None
+    assignable: bool
+
+
+class LabelOut(BaseModel):
+    code: str
+    label: str
+
+
+class ReferenceLabelsOut(BaseModel):
+    """Design `portal-shell`, decision 16a: the database's labels; `assignable` is the caller's."""
+
+    user_types: list[UserTypeLabelOut]
+    office_kinds: list[LabelOut]
+    ticket_kinds: list[LabelOut]
+
+
 # ------------------------------------------------------------------------------------------------ offices
 
 

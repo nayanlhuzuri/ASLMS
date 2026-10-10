@@ -1,0 +1,9 @@
+node_modules
+.next
+out
+*.tsbuildinfo
+npm-debug.log*
+.env*
+**/*.test.ts
+**/*.test.tsx
+src/test

@@ -1,7 +1,7 @@
 # ASLMS v2 — one command brings the stack up: `docker compose up -d` (migrates and seeds, then the services).
 # Services: postgres, redis, clamav (scans every upload), init (migrate + seed), api, worker (the NAPIX
-# load-and-refresh queue), scheduler (Celery beat and the text-extraction sweep). The portal joins as it is
-# built. Variables come from .env (copy .env.example).
+# load-and-refresh queue), scheduler (Celery beat and the text-extraction sweep), web (the Next.js portal at
+# http://localhost:3000; design portal-shell). Variables come from .env (copy .env.example).
 
 services:
   postgres:
@@ -79,7 +79,18 @@ services:
         condition: service_completed_successfully
       clamav:
         condition: service_started
-    command: uvicorn aslms.api.main:app --host 0.0.0.0 --port 8000
+    networks:
+      - default
+      - portal
+    # X-Forwarded-For is trusted only from the web container (design portal-shell, decision 7): audit rows then
+    # carry the browser's address. Calls through the published port (CLI, tests) are not trusted.
+    command: uvicorn aslms.api.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips ${WEB_IP:-172.28.0.10}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
     restart: unless-stopped
 
   worker:
@@ -128,6 +139,39 @@ services:
         condition: service_started
     command: celery -A aslms.jobs.celery_app worker -B --concurrency 1 -l info
     restart: unless-stopped
+
+  web:
+    # the portal (design portal-shell): a backend-for-frontend that keeps the tokens in httpOnly cookies and relays
+    # the browser's calls to the api. No env_file: no secret (JWT, NAPIX, mail) ever enters this container.
+    build: ./frontend
+    environment:
+      API_BASE_URL: http://api:8000
+      PORTAL_BASE_URL: ${PORTAL_BASE_URL:-http://localhost:3000}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      ASLMS_REFRESH_TOKEN_DAYS: ${ASLMS_REFRESH_TOKEN_DAYS:-14}
+      RELAY_TIMEOUT_SECONDS: ${RELAY_TIMEOUT_SECONDS:-120}
+    ports:
+      - "${WEB_HOST_PORT:-3000}:3000"
+    networks:
+      portal:
+        ipv4_address: ${WEB_IP:-172.28.0.10}
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+
+networks:
+  # web <-> api, with a fixed subnet so the api can trust X-Forwarded-For from the web container's address only
+  portal:
+    ipam:
+      config:
+        - subnet: ${ASLMS_SUBNET:-172.28.0.0/24}
 
 volumes:
   pgdata_v3:

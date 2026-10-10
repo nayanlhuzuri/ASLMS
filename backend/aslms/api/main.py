@@ -20,6 +20,7 @@ from aslms.api.routers import matching as matching_router
 from aslms.api.routers import napix_admin as napix_admin_router
 from aslms.api.routers import offices as offices_router
 from aslms.api.routers import ownership as ownership_router
+from aslms.api.routers import reference as reference_router
 from aslms.api.routers import reports as reports_router
 from aslms.api.routers import sourcetrace as sourcetrace_router
 from aslms.api.routers import tickets as tickets_router
@@ -46,6 +47,7 @@ def create_app(settings: Settings | None = None, session_factory=None) -> FastAP
     app.include_router(auth_router.router)
     app.include_router(users_router.router)
     app.include_router(access_router.router)
+    app.include_router(reference_router.router)
     app.include_router(offices_router.router)
     app.include_router(matching_router.router)
     app.include_router(inbox_router.router)

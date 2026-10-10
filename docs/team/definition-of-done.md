@@ -14,6 +14,8 @@ merge and the reviewer treats a miss as a blocking finding.
 - No identifier is fabricated (a case without a CNR stays provisional); no NAPIX call outside
   `backend/aslms/integration/napix/`; nothing copied from `ASLMS-legacy`.
 - Secrets stay in `.env`; nothing is logged that came from it.
+- When `frontend/` changes: `npm run lint`, `npm run typecheck`, `npm test` and `npm run build` pass in `frontend/`
+  (`npm run gen:api` leaves no diff), and the integrator runs `docker compose build web`.
 
 **Documents**
 - The decisions log has an entry for the feature: what was built, decisions, deviations from the plan and why.

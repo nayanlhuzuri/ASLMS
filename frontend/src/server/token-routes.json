@@ -1,0 +1,8 @@
+{
+  "description": "API operations whose answer carries a token (design portal-shell, decision 6). The relay refuses them; only the session handlers call them. backend/tests/unit/test_token_routes.py checks this list against the OpenAPI document.",
+  "routes": [
+    { "method": "POST", "path": "/auth/otp/verify" },
+    { "method": "POST", "path": "/auth/refresh" },
+    { "method": "POST", "path": "/me/password" }
+  ]
+}

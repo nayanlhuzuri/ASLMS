@@ -1,0 +1,42 @@
+/** Names for the API types generated from `openapi.json` (`npm run gen:api`). */
+import type { components } from "./schema";
+
+type S = components["schemas"];
+
+export type Permission = S["Permission"];
+export type Role = S["Role"];
+export type Me = S["MeOut"];
+export type UserOut = S["UserOut"];
+export type MembershipOut = S["MembershipOut"];
+export type ProfileOut = S["ProfileOut"];
+export type NotificationPreferences = S["NotificationPreferencesOut"];
+export type DeviceOut = S["DeviceOut"];
+export type DashboardIndex = S["DashboardIndexOut"];
+export type DashboardDepartment = S["DashboardDepartmentOut"];
+export type DashboardMe = S["DashboardMeOut"];
+export type DashboardState = S["DashboardStateOut"];
+export type DashboardHearings = S["DashboardHearingsOut"];
+export type DashboardFile = S["DashboardFileOut"];
+export type AlertCase = S["AlertCaseOut"];
+export type AlertCounts = S["AlertCountsOut"];
+export type ReferenceLabels = S["ReferenceLabelsOut"];
+export type UserTypeLabel = S["UserTypeLabelOut"];
+export type UserLookup = S["UserLookupOut"];
+export type ExitPreview = S["ExitPreviewOut"];
+export type ExitItem = S["ExitItemOut"];
+export type ExitAssignment = S["ExitAssignmentIn"];
+export type MembershipFunctions = S["MembershipFunctionsOut"];
+export type MembershipDocument = S["MembershipDocumentOut"];
+export type PermissionInfo = S["PermissionOut"];
+export type OfficeNode = S["OfficeNodeOut"];
+export type OfficeDetail = S["OfficeDetailOut"];
+export type OfficeKind = S["OfficeKind"];
+export type Designation = S["DesignationOut"];
+export type TicketList = S["TicketListOut"];
+export type TicketItem = S["TicketItemOut"];
+export type TicketCounts = S["TicketCountsOut"];
+export type TicketDetail = S["TicketDetailOut"];
+export type TicketDocument = S["TicketDocumentOut"];
+export type LoginStep = Omit<S["LoginStepOut"], "challenge_id">;
+export type ResetStep = Omit<S["ResetStepOut"], "challenge_id">;
+export type NextStep = NonNullable<S["TokenOut"]["next_step"]>;

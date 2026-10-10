@@ -1169,3 +1169,63 @@ Design: `docs/design/reports-dashboards.md` (approved by the owner on 2026-10-08
 
 
 - 2026-10-10 — portal-shell: approved by the owner (Next.js portal with a backend-for-frontend, tokens in httpOnly cookies, sign-in screens, shell, dashboard and administration screens; npm commands added to the team allowlist; docs/design/portal-shell.md)
+
+## Portal shell: sign-in, shell, dashboard and administration screens (2026-10-10)
+
+Design note: `docs/design/portal-shell.md` (approved by the owner on 2026-10-10; backlog row 11, status `review`).
+Branch `feature/portal-shell`. No table, column or migration; `docs/schema/schema.md` unchanged.
+
+**What was built**
+- `frontend/`: the Next.js 16 portal (App Router, TypeScript strict, React 19, TanStack Query, CSS Modules, fonts
+  self-hosted from npm). A backend-for-frontend: session route handlers under `/api/session/*` (`login`, `verify`,
+  `resend`, `reset/request`, `reset/confirm`, `password`, `logout`), a relay `/api/backend/[...path]`, and
+  `/api/health`. `src/proxy.ts` gates pages and sets the security headers.
+- Screens: sign-in, code, forgot-password and reset; the forced password change and profile confirmation; the
+  shell (sidebar, header with the alert count, user menu); the dashboard (personal, department and State blocks, each
+  loading and failing alone); administration (users, user detail with the exit dialog, access matrix, offices,
+  designations, tickets) and My profile.
+- Backend: `GET /reference/labels` (`services/reference.py`, `routers/reference.py`); `GET /admin/users` gains `q`,
+  `role`, `include_ended`, `limit`, `offset` and `X-Total-Count`, answering as before without `limit`;
+  `backend/tools/export_openapi.py` writes `frontend/openapi.json`, from which `npm run gen:api` generates
+  `schema.d.ts` (both committed).
+- Compose: `web` service (no `env_file`, so no secret enters it), a health check on `api`, a `portal` network with a
+  fixed subnet. `.env.example` adds `WEB_HOST_PORT`, `COOKIE_SECURE`, `RELAY_TIMEOUT_SECONDS`, `ASLMS_SUBNET`, `WEB_IP`.
+- Tests: Vitest suites for the client, relay, refresh, session, CSRF, proxy gate, UI kit, auth, shell, dashboard
+  and admin screens; backend tests `test_api_reference`, `test_api_users_list`, `test_compose_web`,
+  `test_openapi_snapshot`, `test_token_routes`.
+
+**Decisions** (numbers are the design note's)
+- 2, 3: tokens live in httpOnly cookies (`aslms_at`, `aslms_rt`, `aslms_device`, `aslms_challenge`); the browser never
+  holds a token and the API is unchanged. 4: refresh is single-flight in the web server with a 30-second remembered
+  result, so parallel dashboard calls never present a rotated refresh token twice (correct for one `web` process).
+- 5, 6: writes need `X-ASLMS-Request: 1` and the `PORTAL_BASE_URL` origin; the relay forwards only allowlisted
+  headers, refuses `/auth/*`, `/me/password` and the docs paths, and a backend test checks the token-returning routes
+  against the OpenAPI. 7: `X-Forwarded-For` is trusted by the API only from `WEB_IP`, so audit rows carry the
+  browser's address.
+- 8, 9, 10: the sign-in screens follow the API's steps exactly and the first-sign-in gate stays the server's; page
+  gating is convenience, the API enforces functions, scope and visibility.
+- 11-15: data loads in the browser through the relay; no acting-membership switch; navigation declared once with
+  a `built` flag; the dashboard and administration screens show an action only with its function.
+- 16, 19: the two small API additions and OpenAPI-generated types, with a test failing on a stale `openapi.json`.
+- 17, 18: plain CSS, WCAG 2.1 AA target, English only with all strings in `messages.ts`; CSP with nonce and the
+  other headers. 20, 21: the `web` service as above; frontend checks join the definition of done.
+
+**Deviations** (design note, Deviations section, 13 items; the main ones)
+- A dedicated `portal` network carries the trusted address, so the project's default network and its running
+  containers (the historical load) are not recreated (item 1).
+- Dev tools are the newest releases that run on the local Node 20.18 (ESLint 9, Vitest 4 with Vite 6, jsdom 26,
+  TypeScript 5.9); `npm audit` is clean for runtime dependencies, one advisory remains in the dev-only lint chain
+  (item 2).
+- The relay answers 401 without calling the API when there is no session cookie; stricter CSP and headers than
+  listed; one UI-kit module; tabs and bell shown by function (items 3, 5, 7, 8).
+- Head-change proposals retype the outgoing head; the `exit` variant and a per-item dialog for the admin swap are not
+  offered in the ticket form (items 9, 10).
+- Verification steps 3 and 5-8 (the running Compose stack) were not run: starting `api` would apply migrations 0009
+  and 0013 to the dev database. `docker compose build web` and a local run of the built server were checked (item 13).
+
+**Left for later**
+- Other screens: case inbox, search and case detail (row 12), custody, notes, uploads, alerts and calendar (row 13),
+  reports (row 39), audit and data health (row 41), Case Assistant (row 14).
+- The Compose verification run once the dev database is migrated; the `exit` variant on the ticket form; one `web`
+  process and the `X-Forwarded-For` limit for row 16 (reverse proxy, TLS).
+
