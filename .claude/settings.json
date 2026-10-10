@@ -26,7 +26,18 @@
       "Bash(backend/.venv/Scripts/ruff*)",
       "Bash(backend/.venv/Scripts/python -m pytest*)",
       "Bash(backend/.venv/Scripts/alembic*)",
-      "Bash(backend/.venv/Scripts/aslms queue-status*)"
+      "Bash(backend/.venv/Scripts/aslms queue-status*)",
+      "Bash(npm ci*)",
+      "Bash(npm install*)",
+      "Bash(npm run *)",
+      "Bash(npm test*)",
+      "Bash(npm --prefix frontend *)",
+      "Bash(npx tsc*)",
+      "Bash(npx vitest*)",
+      "Bash(npx next*)",
+      "Bash(npx openapi-typescript*)",
+      "Bash(python backend/tools/export_openapi.py*)",
+      "Bash(backend/.venv/Scripts/python backend/tools/export_openapi.py*)"
     ],
     "deny": [
       "Read(./.env)",
