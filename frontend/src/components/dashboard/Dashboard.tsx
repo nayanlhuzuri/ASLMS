@@ -11,7 +11,7 @@ import { useState, type ReactNode } from "react";
 
 import { Badge, EmptyState, ErrorBanner, Loading, numCell, SelectField, Table, Tile } from "@/components/ui";
 import { api } from "@/lib/api/client";
-import { useMe } from "@/lib/api/hooks";
+import { labelOf, useLabels, useMe } from "@/lib/api/hooks";
 import type {
   AlertCase,
   DashboardDepartment,
@@ -21,6 +21,7 @@ import type {
   DashboardMe,
   DashboardState,
   Me,
+  TicketCounts,
 } from "@/lib/api/types";
 import { canAny } from "@/lib/can";
 import { formatDate, formatDateTime, formatNumber } from "@/lib/format";
@@ -428,6 +429,68 @@ function DepartmentSection({ departments }: { departments: DashboardIndex["depar
   );
 }
 
+/** Holders of these see the ticket panel (user-memberships `GET /admin/tickets/counts`; the API scopes it). */
+const TICKET_HANDLERS = ["admin.tickets", "users.propose_head"] as const;
+
+/**
+ * Admin tickets awaiting action (user-memberships decisions 15-20 and the owner's rule that these requests are
+ * shown on the super admin's dashboard so they are addressed at the earliest). First on the page; counts only.
+ */
+export function TicketsBlock({ data }: { data: TicketCounts }) {
+  const labels = useLabels();
+  const kinds = Object.entries(data.open_by_kind).filter(([, n]) => n > 0);
+  const departments = Object.entries(data.open_by_department).filter(([, n]) => n > 0);
+  return (
+    <Block title={T.dash.tickets} sub={<Link href="/admin/tickets">{T.dash.ticketsOpenList}</Link>}>
+      <div className={s.tiles}>
+        <Tile
+          label={T.dash.ticketsOpen}
+          value={data.open}
+          sub={data.oldest_open_at ? T.dash.ticketsOldest(formatDate(data.oldest_open_at)) : undefined}
+        />
+        {data.departments_without_head != null ? (
+          <Tile label={T.dash.ticketsWithoutHead} value={data.departments_without_head} />
+        ) : null}
+      </div>
+      {data.open === 0 ? <p className="muted">{T.dash.ticketsNone}</p> : null}
+      {kinds.length > 0 ? (
+        <Table caption={T.dash.ticketsByKind}>
+          <tbody>
+            {kinds.map(([kind, n]) => (
+              <tr key={kind}>
+                <th scope="row">{labelOf(labels.data?.ticket_kinds, kind)}</th>
+                <td className={numCell}>{formatNumber(n)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+      ) : null}
+      {departments.length > 0 ? (
+        <Table caption={T.dash.ticketsByDepartment}>
+          <tbody>
+            {departments.map(([code, n]) => (
+              <tr key={code}>
+                <th scope="row" className="mono">
+                  {code}
+                </th>
+                <td className={numCell}>{formatNumber(n)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+      ) : null}
+    </Block>
+  );
+}
+
+function TicketsSection() {
+  const query = useQuery({
+    queryKey: ["dashboard", "tickets"],
+    queryFn: () => api<TicketCounts>("/admin/tickets/counts"),
+  });
+  return <BlockQuery title={T.dash.tickets} query={query} render={(d) => <TicketsBlock data={d} />} />;
+}
+
 function PersonalSection() {
   const query = useQuery({ queryKey: ["dashboard", "me"], queryFn: () => api<DashboardMe>("/dashboard/me") });
   return <BlockQuery title={T.dash.personal} query={query} render={(d) => <PersonalBlock data={d} />} />;
@@ -468,17 +531,20 @@ export function Dashboard() {
   });
   if (me.isPending) return <Loading />;
   if (!me.data) return <ErrorBanner error={me.error} onRetry={() => me.refetch()} />;
+  const handlesTickets = canAny(me.data, TICKET_HANDLERS);
   if (!readsCases) {
     return (
-      <>
+      <div className="stack">
         <h1>{T.dash.title}</h1>
+        {handlesTickets ? <TicketsSection /> : null}
         <NoDashboard me={me.data} />
-      </>
+      </div>
     );
   }
   return (
     <div className="stack">
       <h1>{T.dash.title}</h1>
+      {handlesTickets ? <TicketsSection /> : null}
       {index.isPending ? <Loading /> : null}
       {index.error ? <ErrorBanner error={index.error} onRetry={() => index.refetch()} /> : null}
       {index.data ? (

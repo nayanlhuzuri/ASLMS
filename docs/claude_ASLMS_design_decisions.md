@@ -1229,3 +1229,14 @@ Branch `feature/portal-shell`. No table, column or migration; `docs/schema/schem
 - The Compose verification run once the dev database is migrated; the `exit` variant on the ticket form; one `web`
   process and the `X-Forwarded-For` limit for row 16 (reverse proxy, TLS).
 
+
+## Dashboard ticket panel (2026-10-11)
+- Gap found by the owner on first use: the user-memberships design gave `GET /admin/tickets/counts` "for the
+  dashboard panel" and the owner asked for tickets on the super admin's dashboard, but neither reports-dashboards nor
+  portal-shell built the panel. Added in the portal only (no API change): a "Tickets awaiting action" block first on
+  the dashboard for holders of `admin.tickets` or `users.propose_head` (the API scopes the counts), with open
+  tickets, the oldest open date, departments without a head (super admin), counts by kind and by department, and a
+  link to `/admin/tickets`. Also shown on the short page of a login without case functions.
+- Same day: `/admin/tickets` crashed in the running portal (a server page imported a plain value from a client
+  module); fixed in 5aab8c5. Portal pages must be checked in the Compose `web` service, not only by unit tests
+  (backlog row 43).

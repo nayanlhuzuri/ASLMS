@@ -154,6 +154,54 @@ describe("dashboard", () => {
     expect(within(table).getByRole("rowheader", { name: "Not claimed" })).toBeInTheDocument();
   });
 
+  it("the super admin sees the ticket panel first, with counts by kind and department", async () => {
+    browserApi({
+      "GET /me": makeMe(["cases.view_all", "dashboard.state", "admin.tickets"], "super_admin"),
+      "GET /dashboard": { me: false, departments: [], state: true },
+      "GET /dashboard/state": STATE,
+      "GET /reference/labels": { roles: [], office_kinds: [], ticket_kinds: [{ code: "head_change", label: "Head change" }] },
+      "GET /admin/tickets/counts": {
+        open: 3,
+        open_by_kind: { head_change: 3 },
+        open_by_department: { EDU: 2, HEALTH: 1 },
+        oldest_open_at: "2026-10-09T05:00:00Z",
+        departments_without_head: 1,
+      },
+    });
+    renderWithClient(<Dashboard />);
+    await screen.findByText("Open tickets");
+    const panel = screen.getByRole("region", { name: "Tickets awaiting action" });
+    expect(within(panel).getByText("Departments without a head")).toBeInTheDocument();
+    expect(await within(panel).findByRole("rowheader", { name: "Head change" })).toBeInTheDocument();
+    expect(within(panel).getByRole("rowheader", { name: "EDU" })).toBeInTheDocument();
+    expect(within(panel).getByRole("link", { name: "Open the tickets list" })).toHaveAttribute("href", "/admin/tickets");
+    const regions = screen.getAllByRole("region").map((r) => r.getAttribute("aria-label"));
+    expect(regions[0]).toBe("Tickets awaiting action");
+  });
+
+  it("no ticket panel without a ticket function", async () => {
+    const api = browserApi({
+      "GET /me": makeMe(["cases.view_scope"]),
+      "GET /dashboard": { me: true, departments: [], state: false },
+      "GET /dashboard/me": PERSONAL,
+    });
+    renderWithClient(<Dashboard />);
+    expect(await screen.findByRole("region", { name: "My work" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Tickets awaiting action" })).toBeNull();
+    expect(api.calls.some((c) => c.path.startsWith("/admin/tickets"))).toBe(false);
+  });
+
+  it("a department admin who proposes head changes gets the panel, which says when nothing is open", async () => {
+    browserApi({
+      "GET /me": makeMe(["users.view", "users.propose_head"], "dept_admin"),
+      "GET /admin/tickets/counts": { open: 0, open_by_kind: {}, open_by_department: {}, oldest_open_at: null },
+    });
+    renderWithClient(<Dashboard />);
+    await screen.findByText("No open tickets.");
+    const panel = screen.getByRole("region", { name: "Tickets awaiting action" });
+    expect(within(panel).queryByText("Departments without a head")).toBeNull();
+  });
+
   it("a login without case functions gets the short page", async () => {
     const api = browserApi({ "GET /me": makeMe(["users.view", "offices.manage"], "dept_admin") });
     renderWithClient(<Dashboard />);
