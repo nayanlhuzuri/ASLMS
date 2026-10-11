@@ -37,7 +37,9 @@
       "Bash(npx next*)",
       "Bash(npx openapi-typescript*)",
       "Bash(python backend/tools/export_openapi.py*)",
-      "Bash(backend/.venv/Scripts/python backend/tools/export_openapi.py*)"
+      "Bash(backend/.venv/Scripts/python backend/tools/export_openapi.py*)",
+      "Bash(backend/.venv/Scripts/python backend/tools/portal_smoke.py*)",
+      "Bash(docker compose up -d --wait --no-deps web*)"
     ],
     "deny": [
       "Read(./.env)",
