@@ -26,7 +26,9 @@ export const ALERT_POLL_MS = 2 * 60 * 1000;
 
 function isActive(pathname: string, href: string): boolean {
   if (href === "/") return pathname === "/";
-  return pathname === href || pathname.startsWith(href + "/");
+  // an entry stays current across its section's tabs (`/data/load` → every `/data/...` page)
+  const section = "/" + (href.split("/")[1] ?? "");
+  return pathname === section || pathname.startsWith(section + "/");
 }
 
 export function Sidebar({ me }: { me: Me }) {

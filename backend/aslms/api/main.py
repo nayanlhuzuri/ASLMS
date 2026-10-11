@@ -14,6 +14,7 @@ from aslms.api.routers import audit as audit_router
 from aslms.api.routers import auth as auth_router
 from aslms.api.routers import cases as cases_router
 from aslms.api.routers import dashboard as dashboard_router
+from aslms.api.routers import data_load as data_load_router
 from aslms.api.routers import documents as documents_router
 from aslms.api.routers import inbox as inbox_router
 from aslms.api.routers import matching as matching_router
@@ -63,6 +64,7 @@ def create_app(settings: Settings | None = None, session_factory=None) -> FastAP
     app.include_router(reports_router.router)
     app.include_router(audit_router.router)
     app.include_router(napix_admin_router.router)
+    app.include_router(data_load_router.router)
 
     @app.get("/health", tags=["ops"])
     def health() -> dict[str, str]:

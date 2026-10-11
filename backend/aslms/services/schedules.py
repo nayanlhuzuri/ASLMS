@@ -15,7 +15,7 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from aslms.domain.documents import DownloadStatus, Order
-from aslms.domain.ops import FetchKind
+from aslms.domain.ops import FetchKind, FetchLane
 from aslms.services import queue
 from aslms.services.tracking import enqueue_status_batches, enqueue_weekly_dossier_sweep
 
@@ -29,7 +29,13 @@ def enqueue_daily_lists(session: Session, today: date | None = None) -> int:
     n = 0
     for d in (today - timedelta(days=1), today, today + timedelta(days=1)):
         if queue.enqueue(
-            session, FetchKind.CAUSELIST_DAY, d.isoformat(), queue.PRIORITY["list_today"], requeue=True
+            session,
+            FetchKind.CAUSELIST_DAY,
+            d.isoformat(),
+            queue.PRIORITY["list_today"],
+            requeue=True,
+            lane=FetchLane.DAILY,
+            list_date=d,
         ):
             n += 1
     return n

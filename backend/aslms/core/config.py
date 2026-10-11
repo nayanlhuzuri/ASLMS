@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from pydantic import AliasChoices, Field, SecretStr
+from pydantic import AliasChoices, Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -47,6 +47,9 @@ class Settings(BaseSettings):
     napix_rate_limit_per_min: int = 60
     napix_rate_window_seconds: int = 3600  # 1,000 calls per clock hour, measured 1 Oct 2026 (notes §6)
     napix_rate_reserve: int = 150  # calls kept for the daily cycle; the load queue stops below this
+    # below this remaining hourly quota the runner claims nothing at all; between it and the rate reserve only the
+    # daily and request lanes (design data-load-console, decision 4): load >= 150 > daily >= 100 > searches >= 50
+    napix_live_reserve: int = 100
     # Current Status sends the CNRs in the query string: the gateway answers HTTP 414 above ~300 CNRs (live probe
     # 7 Oct 2026: 300 ok, 350 -> 414, 400+ -> 405); 250 leaves margin. The spec's maximum is 500.
     napix_status_batch: int = Field(250, ge=1, le=300)
@@ -128,6 +131,19 @@ class Settings(BaseSettings):
     report_pdf_max_rows: int = Field(1000, ge=1, le=50_000)  # case rows per PDF section
     report_statement_timeout_seconds: int = Field(30, ge=1, le=300)  # SET LOCAL statement_timeout
     dashboard_list_size: int = Field(10, ge=1, le=50)  # rows in each dashboard list
+
+    # --- the data-load console (design data-load-console, decision 8) ------------------------
+    data_load_estimate_window_days: int = Field(7, ge=1, le=30)  # rates measured over this many days
+
+    @model_validator(mode="after")
+    def _reserves_ordered(self) -> Settings:
+        """Decision 4: searches stop first, then the daily cycle, then the load."""
+        if not (self.napix_search_floor <= self.napix_live_reserve <= self.napix_rate_reserve):
+            raise ValueError(
+                "NAPIX_SEARCH_FLOOR <= NAPIX_LIVE_RESERVE <= NAPIX_RATE_RESERVE must hold "
+                f"({self.napix_search_floor}, {self.napix_live_reserve}, {self.napix_rate_reserve})"
+            )
+        return self
 
     @property
     def is_prod(self) -> bool:

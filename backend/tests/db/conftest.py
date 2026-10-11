@@ -41,6 +41,22 @@ def alembic_config(url: str) -> Config:
     return cfg
 
 
+@pytest.fixture(scope="session", autouse=True)
+def no_bootstrap_super_admin() -> Iterator[None]:
+    """The suite is green whatever a local `.env` holds: ASLMS_SUPERADMIN_EMAIL / ASLMS_SUPERADMIN_PASSWORD
+    there would make `seed_all` create a second super admin next to the test world's one. Process environment
+    variables win over the `.env` file, so both are blanked for the session and the settings cache is cleared.
+    Tests that need a bootstrap super admin patch `access_seed.get_settings` themselves."""
+    from aslms.core.config import get_settings
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setenv("ASLMS_SUPERADMIN_EMAIL", "")
+        mp.setenv("ASLMS_SUPERADMIN_PASSWORD", "")
+        get_settings.cache_clear()
+        yield
+    get_settings.cache_clear()
+
+
 @pytest.fixture(scope="session")
 def db_url() -> str:
     try:

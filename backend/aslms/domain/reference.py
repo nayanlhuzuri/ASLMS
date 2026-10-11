@@ -143,6 +143,7 @@ class EventType(enum.StrEnum):
     USER_UPDATED = "user_updated"
     ACCESS_CHANGED = "access_changed"
     CASE_TAKEN_OVER = "case_taken_over"
+    CASE_MERGED = "case_merged"  # a provisional row merged into the row holding its CNR (data-load-console)
 
 
 class Permission(enum.StrEnum):
@@ -173,6 +174,7 @@ class Permission(enum.StrEnum):
     ADMIN_SOURCETRACE = (
         "admin.sourcetrace"  # SourceTrace ingestion status and retries (sourcetrace-connector)
     )
+    ADMIN_DATA_LOAD = "admin.data_load"  # the backdated load and duplicate checks (data-load-console)
     # cases and ownership
     CASES_VIEW_SCOPE = "cases.view_scope"
     CASES_VIEW_ALL = "cases.view_all"

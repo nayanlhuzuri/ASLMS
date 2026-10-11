@@ -30,22 +30,28 @@ class NapixRecorder:
         self.pending: list[NapixResult] = []
         self.calls = 0
         self.last_remaining: int | None = None
+        # the lane of the queue item being processed (design data-load-console, decision 7); None for API calls
+        self.lane: str | None = None
+        self._lanes: list[str | None] = []
 
     def on_call(self, result: NapixResult) -> None:
         self.pending.append(result)
+        self._lanes.append(self.lane)
         self.calls += 1
         if result.rate_limit[1] is not None:
             self.last_remaining = result.rate_limit[1]
 
     def flush(self, session: Session) -> int:
         n = 0
-        for r in self.pending:
+        lanes = self._lanes + [None] * (len(self.pending) - len(self._lanes))
+        for r, lane in zip(self.pending, lanes, strict=False):
             session.execute(
                 text(
                     """
                     INSERT INTO napix_call_log (api, params_sha256, http_status, napix_status, duration_ms, ok,
-                        error_family, error, token_verified, rate_limit_remaining, job_run_id)
-                    VALUES (:api, :ps, :http, :ns, :dur, :ok, :ef, :err, :tv, :rem, :job)
+                        error_family, error, token_verified, rate_limit_remaining, job_run_id, lane)
+                    VALUES (:api, :ps, :http, :ns, :dur, :ok, :ef, :err, :tv, :rem, :job,
+                        CAST(:lane AS fetch_lane))
                     """
                 ),
                 {
@@ -60,12 +66,14 @@ class NapixRecorder:
                     "tv": r.token_verified,
                     "rem": r.rate_limit[1],
                     "job": self.job_run_id,
+                    "lane": getattr(lane, "value", lane),
                 },
             )
             if r.ok and r.data is not None and r.pdf is None:
                 store_response(session, r, self.job_run_id)
             n += 1
         self.pending.clear()
+        self._lanes.clear()
         return n
 
 

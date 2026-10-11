@@ -2207,6 +2207,12 @@ class NapixHealthOut(BaseModel):
     last_check: NapixLastCheckOut | None
 
 
+class LaneCountsOut(BaseModel):
+    request: int
+    daily: int
+    load: int
+
+
 class QueueKindOut(BaseModel):
     kind: str
     pending: int
@@ -2217,6 +2223,7 @@ class QueueKindOut(BaseModel):
     failed: int
     skipped: int
     done: int
+    by_lane: LaneCountsOut
 
 
 class QueueDepthsOut(BaseModel):
@@ -2303,6 +2310,8 @@ class QueueRowOut(BaseModel):
     last_error: str | None
     result: Any = None
     updated_at: datetime | None
+    lane: str
+    list_date: date | None
 
 
 class QueueListOut(BaseModel):
@@ -2366,15 +2375,18 @@ class QueueStateOut(BaseModel):
     priority: int | None
     attempts: int
     not_before: datetime | None
+    lane: str | None = None
     napix_enabled: bool
 
 
 class RefetchDayIn(BaseModel):
     date: date
+    force: bool = Field(False, description="queue a day already held (done with lists, or skipped) anyway")
 
 
 class RefetchCaseIn(BaseModel):
     case: str = Field(min_length=1, max_length=200)
+    force: bool = Field(False, description="queue a case whose details are already held anyway")
 
 
 class RefetchOrderIn(BaseModel):
@@ -2384,8 +2396,265 @@ class RefetchOrderIn(BaseModel):
 
 class RetryFailedIn(BaseModel):
     kind: Literal["masters", "causelist_day", "dossier", "status_batch", "order_pdf"]
+    lane: Literal["request", "daily", "load"] | None = None
 
 
 class RetryFailedOut(BaseModel):
     kind: str
     retried: int
+
+
+# ------------------------------------------------------------------------------------------------ the data-load console
+
+
+class DataLoadSettingsOut(BaseModel):
+    version: int
+    paused: bool
+    load_order: str
+    first_from: date | None
+    first_to: date | None
+    reason: str | None
+    changed_at: datetime | None
+    changed_by: str | None
+
+
+class LoadPeriodOut(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    from_: date = Field(alias="from")
+    to: date
+
+
+class DayTotalsOut(BaseModel):
+    calendar: int
+    with_lists: int
+    no_list: int
+    waiting: int
+    failed: int
+    not_queued: int
+
+
+class CaseTotalsOut(BaseModel):
+    listed: int
+    with_details: int
+    provisional: int
+
+
+class OrderTotalsOut(BaseModel):
+    referenced: int
+    stored: int
+    not_available: int
+    waiting: int
+
+
+class LoadTotalsOut(BaseModel):
+    days: DayTotalsOut
+    cases: CaseTotalsOut
+    orders: OrderTotalsOut
+
+
+class WorkLeftOut(BaseModel):
+    kind: str
+    pending: int
+    runnable: int
+    waiting: int
+    running: int
+    failed: int
+
+
+class LoadFailureKindOut(BaseModel):
+    kind: str
+    failed: int
+
+
+class LoadFailureRowOut(BaseModel):
+    id: uuid.UUID
+    kind: str
+    ref: str
+    attempts: int
+    last_error: str | None
+    finished_at: datetime | None
+
+
+class LoadFailuresOut(BaseModel):
+    by_kind: list[LoadFailureKindOut]
+    latest: list[LoadFailureRowOut]
+
+
+class AllowanceUsedOut(BaseModel):
+    load: int
+    daily: int
+    request: int
+    outside_queue: int
+
+
+class AllowanceOut(BaseModel):
+    hour_started_at: datetime
+    used: AllowanceUsedOut
+    remaining: int | None
+    rate_reserve: int
+    live_reserve: int
+    search_floor: int
+    seconds_to_next_hour: int
+
+
+class EstimateOut(BaseModel):
+    finish_at: datetime | None
+    hours: float | None
+    calls_needed: float | None
+    reason: str | None = Field(None, description="paused | not_enough_history | no_recent_calls")
+    basis: dict[str, Any]
+
+
+class DataLoadOut(BaseModel):
+    as_of: datetime
+    napix_enabled: bool
+    settings: DataLoadSettingsOut
+    period: LoadPeriodOut | None
+    totals: LoadTotalsOut | None
+    work_left: list[WorkLeftOut]
+    failures: LoadFailuresOut
+    allowance: AllowanceOut
+    estimate: EstimateOut
+
+
+class KindCountsOut(BaseModel):
+    causelist_day: int
+    dossier: int
+    order_pdf: int
+
+
+class MonthCoverageOut(BaseModel):
+    month: str
+    days: DayTotalsOut
+    lists: int
+    entries: int
+    lists_parse_failed: int
+    cases: CaseTotalsOut
+    orders: OrderTotalsOut
+    work_left: KindCountsOut
+    failed: KindCountsOut
+    days_covered_pct: float
+    details_pct: float | None
+
+
+class CoverageOut(BaseModel):
+    months: list[MonthCoverageOut]
+
+
+class LoadRangeIn(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    from_: date = Field(alias="from")
+    to: date
+
+
+class LoadStartIn(LoadRangeIn):
+    held: Literal["skip", "refetch"] | None = Field(
+        None, description="what to do with days already held; required when the range has any"
+    )
+
+
+class LoadPreviewOut(BaseModel):
+    days: int
+    held_with_lists: int
+    held_no_list: int
+    waiting: int
+    failed: int
+    not_queued: int
+    calls_estimate: float | None
+    masters_stale: bool
+
+
+class LoadStartOut(BaseModel):
+    days: int
+    queued: int
+    held_skipped: int
+    held_requeued: int
+    revived: int
+    masters_queued: bool
+
+
+class LoadPauseIn(BaseModel):
+    reason: str = Field(min_length=3, max_length=500)
+
+
+class LoadResumeIn(BaseModel):
+    reason: str | None = Field(None, max_length=500)
+
+
+class LoadOrderIn(BaseModel):
+    load_order: Literal["cases_first", "lists_first", "cases_with_orders"]
+    first_from: date | None = None
+    first_to: date | None = None
+    reason: str = Field(min_length=3, max_length=500)
+
+
+class LoadOrderOut(BaseModel):
+    settings: DataLoadSettingsOut
+    reprioritised: int
+
+
+class LoadFetchCnrIn(CourtSearchCnrIn):
+    force: bool = False
+
+
+class LoadFetchCaseNumberIn(CourtSearchCaseNumberIn):
+    force: bool = False
+
+
+class LoadFetchPartyIn(CourtSearchPartyIn):
+    force: bool = False
+
+
+LoadFetchIn = Annotated[
+    LoadFetchCnrIn | LoadFetchCaseNumberIn | LoadFetchPartyIn, Field(discriminator="kind")
+]
+
+
+class HeldCaseOut(CaseSearchItemOut):
+    dossier_fetched_at: datetime | None
+    dossier_stale: bool
+
+
+class FetchDetailsIn(BaseModel):
+    cases: list[str] = Field(min_length=1, max_length=200)
+    force: bool = False
+
+
+class FetchDetailItemOut(BaseModel):
+    ref: str
+    case: CaseSearchItemOut | None
+    state: Literal["queued", "already_held", "merged", "no_reference", "not_found"]
+    queue: QueueStateOut | None = None
+    merged_into_ref_no: str | None = None
+
+
+class FetchDetailsOut(BaseModel):
+    items: list[FetchDetailItemOut]
+
+
+class DuplicateCaseOut(BaseModel):
+    id: uuid.UUID
+    ref_no: str
+    cnr: str | None
+    case_no_text: str | None
+
+
+class DuplicateItemOut(BaseModel):
+    kind: str
+    case: DuplicateCaseOut | None
+    other: DuplicateCaseOut | None
+    at: datetime | None
+    reasons: str | None = None
+
+
+class DuplicatesOut(BaseModel):
+    total: int
+    items: list[DuplicateItemOut]
+
+
+class DedupeScanOut(BaseModel):
+    merged: int
+    needs_review: int
+    court_linked: int

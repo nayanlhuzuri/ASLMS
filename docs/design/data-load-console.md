@@ -625,3 +625,58 @@ none blocks the design.
 - A department discovery lane (row 19) would join as a fourth lane or as `load` rows with its own `list_date`-less
   origin.
 - Re-running today's Current Status batches early (audit-screens decision 12, row 41).
+
+## Deviations
+Written by the developer while building (smallest reasonable choices where the design was silent):
+1. **The lane and priority policy lives in `services/load_policy.py`.** `LoadSettings`, `current_settings`,
+   `load_priority` and `QueueOrigin` sit in a small module that `causelists`, `orders`, `court_search` and the runner
+   import; `services/data_load.py` re-exports them. Keeping them in `data_load.py` would make an import cycle
+   (`data_load` → `court_search` → `orders` → `data_load`).
+2. **Skipped days count as held.** A `causelist_day` row that ended `skipped` (the court published no list) is
+   `held_no_list` and follows the `held` choice like a done day (`skip` leaves it, `refetch` re-queues it), matching
+   the 409 body `{held_with_lists, held_no_list}`. "Always revived" applies to failed days only.
+3. **Portal records checked before a merge also include `custody_history` and `case_stages`** (both are portal
+   records of a case; decision 14 listed the others).
+4. **A provisional row sharing its number with several CNR rows** (court duplicates) is merged into the oldest of
+   them (deterministic); the court-duplicate link joins the others.
+5. **A person's court search queues its order PDFs in the `request` lane** (priority 40): `POST /cases/search-court`,
+   `/cases/{ref}/fetch-court` and the console's fetch pass a request origin to `fetch_dossier`.
+6. **Linking court duplicates rescores both cases at once**, so the linked-case recommendation appears without
+   waiting for the next rescore (decision 15's signal; never an assignment).
+7. **The advisory lock is taken only on the creation path**: `get_or_create_case` looks up first and, when nothing
+   matches, takes the lock and looks again before inserting. A cause-list day with thousands of known cases takes
+   no lock for them, which keeps the transaction's lock count small.
+8. **`fetch-details` items carry `ref`** (as sent); `case` is null for `not_found`.
+9. **Error bodies are JSON-encoded centrally**: `api/errors.detail` passes the extras through `jsonable_encoder`, so
+   the 409 bodies carry IST times as ISO strings.
+10. **`aslms load` over a range reaching today**: the days up to yesterday go through `data_load.start` (held days
+    skipped, or re-fetched with `--requeue`; audited); today and later are queued in the `daily` lane at 20. The
+    old unconditional masters row is queued only when the range has no backdated day (start queues it when stale).
+    `aslms refetch-date` and `refetch-case` take `--force` for held data.
+11. **Defaults written into rows**: the masters row queued by a start is in the `request` lane at 10; a resume
+    without a reason stores "resumed" (`reason` is NOT NULL).
+12. **`GET /admin/data-health`'s `by_lane`** counts the pending rows of each kind per lane.
+13. **Coverage's `lists`** counts the month's cause lists with a stored PDF; `entries` counts every entry of the
+    month's lists; `lists_parse_failed` the lists whose parse failed.
+14. **The 409 `already_held` body of `POST /admin/data-load/fetch` is not in the OpenAPI document** (error bodies are
+    untyped there); the portal types `HeldCase` by hand from `CaseSearchItemOut`.
+15. **`aslms data-load dedupe --dry-run` writes nothing** (no audit row), like the sweep's dry run; the real run and
+    the 03:00 job write `data_load.dedupe_scan` (the job as the `system` actor) besides the job's `job_runs` row.
+16. **The portal's "Data collection" entry stays current on every `/data/...` page** (the sidebar matches the
+    entry's first path segment), and `/data` opens the first tab the login may see.
+17. **A zero or negative number makes a key unusable** (review finding). NAPIX gives a filed but unregistered case
+    `reg_no` 0 and `reg_year` 0 (printed `WA/0/0`; 203 such CNR rows in the dev database, 42 of them `WA/0/0`). A
+    number or year of zero or less, whether given or parsed from the printed number, means the case has no case
+    number key (neither the compact form nor type, number and year). A filing number or year of zero or less means
+    it has no filing key. So such rows are never merged, never adopted as provisional rows and never linked as the
+    court's duplicates. The sweep's candidate query skips them as well. A provisional row printed with a zero number
+    takes no number lock and is never found again by its number. The dev database has no cause-list entry like that.
+18. **The merge locks the provisional row before it checks for portal records** (review finding). `merge_provisional`
+    takes `SELECT ... FOR UPDATE` on P's row, re-reads P and checks `cnr` and `merged_into_case_id` again, and only
+    then checks P's portal records. A claim locks the same row, and an uncommitted insert that references P (note,
+    document, custody row) holds a key-share lock that conflicts with `FOR UPDATE`. So a write made at the same
+    time is either seen by the check, which lists the pair for review, or it waits and then finds P merged. If P
+    got a CNR or was merged while the merge waited, `merge_provisional` raises `MergeStale` (a `ValueError`). The
+    sweep and the console scan skip the pair. The user's court fetch answers 409 `already_fetched` ("changed while
+    it was being merged; open it again"). In the runner the queue item fails and is retried, and the retry finds
+    the row as it now stands.

@@ -10,7 +10,16 @@ import pytest
 import sqlalchemy as sa
 
 from aslms.core.config import Settings
-from aslms.domain.cases import Case, CaseAdvocate, CaseHearing, CaseParty, CaseSnapshot, FirstSeenSource
+from aslms.domain.cases import (
+    Case,
+    CaseAdvocate,
+    CaseHearing,
+    CaseLink,
+    CaseParty,
+    CaseSnapshot,
+    FirstSeenSource,
+    LinkKind,
+)
 from aslms.domain.causelists import Causelist, CauselistBenchDay, CauselistEntry
 from aslms.domain.courts import Act, Bench, CaseType, Court, District, HighCourt
 from aslms.domain.documents import Document, Order
@@ -77,6 +86,8 @@ def test_causelist_day_and_dossiers(clean_db, napix, engine, tmp_path):
         storage_dir=str(tmp_path / "store"),
         causelist_dir=str(tmp_path / "lists"),
         napix_rate_reserve=0,
+        napix_live_reserve=0,
+        napix_search_floor=0,
     )
     recorder = NapixRecorder()
     client.on_call = recorder.on_call
@@ -176,7 +187,16 @@ def test_causelist_day_and_dossiers(clean_db, napix, engine, tmp_path):
         and c3["case_hearings"] == 27
         and c3["orders"] == 27
     )
-    assert c3["case_snapshots"] == 9 and c3["case_links"] == 0 and c3["case_lower_courts"] == 0
+    # the scripted gateway answers one dossier (re-labelled) for every CNR, so the nine rows share one case number
+    # and filing number: the court's own duplicates, linked pairwise, never merged (data-load-console, decision 15)
+    assert c3["case_snapshots"] == 9 and c3["case_links"] == 9 * 8 // 2 and c3["case_lower_courts"] == 0
+    with Session() as s:
+        kinds = set(s.scalars(sa.select(CaseLink.kind).distinct()).all())
+        assert kinds == {LinkKind.COURT_DUPLICATE}
+        assert (
+            s.scalar(sa.select(sa.func.count()).select_from(Case).where(Case.merged_into_case_id.isnot(None)))
+            == 0
+        )
     with Session() as s:
         case = s.scalar(sa.select(Case).where(Case.cnr == "GAHC010020342016"))
         assert (

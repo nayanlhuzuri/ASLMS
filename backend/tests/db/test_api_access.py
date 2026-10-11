@@ -101,7 +101,7 @@ def test_login_me_refresh_logout(api):
     me = api.get("/me", headers=h).json()
     assert me["user"]["role"] == "super_admin" and me["user"]["office"]["code"] == "GOA"
     assert me["user"]["must_change_password"] is False
-    assert len(me["functions"]) == 48
+    assert len(me["functions"]) == 49
     r = api.post("/auth/refresh", json={"refresh_token": tok["refresh_token"]})
     assert r.status_code == 200 and r.json()["refresh_token"] != tok["refresh_token"]
     new = r.json()
@@ -200,7 +200,7 @@ def test_department_admin_creates_users_within_scope(api):
         == 403
     )
     perms = api.get("/admin/permissions", headers=root).json()
-    assert len(perms) == 50 and {p["module"] for p in perms} >= {"users", "cases", "notes"}
+    assert len(perms) == 51 and {p["module"] for p in perms} >= {"users", "cases", "notes"}
     # root sees everyone; audit rows exist for the changes
     assert len(api.get("/admin/users", headers=root).json()) == 4
     assert api.get("/admin/offices", headers=admin).json()[0]["code"] == "EDU"

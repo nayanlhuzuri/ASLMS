@@ -1,7 +1,10 @@
 """The queue runner: pulls `fetch_queue` rows in priority order and dispatches them to the pipeline stages,
-spending the gateway budget (`NAPIX_RATE_RESERVE` calls are kept for the daily cycle). One `job_runs` row per
-invocation; every NAPIX attempt is logged and every response kept by the recorder. Survives restarts: a row
-is only `done` when its transaction committed."""
+spending the gateway budget by bands (design `data-load-console`, decision 4): any lane while the hour's remaining
+quota is at least `NAPIX_RATE_RESERVE`; only the daily and request lanes between `NAPIX_LIVE_RESERVE` and it; nothing
+below `NAPIX_LIVE_RESERVE` (the worker sleeps to the next clock hour). Each pass seeds the remaining count from the
+latest `napix_call_log.rate_limit_remaining` of the current hour. One `job_runs` row per invocation; every NAPIX
+attempt is logged with the lane of its item and every response kept by the recorder. Work an item spawns inherits
+its lane and `list_date` (`QueueOrigin`). Survives restarts: a row is only `done` when its transaction committed."""
 
 from __future__ import annotations
 
@@ -21,12 +24,13 @@ from aslms.core.config import Settings, get_settings
 from aslms.core.errors import IntegrationError, NapixInputError, NapixNotFound
 from aslms.domain.cases import Case, FirstSeenSource
 from aslms.domain.courts import Court
-from aslms.domain.ops import FetchKind, FetchQueueItem, JobRun, JobStatus
+from aslms.domain.ops import FetchKind, FetchLane, FetchQueueItem, JobRun, JobStatus
 from aslms.integration.napix.client import NapixClient
 from aslms.integration.napix.hc import NapixHighCourt
-from aslms.services import court_search, queue
-from aslms.services.cases import get_or_create_case
+from aslms.services import case_dedupe, court_search, queue
+from aslms.services.cases import find_case, get_or_create_case
 from aslms.services.causelists import load_causelist_day
+from aslms.services.load_policy import QueueOrigin, current_settings, load_priority
 from aslms.services.masters import sync_masters
 from aslms.services.napix_store import NapixRecorder
 from aslms.services.orders import fetch_order_pdf
@@ -71,6 +75,7 @@ class QueueRunner:
         self.causelist_dir = causelist_dir if causelist_dir is not None else Path(self.settings.causelist_dir)
         self.recorder = recorder or NapixRecorder()
         self.reserve = self.settings.napix_rate_reserve if reserve is None else reserve
+        self.live_reserve = min(self.settings.napix_live_reserve, self.reserve)
 
     # ------------------------------------------------------------------ lifecycle
     def start_job(self, job: str) -> uuid.UUID:
@@ -98,9 +103,24 @@ class QueueRunner:
             self.recorder.flush(s)
             s.commit()
 
-    def budget_ok(self) -> bool:
+    def budget_lanes(self) -> tuple[bool, list[FetchLane] | None]:
+        """Decision 4: (may claim, lanes). Any lane at or above the rate reserve; the daily and request lanes
+        between the live reserve and it; nothing below the live reserve."""
         rem = self.recorder.last_remaining
-        return rem is None or rem >= self.reserve
+        if rem is None or rem >= self.reserve:
+            return True, None
+        if rem >= self.live_reserve:
+            return True, [FetchLane.REQUEST, FetchLane.DAILY]
+        return False, None
+
+    def budget_ok(self) -> bool:
+        return self.budget_lanes()[0]
+
+    def seed_remaining(self) -> None:
+        """The latest remaining count of the current clock hour from the call log (None in a fresh hour), so a
+        fresh pass does not spend the reserve on its first item."""
+        with self.session_factory() as s:
+            self.recorder.last_remaining = court_search.latest_remaining_this_hour(s)
 
     # ------------------------------------------------------------------ the loop
     async def run(
@@ -113,22 +133,30 @@ class QueueRunner:
             with self.session_factory() as s:
                 queue.requeue_stale(s)
                 s.commit()
+            self.seed_remaining()
             while max_items is None or report.processed < max_items:
-                if not self.budget_ok():
+                allowed, lanes = self.budget_lanes()
+                if not allowed:
                     report.stopped_reason = (
-                        f"rate budget: {self.recorder.last_remaining} remaining < reserve {self.reserve}"
+                        f"rate budget: {self.recorder.last_remaining} remaining < live reserve "
+                        f"{self.live_reserve}"
                     )
                     break
                 with self.session_factory() as s:
-                    item = queue.claim(s, kinds)
+                    item = queue.claim(s, kinds, lanes=lanes)
                     if item is None:
                         s.commit()
-                        report.stopped_reason = report.stopped_reason or "queue empty"
+                        report.stopped_reason = report.stopped_reason or (
+                            f"load waits: {self.recorder.last_remaining} remaining < reserve {self.reserve}"
+                            if lanes is not None
+                            else "queue empty"
+                        )
                         break
                     kind, ref, item_id = item.kind, item.ref, item.id
+                    lane, list_date = FetchLane(item.lane), item.list_date
                     s.commit()
                 report.processed += 1
-                await self._process(item_id, kind, ref, report)
+                await self._process(item_id, kind, ref, report, lane=lane, list_date=list_date)
         except BudgetExhausted as exc:
             report.stopped_reason = str(exc)
         except Exception:  # noqa: BLE001
@@ -141,13 +169,24 @@ class QueueRunner:
             self.finish_job(report.job_run_id, report, status)
         return report
 
-    async def _process(self, item_id: uuid.UUID, kind: FetchKind, ref: str, report: RunReport) -> None:
+    async def _process(
+        self,
+        item_id: uuid.UUID,
+        kind: FetchKind,
+        ref: str,
+        report: RunReport,
+        *,
+        lane: FetchLane = FetchLane.DAILY,
+        list_date: date | None = None,
+    ) -> None:
         calls_before = self.recorder.calls
+        self.recorder.lane = lane.value
         with self.session_factory() as s:
             item = s.get(FetchQueueItem, item_id)
             assert item is not None
             try:
-                result, skipped = await self.dispatch(s, kind, ref)
+                origin = QueueOrigin(lane, list_date, current_settings(s) if lane == FetchLane.LOAD else None)
+                result, skipped = await self.dispatch(s, kind, ref, origin)
                 queue.complete(s, item, result, skipped=skipped)
                 report.done += int(not skipped)
                 report.skipped += int(skipped)
@@ -171,6 +210,7 @@ class QueueRunner:
                 log.warning("queue item failed", kind=kind.value, ref=ref, error=str(exc)[:300])
             self.recorder.flush(s)
             s.commit()
+        self.recorder.lane = None
         report.calls = self.recorder.calls
         report.items.append(
             {"kind": kind.value, "ref": ref, "outcome": outcome, "calls": self.recorder.calls - calls_before}
@@ -184,13 +224,16 @@ class QueueRunner:
         )
 
     # ------------------------------------------------------------------ handlers
-    async def dispatch(self, s: Session, kind: FetchKind, ref: str) -> tuple[dict[str, Any] | None, bool]:
+    async def dispatch(
+        self, s: Session, kind: FetchKind, ref: str, origin: QueueOrigin | None = None
+    ) -> tuple[dict[str, Any] | None, bool]:
+        origin = origin or QueueOrigin()
         if kind == FetchKind.MASTERS:
             return await self._masters(s), False
         if kind == FetchKind.CAUSELIST_DAY:
-            return await self._causelist_day(s, date.fromisoformat(ref))
+            return await self._causelist_day(s, date.fromisoformat(ref), origin)
         if kind == FetchKind.DOSSIER:
-            return await self._dossier(s, ref)
+            return await self._dossier(s, ref, origin)
         if kind == FetchKind.STATUS_BATCH:
             if self.hc is None:
                 raise RuntimeError("NAPIX is off: status batches cannot run")
@@ -215,14 +258,12 @@ class QueueRunner:
         rep = await sync_masters(s, self.hc, job_run_id=self.recorder.job_run_id)
         return rep.counts
 
-    async def _causelist_day(self, s: Session, list_date: date) -> tuple[dict[str, Any], bool]:
+    async def _causelist_day(
+        self, s: Session, list_date: date, origin: QueueOrigin
+    ) -> tuple[dict[str, Any], bool]:
         court = self._court(s)
-        today = date.today()
-        priority = (
-            queue.PRIORITY["dossier_new"]
-            if (today - list_date).days <= 2
-            else queue.PRIORITY["dossier_new"] + 5
-        )
+        if origin.list_date is None:
+            origin = QueueOrigin(origin.lane, list_date, origin.settings)
         rep = await load_causelist_day(
             s,
             self.hc,
@@ -230,65 +271,103 @@ class QueueRunner:
             list_date,
             store=self.store,
             causelist_dir=self.causelist_dir,
-            dossier_priority=priority,
+            origin=origin,
         )
         return rep.as_dict(), rep.skipped_reason is not None
 
-    async def _dossier(self, s: Session, ref: str) -> tuple[dict[str, Any], bool]:
+    async def _dossier(self, s: Session, ref: str, origin: QueueOrigin) -> tuple[dict[str, Any], bool]:
         """A dossier by CNR, or by `<est>|<case number>` through Search by Case Number; the fetch itself is
-        `court_search.fetch_dossier`, shared with the user-facing court search."""
+        `court_search.fetch_dossier`, shared with the user-facing court search. A provisional row whose number
+        resolves to a CNR another row holds is merged into that row (design `data-load-console`, decision 13); when
+        it holds portal records the pair is listed for review and the row ends `skipped`."""
         if self.hc is None:
             raise RuntimeError("NAPIX is off: dossiers cannot be fetched")
         court = self._court(s)
+        merged: dict[str, Any] | None = None
         if "|" in ref:
             est, case_no = ref.split("|", 1)
             if est != court.est_code:
                 court = s.scalar(select(Court).where(Court.est_code == est)) or court
-            case = s.scalar(
+            exact = s.scalar(
                 select(Case)
-                .where(Case.court_id == court.id, Case.case_no_text == case_no)
-                .order_by(Case.cnr.desc().nulls_last())
+                .where(
+                    Case.court_id == court.id,
+                    Case.case_no_text == case_no,
+                    Case.cnr.isnot(None),
+                    Case.merged_into_case_id.is_(None),
+                )
+                .order_by(Case.created_at)
                 .limit(1)
             )
             cnr = (
-                case.cnr if case and case.cnr else await court_search.resolve_cnr(s, self.hc, court, case_no)
+                exact.cnr if exact is not None else await court_search.resolve_cnr(s, self.hc, court, case_no)
             )
             if cnr is None:
                 return {"error": "not found by case number"}, True
-            if case is None:
+            provisional = find_case(s, court, cnr=None, case_no=case_no)
+            holder = s.scalar(select(Case).where(Case.cnr == cnr))
+            if provisional is not None and holder is not None and holder.id != provisional.id:
+                out = case_dedupe.merge_provisional(s, provisional, holder)
+                if isinstance(out, case_dedupe.NeedsReview):
+                    return {
+                        "cnr": cnr,
+                        "needs_review": True,
+                        "provisional": provisional.ref_no,
+                        "holder": holder.ref_no,
+                        "reason": out.reason,
+                    }, True
+                merged = {"merged": provisional.ref_no, "into": holder.ref_no}
+            elif provisional is not None and holder is None:
+                case_dedupe.adopt(s, provisional, cnr)
+            elif holder is None:
                 get_or_create_case(s, court, cnr=cnr, case_no=case_no, source=FirstSeenSource.SEARCH)
-            elif case.cnr is None:
-                case.cnr = cnr
-                s.flush()
         else:
             cnr = ref.upper()
-        fetched = await court_search.fetch_dossier(s, self.hc, court, cnr, source=FirstSeenSource.SEARCH)
-        return {
+        fetched = await court_search.fetch_dossier(
+            s, self.hc, court, cnr, source=FirstSeenSource.SEARCH, origin=origin
+        )
+        result: dict[str, Any] = {
             "cnr": cnr,
             "changed": fetched.report.changed,
             "snapshot_new": fetched.report.snapshot_new,
             "counts": fetched.report.counts,
             "order_pdfs_queued": fetched.order_pdfs_queued,
-        }, False
+        }
+        if merged:
+            result.update(merged)
+        return result, False
 
 
 # ------------------------------------------------------------------------------------------------ helpers
 
 
 def enqueue_days(
-    s: Session, start: date, end: date, *, priority: int | None = None, requeue: bool = False
+    s: Session,
+    start: date,
+    end: date,
+    *,
+    priority: int | None = None,
+    requeue: bool = False,
+    lane: FetchLane | None = None,
 ) -> int:
-    """One `causelist_day` row per calendar day (the court simply has no list on holidays)."""
+    """One `causelist_day` row per calendar day (the court simply has no list on holidays). Without a lane, days
+    from yesterday on belong to the daily cycle (priority 20) and older days to the load (its policy priority, with
+    `list_date` = the day). The console's start goes through `services/data_load.py::start`."""
     today = date.today()
+    settings = current_settings(s)
     n = 0
     d = start
     while d <= end:
-        pr = (
-            priority
-            if priority is not None
-            else (queue.PRIORITY["list_today"] if (today - d).days <= 1 else queue.PRIORITY["list_history"])
-        )
-        if queue.enqueue(s, FetchKind.CAUSELIST_DAY, d.isoformat(), pr, requeue=requeue):
+        day_lane = lane or (FetchLane.DAILY if (today - d).days <= 1 else FetchLane.LOAD)
+        if priority is not None:
+            pr = priority
+        elif day_lane == FetchLane.LOAD:
+            pr = load_priority(settings, FetchKind.CAUSELIST_DAY, d)
+        else:
+            pr = queue.PRIORITY["list_today"]
+        if queue.enqueue(
+            s, FetchKind.CAUSELIST_DAY, d.isoformat(), pr, requeue=requeue, lane=day_lane, list_date=d
+        ):
             n += 1
         d += timedelta(days=1)
     return n

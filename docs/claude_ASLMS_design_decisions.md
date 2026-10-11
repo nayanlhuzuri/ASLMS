@@ -1242,3 +1242,59 @@ Branch `feature/portal-shell`. No table, column or migration; `docs/schema/schem
   (backlog row 43).
 
 - 2026-10-11 — data-load-console: approved by the owner (progress and estimate, start a backdated load, pause/resume and order, single-case fetch, already-held warnings before any NAPIX call, one row per case with provisional adoption and court-duplicate links, admin.data_load; defaults kept: cases_first, NAPIX_LIVE_RESERVE 100, stored order PDFs not re-fetched; docs/design/data-load-console.md)
+
+
+## Data-load console (2026-10-11)
+Backlog row 45, branch `feature/data-load-console`, design `docs/design/data-load-console.md` (approved by the owner
+on 2026-10-11). Built before row 12 at the owner's request.
+
+**What was built**
+- Migration 0014: `data_load_settings` (versioned master: paused, `load_order` enum `cases_first` / `lists_first` /
+  `cases_with_orders`, optional period to go first), `fetch_queue.lane` (`fetch_lane` enum `request` / `daily` /
+  `load`) and `fetch_queue.list_date`, `napix_call_log.lane`, a `court_duplicate` link kind and `dedupe` link source
+  on `case_links`, the `case_merged` event type; two queue indexes.
+- Services: `services/load_policy.py` (settings, lane and priority policy), `services/data_load.py` (progress,
+  estimate, coverage by month, preview, start, pause, resume, order, single-case fetch, fetch details),
+  `services/case_dedupe.py` (case-number key, serialised lookup, adoption, `merge_provisional`, court-duplicate
+  links, sweep); changes to `queue`, `runner`, `court_search`, `orders`, `causelists`, `napix_admin`, `data_health`.
+- API: `/admin/data-load` (progress), `/coverage`, `/preview`, `/start`, `/fetch`, `/fetch-details`, pause, resume,
+  order, duplicates scan; the re-fetch buttons and `retry-failed` (lane filter) in `/admin/napix/*` carry the
+  already-held warning. CLI: `aslms data-load status | coverage | start | pause | resume | order | dedupe`; `aslms
+  load` goes through the same start service. A 03:00 dedupe sweep job.
+- New grantable function `admin.data_load` ("Manage the data load"; super admin by default; seed only, 51 rows, 49
+  active). Portal: one "Data collection" entry with four tabs (`/data/load`, `/data/health`, `/data/queue`,
+  `/data/duplicates`), taking the data-health screen and NAPIX buttons over from row 41.
+
+**Decisions** (numbers are those of the design note)
+- Lanes `request` > `daily` > `load` on every queue row, inherited by spawned work; the lane is stored, not
+  inferred from a priority number (1). Pause stops only the `load` lane, read by the claim query itself, so it needs
+  no cache or restart (2).
+- "What goes first" is a preset order plus an optional period brought forward; load priorities 41-48 sit behind the
+  daily cycle and requests and ahead of the weekly sweep; default `cases_first` (3). Live-case order PDFs move from
+  75 to 40 (5).
+- Allowance protection: load runs at 150 or more calls left (`NAPIX_RATE_RESERVE`), daily and request work down to
+  100 (`NAPIX_LIVE_RESERVE`, new, default 100), live searches down to 50 (`NAPIX_SEARCH_FLOOR`); the runner seeds
+  its count from the call log at the start of each pass (4).
+- Progress and period are derived, not stored; the estimate uses only rates measured over the last 7 days and says
+  why it gives none (paused, under 24 h of history, no recent calls) (6-8).
+- Start is preview then explicit choice about held days; the API answers 409 `already_held` before any NAPIX call
+  and `force` / `held=refetch` is the choice to fetch anyway; the same for single-case fetch and the re-fetch
+  buttons. Stored order PDFs cannot be re-fetched (409 `already_stored`) (9-12).
+- One row per case: every creation goes through one serialised lookup; a provisional row is adopted or merged into
+  the row holding its CNR only when it has no portal records, otherwise the pair is listed for review; court-side
+  duplicates (same case or filing number, different CNRs) are linked, never merged, and the link counts toward
+  department recommendations, never an assignment (13-15). Checks run inline, in the nightly sweep and on demand (16).
+- Review findings fixed: a zero or negative case or filing number makes the key unusable (17); the merge locks the
+  provisional row before it checks for portal records (18).
+
+**Deviations from the design note** (full list in the note's "Deviations", 18 items)
+- Policy code lives in `load_policy.py` to avoid an import cycle; skipped days count as held; the merge check also
+  covers `custody_history` and `case_stages`; a provisional row matching several CNR rows merges into the oldest;
+  person-asked court searches queue order PDFs in the `request` lane; the advisory lock is taken only on the
+  creation path; the `already_held` 409 body is not in the OpenAPI document, so the portal types it by hand.
+
+**Left for later**: see backlog row 46 (reviewed merge of provisional cases with portal records, discovery lane,
+early Current Status re-run, coverage summary table, Compose verification). Migration 0014 is not yet applied to the
+dev database: the worker is stopped briefly, the migration applied, and the worker restarted; the running backdated
+load moves to the `load` lane and continues. NAPIX search by advocate and filing number remains row 21.
+

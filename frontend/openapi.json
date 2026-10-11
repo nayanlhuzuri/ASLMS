@@ -723,6 +723,84 @@
         "title": "AllotIn",
         "type": "object"
       },
+      "AllowanceOut": {
+        "properties": {
+          "hour_started_at": {
+            "format": "date-time",
+            "title": "Hour Started At",
+            "type": "string"
+          },
+          "live_reserve": {
+            "title": "Live Reserve",
+            "type": "integer"
+          },
+          "rate_reserve": {
+            "title": "Rate Reserve",
+            "type": "integer"
+          },
+          "remaining": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining"
+          },
+          "search_floor": {
+            "title": "Search Floor",
+            "type": "integer"
+          },
+          "seconds_to_next_hour": {
+            "title": "Seconds To Next Hour",
+            "type": "integer"
+          },
+          "used": {
+            "$ref": "#/components/schemas/AllowanceUsedOut"
+          }
+        },
+        "required": [
+          "hour_started_at",
+          "used",
+          "remaining",
+          "rate_reserve",
+          "live_reserve",
+          "search_floor",
+          "seconds_to_next_hour"
+        ],
+        "title": "AllowanceOut",
+        "type": "object"
+      },
+      "AllowanceUsedOut": {
+        "properties": {
+          "daily": {
+            "title": "Daily",
+            "type": "integer"
+          },
+          "load": {
+            "title": "Load",
+            "type": "integer"
+          },
+          "outside_queue": {
+            "title": "Outside Queue",
+            "type": "integer"
+          },
+          "request": {
+            "title": "Request",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "load",
+          "daily",
+          "request",
+          "outside_queue"
+        ],
+        "title": "AllowanceUsedOut",
+        "type": "object"
+      },
       "ApplicationOut": {
         "properties": {
           "filing_date": {
@@ -2818,6 +2896,29 @@
         "title": "CaseSummaryOut",
         "type": "object"
       },
+      "CaseTotalsOut": {
+        "properties": {
+          "listed": {
+            "title": "Listed",
+            "type": "integer"
+          },
+          "provisional": {
+            "title": "Provisional",
+            "type": "integer"
+          },
+          "with_details": {
+            "title": "With Details",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "listed",
+          "with_details",
+          "provisional"
+        ],
+        "title": "CaseTotalsOut",
+        "type": "object"
+      },
       "CauselistDayRowOut": {
         "properties": {
           "attempts": {
@@ -3326,6 +3427,22 @@
           "to_court_text"
         ],
         "title": "CourtTransferOut",
+        "type": "object"
+      },
+      "CoverageOut": {
+        "properties": {
+          "months": {
+            "items": {
+              "$ref": "#/components/schemas/MonthCoverageOut"
+            },
+            "title": "Months",
+            "type": "array"
+          }
+        },
+        "required": [
+          "months"
+        ],
+        "title": "CoverageOut",
         "type": "object"
       },
       "CustodyCardOut": {
@@ -4749,6 +4866,218 @@
         "title": "DataHealthOut",
         "type": "object"
       },
+      "DataLoadOut": {
+        "properties": {
+          "allowance": {
+            "$ref": "#/components/schemas/AllowanceOut"
+          },
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "estimate": {
+            "$ref": "#/components/schemas/EstimateOut"
+          },
+          "failures": {
+            "$ref": "#/components/schemas/LoadFailuresOut"
+          },
+          "napix_enabled": {
+            "title": "Napix Enabled",
+            "type": "boolean"
+          },
+          "period": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LoadPeriodOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "settings": {
+            "$ref": "#/components/schemas/DataLoadSettingsOut"
+          },
+          "totals": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LoadTotalsOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "work_left": {
+            "items": {
+              "$ref": "#/components/schemas/WorkLeftOut"
+            },
+            "title": "Work Left",
+            "type": "array"
+          }
+        },
+        "required": [
+          "as_of",
+          "napix_enabled",
+          "settings",
+          "period",
+          "totals",
+          "work_left",
+          "failures",
+          "allowance",
+          "estimate"
+        ],
+        "title": "DataLoadOut",
+        "type": "object"
+      },
+      "DataLoadSettingsOut": {
+        "properties": {
+          "changed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Changed At"
+          },
+          "changed_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Changed By"
+          },
+          "first_from": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First From"
+          },
+          "first_to": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First To"
+          },
+          "load_order": {
+            "title": "Load Order",
+            "type": "string"
+          },
+          "paused": {
+            "title": "Paused",
+            "type": "boolean"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "paused",
+          "load_order",
+          "first_from",
+          "first_to",
+          "reason",
+          "changed_at",
+          "changed_by"
+        ],
+        "title": "DataLoadSettingsOut",
+        "type": "object"
+      },
+      "DayTotalsOut": {
+        "properties": {
+          "calendar": {
+            "title": "Calendar",
+            "type": "integer"
+          },
+          "failed": {
+            "title": "Failed",
+            "type": "integer"
+          },
+          "no_list": {
+            "title": "No List",
+            "type": "integer"
+          },
+          "not_queued": {
+            "title": "Not Queued",
+            "type": "integer"
+          },
+          "waiting": {
+            "title": "Waiting",
+            "type": "integer"
+          },
+          "with_lists": {
+            "title": "With Lists",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "calendar",
+          "with_lists",
+          "no_list",
+          "waiting",
+          "failed",
+          "not_queued"
+        ],
+        "title": "DayTotalsOut",
+        "type": "object"
+      },
+      "DedupeScanOut": {
+        "properties": {
+          "court_linked": {
+            "title": "Court Linked",
+            "type": "integer"
+          },
+          "merged": {
+            "title": "Merged",
+            "type": "integer"
+          },
+          "needs_review": {
+            "title": "Needs Review",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "merged",
+          "needs_review",
+          "court_linked"
+        ],
+        "title": "DedupeScanOut",
+        "type": "object"
+      },
       "DepartmentAdminIn": {
         "properties": {
           "designation": {
@@ -5774,6 +6103,129 @@
         "title": "DraftUpdateIn",
         "type": "object"
       },
+      "DuplicateCaseOut": {
+        "properties": {
+          "case_no_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Case No Text"
+          },
+          "cnr": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cnr"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "ref_no": {
+            "title": "Ref No",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "ref_no",
+          "cnr",
+          "case_no_text"
+        ],
+        "title": "DuplicateCaseOut",
+        "type": "object"
+      },
+      "DuplicateItemOut": {
+        "properties": {
+          "at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "case": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DuplicateCaseOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "other": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DuplicateCaseOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reasons": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reasons"
+          }
+        },
+        "required": [
+          "kind",
+          "case",
+          "other",
+          "at"
+        ],
+        "title": "DuplicateItemOut",
+        "type": "object"
+      },
+      "DuplicatesOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DuplicateItemOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "items"
+        ],
+        "title": "DuplicatesOut",
+        "type": "object"
+      },
       "EmailPrefIn": {
         "properties": {
           "critical_only": {
@@ -5863,6 +6315,69 @@
           "message"
         ],
         "title": "ErrorOut",
+        "type": "object"
+      },
+      "EstimateOut": {
+        "properties": {
+          "basis": {
+            "additionalProperties": true,
+            "title": "Basis",
+            "type": "object"
+          },
+          "calls_needed": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Calls Needed"
+          },
+          "finish_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finish At"
+          },
+          "hours": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "paused | not_enough_history | no_recent_calls",
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "finish_at",
+          "hours",
+          "calls_needed",
+          "basis"
+        ],
+        "title": "EstimateOut",
         "type": "object"
       },
       "ExitAssignmentIn": {
@@ -6343,6 +6858,102 @@
         "title": "FailureRowOut",
         "type": "object"
       },
+      "FetchDetailItemOut": {
+        "properties": {
+          "case": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CaseSearchItemOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "merged_into_ref_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merged Into Ref No"
+          },
+          "queue": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QueueStateOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "queued",
+              "already_held",
+              "merged",
+              "no_reference",
+              "not_found"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref",
+          "case",
+          "state"
+        ],
+        "title": "FetchDetailItemOut",
+        "type": "object"
+      },
+      "FetchDetailsIn": {
+        "properties": {
+          "cases": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Cases",
+            "type": "array"
+          },
+          "force": {
+            "default": false,
+            "title": "Force",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "cases"
+        ],
+        "title": "FetchDetailsIn",
+        "type": "object"
+      },
+      "FetchDetailsOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/FetchDetailItemOut"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "FetchDetailsOut",
+        "type": "object"
+      },
       "FetchKind": {
         "enum": [
           "masters",
@@ -6352,6 +6963,16 @@
           "order_pdf"
         ],
         "title": "FetchKind",
+        "type": "string"
+      },
+      "FetchLane": {
+        "description": "Who asked for a queue row (design `data-load-console`, decision 1), in order of precedence: a person's\nrequest, the daily cycle, the backdated load. A row asked by two lanes keeps the higher one.",
+        "enum": [
+          "request",
+          "daily",
+          "load"
+        ],
+        "title": "FetchLane",
         "type": "string"
       },
       "FetchStatus": {
@@ -7180,6 +7801,29 @@
         "title": "KeywordOut",
         "type": "object"
       },
+      "KindCountsOut": {
+        "properties": {
+          "causelist_day": {
+            "title": "Causelist Day",
+            "type": "integer"
+          },
+          "dossier": {
+            "title": "Dossier",
+            "type": "integer"
+          },
+          "order_pdf": {
+            "title": "Order Pdf",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "causelist_day",
+          "dossier",
+          "order_pdf"
+        ],
+        "title": "KindCountsOut",
+        "type": "object"
+      },
       "LabelOut": {
         "properties": {
           "code": {
@@ -7196,6 +7840,29 @@
           "label"
         ],
         "title": "LabelOut",
+        "type": "object"
+      },
+      "LaneCountsOut": {
+        "properties": {
+          "daily": {
+            "title": "Daily",
+            "type": "integer"
+          },
+          "load": {
+            "title": "Load",
+            "type": "integer"
+          },
+          "request": {
+            "title": "Request",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "request",
+          "daily",
+          "load"
+        ],
+        "title": "LaneCountsOut",
         "type": "object"
       },
       "LinkGraphOut": {
@@ -7451,6 +8118,503 @@
           "source"
         ],
         "title": "ListingOut",
+        "type": "object"
+      },
+      "LoadFailureKindOut": {
+        "properties": {
+          "failed": {
+            "title": "Failed",
+            "type": "integer"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "failed"
+        ],
+        "title": "LoadFailureKindOut",
+        "type": "object"
+      },
+      "LoadFailureRowOut": {
+        "properties": {
+          "attempts": {
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "ref",
+          "attempts",
+          "last_error",
+          "finished_at"
+        ],
+        "title": "LoadFailureRowOut",
+        "type": "object"
+      },
+      "LoadFailuresOut": {
+        "properties": {
+          "by_kind": {
+            "items": {
+              "$ref": "#/components/schemas/LoadFailureKindOut"
+            },
+            "title": "By Kind",
+            "type": "array"
+          },
+          "latest": {
+            "items": {
+              "$ref": "#/components/schemas/LoadFailureRowOut"
+            },
+            "title": "Latest",
+            "type": "array"
+          }
+        },
+        "required": [
+          "by_kind",
+          "latest"
+        ],
+        "title": "LoadFailuresOut",
+        "type": "object"
+      },
+      "LoadFetchCaseNumberIn": {
+        "properties": {
+          "case_type": {
+            "description": "short name (WP(C)) or the master's code",
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Case Type",
+            "type": "string"
+          },
+          "force": {
+            "default": false,
+            "title": "Force",
+            "type": "boolean"
+          },
+          "kind": {
+            "const": "case_number",
+            "title": "Kind",
+            "type": "string"
+          },
+          "reg_no": {
+            "maximum": 9999999.0,
+            "minimum": 1.0,
+            "title": "Reg No",
+            "type": "integer"
+          },
+          "reg_year": {
+            "maximum": 2100.0,
+            "minimum": 1950.0,
+            "title": "Reg Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "case_type",
+          "reg_no",
+          "reg_year"
+        ],
+        "title": "LoadFetchCaseNumberIn",
+        "type": "object"
+      },
+      "LoadFetchCnrIn": {
+        "properties": {
+          "cnr": {
+            "maxLength": 16,
+            "minLength": 16,
+            "pattern": "^[A-Za-z]{4}\\d{12}$",
+            "title": "Cnr",
+            "type": "string"
+          },
+          "force": {
+            "default": false,
+            "title": "Force",
+            "type": "boolean"
+          },
+          "kind": {
+            "const": "cnr",
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "cnr"
+        ],
+        "title": "LoadFetchCnrIn",
+        "type": "object"
+      },
+      "LoadFetchPartyIn": {
+        "properties": {
+          "force": {
+            "default": false,
+            "title": "Force",
+            "type": "boolean"
+          },
+          "kind": {
+            "const": "party",
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "description": "letters, digits, spaces and . , ' & ( ) / - (never | or =, the gateway's separators)",
+            "maxLength": 200,
+            "minLength": 3,
+            "pattern": "^[A-Za-z0-9 .,'&()/-]+$",
+            "title": "Name",
+            "type": "string"
+          },
+          "pend_disp": {
+            "default": "P",
+            "enum": [
+              "P",
+              "D",
+              "both"
+            ],
+            "title": "Pend Disp",
+            "type": "string"
+          },
+          "reg_year": {
+            "maximum": 2100.0,
+            "minimum": 1950.0,
+            "title": "Reg Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "name",
+          "reg_year"
+        ],
+        "title": "LoadFetchPartyIn",
+        "type": "object"
+      },
+      "LoadOrderIn": {
+        "properties": {
+          "first_from": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First From"
+          },
+          "first_to": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First To"
+          },
+          "load_order": {
+            "enum": [
+              "cases_first",
+              "lists_first",
+              "cases_with_orders"
+            ],
+            "title": "Load Order",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "load_order",
+          "reason"
+        ],
+        "title": "LoadOrderIn",
+        "type": "object"
+      },
+      "LoadOrderOut": {
+        "properties": {
+          "reprioritised": {
+            "title": "Reprioritised",
+            "type": "integer"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/DataLoadSettingsOut"
+          }
+        },
+        "required": [
+          "settings",
+          "reprioritised"
+        ],
+        "title": "LoadOrderOut",
+        "type": "object"
+      },
+      "LoadPauseIn": {
+        "properties": {
+          "reason": {
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "LoadPauseIn",
+        "type": "object"
+      },
+      "LoadPeriodOut": {
+        "properties": {
+          "from": {
+            "format": "date",
+            "title": "From",
+            "type": "string"
+          },
+          "to": {
+            "format": "date",
+            "title": "To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ],
+        "title": "LoadPeriodOut",
+        "type": "object"
+      },
+      "LoadPreviewOut": {
+        "properties": {
+          "calls_estimate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Calls Estimate"
+          },
+          "days": {
+            "title": "Days",
+            "type": "integer"
+          },
+          "failed": {
+            "title": "Failed",
+            "type": "integer"
+          },
+          "held_no_list": {
+            "title": "Held No List",
+            "type": "integer"
+          },
+          "held_with_lists": {
+            "title": "Held With Lists",
+            "type": "integer"
+          },
+          "masters_stale": {
+            "title": "Masters Stale",
+            "type": "boolean"
+          },
+          "not_queued": {
+            "title": "Not Queued",
+            "type": "integer"
+          },
+          "waiting": {
+            "title": "Waiting",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "days",
+          "held_with_lists",
+          "held_no_list",
+          "waiting",
+          "failed",
+          "not_queued",
+          "calls_estimate",
+          "masters_stale"
+        ],
+        "title": "LoadPreviewOut",
+        "type": "object"
+      },
+      "LoadRangeIn": {
+        "properties": {
+          "from": {
+            "format": "date",
+            "title": "From",
+            "type": "string"
+          },
+          "to": {
+            "format": "date",
+            "title": "To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ],
+        "title": "LoadRangeIn",
+        "type": "object"
+      },
+      "LoadResumeIn": {
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "title": "LoadResumeIn",
+        "type": "object"
+      },
+      "LoadStartIn": {
+        "properties": {
+          "from": {
+            "format": "date",
+            "title": "From",
+            "type": "string"
+          },
+          "held": {
+            "anyOf": [
+              {
+                "enum": [
+                  "skip",
+                  "refetch"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "what to do with days already held; required when the range has any",
+            "title": "Held"
+          },
+          "to": {
+            "format": "date",
+            "title": "To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ],
+        "title": "LoadStartIn",
+        "type": "object"
+      },
+      "LoadStartOut": {
+        "properties": {
+          "days": {
+            "title": "Days",
+            "type": "integer"
+          },
+          "held_requeued": {
+            "title": "Held Requeued",
+            "type": "integer"
+          },
+          "held_skipped": {
+            "title": "Held Skipped",
+            "type": "integer"
+          },
+          "masters_queued": {
+            "title": "Masters Queued",
+            "type": "boolean"
+          },
+          "queued": {
+            "title": "Queued",
+            "type": "integer"
+          },
+          "revived": {
+            "title": "Revived",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "days",
+          "queued",
+          "held_skipped",
+          "held_requeued",
+          "revived",
+          "masters_queued"
+        ],
+        "title": "LoadStartOut",
+        "type": "object"
+      },
+      "LoadTotalsOut": {
+        "properties": {
+          "cases": {
+            "$ref": "#/components/schemas/CaseTotalsOut"
+          },
+          "days": {
+            "$ref": "#/components/schemas/DayTotalsOut"
+          },
+          "orders": {
+            "$ref": "#/components/schemas/OrderTotalsOut"
+          }
+        },
+        "required": [
+          "days",
+          "cases",
+          "orders"
+        ],
+        "title": "LoadTotalsOut",
         "type": "object"
       },
       "LoginIn": {
@@ -8136,6 +9300,71 @@
           }
         },
         "title": "MembershipPatchIn",
+        "type": "object"
+      },
+      "MonthCoverageOut": {
+        "properties": {
+          "cases": {
+            "$ref": "#/components/schemas/CaseTotalsOut"
+          },
+          "days": {
+            "$ref": "#/components/schemas/DayTotalsOut"
+          },
+          "days_covered_pct": {
+            "title": "Days Covered Pct",
+            "type": "number"
+          },
+          "details_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details Pct"
+          },
+          "entries": {
+            "title": "Entries",
+            "type": "integer"
+          },
+          "failed": {
+            "$ref": "#/components/schemas/KindCountsOut"
+          },
+          "lists": {
+            "title": "Lists",
+            "type": "integer"
+          },
+          "lists_parse_failed": {
+            "title": "Lists Parse Failed",
+            "type": "integer"
+          },
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "orders": {
+            "$ref": "#/components/schemas/OrderTotalsOut"
+          },
+          "work_left": {
+            "$ref": "#/components/schemas/KindCountsOut"
+          }
+        },
+        "required": [
+          "month",
+          "days",
+          "lists",
+          "entries",
+          "lists_parse_failed",
+          "cases",
+          "orders",
+          "work_left",
+          "failed",
+          "days_covered_pct",
+          "details_pct"
+        ],
+        "title": "MonthCoverageOut",
         "type": "object"
       },
       "NamePatternIn": {
@@ -9483,6 +10712,34 @@
         "title": "OrderOut",
         "type": "object"
       },
+      "OrderTotalsOut": {
+        "properties": {
+          "not_available": {
+            "title": "Not Available",
+            "type": "integer"
+          },
+          "referenced": {
+            "title": "Referenced",
+            "type": "integer"
+          },
+          "stored": {
+            "title": "Stored",
+            "type": "integer"
+          },
+          "waiting": {
+            "title": "Waiting",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "referenced",
+          "stored",
+          "not_available",
+          "waiting"
+        ],
+        "title": "OrderTotalsOut",
+        "type": "object"
+      },
       "OtpResendIn": {
         "properties": {
           "challenge_id": {
@@ -9930,6 +11187,7 @@
           "admin.scoring",
           "admin.tickets",
           "admin.sourcetrace",
+          "admin.data_load",
           "cases.view_scope",
           "cases.view_all",
           "cases.search_court",
@@ -10345,6 +11603,9 @@
       },
       "QueueKindOut": {
         "properties": {
+          "by_lane": {
+            "$ref": "#/components/schemas/LaneCountsOut"
+          },
           "done": {
             "title": "Done",
             "type": "integer"
@@ -10391,7 +11652,8 @@
           "stale",
           "failed",
           "skipped",
-          "done"
+          "done",
+          "by_lane"
         ],
         "title": "QueueKindOut",
         "type": "object"
@@ -10444,6 +11706,10 @@
             "title": "Kind",
             "type": "string"
           },
+          "lane": {
+            "title": "Lane",
+            "type": "string"
+          },
           "last_error": {
             "anyOf": [
               {
@@ -10454,6 +11720,18 @@
               }
             ],
             "title": "Last Error"
+          },
+          "list_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "List Date"
           },
           "not_before": {
             "anyOf": [
@@ -10518,7 +11796,9 @@
           "started_at",
           "finished_at",
           "last_error",
-          "updated_at"
+          "updated_at",
+          "lane",
+          "list_date"
         ],
         "title": "QueueRowOut",
         "type": "object"
@@ -10532,6 +11812,17 @@
           "kind": {
             "title": "Kind",
             "type": "string"
+          },
+          "lane": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lane"
           },
           "napix_enabled": {
             "title": "Napix Enabled",
@@ -10880,6 +12171,12 @@
             "minLength": 1,
             "title": "Case",
             "type": "string"
+          },
+          "force": {
+            "default": false,
+            "description": "queue a case whose details are already held anyway",
+            "title": "Force",
+            "type": "boolean"
           }
         },
         "required": [
@@ -10894,6 +12191,12 @@
             "format": "date",
             "title": "Date",
             "type": "string"
+          },
+          "force": {
+            "default": false,
+            "description": "queue a day already held (done with lists, or skipped) anyway",
+            "title": "Force",
+            "type": "boolean"
           }
         },
         "required": [
@@ -11268,6 +12571,22 @@
             ],
             "title": "Kind",
             "type": "string"
+          },
+          "lane": {
+            "anyOf": [
+              {
+                "enum": [
+                  "request",
+                  "daily",
+                  "load"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lane"
           }
         },
         "required": [
@@ -14156,6 +15475,44 @@
         "title": "WatchPatchIn",
         "type": "object"
       },
+      "WorkLeftOut": {
+        "properties": {
+          "failed": {
+            "title": "Failed",
+            "type": "integer"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "pending": {
+            "title": "Pending",
+            "type": "integer"
+          },
+          "runnable": {
+            "title": "Runnable",
+            "type": "integer"
+          },
+          "running": {
+            "title": "Running",
+            "type": "integer"
+          },
+          "waiting": {
+            "title": "Waiting",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "pending",
+          "runnable",
+          "waiting",
+          "running",
+          "failed"
+        ],
+        "title": "WorkLeftOut",
+        "type": "object"
+      },
       "WorkflowCodesOut": {
         "properties": {
           "custody_reasons": {
@@ -14749,6 +16106,1330 @@
         "summary": "Get Data Health",
         "tags": [
           "data-health"
+        ]
+      }
+    },
+    "/admin/data-load": {
+      "get": {
+        "description": "Settings, the load period and its totals, work left by kind, failures, the hour's allowance by lane and the\nestimated finish with its basis (or why there is none). Never calls NAPIX.",
+        "operationId": "get_progress_admin_data_load_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataLoadOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Progress",
+        "tags": [
+          "data-load"
+        ]
+      }
+    },
+    "/admin/data-load/coverage": {
+      "get": {
+        "description": "Month by month (`YYYY-MM`, default the load period, at most 36 months): days, lists, entries, cases with and\nwithout details, orders, work left and failures; 503 `search_timeout` when the query takes too long.",
+        "operationId": "get_coverage_admin_data_load_coverage_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^\\d{4}-\\d{2}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^\\d{4}-\\d{2}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverageOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Coverage",
+        "tags": [
+          "data-load"
+        ]
+      }
+    },
+    "/admin/data-load/duplicates": {
+      "get": {
+        "description": "Merged rows, court-duplicate links, or provisional rows waiting for review; ref, CNR and case number only.",
+        "operationId": "get_duplicates_admin_data_load_duplicates_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "default": "review",
+              "pattern": "^(merged|court|review)$",
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DuplicatesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Duplicates",
+        "tags": [
+          "data-load"
+        ]
+      }
+    },
+    "/admin/data-load/duplicates/scan": {
+      "post": {
+        "description": "Run the duplicate rules over every case now (merge, link, list for review); audited.",
+        "operationId": "scan_duplicates_admin_data_load_duplicates_scan_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DedupeScanOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Scan Duplicates",
+        "tags": [
+          "data-load"
+        ]
+      }
+    },
+    "/admin/data-load/fetch": {
+      "post": {
+        "description": "Fetch cases from the court by CNR, case number or party name. Without `force`, a case already held with its\ndetails answers 409 `already_held` and a party name searched before 409 `searched_before`, with no call. The\ncourt-search guard applies (503 `napix_off` / `napix_budget`, 429 `search_limit`). Audited `case.search_court`\nwith `via: data_load`. Results are summaries with `visible`.",
+        "operationId": "fetch_admin_data_load_fetch_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "discriminator": {
+                  "mapping": {
+                    "case_number": "#/components/schemas/LoadFetchCaseNumberIn",
+                    "cnr": "#/components/schemas/LoadFetchCnrIn",
+                    "party": "#/components/schemas/LoadFetchPartyIn"
+                  },
+                  "propertyName": "kind"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/LoadFetchCnrIn"
+                  },
+                  {
+                    "$ref": "#/components/schemas/LoadFetchCaseNumberIn"
+                  },
+                  {
+                    "$ref": "#/components/schemas/LoadFetchPartyIn"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CourtSearchOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Fetch",
+        "tags": [
+          "data-load"
+        ]
+      }
+    },
+    "/admin/data-load/fetch-details": {
+      "post": {
+        "description": "Queue the details (dossiers) of found cases in the request lane at priority 30; cases with details are\nreported `already_held` and queued only with `force`. Audited `data_load.details_requested`.",
+        "operationId": "fetch_details_admin_data_load_fetch_details_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FetchDetailsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FetchDetailsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Fetch Details",
+        "tags": [
+          "data-load"
+        ]
+      }
+    },
+    "/admin/data-load/order": {
+      "put": {
+        "description": "What goes first: the preset and an optional period brought forward (inside the load period); every pending\nload row is re-prioritised.",
+        "operationId": "set_order_admin_data_load_order_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoadOrderIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoadOrderOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Set Order",
+        "tags": [
+          "data-load"
+        ]
+      }
+    },
+    "/admin/data-load/pause": {
+      "post": {
+        "description": "Pause the backdated load at the next claim of any worker; the daily cycle and requests keep running.",
+        "operationId": "pause_admin_data_load_pause_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoadPauseIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataLoadSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Pause",
+        "tags": [
+          "data-load"
+        ]
+      }
+    },
+    "/admin/data-load/preview": {
+      "post": {
+        "description": "The days of a range by state and the calls the new days need; writes nothing, makes no call.",
+        "operationId": "preview_admin_data_load_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoadRangeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoadPreviewOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Preview",
+        "tags": [
+          "data-load"
+        ]
+      }
+    },
+    "/admin/data-load/resume": {
+      "post": {
+        "operationId": "resume_admin_data_load_resume_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/LoadResumeIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataLoadSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Resume",
+        "tags": [
+          "data-load"
+        ]
+      }
+    },
+    "/admin/data-load/start": {
+      "post": {
+        "description": "Queue every day of the range in the load lane; 409 `already_held` with the counts when the range holds days\nalready in the database and `held` (skip / refetch) is absent. Audited `data_load.started`.",
+        "operationId": "start_admin_data_load_start_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoadStartIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoadStartOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Start",
+        "tags": [
+          "data-load"
         ]
       }
     },
@@ -15956,7 +18637,7 @@
     },
     "/admin/napix/queue": {
       "get": {
-        "description": "Queue rows by kind, status and ref prefix, in run order, with `total`.",
+        "description": "Queue rows by kind, status, lane and ref prefix, in run order, with `total`.",
         "operationId": "list_queue_admin_napix_queue_get",
         "parameters": [
           {
@@ -16008,6 +18689,22 @@
               ],
               "description": "ref prefix",
               "title": "Ref"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lane",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/FetchLane"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Lane"
             }
           },
           {
@@ -16069,7 +18766,7 @@
     },
     "/admin/napix/queue/retry-failed": {
       "post": {
-        "description": "Every failed row of one kind back to pending with no attempts (`masters` needs `admin.masters_sync`).",
+        "description": "Every failed row of one kind (of one lane when given) back to pending with no attempts (`masters` needs\n`admin.masters_sync`).",
         "operationId": "retry_failed_admin_napix_queue_retry_failed_post",
         "requestBody": {
           "content": {
@@ -16265,7 +18962,7 @@
     },
     "/admin/napix/refetch/case": {
       "post": {
-        "description": "Queue the dossier of a case you may see at priority 30 (by CNR, or by the printed number for a provisional\ncase); 409 `merged` with the surviving case's `ref_no`, 409 `no_reference`.",
+        "description": "Queue the dossier of a case you may see at priority 30 (by CNR, or by the printed number for a provisional\ncase); 409 `merged` with the surviving case's `ref_no`, 409 `no_reference`, 409 `already_held` for a case\nwhose details are held unless `force`.",
         "operationId": "refetch_case_admin_napix_refetch_case_post",
         "requestBody": {
           "content": {
@@ -16362,7 +19059,7 @@
     },
     "/admin/napix/refetch/day": {
       "post": {
-        "description": "Queue `causelist_day/<date>` at priority 20 (not after tomorrow, IST).",
+        "description": "Queue `causelist_day/<date>` at priority 20 in the request lane (not after tomorrow, IST); 409\n`already_held` for a day already in the database (done with lists, or skipped) unless `force`.",
         "operationId": "refetch_day_admin_napix_refetch_day_post",
         "requestBody": {
           "content": {

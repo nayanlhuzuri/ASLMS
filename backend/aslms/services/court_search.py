@@ -31,12 +31,14 @@ from aslms.core.errors import IntegrationError, NapixInputError, NapixNotFound, 
 from aslms.domain.cases import Case, FirstSeenSource
 from aslms.domain.courts import CaseType, Court
 from aslms.domain.events import AuditLog
+from aslms.domain.ops import FetchLane
 from aslms.domain.org import User
 from aslms.domain.ownership import RecommendationOrigin
 from aslms.integration.napix.hc import NapixHighCourt
-from aslms.services import matching
+from aslms.services import case_dedupe, matching
 from aslms.services.audit import Actor, write_audit
 from aslms.services.cases import ApplyReport, apply_dossier, get_or_create_case, refresh_search_vector
+from aslms.services.load_policy import QueueOrigin
 from aslms.services.napix_store import NapixRecorder
 from aslms.services.napix_values import as_int, as_text, case_no_text
 from aslms.services.orders import enqueue_order_pdfs
@@ -46,6 +48,8 @@ CNR_RE = re.compile(r"^[A-Z]{4}\d{12}$")
 # which would add or change a pair in the gateway's `k=v|k=v` request
 PARTY_NAME_RE = re.compile(r"^[A-Za-z0-9 .,'&()/-]+$")
 SEARCH_ACTIONS = ("case.search_court", "case.fetch_court")
+# a person's search: the order PDFs it finds are queued in the request lane (design data-load-console, decision 1)
+REQUEST_ORIGIN = QueueOrigin(FetchLane.REQUEST)
 MIN_PARTY_NAME = 3
 MIN_YEAR = 1950
 
@@ -186,13 +190,21 @@ def court_for(session: Session, est_code: str) -> Court:
 
 
 async def fetch_dossier(
-    session: Session, hc: NapixHighCourt, court: Court, cnr: str, *, source: FirstSeenSource
+    session: Session,
+    hc: NapixHighCourt,
+    court: Court,
+    cnr: str,
+    *,
+    source: FirstSeenSource,
+    origin: QueueOrigin | None = None,
 ) -> DossierFetch:
     """Search by CNR → the court's dossier → get or create the case → `apply_dossier` → order PDFs queued.
     The case row is created only after the court has answered with a dossier for that very CNR, so a CNR the
     court does not know (or a gateway failure) never leaves a case behind. An empty dossier raises
     `NapixNotFound` (the queue records it as skipped, the API as `not_found`); a dossier labelled with another
-    CNR raises `NapixProtocolError`."""
+    CNR raises `NapixProtocolError`. A CNR not held yet first looks for a provisional row with the dossier's number
+    and adopts it (design `data-load-console`, decision 13); the order PDFs take the lane of `origin`, and the
+    duplicate rules run for the case afterwards (decision 16)."""
     cnr = cnr.strip().upper()
     data = await hc.case_by_cnr(cnr)
     cino = as_text(data.get("cino"), 16) if data else None
@@ -202,10 +214,37 @@ async def fetch_dossier(
         raise NapixProtocolError(f"dossier asked for {cnr} is labelled {cino}", api="cnr")
     case = session.scalar(select(Case).where(Case.cnr == cnr))
     if case is None:
+        case = _adopt_provisional(session, court, cnr, data)
+    if case is None:
         case, _ = get_or_create_case(session, court, cnr=cnr, case_no=None, source=source)
     report = apply_dossier(session, case, data)
-    queued = enqueue_order_pdfs(session, case)
+    queued = enqueue_order_pdfs(session, case, origin)
+    case_dedupe.check_cases(session, [case.id])
+    case = session.get(Case, report.case_id)
     return DossierFetch(case, report, queued)
+
+
+def _adopt_provisional(session: Session, court: Court, cnr: str, data: dict[str, Any]) -> Case | None:
+    """The provisional row (no CNR, not merged) with the dossier's case number takes the CNR, under the number
+    lock; None when there is none."""
+    type_text = as_text(data.get("type_name_reg") or data.get("type_name"), 60)
+    reg_no, reg_year = as_int(data.get("reg_no")), as_int(data.get("reg_year"))
+    ctid = as_int(data.get("case_type_id"))
+    type_id = None
+    if ctid is not None:
+        type_id = session.scalar(
+            select(CaseType.id).where(CaseType.court_id == court.id, CaseType.case_type_code == ctid)
+        )
+    key = case_dedupe.number_key(
+        court_id=court.id, case_type_text=type_text, case_type_id=type_id, reg_no=reg_no, reg_year=reg_year
+    )
+    if not key.usable:
+        return None
+    case_dedupe.lock_number(session, court.id, key)
+    provisional = case_dedupe.find_provisional(session, court.id, key)
+    if provisional is None:
+        return None
+    return case_dedupe.adopt(session, provisional, cnr)
 
 
 def _case_type_by_short(session: Session, court: Court, short: str) -> CaseType | None:
@@ -295,6 +334,10 @@ def store_search_rows(session: Session, court: Court, rows: list[dict[str, Any]]
     if changed:
         refresh_search_vector(session, changed)
         matching.score_cases(session, changed, origin=RecommendationOrigin.SEARCH)
+    if report.cases:
+        ids = [c.id for c in report.cases]
+        case_dedupe.check_cases(session, ids)
+        report.cases = [session.get(Case, i) for i in ids]
     return report
 
 
@@ -369,12 +412,17 @@ async def search_court(
     hc: NapixHighCourt,
     recorder: NapixRecorder,
     settings: Settings,
+    force: bool = False,
+    audit_extra: dict[str, Any] | None = None,
 ) -> CourtSearchResult:
+    """`force` (the data-load console, design `data-load-console` decision 10): by CNR the local short cut is
+    skipped and the dossier fetched again; by case number the local match is skipped. `audit_extra` joins the
+    audit row (`via`, `force`, `warned`)."""
     kind = request.get("kind")
     court = court_for(session, hc.est_code)
     calls_before = recorder.calls
-    fields = {k: v for k, v in request.items() if k != "kind"}
-    audit: dict[str, Any] = {"kind": kind, "request": fields}
+    fields = {k: v for k, v in request.items() if k not in ("kind", "force")}
+    audit: dict[str, Any] = {"kind": kind, "request": fields, **(audit_extra or {})}
 
     def done(result: CourtSearchResult) -> CourtSearchResult:
         audit.update(
@@ -395,11 +443,13 @@ async def search_court(
     try:
         if kind == "cnr":
             result = await asyncio.wait_for(
-                _search_cnr(session, hc, court, request["cnr"]), settings.napix_search_timeout_seconds
+                _search_cnr(session, hc, court, request["cnr"], force=force),
+                settings.napix_search_timeout_seconds,
             )
         elif kind == "case_number":
             result = await asyncio.wait_for(
-                _search_case_number(session, hc, court, request), settings.napix_search_timeout_seconds
+                _search_case_number(session, hc, court, request, force=force),
+                settings.napix_search_timeout_seconds,
             )
         elif kind == "party":
             result = await asyncio.wait_for(
@@ -430,27 +480,31 @@ async def search_court(
     return done(result)
 
 
-async def _search_cnr(session: Session, hc: NapixHighCourt, court: Court, cnr: str) -> CourtSearchResult:
+async def _search_cnr(
+    session: Session, hc: NapixHighCourt, court: Court, cnr: str, *, force: bool = False
+) -> CourtSearchResult:
     cnr = (cnr or "").strip().upper()
     if not CNR_RE.match(cnr):
         raise CourtSearchError("not a CNR: four letters and twelve digits")
     case = session.scalar(select(Case).where(Case.cnr == cnr))
-    if case is not None and case.last_full_refresh_at is not None:
+    if case is not None and case.last_full_refresh_at is not None and not force:
         return CourtSearchResult("local", 0, 0, [case], [], "ok")
     existed = case is not None
-    fetched = await fetch_dossier(session, hc, court, cnr, source=FirstSeenSource.SEARCH)
+    fetched = await fetch_dossier(
+        session, hc, court, cnr, source=FirstSeenSource.SEARCH, origin=REQUEST_ORIGIN
+    )
     return CourtSearchResult("court", 0, int(not existed), [fetched.case], [], "ok")
 
 
 async def _search_case_number(
-    session: Session, hc: NapixHighCourt, court: Court, request: dict[str, Any]
+    session: Session, hc: NapixHighCourt, court: Court, request: dict[str, Any], *, force: bool = False
 ) -> CourtSearchResult:
     ct = _resolve_case_type(session, court, str(request.get("case_type", "")))
     reg_no, reg_year = as_int(request.get("reg_no")), as_int(request.get("reg_year"))
     if reg_no is None or reg_year is None or reg_year < MIN_YEAR or reg_year > _now().year + 1:
         raise CourtSearchError("reg_no and reg_year are required")
     local = _local_by_number(session, court, ct, reg_no, reg_year)
-    if local is not None:
+    if local is not None and not force:
         return CourtSearchResult("local", 0, 0, [local], [], "ok")
     rows = await hc.search_case_number(ct.case_type_code, reg_no, reg_year)
     report = store_search_rows(session, court, rows)
@@ -458,12 +512,14 @@ async def _search_case_number(
         (
             c
             for c in report.cases
-            if c.reg_no == reg_no and c.reg_year == reg_year and c.last_full_refresh_at is None
+            if c.reg_no == reg_no and c.reg_year == reg_year and (force or c.last_full_refresh_at is None)
         ),
         None,
     )
     if exact is not None and exact.cnr:
-        await fetch_dossier(session, hc, court, exact.cnr, source=FirstSeenSource.SEARCH)
+        await fetch_dossier(
+            session, hc, court, exact.cnr, source=FirstSeenSource.SEARCH, origin=REQUEST_ORIGIN
+        )
     return CourtSearchResult("court", 0, report.created, report.cases, report.unmatched, "ok")
 
 
@@ -540,15 +596,27 @@ async def fetch_court(
                 raise NotFoundAtCourt("the court has no record of that case number")
             held = session.scalar(select(Case).where(Case.cnr == cnr))
             if held is not None and held.id != case.id:
-                # the number resolves to a case already held: report it, leave both rows as they are
+                # the number resolves to a case already held: the provisional row is merged into it when it holds
+                # no portal record (design data-load-console, decision 13), otherwise listed for review
                 audit["resolved_to"] = held.ref_no
-                finish("resolved_elsewhere")
-                raise AlreadyFetched(f"that number is case {held.ref_no}, already held")
-            case.cnr = cnr
+                try:
+                    merged = case_dedupe.merge_provisional(session, case, held, actor)
+                except case_dedupe.MergeStale as exc:
+                    finish("changed")
+                    raise AlreadyFetched(f"{exc}; open it again") from exc
+                if isinstance(merged, case_dedupe.NeedsReview):
+                    finish("resolved_elsewhere")
+                    raise AlreadyFetched(f"that number is case {held.ref_no}, already held")
+                audit["merged_into"] = held.ref_no
+                if held.last_full_refresh_at is not None:
+                    finish("merged")
+                    return held
+                case = held
+            else:
+                case_dedupe.adopt(session, case, cnr)
             audit["cnr"] = cnr
-            session.flush()
         fetched = await asyncio.wait_for(
-            fetch_dossier(session, hc, court, cnr, source=FirstSeenSource.SEARCH),
+            fetch_dossier(session, hc, court, cnr, source=FirstSeenSource.SEARCH, origin=REQUEST_ORIGIN),
             settings.napix_search_timeout_seconds,
         )
     except NapixNotFound:

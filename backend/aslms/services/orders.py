@@ -30,6 +30,7 @@ from aslms.domain.reference import DocType, EventType
 from aslms.integration.napix.hc import NapixHighCourt
 from aslms.services import queue
 from aslms.services.cases import emit_event
+from aslms.services.load_policy import DAILY, QueueOrigin
 from aslms.services.storage import LocalStore
 
 
@@ -37,12 +38,14 @@ def order_ref(cnr: str, order: Order) -> str:
     return f"{cnr}|{order.order_no}|{order.order_date.isoformat()}"
 
 
-def enqueue_order_pdfs(session: Session, case: Case) -> int:
-    """Queue the PDFs this case still lacks; pending cases ahead of disposed ones."""
+def enqueue_order_pdfs(session: Session, case: Case, origin: QueueOrigin | None = None) -> int:
+    """Queue the PDFs this case still lacks, in the lane of the work that found them (design `data-load-console`,
+    decisions 1 and 5): the daily cycle puts a pending case's PDFs at 40 and a disposed case's at 80; the load uses
+    its policy; a person's request 40."""
     if not case.cnr:
         return 0
-    base = queue.PRIORITY["order_pdf"]
-    priority = base - 5 if case.status == CaseStatus.PENDING else base
+    origin = origin or DAILY
+    priority = origin.order_pdf_priority(case.status == CaseStatus.PENDING)
     n = 0
     for o in session.scalars(
         select(Order).where(
@@ -58,7 +61,14 @@ def enqueue_order_pdfs(session: Session, case: Case) -> int:
             {"cnr": case.cnr, "order_no": o.order_no, "order_date": o.order_date, "kind": o.kind.value},
             dedupe=f"order_found:{case.cnr}:{o.order_no}:{o.order_date}",
         )
-        if queue.enqueue(session, FetchKind.ORDER_PDF, order_ref(case.cnr, o), priority):
+        if queue.enqueue(
+            session,
+            FetchKind.ORDER_PDF,
+            order_ref(case.cnr, o),
+            priority,
+            lane=origin.lane,
+            list_date=origin.list_date,
+        ):
             n += 1
     return n
 

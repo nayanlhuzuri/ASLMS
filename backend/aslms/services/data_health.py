@@ -18,7 +18,15 @@ from aslms.core.config import Settings
 from aslms.domain.alerts import Digest, Notification, NotificationStatus
 from aslms.domain.courts import MasterSyncRun
 from aslms.domain.documents import Document
-from aslms.domain.ops import FetchKind, FetchQueueItem, FetchStatus, JobRun, NapixCallLog, SourceFailure
+from aslms.domain.ops import (
+    FetchKind,
+    FetchLane,
+    FetchQueueItem,
+    FetchStatus,
+    JobRun,
+    NapixCallLog,
+    SourceFailure,
+)
 from aslms.domain.org import Channel, User
 from aslms.integration.napix.hc import API
 from aslms.services import access, sourcetrace_ingest
@@ -154,7 +162,8 @@ def napix_health(session: Session, settings: Settings, now: datetime | None = No
 
 def queue_depths(session: Session, now: datetime | None = None) -> dict[str, Any]:
     """Rows per kind and state: `pending` split into runnable and waiting on `not_before`, `running` with the
-    stale ones (older than `STALE_RUNNING`), `failed`, `skipped`, `done`; the oldest runnable row."""
+    stale ones (older than `STALE_RUNNING`), `failed`, `skipped`, `done`; the pending rows of each kind split by
+    lane (design `data-load-console`); the oldest runnable row."""
     now = _now(now)
     q = FetchQueueItem
     pending = q.status == FetchStatus.PENDING
@@ -175,9 +184,15 @@ def queue_depths(session: Session, now: datetime | None = None) -> dict[str, Any
             ).group_by(q.kind)
         ).all()
     }
+    lanes: dict[str, dict[str, int]] = {}
+    for kind, lane, n in session.execute(
+        select(q.kind, q.lane, func.count()).where(pending).group_by(q.kind, q.lane)
+    ).all():
+        lanes.setdefault(_value(kind), {})[_value(lane)] = int(n)
     by_kind = []
     for kind in FetchKind:
         p, r, run, stale, failed, skipped, done = rows.get(kind.value, (0,) * 7)
+        by_lane = {lane.value: lanes.get(kind.value, {}).get(lane.value, 0) for lane in FetchLane}
         by_kind.append(
             {
                 "kind": kind.value,
@@ -189,6 +204,7 @@ def queue_depths(session: Session, now: datetime | None = None) -> dict[str, Any
                 "failed": int(failed),
                 "skipped": int(skipped),
                 "done": int(done),
+                "by_lane": by_lane,
             }
         )
     oldest = session.scalar(select(func.min(q.created_at)).where(runnable))
@@ -361,10 +377,13 @@ def queue_rows(
     ref_prefix: str | None = None,
     limit: int = 50,
     offset: int = 0,
+    lane: FetchLane | None = None,
 ) -> tuple[list[dict[str, Any]], int]:
-    """Queue rows by kind, status and ref prefix, highest priority and oldest first, with `total`."""
+    """Queue rows by kind, status, lane and ref prefix, highest priority and oldest first, with `total`."""
     q = FetchQueueItem
     conds = []
+    if lane is not None:
+        conds.append(q.lane == lane)
     if kind is not None:
         conds.append(q.kind == kind)
     if status is not None:
@@ -393,6 +412,8 @@ def queue_rows(
             "last_error": r.last_error,
             "result": r.result,
             "updated_at": to_ist(r.updated_at),
+            "lane": _value(r.lane),
+            "list_date": r.list_date,
         }
         for r in rows
     ]

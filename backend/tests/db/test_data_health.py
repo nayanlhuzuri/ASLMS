@@ -172,6 +172,11 @@ def test_snapshot_counts_exact(world):
         zero = dict.fromkeys(
             ("pending", "runnable", "waiting", "running", "stale", "failed", "skipped", "done"), 0
         )
+        lanes = {k: v.pop("by_lane") for k, v in by_kind.items()}
+        # every seeded row is in the default (daily) lane: the pending rows of each kind split by lane
+        assert lanes["causelist_day"] == {"request": 0, "daily": 2, "load": 0}
+        assert lanes["status_batch"] == {"request": 0, "daily": 1, "load": 0}
+        assert lanes["masters"] == {"request": 0, "daily": 0, "load": 0}
         assert by_kind["masters"] == {**zero, "kind": "masters", "done": 1}
         assert by_kind["causelist_day"] == {
             **zero,

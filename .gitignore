@@ -7,6 +7,8 @@
 
 # --- local data (cause-list PDFs, document storage, samples) ---------------
 data/
+# the portal's "Data collection" screens are source, not data (design data-load-console)
+!frontend/src/**/data/
 cause-list-directory/
 case_documents/
 order_documents/

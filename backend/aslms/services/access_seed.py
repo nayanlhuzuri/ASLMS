@@ -56,6 +56,10 @@ PERMISSION_LABELS: dict[P, tuple[str, str]] = {
         "SourceTrace ingestion",
         "See the SourceTrace ingestion status and the failed documents, and retry them",
     ),
+    P.ADMIN_DATA_LOAD: (
+        "Manage the data load",
+        "Start, pause and order the backdated NAPIX load, fetch single cases from the court, and check duplicates",
+    ),
     P.CASES_VIEW_SCOPE: ("View cases in scope", "Cases of the offices the user belongs to"),
     P.CASES_VIEW_ALL: ("View all cases", "Every case across all departments"),
     P.CASES_SEARCH_COURT: ("Search the court", "Search NAPIX by case number, party or advocate"),

@@ -166,6 +166,231 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/data-load": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Progress
+         * @description Settings, the load period and its totals, work left by kind, failures, the hour's allowance by lane and the
+         *     estimated finish with its basis (or why there is none). Never calls NAPIX.
+         */
+        get: operations["get_progress_admin_data_load_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/data-load/coverage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Coverage
+         * @description Month by month (`YYYY-MM`, default the load period, at most 36 months): days, lists, entries, cases with and
+         *     without details, orders, work left and failures; 503 `search_timeout` when the query takes too long.
+         */
+        get: operations["get_coverage_admin_data_load_coverage_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/data-load/duplicates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Duplicates
+         * @description Merged rows, court-duplicate links, or provisional rows waiting for review; ref, CNR and case number only.
+         */
+        get: operations["get_duplicates_admin_data_load_duplicates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/data-load/duplicates/scan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Scan Duplicates
+         * @description Run the duplicate rules over every case now (merge, link, list for review); audited.
+         */
+        post: operations["scan_duplicates_admin_data_load_duplicates_scan_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/data-load/fetch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Fetch
+         * @description Fetch cases from the court by CNR, case number or party name. Without `force`, a case already held with its
+         *     details answers 409 `already_held` and a party name searched before 409 `searched_before`, with no call. The
+         *     court-search guard applies (503 `napix_off` / `napix_budget`, 429 `search_limit`). Audited `case.search_court`
+         *     with `via: data_load`. Results are summaries with `visible`.
+         */
+        post: operations["fetch_admin_data_load_fetch_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/data-load/fetch-details": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Fetch Details
+         * @description Queue the details (dossiers) of found cases in the request lane at priority 30; cases with details are
+         *     reported `already_held` and queued only with `force`. Audited `data_load.details_requested`.
+         */
+        post: operations["fetch_details_admin_data_load_fetch_details_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/data-load/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Order
+         * @description What goes first: the preset and an optional period brought forward (inside the load period); every pending
+         *     load row is re-prioritised.
+         */
+        put: operations["set_order_admin_data_load_order_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/data-load/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pause
+         * @description Pause the backdated load at the next claim of any worker; the daily cycle and requests keep running.
+         */
+        post: operations["pause_admin_data_load_pause_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/data-load/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview
+         * @description The days of a range by state and the calls the new days need; writes nothing, makes no call.
+         */
+        post: operations["preview_admin_data_load_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/data-load/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resume */
+        post: operations["resume_admin_data_load_resume_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/data-load/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start
+         * @description Queue every day of the range in the load lane; 409 `already_held` with the counts when the range holds days
+         *     already in the database and `held` (skip / refetch) is absent. Audited `data_load.started`.
+         */
+        post: operations["start_admin_data_load_start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/designations": {
         parameters: {
             query?: never;
@@ -488,7 +713,7 @@ export interface paths {
         };
         /**
          * List Queue
-         * @description Queue rows by kind, status and ref prefix, in run order, with `total`.
+         * @description Queue rows by kind, status, lane and ref prefix, in run order, with `total`.
          */
         get: operations["list_queue_admin_napix_queue_get"];
         put?: never;
@@ -510,7 +735,8 @@ export interface paths {
         put?: never;
         /**
          * Retry Failed
-         * @description Every failed row of one kind back to pending with no attempts (`masters` needs `admin.masters_sync`).
+         * @description Every failed row of one kind (of one lane when given) back to pending with no attempts (`masters` needs
+         *     `admin.masters_sync`).
          */
         post: operations["retry_failed_admin_napix_queue_retry_failed_post"];
         delete?: never;
@@ -551,7 +777,8 @@ export interface paths {
         /**
          * Refetch Case
          * @description Queue the dossier of a case you may see at priority 30 (by CNR, or by the printed number for a provisional
-         *     case); 409 `merged` with the surviving case's `ref_no`, 409 `no_reference`.
+         *     case); 409 `merged` with the surviving case's `ref_no`, 409 `no_reference`, 409 `already_held` for a case
+         *     whose details are held unless `force`.
          */
         post: operations["refetch_case_admin_napix_refetch_case_post"];
         delete?: never;
@@ -571,7 +798,8 @@ export interface paths {
         put?: never;
         /**
          * Refetch Day
-         * @description Queue `causelist_day/<date>` at priority 20 (not after tomorrow, IST).
+         * @description Queue `causelist_day/<date>` at priority 20 in the request lane (not after tomorrow, IST); 409
+         *     `already_held` for a day already in the database (done with lists, or skipped) unless `force`.
          */
         post: operations["refetch_day_admin_napix_refetch_day_post"];
         delete?: never;
@@ -3429,6 +3657,36 @@ export interface components {
             /** Unit Code */
             unit_code?: string | null;
         };
+        /** AllowanceOut */
+        AllowanceOut: {
+            /**
+             * Hour Started At
+             * Format: date-time
+             */
+            hour_started_at: string;
+            /** Live Reserve */
+            live_reserve: number;
+            /** Rate Reserve */
+            rate_reserve: number;
+            /** Remaining */
+            remaining: number | null;
+            /** Search Floor */
+            search_floor: number;
+            /** Seconds To Next Hour */
+            seconds_to_next_hour: number;
+            used: components["schemas"]["AllowanceUsedOut"];
+        };
+        /** AllowanceUsedOut */
+        AllowanceUsedOut: {
+            /** Daily */
+            daily: number;
+            /** Load */
+            load: number;
+            /** Outside Queue */
+            outside_queue: number;
+            /** Request */
+            request: number;
+        };
         /** ApplicationOut */
         ApplicationOut: {
             /** Filing Date */
@@ -3959,6 +4217,15 @@ export interface components {
             /** Status */
             status: string;
         };
+        /** CaseTotalsOut */
+        CaseTotalsOut: {
+            /** Listed */
+            listed: number;
+            /** Provisional */
+            provisional: number;
+            /** With Details */
+            with_details: number;
+        };
         /** CauselistDayRowOut */
         CauselistDayRowOut: {
             /** Attempts */
@@ -4127,6 +4394,11 @@ export interface components {
             to_court_text: string | null;
             /** Transfer Date */
             transfer_date: string | null;
+        };
+        /** CoverageOut */
+        CoverageOut: {
+            /** Months */
+            months: components["schemas"]["MonthCoverageOut"][];
         };
         /**
          * CustodyCardOut
@@ -4585,6 +4857,67 @@ export interface components {
             sourcetrace: components["schemas"]["SourcetraceStatusOut"];
             status_batches: components["schemas"]["StatusBatchesOut"] | null;
         };
+        /** DataLoadOut */
+        DataLoadOut: {
+            allowance: components["schemas"]["AllowanceOut"];
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            estimate: components["schemas"]["EstimateOut"];
+            failures: components["schemas"]["LoadFailuresOut"];
+            /** Napix Enabled */
+            napix_enabled: boolean;
+            period: components["schemas"]["LoadPeriodOut"] | null;
+            settings: components["schemas"]["DataLoadSettingsOut"];
+            totals: components["schemas"]["LoadTotalsOut"] | null;
+            /** Work Left */
+            work_left: components["schemas"]["WorkLeftOut"][];
+        };
+        /** DataLoadSettingsOut */
+        DataLoadSettingsOut: {
+            /** Changed At */
+            changed_at: string | null;
+            /** Changed By */
+            changed_by: string | null;
+            /** First From */
+            first_from: string | null;
+            /** First To */
+            first_to: string | null;
+            /** Load Order */
+            load_order: string;
+            /** Paused */
+            paused: boolean;
+            /** Reason */
+            reason: string | null;
+            /** Version */
+            version: number;
+        };
+        /** DayTotalsOut */
+        DayTotalsOut: {
+            /** Calendar */
+            calendar: number;
+            /** Failed */
+            failed: number;
+            /** No List */
+            no_list: number;
+            /** Not Queued */
+            not_queued: number;
+            /** Waiting */
+            waiting: number;
+            /** With Lists */
+            with_lists: number;
+        };
+        /** DedupeScanOut */
+        DedupeScanOut: {
+            /** Court Linked */
+            court_linked: number;
+            /** Merged */
+            merged: number;
+            /** Needs Review */
+            needs_review: number;
+        };
         /** DepartmentAdminIn */
         DepartmentAdminIn: {
             /** Designation */
@@ -4906,6 +5239,38 @@ export interface components {
             /** Visibility */
             visibility?: string | null;
         };
+        /** DuplicateCaseOut */
+        DuplicateCaseOut: {
+            /** Case No Text */
+            case_no_text: string | null;
+            /** Cnr */
+            cnr: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Ref No */
+            ref_no: string;
+        };
+        /** DuplicateItemOut */
+        DuplicateItemOut: {
+            /** At */
+            at: string | null;
+            case: components["schemas"]["DuplicateCaseOut"] | null;
+            /** Kind */
+            kind: string;
+            other: components["schemas"]["DuplicateCaseOut"] | null;
+            /** Reasons */
+            reasons?: string | null;
+        };
+        /** DuplicatesOut */
+        DuplicatesOut: {
+            /** Items */
+            items: components["schemas"]["DuplicateItemOut"][];
+            /** Total */
+            total: number;
+        };
         /** EmailPrefIn */
         EmailPrefIn: {
             /** Critical Only */
@@ -4932,6 +5297,24 @@ export interface components {
             message: string;
             /** Retry After */
             retry_after?: number | null;
+        };
+        /** EstimateOut */
+        EstimateOut: {
+            /** Basis */
+            basis: {
+                [key: string]: unknown;
+            };
+            /** Calls Needed */
+            calls_needed: number | null;
+            /** Finish At */
+            finish_at: string | null;
+            /** Hours */
+            hours: number | null;
+            /**
+             * Reason
+             * @description paused | not_enough_history | no_recent_calls
+             */
+            reason?: string | null;
         };
         /** ExitAssignmentIn */
         ExitAssignmentIn: {
@@ -5079,11 +5462,47 @@ export interface components {
             /** Resolved At */
             resolved_at: string | null;
         };
+        /** FetchDetailItemOut */
+        FetchDetailItemOut: {
+            case: components["schemas"]["CaseSearchItemOut"] | null;
+            /** Merged Into Ref No */
+            merged_into_ref_no?: string | null;
+            queue?: components["schemas"]["QueueStateOut"] | null;
+            /** Ref */
+            ref: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "queued" | "already_held" | "merged" | "no_reference" | "not_found";
+        };
+        /** FetchDetailsIn */
+        FetchDetailsIn: {
+            /** Cases */
+            cases: string[];
+            /**
+             * Force
+             * @default false
+             */
+            force: boolean;
+        };
+        /** FetchDetailsOut */
+        FetchDetailsOut: {
+            /** Items */
+            items: components["schemas"]["FetchDetailItemOut"][];
+        };
         /**
          * FetchKind
          * @enum {string}
          */
         FetchKind: "masters" | "causelist_day" | "dossier" | "status_batch" | "order_pdf";
+        /**
+         * FetchLane
+         * @description Who asked for a queue row (design `data-load-console`, decision 1), in order of precedence: a person's
+         *     request, the daily cycle, the backdated load. A row asked by two lanes keeps the higher one.
+         * @enum {string}
+         */
+        FetchLane: "request" | "daily" | "load";
         /**
          * FetchStatus
          * @enum {string}
@@ -5317,12 +5736,30 @@ export interface components {
             /** Weight Override */
             weight_override: number | null;
         };
+        /** KindCountsOut */
+        KindCountsOut: {
+            /** Causelist Day */
+            causelist_day: number;
+            /** Dossier */
+            dossier: number;
+            /** Order Pdf */
+            order_pdf: number;
+        };
         /** LabelOut */
         LabelOut: {
             /** Code */
             code: string;
             /** Label */
             label: string;
+        };
+        /** LaneCountsOut */
+        LaneCountsOut: {
+            /** Daily */
+            daily: number;
+            /** Load */
+            load: number;
+            /** Request */
+            request: number;
         };
         /** LinkGraphOut */
         LinkGraphOut: {
@@ -5392,6 +5829,215 @@ export interface components {
             source: string;
             /** Sr No */
             sr_no: number;
+        };
+        /** LoadFailureKindOut */
+        LoadFailureKindOut: {
+            /** Failed */
+            failed: number;
+            /** Kind */
+            kind: string;
+        };
+        /** LoadFailureRowOut */
+        LoadFailureRowOut: {
+            /** Attempts */
+            attempts: number;
+            /** Finished At */
+            finished_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Last Error */
+            last_error: string | null;
+            /** Ref */
+            ref: string;
+        };
+        /** LoadFailuresOut */
+        LoadFailuresOut: {
+            /** By Kind */
+            by_kind: components["schemas"]["LoadFailureKindOut"][];
+            /** Latest */
+            latest: components["schemas"]["LoadFailureRowOut"][];
+        };
+        /** LoadFetchCaseNumberIn */
+        LoadFetchCaseNumberIn: {
+            /**
+             * Case Type
+             * @description short name (WP(C)) or the master's code
+             */
+            case_type: string;
+            /**
+             * Force
+             * @default false
+             */
+            force: boolean;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "case_number";
+            /** Reg No */
+            reg_no: number;
+            /** Reg Year */
+            reg_year: number;
+        };
+        /** LoadFetchCnrIn */
+        LoadFetchCnrIn: {
+            /** Cnr */
+            cnr: string;
+            /**
+             * Force
+             * @default false
+             */
+            force: boolean;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "cnr";
+        };
+        /** LoadFetchPartyIn */
+        LoadFetchPartyIn: {
+            /**
+             * Force
+             * @default false
+             */
+            force: boolean;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "party";
+            /**
+             * Name
+             * @description letters, digits, spaces and . , ' & ( ) / - (never | or =, the gateway's separators)
+             */
+            name: string;
+            /**
+             * Pend Disp
+             * @default P
+             * @enum {string}
+             */
+            pend_disp: "P" | "D" | "both";
+            /** Reg Year */
+            reg_year: number;
+        };
+        /** LoadOrderIn */
+        LoadOrderIn: {
+            /** First From */
+            first_from?: string | null;
+            /** First To */
+            first_to?: string | null;
+            /**
+             * Load Order
+             * @enum {string}
+             */
+            load_order: "cases_first" | "lists_first" | "cases_with_orders";
+            /** Reason */
+            reason: string;
+        };
+        /** LoadOrderOut */
+        LoadOrderOut: {
+            /** Reprioritised */
+            reprioritised: number;
+            settings: components["schemas"]["DataLoadSettingsOut"];
+        };
+        /** LoadPauseIn */
+        LoadPauseIn: {
+            /** Reason */
+            reason: string;
+        };
+        /** LoadPeriodOut */
+        LoadPeriodOut: {
+            /**
+             * From
+             * Format: date
+             */
+            from: string;
+            /**
+             * To
+             * Format: date
+             */
+            to: string;
+        };
+        /** LoadPreviewOut */
+        LoadPreviewOut: {
+            /** Calls Estimate */
+            calls_estimate: number | null;
+            /** Days */
+            days: number;
+            /** Failed */
+            failed: number;
+            /** Held No List */
+            held_no_list: number;
+            /** Held With Lists */
+            held_with_lists: number;
+            /** Masters Stale */
+            masters_stale: boolean;
+            /** Not Queued */
+            not_queued: number;
+            /** Waiting */
+            waiting: number;
+        };
+        /** LoadRangeIn */
+        LoadRangeIn: {
+            /**
+             * From
+             * Format: date
+             */
+            from: string;
+            /**
+             * To
+             * Format: date
+             */
+            to: string;
+        };
+        /** LoadResumeIn */
+        LoadResumeIn: {
+            /** Reason */
+            reason?: string | null;
+        };
+        /** LoadStartIn */
+        LoadStartIn: {
+            /**
+             * From
+             * Format: date
+             */
+            from: string;
+            /**
+             * Held
+             * @description what to do with days already held; required when the range has any
+             */
+            held?: ("skip" | "refetch") | null;
+            /**
+             * To
+             * Format: date
+             */
+            to: string;
+        };
+        /** LoadStartOut */
+        LoadStartOut: {
+            /** Days */
+            days: number;
+            /** Held Requeued */
+            held_requeued: number;
+            /** Held Skipped */
+            held_skipped: number;
+            /** Masters Queued */
+            masters_queued: boolean;
+            /** Queued */
+            queued: number;
+            /** Revived */
+            revived: number;
+        };
+        /** LoadTotalsOut */
+        LoadTotalsOut: {
+            cases: components["schemas"]["CaseTotalsOut"];
+            days: components["schemas"]["DayTotalsOut"];
+            orders: components["schemas"]["OrderTotalsOut"];
         };
         /** LoginIn */
         LoginIn: {
@@ -5607,6 +6253,26 @@ export interface components {
             /** Designation Id */
             designation_id?: string | null;
             role?: components["schemas"]["Role"] | null;
+        };
+        /** MonthCoverageOut */
+        MonthCoverageOut: {
+            cases: components["schemas"]["CaseTotalsOut"];
+            days: components["schemas"]["DayTotalsOut"];
+            /** Days Covered Pct */
+            days_covered_pct: number;
+            /** Details Pct */
+            details_pct: number | null;
+            /** Entries */
+            entries: number;
+            failed: components["schemas"]["KindCountsOut"];
+            /** Lists */
+            lists: number;
+            /** Lists Parse Failed */
+            lists_parse_failed: number;
+            /** Month */
+            month: string;
+            orders: components["schemas"]["OrderTotalsOut"];
+            work_left: components["schemas"]["KindCountsOut"];
         };
         /** NamePatternIn */
         NamePatternIn: {
@@ -6053,6 +6719,17 @@ export interface components {
             /** Text Status */
             text_status?: string | null;
         };
+        /** OrderTotalsOut */
+        OrderTotalsOut: {
+            /** Not Available */
+            not_available: number;
+            /** Referenced */
+            referenced: number;
+            /** Stored */
+            stored: number;
+            /** Waiting */
+            waiting: number;
+        };
         /** OtpResendIn */
         OtpResendIn: {
             /**
@@ -6188,7 +6865,7 @@ export interface components {
          *     (`user_permissions`). The part before the dot is the module.
          * @enum {string}
          */
-        Permission: "users.view" | "users.create" | "users.edit" | "users.set_type" | "users.enable_disable" | "users.grant" | "users.reset_password" | "users.propose_head" | "access.manage_types" | "offices.manage" | "admin.counsel_codes" | "admin.keywords" | "admin.watchlist" | "admin.masters_sync" | "admin.napix_refetch" | "admin.config" | "admin.designations" | "admin.scoring" | "admin.tickets" | "admin.sourcetrace" | "cases.view_scope" | "cases.view_all" | "cases.search_court" | "cases.claim" | "cases.dismiss" | "cases.suggest_elsewhere" | "cases.transfer_request" | "cases.transfer_decide" | "cases.allot" | "cases.release" | "cases.take_over" | "custody.move" | "custody.recall" | "custody.track" | "requests.send" | "requests.answer" | "stages.set" | "notes.add" | "notes.view_counsel_shared" | "notes.view_private_office" | "documents.upload" | "documents.view" | "documents.download" | "alerts.acknowledge" | "next_dates.review" | "reports.department" | "reports.state" | "dashboard.state" | "assistant.use" | "audit.view";
+        Permission: "users.view" | "users.create" | "users.edit" | "users.set_type" | "users.enable_disable" | "users.grant" | "users.reset_password" | "users.propose_head" | "access.manage_types" | "offices.manage" | "admin.counsel_codes" | "admin.keywords" | "admin.watchlist" | "admin.masters_sync" | "admin.napix_refetch" | "admin.config" | "admin.designations" | "admin.scoring" | "admin.tickets" | "admin.sourcetrace" | "admin.data_load" | "cases.view_scope" | "cases.view_all" | "cases.search_court" | "cases.claim" | "cases.dismiss" | "cases.suggest_elsewhere" | "cases.transfer_request" | "cases.transfer_decide" | "cases.allot" | "cases.release" | "cases.take_over" | "custody.move" | "custody.recall" | "custody.track" | "requests.send" | "requests.answer" | "stages.set" | "notes.add" | "notes.view_counsel_shared" | "notes.view_private_office" | "documents.upload" | "documents.view" | "documents.download" | "alerts.acknowledge" | "next_dates.review" | "reports.department" | "reports.state" | "dashboard.state" | "assistant.use" | "audit.view";
         /** PermissionOut */
         PermissionOut: {
             code: components["schemas"]["Permission"];
@@ -6296,6 +6973,7 @@ export interface components {
         };
         /** QueueKindOut */
         QueueKindOut: {
+            by_lane: components["schemas"]["LaneCountsOut"];
             /** Done */
             done: number;
             /** Failed */
@@ -6335,8 +7013,12 @@ export interface components {
             id: string;
             /** Kind */
             kind: string;
+            /** Lane */
+            lane: string;
             /** Last Error */
             last_error: string | null;
+            /** List Date */
+            list_date: string | null;
             /** Not Before */
             not_before: string | null;
             /** Priority */
@@ -6358,6 +7040,8 @@ export interface components {
             attempts: number;
             /** Kind */
             kind: string;
+            /** Lane */
+            lane?: string | null;
             /** Napix Enabled */
             napix_enabled: boolean;
             /** Not Before */
@@ -6477,6 +7161,12 @@ export interface components {
         RefetchCaseIn: {
             /** Case */
             case: string;
+            /**
+             * Force
+             * @description queue a case whose details are already held anyway
+             * @default false
+             */
+            force: boolean;
         };
         /** RefetchDayIn */
         RefetchDayIn: {
@@ -6485,6 +7175,12 @@ export interface components {
              * Format: date
              */
             date: string;
+            /**
+             * Force
+             * @description queue a day already held (done with lists, or skipped) anyway
+             * @default false
+             */
+            force: boolean;
         };
         /** RefetchOrderIn */
         RefetchOrderIn: {
@@ -6621,6 +7317,8 @@ export interface components {
              * @enum {string}
              */
             kind: "masters" | "causelist_day" | "dossier" | "status_batch" | "order_pdf";
+            /** Lane */
+            lane?: ("request" | "daily" | "load") | null;
         };
         /** RetryFailedOut */
         RetryFailedOut: {
@@ -7495,6 +8193,21 @@ export interface components {
             /** Weight */
             weight?: number | null;
         };
+        /** WorkLeftOut */
+        WorkLeftOut: {
+            /** Failed */
+            failed: number;
+            /** Kind */
+            kind: string;
+            /** Pending */
+            pending: number;
+            /** Runnable */
+            runnable: number;
+            /** Running */
+            running: number;
+            /** Waiting */
+            waiting: number;
+        };
         /** WorkflowCodesOut */
         WorkflowCodesOut: {
             /** Custody Reasons */
@@ -7829,6 +8542,1035 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DataHealthOut"];
+                };
+            };
+        };
+    };
+    get_progress_admin_data_load_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataLoadOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    get_coverage_admin_data_load_coverage_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoverageOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    get_duplicates_admin_data_load_duplicates_get: {
+        parameters: {
+            query?: {
+                kind?: string;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DuplicatesOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    scan_duplicates_admin_data_load_duplicates_scan_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DedupeScanOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    fetch_admin_data_load_fetch_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoadFetchCnrIn"] | components["schemas"]["LoadFetchCaseNumberIn"] | components["schemas"]["LoadFetchPartyIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CourtSearchOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    fetch_details_admin_data_load_fetch_details_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FetchDetailsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FetchDetailsOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    set_order_admin_data_load_order_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoadOrderIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoadOrderOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    pause_admin_data_load_pause_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoadPauseIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataLoadSettingsOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    preview_admin_data_load_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoadRangeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoadPreviewOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    resume_admin_data_load_resume_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["LoadResumeIn"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataLoadSettingsOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    start_admin_data_load_start_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoadStartIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoadStartOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
                 };
             };
         };
@@ -8556,6 +10298,7 @@ export interface operations {
                 status?: components["schemas"]["FetchStatus"] | null;
                 /** @description ref prefix */
                 ref?: string | null;
+                lane?: components["schemas"]["FetchLane"] | null;
                 limit?: number;
                 offset?: number;
             };

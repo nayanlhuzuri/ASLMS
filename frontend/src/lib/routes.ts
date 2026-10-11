@@ -25,6 +25,14 @@ export const ADMIN_FUNCTIONS: readonly Permission[] = [
   "admin.tickets",
 ];
 
+/** Reading the data-collection screens (design data-load-console, decision 17); every action has its own function. */
+export const DATA_READERS: readonly Permission[] = [
+  "admin.data_load",
+  "reports.state",
+  "admin.napix_refetch",
+  "admin.masters_sync",
+];
+
 export const NAV: readonly NavEntry[] = [
   { key: "dashboard", label: "Dashboard", href: "/", functions: [], built: true },
   { key: "inbox", label: "Case inbox", href: "/inbox", functions: CASE_READERS, built: false },
@@ -32,7 +40,7 @@ export const NAV: readonly NavEntry[] = [
   { key: "alerts", label: "Alerts & calendar", href: "/alerts", functions: CASE_READERS, built: false },
   { key: "reports", label: "Reports", href: "/reports", functions: ["reports.department", "reports.state"], built: false },
   { key: "audit", label: "Audit log", href: "/audit", functions: ["audit.view"], built: false },
-  { key: "health", label: "Data health", href: "/admin/data-health", functions: ["admin.napix_refetch"], built: false },
+  { key: "data", label: "Data collection", href: "/data/load", functions: DATA_READERS, built: true },
   { key: "admin", label: "Administration", href: "/admin", functions: ADMIN_FUNCTIONS, built: true },
 ];
 
@@ -51,12 +59,30 @@ export const ADMIN_TABS: readonly AdminTab[] = [
   { key: "tickets", label: "Tickets", href: "/admin/tickets", functions: ["users.propose_head", "admin.tickets"] },
 ];
 
+export interface DataTab {
+  key: string;
+  label: string;
+  href: string;
+  functions: readonly Permission[];
+}
+
+export const DATA_TABS: readonly DataTab[] = [
+  { key: "load", label: "Load", href: "/data/load", functions: DATA_READERS },
+  { key: "health", label: "Health", href: "/data/health", functions: DATA_READERS },
+  { key: "queue", label: "Queue and calls", href: "/data/queue", functions: DATA_READERS },
+  { key: "duplicates", label: "Duplicates", href: "/data/duplicates", functions: DATA_READERS },
+];
+
 function visible(me: Pick<Me, "functions"> | null | undefined, functions: readonly Permission[]): boolean {
   return functions.length === 0 ? !!me : canAny(me, functions);
 }
 
 export function navFor(me: Pick<Me, "functions"> | null | undefined): NavEntry[] {
   return NAV.filter((entry) => entry.built && visible(me, entry.functions));
+}
+
+export function dataTabsFor(me: Pick<Me, "functions"> | null | undefined): DataTab[] {
+  return DATA_TABS.filter((tab) => visible(me, tab.functions));
 }
 
 export function adminTabsFor(me: Pick<Me, "functions"> | null | undefined): AdminTab[] {
@@ -73,4 +99,9 @@ export const CRUMBS: Record<string, string> = {
   designations: "Designations",
   tickets: "Tickets",
   profile: "My profile",
+  data: "Data collection",
+  load: "Load",
+  health: "Health",
+  queue: "Queue and calls",
+  duplicates: "Duplicates",
 };

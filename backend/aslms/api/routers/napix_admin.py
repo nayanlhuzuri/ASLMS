@@ -17,7 +17,7 @@ from aslms.api import schemas
 from aslms.api.deps import actor_of, get_session, napix_client, require, require_any
 from aslms.api.errors import detail
 from aslms.domain.cases import Case
-from aslms.domain.ops import FetchKind, FetchStatus
+from aslms.domain.ops import FetchKind, FetchLane, FetchStatus
 from aslms.domain.org import User
 from aslms.domain.reference import Permission
 from aslms.services import data_health, napix_admin
@@ -105,14 +105,15 @@ def list_queue(
     kind: FetchKind | None = None,
     status_: FetchStatus | None = Query(None, alias="status"),
     ref: str | None = Query(None, max_length=300, description="ref prefix"),
+    lane: FetchLane | None = None,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     session: Session = Depends(get_session),
     user: User = Depends(health_reader),
 ) -> schemas.QueueListOut:
-    """Queue rows by kind, status and ref prefix, in run order, with `total`."""
+    """Queue rows by kind, status, lane and ref prefix, in run order, with `total`."""
     items, total = data_health.queue_rows(
-        session, kind=kind, status=status_, ref_prefix=ref, limit=limit, offset=offset
+        session, kind=kind, status=status_, ref_prefix=ref, limit=limit, offset=offset, lane=lane
     )
     return schemas.QueueListOut(total=total, items=items)
 
@@ -212,10 +213,16 @@ def refetch_day(
     session: Session = Depends(get_session),
     user: User = Depends(refetcher),
 ) -> schemas.QueueStateOut:
-    """Queue `causelist_day/<date>` at priority 20 (not after tomorrow, IST)."""
+    """Queue `causelist_day/<date>` at priority 20 in the request lane (not after tomorrow, IST); 409
+    `already_held` for a day already in the database (done with lists, or skipped) unless `force`."""
     try:
         state = napix_admin.refetch_day(
-            session, actor_of(request, user, session), user, body.date, request.app.state.settings
+            session,
+            actor_of(request, user, session),
+            user,
+            body.date,
+            request.app.state.settings,
+            force=body.force,
         )
     except HANDLED as exc:
         raise _http(exc) from exc
@@ -235,11 +242,17 @@ def refetch_case(
     user: User = Depends(refetcher),
 ) -> schemas.QueueStateOut:
     """Queue the dossier of a case you may see at priority 30 (by CNR, or by the printed number for a provisional
-    case); 409 `merged` with the surviving case's `ref_no`, 409 `no_reference`."""
+    case); 409 `merged` with the surviving case's `ref_no`, 409 `no_reference`, 409 `already_held` for a case
+    whose details are held unless `force`."""
     case = _case(session, body.case)
     try:
         state = napix_admin.refetch_case(
-            session, actor_of(request, user, session), user, case, request.app.state.settings
+            session,
+            actor_of(request, user, session),
+            user,
+            case,
+            request.app.state.settings,
+            force=body.force,
         )
     except HANDLED as exc:
         raise _http(exc) from exc
@@ -276,10 +289,12 @@ def retry_failed(
     session: Session = Depends(get_session),
     user: User = Depends(napix_operator),
 ) -> schemas.RetryFailedOut:
-    """Every failed row of one kind back to pending with no attempts (`masters` needs `admin.masters_sync`)."""
+    """Every failed row of one kind (of one lane when given) back to pending with no attempts (`masters` needs
+    `admin.masters_sync`)."""
     kind = FetchKind(body.kind)
+    lane = FetchLane(body.lane) if body.lane else None
     try:
-        n = napix_admin.retry_failed(session, actor_of(request, user, session), user, kind)
+        n = napix_admin.retry_failed(session, actor_of(request, user, session), user, kind, lane)
     except HANDLED as exc:
         raise _http(exc) from exc
     return schemas.RetryFailedOut(kind=kind.value, retried=n)

@@ -10,6 +10,8 @@ once (design documents-uploads, decision 10). The alert jobs (design alerts-noti
 each writes a `job_runs` row with its counters; nothing here calls NAPIX. `sourcetrace-ingest` (every 5 minutes)
 sends due court orders and court filings to SourceTrace (design sourcetrace-connector, decisions 14-15): while
 the connector is `disabled` or `not_implemented` it returns at once, sends nothing and writes no `job_runs` row.
+`dedupe-sweep` (03:00 IST) runs the duplicate rules over every case (design data-load-console, decision 16) and
+writes a `job_runs` row with `{merged, needs_review, court_linked}`; it makes no NAPIX call.
 Run: `celery -A aslms.jobs.celery_app worker -B --concurrency 1` (the Compose `scheduler` service)."""
 
 from __future__ import annotations
@@ -25,7 +27,15 @@ from aslms.core.config import get_settings
 from aslms.db.session import get_sessionmaker, session_scope
 from aslms.domain.ops import JobRun, JobStatus
 from aslms.integration.sourcetrace import connector_state, get_connector
-from aslms.services import alerts, matching, notifications, schedules, sourcetrace_ingest, text_extract
+from aslms.services import (
+    alerts,
+    case_dedupe,
+    matching,
+    notifications,
+    schedules,
+    sourcetrace_ingest,
+    text_extract,
+)
 from aslms.services.mailer import get_mailer
 from aslms.services.storage import LocalStore
 
@@ -53,6 +63,7 @@ app.conf.update(
         "notifications-send": {"task": "aslms.notifications_send", "schedule": crontab(minute="*/2")},
         "digests-build": {"task": "aslms.digests_build", "schedule": crontab(hour=8, minute=0)},
         "sourcetrace-ingest": {"task": "aslms.sourcetrace_ingest", "schedule": crontab(minute="*/5")},
+        "dedupe-sweep": {"task": "aslms.dedupe_sweep", "schedule": crontab(hour=3, minute=0)},
     },
 )
 
@@ -115,6 +126,37 @@ def extract_document_text(document_id: str) -> dict:
     store = LocalStore(settings.storage_dir)
     with session_scope() as s:
         return text_extract.extract_pending(s, store, batch=1, document_id=uuid.UUID(document_id))
+
+
+@app.task(name="aslms.dedupe_sweep")
+def dedupe_sweep() -> dict:
+    """Decision 16: merge provisional rows into the row holding their CNR, link the court's duplicates, list the
+    rest for review; one `job_runs` row with the counters and one `data_load.dedupe_scan` audit row (system)."""
+    from aslms.services.audit import Actor, write_audit
+
+    with session_scope() as s:
+        run = JobRun(job="dedupe-sweep", run_date=date.today())
+        s.add(run)
+        s.flush()
+        try:
+            report = case_dedupe.sweep(s, actor=Actor.system("dedupe-sweep"))
+        except Exception as exc:  # noqa: BLE001 — recorded on the run, then re-raised for the worker log
+            run.status, run.error = JobStatus.FAILED, f"{exc.__class__.__name__}: {exc}"[:2000]
+            s.flush()
+            raise
+        counters = report.counts()
+        write_audit(
+            s,
+            Actor.system("dedupe-sweep"),
+            "data_load.dedupe_scan",
+            "cases",
+            None,
+            after={**counters, "dry_run": False},
+        )
+        run.counters = counters
+        run.status = JobStatus.SUCCEEDED
+        run.finished_at = datetime.now(UTC)
+        return counters
 
 
 # ------------------------------------------------------------------------------------------------ alerts

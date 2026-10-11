@@ -177,6 +177,7 @@ def test_buttons_enqueue_and_audit_without_calling_napix(api, world, gateway, ed
         "priority": 10,
         "attempts": 0,
         "not_before": None,
+        "lane": "request",
         "napix_enabled": False,
     }
     r = api.post("/admin/napix/refetch/day", json={"date": "2025-01-06"}, headers=h)
@@ -324,7 +325,9 @@ def test_retry_item_and_retry_failed(api, world):
         rows = s.scalars(sa.select(FetchQueueItem).where(FetchQueueItem.kind == FetchKind.ORDER_PDF)).all()
         assert {(r.status, r.attempts, r.last_error) for r in rows} == {(FetchStatus.PENDING, 0, None)}
     (bulk,) = _audits(world, "napix.queue_retry_failed")
-    assert bulk.after == {"kind": "order_pdf", "retried": 3} and bulk.actor_office_code == "HEALTH"
+    assert (
+        bulk.after == {"kind": "order_pdf", "lane": None, "retried": 3} and bulk.actor_office_code == "HEALTH"
+    )
     r = api.post(f"/admin/napix/queue/{masters}/retry", headers=h)
     assert r.status_code == 200 and r.json()["status"] == "pending"
 

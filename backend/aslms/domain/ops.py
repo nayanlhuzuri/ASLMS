@@ -7,11 +7,49 @@ import enum
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, DateTime, Integer, SmallInteger, String, Text, UniqueConstraint, text
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Date,
+    DateTime,
+    Index,
+    Integer,
+    SmallInteger,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from aslms.db.base import Base, CreatedAtMixin, TableClass, TimestampMixin, pg_enum, uuid_fk, uuid_pk
+from aslms.db.base import (
+    Base,
+    CreatedAtMixin,
+    CreatedByMixin,
+    TableClass,
+    TimestampMixin,
+    pg_enum,
+    uuid_fk,
+    uuid_pk,
+)
+
+
+class FetchLane(enum.StrEnum):
+    """Who asked for a queue row (design `data-load-console`, decision 1), in order of precedence: a person's
+    request, the daily cycle, the backdated load. A row asked by two lanes keeps the higher one."""
+
+    REQUEST = "request"
+    DAILY = "daily"
+    LOAD = "load"
+
+
+class LoadOrder(enum.StrEnum):
+    """What goes first in the backdated load (decision 3)."""
+
+    CASES_FIRST = "cases_first"
+    LISTS_FIRST = "lists_first"
+    CASES_WITH_ORDERS = "cases_with_orders"
 
 
 class JobStatus(enum.StrEnum):
@@ -58,6 +96,8 @@ class NapixCallLog(Base):
         DateTime(timezone=True), nullable=False, server_default=text("now()"), index=True
     )
     job_run_id: Mapped[uuid.UUID | None] = uuid_fk("job_runs.id", nullable=True, ondelete="CASCADE")
+    # the lane of the queue item that made the call; NULL for calls made by the API (data-load-console, 0014)
+    lane: Mapped[FetchLane | None] = mapped_column(pg_enum(FetchLane, "fetch_lane"))
 
 
 class NapixResponse(CreatedAtMixin, Base):
@@ -122,7 +162,12 @@ class FetchQueueItem(TimestampMixin, Base):
 
     __tablename__ = "fetch_queue"
     __table_class__ = TableClass.DERIVED
-    __table_args__ = (UniqueConstraint("kind", "ref"),)
+    __table_args__ = (
+        UniqueConstraint("kind", "ref"),
+        # the claim query's order (design data-load-console, migration 0014)
+        Index("ix_fetch_queue_claim", "priority", "created_at", postgresql_where=text("status = 'pending'")),
+        Index("ix_fetch_queue_lane_list_date", "lane", "list_date"),
+    )
     id: Mapped[uuid.UUID] = uuid_pk()
     kind: Mapped[FetchKind] = mapped_column(pg_enum(FetchKind, "fetch_kind"), nullable=False)
     ref: Mapped[str] = mapped_column(String(300), nullable=False)
@@ -137,3 +182,41 @@ class FetchQueueItem(TimestampMixin, Base):
     last_error: Mapped[str | None] = mapped_column(Text)
     result: Mapped[dict | None] = mapped_column(JSONB)
     job_run_id: Mapped[uuid.UUID | None] = uuid_fk("job_runs.id", nullable=True)
+    lane: Mapped[FetchLane] = mapped_column(
+        pg_enum(FetchLane, "fetch_lane"), nullable=False, server_default="daily"
+    )
+    # the cause-list date whose loading queued the row; inherited by the dossiers and order PDFs it spawns
+    list_date: Mapped[date | None] = mapped_column(Date)
+
+
+class DataLoadSettings(TimestampMixin, CreatedByMixin, Base):
+    """Pause and order of the backdated load, versioned (design `data-load-console`, decision 18): each pause,
+    resume or order change inserts a new version and closes the previous one; values are never updated in place
+    and rows are never deleted. An empty table means running, `cases_first`, nothing brought forward."""
+
+    __tablename__ = "data_load_settings"
+    __table_class__ = TableClass.MASTER
+    __table_args__ = (
+        CheckConstraint("is_current = (valid_to IS NULL)", name="current"),
+        CheckConstraint(
+            "(first_from IS NULL) = (first_to IS NULL) AND (first_from IS NULL OR first_from <= first_to)",
+            name="first",
+        ),
+        Index(
+            "ix_data_load_settings_current", "is_current", unique=True, postgresql_where=text("is_current")
+        ),
+    )
+    id: Mapped[uuid.UUID] = uuid_pk()
+    version: Mapped[int] = mapped_column(Integer, nullable=False, unique=True)
+    paused: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    load_order: Mapped[LoadOrder] = mapped_column(
+        pg_enum(LoadOrder, "load_order"), nullable=False, server_default="cases_first"
+    )
+    first_from: Mapped[date | None] = mapped_column(Date)
+    first_to: Mapped[date | None] = mapped_column(Date)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    valid_from: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    valid_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

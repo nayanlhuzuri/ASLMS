@@ -308,12 +308,14 @@ class LinkKind(enum.StrEnum):
     APPEAL_OF = "appeal_of"
     CONTEMPT_OF = "contempt_of"
     WITH = "with"
+    COURT_DUPLICATE = "court_duplicate"  # two CNRs the court issued for one case (data-load-console, 0014)
 
 
 class LinkSource(enum.StrEnum):
     DOSSIER = "dossier"
     CAUSELIST = "causelist"
     MANUAL = "manual"
+    DEDUPE = "dedupe"  # written by services/case_dedupe.py (data-load-console, 0014)
 
 
 class CaseLink(TimestampMixin, Base):

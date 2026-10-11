@@ -7,6 +7,9 @@ or an order PDF, retry a failed queue row or every failed row of a kind, and the
 - **Functions**: masters (sync, retry of `masters` rows) need `admin.masters_sync`; the other kinds
   `admin.napix_refetch`; the check either of them. A re-fetch of a case or an order needs the case visible.
 - **Never a made-up identifier**: a case with neither a CNR nor a printed number answers `no_reference`.
+- **Lanes and the warning** (design `data-load-console`, decision 12): every button queues in the `request` lane.
+  Re-fetching a day already held (done with lists stored, or skipped) or a case with details answers 409
+  `already_held` unless `force`; a stored order PDF keeps answering `already_stored` (no `force`).
 - **Audit** (decision 11): one row per button (`napix.masters_sync_requested`, `napix.refetch_requested`,
   `napix.queue_retry`, `napix.queue_retry_failed`, `napix.health_checked`); no event, no alert.
 - **The check** (decision 10) is the only NAPIX call here, through the integration layer with a `NapixRecorder`:
@@ -30,7 +33,7 @@ from aslms.core.errors import IntegrationError
 from aslms.domain.cases import Case
 from aslms.domain.courts import Court
 from aslms.domain.documents import DownloadStatus, Order
-from aslms.domain.ops import FetchKind, FetchQueueItem, FetchStatus, NapixCallLog
+from aslms.domain.ops import FetchKind, FetchLane, FetchQueueItem, FetchStatus, NapixCallLog
 from aslms.domain.org import User
 from aslms.domain.reference import Permission
 from aslms.integration.napix.client import NapixClient
@@ -79,6 +82,12 @@ class NoReference(AdminConflict):
 
 class AlreadyStored(AdminConflict):
     code = "already_stored"
+
+
+class AlreadyHeld(AdminConflict):
+    """The data is already in the database; the caller may send `force` (design `data-load-console`, decision 12)."""
+
+    code = "already_held"
 
 
 class NotRetryable(AdminConflict):
@@ -152,6 +161,7 @@ def state_of(
         "priority": row.priority if row is not None else None,
         "attempts": row.attempts if row is not None else 0,
         "not_before": to_ist(row.not_before) if row is not None else None,
+        "lane": _value(row.lane) if row is not None else None,
         "napix_enabled": bool(settings.napix_configured),
     }
 
@@ -168,10 +178,11 @@ def _enqueue(
     *,
     case_id: uuid.UUID | None = None,
     extra: dict[str, Any] | None = None,
+    list_date: date | None = None,
 ) -> dict[str, Any]:
     before = queue.get_state(session, kind, ref)
     status_before = _value(before.status) if before is not None else None
-    queue.enqueue(session, kind, ref, priority, requeue=True)
+    queue.enqueue(session, kind, ref, priority, requeue=True, lane=FetchLane.REQUEST, list_date=list_date)
     row = queue.get_state(session, kind, ref)
     write_audit(
         session,
@@ -185,6 +196,7 @@ def _enqueue(
             "priority": row.priority if row is not None else priority,
             "status_before": status_before,
             "status_after": _value(row.status) if row is not None else None,
+            "lane": _value(row.lane) if row is not None else FetchLane.REQUEST.value,
             **(extra or {}),
         },
         case_id=case_id,
@@ -219,12 +231,21 @@ def refetch_day(
     list_date: date,
     settings: Settings,
     today: date | None = None,
+    *,
+    force: bool = False,
 ) -> dict[str, Any]:
-    """`causelist_day/<date>` at priority 20, as `aslms refetch-date`; not after tomorrow (IST)."""
+    """`causelist_day/<date>` at priority 20 in the request lane, as `aslms refetch-date`; not after tomorrow
+    (IST). A day already held (done with lists stored, or skipped: the court published none) answers
+    `already_held` without `force`, before anything is written."""
     member = acting_member(session, user, Permission.ADMIN_NAPIX_REFETCH)
     today = today or today_ist()
     if list_date > today + timedelta(days=1):
         raise AdminInputError("date_in_future", "a cause list can be fetched up to tomorrow")
+    if not force:
+        held = day_held(session, list_date)
+        if held is not None:
+            raise AlreadyHeld(f"the cause lists of {list_date} are already in the database", **held)
+    extra = {"force": force} if force else None
     return _enqueue(
         session,
         actor,
@@ -234,7 +255,27 @@ def refetch_day(
         list_date.isoformat(),
         queue.PRIORITY["list_today"],
         settings,
+        extra=extra,
+        list_date=list_date,
     )
+
+
+def day_held(session: Session, list_date: date) -> dict[str, Any] | None:
+    """The `already_held` body for a day whose row is done with lists stored, or skipped; None otherwise."""
+    row = queue.get_state(session, FetchKind.CAUSELIST_DAY, list_date.isoformat())
+    if row is None:
+        return None
+    status = FetchStatus(_value(row.status))
+    stored = int(
+        session.scalar(
+            text("SELECT count(*) FROM causelists WHERE list_date = :d AND document_id IS NOT NULL"),
+            {"d": list_date},
+        )
+        or 0
+    )
+    if (status == FetchStatus.DONE and stored > 0) or status == FetchStatus.SKIPPED:
+        return {"status": status.value, "lists_stored": stored, "finished_at": to_ist(row.finished_at)}
+    return None
 
 
 def dossier_ref(session: Session, case: Case) -> str:
@@ -253,9 +294,16 @@ def _visible(session: Session, user: User | Member | None, case: Case) -> None:
 
 
 def refetch_case(
-    session: Session, actor: Actor, user: User | Member | None, case: Case, settings: Settings
+    session: Session,
+    actor: Actor,
+    user: User | Member | None,
+    case: Case,
+    settings: Settings,
+    *,
+    force: bool = False,
 ) -> dict[str, Any]:
-    """`dossier/<ref>` at priority 30, as `aslms refetch-case`; the case visible to the caller."""
+    """`dossier/<ref>` at priority 30 in the request lane, as `aslms refetch-case`; the case visible to the caller.
+    A case whose details are held answers `already_held` without `force`."""
     member = acting_member(session, user, Permission.ADMIN_NAPIX_REFETCH)
     _visible(session, user, case)
     if case.merged_into_case_id is not None:
@@ -265,6 +313,12 @@ def refetch_case(
             ref_no=target.ref_no if target else None,
         )
     ref = dossier_ref(session, case)
+    if not force and case.last_full_refresh_at is not None:
+        raise AlreadyHeld(
+            "the case's details are already in the database",
+            dossier_fetched_at=to_ist(case.last_full_refresh_at),
+            dossier_stale=bool(case.dossier_stale),
+        )
     return _enqueue(
         session,
         actor,
@@ -275,6 +329,7 @@ def refetch_case(
         REQUEST_PRIORITY,
         settings,
         case_id=case.id,
+        extra={"force": True} if force else None,
     )
 
 
@@ -356,18 +411,22 @@ def retry_item(
     return state_of(session, row, kind, ref, settings)
 
 
-def retry_failed(session: Session, actor: Actor, user: User | Member, kind: FetchKind) -> int:
-    """Every `failed` row of one kind back to `pending` in one statement; one audit row with the count."""
+def retry_failed(
+    session: Session, actor: Actor, user: User | Member, kind: FetchKind, lane: FetchLane | None = None
+) -> int:
+    """Every `failed` row of one kind (of one lane when given: "retry the load's failed details" leaves the daily
+    lane alone) back to `pending` in one statement; one audit row with the count."""
     member = acting_member(session, user, _kind_permission(kind))
+    lane_filter = "AND lane = CAST(:lane AS fetch_lane)" if lane is not None else ""
     n = (
         session.execute(
             text(
-                """
+                f"""
                 UPDATE fetch_queue SET status = 'pending', attempts = 0, not_before = NULL, last_error = NULL
-                WHERE kind = CAST(:kind AS fetch_kind) AND status = 'failed'
+                WHERE kind = CAST(:kind AS fetch_kind) AND status = 'failed' {lane_filter}
                 """
             ),
-            {"kind": kind.value},
+            {"kind": kind.value, "lane": FetchLane(lane).value if lane is not None else None},
         ).rowcount
         or 0
     )
@@ -377,7 +436,7 @@ def retry_failed(session: Session, actor: Actor, user: User | Member, kind: Fetc
         "napix.queue_retry_failed",
         "fetch_queue",
         None,
-        after={"kind": kind.value, "retried": n},
+        after={"kind": kind.value, "lane": FetchLane(lane).value if lane is not None else None, "retried": n},
     )
     return n
 

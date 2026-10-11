@@ -5,6 +5,7 @@ function, scope or a reserved path, 409 with a machine-readable `code` for a sta
 from __future__ import annotations
 
 from fastapi import HTTPException, status
+from fastapi.encoders import jsonable_encoder
 
 from aslms.services.access import Conflict, Forbidden, ReservedFunction
 from aslms.services.memberships import MembershipError
@@ -24,7 +25,8 @@ HANDLED = (
 
 
 def detail(code: str, message: str, **extra) -> dict:
-    return {"code": code, "message": message, **extra}
+    """The error body; extras pass through `jsonable_encoder` (dates and times as ISO strings)."""
+    return {"code": code, "message": message, **jsonable_encoder(extra)}
 
 
 def http_error(exc: Exception) -> HTTPException:

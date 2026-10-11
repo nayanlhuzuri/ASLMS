@@ -72,7 +72,7 @@ def load_list(s, entries, list_date=date(2025, 1, 6)):
         s.add(cl)
         s.flush()
     parsed = ParsedCauseList("daily", "DAILY", list_date, 1, [], entries, [])
-    apply_entries(s, court, cl, parsed, dossier_priority=40, report=DayReport(list_date))
+    apply_entries(s, court, cl, parsed, report=DayReport(list_date))
     return cl
 
 

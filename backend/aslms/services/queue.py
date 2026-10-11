@@ -9,27 +9,35 @@ older than the stale limit is re-queued). Kinds and the meaning of `ref`:
 - `status_batch`   ref `<YYYY-MM-DD>:<n>` (the n-th batch of up to 500 non-disposed CNRs for that day)
 - `order_pdf`      ref `<CNR>|<order_no>|<YYYY-MM-DD>`
 
-Priorities (lower runs first): masters 10, today's and tomorrow's lists 20, status batches 30, new dossiers 40,
-dossier re-fetches 50, historical list days 60, order PDFs 80."""
+Every row carries a lane (design `data-load-console`, decision 1): `request` (a person asked), `daily` (the daily
+cycle) or `load` (the backdated load), in that order of precedence; a row asked by two lanes keeps the higher one
+and the better priority. `list_date` is the cause-list date whose loading queued the row, inherited by what it
+spawns. `claim` skips `load` rows while the current `data_load_settings` version is paused (decision 2).
+
+Priorities (lower runs first): masters 10; yesterday's, today's and tomorrow's lists 20; status batches and a
+person's requests 30; the daily cycle's new dossiers and live-case order PDFs 40; the backdated load 41-48 by the
+preset and the period brought forward (`services/load_policy.py`); the weekly dossier sweep 50; disposed-case order
+PDFs 80."""
 
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-from aslms.domain.ops import FetchKind, FetchQueueItem, FetchStatus
+from aslms.domain.ops import FetchKind, FetchLane, FetchQueueItem, FetchStatus
 
 PRIORITY = {
     "masters": 10,
     "list_today": 20,
     "status": 30,
+    "request": 30,
     "dossier_new": 40,
+    "order_pdf_live": 40,
     "dossier_refetch": 50,
-    "list_history": 60,
     "order_pdf": 80,
 }
 MAX_ATTEMPTS = 5
@@ -44,17 +52,25 @@ def enqueue(
     *,
     not_before: datetime | None = None,
     requeue: bool = False,
+    lane: FetchLane = FetchLane.DAILY,
+    list_date: date | None = None,
 ) -> bool:
     """Insert or revive a row. Without `requeue`, a `done` row stays done; a `failed` or `skipped` row is
-    revived; a `pending` row keeps the better (lower) priority. Returns True when the row is pending after
-    the call."""
+    revived; a `pending` row keeps the better (lower) priority. A pending or revived row takes the
+    higher-precedence lane (`LEAST` over the enum: request < daily < load); `list_date` is kept once set.
+    Returns True when the row is pending after the call."""
     row = session.execute(
         text(
             """
-            INSERT INTO fetch_queue (kind, ref, priority, not_before)
-            VALUES (CAST(:kind AS fetch_kind), :ref, :priority, :not_before)
+            INSERT INTO fetch_queue (kind, ref, priority, not_before, lane, list_date)
+            VALUES (CAST(:kind AS fetch_kind), :ref, :priority, :not_before, CAST(:lane AS fetch_lane), :list_date)
             ON CONFLICT (kind, ref) DO UPDATE SET
                 priority = LEAST(fetch_queue.priority, EXCLUDED.priority),
+                lane = CASE
+                    WHEN fetch_queue.status IN ('pending', 'failed', 'skipped')
+                        OR (fetch_queue.status = 'done' AND :requeue)
+                    THEN LEAST(fetch_queue.lane, EXCLUDED.lane) ELSE fetch_queue.lane END,
+                list_date = COALESCE(fetch_queue.list_date, EXCLUDED.list_date),
                 not_before = CASE WHEN fetch_queue.status = 'pending' THEN fetch_queue.not_before ELSE EXCLUDED.not_before END,
                 status = CASE
                     WHEN fetch_queue.status IN ('failed', 'skipped') THEN 'pending'::fetch_queue_status
@@ -66,14 +82,32 @@ def enqueue(
             RETURNING status
             """
         ),
-        {"kind": kind.value, "ref": ref, "priority": priority, "not_before": not_before, "requeue": requeue},
+        {
+            "kind": kind.value,
+            "ref": ref,
+            "priority": priority,
+            "not_before": not_before,
+            "requeue": requeue,
+            "lane": FetchLane(lane).value,
+            "list_date": list_date,
+        },
     ).scalar_one()
     return row == "pending"
 
 
-def claim(session: Session, kinds: list[FetchKind] | None = None) -> FetchQueueItem | None:
-    """The highest-priority runnable row, marked running. Returns None when nothing is runnable."""
+PAUSE_CLAUSE = (
+    "AND (lane <> 'load' OR NOT EXISTS (SELECT 1 FROM data_load_settings WHERE is_current AND paused))"
+)
+
+
+def claim(
+    session: Session, kinds: list[FetchKind] | None = None, *, lanes: list[FetchLane] | None = None
+) -> FetchQueueItem | None:
+    """The highest-priority runnable row, marked running. `load` rows are skipped while the load is paused (read
+    by this query, so a pause bites at the next claim of any worker); `lanes` narrows the lanes (the runner's
+    budget bands, decision 4). Returns None when nothing is runnable."""
     kind_filter = "AND kind = ANY(CAST(:kinds AS fetch_kind[]))" if kinds else ""
+    lane_filter = "AND lane = ANY(CAST(:lanes AS fetch_lane[]))" if lanes else ""
     row = session.execute(
         text(
             f"""
@@ -81,6 +115,7 @@ def claim(session: Session, kinds: list[FetchKind] | None = None) -> FetchQueueI
             WHERE id = (
                 SELECT id FROM fetch_queue
                 WHERE status = 'pending' AND (not_before IS NULL OR not_before <= now()) {kind_filter}
+                    {lane_filter} {PAUSE_CLAUSE}
                 ORDER BY priority, created_at
                 FOR UPDATE SKIP LOCKED
                 LIMIT 1
@@ -88,7 +123,10 @@ def claim(session: Session, kinds: list[FetchKind] | None = None) -> FetchQueueI
             RETURNING id
             """
         ),
-        {"kinds": [k.value for k in kinds] if kinds else None},
+        {
+            "kinds": [k.value for k in kinds] if kinds else None,
+            "lanes": [FetchLane(x).value for x in lanes] if lanes else None,
+        },
     ).first()
     if row is None:
         return None

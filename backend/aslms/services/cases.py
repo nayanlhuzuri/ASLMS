@@ -71,18 +71,29 @@ def normalise_name(name: str) -> str:
 # ------------------------------------------------------------------------------------------------ lookup / create
 
 
+def _type_id_for(session: Session, court: Court, case_no: str | None) -> uuid.UUID | None:
+    parts = (case_no or "").rsplit("/", 2)
+    if len(parts) != 3 or not parts[0].strip():
+        return None
+    return session.scalar(
+        select(CaseType.id).where(CaseType.court_id == court.id, CaseType.short_name == parts[0].strip())
+    )
+
+
 def find_case(session: Session, court: Court, *, cnr: str | None, case_no: str | None) -> Case | None:
+    """A case by CNR, else a provisional case (no CNR, not merged) by the case number key: the same compact printed
+    number, or the same type, number and year (design `data-load-console`, decision 13)."""
+    from aslms.services import case_dedupe
+
     if cnr:
         found = session.scalar(select(Case).where(Case.cnr == cnr))
         if found is not None:
             return found
     if case_no:
-        return session.scalar(
-            select(Case)
-            .where(Case.court_id == court.id, Case.case_no_text == case_no, Case.cnr.is_(None))
-            .order_by(Case.created_at)
-            .limit(1)
+        key = case_dedupe.number_key(
+            court_id=court.id, case_no_text=case_no, case_type_id=_type_id_for(session, court, case_no)
         )
+        return case_dedupe.find_provisional(session, court.id, key)
     return None
 
 
@@ -95,8 +106,16 @@ def get_or_create_case(
     source: FirstSeenSource,
 ) -> tuple[Case, bool]:
     """A case by CNR, or a provisional case by its printed number when the list gave no CNR. Never fabricates a
-    CNR. Returns (case, created)."""
+    CNR. Creation takes the advisory lock on (court, compact number) and looks again, so two transactions cannot
+    create two rows for one printed number (decision 13). Returns (case, created)."""
+    from aslms.services import case_dedupe
+
     case = find_case(session, court, cnr=cnr, case_no=case_no)
+    if case is None and case_no:
+        case_dedupe.lock_number(
+            session, court.id, case_dedupe.number_key(court_id=court.id, case_no_text=case_no)
+        )
+        case = find_case(session, court, cnr=cnr, case_no=case_no)
     if case is not None:
         if cnr and case.cnr is None:
             case.cnr, case.is_provisional = cnr, True

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import re
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
@@ -39,7 +39,7 @@ from aslms.domain.documents import (
     TextStatus,
     Visibility,
 )
-from aslms.domain.ops import FetchKind
+from aslms.domain.ops import FetchKind, FetchLane
 from aslms.domain.ownership import RecommendationOrigin
 from aslms.domain.reference import DocType
 from aslms.integration.base import CauseListRef
@@ -47,6 +47,7 @@ from aslms.integration.napix.hc import NapixHighCourt
 from aslms.parsing.causelist_pdf import Entry, ParsedCauseList, parse_causelist_pdf
 from aslms.services import matching, queue
 from aslms.services.cases import get_or_create_case, refresh_search_vector
+from aslms.services.load_policy import QueueOrigin
 from aslms.services.storage import LocalStore
 
 LIST_TYPE_WORDS = (
@@ -167,12 +168,16 @@ def apply_entries(
     causelist: Causelist,
     parsed: ParsedCauseList,
     *,
-    dossier_priority: int,
+    origin: QueueOrigin | None = None,
     report: DayReport,
 ) -> None:
     """Parsed rows → `causelist_entries` (immutable, keyed by position) → cases → dossier queue rows, then the
     matching engine scores every case the new rows touched (inline, one savepoint per case; a scoring error is
-    recorded in `source_failures` and never fails the list)."""
+    recorded in `source_failures` and never fails the list). The dossier rows take the lane and priority of the
+    origin (design `data-load-console`, decision 1); the default is the daily cycle with this list's date."""
+    origin = origin or QueueOrigin(FetchLane.DAILY, causelist.list_date)
+    if origin.list_date is None:
+        origin = replace(origin, list_date=causelist.list_date)
     existing = {
         (e.source, e.sr_no)
         for e in session.scalars(
@@ -198,7 +203,14 @@ def apply_entries(
                 report.cases_new += 1
             if case.is_provisional:
                 ref = case.cnr or f"{court.est_code}|{entry.case_no_text}"
-                if queue.enqueue(session, FetchKind.DOSSIER, ref, dossier_priority):
+                if queue.enqueue(
+                    session,
+                    FetchKind.DOSSIER,
+                    ref,
+                    origin.dossier_priority(),
+                    lane=origin.lane,
+                    list_date=origin.list_date,
+                ):
                     report.queued += 1
         session.add(_entry_row(causelist, entry, source, case.id if case else None))
         report.entries_new += 1
@@ -252,7 +264,7 @@ async def load_day_from_napix(
     list_date: date,
     store: LocalStore,
     *,
-    dossier_priority: int,
+    origin: QueueOrigin | None = None,
     report: DayReport,
 ) -> bool:
     """False when the gateway has no benches for the date (holiday, or outside its window)."""
@@ -297,9 +309,7 @@ async def load_day_from_napix(
             details = []
         refs = hc.causelist_refs(list_date, b.bench_id, details)
         for ref in refs:
-            await _load_napix_list(
-                session, hc, court, list_date, store, b.judge_name, ref, dossier_priority, report
-            )
+            await _load_napix_list(session, hc, court, list_date, store, b.judge_name, ref, origin, report)
     return True
 
 
@@ -311,7 +321,7 @@ async def _load_napix_list(
     store: LocalStore,
     judge_name: str | None,
     ref: CauseListRef,
-    dossier_priority: int,
+    origin: QueueOrigin | None,
     report: DayReport,
 ) -> None:
     raw = ref.raw if isinstance(ref.raw, dict) else {}
@@ -357,11 +367,11 @@ async def _load_napix_list(
         data = pdf
     else:
         data = store.get(session.get(Document, cl.document_id).storage_key)
-    _parse_into(session, court, cl, data, dossier_priority, report)
+    _parse_into(session, court, cl, data, origin, report)
 
 
 def _parse_into(
-    session: Session, court: Court, cl: Causelist, data: bytes, dossier_priority: int, report: DayReport
+    session: Session, court: Court, cl: Causelist, data: bytes, origin: QueueOrigin | None, report: DayReport
 ) -> None:
     try:
         parsed = parse_causelist_pdf(data)
@@ -375,7 +385,7 @@ def _parse_into(
     if parsed.list_date and parsed.list_date != cl.list_date:
         report.warnings.append(f"list {cl.id}: PDF is dated {parsed.list_date}, expected {cl.list_date}")
     report.warnings.extend(f"list {cl.id}: {w}" for w in parsed.warnings[:20])
-    apply_entries(session, court, cl, parsed, dossier_priority=dossier_priority, report=report)
+    apply_entries(session, court, cl, parsed, origin=origin, report=report)
 
 
 # ------------------------------------------------------------------------------------------------ website path
@@ -408,7 +418,7 @@ def load_day_from_website(
     store: LocalStore,
     causelist_dir: Path,
     *,
-    dossier_priority: int,
+    origin: QueueOrigin | None = None,
     report: DayReport,
 ) -> bool:
     files = website_files(causelist_dir, list_date)
@@ -445,7 +455,7 @@ def load_day_from_website(
             report.documents_new += int(new)
         if cl.parse_status == ParseStatus.PARSED:
             continue
-        _parse_into(session, court, cl, data, dossier_priority, report)
+        _parse_into(session, court, cl, data, origin, report)
     return True
 
 
@@ -457,17 +467,15 @@ async def load_causelist_day(
     *,
     store: LocalStore,
     causelist_dir: Path | None,
-    dossier_priority: int = queue.PRIORITY["dossier_new"],
+    origin: QueueOrigin | None = None,
 ) -> DayReport:
     report = DayReport(list_date=list_date)
     found = False
     if hc is not None:
-        found = await load_day_from_napix(
-            session, hc, court, list_date, store, dossier_priority=dossier_priority, report=report
-        )
+        found = await load_day_from_napix(session, hc, court, list_date, store, origin=origin, report=report)
     if not found and causelist_dir is not None:
         found = load_day_from_website(
-            session, court, list_date, store, causelist_dir, dossier_priority=dossier_priority, report=report
+            session, court, list_date, store, causelist_dir, origin=origin, report=report
         )
     if not found:
         report.skipped_reason = "no cause list for this date (NAPIX empty, no website PDF on disk)"

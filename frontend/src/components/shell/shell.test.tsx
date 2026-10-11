@@ -33,7 +33,7 @@ describe("navigation by functions", () => {
     const nav = screen.getByRole("navigation", { name: "Main navigation" });
     expect(within(nav).getByRole("link", { name: "Dashboard" })).toHaveAttribute("aria-current", "page");
     expect(within(nav).queryByRole("link", { name: "Administration" })).toBeNull();
-    for (const unbuilt of ["Case inbox", "Search", "Alerts & calendar", "Reports", "Audit log", "Data health"]) {
+    for (const unbuilt of ["Case inbox", "Search", "Alerts & calendar", "Reports", "Audit log", "Data collection"]) {
       expect(within(nav).queryByRole("link", { name: unbuilt })).toBeNull();
     }
   });

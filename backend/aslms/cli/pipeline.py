@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import date
+from datetime import date, timedelta
 
 import typer
 from rich import print as rprint
@@ -11,7 +11,7 @@ from rich.table import Table
 
 from aslms.core.config import get_settings
 from aslms.db.session import get_sessionmaker, session_scope
-from aslms.domain.ops import FetchKind
+from aslms.domain.ops import FetchKind, FetchLane
 from aslms.services import queue
 from aslms.services.napix_store import NapixRecorder
 from aslms.services.runner import enqueue_days, open_hc, run_queue
@@ -33,12 +33,40 @@ def load(
     to_date: str | None = typer.Option(None, "--to", help="last list date (default: today)"),
     requeue: bool = typer.Option(False, "--requeue", help="re-run days already done"),
 ) -> None:
-    """Enqueue one cause-list day per calendar day; `queue-run` does the fetching."""
+    """Enqueue one cause-list day per calendar day; `queue-run` does the fetching. Days up to yesterday go through
+    the data-load service as the backdated load (design `data-load-console`, decision 9: held days are skipped, or
+    fetched again with `--requeue`; audited `data_load.started`); today and later belong to the daily cycle."""
+    from aslms.services import data_load
+    from aslms.services.reporting_common import today_ist
+
     start, end = _date(from_date), _date(to_date) if to_date else date.today()
+    today = today_ist()
+    yesterday = today - timedelta(days=1)
     with session_scope() as s:
-        queue.enqueue(s, FetchKind.MASTERS, "all", queue.PRIORITY["masters"], requeue=True)
-        n = enqueue_days(s, start, end, requeue=requeue)
-    rprint(f"[green]queued {n} days {start} → {end} (plus a masters sync)[/green]")
+        actor, member = _cli_actor(s)
+        loaded = None
+        if start <= yesterday:
+            try:
+                loaded = data_load.start(
+                    s,
+                    actor,
+                    member,
+                    start,
+                    min(end, yesterday),
+                    "refetch" if requeue else "skip",
+                    today=today,
+                )
+            except (data_load.LoadInputError, data_load.LoadConflict) as exc:
+                raise typer.BadParameter(f"{exc.code}: {exc}") from exc
+        daily = 0
+        if end >= today:
+            daily = enqueue_days(s, max(start, today), end, requeue=requeue, lane=FetchLane.DAILY)
+        if loaded is None:
+            queue.enqueue(s, FetchKind.MASTERS, "all", queue.PRIORITY["masters"], requeue=True)
+    if loaded is not None:
+        rprint(f"[green]backdated load {start} → {min(end, yesterday)}: {loaded.as_dict()}[/green]")
+    if daily:
+        rprint(f"[green]queued {daily} days of the daily cycle[/green]")
 
 
 def queue_run(
@@ -104,22 +132,30 @@ def _cli_actor(session):
     return actor, member
 
 
-def refetch_date(list_date: str = typer.Argument(..., help="YYYY-MM-DD")) -> None:
-    """Queue a cause-list day again at top priority (audited `napix.refetch_requested`)."""
+def refetch_date(
+    list_date: str = typer.Argument(..., help="YYYY-MM-DD"),
+    force: bool = typer.Option(False, "--force", help="queue a day already held anyway"),
+) -> None:
+    """Queue a cause-list day again at top priority (audited `napix.refetch_requested`); a day already held needs
+    `--force`."""
     from aslms.services import napix_admin
 
     d = _date(list_date)
     with session_scope() as s:
         actor, member = _cli_actor(s)
         try:
-            state = napix_admin.refetch_day(s, actor, member, d, get_settings())
-        except napix_admin.AdminInputError as exc:
+            state = napix_admin.refetch_day(s, actor, member, d, get_settings(), force=force)
+        except (napix_admin.AdminInputError, napix_admin.AdminConflict) as exc:
             raise typer.BadParameter(f"{exc.code}: {exc}") from exc
     rprint(f"queued {d} ({state['status']}, priority {state['priority']})")
 
 
-def refetch_case(ref: str = typer.Argument(..., help="the case: CNR, ref_no or id")) -> None:
-    """Queue a dossier fetch for one case at priority 30 (audited `napix.refetch_requested`)."""
+def refetch_case(
+    ref: str = typer.Argument(..., help="the case: CNR, ref_no or id"),
+    force: bool = typer.Option(False, "--force", help="queue a case whose details are held anyway"),
+) -> None:
+    """Queue a dossier fetch for one case at priority 30 (audited `napix.refetch_requested`); a case whose details
+    are held needs `--force`."""
     from aslms.services import napix_admin
     from aslms.services.cases import CaseNotFound, resolve_case_ref
 
@@ -127,7 +163,7 @@ def refetch_case(ref: str = typer.Argument(..., help="the case: CNR, ref_no or i
         actor, member = _cli_actor(s)
         try:
             case = resolve_case_ref(s, ref)
-            state = napix_admin.refetch_case(s, actor, member, case, get_settings())
+            state = napix_admin.refetch_case(s, actor, member, case, get_settings(), force=force)
         except CaseNotFound as exc:
             raise typer.BadParameter(f"no such case {ref}; search the court for a new one") from exc
         except napix_admin.AdminConflict as exc:
