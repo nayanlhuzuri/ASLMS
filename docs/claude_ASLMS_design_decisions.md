@@ -1240,3 +1240,5 @@ Branch `feature/portal-shell`. No table, column or migration; `docs/schema/schem
 - Same day: `/admin/tickets` crashed in the running portal (a server page imported a plain value from a client
   module); fixed in 5aab8c5. Portal pages must be checked in the Compose `web` service, not only by unit tests
   (backlog row 43).
+
+- 2026-10-11 — data-load-console: approved by the owner (progress and estimate, start a backdated load, pause/resume and order, single-case fetch, already-held warnings before any NAPIX call, one row per case with provisional adoption and court-duplicate links, admin.data_load; defaults kept: cases_first, NAPIX_LIVE_RESERVE 100, stored order PDFs not re-fetched; docs/design/data-load-console.md)
