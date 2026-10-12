@@ -1348,3 +1348,5 @@ Design `docs/design/napix-window.md` (backlog row 47), branch `feature/napix-win
 
 **Left for later**: backlog row 48 (`napix-window-tail`), spending the reserve in the last minutes before the expected
 reset, which needs the owner's decision. Migration 0015 is not yet applied to the dev database.
+
+- 2026-10-12 — portal-cases: approved by the owner with the department mapping screens split out into row 50 portal-mapping (inbox, search, case page, ownership actions, CaseLink, five read-only API additions, the relay header fix of row 44 item 1; docs/design/portal-cases.md)
