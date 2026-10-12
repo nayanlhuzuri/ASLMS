@@ -2,9 +2,10 @@
 layer only (`aslms.integration.napix`). Shared with the queue runner: `fetch_dossier` and `resolve_cnr` apply
 a dossier the same way whether the queue or a user asked.
 
-- `guard`: the switch (`NAPIX_ENABLED` and credentials), the hourly quota floor (`NAPIX_SEARCH_FLOOR`
-  against the latest `napix_call_log.rate_limit_remaining` of the current clock hour) and the per-user limit
-  (`NAPIX_SEARCH_PER_USER_HOUR` audit rows `case.search_court` / `case.fetch_court` in the last hour).
+- `guard`: the switch (`NAPIX_ENABLED` and credentials), the quota floor (`NAPIX_SEARCH_FLOOR` against the
+  remaining count of the detected quota window, `services/napix_window.py`; design `napix-window`, decision 6) and
+  the per-user limit (`NAPIX_SEARCH_PER_USER_HOUR` audit rows `case.search_court` / `case.fetch_court` in the last
+  hour).
 - `search_court`: by CNR (held with a dossier → local, no call; else Search by CNR and the dossier), by case
   number (Search by Case Number, every row stored, the exact row's dossier fetched), by party name (every row
   stored, no dossier — the user fetches the one they need). Rows whose `cino` is not a CNR are returned as
@@ -12,7 +13,9 @@ a dossier the same way whether the queue or a user asked.
 - `fetch_court`: the dossier of a found case; a provisional case without a CNR is resolved through Search by
   Case Number first (the CNR comes from the court, never invented).
 Every call is audited with its outcome and the recorder's `napix_call_log` rows are flushed before the router
-commits — also before an HTTP error is raised, so failures are recorded, never lost."""
+commits — also before an HTTP error is raised, so failures are recorded, never lost. The router's recorder carries
+the caller's id, and the order PDFs a person's search queues carry them as `requested_by` (design `napix-window`,
+decision 9)."""
 
 from __future__ import annotations
 
@@ -23,7 +26,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from aslms.core.config import Settings
@@ -35,7 +38,7 @@ from aslms.domain.ops import FetchLane
 from aslms.domain.org import User
 from aslms.domain.ownership import RecommendationOrigin
 from aslms.integration.napix.hc import NapixHighCourt
-from aslms.services import case_dedupe, matching
+from aslms.services import case_dedupe, matching, napix_window
 from aslms.services.audit import Actor, write_audit
 from aslms.services.cases import ApplyReport, apply_dossier, get_or_create_case, refresh_search_vector
 from aslms.services.load_policy import QueueOrigin
@@ -50,6 +53,13 @@ PARTY_NAME_RE = re.compile(r"^[A-Za-z0-9 .,'&()/-]+$")
 SEARCH_ACTIONS = ("case.search_court", "case.fetch_court")
 # a person's search: the order PDFs it finds are queued in the request lane (design data-load-console, decision 1)
 REQUEST_ORIGIN = QueueOrigin(FetchLane.REQUEST)
+
+
+def request_origin(user: User | None) -> QueueOrigin:
+    """The request origin of a person's search, carrying them as `requested_by` (design napix-window, decision 9)."""
+    return QueueOrigin(FetchLane.REQUEST, requested_by=napix_window.user_id_of(user))
+
+
 MIN_PARTY_NAME = 3
 MIN_YEAR = 1950
 
@@ -132,22 +142,6 @@ def _now() -> datetime:
 # ------------------------------------------------------------------------------------------------ guard
 
 
-def seconds_to_next_hour(now: datetime | None = None) -> int:
-    now = now or _now()
-    nxt = (now + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
-    return max(1, int((nxt - now).total_seconds()))
-
-
-def latest_remaining_this_hour(session: Session) -> int | None:
-    return session.scalar(
-        text(
-            "SELECT rate_limit_remaining FROM napix_call_log "
-            "WHERE called_at >= date_trunc('hour', now()) AND rate_limit_remaining IS NOT NULL "
-            "ORDER BY called_at DESC LIMIT 1"
-        )
-    )
-
-
 def user_searches_last_hour(session: Session, user: User) -> tuple[int, datetime | None]:
     since = _now() - timedelta(hours=1)
     n, oldest = session.execute(
@@ -160,16 +154,20 @@ def user_searches_last_hour(session: Session, user: User) -> tuple[int, datetime
     return int(n or 0), oldest
 
 
-def guard(session: Session, user: User, settings: Settings) -> None:
-    """Decision 13: refuses before any call; a refused search writes nothing."""
+def guard(session: Session, user: User, settings: Settings, now: datetime | None = None) -> None:
+    """Decision 13: refuses before any call; a refused search writes nothing. The quota floor reads the detected
+    window (design napix-window, decision 6): refused when its remaining count is known and below
+    `NAPIX_SEARCH_FLOOR`, with `retry_after` to the expected reset plus the margin (or one probe interval)."""
     if not settings.napix_configured:
         raise CourtSearchUnavailable("napix_off", "court search is switched off on this server")
-    remaining = latest_remaining_this_hour(session)
+    now = now or _now()
+    window = napix_window.current(session, settings, now)
+    remaining = window.remaining
     if remaining is not None and remaining < settings.napix_search_floor:
         raise CourtSearchUnavailable(
             "napix_budget",
             f"the court gateway's hourly quota is nearly spent ({remaining} calls left)",
-            retry_after=seconds_to_next_hour(),
+            retry_after=window.retry_after(now),
         )
     n, oldest = user_searches_last_hour(session, user)
     if n >= settings.napix_search_per_user_hour:
@@ -420,6 +418,7 @@ async def search_court(
     audit row (`via`, `force`, `warned`)."""
     kind = request.get("kind")
     court = court_for(session, hc.est_code)
+    origin = request_origin(user)
     calls_before = recorder.calls
     fields = {k: v for k, v in request.items() if k not in ("kind", "force")}
     audit: dict[str, Any] = {"kind": kind, "request": fields, **(audit_extra or {})}
@@ -443,12 +442,12 @@ async def search_court(
     try:
         if kind == "cnr":
             result = await asyncio.wait_for(
-                _search_cnr(session, hc, court, request["cnr"], force=force),
+                _search_cnr(session, hc, court, request["cnr"], force=force, origin=origin),
                 settings.napix_search_timeout_seconds,
             )
         elif kind == "case_number":
             result = await asyncio.wait_for(
-                _search_case_number(session, hc, court, request, force=force),
+                _search_case_number(session, hc, court, request, force=force, origin=origin),
                 settings.napix_search_timeout_seconds,
             )
         elif kind == "party":
@@ -481,7 +480,13 @@ async def search_court(
 
 
 async def _search_cnr(
-    session: Session, hc: NapixHighCourt, court: Court, cnr: str, *, force: bool = False
+    session: Session,
+    hc: NapixHighCourt,
+    court: Court,
+    cnr: str,
+    *,
+    force: bool = False,
+    origin: QueueOrigin = REQUEST_ORIGIN,
 ) -> CourtSearchResult:
     cnr = (cnr or "").strip().upper()
     if not CNR_RE.match(cnr):
@@ -490,14 +495,18 @@ async def _search_cnr(
     if case is not None and case.last_full_refresh_at is not None and not force:
         return CourtSearchResult("local", 0, 0, [case], [], "ok")
     existed = case is not None
-    fetched = await fetch_dossier(
-        session, hc, court, cnr, source=FirstSeenSource.SEARCH, origin=REQUEST_ORIGIN
-    )
+    fetched = await fetch_dossier(session, hc, court, cnr, source=FirstSeenSource.SEARCH, origin=origin)
     return CourtSearchResult("court", 0, int(not existed), [fetched.case], [], "ok")
 
 
 async def _search_case_number(
-    session: Session, hc: NapixHighCourt, court: Court, request: dict[str, Any], *, force: bool = False
+    session: Session,
+    hc: NapixHighCourt,
+    court: Court,
+    request: dict[str, Any],
+    *,
+    force: bool = False,
+    origin: QueueOrigin = REQUEST_ORIGIN,
 ) -> CourtSearchResult:
     ct = _resolve_case_type(session, court, str(request.get("case_type", "")))
     reg_no, reg_year = as_int(request.get("reg_no")), as_int(request.get("reg_year"))
@@ -517,9 +526,7 @@ async def _search_case_number(
         None,
     )
     if exact is not None and exact.cnr:
-        await fetch_dossier(
-            session, hc, court, exact.cnr, source=FirstSeenSource.SEARCH, origin=REQUEST_ORIGIN
-        )
+        await fetch_dossier(session, hc, court, exact.cnr, source=FirstSeenSource.SEARCH, origin=origin)
     return CourtSearchResult("court", 0, report.created, report.cases, report.unmatched, "ok")
 
 
@@ -616,7 +623,9 @@ async def fetch_court(
                 case_dedupe.adopt(session, case, cnr)
             audit["cnr"] = cnr
         fetched = await asyncio.wait_for(
-            fetch_dossier(session, hc, court, cnr, source=FirstSeenSource.SEARCH, origin=REQUEST_ORIGIN),
+            fetch_dossier(
+                session, hc, court, cnr, source=FirstSeenSource.SEARCH, origin=request_origin(user)
+            ),
             settings.napix_search_timeout_seconds,
         )
     except NapixNotFound:

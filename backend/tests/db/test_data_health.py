@@ -1,5 +1,5 @@
 """The live data-health view (design `audit-screens`, decisions 5 and 7): every figure of the snapshot equals the
-seeded rows; the NAPIX block's hour, last failure and last check; the queue and call lists; the failure list
+seeded rows; the NAPIX block's detected window (design `napix-window`), last failure and last check; the queue and call lists; the failure list
 through the document visibility rule; the period report unchanged by the shared daily-cycle helper."""
 
 from __future__ import annotations
@@ -27,7 +27,6 @@ from aslms.domain.org import Channel, PermissionEffect
 from aslms.domain.reference import AlertKind, Permission, RecordType
 from aslms.services import access, data_health, reports
 from aslms.services.audit_search import AuditInputError
-from aslms.services.court_search import latest_remaining_this_hour
 from aslms.services.refno import allocate_ref_no
 from aslms.services.reporting_common import IST_ZONE
 from aslms.services.storage import LocalStore
@@ -225,14 +224,16 @@ def test_snapshot_counts_exact(world):
         assert snap["status_batches"] == {"date": TODAY, "done": 1, "failed": 1, "pending": 1, "running": 0}
         # NAPIX
         napix = snap["napix"]
-        assert (napix["hour"]["calls"], napix["hour"]["failed"]) == (3, 1)
+        # one reading, no reset seen: the timing is unknown and the reading is older than the probe interval
+        assert napix["window"]["status"] == "unknown" and napix["window"]["remaining"] is None
+        assert (napix["window"]["calls"], napix["window"]["failed"]) == (0, 0)
         assert napix["today"] == {
             "calls": 5,
             "failed": 2,
             "by_family": {"NapixProtocolError": 1, "NapixUnavailable": 1},
             "token_unverified": 1,
         }
-        assert napix["hour"]["latest_remaining"] == latest_remaining_this_hour(s)
+        assert napix["window"]["last_reading_at"] == _ist(NOW.replace(minute=1))
         assert napix["enabled"] is False and napix["est_code"] == "GAHC01"
         # masters, jobs, mail, failures
         assert {m["master"]: m["row_count"] for m in snap["masters"]} == {"state": 31, "bench": 80}
@@ -255,24 +256,39 @@ def test_snapshot_counts_exact(world):
         s.rollback()
 
 
-def test_napix_health_hour_and_last_failure(world):
+def test_health_window_block_exact(world):
     now = datetime.now(UTC)
-    hour = now.replace(minute=0, second=0, microsecond=0)
+    anchor = now - timedelta(minutes=50)  # a precise reset 50 minutes ago: the window is current
     with world.Session() as s:
-        _call(s, hour - timedelta(seconds=1), remaining=10)  # last hour: not this hour's remaining
-        _call(s, hour, remaining=640)
-        _call(s, hour, ok=False, family="NapixUnavailable", napix_status=None)
-        fail = _call(s, hour - timedelta(minutes=30), ok=False, family="NapixProtocolError", napix_status=628)
-        check = _call(
-            s, hour - timedelta(minutes=40), api="overview/overview", verified=True, duration_ms=321
-        )
+        _call(s, anchor - timedelta(seconds=20), remaining=160)  # the old window
+        _call(s, anchor, remaining=999)
+        _call(s, now - timedelta(minutes=1), remaining=640)
+        _call(s, now - timedelta(minutes=1), ok=False, family="NapixUnavailable", napix_status=None)
+        fail = _call(s, now - timedelta(minutes=30), ok=False, family="NapixProtocolError", napix_status=628)
+        check = _call(s, now - timedelta(minutes=40), api="overview/overview", verified=True, duration_ms=321)
+        # a window probe (it carries a pass's job_run_id) is not the last check
+        run = JobRun(job="queue-run")
+        s.add(run)
+        s.flush()
+        _call(s, now - timedelta(minutes=35), api="overview/overview", job_run_id=run.id)
         block = data_health.napix_health(s, SETTINGS, now)
-        assert block["hour"]["latest_remaining"] == 640
-        assert block["hour"]["calls"] == 2 and block["hour"]["failed"] == 1
-        assert block["hour"]["reserve"] == SETTINGS.napix_rate_reserve
-        assert block["hour"]["search_floor"] == SETTINGS.napix_search_floor
-        assert 1 <= block["hour"]["seconds_to_next_hour"] <= 3600
-        # the latest failure is this hour's (same time, newest id)
+        w = block["window"]
+        assert w["status"] == "current" and w["remaining"] == 640
+        assert w["started_at"] == _ist(anchor) and w["observed_at"] == _ist(anchor)
+        assert w["next_reset_at"] == _ist(anchor + timedelta(hours=1))
+        assert w["seconds_to_next_reset"] in range(599, 601)
+        assert w["anchor_at"] == _ist(anchor)
+        # since the reset: 999, 640, the failure, the protocol failure, the check and the probe
+        assert (w["calls"], w["failed"]) == (6, 2)
+        assert [(r["previous_remaining"], r["remaining"], r["precise"]) for r in w["recent_resets"]] == [
+            (160, 999, True)
+        ]
+        assert w["reserve"] == SETTINGS.napix_rate_reserve
+        assert w["live_reserve"] == SETTINGS.napix_live_reserve
+        assert w["search_floor"] == SETTINGS.napix_search_floor
+        assert (w["window_seconds"], w["margin_seconds"], w["probe_seconds"]) == (3600, 60, 180)
+        assert block["by_user"] is None  # not an operator's view
+        # the latest failure is the newest (same time, newest id)
         assert block["last_failure"]["error_family"] == "NapixUnavailable"
         assert block["last_check"] == {
             "called_at": _ist(check.called_at),
@@ -281,7 +297,8 @@ def test_napix_health_hour_and_last_failure(world):
             "token_verified": True,
             "error_family": None,
         }
-        assert block["last_call_at"] == _ist(hour) and block["last_ok_at"] == _ist(hour)
+        last = now - timedelta(minutes=1)
+        assert block["last_call_at"] == _ist(last) and block["last_ok_at"] == _ist(last)
         assert fail.napix_status == 628
         s.rollback()
 
@@ -428,7 +445,8 @@ def test_cli_data_health_prints_the_snapshot(world, monkeypatch):
     app.command("search")(cli.search)
     r = CliRunner().invoke(app, ["data-health"])
     assert r.exit_code == 0, r.output
-    snap = json.loads(r.output)
+    assert r.output.startswith("NAPIX window unknown: ")  # the window line first (design napix-window)
+    snap = json.loads(r.output[r.output.index("{") :])
     assert {k["kind"]: k["failed"] for k in snap["queue"]["by_kind"]}["dossier"] == 1
     r = CliRunner().invoke(app, ["search", "--action", "napix.", "--limit", "5"])
     assert r.exit_code == 0, r.output

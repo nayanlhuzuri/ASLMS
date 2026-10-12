@@ -65,7 +65,36 @@ eCourts status codes (spec): 600 INVALID_CNR, 601 INVALID_DATE, 602 INVALID_ORDE
 ## 6. Rate limit ✅
 Response headers: `X-RateLimit-Limit: name=default,1000;` and `X-RateLimit-Remaining`. Read them, slow down as remaining approaches zero, and spread scheduled jobs (daily cycle, Current Status batches) accordingly.
 
-**Window measured 1 Oct 2026** (`aslms napix-probe-rate --calls 36 --interval 20`, 13:08–13:20 IST): the counter fell by exactly one per call (984 → 949) and never reset in 12 minutes. The morning live walk (about 50 calls, 12:20–12:35) was no longer counted at 13:07, when 16 calls left the counter at 984. The quota therefore behaves as **1,000 calls per clock hour, reset on the hour**, not a sliding minute. Settings: `NAPIX_RATE_WINDOW_SECONDS=3600`; the load queue keeps `NAPIX_RATE_RESERVE` calls for the daily cycle. Budget at this plan: about 23,000 calls a day, so the dossier load of ~100,000 cases takes four to five days of continuous running. If e-Committee grants a higher plan, only the two settings change.
+**1,000 calls per one-hour window; the reset is at a fixed minute of the hour, not on the clock hour** (corrected
+12 Oct 2026, design `napix-window`). The call log of 1-11 Oct (48,830 rows) shows `X-RateLimit-Remaining` jumping
+back to 999 once an hour, always between **HH:33 and HH:35 IST** wherever calls were made just before and just after
+the reset (11 Oct: 00:34:28, 02:34:53, 04:34:30, 10:33:30, 12:34:30, 14:33:27, 16:34:53, 18:33:28). That is neither
+the IST clock hour nor the UTC clock hour (HH:30 IST). The window is therefore **detected from
+`X-RateLimit-Remaining`, never assumed**: a rise of at least `NAPIX_WINDOW_RESET_JUMP` (50) between two readings is a
+reset, precise when the previous reading is at most 300 s older; the phase comes from the latest precise reset
+(`services/napix_window.py`). The worker sleeps until the expected reset plus `NAPIX_WINDOW_MARGIN_SECONDS` (60 s) and
+makes one check call (Overview) at most every `NAPIX_WINDOW_PROBE_SECONDS` (180 s) while a reset is late or the timing
+is unknown. Inside a window the count sometimes rises by 1-2 (concurrent calls, and before 0015 one timestamp per
+queue item); only a large jump is a reset.
+
+The 1 Oct measurement (`aslms napix-probe-rate --calls 36 --interval 20`, 13:08-13:20 IST) saw no reset in 12 minutes
+and concluded "reset on the hour"; the reset came at about 13:34, after the probe had ended. Sleeping to the next clock
+hour lost every second window (about 240 calls instead of about 850). `NAPIX_RATE_WINDOW_SECONDS=3600` stays the
+window *length*; the load queue keeps `NAPIX_RATE_RESERVE` calls for the daily cycle. If e-Committee grants a higher
+plan, only the settings change.
+
+Evidence query (the resets of a day, IST):
+
+```sql
+SELECT called_at AT TIME ZONE 'Asia/Kolkata' AS at, prev, rate_limit_remaining
+FROM (SELECT called_at, rate_limit_remaining,
+             lag(rate_limit_remaining) OVER (ORDER BY called_at, id) AS prev
+      FROM napix_call_log
+      WHERE rate_limit_remaining IS NOT NULL
+        AND called_at >= '2026-10-11 00:00+05:30' AND called_at < '2026-10-12 00:00+05:30') t
+WHERE rate_limit_remaining - prev >= 50
+ORDER BY called_at;
+```
 
 ## 7. Endpoints
 **URL pattern ✅**: service names use hyphens as in the spec's API list (`hc-…-api`). The detailed spec sections drop hyphens at line breaks — ignore those spellings. Paths are case-sensitive.
@@ -104,5 +133,7 @@ Dates are `yyyy-mm-dd`. Update the Status column (and this file) whenever an end
 ## 9. Open questions
 - ~~Does Cause List Details return complete entries?~~ No (1 Oct): list metadata only; the PDF parser is primary.
 - ~~Exact CNR path casing; Party Name and master endpoint paths.~~ Settled (1 Oct): `/CNR`, `/partyname`, masters as in §7.
-- ~~Token lifetime~~ 3600 s (1 Oct). Rate-limit window: `X-RateLimit-Limit: name=default,1000;`, the window length is still unstated (38 calls in 35 minutes consumed 38 of the remaining count, so it is at least that long).
+- ~~Token lifetime~~ 3600 s (1 Oct). ~~Rate-limit window length~~ Settled (12 Oct, design `napix-window`): one hour,
+  1,000 calls, reset at a fixed minute of the hour (HH:33-HH:35 IST from 1 to 11 Oct), detected from
+  `X-RateLimit-Remaining` (§6).
 - A dossier for a **pending** case with IAs and objections has not been sampled yet (the sample case `GAHC010277142024` is disposed); needed before the field inventory is called complete.

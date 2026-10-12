@@ -279,35 +279,72 @@ def test_invalid_cino_is_unmatched_and_search_fields_never_overwrite_a_dossier(a
 # ------------------------------------------------------------------------------------------------ the guard
 
 
-def _call_log(world, *, remaining: int, hours_ago: float):
+def _call_log(world, *, remaining: int, hours_ago: float = 0.0, at: datetime | None = None):
     with world.Session() as s:
         s.execute(
             sa.text(
                 "insert into napix_call_log (api, params_sha256, ok, rate_limit_remaining, called_at) "
                 "values ('hc-cnr-api/CNR', 'x', true, :rem, :at)"
             ),
-            {"rem": remaining, "at": datetime.now(UTC) - timedelta(hours=hours_ago)},
+            {"rem": remaining, "at": at or datetime.now(UTC) - timedelta(hours=hours_ago)},
         )
         s.commit()
 
 
-def test_quota_floor_blocks_this_hour_only(api, world, types):
+def test_quota_floor_unknown_window(api, world, types):
+    """No reset seen: a reading counts only while younger than the probe interval (design napix-window)."""
     headers = login(api, "edu_admin")
-    _call_log(world, remaining=20, hours_ago=1.5)  # the previous clock hour never blocks
+    _call_log(world, remaining=20, hours_ago=1.5)  # an old reading never blocks
     r = api.post("/cases/search-court", json={"kind": "cnr", "cnr": "GAHC010000000001"}, headers=headers)
     assert r.status_code == 200, r.text
-    minutes_into_hour = datetime.now(UTC).minute
-    if minutes_into_hour == 0:
-        pytest.skip("on the hour boundary the 'this hour' row cannot be placed reliably")
-    _call_log(world, remaining=49, hours_ago=0.0)  # below the floor of 50, this clock hour
+    _call_log(world, remaining=49)  # below the floor of 50, just now
     r = api.post("/cases/search-court", json={"kind": "cnr", "cnr": "GAHC010000000002"}, headers=headers)
     assert r.status_code == 503 and r.json()["detail"]["code"] == "napix_budget"
-    assert 1 <= r.json()["detail"]["retry_after"] <= 3600 and r.headers["retry-after"]
+    assert r.json()["detail"]["retry_after"] == api.settings.napix_window_probe_seconds
+    assert r.headers["retry-after"]
     assert count(world, "cases", "cnr = 'GAHC010000000002'") == 0
     # the floor is a setting
     api.settings.napix_search_floor = 10
     r = api.post("/cases/search-court", json={"kind": "cnr", "cnr": "GAHC010000000002"}, headers=headers)
     assert r.status_code == 200
+
+
+def test_search_guard_uses_window(api, world, types):
+    """40 left in a `current` window is refused until the expected reset plus the margin; the same reading once the
+    reset is due is allowed. The clock hour plays no part: a reading from before the UTC hour still counts."""
+    headers = login(api, "edu_admin")
+    now = datetime.now(UTC)
+    anchor = now - timedelta(minutes=58)  # a precise reset 58 minutes ago: E is 2 minutes away
+    _call_log(world, remaining=300, at=anchor - timedelta(seconds=30))
+    _call_log(world, remaining=999, at=anchor)
+    # 40 left 20 minutes ago (often in the previous UTC hour): still this window's reading
+    _call_log(world, remaining=40, at=now - timedelta(minutes=20))
+    r = api.post("/cases/search-court", json={"kind": "cnr", "cnr": "GAHC010000000003"}, headers=headers)
+    assert r.status_code == 503 and r.json()["detail"]["code"] == "napix_budget", r.text
+    wait = r.json()["detail"]["retry_after"]
+    expected = (anchor + timedelta(hours=1, seconds=60) - datetime.now(UTC)).total_seconds()
+    assert expected - 5 <= wait <= expected + 5 and wait <= 3 * 60 + 1
+    # the same readings 3 hours earlier: E + margin has passed with no reading since E, the reset is due
+    with world.Session() as s:
+        s.execute(sa.text("update napix_call_log set called_at = called_at - interval '3 hours'"))
+        s.commit()
+    r = api.post("/cases/search-court", json={"kind": "cnr", "cnr": "GAHC010000000003"}, headers=headers)
+    assert r.status_code == 200, r.text
+
+
+def test_search_records_user_on_calls(api, world, types):
+    headers = login(api, "edu_admin")
+    r = api.post("/cases/search-court", json={"kind": "cnr", "cnr": "GAHC010000000004"}, headers=headers)
+    assert r.status_code == 200, r.text
+    with world.Session() as s:
+        uid = world.user(s, "edu_admin").id
+        rows = s.execute(sa.text("select user_id, lane from napix_call_log")).all()
+        assert rows and {u for u, _ in rows} == {uid} and {lane for _, lane in rows} == {None}
+        # the order PDFs the search queued carry the person in the request lane
+        pdfs = s.execute(
+            sa.text("select lane::text, requested_by from fetch_queue where kind = 'order_pdf'")
+        ).all()
+        assert pdfs and set(pdfs) == {("request", uid)}
 
 
 def test_per_user_hourly_limit(api, world, types):

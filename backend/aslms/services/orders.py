@@ -68,6 +68,7 @@ def enqueue_order_pdfs(session: Session, case: Case, origin: QueueOrigin | None 
             priority,
             lane=origin.lane,
             list_date=origin.list_date,
+            requested_by=origin.requested_by,
         ):
             n += 1
     return n

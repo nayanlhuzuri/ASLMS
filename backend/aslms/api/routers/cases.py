@@ -9,6 +9,7 @@ and `/cases/search-court` are declared before `/cases/{ref}`."""
 from __future__ import annotations
 
 import asyncio
+import uuid
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -283,9 +284,10 @@ def _court_http(exc: Exception) -> HTTPException:
 COURT_HANDLED = (CourtSearchFailure, AlreadyFetched, NotFoundAtCourt, CourtSearchError, ValueError)
 
 
-async def _with_napix(request: Request, fn):
+async def _with_napix(request: Request, user_id: uuid.UUID, fn):
+    """The integration client with a recorder carrying the caller's id (design napix-window, decision 9)."""
     client, hc = napix_client(request)
-    recorder = NapixRecorder()
+    recorder = NapixRecorder(user_id=user_id)
     client.on_call = recorder.on_call
     async with client:
         return await fn(hc, recorder)
@@ -311,6 +313,7 @@ def search_court(
         result = asyncio.run(
             _with_napix(
                 request,
+                user.id,
                 lambda hc, recorder: court_search.search_court(
                     session, actor, user, body.model_dump(), hc=hc, recorder=recorder, settings=settings
                 ),
@@ -349,6 +352,7 @@ def fetch_court(
         case = asyncio.run(
             _with_napix(
                 request,
+                user.id,
                 lambda hc, recorder: court_search.fetch_court(
                     session, actor, user, case, hc=hc, recorder=recorder, settings=settings
                 ),

@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * The data-load console (design data-load-console, decisions 6-12 and 19): the backdated load's status, the hour's
- * allowance by lane, work left, the estimate with its basis, failures, coverage month by month (on demand) and, for
+ * The data-load console (design data-load-console, decisions 6-12 and 19): the backdated load's status, the quota
+ * window's allowance by lane (design napix-window: the window is detected, not the clock hour), work left, the estimate with its basis, failures, coverage month by month (on demand) and, for
  * `admin.data_load`, the actions: start a load (preview, then the choice for days already held), pause and resume,
  * what goes first, and fetching single cases from the court with the "already held" warning before any call.
  */
@@ -40,12 +40,14 @@ import type {
   RetryFailed,
 } from "@/lib/api/types";
 import { can } from "@/lib/can";
-import { formatDate, formatDateTime, formatNumber } from "@/lib/format";
+import { formatDate, formatDateTime, formatNumber, formatTime } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { useAction } from "@/lib/useAction";
 
 export const PROGRESS_KEY = ["data-load", "progress"] as const;
 export const PROGRESS_POLL_MS = 30_000;
+// the worker's probe interval while a reset is late (NAPIX_WINDOW_PROBE_SECONDS default; the health tab shows the set value)
+const PROBE_MINUTES = 3;
 
 export function LoadConsole() {
   const me = useMe();
@@ -112,9 +114,8 @@ function AllowanceCard({ data }: { data: DataLoad }) {
         ))}
       </div>
       <p>{a.remaining === null || a.remaining === undefined ? T.data.remainingUnknown : T.data.remaining(formatNumber(a.remaining))}</p>
-      <p className="muted">
-        {T.data.thresholds(a.rate_reserve, a.live_reserve, a.search_floor)} {T.data.nextReset(Math.ceil(a.seconds_to_next_hour / 60))}
-      </p>
+      <p>{T.data.windowLine(a.window_status, formatTime(a.window_started_at), formatTime(a.next_reset_at), PROBE_MINUTES)}</p>
+      <p className="muted">{T.data.thresholds(a.rate_reserve, a.live_reserve, a.search_floor)}</p>
     </section>
   );
 }

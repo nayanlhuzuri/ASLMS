@@ -12,7 +12,8 @@ older than the stale limit is re-queued). Kinds and the meaning of `ref`:
 Every row carries a lane (design `data-load-console`, decision 1): `request` (a person asked), `daily` (the daily
 cycle) or `load` (the backdated load), in that order of precedence; a row asked by two lanes keeps the higher one
 and the better priority. `list_date` is the cause-list date whose loading queued the row, inherited by what it
-spawns. `claim` skips `load` rows while the current `data_load_settings` version is paused (decision 2).
+spawns. `claim` skips `load` rows while the current `data_load_settings` version is paused (decision 2). A `request` row
+carries the person who asked for its pending run in `requested_by` (design `napix-window`, decision 10).
 
 Priorities (lower runs first): masters 10; yesterday's, today's and tomorrow's lists 20; status batches and a
 person's requests 30; the daily cycle's new dossiers and live-case order PDFs 40; the backdated load 41-48 by the
@@ -54,16 +55,23 @@ def enqueue(
     requeue: bool = False,
     lane: FetchLane = FetchLane.DAILY,
     list_date: date | None = None,
+    requested_by: uuid.UUID | None = None,
 ) -> bool:
     """Insert or revive a row. Without `requeue`, a `done` row stays done; a `failed` or `skipped` row is
     revived; a `pending` row keeps the better (lower) priority. A pending or revived row takes the
     higher-precedence lane (`LEAST` over the enum: request < daily < load); `list_date` is kept once set.
+    `requested_by` (decision 10 of `napix-window`): an inserted, revived or re-queued row takes the caller's value
+    (NULL for system callers); a pending row keeps its first person (`COALESCE`), as does a running request row. Only
+    the request lane carries a person: a person with another lane raises `ValueError` before any SQL.
     Returns True when the row is pending after the call."""
+    if requested_by is not None and FetchLane(lane) != FetchLane.REQUEST:
+        raise ValueError("only a request-lane row carries the person who asked for it")
     row = session.execute(
         text(
             """
-            INSERT INTO fetch_queue (kind, ref, priority, not_before, lane, list_date)
-            VALUES (CAST(:kind AS fetch_kind), :ref, :priority, :not_before, CAST(:lane AS fetch_lane), :list_date)
+            INSERT INTO fetch_queue (kind, ref, priority, not_before, lane, list_date, requested_by)
+            VALUES (CAST(:kind AS fetch_kind), :ref, :priority, :not_before, CAST(:lane AS fetch_lane), :list_date,
+                CAST(:requested_by AS uuid))
             ON CONFLICT (kind, ref) DO UPDATE SET
                 priority = LEAST(fetch_queue.priority, EXCLUDED.priority),
                 lane = CASE
@@ -71,6 +79,14 @@ def enqueue(
                         OR (fetch_queue.status = 'done' AND :requeue)
                     THEN LEAST(fetch_queue.lane, EXCLUDED.lane) ELSE fetch_queue.lane END,
                 list_date = COALESCE(fetch_queue.list_date, EXCLUDED.list_date),
+                requested_by = CASE
+                    WHEN fetch_queue.status IN ('failed', 'skipped')
+                        OR (fetch_queue.status = 'done' AND :requeue)
+                    THEN EXCLUDED.requested_by
+                    WHEN fetch_queue.status = 'pending'
+                        OR (fetch_queue.status = 'running' AND fetch_queue.lane = 'request')
+                    THEN COALESCE(fetch_queue.requested_by, EXCLUDED.requested_by)
+                    ELSE fetch_queue.requested_by END,
                 not_before = CASE WHEN fetch_queue.status = 'pending' THEN fetch_queue.not_before ELSE EXCLUDED.not_before END,
                 status = CASE
                     WHEN fetch_queue.status IN ('failed', 'skipped') THEN 'pending'::fetch_queue_status
@@ -90,6 +106,7 @@ def enqueue(
             "requeue": requeue,
             "lane": FetchLane(lane).value,
             "list_date": list_date,
+            "requested_by": requested_by,
         },
     ).scalar_one()
     return row == "pending"
@@ -100,22 +117,43 @@ PAUSE_CLAUSE = (
 )
 
 
+def _filters(kinds: list[FetchKind] | None, lanes: list[FetchLane] | None) -> tuple[str, dict[str, Any]]:
+    kind_filter = "AND kind = ANY(CAST(:kinds AS fetch_kind[]))" if kinds else ""
+    lane_filter = "AND lane = ANY(CAST(:lanes AS fetch_lane[]))" if lanes else ""
+    where = (
+        "status = 'pending' AND (not_before IS NULL OR not_before <= now()) "
+        f"{kind_filter} {lane_filter} {PAUSE_CLAUSE}"
+    )
+    params = {
+        "kinds": [k.value for k in kinds] if kinds else None,
+        "lanes": [FetchLane(x).value for x in lanes] if lanes else None,
+    }
+    return where, params
+
+
+def has_runnable(
+    session: Session, kinds: list[FetchKind] | None = None, lanes: list[FetchLane] | None = None
+) -> bool:
+    """Whether `claim` would find a row (its conditions and pause clause), without locking or claiming: the runner
+    probes the window only when work is waiting (design `napix-window`, decision 4)."""
+    where, params = _filters(kinds, lanes)
+    return bool(session.scalar(text(f"SELECT EXISTS (SELECT 1 FROM fetch_queue WHERE {where})"), params))
+
+
 def claim(
     session: Session, kinds: list[FetchKind] | None = None, *, lanes: list[FetchLane] | None = None
 ) -> FetchQueueItem | None:
     """The highest-priority runnable row, marked running. `load` rows are skipped while the load is paused (read
     by this query, so a pause bites at the next claim of any worker); `lanes` narrows the lanes (the runner's
     budget bands, decision 4). Returns None when nothing is runnable."""
-    kind_filter = "AND kind = ANY(CAST(:kinds AS fetch_kind[]))" if kinds else ""
-    lane_filter = "AND lane = ANY(CAST(:lanes AS fetch_lane[]))" if lanes else ""
+    where, params = _filters(kinds, lanes)
     row = session.execute(
         text(
             f"""
             UPDATE fetch_queue SET status = 'running', started_at = now(), attempts = attempts + 1
             WHERE id = (
                 SELECT id FROM fetch_queue
-                WHERE status = 'pending' AND (not_before IS NULL OR not_before <= now()) {kind_filter}
-                    {lane_filter} {PAUSE_CLAUSE}
+                WHERE {where}
                 ORDER BY priority, created_at
                 FOR UPDATE SKIP LOCKED
                 LIMIT 1
@@ -123,10 +161,7 @@ def claim(
             RETURNING id
             """
         ),
-        {
-            "kinds": [k.value for k in kinds] if kinds else None,
-            "lanes": [FetchLane(x).value for x in lanes] if lanes else None,
-        },
+        params,
     ).first()
     if row is None:
         return None

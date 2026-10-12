@@ -2163,14 +2163,47 @@ class AuditActionsOut(BaseModel):
     actions: list[str]
 
 
-class NapixHourOut(BaseModel):
-    started_at: datetime
+class NapixResetOut(BaseModel):
+    observed_at: datetime
+    previous_at: datetime
+    previous_remaining: int
+    remaining: int
+    precise: bool
+
+
+class NapixWindowOut(BaseModel):
+    """The detected quota window (design `napix-window`, decisions 1-6): the reset is seen in the call log, never
+    assumed to be the clock hour."""
+
+    status: Literal["current", "reset_due", "overdue", "unknown"]
+    started_at: datetime | None
+    observed_at: datetime | None
+    next_reset_at: datetime | None
+    seconds_to_next_reset: int | None = Field(None, description="negative while due or overdue")
+    anchor_at: datetime | None
+    calls: int = Field(description="since observed_at; 0 while the reset is due")
+    failed: int
+    remaining: int | None
+    last_reading_at: datetime | None
+    recent_resets: list[NapixResetOut] = Field(description="last 6 h, newest first")
+    window_seconds: int
+    margin_seconds: int
+    probe_seconds: int
+    reserve: int
+    live_reserve: int
+    search_floor: int
+
+
+class UserCallsOut(BaseModel):
+    user_id: uuid.UUID
+    name: str
     calls: int
     failed: int
-    latest_remaining: int | None
-    reserve: int
-    search_floor: int
-    seconds_to_next_hour: int
+
+
+class NapixByUserOut(BaseModel):
+    window: list[UserCallsOut]
+    today: list[UserCallsOut]
 
 
 class NapixTodayOut(BaseModel):
@@ -2199,12 +2232,15 @@ class NapixLastCheckOut(BaseModel):
 class NapixHealthOut(BaseModel):
     enabled: bool
     est_code: str
-    hour: NapixHourOut
+    window: NapixWindowOut
     today: NapixTodayOut
     last_call_at: datetime | None
     last_ok_at: datetime | None
     last_failure: NapixLastFailureOut | None
     last_check: NapixLastCheckOut | None
+    by_user: NapixByUserOut | None = Field(
+        None, description="NAPIX operators only (admin.napix_refetch or admin.masters_sync); null otherwise"
+    )
 
 
 class LaneCountsOut(BaseModel):
@@ -2332,6 +2368,9 @@ class CallRowOut(BaseModel):
     token_verified: bool | None
     rate_limit_remaining: int | None
     job_run_id: uuid.UUID | None
+    lane: str | None = None
+    user_id: uuid.UUID | None = Field(None, description="NAPIX operators only")
+    user_name: str | None = Field(None, description="NAPIX operators only")
 
 
 class CallListOut(BaseModel):
@@ -2489,13 +2528,17 @@ class AllowanceUsedOut(BaseModel):
 
 
 class AllowanceOut(BaseModel):
-    hour_started_at: datetime
+    """The detected quota window (design `napix-window`, decision 6); `used` counts from the observed reset."""
+
+    window_started_at: datetime | None
+    next_reset_at: datetime | None
+    seconds_to_next_reset: int | None
+    window_status: Literal["current", "reset_due", "overdue", "unknown"]
     used: AllowanceUsedOut
     remaining: int | None
     rate_reserve: int
     live_reserve: int
     search_floor: int
-    seconds_to_next_hour: int
 
 
 class EstimateOut(BaseModel):

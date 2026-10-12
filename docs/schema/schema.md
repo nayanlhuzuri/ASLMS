@@ -214,6 +214,20 @@ As built by `alerts-notifications` (migration 0007, 6 Oct 2026): `alerts` gains 
 > `/admin/data-load*`); buttons write `fetch_queue` rows only through `queue.enqueue`. `source_failures` kind
 > `case_duplicate` (ref `<provisional id>|<holder id>`) lists provisional rows that could not be merged.
 
+> `napix_call_log` gains `user_id` (uuid NULL, → users **RESTRICT**; users are never deleted): the person whose
+> action caused the call — a court search or fetch, the connectivity check, or a `request`-lane queue row they
+> asked for. NULL for daily and load lane work, window probes, CLI checks and rows written before 0015. Partial
+> index `ix_napix_call_log_user_called` (user_id, called_at) WHERE user_id IS NOT NULL. `called_at` is the
+> attempt's own time (`NapixResult.called_at`), not the flushing transaction's. `fetch_queue` gains
+> `requested_by` (uuid NULL, → users **RESTRICT**): the person who asked for the row's pending run; set on insert,
+> revive or requeue from the caller, kept (`COALESCE`) while pending; CHECK `ck_fetch_queue_requested_by`
+> (`requested_by IS NULL OR lane = 'request'`); copied by the runner to the calls the row makes and inherited by
+> the rows it spawns. The quota window is derived, not stored: `services/napix_window.py` reads the call-log
+> readings (`rate_limit_remaining` NOT NULL) of the last 6 hours; a reset is a rise of at least
+> `NAPIX_WINDOW_RESET_JUMP`, precise when the previous reading is at most 300 s older; the phase comes from the
+> latest precise reset (design `napix-window`, migration 0015). Both tables stay class `derived`; `aslms_app`
+> grants unchanged (INSERT / SELECT on `napix_call_log`; SELECT / INSERT / UPDATE on `fetch_queue`).
+
 ## Phase 2 and 3 tables
 | Table | Columns (key ones) | Notes |
 |---|---|---|

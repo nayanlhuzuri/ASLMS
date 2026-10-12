@@ -77,10 +77,19 @@ class JobRun(CreatedAtMixin, Base):
 
 
 class NapixCallLog(Base):
-    """One row per HTTP attempt (CLAUDE.md: every call is logged). Pruned after the retention period."""
+    """One row per HTTP attempt (CLAUDE.md: every call is logged). Pruned after the retention period. `called_at`
+    is the attempt's own time (design `napix-window`, decision 7)."""
 
     __tablename__ = "napix_call_log"
     __table_class__ = TableClass.DERIVED
+    __table_args__ = (
+        Index(
+            "ix_napix_call_log_user_called",
+            "user_id",
+            "called_at",
+            postgresql_where=text("user_id IS NOT NULL"),
+        ),
+    )
     id: Mapped[uuid.UUID] = uuid_pk()
     api: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
     params_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -98,6 +107,8 @@ class NapixCallLog(Base):
     job_run_id: Mapped[uuid.UUID | None] = uuid_fk("job_runs.id", nullable=True, ondelete="CASCADE")
     # the lane of the queue item that made the call; NULL for calls made by the API (data-load-console, 0014)
     lane: Mapped[FetchLane | None] = mapped_column(pg_enum(FetchLane, "fetch_lane"))
+    # the person whose action caused the call; NULL for daily and load work, probes and CLI checks (napix-window, 0015)
+    user_id: Mapped[uuid.UUID | None] = uuid_fk("users.id", nullable=True, index=False)
 
 
 class NapixResponse(CreatedAtMixin, Base):
@@ -167,6 +178,8 @@ class FetchQueueItem(TimestampMixin, Base):
         # the claim query's order (design data-load-console, migration 0014)
         Index("ix_fetch_queue_claim", "priority", "created_at", postgresql_where=text("status = 'pending'")),
         Index("ix_fetch_queue_lane_list_date", "lane", "list_date"),
+        # only a person's request carries a person (design napix-window, decision 10; migration 0015)
+        CheckConstraint("requested_by IS NULL OR lane = 'request'", name="requested_by"),
     )
     id: Mapped[uuid.UUID] = uuid_pk()
     kind: Mapped[FetchKind] = mapped_column(pg_enum(FetchKind, "fetch_kind"), nullable=False)
@@ -187,6 +200,8 @@ class FetchQueueItem(TimestampMixin, Base):
     )
     # the cause-list date whose loading queued the row; inherited by the dossiers and order PDFs it spawns
     list_date: Mapped[date | None] = mapped_column(Date)
+    # the person who asked for the row's pending run (request lane only); copied to the calls it makes
+    requested_by: Mapped[uuid.UUID | None] = uuid_fk("users.id", nullable=True, index=False)
 
 
 class DataLoadSettings(TimestampMixin, CreatedByMixin, Base):

@@ -1,11 +1,12 @@
 """`aslms audit search [--user EMAIL] [--case REF] [--from D] [--to D] [--action A] [--limit N]` and `aslms data-health`
 (design `audit-screens`, "API"). The search acts as the single active super admin, as the other administration
 commands do; the data-health snapshot (counts only) needs none. Both write nothing: the search prints a table
-newest first, the data-health snapshot prints as JSON."""
+newest first; data-health prints the NAPIX quota window line and its recent resets, then the snapshot as JSON."""
 
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime, timedelta
 
 import typer
 from rich import print as rprint
@@ -14,7 +15,7 @@ from rich.table import Table
 from aslms.cli.users import _actor
 from aslms.core.config import get_settings
 from aslms.db.session import session_scope
-from aslms.services import audit_search, data_health
+from aslms.services import audit_search, data_health, napix_window
 from aslms.services.access import Forbidden
 from aslms.services.cases import CaseNotFound
 
@@ -71,11 +72,25 @@ def search(
         rprint(f"more rows: narrow the period or raise --limit (cursor {page.next_cursor})")
 
 
+def _hms(value) -> str:
+    return f"{value:%H:%M:%S}" if value is not None else "?"
+
+
 def data_health_cmd() -> None:
-    """The live data-health snapshot as JSON (what `GET /admin/data-health` returns). Counts only, so like
-    `queue-status` it needs no super admin."""
+    """The quota window line and its recent resets (design `napix-window`), then the live data-health snapshot as
+    JSON (what `GET /admin/data-health` returns). Counts only, so like `queue-status` it needs no super admin."""
     settings = get_settings()
     with session_scope() as s:
         _actor_, admin = _actor(s)
         snap = data_health.snapshot(s, admin, settings)
+        probes = napix_window.probes_since(s, datetime.now(UTC) - timedelta(hours=1))
+    w = snap["napix"]["window"]
+    print(
+        f"NAPIX window {w['status']}: started about {_hms(w['started_at'])} IST, next reset about "
+        f"{_hms(w['next_reset_at'])} IST, remaining {w['remaining'] if w['remaining'] is not None else 'unknown'}, "
+        f"probes in the last hour {probes}"
+    )
+    for r in w["recent_resets"]:
+        mark = "precise" if r["precise"] else "seen late"
+        print(f"  reset {_hms(r['observed_at'])} IST: {r['previous_remaining']} -> {r['remaining']} ({mark})")
     print(json.dumps(snap, default=str, indent=2, ensure_ascii=False))

@@ -364,7 +364,7 @@ def test_health_check_one_call_logged_and_audited(api, world, gateway, switch_on
     assert "payload" not in audit.after and "secret" not in repr(audit.after)
     # the NAPIX block shows the check; a second check within the minute is refused
     block = api.get("/admin/napix/health", headers=h).json()
-    assert block["last_check"]["ok"] is True and block["hour"]["latest_remaining"] == 812
+    assert block["last_check"]["ok"] is True and block["window"]["remaining"] == 812
     again = api.post("/admin/napix/health/check", headers=h)
     assert again.status_code == 429 and again.json()["detail"]["code"] == "check_too_soon"
 
@@ -404,14 +404,15 @@ def test_health_check_refusals_make_no_call(api, world, gateway, monkeypatch):
                 params_sha256="0" * 64,
                 ok=True,
                 rate_limit_remaining=10,
-                called_at=datetime.now(UTC).replace(minute=0, second=0, microsecond=0),
+                called_at=datetime.now(UTC) - timedelta(seconds=10),
             )
         )
         s.commit()
     before = nothing_written()
     r = api.post("/admin/napix/health/check", headers=h)
     assert r.status_code == 429 and r.json()["detail"]["code"] == "napix_budget"
-    assert int(r.headers["Retry-After"]) >= 1
+    # no reset seen yet (window unknown): the wait is one probe interval (design napix-window, decision 6)
+    assert int(r.headers["Retry-After"]) == 180
     assert nothing_written() == before
     assert gateway.seen == [] and gateway.token_calls == 0
 
@@ -468,3 +469,81 @@ def test_cli_refetch_is_audited(world, edu_case, monkeypatch):
     assert all(a.actor_user_id == world.users["root"].id for a in rows)
     assert _row(world, FetchKind.DOSSIER, edu_case.cnr).priority == 30
     assert date.fromisoformat(rows[0].after["ref"]) == date(2025, 1, 6)
+
+
+# ------------------------------------------------------------------------------------------------ design napix-window
+
+
+def test_check_guard_ignores_probes(api, world, gateway, switch_on):
+    """A window probe 10 s ago (an Overview call carrying a pass's job_run_id) neither blocks the check
+    (`check_too_soon`) nor shows as its `last_check`; the check records its caller."""
+    from aslms.domain.ops import JobRun
+    from aslms.services import napix_admin
+
+    with world.Session() as s:
+        run = JobRun(job="queue-run")
+        s.add(run)
+        s.flush()
+        s.add(
+            NapixCallLog(
+                api="overview/overview",
+                params_sha256="0" * 64,
+                ok=True,
+                job_run_id=run.id,
+                called_at=datetime.now(UTC) - timedelta(seconds=10),
+            )
+        )
+        s.commit()
+        assert napix_admin.last_check_at(s) is None
+    h = ds.login(api, "central_op")
+    assert api.get("/admin/napix/health", headers=h).json()["last_check"] is None
+    gateway.responses = [lambda p, q, r: gateway.envelope(sample("overview_2026-09-03.json"))]
+    r = api.post("/admin/napix/health/check", headers=h)
+    assert r.status_code == 200, r.text
+    with world.Session() as s:
+        op_id = world.user(s, "central_op").id
+        checks = s.execute(
+            sa.select(NapixCallLog.user_id).where(
+                NapixCallLog.api == "overview/overview", NapixCallLog.job_run_id.is_(None)
+            )
+        ).all()
+    assert checks == [(op_id,)]
+
+
+def test_by_user_operator_only(api, world, gateway, switch_on):
+    """`by_user` and the call log's user fields go to the NAPIX operators only; a `reports.state`-only reader gets
+    `by_user: null`, null user fields, and 403 for the `user_id` filter."""
+    with world.Session() as s:
+        op = world.user(s, "central_op")
+        for i in range(3):
+            s.add(
+                NapixCallLog(
+                    api="hc-party-name-api/partyname",
+                    params_sha256="0" * 64,
+                    ok=i < 2,
+                    lane="request" if i == 0 else None,
+                    user_id=op.id,
+                    called_at=datetime.now(UTC) - timedelta(minutes=i + 1),
+                )
+            )
+        s.commit()
+        op_id, op_name = op.id, op.full_name
+    root = ds.login(api, "root")
+    block = api.get("/admin/napix/health", headers=root).json()
+    assert block["by_user"]["today"] == [{"user_id": str(op_id), "name": op_name, "calls": 3, "failed": 1}]
+    assert block["by_user"]["window"] == []  # no reset seen yet: the window's start is unknown
+    assert api.get("/admin/data-health", headers=root).json()["napix"]["by_user"]["today"][0]["calls"] == 3
+    calls = api.get("/admin/napix/calls", headers=root).json()["items"]
+    assert {(c["user_id"], c["user_name"]) for c in calls} == {(str(op_id), op_name)}
+    assert {c["lane"] for c in calls} == {"request", None}
+    mine = api.get(f"/admin/napix/calls?user_id={op_id}", headers=root).json()["items"]
+    assert len(mine) == 3
+    assert api.get(f"/admin/napix/calls?user_id={uuid.uuid4()}", headers=root).json()["items"] == []
+    # a reports.state-only reader
+    oversight = ds.login(api, "oversight")
+    assert api.get("/admin/napix/health", headers=oversight).json()["by_user"] is None
+    assert api.get("/admin/data-health", headers=oversight).json()["napix"]["by_user"] is None
+    calls = api.get("/admin/napix/calls", headers=oversight).json()["items"]
+    assert len(calls) == 3 and {(c["user_id"], c["user_name"]) for c in calls} == {(None, None)}
+    r = api.get(f"/admin/napix/calls?user_id={op_id}", headers=oversight)
+    assert r.status_code == 403 and r.json()["detail"]["code"] == "forbidden"

@@ -3,10 +3,12 @@ mail outbox, SourceTrace and the source failures look like *now*, for the data-h
 `/admin/napix/health`. Reads only, under the report statement timeout; never calls NAPIX. Counts and operational
 references (dates, CNRs, order numbers, error texts) only: no party names, note text or document content. The
 period report `GET /reports/data-health` stays in `services/reports.py`; both share the daily-cycle helpers of
-`reporting_common`."""
+`reporting_common`. The NAPIX block reads the detected quota window (design `napix-window`, decision 6); who caused
+which calls (`by_user`, the call log's user fields) goes only to the NAPIX operators (decision 11)."""
 
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 
@@ -28,11 +30,11 @@ from aslms.domain.ops import (
     SourceFailure,
 )
 from aslms.domain.org import Channel, User
+from aslms.domain.reference import Permission
 from aslms.integration.napix.hc import API
-from aslms.services import access, sourcetrace_ingest
+from aslms.services import access, napix_window, sourcetrace_ingest
 from aslms.services.access import Member
 from aslms.services.audit_search import AuditInputError, decode_cursor, encode_cursor, like_escape, to_ist
-from aslms.services.court_search import latest_remaining_this_hour, seconds_to_next_hour
 from aslms.services.queue import STALE_RUNNING
 from aslms.services.reporting_common import (
     IST_ZONE,
@@ -70,17 +72,42 @@ def _limit(limit: int) -> int:
 # ------------------------------------------------------------------------------------------------ NAPIX block
 
 
-def napix_health(session: Session, settings: Settings, now: datetime | None = None) -> dict[str, Any]:
-    """Decision 5's NAPIX block: the switch as this process sees it, this clock hour, today (IST), the last call,
-    the last success, the last failure and the last connectivity check. Never a credential."""
+def is_operator(session: Session, user: User | Member | None) -> bool:
+    """A NAPIX operator (`admin.napix_refetch` or `admin.masters_sync`) sees who caused each call (design
+    `napix-window`, decision 11); False for the CLI without a super admin."""
+    if user is None:
+        return False
+    return access.has(session, user, Permission.ADMIN_NAPIX_REFETCH) or access.has(
+        session, user, Permission.ADMIN_MASTERS_SYNC
+    )
+
+
+def window_block(
+    session: Session, settings: Settings, now: datetime, window: napix_window.WindowState
+) -> dict[str, Any]:
+    """`NapixWindowOut`: the detected window, its calls and failures since the observed reset (none while the reset
+    is due), and the thresholds."""
+    counts = napix_window.calls_since(session, window.observed_at)
+    return {
+        **window.as_dict(now),
+        "calls": counts["calls"],
+        "failed": counts["failed"],
+        "reserve": settings.napix_rate_reserve,
+        "live_reserve": settings.napix_live_reserve,
+        "search_floor": settings.napix_search_floor,
+    }
+
+
+def napix_health(
+    session: Session, settings: Settings, now: datetime | None = None, *, operator: bool = False
+) -> dict[str, Any]:
+    """Decision 5's NAPIX block: the switch as this process sees it, the detected quota window (design
+    `napix-window`), today (IST), the last call, the last success, the last failure and the last connectivity check
+    (an Overview call outside a runner pass: probes are not checks). `by_user` (the window's and today's top 10 by
+    calls) only for an operator, else None. Never a credential."""
     now = _now(now)
-    hour_start = now.astimezone(UTC).replace(minute=0, second=0, microsecond=0)
     day_start = _day_start(today_ist(now))
-    calls, failed = session.execute(
-        select(func.count(), func.count().filter(NapixCallLog.ok.is_(False))).where(
-            NapixCallLog.called_at >= hour_start
-        )
-    ).one()
+    state = napix_window.current(session, settings, now)
     t_calls, t_failed, t_unverified = session.execute(
         select(
             func.count(),
@@ -108,22 +135,14 @@ def napix_health(session: Session, settings: Settings, now: datetime | None = No
     )
     check = session.scalar(
         select(NapixCallLog)
-        .where(NapixCallLog.api == OVERVIEW_API)
+        .where(NapixCallLog.api == OVERVIEW_API, NapixCallLog.job_run_id.is_(None))
         .order_by(NapixCallLog.called_at.desc(), NapixCallLog.id.desc())
         .limit(1)
     )
     return {
         "enabled": bool(settings.napix_configured),
         "est_code": settings.napix_est_code,
-        "hour": {
-            "started_at": to_ist(hour_start),
-            "calls": int(calls),
-            "failed": int(failed),
-            "latest_remaining": latest_remaining_this_hour(session),
-            "reserve": settings.napix_rate_reserve,
-            "search_floor": settings.napix_search_floor,
-            "seconds_to_next_hour": seconds_to_next_hour(now),
-        },
+        "window": window_block(session, settings, now, state),
         "today": {
             "calls": int(t_calls),
             "failed": int(t_failed),
@@ -152,6 +171,14 @@ def napix_health(session: Session, settings: Settings, now: datetime | None = No
                 "error_family": check.error_family,
             }
             if check is not None
+            else None
+        ),
+        "by_user": (
+            {
+                "window": napix_window.by_user(session, state.observed_at),
+                "today": napix_window.by_user(session, day_start),
+            }
+            if operator
             else None
         ),
     }
@@ -348,13 +375,14 @@ def failures(session: Session) -> list[dict[str, Any]]:
 def snapshot(
     session: Session, user: User | Member | None, settings: Settings, now: datetime | None = None
 ) -> dict[str, Any]:
-    """Decision 5: the whole screen in one transaction (one consistent snapshot). Counts only: nothing here
-    depends on the caller (`user` is `None` for the CLI before a super admin exists)."""
+    """Decision 5: the whole screen in one transaction (one consistent snapshot). Counts only; one block depends on
+    the caller: the NAPIX block's `by_user` is filled for the NAPIX operators only (design `napix-window`, decision
+    11). `user` is `None` for the CLI before a super admin exists (no operator then)."""
     now = _now(now)
     with_timeout(session, settings.report_statement_timeout_seconds)
     return {
         "as_of": to_ist(now),
-        "napix": napix_health(session, settings, now),
+        "napix": napix_health(session, settings, now, operator=is_operator(session, user)),
         "queue": queue_depths(session, now),
         "daily_cycle": daily_cycle(session, now),
         "status_batches": status_batches(session),
@@ -433,6 +461,7 @@ CALL_COLUMNS = (
     NapixCallLog.token_verified,
     NapixCallLog.rate_limit_remaining,
     NapixCallLog.job_run_id,
+    NapixCallLog.lane,
 )
 
 
@@ -446,9 +475,15 @@ def call_rows(
     cursor: str | None = None,
     limit: int = 50,
     now: datetime | None = None,
+    user_id: uuid.UUID | None = None,
+    operator: bool = False,
 ) -> tuple[list[dict[str, Any]], str | None]:
     """Call log rows of an IST period (default today), newest first, keyset like the audit search. Selects the
-    columns by name: never `params` (the call log has only `params_sha256`, which is not shown either)."""
+    columns by name: never `params` (the call log has only `params_sha256`, which is not shown either). Each row has
+    its lane; the user who caused it (`user_id`, `user_name`) and the `user_id` filter only for an operator (design
+    `napix-window`, decision 11): a non-operator's filter is `Forbidden`."""
+    if user_id is not None and not operator:
+        raise access.Forbidden("admin.napix_refetch or admin.masters_sync is needed to filter calls by user")
     today = today_ist(_now(now))
     from_ = from_ or (to if to is not None and to < today else today)
     to = to or today
@@ -462,15 +497,19 @@ def call_rows(
         conds.append(NapixCallLog.api == API.get(api, api))
     if ok is not None:
         conds.append(NapixCallLog.ok.is_(ok))
+    if user_id is not None:
+        conds.append(NapixCallLog.user_id == user_id)
     if cursor:
         at, row_id = decode_cursor(cursor)
         conds.append(tuple_(NapixCallLog.called_at, NapixCallLog.id) < tuple_(at, row_id))
     n = _limit(limit)
+    stmt = select(*CALL_COLUMNS)
+    if operator:
+        stmt = select(*CALL_COLUMNS, NapixCallLog.user_id, User.full_name.label("user_name")).outerjoin(
+            User, User.id == NapixCallLog.user_id
+        )
     rows = session.execute(
-        select(*CALL_COLUMNS)
-        .where(*conds)
-        .order_by(NapixCallLog.called_at.desc(), NapixCallLog.id.desc())
-        .limit(n + 1)
+        stmt.where(*conds).order_by(NapixCallLog.called_at.desc(), NapixCallLog.id.desc()).limit(n + 1)
     ).all()
     more = len(rows) > n
     rows = rows[:n]
@@ -488,6 +527,9 @@ def call_rows(
             "token_verified": r.token_verified,
             "rate_limit_remaining": r.rate_limit_remaining,
             "job_run_id": r.job_run_id,
+            "lane": _value(r.lane),
+            "user_id": r.user_id if operator else None,
+            "user_name": r.user_name if operator else None,
         }
         for r in rows
     ]

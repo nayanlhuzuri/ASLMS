@@ -15,7 +15,9 @@ any call when the data is already held; the duplicate lists and the on-demand sc
   measured rates only and says why when it gives none (`paused`, `not_enough_history`, `no_recent_calls`).
 - **Fetch** (decisions 10-11): a check in the database first (`check_held`), then the court search with its guard;
   audited as `case.search_court` with `via: data_load`, `force` and `warned`. Details of found cases are queued in
-  the `request` lane; one audit row `data_load.details_requested`.
+  the `request` lane carrying the person who asked (`requested_by`, design `napix-window`); one audit row
+  `data_load.details_requested`.
+- **Allowance** (design `napix-window`, decision 6): the detected quota window, not the clock hour.
 - **Duplicates** (decision 16): `duplicates` lists merged rows, court-duplicate links and pairs needing review (ref,
   CNR and case number only); `scan` runs the sweep, audited `data_load.dedupe_scan`.
 Every action needs `admin.data_load`; reading needs it or a health reader (decision 17)."""
@@ -49,7 +51,7 @@ from aslms.domain.ops import (
 from aslms.domain.org import User
 from aslms.domain.reference import Permission
 from aslms.integration.napix.hc import API, NapixHighCourt
-from aslms.services import access, case_dedupe, court_search, queue
+from aslms.services import access, case_dedupe, court_search, napix_window, queue
 from aslms.services.access import Member
 from aslms.services.audit import Actor, write_audit
 from aslms.services.audit_search import to_ist
@@ -156,10 +158,6 @@ def _now(now: datetime | None = None) -> datetime:
 
 def _value(v: Any) -> Any:
     return v.value if hasattr(v, "value") else v
-
-
-def _hour_start(now: datetime) -> datetime:
-    return now.astimezone(UTC).replace(minute=0, second=0, microsecond=0)
 
 
 def _days(from_: date, to: date) -> list[date]:
@@ -844,31 +842,22 @@ def failures(session: Session) -> dict[str, Any]:
 
 
 def allowance(session: Session, cfg: Settings, now: datetime | None = None) -> dict[str, Any]:
-    """The current clock hour: calls by lane (NULL = outside the queue: searches and the connectivity check), the
-    latest remaining count and the three thresholds."""
+    """The detected quota window (design `napix-window`, decision 6): its start, the expected next reset and the
+    state; calls by lane since the reset was observed (NULL lane = outside the queue: searches, checks and probes);
+    the remaining count the guards use and the three thresholds. No user data."""
     now = _now(now)
-    start_ = _hour_start(now)
-    used = {"load": 0, "daily": 0, "request": 0, "outside_queue": 0}
-    for lane, n in session.execute(
-        select(NapixCallLog.lane, func.count())
-        .where(NapixCallLog.called_at >= start_)
-        .group_by(NapixCallLog.lane)
-    ).all():
-        used[_value(lane) if lane is not None else "outside_queue"] += int(n)
-    remaining = session.scalar(
-        select(NapixCallLog.rate_limit_remaining)
-        .where(NapixCallLog.called_at >= start_, NapixCallLog.rate_limit_remaining.isnot(None))
-        .order_by(NapixCallLog.called_at.desc())
-        .limit(1)
-    )
+    window = napix_window.current(session, cfg, now)
+    used = napix_window.calls_since(session, window.observed_at, lane_split=True)["by_lane"]
     return {
-        "hour_started_at": to_ist(start_),
+        "window_started_at": to_ist(window.started_at),
+        "next_reset_at": to_ist(window.next_reset_at),
+        "seconds_to_next_reset": window.seconds_to_reset(now),
+        "window_status": window.status,
         "used": used,
-        "remaining": remaining,
+        "remaining": window.remaining,
         "rate_reserve": cfg.napix_rate_reserve,
         "live_reserve": cfg.napix_live_reserve,
         "search_floor": cfg.napix_search_floor,
-        "seconds_to_next_hour": court_search.seconds_to_next_hour(now),
     }
 
 
@@ -1162,7 +1151,13 @@ def fetch_details(
             out.append(DetailState(ref, case, "already_held"))
             continue
         queue.enqueue(
-            session, FetchKind.DOSSIER, dref, REQUEST_PRIORITY, requeue=held, lane=FetchLane.REQUEST
+            session,
+            FetchKind.DOSSIER,
+            dref,
+            REQUEST_PRIORITY,
+            requeue=held,
+            lane=FetchLane.REQUEST,
+            requested_by=napix_window.user_id_of(user),
         )
         row = queue.get_state(session, FetchKind.DOSSIER, dref)
         out.append(

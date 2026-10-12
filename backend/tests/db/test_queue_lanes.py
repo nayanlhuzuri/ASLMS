@@ -199,7 +199,7 @@ def test_pass_seeds_remaining_from_call_log(clean_db, tmp_path):
     assert rep.processed == 0 and runner.recorder.last_remaining == 120
     with Session() as s:
         assert _row(s, FetchKind.CAUSELIST_DAY, "2025-01-04").status == FetchStatus.PENDING
-        # a call of an earlier hour does not count
+        # a reading outside the window lookback (6 h) does not count
         s.execute(sa.text("DELETE FROM napix_call_log"))
         _log_call(s, 10, at=datetime(2025, 1, 1, tzinfo=UTC))
         s.commit()
@@ -236,7 +236,9 @@ def test_call_log_lane_recorded(clean_db, napix, tmp_path):
         rows = s.execute(sa.select(NapixCallLog.api, NapixCallLog.lane)).all()
     assert {lane for api, lane in rows if api == "hc-cnr-api/CNR"} == {FetchLane.LOAD, None}
     assert sum(1 for _, lane in rows if lane == FetchLane.LOAD) == 1
-    assert sum(1 for _, lane in rows if lane is None) == 1
+    assert sum(1 for api, lane in rows if lane is None and api != "overview/overview") == 1
+    # no reading yet: the pass first probed the window once (design napix-window, decision 4), lane NULL
+    assert [lane for api, lane in rows if api == "overview/overview"] == [None]
 
 
 def test_live_order_pdfs_at_40(clean_db):

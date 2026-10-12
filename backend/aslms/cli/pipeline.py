@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import typer
 from rich import print as rprint
@@ -171,14 +171,43 @@ def refetch_case(
     rprint(f"queued dossier {state['ref']} ({state['status']}, priority {state['priority']})")
 
 
+def worker_wait(report, idle_seconds: int, now: datetime | None = None) -> tuple[float | None, str | None]:
+    """How long the worker sleeps after a pass, and the line it prints (design `napix-window`, decision 4): until
+    `resume_at` (at least 5 s) when the bands stopped the pass, capped by the idle time when only the load lane was
+    blocked; the idle time when nothing ran; no sleep otherwise. UTC-aware throughout, printed in IST."""
+    from aslms.services.audit_search import to_ist
+
+    now = now or datetime.now(UTC)
+    if report.resume_at is not None:
+        wait = max(5.0, (report.resume_at - now).total_seconds())
+        if report.load_only:
+            wait = min(wait, float(idle_seconds))
+        window = report.window
+        if window is not None and window.status == "current" and window.next_reset_at is not None:
+            line = (
+                f"waiting for the window reset at about {to_ist(window.next_reset_at):%H:%M:%S} IST "
+                f"(+{window.margin} s)"
+            )
+        else:
+            line = f"reset overdue: probing in {int(wait)} s"
+        if report.load_only:
+            line += f"; the daily cycle and requests may run meanwhile (next pass in {int(wait)} s)"
+        return wait, line
+    if report.processed == 0:
+        return float(idle_seconds), None
+    return None, None
+
+
 def queue_worker(
     idle_seconds: int = typer.Option(60, "--idle", help="sleep this long when the queue is empty"),
     max_items: int | None = typer.Option(None, "--max-items", help="rows per pass (default: unlimited)"),
 ) -> None:
-    """Run the queue continuously (the Compose `worker` service): pass after pass, sleeping when the queue
-    is empty and until the next clock hour when the gateway budget is spent."""
+    """Run the queue continuously (the Compose `worker` service): pass after pass, sleeping when the queue is empty
+    and, when the gateway budget is spent, until the detected window's expected reset plus the margin (or the next
+    probe while the reset is late), never until a clock hour (design `napix-window`)."""
     import time
-    from datetime import datetime
+
+    from aslms.services.audit_search import to_ist
 
     settings = get_settings()
     factory = get_sessionmaker()
@@ -193,16 +222,15 @@ def queue_worker(
             time.sleep(idle_seconds)
             continue
         rprint(
-            f"{datetime.now():%H:%M:%S} pass: {report.processed} rows (done {report.done}, skipped "
-            f"{report.skipped}, failed {report.failed}), {report.calls} calls; {report.stopped_reason}"
+            f"{to_ist(datetime.now(UTC)):%H:%M:%S} IST pass: {report.processed} rows (done {report.done}, skipped "
+            f"{report.skipped}, failed {report.failed}), {report.calls} calls, {report.probes} probes; "
+            f"{report.stopped_reason}"
         )
-        if report.stopped_reason and report.stopped_reason.startswith("rate budget"):
-            now = datetime.now()
-            wait = (60 - now.minute) * 60 - now.second + 5
-            rprint(f"budget spent: sleeping {wait}s until the next hour")
+        wait, line = worker_wait(report, idle_seconds)
+        if line:
+            rprint(line)
+        if wait:
             time.sleep(wait)
-        elif report.processed == 0:
-            time.sleep(idle_seconds)
 
 
 def daily_cycle(

@@ -8,10 +8,12 @@ cycle.
   kind runs at 41 inside the period brought forward and 44 outside it, the 2nd at 42 / 46, the 3rd at 43 / 48.
 - `QueueOrigin(lane, list_date)`: who asked for the work a stage is doing; the rows it spawns inherit the lane and
   the `list_date`. Daily: dossiers 40, order PDFs 40 (pending case) or 80 (disposed). Load: `load_priority`.
-  Request: dossiers 30, order PDFs 40."""
+  Request: dossiers 30, order PDFs 40. A request origin also carries `requested_by`, the person who asked (design
+  `napix-window`, decision 9); the rows it spawns inherit it."""
 
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass
 from datetime import date, datetime
 
@@ -110,6 +112,7 @@ class QueueOrigin:
     lane: FetchLane = FetchLane.DAILY
     list_date: date | None = None
     settings: LoadSettings | None = None  # the load settings (read once per item); defaults when absent
+    requested_by: uuid.UUID | None = None  # the person behind a request origin; None for system work
 
     def dossier_priority(self) -> int:
         if self.lane == FetchLane.LOAD:

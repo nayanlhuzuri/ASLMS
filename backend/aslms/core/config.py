@@ -45,7 +45,13 @@ class Settings(BaseSettings):
     napix_version: str = "v1.0"
     napix_state_code: str = "18"  # Gauhati High Court in the NAPIX state master (verified live, 1 Oct 2026)
     napix_rate_limit_per_min: int = 60
-    napix_rate_window_seconds: int = 3600  # 1,000 calls per clock hour, measured 1 Oct 2026 (notes §6)
+    napix_rate_window_seconds: int = 3600  # window length; the phase is detected (design napix-window)
+    # the detected quota window (design napix-window, decisions 1-5): wait this long after the expected reset; probe
+    # at most this often while the reset is late or the timing unknown (<= the 300 s precise gap); a rise of at least
+    # this many remaining calls between two readings is a reset
+    napix_window_margin_seconds: int = Field(60, ge=0, le=600)
+    napix_window_probe_seconds: int = Field(180, ge=60, le=300)
+    napix_window_reset_jump: int = Field(50, ge=10, le=500)
     napix_rate_reserve: int = 150  # calls kept for the daily cycle; the load queue stops below this
     # below this remaining hourly quota the runner claims nothing at all; between it and the rate reserve only the
     # daily and request lanes (design data-load-console, decision 4): load >= 150 > daily >= 100 > searches >= 50

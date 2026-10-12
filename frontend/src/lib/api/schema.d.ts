@@ -650,7 +650,10 @@ export interface paths {
         };
         /**
          * List Calls
-         * @description Call log rows of an IST period (default today), newest first; never the parameters.
+         * @description Call log rows of an IST period (default today), newest first, with their lane; never the parameters. The
+         *     user who caused each call (`user_id`, `user_name`) and the `user_id` filter only for `admin.napix_refetch` /
+         *     `admin.masters_sync` holders: the user fields are null for other readers, and their `user_id` filter answers 403
+         *     `forbidden`.
          */
         get: operations["list_calls_admin_napix_calls_get"];
         put?: never;
@@ -670,8 +673,10 @@ export interface paths {
         };
         /**
          * Get Napix Health
-         * @description The NAPIX block: the switch as this API sees it, this clock hour, today (IST), the last call, success,
-         *     failure and connectivity check. Never calls NAPIX.
+         * @description The NAPIX block: the switch as this API sees it, the detected quota window (status, start, expected next
+         *     reset, recent resets), today (IST), the last call, success, failure and connectivity check. `by_user` (calls by
+         *     the person who caused them, this window and today) only for `admin.napix_refetch` / `admin.masters_sync`
+         *     holders, else null. Never calls NAPIX.
          */
         get: operations["get_napix_health_admin_napix_health_get"];
         put?: never;
@@ -694,8 +699,10 @@ export interface paths {
         /**
          * Health Check
          * @description One Overview call through the integration layer (logged in `napix_call_log`, audited); refused without a
-         *     call when the switch is off (409 `napix_off`), a check ran in the last minute (429 `check_too_soon`) or the
-         *     hourly quota is below the floor (429 `napix_budget`). The payload is not returned.
+         *     call when the switch is off (409 `napix_off`), a check ran in the last minute (429 `check_too_soon`; the
+         *     runner's window probes do not count) or the detected window's remaining quota is below the floor (429
+         *     `napix_budget`, `retry_after` to the expected reset). The call carries the caller's id. The payload is not
+         *     returned.
          */
         post: operations["health_check_admin_napix_health_check_post"];
         delete?: never;
@@ -3657,24 +3664,31 @@ export interface components {
             /** Unit Code */
             unit_code?: string | null;
         };
-        /** AllowanceOut */
+        /**
+         * AllowanceOut
+         * @description The detected quota window (design `napix-window`, decision 6); `used` counts from the observed reset.
+         */
         AllowanceOut: {
-            /**
-             * Hour Started At
-             * Format: date-time
-             */
-            hour_started_at: string;
             /** Live Reserve */
             live_reserve: number;
+            /** Next Reset At */
+            next_reset_at: string | null;
             /** Rate Reserve */
             rate_reserve: number;
             /** Remaining */
             remaining: number | null;
             /** Search Floor */
             search_floor: number;
-            /** Seconds To Next Hour */
-            seconds_to_next_hour: number;
+            /** Seconds To Next Reset */
+            seconds_to_next_reset: number | null;
             used: components["schemas"]["AllowanceUsedOut"];
+            /** Window Started At */
+            window_started_at: string | null;
+            /**
+             * Window Status
+             * @enum {string}
+             */
+            window_status: "current" | "reset_due" | "overdue" | "unknown";
         };
         /** AllowanceUsedOut */
         AllowanceUsedOut: {
@@ -3895,6 +3909,8 @@ export interface components {
             id: string;
             /** Job Run Id */
             job_run_id: string | null;
+            /** Lane */
+            lane?: string | null;
             /** Napix Status */
             napix_status: number | null;
             /** Ok */
@@ -3903,6 +3919,16 @@ export interface components {
             rate_limit_remaining: number | null;
             /** Token Verified */
             token_verified: boolean | null;
+            /**
+             * User Id
+             * @description NAPIX operators only
+             */
+            user_id?: string | null;
+            /**
+             * User Name
+             * @description NAPIX operators only
+             */
+            user_name?: string | null;
         };
         /** CaseClassificationOut */
         CaseClassificationOut: {
@@ -6318,13 +6344,21 @@ export interface components {
             /** Weight Override */
             weight_override: number | null;
         };
+        /** NapixByUserOut */
+        NapixByUserOut: {
+            /** Today */
+            today: components["schemas"]["UserCallsOut"][];
+            /** Window */
+            window: components["schemas"]["UserCallsOut"][];
+        };
         /** NapixHealthOut */
         NapixHealthOut: {
+            /** @description NAPIX operators only (admin.napix_refetch or admin.masters_sync); null otherwise */
+            by_user?: components["schemas"]["NapixByUserOut"] | null;
             /** Enabled */
             enabled: boolean;
             /** Est Code */
             est_code: string;
-            hour: components["schemas"]["NapixHourOut"];
             /** Last Call At */
             last_call_at: string | null;
             last_check: components["schemas"]["NapixLastCheckOut"] | null;
@@ -6332,26 +6366,7 @@ export interface components {
             /** Last Ok At */
             last_ok_at: string | null;
             today: components["schemas"]["NapixTodayOut"];
-        };
-        /** NapixHourOut */
-        NapixHourOut: {
-            /** Calls */
-            calls: number;
-            /** Failed */
-            failed: number;
-            /** Latest Remaining */
-            latest_remaining: number | null;
-            /** Reserve */
-            reserve: number;
-            /** Search Floor */
-            search_floor: number;
-            /** Seconds To Next Hour */
-            seconds_to_next_hour: number;
-            /**
-             * Started At
-             * Format: date-time
-             */
-            started_at: string;
+            window: components["schemas"]["NapixWindowOut"];
         };
         /** NapixLastCheckOut */
         NapixLastCheckOut: {
@@ -6385,6 +6400,25 @@ export interface components {
             /** Napix Status */
             napix_status: number | null;
         };
+        /** NapixResetOut */
+        NapixResetOut: {
+            /**
+             * Observed At
+             * Format: date-time
+             */
+            observed_at: string;
+            /** Precise */
+            precise: boolean;
+            /**
+             * Previous At
+             * Format: date-time
+             */
+            previous_at: string;
+            /** Previous Remaining */
+            previous_remaining: number;
+            /** Remaining */
+            remaining: number;
+        };
         /** NapixTodayOut */
         NapixTodayOut: {
             /** By Family */
@@ -6397,6 +6431,59 @@ export interface components {
             failed: number;
             /** Token Unverified */
             token_unverified: number;
+        };
+        /**
+         * NapixWindowOut
+         * @description The detected quota window (design `napix-window`, decisions 1-6): the reset is seen in the call log, never
+         *     assumed to be the clock hour.
+         */
+        NapixWindowOut: {
+            /** Anchor At */
+            anchor_at: string | null;
+            /**
+             * Calls
+             * @description since observed_at; 0 while the reset is due
+             */
+            calls: number;
+            /** Failed */
+            failed: number;
+            /** Last Reading At */
+            last_reading_at: string | null;
+            /** Live Reserve */
+            live_reserve: number;
+            /** Margin Seconds */
+            margin_seconds: number;
+            /** Next Reset At */
+            next_reset_at: string | null;
+            /** Observed At */
+            observed_at: string | null;
+            /** Probe Seconds */
+            probe_seconds: number;
+            /**
+             * Recent Resets
+             * @description last 6 h, newest first
+             */
+            recent_resets: components["schemas"]["NapixResetOut"][];
+            /** Remaining */
+            remaining: number | null;
+            /** Reserve */
+            reserve: number;
+            /** Search Floor */
+            search_floor: number;
+            /**
+             * Seconds To Next Reset
+             * @description negative while due or overdue
+             */
+            seconds_to_next_reset?: number | null;
+            /** Started At */
+            started_at: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "current" | "reset_due" | "overdue" | "unknown";
+            /** Window Seconds */
+            window_seconds: number;
         };
         /** NoteAttachmentOut */
         NoteAttachmentOut: {
@@ -8003,6 +8090,20 @@ export interface components {
             res_name?: string | null;
             /** Type Name */
             type_name?: string | null;
+        };
+        /** UserCallsOut */
+        UserCallsOut: {
+            /** Calls */
+            calls: number;
+            /** Failed */
+            failed: number;
+            /** Name */
+            name: string;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
         };
         /** UserCreateIn */
         UserCreateIn: {
@@ -10134,6 +10235,8 @@ export interface operations {
                 ok?: boolean | null;
                 limit?: number;
                 cursor?: string | null;
+                /** @description calls caused by this user (NAPIX operators only) */
+                user_id?: string | null;
             };
             header?: never;
             path?: never;

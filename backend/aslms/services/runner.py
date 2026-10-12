@@ -1,17 +1,25 @@
 """The queue runner: pulls `fetch_queue` rows in priority order and dispatches them to the pipeline stages,
-spending the gateway budget by bands (design `data-load-console`, decision 4): any lane while the hour's remaining
+spending the gateway budget by bands (design `data-load-console`, decision 4): any lane while the window's remaining
 quota is at least `NAPIX_RATE_RESERVE`; only the daily and request lanes between `NAPIX_LIVE_RESERVE` and it; nothing
-below `NAPIX_LIVE_RESERVE` (the worker sleeps to the next clock hour). Each pass seeds the remaining count from the
-latest `napix_call_log.rate_limit_remaining` of the current hour. One `job_runs` row per invocation; every NAPIX
-attempt is logged with the lane of its item and every response kept by the recorder. Work an item spawns inherits
-its lane and `list_date` (`QueueOrigin`). Survives restarts: a row is only `done` when its transaction committed."""
+below `NAPIX_LIVE_RESERVE`.
+
+The window is detected, not assumed (design `napix-window`, decisions 3-4): each pass seeds the remaining count from
+`napix_window.current`. When that count is unknown (the reset is due, overdue or the timing not known yet) and work is
+waiting, the pass first makes one **probe** (an Overview call, lane and user NULL, the pass's `job_run_id`), at most one
+per pass. When the bands block, the pass stops with `resume_at`: the expected reset plus the margin in a `current`
+window, else the latest reading plus the probe interval; the worker sleeps until then.
+
+One `job_runs` row per invocation (counters include `probes`); every NAPIX attempt is logged with the lane of its item
+and the person who asked for it (`requested_by`), and every response kept by the recorder. Work an item spawns
+inherits its lane, `list_date` and person (`QueueOrigin`). Survives restarts: a row is only `done` when its
+transaction committed."""
 
 from __future__ import annotations
 
 import asyncio
 import traceback
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -27,7 +35,7 @@ from aslms.domain.courts import Court
 from aslms.domain.ops import FetchKind, FetchLane, FetchQueueItem, JobRun, JobStatus
 from aslms.integration.napix.client import NapixClient
 from aslms.integration.napix.hc import NapixHighCourt
-from aslms.services import case_dedupe, court_search, queue
+from aslms.services import case_dedupe, court_search, napix_window, queue
 from aslms.services.cases import find_case, get_or_create_case
 from aslms.services.causelists import load_causelist_day
 from aslms.services.load_policy import QueueOrigin, current_settings, load_priority
@@ -54,6 +62,11 @@ class RunReport:
     calls: int = 0
     stopped_reason: str | None = None
     items: list[dict[str, Any]] = field(default_factory=list)
+    # design napix-window, decision 4: when the bands stopped the pass, when to run again; the probes made
+    resume_at: datetime | None = None
+    probes: int = 0
+    load_only: bool = False  # only the load lane was blocked: daily and request rows may still arrive
+    window: napix_window.WindowState | None = None
 
 
 class QueueRunner:
@@ -76,6 +89,7 @@ class QueueRunner:
         self.recorder = recorder or NapixRecorder()
         self.reserve = self.settings.napix_rate_reserve if reserve is None else reserve
         self.live_reserve = min(self.settings.napix_live_reserve, self.reserve)
+        self.window: napix_window.WindowState | None = None
 
     # ------------------------------------------------------------------ lifecycle
     def start_job(self, job: str) -> uuid.UUID:
@@ -98,6 +112,7 @@ class QueueRunner:
                     "failed": report.failed,
                     "skipped": report.skipped,
                     "calls": report.calls,
+                    "probes": report.probes,
                     "stopped": report.stopped_reason,
                 }
             self.recorder.flush(s)
@@ -116,11 +131,57 @@ class QueueRunner:
     def budget_ok(self) -> bool:
         return self.budget_lanes()[0]
 
-    def seed_remaining(self) -> None:
-        """The latest remaining count of the current clock hour from the call log (None in a fresh hour), so a
-        fresh pass does not spend the reserve on its first item."""
+    def seed_remaining(self, now: datetime | None = None) -> napix_window.WindowState:
+        """The detected window from the call log (design `napix-window`, decision 6): its remaining count seeds the
+        recorder (None = unknown: the next call will tell), so a fresh pass does not spend the reserve on its first
+        item."""
         with self.session_factory() as s:
-            self.recorder.last_remaining = court_search.latest_remaining_this_hour(s)
+            self.window = napix_window.current(s, self.settings, now)
+        self.recorder.last_remaining = self.window.remaining
+        return self.window
+
+    def has_runnable(self, kinds: list[FetchKind] | None) -> bool:
+        with self.session_factory() as s:
+            return queue.has_runnable(s, kinds)
+
+    async def probe(self, report: RunReport) -> bool:
+        """One Overview call through the integration layer to read the window (decision 4): lane and user NULL, the
+        pass's `job_run_id`, flushed and committed in its own session. False when the call failed."""
+        assert self.hc is not None
+        lane, user_id = self.recorder.lane, self.recorder.user_id
+        self.recorder.lane, self.recorder.user_id = None, None
+        report.probes += 1
+        ok = True
+        try:
+            await self.hc.overview()
+        except IntegrationError as exc:
+            ok = False
+            log.warning("napix window probe failed", error=str(exc)[:300])
+        finally:
+            with self.session_factory() as s:
+                self.recorder.flush(s)
+                s.commit()
+            self.recorder.lane, self.recorder.user_id = lane, user_id
+            report.calls = self.recorder.calls
+        return ok
+
+    def _blocked(self, report: RunReport, reason: str, *, load_only: bool, read_at: int) -> bool:
+        """The bands block. When items ran since the window was read, it is read again (their calls are in the log):
+        an unknown remaining (the reset fell due meanwhile) lets the pass go on, to probe or to claim. Otherwise the
+        pass stops with `resume_at`. True when the pass stops."""
+        now = datetime.now(UTC)
+        if self.window is None or report.processed > read_at:
+            with self.session_factory() as s:
+                self.window = napix_window.current(s, self.settings, now)
+            if self.window.remaining is None:
+                self.recorder.last_remaining = None
+                return False
+        window = self.window
+        report.window = window
+        report.resume_at = window.resume_at(now)
+        report.load_only = load_only
+        report.stopped_reason = f"{reason}; {window.describe()}"
+        return True
 
     # ------------------------------------------------------------------ the loop
     async def run(
@@ -133,30 +194,52 @@ class QueueRunner:
             with self.session_factory() as s:
                 queue.requeue_stale(s)
                 s.commit()
-            self.seed_remaining()
+            report.window = self.seed_remaining()
+            read_at = 0  # items processed when the window was last read
             while max_items is None or report.processed < max_items:
+                if (
+                    self.recorder.last_remaining is None
+                    and report.probes == 0
+                    and self.hc is not None
+                    and self.has_runnable(kinds)
+                ):
+                    if not await self.probe(report):
+                        report.resume_at = datetime.now(UTC) + timedelta(
+                            seconds=self.settings.napix_window_probe_seconds
+                        )
+                        report.stopped_reason = "window probe failed; probing again later"
+                        break
+                    report.window = self.seed_remaining()
+                    read_at = report.processed
                 allowed, lanes = self.budget_lanes()
                 if not allowed:
-                    report.stopped_reason = (
-                        f"rate budget: {self.recorder.last_remaining} remaining < live reserve "
-                        f"{self.live_reserve}"
+                    reason = (
+                        f"rate budget: {self.recorder.last_remaining} left < live reserve {self.live_reserve}"
                     )
-                    break
+                    if self._blocked(report, reason, load_only=False, read_at=read_at):
+                        break
+                    read_at = report.processed
+                    continue
                 with self.session_factory() as s:
                     item = queue.claim(s, kinds, lanes=lanes)
                     if item is None:
                         s.commit()
-                        report.stopped_reason = report.stopped_reason or (
-                            f"load waits: {self.recorder.last_remaining} remaining < reserve {self.reserve}"
-                            if lanes is not None
-                            else "queue empty"
-                        )
-                        break
+                        if lanes is None:
+                            report.stopped_reason = report.stopped_reason or "queue empty"
+                            break
+                        reason = f"load waits: {self.recorder.last_remaining} left < reserve {self.reserve}"
+                        if self._blocked(report, reason, load_only=True, read_at=read_at):
+                            break
+                        read_at = report.processed
+                        continue
                     kind, ref, item_id = item.kind, item.ref, item.id
                     lane, list_date = FetchLane(item.lane), item.list_date
+                    requested_by = item.requested_by
                     s.commit()
                 report.processed += 1
-                await self._process(item_id, kind, ref, report, lane=lane, list_date=list_date)
+                await self._process(
+                    item_id, kind, ref, report, lane=lane, list_date=list_date, requested_by=requested_by
+                )
         except BudgetExhausted as exc:
             report.stopped_reason = str(exc)
         except Exception:  # noqa: BLE001
@@ -178,14 +261,21 @@ class QueueRunner:
         *,
         lane: FetchLane = FetchLane.DAILY,
         list_date: date | None = None,
+        requested_by: uuid.UUID | None = None,
     ) -> None:
         calls_before = self.recorder.calls
         self.recorder.lane = lane.value
+        self.recorder.user_id = requested_by
         with self.session_factory() as s:
             item = s.get(FetchQueueItem, item_id)
             assert item is not None
             try:
-                origin = QueueOrigin(lane, list_date, current_settings(s) if lane == FetchLane.LOAD else None)
+                origin = QueueOrigin(
+                    lane,
+                    list_date,
+                    current_settings(s) if lane == FetchLane.LOAD else None,
+                    requested_by=requested_by,
+                )
                 result, skipped = await self.dispatch(s, kind, ref, origin)
                 queue.complete(s, item, result, skipped=skipped)
                 report.done += int(not skipped)
@@ -211,6 +301,7 @@ class QueueRunner:
             self.recorder.flush(s)
             s.commit()
         self.recorder.lane = None
+        self.recorder.user_id = None
         report.calls = self.recorder.calls
         report.items.append(
             {"kind": kind.value, "ref": ref, "outcome": outcome, "calls": self.recorder.calls - calls_before}
@@ -263,7 +354,7 @@ class QueueRunner:
     ) -> tuple[dict[str, Any], bool]:
         court = self._court(s)
         if origin.list_date is None:
-            origin = QueueOrigin(origin.lane, list_date, origin.settings)
+            origin = replace(origin, list_date=list_date)
         rep = await load_causelist_day(
             s,
             self.hc,

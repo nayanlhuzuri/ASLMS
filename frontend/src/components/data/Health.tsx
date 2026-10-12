@@ -2,7 +2,9 @@
 
 /**
  * The data-health tab (design audit-screens, decisions 5-11; data-load-console, decisions 12 and 19): the snapshot of
- * `GET /admin/data-health` and `GET /admin/napix/health`, refreshed every minute, and the buttons. Sync masters needs
+ * `GET /admin/data-health` and `GET /admin/napix/health`, refreshed every minute, and the buttons. The court gateway
+ * block shows the detected quota window, its recent resets and, for the NAPIX operators only (the API sends `by_user`
+ * to them alone), the calls by user (design napix-window). Sync masters needs
  * `admin.masters_sync`; the re-fetch buttons `admin.napix_refetch` and warn before queuing data already held ("Fetch
  * anyway" resends with `force`); the connectivity check either function. No GET calls NAPIX.
  */
@@ -14,7 +16,7 @@ import { api, ApiError } from "@/lib/api/client";
 import { useMe } from "@/lib/api/hooks";
 import type { DataHealth, HealthCheck, NapixHealth, QueueState } from "@/lib/api/types";
 import { can, canAny } from "@/lib/can";
-import { formatDate, formatDateTime, formatNumber } from "@/lib/format";
+import { formatDate, formatDateTime, formatNumber, formatTime } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { useAction } from "@/lib/useAction";
 
@@ -47,6 +49,7 @@ export function Health() {
 }
 
 function NapixBlock({ data }: { data: NapixHealth }) {
+  const w = data.window;
   return (
     <section className="stack" aria-label={T.data.napix}>
       <h2>{T.data.napix}</h2>
@@ -55,13 +58,71 @@ function NapixBlock({ data }: { data: NapixHealth }) {
         <span className="muted">{T.data.switchNote}</span>
       </p>
       <div className="row">
-        <Tile label={T.data.hour} value={data.hour.calls} sub={`${formatNumber(data.hour.failed)} ${T.data.failed.toLowerCase()}`} />
+        <Tile label={T.data.window} value={w.calls} sub={`${formatNumber(w.failed)} ${T.data.failed.toLowerCase()}`} />
         <Tile label={T.data.today} value={data.today.calls} sub={`${formatNumber(data.today.failed)} ${T.data.failed.toLowerCase()}`} />
       </div>
+      <p>{T.data.windowLine(w.status, formatTime(w.started_at), formatTime(w.next_reset_at), Math.round(w.probe_seconds / 60))}</p>
+      <p>{w.remaining === null || w.remaining === undefined ? T.data.remainingUnknown : T.data.remaining(formatNumber(w.remaining))}</p>
       <p className="muted">
         {T.data.lastCall}: {formatDateTime(data.last_call_at)}. {T.data.lastCheck}:{" "}
         {data.last_check ? `${formatDateTime(data.last_check.called_at)} (${data.last_check.ok ? T.data.ok : data.last_check.error_family ?? "—"})` : "—"}
       </p>
+      {w.recent_resets.length > 0 ? (
+        <section className="stack" aria-label={T.data.recentResets}>
+          <h3>{T.data.recentResets}</h3>
+          <ul>
+            {w.recent_resets.map((r) => (
+              <li key={r.observed_at}>
+                {T.data.resetRow(formatTime(r.observed_at), r.previous_remaining, r.remaining)}
+                {r.precise ? (
+                  <>
+                    {" "}
+                    <Badge tone="success">{T.data.precise}</Badge>
+                  </>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+      {data.by_user ? <CallsByUser byUser={data.by_user} /> : null}
+    </section>
+  );
+}
+
+type ByUser = NonNullable<NapixHealth["by_user"]>;
+
+function CallsByUser({ byUser }: { byUser: ByUser }) {
+  const ids = Array.from(new Set([...byUser.window, ...byUser.today].map((u) => u.user_id)));
+  const names = new Map([...byUser.today, ...byUser.window].map((u) => [u.user_id, u.name]));
+  const find = (list: ByUser["window"], id: string) => list.find((u) => u.user_id === id);
+  return (
+    <section className="stack" aria-label={T.data.byUser}>
+      <h3>{T.data.byUser}</h3>
+      {ids.length === 0 ? (
+        <p className="muted">{T.data.noUserCalls}</p>
+      ) : (
+        <Table caption={T.data.byUser}>
+          <thead>
+            <tr>
+              <th scope="col">{T.data.user}</th>
+              <th scope="col" className={numCell}>{T.data.window}</th>
+              <th scope="col" className={numCell}>{T.data.today}</th>
+              <th scope="col" className={numCell}>{T.data.failed}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {ids.map((id) => (
+              <tr key={id}>
+                <td>{names.get(id)}</td>
+                <td className={numCell}>{formatNumber(find(byUser.window, id)?.calls ?? 0)}</td>
+                <td className={numCell}>{formatNumber(find(byUser.today, id)?.calls ?? 0)}</td>
+                <td className={numCell}>{formatNumber(find(byUser.today, id)?.failed ?? 0)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+      )}
     </section>
   );
 }

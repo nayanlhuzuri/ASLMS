@@ -163,6 +163,8 @@ payload.
   sampled (not in the plan's usage map); when one is added, its paths join this file first.
 - The rate-limit window: the remaining count was 948 at 12:52 and 994 at 12:56, so the window is short (minutes),
   not daily; `RateLimiter.window_seconds` stays 60 until measured.
+  *(12 Oct 2026: superseded; the window is one hour, reset at a fixed minute of the hour and detected from
+  `X-RateLimit-Remaining`; see `docs/napix_integration_notes.md` §6 and design `napix-window`.)*
 
 Approval of this addendum (sections A–D) is what migration 0001 is written from, together with `schema.md`.
 

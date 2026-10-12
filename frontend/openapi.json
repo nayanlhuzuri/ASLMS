@@ -724,15 +724,23 @@
         "type": "object"
       },
       "AllowanceOut": {
+        "description": "The detected quota window (design `napix-window`, decision 6); `used` counts from the observed reset.",
         "properties": {
-          "hour_started_at": {
-            "format": "date-time",
-            "title": "Hour Started At",
-            "type": "string"
-          },
           "live_reserve": {
             "title": "Live Reserve",
             "type": "integer"
+          },
+          "next_reset_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Reset At"
           },
           "rate_reserve": {
             "title": "Rate Reserve",
@@ -753,22 +761,53 @@
             "title": "Search Floor",
             "type": "integer"
           },
-          "seconds_to_next_hour": {
-            "title": "Seconds To Next Hour",
-            "type": "integer"
+          "seconds_to_next_reset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seconds To Next Reset"
           },
           "used": {
             "$ref": "#/components/schemas/AllowanceUsedOut"
+          },
+          "window_started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window Started At"
+          },
+          "window_status": {
+            "enum": [
+              "current",
+              "reset_due",
+              "overdue",
+              "unknown"
+            ],
+            "title": "Window Status",
+            "type": "string"
           }
         },
         "required": [
-          "hour_started_at",
+          "window_started_at",
+          "next_reset_at",
+          "seconds_to_next_reset",
+          "window_status",
           "used",
           "remaining",
           "rate_reserve",
           "live_reserve",
-          "search_floor",
-          "seconds_to_next_hour"
+          "search_floor"
         ],
         "title": "AllowanceOut",
         "type": "object"
@@ -1484,6 +1523,17 @@
             ],
             "title": "Job Run Id"
           },
+          "lane": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lane"
+          },
           "napix_status": {
             "anyOf": [
               {
@@ -1520,6 +1570,31 @@
               }
             ],
             "title": "Token Verified"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "NAPIX operators only",
+            "title": "User Id"
+          },
+          "user_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "NAPIX operators only",
+            "title": "User Name"
           }
         },
         "required": [
@@ -9494,8 +9569,43 @@
         "title": "NamePatternOut",
         "type": "object"
       },
+      "NapixByUserOut": {
+        "properties": {
+          "today": {
+            "items": {
+              "$ref": "#/components/schemas/UserCallsOut"
+            },
+            "title": "Today",
+            "type": "array"
+          },
+          "window": {
+            "items": {
+              "$ref": "#/components/schemas/UserCallsOut"
+            },
+            "title": "Window",
+            "type": "array"
+          }
+        },
+        "required": [
+          "window",
+          "today"
+        ],
+        "title": "NapixByUserOut",
+        "type": "object"
+      },
       "NapixHealthOut": {
         "properties": {
+          "by_user": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NapixByUserOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "NAPIX operators only (admin.napix_refetch or admin.masters_sync); null otherwise"
+          },
           "enabled": {
             "title": "Enabled",
             "type": "boolean"
@@ -9503,9 +9613,6 @@
           "est_code": {
             "title": "Est Code",
             "type": "string"
-          },
-          "hour": {
-            "$ref": "#/components/schemas/NapixHourOut"
           },
           "last_call_at": {
             "anyOf": [
@@ -9553,12 +9660,15 @@
           },
           "today": {
             "$ref": "#/components/schemas/NapixTodayOut"
+          },
+          "window": {
+            "$ref": "#/components/schemas/NapixWindowOut"
           }
         },
         "required": [
           "enabled",
           "est_code",
-          "hour",
+          "window",
           "today",
           "last_call_at",
           "last_ok_at",
@@ -9566,57 +9676,6 @@
           "last_check"
         ],
         "title": "NapixHealthOut",
-        "type": "object"
-      },
-      "NapixHourOut": {
-        "properties": {
-          "calls": {
-            "title": "Calls",
-            "type": "integer"
-          },
-          "failed": {
-            "title": "Failed",
-            "type": "integer"
-          },
-          "latest_remaining": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Latest Remaining"
-          },
-          "reserve": {
-            "title": "Reserve",
-            "type": "integer"
-          },
-          "search_floor": {
-            "title": "Search Floor",
-            "type": "integer"
-          },
-          "seconds_to_next_hour": {
-            "title": "Seconds To Next Hour",
-            "type": "integer"
-          },
-          "started_at": {
-            "format": "date-time",
-            "title": "Started At",
-            "type": "string"
-          }
-        },
-        "required": [
-          "started_at",
-          "calls",
-          "failed",
-          "latest_remaining",
-          "reserve",
-          "search_floor",
-          "seconds_to_next_hour"
-        ],
-        "title": "NapixHourOut",
         "type": "object"
       },
       "NapixLastCheckOut": {
@@ -9722,6 +9781,41 @@
         "title": "NapixLastFailureOut",
         "type": "object"
       },
+      "NapixResetOut": {
+        "properties": {
+          "observed_at": {
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
+          "precise": {
+            "title": "Precise",
+            "type": "boolean"
+          },
+          "previous_at": {
+            "format": "date-time",
+            "title": "Previous At",
+            "type": "string"
+          },
+          "previous_remaining": {
+            "title": "Previous Remaining",
+            "type": "integer"
+          },
+          "remaining": {
+            "title": "Remaining",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "observed_at",
+          "previous_at",
+          "previous_remaining",
+          "remaining",
+          "precise"
+        ],
+        "title": "NapixResetOut",
+        "type": "object"
+      },
       "NapixTodayOut": {
         "properties": {
           "by_family": {
@@ -9751,6 +9845,165 @@
           "token_unverified"
         ],
         "title": "NapixTodayOut",
+        "type": "object"
+      },
+      "NapixWindowOut": {
+        "description": "The detected quota window (design `napix-window`, decisions 1-6): the reset is seen in the call log, never\nassumed to be the clock hour.",
+        "properties": {
+          "anchor_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor At"
+          },
+          "calls": {
+            "description": "since observed_at; 0 while the reset is due",
+            "title": "Calls",
+            "type": "integer"
+          },
+          "failed": {
+            "title": "Failed",
+            "type": "integer"
+          },
+          "last_reading_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Reading At"
+          },
+          "live_reserve": {
+            "title": "Live Reserve",
+            "type": "integer"
+          },
+          "margin_seconds": {
+            "title": "Margin Seconds",
+            "type": "integer"
+          },
+          "next_reset_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Reset At"
+          },
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "probe_seconds": {
+            "title": "Probe Seconds",
+            "type": "integer"
+          },
+          "recent_resets": {
+            "description": "last 6 h, newest first",
+            "items": {
+              "$ref": "#/components/schemas/NapixResetOut"
+            },
+            "title": "Recent Resets",
+            "type": "array"
+          },
+          "remaining": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining"
+          },
+          "reserve": {
+            "title": "Reserve",
+            "type": "integer"
+          },
+          "search_floor": {
+            "title": "Search Floor",
+            "type": "integer"
+          },
+          "seconds_to_next_reset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "negative while due or overdue",
+            "title": "Seconds To Next Reset"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "enum": [
+              "current",
+              "reset_due",
+              "overdue",
+              "unknown"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "window_seconds": {
+            "title": "Window Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status",
+          "started_at",
+          "observed_at",
+          "next_reset_at",
+          "anchor_at",
+          "calls",
+          "failed",
+          "remaining",
+          "last_reading_at",
+          "recent_resets",
+          "window_seconds",
+          "margin_seconds",
+          "probe_seconds",
+          "reserve",
+          "live_reserve",
+          "search_floor"
+        ],
+        "title": "NapixWindowOut",
         "type": "object"
       },
       "NoteAttachmentOut": {
@@ -14875,6 +15128,35 @@
         "title": "UnmatchedRowOut",
         "type": "object"
       },
+      "UserCallsOut": {
+        "properties": {
+          "calls": {
+            "title": "Calls",
+            "type": "integer"
+          },
+          "failed": {
+            "title": "Failed",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "name",
+          "calls",
+          "failed"
+        ],
+        "title": "UserCallsOut",
+        "type": "object"
+      },
       "UserCreateIn": {
         "properties": {
           "designation": {
@@ -18348,7 +18630,7 @@
     },
     "/admin/napix/calls": {
       "get": {
-        "description": "Call log rows of an IST period (default today), newest first; never the parameters.",
+        "description": "Call log rows of an IST period (default today), newest first, with their lane; never the parameters. The\nuser who caused each call (`user_id`, `user_name`) and the `user_id` filter only for `admin.napix_refetch` /\n`admin.masters_sync` holders: the user fields are null for other readers, and their `user_id` filter answers 403\n`forbidden`.",
         "operationId": "list_calls_admin_napix_calls_get",
         "parameters": [
           {
@@ -18446,6 +18728,25 @@
               ],
               "title": "Cursor"
             }
+          },
+          {
+            "description": "calls caused by this user (NAPIX operators only)",
+            "in": "query",
+            "name": "user_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "calls caused by this user (NAPIX operators only)",
+              "title": "User Id"
+            }
           }
         ],
         "responses": {
@@ -18533,7 +18834,7 @@
     },
     "/admin/napix/health": {
       "get": {
-        "description": "The NAPIX block: the switch as this API sees it, this clock hour, today (IST), the last call, success,\nfailure and connectivity check. Never calls NAPIX.",
+        "description": "The NAPIX block: the switch as this API sees it, the detected quota window (status, start, expected next\nreset, recent resets), today (IST), the last call, success, failure and connectivity check. `by_user` (calls by\nthe person who caused them, this window and today) only for `admin.napix_refetch` / `admin.masters_sync`\nholders, else null. Never calls NAPIX.",
         "operationId": "get_napix_health_admin_napix_health_get",
         "responses": {
           "200": {
@@ -18560,7 +18861,7 @@
     },
     "/admin/napix/health/check": {
       "post": {
-        "description": "One Overview call through the integration layer (logged in `napix_call_log`, audited); refused without a\ncall when the switch is off (409 `napix_off`), a check ran in the last minute (429 `check_too_soon`) or the\nhourly quota is below the floor (429 `napix_budget`). The payload is not returned.",
+        "description": "One Overview call through the integration layer (logged in `napix_call_log`, audited); refused without a\ncall when the switch is off (409 `napix_off`), a check ran in the last minute (429 `check_too_soon`; the\nrunner's window probes do not count) or the detected window's remaining quota is below the floor (429\n`napix_budget`, `retry_after` to the expected reset). The call carries the caller's id. The payload is not\nreturned.",
         "operationId": "health_check_admin_napix_health_check_post",
         "responses": {
           "200": {

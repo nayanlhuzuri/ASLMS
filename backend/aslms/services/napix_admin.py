@@ -14,8 +14,11 @@ or an order PDF, retry a failed queue row or every failed row of a kind, and the
   `napix.queue_retry`, `napix.queue_retry_failed`, `napix.health_checked`); no event, no alert.
 - **The check** (decision 10) is the only NAPIX call here, through the integration layer with a `NapixRecorder`:
   one Overview call, refused without a call when the switch is off, a check ran within
-  `NAPIX_HEALTH_CHECK_MIN_SECONDS`, or the hour's remaining quota is below `NAPIX_SEARCH_FLOOR`. The payload is
-  never returned or stored in the audit row."""
+  `NAPIX_HEALTH_CHECK_MIN_SECONDS`, or the detected window's remaining quota is below `NAPIX_SEARCH_FLOOR` (design
+  `napix-window`, decision 6). Only Overview calls without a `job_run_id` count as checks: the runner's window
+  probes carry their pass's id. The payload is never returned or stored in the audit row.
+- **Who** (design `napix-window`, decision 9): the check's calls carry the caller's id; the rows a button queues
+  carry the acting person as `requested_by` (NULL for the `system` actor); `retry-failed` sets none."""
 
 from __future__ import annotations
 
@@ -38,11 +41,10 @@ from aslms.domain.org import User
 from aslms.domain.reference import Permission
 from aslms.integration.napix.client import NapixClient
 from aslms.integration.napix.hc import NapixHighCourt
-from aslms.services import access, queue
+from aslms.services import access, napix_window, queue
 from aslms.services.access import Forbidden, Member
 from aslms.services.audit import Actor, write_audit
 from aslms.services.audit_search import to_ist
-from aslms.services.court_search import latest_remaining_this_hour, seconds_to_next_hour
 from aslms.services.data_health import OVERVIEW_API
 from aslms.services.napix_store import NapixRecorder
 from aslms.services.orders import order_ref
@@ -182,7 +184,16 @@ def _enqueue(
 ) -> dict[str, Any]:
     before = queue.get_state(session, kind, ref)
     status_before = _value(before.status) if before is not None else None
-    queue.enqueue(session, kind, ref, priority, requeue=True, lane=FetchLane.REQUEST, list_date=list_date)
+    queue.enqueue(
+        session,
+        kind,
+        ref,
+        priority,
+        requeue=True,
+        lane=FetchLane.REQUEST,
+        list_date=list_date,
+        requested_by=member.id if member is not None else None,
+    )
     row = queue.get_state(session, kind, ref)
     write_audit(
         session,
@@ -422,7 +433,8 @@ def retry_failed(
         session.execute(
             text(
                 f"""
-                UPDATE fetch_queue SET status = 'pending', attempts = 0, not_before = NULL, last_error = NULL
+                UPDATE fetch_queue SET status = 'pending', attempts = 0, not_before = NULL, last_error = NULL,
+                    requested_by = NULL
                 WHERE kind = CAST(:kind AS fetch_kind) AND status = 'failed' {lane_filter}
                 """
             ),
@@ -449,7 +461,7 @@ def check_guard(session: Session, settings: Settings, now: datetime | None = Non
     now = now or datetime.now(UTC)
     if not settings.napix_configured:
         raise CheckRefused("napix_off", "NAPIX is switched off on this server", 409)
-    last = session.scalar(select(func.max(NapixCallLog.called_at)).where(NapixCallLog.api == OVERVIEW_API))
+    last = last_check_at(session)
     min_s = settings.napix_health_check_min_seconds
     if last is not None:
         elapsed = (now - last).total_seconds()
@@ -460,14 +472,24 @@ def check_guard(session: Session, settings: Settings, now: datetime | None = Non
                 429,
                 retry_after=max(1, int(min_s - elapsed + 0.999)),
             )
-    remaining = latest_remaining_this_hour(session)
+    window = napix_window.current(session, settings, now)
+    remaining = window.remaining
     if remaining is not None and remaining < settings.napix_search_floor:
         raise CheckRefused(
             "napix_budget",
             f"the court gateway's hourly quota is nearly spent ({remaining} calls left)",
             429,
-            retry_after=seconds_to_next_hour(now),
+            retry_after=window.retry_after(now),
         )
+
+
+def last_check_at(session: Session) -> datetime | None:
+    """The latest connectivity check: an Overview call made outside a runner pass (probes carry a `job_run_id`)."""
+    return session.scalar(
+        select(func.max(NapixCallLog.called_at)).where(
+            NapixCallLog.api == OVERVIEW_API, NapixCallLog.job_run_id.is_(None)
+        )
+    )
 
 
 async def health_check(
@@ -482,7 +504,7 @@ async def health_check(
     integration error is an outcome (`ok = false` with its family), not an exception."""
     member = acting_member(session, user, Permission.ADMIN_NAPIX_REFETCH, Permission.ADMIN_MASTERS_SYNC)
     check_guard(session, settings)
-    recorder = NapixRecorder()
+    recorder = NapixRecorder(user_id=napix_window.user_id_of(user))
     client.on_call = recorder.on_call
     called_at = datetime.now(UTC)
     error_family: str | None = None

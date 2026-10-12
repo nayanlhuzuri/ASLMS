@@ -210,6 +210,7 @@ def apply_entries(
                     origin.dossier_priority(),
                     lane=origin.lane,
                     list_date=origin.list_date,
+                    requested_by=origin.requested_by,
                 ):
                     report.queued += 1
         session.add(_entry_row(causelist, entry, source, case.id if case else None))

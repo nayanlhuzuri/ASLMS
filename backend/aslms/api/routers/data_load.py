@@ -8,6 +8,7 @@ answers that write nothing and make no call; the client repeats the request with
 from __future__ import annotations
 
 import asyncio
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
@@ -218,9 +219,10 @@ def _held_items(session: Session, user: User, exc: data_load.AlreadyHeld) -> lis
     return out
 
 
-async def _with_napix(request: Request, fn):
+async def _with_napix(request: Request, user_id: uuid.UUID, fn):
+    """The integration client with a recorder carrying the caller's id (design napix-window, decision 9)."""
     client, hc = napix_client(request)
-    recorder = NapixRecorder()
+    recorder = NapixRecorder(user_id=user_id)
     client.on_call = recorder.on_call
     async with client:
         return await fn(hc, recorder)
@@ -255,6 +257,7 @@ def fetch(
         result = asyncio.run(
             _with_napix(
                 request,
+                user.id,
                 lambda hc, recorder: data_load.fetch(
                     session, actor, user, payload, force=force, hc=hc, recorder=recorder, settings=settings
                 ),

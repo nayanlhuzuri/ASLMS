@@ -211,3 +211,36 @@ def test_nested_list_orders_numeric_keys() -> None:
     ]
     assert nested_list([{"a": 1}, "junk"]) == [{"a": 1}]
     assert nested_list(None) == [] and nested_list({"not": "rows"}) == []
+
+
+async def test_result_carries_attempt_time(client: NapixClient, gateway: Gateway, calls) -> None:
+    """Design napix-window, decision 7: each attempt carries its own time, set after the limiter's wait."""
+    from datetime import UTC, datetime
+
+    gateway.responses += [lambda p, q, r: httpx.Response(503), lambda p, q, r: gateway.envelope({"ok": 1})]
+    before = datetime.now(UTC)
+    async with client:
+        res = await client.call("overview/overview")
+    assert res.ok and len(calls) == 2
+    first, second = calls
+    assert first.called_at is not None and second.called_at is not None
+    assert before <= first.called_at < second.called_at <= datetime.now(UTC)
+
+
+async def test_zero_remaining_waits_probe_interval_not_window(monkeypatch) -> None:
+    """Design napix-window, decision 8: at 0 remaining the limiter waits `zero_wait_seconds`, not a whole window,
+    so a call is never slept through the reset."""
+    import asyncio
+
+    slept: list[float] = []
+
+    async def fake_sleep(seconds: float) -> None:
+        slept.append(seconds)
+
+    monkeypatch.setattr(asyncio, "sleep", fake_sleep)
+    lim = RateLimiter(60, window_seconds=3600, zero_wait_seconds=180)
+    lim.observe({"x-ratelimit-limit": "1000", "x-ratelimit-remaining": "0"})
+    assert lim._header_delay() == 180
+    await lim.wait()
+    assert slept == [180]
+    assert RateLimiter(60, window_seconds=60, zero_wait_seconds=180)._header_delay() == 0  # nothing seen yet

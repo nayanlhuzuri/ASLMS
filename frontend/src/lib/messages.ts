@@ -428,10 +428,24 @@ export const T = {
     reason: "Reason",
     period: (from: string, to: string) => `Load period ${from} to ${to}`,
     noPeriod: "No backdated load has been started.",
-    allowance: "Court gateway allowance this hour",
+    allowance: "Court gateway allowance, this window",
     remaining: (n: string) => `${n} calls remaining`,
-    remainingUnknown: "No call this hour yet.",
-    nextReset: (m: number) => `Resets in ${m} min`,
+    remainingUnknown: "No call in this window yet.",
+    // the detected quota window (design napix-window): the reset is seen in the call log, not assumed on the hour
+    windowLine: (status: string, started: string, next: string, probeMinutes: number) =>
+      status === "current"
+        ? `Current window started about ${started}; next reset about ${next}`
+        : status === "reset_due"
+          ? `A new window was due at about ${next}; no call since`
+          : status === "overdue"
+            ? `The reset expected at about ${next} has not been seen; checking every ${probeMinutes} minutes`
+            : "Window timing not known yet; it is found at the next call",
+    recentResets: "Recent resets",
+    resetRow: (at: string, before: number, after: number) => `${at}: ${before} → ${after}`,
+    precise: "precise",
+    byUser: "Calls by user",
+    user: "User",
+    noUserCalls: "No call caused by a person.",
     thresholds: (rate: number, live: number, floor: number) =>
       `The load stops below ${rate} remaining, the daily cycle below ${live}, live searches below ${floor}.`,
     lanes: {
@@ -542,7 +556,7 @@ export const T = {
     } as Record<string, string>,
     health: "Data health",
     napix: "Court gateway",
-    hour: "This hour",
+    window: "This window",
     today: "Today",
     calls: "Calls",
     lastCall: "Last call",

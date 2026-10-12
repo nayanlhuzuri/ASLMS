@@ -3,7 +3,8 @@
 /**
  * Queue rows and the call log (design audit-screens, decision 7; data-load-console, decision 19): queue rows by kind,
  * status, lane and reference prefix with Retry (by the row's function), and the call log of today (IST) with a keyset
- * "More". Never the call parameters.
+ * "More", each call's lane and, when the API returns it (the NAPIX operators only), the user who caused it (design
+ * napix-window). Never the call parameters.
  */
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -137,6 +138,7 @@ function CallLog() {
     getNextPageParam: (last) => last.next_cursor ?? undefined,
   });
   const items = calls.data?.pages.flatMap((p) => p.items) ?? [];
+  const showUsers = items.some((c) => c.user_id);
   return (
     <section className="stack" aria-label={T.data.callLog}>
       <h2>{T.data.callLog}</h2>
@@ -151,6 +153,8 @@ function CallLog() {
               <tr>
                 <th scope="col">{T.data.at}</th>
                 <th scope="col">{T.data.api}</th>
+                <th scope="col">{T.data.lane}</th>
+                {showUsers ? <th scope="col">{T.data.user}</th> : null}
                 <th scope="col">{T.data.ok}</th>
                 <th scope="col" className={numCell}>HTTP</th>
                 <th scope="col" className={numCell}>{T.data.remaining("").trim()}</th>
@@ -162,6 +166,8 @@ function CallLog() {
                 <tr key={c.id}>
                   <td>{formatDateTime(c.called_at)}</td>
                   <td className="mono">{c.api}</td>
+                  <td>{c.lane ? (T.data.lanes[c.lane] ?? c.lane) : T.data.lanes.outside_queue}</td>
+                  {showUsers ? <td>{c.user_name ?? "—"}</td> : null}
                   <td>{c.ok ? T.yes : T.no}</td>
                   <td className={numCell}>{c.http_status ?? "—"}</td>
                   <td className={numCell}>{c.rate_limit_remaining ?? "—"}</td>

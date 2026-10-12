@@ -250,9 +250,24 @@ def test_order_change_reprioritises_pending_load_rows_only(world):
         s.rollback()
 
 
+def _reading(s, at, remaining, lane=None):
+    s.add(
+        NapixCallLog(
+            api="hc-cnr-api/CNR",
+            params_sha256="r" * 64,
+            ok=True,
+            lane=lane,
+            rate_limit_remaining=remaining,
+            called_at=at,
+        )
+    )
+
+
 def test_progress_and_allowance_exact(world):
+    """`test_allowance_window_based` of design napix-window: `used` counts from the observed reset S, not from the
+    clock hour."""
     now = datetime.now(UTC)
-    hour = now.replace(minute=0, second=0, microsecond=0)
+    reset = now - timedelta(minutes=40)  # S: a precise reset 40 minutes ago, whatever the clock hour
     with world.Session() as s:
         _day(s, date(2025, 1, 1), FetchStatus.DONE)
         _day(s, date(2025, 1, 2), FetchStatus.SKIPPED)
@@ -263,27 +278,14 @@ def test_progress_and_allowance_exact(world):
         _put(s, FetchKind.DOSSIER, "GAHC010000022025", FetchStatus.RUNNING, priority=44)
         _put(s, FetchKind.ORDER_PDF, "GAHC010000012025|1|2025-01-01", FetchStatus.FAILED, priority=48)
         _put(s, FetchKind.DOSSIER, "GAHC010000032025", FetchStatus.PENDING, lane=FetchLane.DAILY, priority=40)
+        _reading(s, reset - timedelta(minutes=5), 160, lane="load")  # the old window: not counted
+        _reading(s, reset - timedelta(seconds=20), 155, lane="load")  # the old window: not counted
+        _reading(s, reset, 999)  # the reset (outside the queue: a search)
+        k = 0
         for lane, n in (("load", 3), ("daily", 2), ("request", 1), (None, 4)):
-            for i in range(n):
-                s.add(
-                    NapixCallLog(
-                        api="hc-cnr-api/CNR",
-                        params_sha256="x" * 64,
-                        ok=True,
-                        lane=lane,
-                        rate_limit_remaining=900 - i,
-                        called_at=hour + (now - hour) * (i + 1) / 10,
-                    )
-                )
-        s.add(
-            NapixCallLog(
-                api="hc-cnr-api/CNR",
-                params_sha256="y" * 64,
-                ok=True,
-                lane="load",
-                called_at=hour - timedelta(minutes=5),
-            )
-        )
+            for _ in range(n):
+                k += 1
+                _reading(s, reset + timedelta(minutes=k), 999 - k, lane=lane)
         s.flush()
         out = data_load.progress(s, CFG, now)
         assert out["settings"]["version"] == 0 and out["settings"]["paused"] is False
@@ -320,16 +322,19 @@ def test_progress_and_allowance_exact(world):
         }
         assert len(out["failures"]["latest"]) == 2
         allowance = out["allowance"]
-        assert allowance["used"] == {"load": 3, "daily": 2, "request": 1, "outside_queue": 4}
+        assert allowance["used"] == {"load": 3, "daily": 2, "request": 1, "outside_queue": 5}
         assert sum(allowance["used"].values()) == s.scalar(
-            sa.select(sa.func.count()).where(NapixCallLog.called_at >= hour)
+            sa.select(sa.func.count()).where(NapixCallLog.called_at >= reset)
         )
         assert (allowance["rate_reserve"], allowance["live_reserve"], allowance["search_floor"]) == (
             150,
             100,
             50,
         )
-        assert allowance["remaining"] in (897, 898, 899, 900)
+        assert allowance["remaining"] == 989 and allowance["window_status"] == "current"
+        assert allowance["window_started_at"] == reset  # aware datetimes compare across zones
+        assert allowance["next_reset_at"] == reset + timedelta(hours=1)
+        assert allowance["seconds_to_next_reset"] == 20 * 60
         assert out["estimate"]["reason"] == "not_enough_history" and out["estimate"]["finish_at"] is None
         s.rollback()
 

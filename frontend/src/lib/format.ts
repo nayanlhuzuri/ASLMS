@@ -55,6 +55,15 @@ export function formatDateTime(value: string | Date | null | undefined): string 
   return `${p.day} ${MONTHS[p.month - 1]} ${p.year}, ${hh}:${mm}`;
 }
 
+/** The IST time of an instant, `14:34` (no date). */
+export function formatTime(value: string | Date | null | undefined): string {
+  if (!value) return "—";
+  const d = toDate(value);
+  if (!d) return String(value);
+  const p = istParts(d);
+  return `${String(p.hour).padStart(2, "0")}:${String(p.minute).padStart(2, "0")}`;
+}
+
 /** 128400 → "1,28,400"; negative numbers and decimals keep their sign and fraction. */
 export function formatNumber(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";

@@ -18,6 +18,7 @@ import time
 from collections import deque
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import quote
 
@@ -83,6 +84,8 @@ class NapixResult:
     params: dict[str, Any] = field(default_factory=dict)  # the input parameters, for the verbatim store
     method: str = "GET"
     raw_text: str | None = field(default=None, repr=False)
+    # the attempt's own time: after the local limiter's wait, before the request (design napix-window, decision 7)
+    called_at: datetime | None = None
 
 
 CallHook = Callable[[NapixResult], None]
@@ -144,12 +147,14 @@ class TokenCache:
 
 class RateLimiter:
     """A local sliding window (`per_minute`) plus the gateway's `X-RateLimit-Limit` / `X-RateLimit-Remaining`
-    headers: under 10 % remaining the next call waits a share of the window; at 0 it waits a whole window.
-    The window length is not published (notes §6); `window_seconds` is the assumption, logged when it bites."""
+    headers: under 10 % remaining the next call waits a share of the window; at 0 it waits
+    `min(window_seconds, zero_wait_seconds)`, never a whole window, so a call is not slept through the reset (design
+    `napix-window`, decision 8: the window's phase is detected by the service layer from the call log)."""
 
-    def __init__(self, per_minute: int, window_seconds: float = 3600.0):
+    def __init__(self, per_minute: int, window_seconds: float = 3600.0, zero_wait_seconds: float = 180.0):
         self.per_minute = max(1, per_minute)
         self.window_seconds = window_seconds
+        self.zero_wait_seconds = zero_wait_seconds
         self._stamps: deque[float] = deque()
         self.limit: int | None = None
         self.remaining: int | None = None
@@ -171,7 +176,7 @@ class RateLimiter:
         if self.remaining is None:
             return 0.0
         if self.remaining <= 0:
-            return self.window_seconds
+            return min(self.window_seconds, self.zero_wait_seconds)
         if self.limit and self.remaining < self.limit * 0.1:
             return min(self.window_seconds, self.window_seconds / self.remaining)
         return 0.0
@@ -206,6 +211,7 @@ class NapixClient:
         timeout: float = 40.0,
         rate_limit_per_min: int = 60,
         rate_window_seconds: float = 3600.0,
+        rate_zero_wait_seconds: float = 180.0,
         token_ttl_seconds: int = 3300,
         token_cache: TokenCache | None = None,
         on_call: CallHook | None = None,
@@ -219,7 +225,7 @@ class NapixClient:
         self.token_ttl_seconds = token_ttl_seconds
         self.tokens = token_cache or TokenCache()
         self.on_call = on_call
-        self.limiter = RateLimiter(rate_limit_per_min, rate_window_seconds)
+        self.limiter = RateLimiter(rate_limit_per_min, rate_window_seconds, rate_zero_wait_seconds)
         self.max_attempts, self.backoff_base = max_attempts, backoff_base
         self._transport = transport
         self._http: httpx.AsyncClient | None = None
@@ -243,6 +249,7 @@ class NapixClient:
             timeout=s.napix_timeout_seconds,
             rate_limit_per_min=s.napix_rate_limit_per_min,
             rate_window_seconds=float(s.napix_rate_window_seconds),
+            rate_zero_wait_seconds=float(s.napix_window_probe_seconds),
             token_ttl_seconds=s.napix_token_ttl_seconds,
             token_cache=TokenCache(s.redis_url),
         )
@@ -334,6 +341,7 @@ class NapixClient:
         )
         url = f"{self.base_url}/{api_path.lstrip('/')}"
         await self.limiter.wait()
+        result.called_at = datetime.now(UTC)
         started = time.perf_counter()
         try:
             headers = {

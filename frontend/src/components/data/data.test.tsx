@@ -11,6 +11,7 @@ import { DataFrame } from "./DataFrame";
 import { Duplicates } from "./Duplicates";
 import { Health } from "./Health";
 import { LoadConsole } from "./LoadConsole";
+import { QueueAndCalls } from "./Queue";
 
 function progress(extra: Partial<DataLoad> = {}): DataLoad {
   return {
@@ -54,13 +55,15 @@ function progress(extra: Partial<DataLoad> = {}): DataLoad {
       ],
     },
     allowance: {
-      hour_started_at: "2026-10-11T10:00:00+05:30",
+      window_started_at: "2026-10-11T14:34:30+05:30",
+      next_reset_at: "2026-10-11T15:34:30+05:30",
+      seconds_to_next_reset: 1800,
+      window_status: "current",
       used: { load: 300, daily: 40, request: 5, outside_queue: 3 },
       remaining: 652,
       rate_reserve: 150,
       live_reserve: 100,
       search_floor: 50,
-      seconds_to_next_hour: 1800,
     },
     estimate: {
       finish_at: "2026-10-20T10:00:00+05:30",
@@ -103,6 +106,22 @@ describe("the load console", () => {
     const table = screen.getByRole("table", { name: "Work left" });
     expect(within(table).getByText("Case details")).toBeInTheDocument();
     expect(screen.getByText("IntegrationError: 502")).toBeInTheDocument();
+  });
+
+  it.each([
+    ["current", "Current window started about 14:34; next reset about 15:34"],
+    ["reset_due", "A new window was due at about 15:34; no call since"],
+    ["overdue", "The reset expected at about 15:34 has not been seen; checking every 3 minutes"],
+    ["unknown", "Window timing not known yet; it is found at the next call"],
+  ])("the allowance card names the window (%s)", async (status, text) => {
+    const data = progress();
+    data.allowance = { ...data.allowance, window_status: status as DataLoad["allowance"]["window_status"] };
+    if (status === "unknown") data.allowance = { ...data.allowance, remaining: null, next_reset_at: null };
+    consoleRoutes(READER, {}, data);
+    renderWithClient(<LoadConsole />);
+    expect(await screen.findByRole("heading", { name: "Court gateway allowance, this window" })).toBeInTheDocument();
+    expect(screen.getByText(text)).toBeInTheDocument();
+    if (status === "unknown") expect(screen.getByText("No call in this window yet.")).toBeInTheDocument();
   });
 
   it.each([
@@ -288,21 +307,55 @@ describe("fetching from the court", () => {
 const NAPIX = {
   enabled: false,
   est_code: "GAHC01",
-  hour: {
-    started_at: "2026-10-11T10:00:00+05:30",
+  window: {
+    status: "current",
+    started_at: "2026-10-11T14:34:30+05:30",
+    observed_at: "2026-10-11T14:34:30+05:30",
+    next_reset_at: "2026-10-11T15:34:30+05:30",
+    seconds_to_next_reset: 1200,
+    anchor_at: "2026-10-11T14:34:30+05:30",
     calls: 12,
     failed: 1,
-    latest_remaining: 900,
+    remaining: 900,
+    last_reading_at: "2026-10-11T15:14:00+05:30",
+    recent_resets: [
+      {
+        observed_at: "2026-10-11T14:34:30+05:30",
+        previous_at: "2026-10-11T14:34:00+05:30",
+        previous_remaining: 769,
+        remaining: 999,
+        precise: true,
+      },
+      {
+        observed_at: "2026-10-11T12:30:07+05:30",
+        previous_at: "2026-10-11T11:30:07+05:30",
+        previous_remaining: 148,
+        remaining: 999,
+        precise: false,
+      },
+    ],
+    window_seconds: 3600,
+    margin_seconds: 60,
+    probe_seconds: 180,
     reserve: 150,
+    live_reserve: 100,
     search_floor: 50,
-    seconds_to_next_hour: 1200,
   },
   today: { calls: 120, failed: 3, by_family: {}, token_unverified: 0 },
   last_call_at: "2026-10-11T10:10:00+05:30",
   last_ok_at: "2026-10-11T10:10:00+05:30",
   last_failure: null,
   last_check: null,
+  by_user: null,
 } as unknown as NapixHealth;
+
+const BY_USER = {
+  window: [{ user_id: "u-1", name: "Rina Das", calls: 4, failed: 0 }],
+  today: [
+    { user_id: "u-1", name: "Rina Das", calls: 9, failed: 1 },
+    { user_id: "u-2", name: "Arup Nath", calls: 2, failed: 0 },
+  ],
+};
 
 const SNAPSHOT = {
   as_of: "2026-10-11T10:00:00+05:30",
@@ -377,6 +430,45 @@ describe("the health tab", () => {
     expect(await screen.findByText("7")).toBeInTheDocument(); // the load lane's pending dossiers
   });
 
+  it.each([
+    ["current", "Current window started about 14:34; next reset about 15:34"],
+    ["reset_due", "A new window was due at about 15:34; no call since"],
+    ["overdue", "The reset expected at about 15:34 has not been seen; checking every 3 minutes"],
+    ["unknown", "Window timing not known yet; it is found at the next call"],
+  ])("the window tile names the window (%s)", async (status, text) => {
+    const napix = { ...NAPIX, window: { ...NAPIX.window, status } } as NapixHealth;
+    healthRoutes(["reports.state"], { "GET /admin/napix/health": napix });
+    renderWithClient(<Health />);
+    expect(await screen.findByText("This window")).toBeInTheDocument();
+    expect(screen.getByText(text)).toBeInTheDocument();
+  });
+
+  it("lists the recent resets with the precise mark", async () => {
+    healthRoutes(["reports.state"]);
+    renderWithClient(<Health />);
+    const list = await screen.findByRole("region", { name: "Recent resets" });
+    expect(within(list).getByText(/14:34: 769 → 999/)).toBeInTheDocument();
+    expect(within(list).getByText(/12:30: 148 → 999/)).toBeInTheDocument();
+    expect(within(list).getAllByText("precise")).toHaveLength(1);
+  });
+
+  it("shows calls by user only when the API sends them", async () => {
+    healthRoutes(["reports.state"]);
+    const { unmount } = renderWithClient(<Health />);
+    await screen.findByText("This window");
+    expect(screen.queryByRole("table", { name: "Calls by user" })).toBeNull();
+    unmount();
+    healthRoutes(OPERATOR, { "GET /admin/napix/health": { ...NAPIX, by_user: BY_USER } });
+    renderWithClient(<Health />);
+    const table = await screen.findByRole("table", { name: "Calls by user" });
+    const rows = within(table).getAllByRole("row");
+    expect(rows).toHaveLength(3);
+    expect(within(rows[1] as HTMLElement).getByText("Rina Das")).toBeInTheDocument();
+    expect(within(rows[1] as HTMLElement).getByText("4")).toBeInTheDocument();
+    expect(within(rows[1] as HTMLElement).getByText("9")).toBeInTheDocument();
+    expect(within(rows[2] as HTMLElement).getByText("Arup Nath")).toBeInTheDocument();
+  });
+
   it("warns before re-fetching a day already held and resends with force", async () => {
     const api = healthRoutes(["admin.napix_refetch"], {
       "POST /admin/napix/refetch/day": (call: { body: unknown }) =>
@@ -394,6 +486,54 @@ describe("the health tab", () => {
     expect(await screen.findByText("Cause-list days queued (pending).")).toBeInTheDocument();
     const bodies = api.calls.filter((c) => c.path === "/admin/napix/refetch/day").map((c) => c.body);
     expect(bodies).toEqual([{ date: "2025-01-06" }, { date: "2025-01-06", force: true }]);
+  });
+});
+
+describe("the call log", () => {
+  function call(extra: Record<string, unknown> = {}) {
+    return {
+      id: "k-1",
+      called_at: "2026-10-11T15:10:00+05:30",
+      api: "hc-party-name-api/partyname",
+      http_status: 200,
+      napix_status: null,
+      ok: true,
+      error_family: null,
+      error: null,
+      duration_ms: 300,
+      token_verified: true,
+      rate_limit_remaining: 640,
+      job_run_id: null,
+      lane: null,
+      user_id: null,
+      user_name: null,
+      ...extra,
+    };
+  }
+
+  function routes(items: unknown[]) {
+    return browserApi({
+      "GET /me": makeMe(READER, "central_operator"),
+      "GET /admin/napix/queue": { total: 0, items: [] },
+      "GET /admin/napix/calls": { items, next_cursor: null },
+    });
+  }
+
+  it("shows the lane, and the user column only when users are returned", async () => {
+    routes([call(), call({ id: "k-2", lane: "load" })]);
+    const { unmount } = renderWithClient(<QueueAndCalls />);
+    const table = await screen.findByRole("table", { name: "Call log" });
+    expect(within(table).getByRole("columnheader", { name: "Lane" })).toBeInTheDocument();
+    expect(within(table).queryByRole("columnheader", { name: "User" })).toBeNull();
+    expect(within(table).getByText("Searches and checks")).toBeInTheDocument();
+    expect(within(table).getByText("Backdated load")).toBeInTheDocument();
+    unmount();
+    routes([call({ lane: "request", user_id: "u-1", user_name: "Rina Das" }), call({ id: "k-2" })]);
+    renderWithClient(<QueueAndCalls />);
+    const second = await screen.findByRole("table", { name: "Call log" });
+    expect(within(second).getByRole("columnheader", { name: "User" })).toBeInTheDocument();
+    expect(within(second).getByText("Rina Das")).toBeInTheDocument();
+    expect(within(second).getByText("Requests")).toBeInTheDocument();
   });
 });
 

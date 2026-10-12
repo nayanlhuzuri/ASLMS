@@ -44,6 +44,10 @@ knows about tokens, encryption or paths.
 | `NAPIX_VERSION` | `v1.0` | notes §1 |
 | `NAPIX_STATE_CODE` | `6` (Assam), for the State-keyed masters | optional, default 6 |
 | `NAPIX_RATE_LIMIT_PER_MIN` | local ceiling, default 60; the gateway's own limit is read from headers | optional |
+| `NAPIX_RATE_WINDOW_SECONDS` | the quota window's length, default 3600; the phase is detected (design `napix-window`) | notes §6 |
+| `NAPIX_WINDOW_MARGIN_SECONDS` | wait this long after the expected reset, default 60 (0-600) | design `napix-window` |
+| `NAPIX_WINDOW_PROBE_SECONDS` | one check call at most this often while a reset is late or the timing unknown, and the limiter's wait at 0 remaining; default 180 (60-300) | design `napix-window` |
+| `NAPIX_WINDOW_RESET_JUMP` | a rise of at least this many remaining calls between two readings is a reset, default 50 (10-500) | design `napix-window` |
 | `NAPIX_TIMEOUT_SECONDS` | per request, default 40 | optional |
 | `NAPIX_TOKEN_TTL_SECONDS` | used only when the token response has no `expires_in`; default 3300 (manual: 1 h) | optional |
 
@@ -107,9 +111,14 @@ Each failure goes to `source_failures` with the API, the parameter hash and the 
   single retry outside this budget.
 - `RateLimiter`: a local sliding window (`NAPIX_RATE_LIMIT_PER_MIN`) and the gateway's `X-RateLimit-Limit` /
   `X-RateLimit-Remaining` headers read from every response. When `remaining` falls under 10 % of the limit the
-  limiter sleeps proportionally (the window length is unknown; default one minute, logged so it can be set once
-  observed); at 0 it waits a full window. Current Status batches (≤ 500 CNRs per call) and the daily cycle's
-  per-bench calls are spread by the scheduler, not fired at once.
+  limiter sleeps proportionally (window ÷ remaining per call); at 0 it waits `NAPIX_WINDOW_PROBE_SECONDS`, never a
+  whole window, so a call is not slept through the reset (design `napix-window`, decision 8). Each attempt carries
+  its own time (`NapixResult.called_at`, set after the limiter's wait), which the call log stores. The window's
+  length is `NAPIX_RATE_WINDOW_SECONDS` (one hour, 1,000 calls); its **phase is detected** by the service layer from
+  the call log's `X-RateLimit-Remaining` readings (`services/napix_window.py`; notes §6: the reset is at a fixed minute
+  of the hour, not on the clock hour), and the queue worker waits for the expected reset plus
+  `NAPIX_WINDOW_MARGIN_SECONDS`. Current Status batches (≤ 500 CNRs per call) and the daily cycle's per-bench calls
+  are spread by the scheduler, not fired at once.
 - One `httpx.AsyncClient` per `NapixClient` (connection reuse), closed with the job; HTTP/2 off.
 
 ## 8. Endpoints (`hc.py`), input order as in the notes

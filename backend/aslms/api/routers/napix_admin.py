@@ -95,9 +95,14 @@ def get_data_health(
 def get_napix_health(
     request: Request, session: Session = Depends(get_session), user: User = Depends(health_reader)
 ) -> schemas.NapixHealthOut:
-    """The NAPIX block: the switch as this API sees it, this clock hour, today (IST), the last call, success,
-    failure and connectivity check. Never calls NAPIX."""
-    return schemas.NapixHealthOut(**data_health.napix_health(session, request.app.state.settings))
+    """The NAPIX block: the switch as this API sees it, the detected quota window (status, start, expected next
+    reset, recent resets), today (IST), the last call, success, failure and connectivity check. `by_user` (calls by
+    the person who caused them, this window and today) only for `admin.napix_refetch` / `admin.masters_sync`
+    holders, else null. Never calls NAPIX."""
+    block = data_health.napix_health(
+        session, request.app.state.settings, operator=data_health.is_operator(session, user)
+    )
+    return schemas.NapixHealthOut(**block)
 
 
 @router.get("/napix/queue", response_model=schemas.QueueListOut)
@@ -126,13 +131,25 @@ def list_calls(
     ok: bool | None = None,
     limit: int = Query(50, ge=1, le=200),
     cursor: str | None = Query(None, max_length=200),
+    user_id: uuid.UUID | None = Query(None, description="calls caused by this user (NAPIX operators only)"),
     session: Session = Depends(get_session),
     user: User = Depends(health_reader),
 ) -> schemas.CallListOut:
-    """Call log rows of an IST period (default today), newest first; never the parameters."""
+    """Call log rows of an IST period (default today), newest first, with their lane; never the parameters. The
+    user who caused each call (`user_id`, `user_name`) and the `user_id` filter only for `admin.napix_refetch` /
+    `admin.masters_sync` holders: the user fields are null for other readers, and their `user_id` filter answers 403
+    `forbidden`."""
     try:
         items, next_cursor = data_health.call_rows(
-            session, from_=from_, to=to, api=api, ok=ok, cursor=cursor, limit=limit
+            session,
+            from_=from_,
+            to=to,
+            api=api,
+            ok=ok,
+            cursor=cursor,
+            limit=limit,
+            user_id=user_id,
+            operator=data_health.is_operator(session, user),
         )
     except HANDLED as exc:
         raise _http(exc) from exc
@@ -163,8 +180,10 @@ def health_check(
     request: Request, session: Session = Depends(get_session), user: User = Depends(napix_operator)
 ) -> schemas.HealthCheckOut:
     """One Overview call through the integration layer (logged in `napix_call_log`, audited); refused without a
-    call when the switch is off (409 `napix_off`), a check ran in the last minute (429 `check_too_soon`) or the
-    hourly quota is below the floor (429 `napix_budget`). The payload is not returned."""
+    call when the switch is off (409 `napix_off`), a check ran in the last minute (429 `check_too_soon`; the
+    runner's window probes do not count) or the detected window's remaining quota is below the floor (429
+    `napix_budget`, `retry_after` to the expected reset). The call carries the caller's id. The payload is not
+    returned."""
     settings = request.app.state.settings
     actor = actor_of(request, user, session)
     try:

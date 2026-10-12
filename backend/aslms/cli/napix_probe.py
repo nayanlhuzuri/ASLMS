@@ -1,8 +1,9 @@
 """`aslms napix-probe-rate` — measure the gateway's rate-limit window.
 
 Sends cheap Overview calls at a fixed interval and prints `X-RateLimit-Remaining` after each one. The remaining
-count falls by one per call; the moment it jumps back up marks the window boundary. The call log and the notes
-(docs/napix_integration_notes.md §6) take the measured value; `NAPIX_RATE_WINDOW_SECONDS` is set from it."""
+count falls by one per call; the moment it jumps back up marks the window boundary. Run it across a whole window:
+the reset is at a fixed minute of the hour, not on the clock hour, and the 1 Oct run ended before it came (notes
+§6, design `napix-window`). The workers do not use this command: they detect the window from the call log."""
 
 from __future__ import annotations
 

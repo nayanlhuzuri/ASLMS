@@ -1300,3 +1300,51 @@ load moves to the `load` lane and continues. NAPIX search by advocate and filing
 
 
 - 2026-10-12 — napix-window: approved by the owner (resets detected from the remaining count, worker waits for the expected reset plus 60 s with at most one probe per pass every 180 s, every budget band and figure on the detected window, the user who caused each call in napix_call_log visible to NAPIX operators only; daily and load calls carry no user; docs/design/napix-window.md)
+
+
+## NAPIX quota window detected, and the user behind each call (2026-10-12)
+Design `docs/design/napix-window.md` (backlog row 47), branch `feature/napix-window`, migration 0015.
+
+**What was built**
+- `services/napix_window.py`: the quota window is derived from the call log, nothing new is stored. A reset is a rise
+  of at least `NAPIX_WINDOW_RESET_JUMP` (default 50) between two readings of `rate_limit_remaining`; it is precise
+  when the previous reading is at most 300 s older. The expected next reset E comes from the latest precise reset in
+  the last 6 hours plus whole windows. One pure function, `assess`, gives the state: `current`, `reset_due`,
+  `overdue` or `unknown`.
+- The runner (`services/runner.py`, `cli/pipeline.py`) no longer waits for the clock hour. The worker sleeps until E
+  plus `NAPIX_WINDOW_MARGIN_SECONDS` (60); when the remaining count is unknown and work is waiting, it makes at most
+  one probe (a single Overview call) per pass and at most one every `NAPIX_WINDOW_PROBE_SECONDS` (180).
+- Every guard and figure uses the detected window: the court-search guard, the connectivity-check guard, the runner's
+  seed, the health NAPIX block, the console's allowance card.
+- Migration 0015: `napix_call_log.user_id` and `fetch_queue.requested_by` (both nullable, to users RESTRICT), partial
+  index `ix_napix_call_log_user_called`, CHECK `ck_fetch_queue_requested_by`. `called_at` is now the attempt's own time.
+  Court searches, case fetches, re-fetch buttons, the connectivity check and `request`-lane queue rows carry the person.
+- New settings: `NAPIX_WINDOW_MARGIN_SECONDS`, `NAPIX_WINDOW_PROBE_SECONDS`, `NAPIX_WINDOW_RESET_JUMP` (in
+  `.env.example`).
+- Portal: the console shows the current window start and the next expected reset with recent resets; the health tab
+  has a calls-by-user table; the call log has lane and user columns. `aslms data-health` prints the window line first.
+- `docs/napix_integration_notes.md` section 6 and `docs/napix_integration_design.md` corrected: the reset falls about
+  HH:33-HH:35 IST each hour (call log 1-11 Oct, 48,830 rows), not on the hour; the 1 Oct probe ended before it.
+
+**Decisions and reasons**
+- Resets are read from the remaining count, not kept in memory or Redis: each runner pass opens a new client, the API
+  and worker are separate processes, and Redis holds only the token (row 16).
+- The phase comes only from precise resets, so that imprecise sightings (the worker waking late) do not drift the
+  expected time by the margin each window.
+- At most one probe per pass, and the probe interval is capped at 300 s so consecutive probes always time a reset
+  precisely. Margin and probe values hardly matter: the load spends its share in about 15 minutes.
+- Daily-cycle and load calls record no user; only calls a person caused do. Names are shown only to holders of the
+  NAPIX re-fetch or master-sync permissions; State-reports holders see totals.
+- The measured cost being fixed: about 548 calls an hour over the last 24 h against about 850 possible.
+
+**Deviations from the design note** (full list of 9 in the note's "Deviations")
+- Decision 1's clustering rule, taken literally, merged two real resets in the 11 Oct log; built instead: a jump
+  within a quarter window of the previous reset is the same reset only if a reading fell back by at least the jump in
+  between.
+- With no observed reset, "calls since the window start" is 0 and `by_user.window` is empty.
+- A reading older than one window is never used; the runner re-reads the window when bands block after items ran;
+  `last_check` and `check_guard` ignore probes; `retry_item` leaves `requested_by` NULL; the CHECK constraint was
+  added by hand to the migration; the console's overdue line uses the default 3-minute figure.
+
+**Left for later**: backlog row 48 (`napix-window-tail`), spending the reserve in the last minutes before the expected
+reset, which needs the owner's decision. Migration 0015 is not yet applied to the dev database.
