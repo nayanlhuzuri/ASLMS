@@ -1389,3 +1389,5 @@ Design `docs/design/portal-cases.md` (backlog row 12), branch `feature/portal-ca
 **Left for later**: backlog row 51 (Compose `web` rebuild and smoke run, verification steps 3-9, whether the sandboxed
 inline PDF renders, a department choice for the case page's Dismiss, Documents tab paging); row 50 mapping screens;
 row 13 custody screens.
+
+- 2026-10-12 — portal-mapping: approved by the owner (Department mapping tab: counsel codes with the unmapped-codes panel, keywords and name patterns, watchlist, scoring settings with history; weights editable only with admin.scoring; frontend only; docs/design/portal-mapping.md)
