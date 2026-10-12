@@ -42,6 +42,9 @@ from aslms.services.audit_search import to_ist
 
 PRECISE_GAP = 300  # seconds: a reset is precise when the previous reading is at most this much older
 LOOKBACK = timedelta(hours=6)  # readings, resets and the anchor are taken from this far back
+PHASE_JITTER = (
+    180  # seconds: resets seen up to this much before the phase point (11 Oct: HH:33:18 to HH:34:53)
+)
 STATUSES = ("current", "reset_due", "overdue", "unknown")
 LANES = ("load", "daily", "request")
 
@@ -210,7 +213,11 @@ def assess(
 
     if anchor is None or s_at is None:
         return WindowState("unknown", fresh(), s_at, s_at, None, **common)
-    k = math.floor(((s_at - anchor) + w / 2) / w) + 1
+    # The window in progress began at the last phase point at or before S (a reset is never observed before it
+    # happens, apart from the gateway's jitter of a minute or two around the phase). Rounding S to the nearest
+    # phase point instead put E one whole window late whenever an imprecise S came in the second half of a window
+    # (after a restart, a pause or idle time) and the worker slept through a real reset (review of 12 Oct 2026).
+    k = math.floor(((s_at - anchor) + timedelta(seconds=PHASE_JITTER)) / w) + 1
     expected = anchor + k * w
     if now < expected + timedelta(seconds=margin):
         remaining = last.remaining if last is not None and now - last.at <= w else None

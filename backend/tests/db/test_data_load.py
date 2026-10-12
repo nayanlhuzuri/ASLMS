@@ -497,7 +497,9 @@ def test_cli_data_load_is_audited(world, monkeypatch):
     r = runner.invoke(app, ["data-load", "order", "--preset", "newest", "--reason", "verification"])
     assert r.exit_code != 0
     with world.Session() as s:
-        actions = [a.action for a in s.scalars(sa.select(AuditLog).order_by(AuditLog.created_at)).all()]
+        actions = [
+            a.action for a in s.scalars(sa.select(AuditLog).order_by(AuditLog.created_at, AuditLog.id)).all()
+        ]
         assert actions == [
             "data_load.started",
             "data_load.paused",

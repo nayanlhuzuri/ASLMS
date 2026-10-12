@@ -98,6 +98,28 @@ def test_expected_reset_from_anchor_not_from_imprecise_reset():
     assert [r.precise for r in w.recent_resets] == [False, True]  # newest first
 
 
+def test_imprecise_reset_late_in_a_window_does_not_skip_the_next_reset():
+    """Review of 12 Oct: the load resumes 36 minutes into a window (after a pause, a restart or idle time). The first
+    reading (999) is an imprecise reset whose true time was the phase point before it; the next reset is the very
+    next phase point, not one a whole window later."""
+    anchor = ist(15, 34, 30)
+    readings = _anchored(anchor) + [
+        Reading(ist(15, 50), 148),
+        Reading(ist(17, 10), 999),  # imprecise: 1 h 20 min after the previous reading; true reset 16:34:30
+        Reading(ist(17, 25), 149),
+    ]
+    w = state(readings, ist(17, 26))
+    assert w.status == "current"
+    assert w.started_at == ist(16, 34, 30) and w.next_reset_at == ist(17, 34, 30)
+    # the same when S lands a minute or two before the phase point (the gateway's jitter)
+    early = _anchored(anchor) + [
+        Reading(ist(15, 50), 148),
+        Reading(ist(16, 33, 0), 999),
+        Reading(ist(16, 40), 700),
+    ]
+    assert state(early, ist(16, 41)).next_reset_at == ist(17, 34, 30)
+
+
 def test_states():
     anchor = ist(12, 34, 30)
     e = anchor + timedelta(hours=1)
