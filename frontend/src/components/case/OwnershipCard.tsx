@@ -6,6 +6,10 @@
  * recommendations when the API returns them, the open transfer, and the action buttons. A button shows only when the
  * API's `actions` flag for it is true; the API still decides on the call. There is no "release" or "return to pool"
  * button: a claimed case never returns to the pool.
+ *
+ * The department that acts comes from the server (design portal-cases-followups, decisions 1, 4-6): each dialog gets
+ * the action's department list from `actions`; Allot and Take over show the chosen department's own row; Suggest leaves
+ * out the departments holding the case and Request transfer leaves out `transfer_from`.
  */
 import { useState } from "react";
 
@@ -51,7 +55,8 @@ export function OwnershipCard({ caseRef, detail }: { caseRef: string; detail: Ca
   const v = view.data;
   const a = v.actions;
   const mine = departmentsOf(me.data);
-  const myRow = [v.primary, ...v.watchers].find((r) => r && r.office_code && mine.includes(r.office_code)) ?? null;
+  const rows = [v.primary, ...v.watchers].filter((r): r is Ownership => !!r);
+  const holders = rows.map((r) => r.office_code);
   const ownRecs = v.recommendations.filter((r) => r.office_code && mine.includes(r.office_code) && r.status === "recommended");
   const otherRecs = v.recommendations.filter((r) => !(r.office_code && mine.includes(r.office_code)));
   const t = v.open_transfer;
@@ -118,40 +123,36 @@ export function OwnershipCard({ caseRef, detail }: { caseRef: string; detail: Ca
           </Button>
         ) : null}
         {a.dismiss ? (
-          <Button variant="secondary" onClick={() => setDialog({ kind: "dismiss", caseRef })}>
+          <Button variant="secondary" onClick={() => setDialog({ kind: "dismiss", caseRef, departments: a.dismiss_departments })}>
             {T.own.dismiss}
           </Button>
         ) : null}
         {a.suggest ? (
-          <Button variant="secondary" onClick={() => setDialog({ kind: "suggest", caseRef })}>
+          <Button
+            variant="secondary"
+            onClick={() => setDialog({ kind: "suggest", caseRef, departments: a.suggest_departments, exclude: holders })}
+          >
             {T.own.suggest}
           </Button>
         ) : null}
-        {a.allot && myRow?.office_code ? (
+        {a.allot && a.allot_departments.length > 0 ? (
           <Button
             variant="secondary"
-            onClick={() =>
-              setDialog({
-                kind: "allot",
-                caseRef,
-                department: myRow.office_code!,
-                current: { unit: myRow.unit, officer: myRow.officer },
-              })
-            }
+            onClick={() => setDialog({ kind: "allot", caseRef, departments: a.allot_departments, rows })}
           >
             {T.own.allot}
           </Button>
         ) : null}
-        {a.take_over && myRow?.officer ? (
+        {a.take_over && a.take_over_departments.length > 0 ? (
           <Button
             variant="secondary"
-            onClick={() => setDialog({ kind: "take_over", caseRef, officer: myRow.officer! })}
+            onClick={() => setDialog({ kind: "take_over", caseRef, departments: a.take_over_departments, rows })}
           >
             {T.own.takeOver}
           </Button>
         ) : null}
         {a.request_transfer ? (
-          <Button variant="secondary" onClick={() => setDialog({ kind: "transfer", caseRef })}>
+          <Button variant="secondary" onClick={() => setDialog({ kind: "transfer", caseRef, exclude: [a.transfer_from] })}>
             {T.own.requestTransfer}
           </Button>
         ) : null}
@@ -171,7 +172,10 @@ export function OwnershipCard({ caseRef, detail }: { caseRef: string; detail: Ca
           </>
         ) : null}
         {a.stop_watching ? (
-          <Button variant="danger" onClick={() => setDialog({ kind: "stop_watching", caseRef })}>
+          <Button
+            variant="danger"
+            onClick={() => setDialog({ kind: "stop_watching", caseRef, departments: a.stop_watching_departments })}
+          >
             {T.own.stopWatching}
           </Button>
         ) : null}

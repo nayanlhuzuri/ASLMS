@@ -3,16 +3,15 @@
 /**
  * Rows of `/cases`, `/cases/search` and the court search (design portal-cases, decisions 2 and 9): a visible case
  * links to its page; any other shows the court-public summary, the owning department and "in the unclaimed pool",
- * with Claim when `claimable`.
+ * with Claim when `claimable`. Claim opens the dialog without departments: it reads `GET /cases/{ref}/ownership` and
+ * offers its `claim_departments` (design portal-cases-followups, decision 7; nothing is computed in the portal).
  */
 import { useState, type ReactNode } from "react";
 
 import { Button, CaseLink, Table } from "@/components/ui";
 import { ClaimDialog } from "@/components/inbox/dialogs";
 import { ListingLine, PartiesLine } from "@/components/inbox/common";
-import { useMe } from "@/lib/api/hooks";
 import type { CaseSearchItem } from "@/lib/api/types";
-import { canIn, departmentsOf, isSuperAdmin } from "@/lib/can";
 import { T } from "@/lib/messages";
 
 export function CaseResults({
@@ -24,11 +23,7 @@ export function CaseResults({
   caption: string;
   extra?: (item: CaseSearchItem) => ReactNode;
 }) {
-  const me = useMe();
   const [claiming, setClaiming] = useState<string | null>(null);
-  const claimDepartments = isSuperAdmin(me.data)
-    ? null
-    : departmentsOf(me.data).filter((d) => canIn(me.data, d, "cases.claim"));
   return (
     <>
       <Table caption={caption}>
@@ -66,7 +61,7 @@ export function CaseResults({
         </tbody>
       </Table>
       {claiming ? (
-        <ClaimDialog open caseRef={claiming} departments={claimDepartments} onClose={() => setClaiming(null)} />
+        <ClaimDialog open caseRef={claiming} onClose={() => setClaiming(null)} />
       ) : null}
     </>
   );

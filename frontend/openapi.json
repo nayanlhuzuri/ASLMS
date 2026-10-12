@@ -11265,11 +11265,18 @@
         "type": "object"
       },
       "OwnershipActionsOut": {
-        "description": "Which ownership actions the caller may take on the case now (computed by the actions' own checks; the\nAPI still decides on every call). `claim_departments`: the caller's departments that may claim, or null for\nthe super admin, who names any department.",
+        "description": "Which ownership actions the caller may take on the case now (computed by the actions' own checks; the\nAPI still decides on every call). `claim_departments`: the caller's departments that may claim; for the\nsuper admin null (\"any active department\") only while the case is in the pool, else the recommended\ndepartments that do not hold it. Each `*_departments` list names the caller's departments for which that\naction passes with the department named; `transfer_from` is the department a transfer would come from.",
         "properties": {
           "allot": {
             "title": "Allot",
             "type": "boolean"
+          },
+          "allot_departments": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Allot Departments",
+            "type": "array"
           },
           "claim": {
             "title": "Claim",
@@ -11297,6 +11304,13 @@
             "title": "Dismiss",
             "type": "boolean"
           },
+          "dismiss_departments": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Dismiss Departments",
+            "type": "array"
+          },
           "request_transfer": {
             "title": "Request Transfer",
             "type": "boolean"
@@ -11305,13 +11319,45 @@
             "title": "Stop Watching",
             "type": "boolean"
           },
+          "stop_watching_departments": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Stop Watching Departments",
+            "type": "array"
+          },
           "suggest": {
             "title": "Suggest",
             "type": "boolean"
           },
+          "suggest_departments": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Suggest Departments",
+            "type": "array"
+          },
           "take_over": {
             "title": "Take Over",
             "type": "boolean"
+          },
+          "take_over_departments": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Take Over Departments",
+            "type": "array"
+          },
+          "transfer_from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transfer From"
           },
           "withdraw_transfer": {
             "title": "Withdraw Transfer",
@@ -11322,11 +11368,17 @@
           "claim",
           "claim_departments",
           "dismiss",
+          "dismiss_departments",
           "suggest",
+          "suggest_departments",
           "allot",
+          "allot_departments",
           "take_over",
+          "take_over_departments",
           "stop_watching",
+          "stop_watching_departments",
           "request_transfer",
+          "transfer_from",
           "withdraw_transfer",
           "decide_transfer"
         ],
@@ -14082,6 +14134,20 @@
       },
       "StopWatchingIn": {
         "properties": {
+          "office_code": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the department to act for: one the caller has a membership in (default: decision 6)",
+            "title": "Office Code"
+          },
           "reason": {
             "maxLength": 500,
             "minLength": 1,
@@ -14097,6 +14163,20 @@
       },
       "SuggestIn": {
         "properties": {
+          "from_office_code": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the department the suggestion comes from: one the caller has a membership in (default: decision 6)",
+            "title": "From Office Code"
+          },
           "office_code": {
             "maxLength": 40,
             "minLength": 1,
@@ -14158,6 +14238,20 @@
               }
             ],
             "title": "Expected Officer User Id"
+          },
+          "office_code": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the department to act for: one the caller has a membership in (default: decision 6)",
+            "title": "Office Code"
           },
           "reason": {
             "anyOf": [
@@ -26470,7 +26564,7 @@
     },
     "/cases/{ref}/stop-watching": {
       "post": {
-        "description": "End the department's watcher role. On a primary row → 409 `primary_cannot_release`.",
+        "description": "End the department's watcher role (`office_code` names which of the caller's departments). On a\nprimary row → 409 `primary_cannot_release`.",
         "operationId": "stop_watching_cases__ref__stop_watching_post",
         "parameters": [
           {
@@ -26528,7 +26622,7 @@
     },
     "/cases/{ref}/suggest": {
       "post": {
-        "description": "Suggest another department: the caller's recommendation (if any) closes as `suggested_elsewhere` and\nthe target receives a `suggestion` recommendation.",
+        "description": "Suggest another department: the caller's recommendation (if any) closes as `suggested_elsewhere` and\nthe target receives a `suggestion` recommendation. `from_office_code` names which of the caller's\ndepartments the suggestion comes from.",
         "operationId": "suggest_cases__ref__suggest_post",
         "parameters": [
           {
@@ -26586,7 +26680,7 @@
     },
     "/cases/{ref}/take-over": {
       "post": {
-        "description": "Take over a case allotted to a colleague of the same department; the unit follows the taker.",
+        "description": "Take over a case allotted to a colleague of the same department; the unit follows the taker.\n`office_code` names which of the caller's departments acts.",
         "operationId": "take_over_cases__ref__take_over_post",
         "parameters": [
           {
@@ -26712,7 +26806,7 @@
     },
     "/cases/{ref}/transfers": {
       "post": {
-        "description": "The primary owner asks another department to take the case; one open request per case.",
+        "description": "The primary owner asks another department to take the case; one open request per case. A caller with\na membership in the primary owner's department acts for it.",
         "operationId": "request_transfer_cases__ref__transfers_post",
         "parameters": [
           {

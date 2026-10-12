@@ -548,17 +548,25 @@ class InboxCountsListOut(BaseModel):
 
 class OwnershipActionsOut(BaseModel):
     """Which ownership actions the caller may take on the case now (computed by the actions' own checks; the
-    API still decides on every call). `claim_departments`: the caller's departments that may claim, or null for
-    the super admin, who names any department."""
+    API still decides on every call). `claim_departments`: the caller's departments that may claim; for the
+    super admin null ("any active department") only while the case is in the pool, else the recommended
+    departments that do not hold it. Each `*_departments` list names the caller's departments for which that
+    action passes with the department named; `transfer_from` is the department a transfer would come from."""
 
     claim: bool
     claim_departments: list[str] | None
     dismiss: bool
+    dismiss_departments: list[str]
     suggest: bool
+    suggest_departments: list[str]
     allot: bool
+    allot_departments: list[str]
     take_over: bool
+    take_over_departments: list[str]
     stop_watching: bool
+    stop_watching_departments: list[str]
     request_transfer: bool
+    transfer_from: str | None
     withdraw_transfer: bool
     decide_transfer: bool
 
@@ -596,6 +604,13 @@ class DismissIn(BaseModel):
 class SuggestIn(BaseModel):
     office_code: str = Field(min_length=1, max_length=40)
     reason: str = Field(min_length=1, max_length=500)
+    from_office_code: str | None = Field(
+        None,
+        min_length=1,
+        max_length=40,
+        description="the department the suggestion comes from: one the caller has a membership in "
+        "(default: decision 6)",
+    )
 
 
 class SuggestOut(BaseModel):
@@ -618,6 +633,12 @@ class AllotIn(BaseModel):
 
 
 class TakeOverIn(BaseModel):
+    office_code: str | None = Field(
+        None,
+        min_length=1,
+        max_length=40,
+        description="the department to act for: one the caller has a membership in (default: decision 6)",
+    )
     expected_officer_user_id: uuid.UUID | None = None
     reason: str | None = Field(None, max_length=500)
 
@@ -627,6 +648,12 @@ class TakeOverOut(OwnershipOut):
 
 
 class StopWatchingIn(BaseModel):
+    office_code: str | None = Field(
+        None,
+        min_length=1,
+        max_length=40,
+        description="the department to act for: one the caller has a membership in (default: decision 6)",
+    )
     reason: str = Field(min_length=1, max_length=500)
 
 

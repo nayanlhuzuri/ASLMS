@@ -182,7 +182,8 @@ def suggest(
     caller: User = Depends(require(Permission.CASES_SUGGEST_ELSEWHERE)),
 ) -> schemas.SuggestOut:
     """Suggest another department: the caller's recommendation (if any) closes as `suggested_elsewhere` and
-    the target receives a `suggestion` recommendation."""
+    the target receives a `suggestion` recommendation. `from_office_code` names which of the caller's
+    departments the suggestion comes from."""
     case = _case(session, ref)
     try:
         result = own.suggest(
@@ -192,6 +193,7 @@ def suggest(
             case,
             office_code=body.office_code,
             reason=body.reason,
+            from_office_code=body.from_office_code,
         )
         session.flush()
     except HANDLED as exc:
@@ -239,7 +241,8 @@ def take_over(
     session: Session = Depends(get_session),
     caller: User = Depends(require(Permission.CASES_TAKE_OVER)),
 ) -> schemas.TakeOverOut:
-    """Take over a case allotted to a colleague of the same department; the unit follows the taker."""
+    """Take over a case allotted to a colleague of the same department; the unit follows the taker.
+    `office_code` names which of the caller's departments acts."""
     case = _case(session, ref)
     try:
         result = own.take_over(
@@ -249,6 +252,7 @@ def take_over(
             case,
             expected_officer_user_id=body.expected_officer_user_id,
             reason=body.reason,
+            office_code=body.office_code,
         )
         session.flush()
     except HANDLED as exc:
@@ -268,10 +272,18 @@ def stop_watching(
     session: Session = Depends(get_session),
     caller: User = Depends(require(Permission.CASES_RELEASE)),
 ) -> schemas.OwnershipOut:
-    """End the department's watcher role. On a primary row → 409 `primary_cannot_release`."""
+    """End the department's watcher role (`office_code` names which of the caller's departments). On a
+    primary row → 409 `primary_cannot_release`."""
     case = _case(session, ref)
     try:
-        row = own.stop_watching(session, actor_of(request, caller, session), caller, case, reason=body.reason)
+        row = own.stop_watching(
+            session,
+            actor_of(request, caller, session),
+            caller,
+            case,
+            reason=body.reason,
+            office_code=body.office_code,
+        )
         session.flush()
     except HANDLED as exc:
         raise _http(exc) from exc
@@ -291,7 +303,8 @@ def request_transfer(
     session: Session = Depends(get_session),
     caller: User = Depends(require(Permission.CASES_TRANSFER_REQUEST)),
 ) -> schemas.TransferOut:
-    """The primary owner asks another department to take the case; one open request per case."""
+    """The primary owner asks another department to take the case; one open request per case. A caller with
+    a membership in the primary owner's department acts for it."""
     case = _case(session, ref)
     try:
         t = own.request_transfer(

@@ -281,7 +281,7 @@ describe("Recommended", () => {
     expect(within(dialog).queryByLabelText("Unit")).toBeNull();
   });
 
-  it("Suggest needs a reason and does not offer the selected department", async () => {
+  it("Suggest needs a reason, does not offer the selected department and sends it as from_office_code", async () => {
     const api = browserApi({
       "GET /me": admin(),
       "GET /inbox/counts": { departments: [block("EDU")] },
@@ -301,7 +301,67 @@ describe("Recommended", () => {
     await userEvent.type(within(dialog).getByLabelText("Reason (required)"), "health matter");
     await userEvent.click(within(dialog).getByRole("button", { name: "Suggest department" }));
     await waitFor(() =>
-      expect(api.calls.find((c) => c.method === "POST")?.body).toEqual({ office_code: "HEALTH", reason: "health matter" }),
+      expect(api.calls.find((c) => c.method === "POST")?.body).toEqual({
+        office_code: "HEALTH",
+        reason: "health matter",
+        from_office_code: "EDU",
+      }),
+    );
+  });
+
+  it("Recommended's Suggest acts for the selected department of a two-department login", async () => {
+    const twoDepartments = admin(ADMIN_FNS, {
+      memberships: [membership("EDU", ADMIN_FNS), membership("HEALTH", ADMIN_FNS, false)],
+    });
+    const api = browserApi({
+      "GET /me": twoDepartments,
+      "GET /inbox/counts": { departments: [block("EDU"), block("HEALTH")] },
+      "GET /inbox/recommended": { items: [rec(1, { office_code: "HEALTH", current_owner_code: "FIN" })], total: 1 },
+      "GET /custody/recipients": DEPARTMENTS,
+      "POST /cases/ASLMS-GOA-CASE-2026-000001/suggest": {},
+    });
+    renderWithClient(<InboxFrame tab="recommended" params={{ department: "HEALTH" }} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Suggest department" }));
+    const dialog = screen.getByRole("dialog", { name: "Suggest another department" });
+    expect(within(dialog).getByText("HEALTH")).toBeInTheDocument(); // "Suggest from: HEALTH"
+    const target = within(dialog).getByLabelText("Department");
+    await waitFor(() => expect(within(target).getByRole("option", { name: /^EDU/ })).toBeInTheDocument());
+    // neither the selected department nor the owner is offered
+    expect(within(target).getAllByRole("option").map((o) => o.textContent)).toEqual(["Choose a department", "EDU — Education"]);
+    await userEvent.selectOptions(target, "EDU");
+    await userEvent.type(within(dialog).getByLabelText("Reason (required)"), "education");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Suggest department" }));
+    await waitFor(() =>
+      expect(api.calls.find((c) => c.method === "POST")?.body).toEqual({
+        office_code: "EDU",
+        reason: "education",
+        from_office_code: "HEALTH",
+      }),
+    );
+  });
+
+  it("the Pool's Suggest sends no originating department", async () => {
+    resetNav("/inbox/pool");
+    const api = browserApi({
+      "GET /me": admin(),
+      "GET /inbox/counts": { departments: [block("EDU")] },
+      "GET /inbox/pool": {
+        items: [{ case: summary(1), best_score: 0.42, best_office_code: "FIN", dismissed_by: [] }],
+        total: 1,
+      },
+      "GET /custody/recipients": DEPARTMENTS,
+      "POST /cases/ASLMS-GOA-CASE-2026-000001/suggest": {},
+    });
+    renderWithClient(<InboxFrame tab="pool" params={{}} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Suggest department" }));
+    const dialog = screen.getByRole("dialog", { name: "Suggest another department" });
+    expect(within(dialog).queryByLabelText("Suggest from")).toBeNull();
+    await waitFor(() => expect(within(dialog).getByRole("option", { name: /^FIN/ })).toBeInTheDocument());
+    await userEvent.selectOptions(within(dialog).getByLabelText("Department"), "FIN");
+    await userEvent.type(within(dialog).getByLabelText("Reason (required)"), "finance matter");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Suggest department" }));
+    await waitFor(() =>
+      expect(api.calls.find((c) => c.method === "POST")?.body).toEqual({ office_code: "FIN", reason: "finance matter" }),
     );
   });
 

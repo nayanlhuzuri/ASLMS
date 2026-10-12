@@ -3,7 +3,8 @@
 /**
  * The Notes tab, read-only (design portal-cases, decision 10): the trail by `seq_no` with kind, the author's name,
  * designation and office at the time, date, body, visibility badge, "corrects NOTE/…" and "corrected by NOTE/…" links
- * within the page, and attachments with View / Download through `/documents/{doc}/file`; "Hide corrected notes" asks
+ * within the page, and attachments with View (only for types a browser shows itself, `canViewInline`, design
+ * portal-cases-followups, decision 9) / Download through `/documents/{doc}/file`; "Hide corrected notes" asks
  * the API for `include_superseded=false`. Writing notes and drafts come with row 13. Notes are never sent to
  * SourceTrace.
  */
@@ -15,6 +16,7 @@ import { api } from "@/lib/api/client";
 import { caseKey, useMe } from "@/lib/api/hooks";
 import type { NoteList } from "@/lib/api/types";
 import { can } from "@/lib/can";
+import { canViewInline, pdfDownloadOnly } from "@/lib/documents";
 import { formatDateTime } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { apiCasePath } from "@/lib/refs";
@@ -90,7 +92,7 @@ export function Notes({ caseRef }: { caseRef: string }) {
                         {n.attachments.map((a) => (
                           <li key={a.id}>
                             {a.original_filename ?? a.ref_no ?? a.doc_type} <span className="muted">({sizeText(a.size_bytes)})</span>{" "}
-                            {canView ? (
+                            {canView && canViewInline(a.mime) ? (
                               <a href={documentUrl(a.id, "inline")} target="_blank" rel="noopener noreferrer">
                                 {T.case.view}
                               </a>
@@ -99,6 +101,9 @@ export function Notes({ caseRef }: { caseRef: string }) {
                               <a href={documentUrl(a.id, "attachment")} download>
                                 {T.case.download}
                               </a>
+                            ) : null}
+                            {canDownload && pdfDownloadOnly(a.mime) ? (
+                              <span className="muted"> {T.case.opensAsDownload}</span>
                             ) : null}
                           </li>
                         ))}

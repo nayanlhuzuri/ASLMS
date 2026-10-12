@@ -6,13 +6,17 @@
  * claimed, allotted or transferred without the user pressing the button and confirming here; nothing is pre-selected
  * that would claim for a department the user did not choose. Every refusal shows the API's code as a message, then the
  * inbox lists, the counts, the case and the dashboard are read again. There is no release or return-to-pool action.
+ *
+ * One rule for the department that acts (design portal-cases-followups, decisions 4-6): the case page passes the
+ * server's department list for the action, the inbox the selected department. One department is shown as text and
+ * sent; several give a required select with nothing pre-selected; an `office_required` answer opens the same select.
  */
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { CheckField, ConfirmDialog, SelectField, TextArea, type Option } from "@/components/ui";
+import { CheckField, ConfirmDialog, ErrorBanner, Loading, SelectField, TextArea, type Option } from "@/components/ui";
 import { api, ApiError } from "@/lib/api/client";
-import { caseKey, INBOX_KEY, useDepartmentPeople, useDepartments, useMe } from "@/lib/api/hooks";
+import { caseKey, INBOX_KEY, useDepartmentPeople, useDepartments, useMe, useOwnership } from "@/lib/api/hooks";
 import type { Ownership, Recipient } from "@/lib/api/types";
 import { canIn, isSuperAdmin } from "@/lib/can";
 import { T } from "@/lib/messages";
@@ -72,6 +76,91 @@ function officerOptions(items: Recipient[] | undefined): Option[] {
   return out;
 }
 
+// ------------------------------------------------------------------------------------------------ the department that acts
+
+/** The candidate departments of an `office_required` answer, or null for any other error. */
+export function officeRequiredCandidates(error: unknown): string[] | null {
+  if (error instanceof ApiError && error.code === "office_required" && Array.isArray(error.extra.candidates)) {
+    const list = (error.extra.candidates as unknown[]).filter((c): c is string => typeof c === "string");
+    return list.length > 0 ? list : null;
+  }
+  return null;
+}
+
+/**
+ * The department choice of one dialog (decision 4). `departments` is the server's list for the action (the case
+ * page), `fixed` the inbox's selected department. `office` is the code to send (null: send none); `check()` asks for
+ * a choice when several departments are offered and none is chosen; `onError` turns an `office_required` answer into
+ * the choice instead of a failure.
+ */
+export function useOfficeRequired(departments?: string[] | null, fixed?: string | null) {
+  const [chosen, setChosen] = useState("");
+  const [candidates, setCandidates] = useState<string[] | null>(null);
+  const [missing, setMissing] = useState(false);
+  const codes = candidates ?? (fixed ? [fixed] : (departments ?? []));
+  const office = codes.length === 1 ? codes[0]! : codes.includes(chosen) ? chosen : null;
+  return {
+    codes,
+    office,
+    chosen,
+    missing: missing && codes.length > 1 && !office,
+    choose(code: string) {
+      setChosen(code);
+      setMissing(false);
+    },
+    check(): boolean {
+      if (codes.length > 1 && !office) {
+        setMissing(true);
+        return false;
+      }
+      return true;
+    },
+    onError(error: unknown): boolean {
+      const list = officeRequiredCandidates(error);
+      if (!list) return false;
+      setCandidates(list);
+      setChosen("");
+      setMissing(false);
+      return true;
+    },
+  };
+}
+
+type Choice = ReturnType<typeof useOfficeRequired>;
+
+/** One department: "For: FIN" as text; several: a required select with no pre-selection; none: nothing. */
+export function DepartmentChoice({
+  choice,
+  label = T.own.forDepartment,
+  onChange,
+}: {
+  choice: Choice;
+  label?: string;
+  onChange?: (code: string) => void;
+}) {
+  if (choice.codes.length === 0) return null;
+  if (choice.codes.length === 1) {
+    return (
+      <p>
+        {label}: <strong className="mono">{choice.codes[0]}</strong>
+      </p>
+    );
+  }
+  return (
+    <SelectField
+      label={label}
+      options={choice.codes.map((c) => ({ value: c, label: c }))}
+      placeholder={T.inbox.chooseDepartment}
+      value={choice.office ?? ""}
+      error={choice.missing ? T.own.chooseTarget : undefined}
+      onChange={(e) => {
+        choice.choose(e.target.value);
+        onChange?.(e.target.value);
+      }}
+    />
+  );
+}
+
 interface BaseProps {
   open: boolean;
   caseRef: string;
@@ -92,36 +181,41 @@ export function ClaimDialog({
 }: BaseProps & {
   /** From the inbox: the selected department (always sent as `office_code`). */
   department?: string | null;
-  /** From the case page: `actions.claim_departments` (null: the super admin, who names any department). */
+  /** From the case page: `actions.claim_departments` (null: the super admin on a pool case, any department).
+   * Left out together with `department` (search results): read from `GET /cases/{ref}/ownership` (decision 7). */
   departments?: string[] | null;
   currentOwner?: string | null;
 }) {
   const me = useMe();
-  const fixed = department ?? (departments && departments.length === 1 ? departments[0]! : null);
-  const [chosen, setChosen] = useState("");
-  const [candidates, setCandidates] = useState<string[] | null>(null);
+  const fromServer = !department && departments === undefined;
+  const view = useOwnership(caseRef, open && fromServer);
+  const list: string[] | null | undefined = fromServer ? view.data?.actions.claim_departments : departments;
+  const anyDepartment = !department && list === null;
+  const choice = useOfficeRequired(list ?? [], department);
+  const [chosenAny, setChosenAny] = useState("");
+  const [missingAny, setMissingAny] = useState(false);
   const [note, setNote] = useState("");
   const [unit, setUnit] = useState("");
   const [officer, setOfficer] = useState("");
-  const [missing, setMissing] = useState(false);
   const run = useOwnershipCall(caseRef);
-  const anyDepartment = !department && departments === null;
   const all = useDepartments(open && anyDepartment);
-  const office = fixed ?? (chosen || null);
+  const office = anyDepartment && choice.codes.length === 0 ? chosenAny || null : choice.office;
   const canAllot = !!office && (canIn(me.data, office, "cases.allot") || isSuperAdmin(me.data));
   const people = useDepartmentPeople(office, open && canAllot);
-  let pickList: Option[] | null = null;
-  if (candidates) pickList = candidates.map((c) => ({ value: c, label: c }));
-  else if (!fixed && departments && departments.length > 1) pickList = departments.map((c) => ({ value: c, label: c }));
-  else if (!fixed && anyDepartment) pickList = departmentOptions(all.data?.departments ?? []);
+  const owner = currentOwner !== undefined ? currentOwner : fromServer ? (view.data?.primary?.office_code ?? null) : null;
+  const waiting = fromServer && (view.isPending || !!view.error);
 
   async function confirm() {
-    const code = candidates ? chosen || null : office;
-    if (pickList && !code) {
-      setMissing(true);
+    if (waiting) return;
+    if (anyDepartment && choice.codes.length === 0) {
+      if (!chosenAny) {
+        setMissingAny(true);
+        return;
+      }
+    } else if (!choice.check()) {
       return;
     }
-    const body: Record<string, unknown> = { office_code: code ?? undefined, note: note.trim() || undefined };
+    const body: Record<string, unknown> = { office_code: office ?? undefined, note: note.trim() || undefined };
     if (canAllot && unit) body.unit_code = unit;
     if (canAllot && officer) body.officer_user_id = officer;
     const out = await run.call(casePathOf(caseRef, "claim"), body);
@@ -131,16 +225,11 @@ export function ClaimDialog({
       return;
     }
     // office_required opens the department choice instead of failing
-    const e = out.error;
-    if (e instanceof ApiError && e.code === "office_required" && Array.isArray(e.extra.candidates)) {
-      const list = e.extra.candidates as string[];
-      if (list.length > 0) {
-        setCandidates(list);
-        setChosen("");
-      }
+    if (choice.onError(out.error)) {
+      setUnit("");
+      setOfficer("");
     }
   }
-  const err = run.error;
   return (
     <ConfirmDialog
       open={open}
@@ -148,24 +237,35 @@ export function ClaimDialog({
       onClose={onClose}
       onConfirm={confirm}
       busy={run.busy}
-      error={err}
+      error={run.error}
       confirmLabel={T.own.claim}
+      confirmDisabled={waiting || (!anyDepartment && choice.codes.length === 0)}
     >
-      {currentOwner ? <p>{T.own.claimWatcher(currentOwner)}</p> : null}
-      {fixed && !candidates ? (
-        <p>
-          {T.own.claimFor}: <strong className="mono">{fixed}</strong>
-        </p>
+      {fromServer && view.isPending ? <Loading /> : null}
+      {fromServer && view.error instanceof ApiError && view.error.status === 404 ? (
+        <p role="alert">{view.error.message}</p>
+      ) : fromServer ? (
+        <ErrorBanner error={view.error} />
       ) : null}
-      {pickList ? (
+      {owner ? <p>{T.own.claimWatcher(owner)}</p> : null}
+      {!waiting && !anyDepartment && choice.codes.length === 0 ? <p>{T.own.noClaimDepartment}</p> : null}
+      <DepartmentChoice
+        choice={choice}
+        label={T.own.claimFor}
+        onChange={() => {
+          setUnit("");
+          setOfficer("");
+        }}
+      />
+      {anyDepartment && choice.codes.length === 0 ? (
         <SelectField
           label={T.own.claimFor}
-          options={pickList}
+          options={departmentOptions(all.data?.departments ?? [])}
           placeholder={T.inbox.chooseDepartment}
-          value={chosen}
-          error={missing && !chosen ? T.own.chooseTarget : undefined}
+          value={chosenAny}
+          error={missingAny && !chosenAny ? T.own.chooseTarget : undefined}
           onChange={(e) => {
-            setChosen(e.target.value);
+            setChosenAny(e.target.value);
             setUnit("");
             setOfficer("");
           }}
@@ -203,22 +303,29 @@ export function DismissDialog({
   onClose,
   onDone,
   department,
+  departments,
 }: BaseProps & {
   /** From the inbox: the selected department, sent as `office_code` so the API dismisses that department's
    * recommendation and not the primary membership's (design portal-cases, deviation 10). */
   department?: string | null;
+  /** From the case page: `actions.dismiss_departments`. */
+  departments?: string[];
 }) {
   const [reason, setReason] = useState("");
+  const choice = useOfficeRequired(departments, department);
   const run = useOwnershipCall(caseRef);
   async function confirm() {
+    if (!choice.check()) return;
     const out = await run.call(casePathOf(caseRef, "dismiss"), {
-      office_code: department ?? undefined,
+      office_code: choice.office ?? undefined,
       reason: reason.trim() || undefined,
     });
     if (out.ok) {
       onDone?.();
       onClose();
+      return;
     }
+    choice.onError(out.error);
   }
   return (
     <ConfirmDialog
@@ -230,25 +337,52 @@ export function DismissDialog({
       error={run.error}
       confirmLabel={T.own.dismiss}
     >
+      <DepartmentChoice choice={choice} />
       <TextArea label={T.own.dismissReason} maxLength={MAX_REASON} value={reason} onChange={(e) => setReason(e.target.value)} />
     </ConfirmDialog>
   );
 }
 
-export function SuggestDialog({ open, caseRef, onClose, onDone, exclude }: BaseProps & { exclude?: string | null }) {
-  const departments = useDepartments(open);
+export function SuggestDialog({
+  open,
+  caseRef,
+  onClose,
+  onDone,
+  from,
+  departments,
+  exclude = [],
+}: BaseProps & {
+  /** From the inbox's Recommended tab: the selected department, sent as `from_office_code`. */
+  from?: string | null;
+  /** From the case page: `actions.suggest_departments` (empty: sent without a department). */
+  departments?: string[];
+  /** Departments the target list leaves out (those holding the case: the API answers `target_owns`). */
+  exclude?: (string | null | undefined)[];
+}) {
+  const all = useDepartments(open);
+  const choice = useOfficeRequired(departments, from);
   const [target, setTarget] = useState("");
   const [reason, setReason] = useState("");
   const [tried, setTried] = useState(false);
   const run = useOwnershipCall(caseRef);
+  const left = [...exclude, choice.office];
+  const options = departmentOptions(all.data?.departments ?? [], left);
+  const targetOk = !!target && !left.includes(target);
   async function confirm() {
     setTried(true);
-    if (!target || !reason.trim()) return;
-    const out = await run.call(casePathOf(caseRef, "suggest"), { office_code: target, reason: reason.trim() });
+    const fromOk = choice.check();
+    if (!fromOk || !targetOk || !reason.trim()) return;
+    const out = await run.call(casePathOf(caseRef, "suggest"), {
+      office_code: target,
+      reason: reason.trim(),
+      from_office_code: choice.office ?? undefined,
+    });
     if (out.ok) {
       onDone?.();
       onClose();
+      return;
     }
+    choice.onError(out.error);
   }
   return (
     <ConfirmDialog
@@ -260,12 +394,13 @@ export function SuggestDialog({ open, caseRef, onClose, onDone, exclude }: BaseP
       error={run.error}
       confirmLabel={T.own.suggest}
     >
+      <DepartmentChoice choice={choice} label={T.own.suggestFrom} />
       <SelectField
         label={T.own.target}
-        options={departmentOptions(departments.data?.departments ?? [], [exclude])}
+        options={options}
         placeholder={T.inbox.chooseDepartment}
-        value={target}
-        error={tried && !target ? T.own.chooseTarget : undefined}
+        value={targetOk ? target : ""}
+        error={tried && !targetOk ? T.own.chooseTarget : undefined}
         onChange={(e) => setTarget(e.target.value)}
       />
       <TextArea
@@ -281,24 +416,39 @@ export function SuggestDialog({ open, caseRef, onClose, onDone, exclude }: BaseP
 
 // ------------------------------------------------------------------------------------------------ allot / take over / stop watching
 
+function rowOf(rows: Ownership[] | undefined, office: string | null): Ownership | null {
+  if (!office) return null;
+  return rows?.find((r) => r.office_code === office) ?? null;
+}
+
 export function AllotDialog({
   open,
   caseRef,
   onClose,
   onDone,
   department,
+  departments,
+  rows,
   current,
 }: BaseProps & {
-  /** The department whose row is allotted; always sent as `office_code` (design portal-cases, deviation 10). */
-  department: string;
+  /** From the inbox: the department whose row is allotted; always sent as `office_code`. */
+  department?: string;
+  /** From the case page: `actions.allot_departments`; the chosen one is sent as `office_code`. */
+  departments?: string[];
+  /** The case's active ownership rows: the chosen department's current unit and officer are shown. */
+  rows?: Ownership[];
   current?: Pick<Ownership, "unit" | "officer"> | null;
 }) {
-  const people = useDepartmentPeople(department, open);
+  const choice = useOfficeRequired(departments, department);
+  const office = choice.office;
+  const people = useDepartmentPeople(office, open && !!office);
   const [unit, setUnit] = useState(KEEP);
   const [officer, setOfficer] = useState(KEEP);
   const run = useOwnershipCall(caseRef);
+  const now = rows ? rowOf(rows, office) : (current ?? null);
   async function confirm() {
-    const body: Record<string, unknown> = { office_code: department };
+    if (!choice.check() || !office) return;
+    const body: Record<string, unknown> = { office_code: office };
     if (unit !== KEEP) body.unit_code = unit === CLEAR ? null : unit;
     if (officer !== KEEP) body.officer_user_id = officer === CLEAR ? null : officer;
     const out = await run.call(casePathOf(caseRef, "allot"), body);
@@ -317,28 +467,39 @@ export function AllotDialog({
       busy={run.busy}
       error={run.error}
       confirmLabel={T.own.allot}
-      confirmDisabled={unit === KEEP && officer === KEEP}
+      confirmDisabled={!!office && unit === KEEP && officer === KEEP}
     >
-      <SelectField
-        label={T.own.unit}
-        options={[
-          { value: KEEP, label: keep(current?.unit?.code) },
-          { value: CLEAR, label: T.own.clearValue },
-          ...(people.data?.units ?? []).map((u) => ({ value: u.code, label: `${u.code} — ${u.name}` })),
-        ]}
-        value={unit}
-        onChange={(e) => setUnit(e.target.value)}
+      <DepartmentChoice
+        choice={choice}
+        onChange={() => {
+          setUnit(KEEP);
+          setOfficer(KEEP);
+        }}
       />
-      <SelectField
-        label={T.own.officer}
-        options={[
-          { value: KEEP, label: keep(current?.officer?.full_name) },
-          { value: CLEAR, label: T.own.clearValue },
-          ...officerOptions(people.data?.items),
-        ]}
-        value={officer}
-        onChange={(e) => setOfficer(e.target.value)}
-      />
+      {office ? (
+        <>
+          <SelectField
+            label={T.own.unit}
+            options={[
+              { value: KEEP, label: keep(now?.unit?.code) },
+              { value: CLEAR, label: T.own.clearValue },
+              ...(people.data?.units ?? []).map((u) => ({ value: u.code, label: `${u.code} — ${u.name}` })),
+            ]}
+            value={unit}
+            onChange={(e) => setUnit(e.target.value)}
+          />
+          <SelectField
+            label={T.own.officer}
+            options={[
+              { value: KEEP, label: keep(now?.officer?.full_name) },
+              { value: CLEAR, label: T.own.clearValue },
+              ...officerOptions(people.data?.items),
+            ]}
+            value={officer}
+            onChange={(e) => setOfficer(e.target.value)}
+          />
+        </>
+      ) : null}
     </ConfirmDialog>
   );
 }
@@ -348,19 +509,31 @@ export function TakeOverDialog({
   caseRef,
   onClose,
   onDone,
-  officer,
-}: BaseProps & { officer: { id: string; full_name: string } }) {
+  departments,
+  rows,
+}: BaseProps & {
+  /** `actions.take_over_departments`; the chosen one is sent as `office_code`. */
+  departments: string[];
+  /** The case's active ownership rows: the chosen department's officer is shown and sent as expected. */
+  rows: Ownership[];
+}) {
   const [reason, setReason] = useState("");
+  const choice = useOfficeRequired(departments);
   const run = useOwnershipCall(caseRef);
+  const holder = rowOf(rows, choice.office)?.officer ?? null;
   async function confirm() {
+    if (!choice.check() || !choice.office || !holder) return;
     const out = await run.call(casePathOf(caseRef, "take-over"), {
-      expected_officer_user_id: officer.id,
+      office_code: choice.office,
+      expected_officer_user_id: holder.id,
       reason: reason.trim() || undefined,
     });
     if (out.ok) {
       onDone?.();
       onClose();
+      return;
     }
+    choice.onError(out.error);
   }
   return (
     <ConfirmDialog
@@ -371,25 +544,40 @@ export function TakeOverDialog({
       busy={run.busy}
       error={run.error}
       confirmLabel={T.own.takeOver}
+      confirmDisabled={!!choice.office && !holder}
     >
-      <p>{T.own.takeOverText(officer.full_name)}</p>
+      <DepartmentChoice choice={choice} />
+      {holder ? <p>{T.own.takeOverText(holder.full_name)}</p> : null}
       <TextArea label={T.own.takeOverReason} maxLength={MAX_REASON} value={reason} onChange={(e) => setReason(e.target.value)} />
     </ConfirmDialog>
   );
 }
 
-export function StopWatchingDialog({ open, caseRef, onClose, onDone }: BaseProps) {
+export function StopWatchingDialog({
+  open,
+  caseRef,
+  onClose,
+  onDone,
+  departments,
+}: BaseProps & { /** From the case page: `actions.stop_watching_departments`. */ departments?: string[] }) {
   const [reason, setReason] = useState("");
   const [tried, setTried] = useState(false);
+  const choice = useOfficeRequired(departments);
   const run = useOwnershipCall(caseRef);
   async function confirm() {
     setTried(true);
-    if (!reason.trim()) return;
-    const out = await run.call(casePathOf(caseRef, "stop-watching"), { reason: reason.trim() });
+    const fromOk = choice.check();
+    if (!fromOk || !reason.trim()) return;
+    const out = await run.call(casePathOf(caseRef, "stop-watching"), {
+      office_code: choice.office ?? undefined,
+      reason: reason.trim(),
+    });
     if (out.ok) {
       onDone?.();
       onClose();
+      return;
     }
+    choice.onError(out.error);
   }
   return (
     <ConfirmDialog
@@ -402,6 +590,7 @@ export function StopWatchingDialog({ open, caseRef, onClose, onDone }: BaseProps
       confirmLabel={T.own.stopWatching}
       danger
     >
+      <DepartmentChoice choice={choice} />
       <TextArea
         label={T.own.reasonRequired}
         maxLength={MAX_REASON}
@@ -415,7 +604,13 @@ export function StopWatchingDialog({ open, caseRef, onClose, onDone }: BaseProps
 
 // ------------------------------------------------------------------------------------------------ transfers
 
-export function TransferDialog({ open, caseRef, onClose, onDone, exclude }: BaseProps & { exclude?: string | null }) {
+export function TransferDialog({
+  open,
+  caseRef,
+  onClose,
+  onDone,
+  exclude = [],
+}: BaseProps & { /** Departments the target list leaves out (`actions.transfer_from`). */ exclude?: (string | null | undefined)[] }) {
   const departments = useDepartments(open);
   const [target, setTarget] = useState("");
   const [reason, setReason] = useState("");
@@ -447,7 +642,7 @@ export function TransferDialog({ open, caseRef, onClose, onDone, exclude }: Base
     >
       <SelectField
         label={T.own.target}
-        options={departmentOptions(departments.data?.departments ?? [], [exclude])}
+        options={departmentOptions(departments.data?.departments ?? [], exclude)}
         placeholder={T.inbox.chooseDepartment}
         value={target}
         error={tried && !target ? T.own.chooseTarget : undefined}
@@ -525,16 +720,30 @@ export function WithdrawDialog({ open, caseRef, onClose, onDone, transferId }: B
   );
 }
 
+
 // ------------------------------------------------------------------------------------------------ one open dialog at a time
 
 export type DialogKind =
   | { kind: "claim"; caseRef: string; currentOwner?: string | null; departments?: string[] | null }
-  | { kind: "dismiss"; caseRef: string }
-  | { kind: "suggest"; caseRef: string }
-  | { kind: "allot"; caseRef: string; current?: Pick<Ownership, "unit" | "officer"> | null; department: string }
-  | { kind: "take_over"; caseRef: string; officer: { id: string; full_name: string } }
-  | { kind: "stop_watching"; caseRef: string }
-  | { kind: "transfer"; caseRef: string }
+  | { kind: "dismiss"; caseRef: string; departments?: string[] }
+  | {
+      kind: "suggest";
+      caseRef: string;
+      departments?: string[];
+      from?: string | null;
+      exclude?: (string | null | undefined)[];
+    }
+  | {
+      kind: "allot";
+      caseRef: string;
+      department?: string;
+      departments?: string[];
+      rows?: Ownership[];
+      current?: Pick<Ownership, "unit" | "officer"> | null;
+    }
+  | { kind: "take_over"; caseRef: string; departments: string[]; rows: Ownership[] }
+  | { kind: "stop_watching"; caseRef: string; departments?: string[] }
+  | { kind: "transfer"; caseRef: string; exclude?: (string | null | undefined)[] }
   | { kind: "decide"; caseRef: string; transferId: string; accept: boolean }
   | { kind: "withdraw"; caseRef: string; transferId: string };
 
@@ -563,17 +772,31 @@ export function OwnershipDialogs({
         />
       );
     case "dismiss":
-      return <DismissDialog {...common} department={department} />;
+      return (
+        <DismissDialog
+          {...common}
+          department={open.departments !== undefined ? undefined : department}
+          departments={open.departments}
+        />
+      );
     case "suggest":
-      return <SuggestDialog {...common} exclude={department} />;
+      return <SuggestDialog {...common} from={open.from} departments={open.departments} exclude={open.exclude} />;
     case "allot":
-      return <AllotDialog {...common} department={open.department} current={open.current} />;
+      return (
+        <AllotDialog
+          {...common}
+          department={open.department}
+          departments={open.departments}
+          rows={open.rows}
+          current={open.current}
+        />
+      );
     case "take_over":
-      return <TakeOverDialog {...common} officer={open.officer} />;
+      return <TakeOverDialog {...common} departments={open.departments} rows={open.rows} />;
     case "stop_watching":
-      return <StopWatchingDialog {...common} />;
+      return <StopWatchingDialog {...common} departments={open.departments} />;
     case "transfer":
-      return <TransferDialog {...common} exclude={department} />;
+      return <TransferDialog {...common} exclude={open.exclude ?? [department]} />;
     case "decide":
       return <DecideDialog {...common} transferId={open.transferId} accept={open.accept} />;
     case "withdraw":

@@ -2594,7 +2594,8 @@ export interface paths {
         put?: never;
         /**
          * Stop Watching
-         * @description End the department's watcher role. On a primary row → 409 `primary_cannot_release`.
+         * @description End the department's watcher role (`office_code` names which of the caller's departments). On a
+         *     primary row → 409 `primary_cannot_release`.
          */
         post: operations["stop_watching_cases__ref__stop_watching_post"];
         delete?: never;
@@ -2615,7 +2616,8 @@ export interface paths {
         /**
          * Suggest
          * @description Suggest another department: the caller's recommendation (if any) closes as `suggested_elsewhere` and
-         *     the target receives a `suggestion` recommendation.
+         *     the target receives a `suggestion` recommendation. `from_office_code` names which of the caller's
+         *     departments the suggestion comes from.
          */
         post: operations["suggest_cases__ref__suggest_post"];
         delete?: never;
@@ -2636,6 +2638,7 @@ export interface paths {
         /**
          * Take Over
          * @description Take over a case allotted to a colleague of the same department; the unit follows the taker.
+         *     `office_code` names which of the caller's departments acts.
          */
         post: operations["take_over_cases__ref__take_over_post"];
         delete?: never;
@@ -2676,7 +2679,8 @@ export interface paths {
         put?: never;
         /**
          * Request Transfer
-         * @description The primary owner asks another department to take the case; one open request per case.
+         * @description The primary owner asks another department to take the case; one open request per case. A caller with
+         *     a membership in the primary owner's department acts for it.
          */
         post: operations["request_transfer_cases__ref__transfers_post"];
         delete?: never;
@@ -6937,12 +6941,16 @@ export interface components {
         /**
          * OwnershipActionsOut
          * @description Which ownership actions the caller may take on the case now (computed by the actions' own checks; the
-         *     API still decides on every call). `claim_departments`: the caller's departments that may claim, or null for
-         *     the super admin, who names any department.
+         *     API still decides on every call). `claim_departments`: the caller's departments that may claim; for the
+         *     super admin null ("any active department") only while the case is in the pool, else the recommended
+         *     departments that do not hold it. Each `*_departments` list names the caller's departments for which that
+         *     action passes with the department named; `transfer_from` is the department a transfer would come from.
          */
         OwnershipActionsOut: {
             /** Allot */
             allot: boolean;
+            /** Allot Departments */
+            allot_departments: string[];
             /** Claim */
             claim: boolean;
             /** Claim Departments */
@@ -6951,14 +6959,24 @@ export interface components {
             decide_transfer: boolean;
             /** Dismiss */
             dismiss: boolean;
+            /** Dismiss Departments */
+            dismiss_departments: string[];
             /** Request Transfer */
             request_transfer: boolean;
             /** Stop Watching */
             stop_watching: boolean;
+            /** Stop Watching Departments */
+            stop_watching_departments: string[];
             /** Suggest */
             suggest: boolean;
+            /** Suggest Departments */
+            suggest_departments: string[];
             /** Take Over */
             take_over: boolean;
+            /** Take Over Departments */
+            take_over_departments: string[];
+            /** Transfer From */
+            transfer_from: string | null;
             /** Withdraw Transfer */
             withdraw_transfer: boolean;
         };
@@ -7839,11 +7857,21 @@ export interface components {
         };
         /** StopWatchingIn */
         StopWatchingIn: {
+            /**
+             * Office Code
+             * @description the department to act for: one the caller has a membership in (default: decision 6)
+             */
+            office_code?: string | null;
             /** Reason */
             reason: string;
         };
         /** SuggestIn */
         SuggestIn: {
+            /**
+             * From Office Code
+             * @description the department the suggestion comes from: one the caller has a membership in (default: decision 6)
+             */
+            from_office_code?: string | null;
             /** Office Code */
             office_code: string;
             /** Reason */
@@ -7860,6 +7888,11 @@ export interface components {
         TakeOverIn: {
             /** Expected Officer User Id */
             expected_officer_user_id?: string | null;
+            /**
+             * Office Code
+             * @description the department to act for: one the caller has a membership in (default: decision 6)
+             */
+            office_code?: string | null;
             /** Reason */
             reason?: string | null;
         };

@@ -5,7 +5,8 @@
  * from / to, status, case type, year, minimum score and "State is a party"; each row shows the best score and the
  * department it was for, the departments that dismissed it and the next hearing. Claim needs `cases.claim` in the
  * selected department; Suggest department (`cases.suggest_elsewhere`) is how the central operator follows up an
- * unclaimed case (plan §4.2). The pool's `total` is shown above the list.
+ * unclaimed case (plan §4.2); a pool case has no active recommendation to suggest from, so no originating department is
+ * sent (design portal-cases-followups, decision 6). The pool's `total` is shown above the list.
  */
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -139,7 +140,10 @@ export function Pool({ params, department }: { params: Params; department: strin
                             <Button onClick={() => setDialog({ kind: "claim", caseRef: p.case.ref_no })}>{T.own.claim}</Button>
                           ) : null}
                           {canSuggest ? (
-                            <Button variant="secondary" onClick={() => setDialog({ kind: "suggest", caseRef: p.case.ref_no })}>
+                            <Button
+                              variant="secondary"
+                              onClick={() => setDialog({ kind: "suggest", caseRef: p.case.ref_no, exclude: [department] })}
+                            >
                               {T.own.suggest}
                             </Button>
                           ) : null}

@@ -1,6 +1,8 @@
-"""The `actions` block of `GET /cases/{ref}/ownership` (design `portal-cases`, decision 14c): each flag is true
-exactly when the action itself would succeed (or only ask which department acts), the claim departments, the
-super admin's null list, and that reading the flags writes nothing and keeps a hidden case hidden."""
+"""The `actions` block of `GET /cases/{ref}/ownership` (design `portal-cases`, decision 14c, and
+`portal-cases-followups`, decisions 1, 3 and 7): each flag is true exactly when the action itself would succeed
+for some department, each department list names exactly the caller's departments for which the action succeeds
+with that department named, `transfer_from` is the primary owner's department, the super admin's claim list
+is null only for a pool case, and reading the flags writes nothing and keeps a hidden case hidden."""
 
 from __future__ import annotations
 
@@ -13,6 +15,7 @@ from fastapi.testclient import TestClient
 from aslms.api.main import create_app
 from aslms.core.config import Settings
 from aslms.domain.events import AuditLog, Event
+from aslms.domain.org import PermissionEffect
 from aslms.domain.ownership import (
     CaseOwnership,
     OwnershipTransfer,
@@ -20,7 +23,7 @@ from aslms.domain.ownership import (
     RecommendationOrigin,
     ScoreBand,
 )
-from aslms.domain.reference import Role
+from aslms.domain.reference import Permission, Role
 from aslms.services import access
 from aslms.services import ownership as own
 from tests.db.auth_support import bearer
@@ -82,15 +85,21 @@ def build_states(s, world) -> dict[str, object]:
     return states
 
 
-def outcome(s, run: Callable[[], object], *, also_ok: Callable[[Exception], bool] = lambda e: False) -> bool:
+def outcome(
+    s,
+    run: Callable[[], object],
+    *,
+    also_ok: Callable[[Exception], bool] = lambda e: False,
+    strict: bool = False,
+) -> bool:
     """Runs one action in a savepoint that is rolled back: True when it succeeds or answers only
-    `office_required` (or a refusal `also_ok` accepts)."""
+    `office_required` (unless `strict`), or a refusal `also_ok` accepts."""
     sp = s.begin_nested()
     try:
         run()
         return True
     except own.OfficeRequired:
-        return True
+        return not strict
     except (access.Forbidden, own.OwnershipError) as exc:
         return also_ok(exc)
     finally:
@@ -105,8 +114,22 @@ def _target_specific(exc: Exception) -> bool:
     return isinstance(exc, own.OwnershipConflict) and exc.code == "target_owns"
 
 
+def own_departments(s, user) -> list[str]:
+    out: list[str] = []
+    for m in access.members(s, user):
+        if m.department is not None and m.department.code not in out:
+            out.append(m.department.code)
+    return out
+
+
 def expected(s, world, key: str, case) -> dict[str, object]:
     actor, user = world.actor(s, key)
+    mine = own_departments(s, user)
+
+    def some_department(run: Callable[[str], object]) -> bool:
+        """The action succeeds for one of the caller's departments, named (decision 1)."""
+        return any(outcome(s, lambda c=c: run(c), strict=True) for c in mine)
+
     open_t = s.scalar(
         sa.select(OwnershipTransfer).where(
             OwnershipTransfer.case_id == case.id, OwnershipTransfer.status == "requested"
@@ -117,7 +140,7 @@ def expected(s, world, key: str, case) -> dict[str, object]:
         for code in DEPARTMENTS
     }
     out: dict[str, object] = {"claim_by_code": claim_ok}
-    out["dismiss"] = outcome(s, lambda: own.dismiss(s, actor, user, case))
+    out["dismiss"] = some_department(lambda c: own.dismiss(s, actor, user, case, office_code=c))
     out["suggest"] = any(
         outcome(
             s,
@@ -126,11 +149,17 @@ def expected(s, world, key: str, case) -> dict[str, object]:
         )
         for code in DEPARTMENTS
     )
-    out["allot"] = outcome(s, lambda: own.allot(s, actor, user, case))
-    out["take_over"] = outcome(s, lambda: own.take_over(s, actor, user, case))
-    out["stop_watching"] = outcome(s, lambda: own.stop_watching(s, actor, user, case, reason="r"))
+    out["allot"] = some_department(lambda c: own.allot(s, actor, user, case, office_code=c))
+    out["take_over"] = some_department(lambda c: own.take_over(s, actor, user, case, office_code=c))
+    out["stop_watching"] = some_department(
+        lambda c: own.stop_watching(s, actor, user, case, reason="r", office_code=c)
+    )
     out["request_transfer"] = any(
-        outcome(s, lambda c=code: own.request_transfer(s, actor, user, case, to_office_code=c, reason="r"))
+        outcome(
+            s,
+            lambda c=code: own.request_transfer(s, actor, user, case, to_office_code=c, reason="r"),
+            strict=True,
+        )
         for code in DEPARTMENTS
     )
     out["withdraw_transfer"] = open_t is not None and outcome(
@@ -156,8 +185,15 @@ def test_actions_match_outcomes(world):
                         mismatches.append((key, state, flag, flags[flag], exp[flag]))
                 by_code = exp["claim_by_code"]
                 if key == "root":
-                    if flags["claim_departments"] is not None or flags["claim"] != any(by_code.values()):
-                        mismatches.append((key, state, "claim", flags, by_code))
+                    want_root = sorted(c for c, ok in by_code.items() if ok)
+                    if not own.ever_owned(s, case):
+                        ok_root = flags["claim_departments"] is None and flags["claim"] == bool(want_root)
+                    else:
+                        ok_root = flags["claim_departments"] == want_root and flags["claim"] == bool(
+                            want_root
+                        )
+                    if not ok_root:
+                        mismatches.append((key, state, "claim", flags["claim_departments"], want_root))
                 else:
                     mine = {m.department.code for m in access.members(s, user) if m.department is not None}
                     want = sorted(c for c, ok in by_code.items() if ok and c in mine)
@@ -180,19 +216,151 @@ def test_claim_departments_lists_qualifying_memberships(world):
         s.rollback()
 
 
-def test_claim_departments_null_for_super_admin(world):
+def test_super_admin_claim_departments_null_for_pool_case(world):
     with world.Session() as s:
         case = make_case(s)
+        recommend(s, world, case, "HEALTH")
         s.flush()
         flags = own.available_actions(s, world.user(s, "root"), case)
         assert flags["claim"] is True and flags["claim_departments"] is None
-        # once EDU owns it and nobody else is recommended, no department may claim it
+        s.rollback()
+
+
+def test_super_admin_claim_departments_lists_recommended_not_holding(world):
+    with world.Session() as s:
+        case = make_case(s)
         actor, user = world.actor(s, "edu_admin")
         own.claim(s, actor, user, case)
+        # claimed by EDU, nobody else recommended: no department may claim it
         flags = own.available_actions(s, world.user(s, "root"), case)
-        assert flags["claim"] is False and flags["claim_departments"] is None
+        assert flags["claim"] is False and flags["claim_departments"] == []
         recommend(s, world, case, "HEALTH")
-        assert own.available_actions(s, world.user(s, "root"), case)["claim"] is True
+        flags = own.available_actions(s, world.user(s, "root"), case)
+        assert flags["claim"] is True and flags["claim_departments"] == ["HEALTH"]
+        # the listed department claims (as watcher); then it holds the case and the list is empty again
+        r_actor, root = world.actor(s, "root")
+        own.claim(s, r_actor, root, case, office_code="HEALTH")
+        flags = own.available_actions(s, world.user(s, "root"), case)
+        assert flags["claim"] is False and flags["claim_departments"] == []
+        s.rollback()
+
+
+LISTS = {
+    "dismiss_departments": lambda s, a, u, case, c: own.dismiss(s, a, u, case, office_code=c),
+    "allot_departments": lambda s, a, u, case, c: own.allot(s, a, u, case, office_code=c),
+    "take_over_departments": lambda s, a, u, case, c: own.take_over(s, a, u, case, office_code=c),
+    "stop_watching_departments": lambda s, a, u, case, c: own.stop_watching(
+        s, a, u, case, reason="r", office_code=c
+    ),
+}
+
+
+def _two_department_world(s, world):
+    """The EDU admin also works in HEALTH as an officer granted the ownership functions there, so the lists
+    can hold two codes."""
+    add_membership(s, world.user(s, "edu_admin"), world.office(s, "HEALTH"), Role.DEPT_OFFICER)
+    s.flush()
+    h_actor, h_admin = world.actor(s, "health_admin")
+    health_m = world.membership(s, "edu_admin", "HEALTH")
+    for perm in (
+        Permission.CASES_DISMISS,
+        Permission.CASES_ALLOT,
+        Permission.CASES_RELEASE,
+        Permission.CASES_SUGGEST_ELSEWHERE,
+        Permission.CASES_CLAIM,
+    ):
+        access.set_override(s, h_actor, h_admin, health_m, perm, PermissionEffect.GRANT)
+    s.flush()
+
+
+def expected_lists(s, world, key: str, case) -> dict[str, list[str]]:
+    """Per list, the caller's departments for which the action succeeds with that department named."""
+    actor, user = world.actor(s, key)
+    mine = own_departments(s, user)
+    out = {
+        name: [c for c in mine if outcome(s, lambda c=c, run=run: run(s, actor, user, case, c), strict=True)]
+        for name, run in LISTS.items()
+    }
+    out["suggest_departments"] = [
+        c
+        for c in mine
+        if any(
+            outcome(
+                s,
+                lambda c=c, t=t: own.suggest(
+                    s, actor, user, case, office_code=t, reason="r", from_office_code=c
+                ),
+                also_ok=_target_specific,
+                strict=True,
+            )
+            for t in DEPARTMENTS
+            if t != c
+        )
+    ]
+    return out
+
+
+def test_department_lists_match_outcomes(world):
+    mismatches = []
+    with world.Session() as s:
+        _two_department_world(s, world)
+        states = build_states(s, world)
+        both = make_case(s)
+        recommend(s, world, both, "EDU")
+        recommend(s, world, both, "HEALTH")
+        states["recommended_both"] = both
+        held_both = make_case(s)
+        a_edu, u_edu = world.actor(s, "edu_admin")
+        own.claim(s, a_edu, u_edu, held_both, office_code="EDU", officer_user_id=world.users["edu_off1"].id)
+        recommend(s, world, held_both, "HEALTH")
+        own.claim(s, *world.actor(s, "health_admin"), held_both)
+        own.allot(s, *world.actor(s, "health_admin"), held_both, officer_user_id=world.users["health_off"].id)
+        states["held_edu_watched_health_allotted"] = held_both
+        s.flush()
+        for key in USERS:
+            for state, case in states.items():
+                flags = own.available_actions(s, world.user(s, key), case)
+                for name, want in expected_lists(s, world, key, case).items():
+                    if flags[name] != want:
+                        mismatches.append((key, state, name, flags[name], want))
+        # the two-department login sees both codes where both departments qualify
+        flags = own.available_actions(s, world.user(s, "edu_admin"), both)
+        assert flags["dismiss_departments"] == ["EDU", "HEALTH"] and flags["dismiss"] is True
+        assert flags["suggest_departments"] == ["EDU", "HEALTH"]
+        flags = own.available_actions(s, world.user(s, "edu_admin"), held_both)
+        assert flags["allot_departments"] == ["EDU", "HEALTH"]
+        assert flags["take_over_departments"] == ["EDU", "HEALTH"]
+        assert flags["stop_watching_departments"] == ["HEALTH"] and flags["transfer_from"] == "EDU"
+        s.rollback()
+    assert not mismatches, "; ".join(map(str, mismatches))
+
+
+def test_transfer_from_is_primary_department(world):
+    """Decision 3: a login in both the primary department (HEALTH) and a watcher department (EDU, its primary
+    membership) requests the transfer from the primary department."""
+    with world.Session() as s:
+        _two_department_world(s, world)
+        h_actor, h_admin = world.actor(s, "health_admin")
+        access.set_override(
+            s,
+            h_actor,
+            h_admin,
+            world.membership(s, "edu_admin", "HEALTH"),
+            Permission.CASES_TRANSFER_REQUEST,
+            PermissionEffect.GRANT,
+        )
+        case = make_case(s)
+        own.claim(s, h_actor, h_admin, case)
+        recommend(s, world, case, "EDU")
+        actor, user = world.actor(s, "edu_admin")
+        own.claim(s, actor, user, case, office_code="EDU")
+        flags = own.available_actions(s, user, case)
+        assert flags["request_transfer"] is True and flags["transfer_from"] == "HEALTH"
+        # an EDU officer (the watcher department only): no transfer
+        flags = own.available_actions(s, world.user(s, "edu_off1"), case)
+        assert flags["request_transfer"] is False and flags["transfer_from"] is None
+        # the primary department's own admin
+        assert own.available_actions(s, h_admin, case)["transfer_from"] == "HEALTH"
         s.rollback()
 
 
@@ -202,7 +370,7 @@ def test_officer_without_ownership_functions_has_no_actions(world):
         for case in states.values():
             flags = own.available_actions(s, world.user(s, "edu_reviewer"), case)
             assert flags["claim_departments"] == []
-            assert not any(v for k, v in flags.items() if k != "claim_departments"), flags
+            assert not any(flags.values()), flags
         s.rollback()
 
 
@@ -235,6 +403,9 @@ def test_actions_write_nothing(api, world):
     assert (
         actions["allot"] is False and actions["take_over"] is False and actions["request_transfer"] is False
     )
+    assert actions["dismiss_departments"] == ["EDU"] and actions["suggest_departments"] == ["EDU"]
+    assert actions["allot_departments"] == [] and actions["take_over_departments"] == []
+    assert actions["stop_watching_departments"] == [] and actions["transfer_from"] is None
     with world.Session() as s:
         assert [
             s.scalar(sa.select(sa.func.count()).select_from(m)) for m in (AuditLog, Event)

@@ -1430,3 +1430,50 @@ the integrator; the shared-codes box and paging of the rule lists (row 20); row 
 
 
 - 2026-10-12 — portal-cases-followups: approved by the owner (server-computed department lists per ownership action, a department choice in every dialog, sensible target lists, documents paged per group, inline view for PDFs and images only); merge not held for the owner's browser checklist, which follows as a post-merge task (INLINE_PDF true by default); docs/design/portal-cases-followups.md
+
+
+## Portal case screens: department on every action, document paging, inline viewing (2026-10-12)
+
+Backlog row 51, design `docs/design/portal-cases-followups.md` (approved by the owner 12 Oct 2026). No table,
+column, code or migration; `docs/schema/schema.md` is unchanged.
+
+**What was built**
+- Backend, `services/ownership.py` and `api/routers/ownership.py`: `GET /cases/{ref}/ownership` `actions` now carries
+  `dismiss_departments`, `suggest_departments`, `allot_departments`, `take_over_departments`,
+  `stop_watching_departments` and `transfer_from`, computed by running each action's own check per department of the
+  caller (read only, no lock, no audit). Optional `from_office_code` on `POST /cases/{ref}/suggest` and `office_code`
+  on `/take-over` and `/stop-watching` (400 not the caller's department, 403 function not held there, 404 no row or
+  recommendation there). Request transfer acts for the primary owner's department when the caller has a membership
+  there. The super admin's `claim_departments` is `null` only for a pool case; otherwise the recommended, active
+  departments that do not hold the case. `frontend/openapi.json` and `schema.d.ts` regenerated.
+- Portal: a shared department choice in every case-page dialog (one department shown as text and sent; several a
+  required select with no pre-selection; an `office_required` answer opens the same select); Allot and Take over show
+  the chosen department's own unit and officer; Suggest and Request transfer exclude the own department and the
+  departments already holding the case; the inbox's Recommended tab sends `from_office_code`, the Pool tab none;
+  search-result Claim reads `claim_departments` from the server; the Documents tab pages each group (orders, filings,
+  internal) by 50 with its own total and hides empty groups; `src/lib/documents.ts` (`canViewInline`, `INLINE_PDF`):
+  View only for PDFs and images, Word downloads (Orders, Documents, Notes attachments).
+- Tests: backend `test_ownership_actions.py` and `test_ownership_office_code.py` (flags and lists match outcomes,
+  named-department suggest, take over and stop watching, transfer from primary); frontend `case.test.tsx`,
+  `inlinePdf.test.tsx`, `documents.test.ts`, `inbox.test.tsx`, `search.test.tsx`.
+
+**Decisions and reasons**
+- The server names the departments per action, so the rule is written once; a flag is true exactly when the list is
+  not empty, never only because `office_required` had no answer.
+- Every action that resolves a department accepts it, so the screen and the API cannot act for different departments.
+- The merge does not wait for the owner's browser checklist (owner's decision at approval, replacing design decisions
+  10 and 11): the integrator merges after the automated gates. `INLINE_PDF` defaults to `true`. The API's
+  `Content-Security-Policy: sandbox` is never relaxed. The checklist is row 53.
+
+**Deviations from the design note** (six in the note's "Deviations")
+- `request_transfer` is true exactly when `transfer_from` is set.
+- The super admin's claim list holds active departments only.
+- `useOfficeRequired`, `officeRequiredCandidates`, `DepartmentChoice` and `pdfDownloadOnly` as helpers;
+  `canViewInline` takes an optional `inlinePdf` argument for tests.
+- Suggest with one "from" department shows it as text; the inbox leaves the current owner out of the targets.
+- Claim from search is disabled while the ownership read loads or fails; an empty list shows a message.
+- Each document group shows its total and keeps its page while the next loads.
+
+**Left for later**: the owner's signed-in browser checklist and the Chrome / Firefox PDF result (row 53; if either
+fails, `INLINE_PDF` becomes `false`); the live court search only with `NAPIX_ENABLED` set by the owner for that run.
+

@@ -5,17 +5,23 @@
  * Court filings / Internal documents (`doc_group`), each with type, date, description, uploader and office, size and
  * pages, "In Case Assistant" / "Not sent to SourceTrace", the visibility badge and the text status; View / Download by
  * function; "Show archived". The upload panel comes with row 13.
+ *
+ * Each group is its own query of 50 with its own pager and the API's `total` (design portal-cases-followups,
+ * decision 8); an empty group is not shown, "No documents" when all three are empty; "Show archived" applies to all
+ * three. View only for types a browser shows itself (`canViewInline`, decisions 9 and 10).
  */
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { Badge, CheckField, EmptyState, ErrorBanner, Loading, Table } from "@/components/ui";
+import { Badge, CheckField, EmptyState, ErrorBanner, Loading, Pagination, Table } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { caseKey, useMe } from "@/lib/api/hooks";
 import type { DocumentItem, DocumentList } from "@/lib/api/types";
 import { can } from "@/lib/can";
+import { canViewInline, pdfDownloadOnly } from "@/lib/documents";
 import { formatDate, formatNumber } from "@/lib/format";
 import { T } from "@/lib/messages";
+import { PAGE } from "@/lib/params";
 import { apiCasePath } from "@/lib/refs";
 
 import { documentUrl } from "./Orders";
@@ -26,10 +32,6 @@ export function sizeText(bytes: number): string {
   if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${formatNumber(bytes)} B`;
-}
-
-function isWord(mime: string): boolean {
-  return mime.includes("word") || mime.includes("officedocument");
 }
 
 function DocRow({ d, canView, canDownload }: { d: DocumentItem; canView: boolean; canDownload: boolean }) {
@@ -71,7 +73,7 @@ function DocRow({ d, canView, canDownload }: { d: DocumentItem; canView: boolean
       </td>
       <td>
         <div className="row">
-          {canView && !isWord(d.mime) ? (
+          {canView && canViewInline(d.mime) ? (
             <a href={documentUrl(d.id, "inline")} target="_blank" rel="noopener noreferrer">
               {T.case.view}
             </a>
@@ -81,63 +83,117 @@ function DocRow({ d, canView, canDownload }: { d: DocumentItem; canView: boolean
               {T.case.download}
             </a>
           ) : null}
+          {canDownload && pdfDownloadOnly(d.mime) ? <span className="muted">{T.case.opensAsDownload}</span> : null}
         </div>
       </td>
     </tr>
   );
 }
 
+type Group = (typeof GROUPS)[number];
+
+function useGroup(caseRef: string, group: Group, archived: boolean, offset: number, enabled: boolean) {
+  return useQuery({
+    queryKey: [...caseKey(caseRef), "documents", group, archived, offset],
+    queryFn: () =>
+      api<DocumentList>(`${apiCasePath(caseRef)}/documents`, {
+        query: { group, include_archived: archived || undefined, limit: PAGE, offset },
+      }),
+    enabled,
+    placeholderData: keepPreviousData, // the group stays on screen while its next page loads
+  });
+}
+
+function GroupSection({
+  group,
+  list,
+  offset,
+  onPage,
+  canView,
+  canDownload,
+}: {
+  group: Group;
+  list: DocumentList;
+  offset: number;
+  onPage: (offset: number) => void;
+  canView: boolean;
+  canDownload: boolean;
+}) {
+  const title = T.case.docGroups[group]!;
+  return (
+    <section aria-label={title}>
+      <h2>{title}</h2>
+      <p className="muted">{T.case.groupTotal(formatNumber(list.total))}</p>
+      <Table caption={title}>
+        <thead>
+          <tr>
+            <th scope="col">{T.case.type}</th>
+            <th scope="col">{T.case.orderDate}</th>
+            <th scope="col">{T.case.description}</th>
+            <th scope="col">{T.case.uploadedBy}</th>
+            <th scope="col">{T.case.size}</th>
+            <th scope="col">{T.case.visibility}</th>
+            <th scope="col">
+              <span className="visually-hidden">{T.inbox.actions}</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {list.items.map((d) => (
+            <DocRow key={d.id} d={d} canView={canView} canDownload={canDownload} />
+          ))}
+        </tbody>
+      </Table>
+      <Pagination offset={offset} limit={PAGE} total={list.total} onChange={onPage} />
+    </section>
+  );
+}
+
+const START: Record<Group, number> = { court_record: 0, court_filing: 0, internal: 0 };
+
 export function Documents({ caseRef }: { caseRef: string }) {
   const me = useMe();
   const [archived, setArchived] = useState(false);
+  const [offsets, setOffsets] = useState<Record<Group, number>>(START);
   const canView = can(me.data, "documents.view");
   const canDownload = can(me.data, "documents.download");
-  const list = useQuery({
-    queryKey: [...caseKey(caseRef), "documents", archived],
-    queryFn: () =>
-      api<DocumentList>(`${apiCasePath(caseRef)}/documents`, {
-        query: { include_archived: archived || undefined, limit: 200 },
-      }),
-    enabled: canView,
-  });
+  const records = useGroup(caseRef, "court_record", archived, offsets.court_record, canView);
+  const filings = useGroup(caseRef, "court_filing", archived, offsets.court_filing, canView);
+  const internal = useGroup(caseRef, "internal", archived, offsets.internal, canView);
+  const queries: Record<Group, typeof records> = { court_record: records, court_filing: filings, internal };
   if (!canView) return <EmptyState>{T.case.noDocumentAccess}</EmptyState>;
+  const all = GROUPS.map((g) => queries[g]);
+  const pending = all.some((q) => q.isPending);
+  const error = all.find((q) => q.error)?.error ?? null;
+  const empty = !pending && all.every((q) => q.data && q.data.total === 0);
   return (
     <div className="stack">
-      <CheckField label={T.case.showArchived} checked={archived} onChange={(e) => setArchived(e.target.checked)} />
-      {list.isPending ? <Loading /> : null}
-      <ErrorBanner error={list.error} onRetry={() => list.refetch()} />
-      {list.data && list.data.items.length === 0 ? <EmptyState>{T.case.noDocuments}</EmptyState> : null}
-      {list.data
-        ? GROUPS.map((g) => {
-            const items = list.data.items.filter((d) => d.doc_group === g);
-            if (items.length === 0) return null;
-            return (
-              <section key={g} aria-label={T.case.docGroups[g]}>
-                <h2>{T.case.docGroups[g]}</h2>
-                <Table caption={T.case.docGroups[g]}>
-                  <thead>
-                    <tr>
-                      <th scope="col">{T.case.type}</th>
-                      <th scope="col">{T.case.orderDate}</th>
-                      <th scope="col">{T.case.description}</th>
-                      <th scope="col">{T.case.uploadedBy}</th>
-                      <th scope="col">{T.case.size}</th>
-                      <th scope="col">{T.case.visibility}</th>
-                      <th scope="col">
-                        <span className="visually-hidden">{T.inbox.actions}</span>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {items.map((d) => (
-                      <DocRow key={d.id} d={d} canView={canView} canDownload={canDownload} />
-                    ))}
-                  </tbody>
-                </Table>
-              </section>
-            );
-          })
-        : null}
+      <CheckField
+        label={T.case.showArchived}
+        checked={archived}
+        onChange={(e) => {
+          setArchived(e.target.checked);
+          setOffsets(START);
+        }}
+      />
+      {pending ? <Loading /> : null}
+      <ErrorBanner error={error} onRetry={() => all.forEach((q) => q.error && q.refetch())} />
+      {empty ? <EmptyState>{T.case.noDocuments}</EmptyState> : null}
+      {GROUPS.map((g) => {
+        const data = queries[g].data;
+        if (!data || data.total === 0) return null;
+        return (
+          <GroupSection
+            key={g}
+            group={g}
+            list={data}
+            offset={offsets[g]}
+            onPage={(o) => setOffsets((prev) => ({ ...prev, [g]: o }))}
+            canView={canView}
+            canDownload={canDownload}
+          />
+        );
+      })}
     </div>
   );
 }

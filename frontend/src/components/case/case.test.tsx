@@ -2,7 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import type { CaseDetail, CaseOwnershipView, DocumentItem, Note, OwnershipActions, Permission } from "@/lib/api/types";
+import type { CaseDetail, CaseOwnershipView, DocumentItem, Note, Ownership, OwnershipActions, Permission } from "@/lib/api/types";
 import { resetNav } from "@/test/nav";
 import { browserApi, json, makeMe, renderWithClient } from "@/test/render";
 
@@ -152,11 +152,17 @@ function actions(extra: Partial<OwnershipActions> = {}): OwnershipActions {
     claim: false,
     claim_departments: [],
     dismiss: false,
+    dismiss_departments: [],
     suggest: false,
+    suggest_departments: [],
     allot: false,
+    allot_departments: [],
     take_over: false,
+    take_over_departments: [],
     stop_watching: false,
+    stop_watching_departments: [],
     request_transfer: false,
+    transfer_from: null,
     withdraw_transfer: false,
     decide_transfer: false,
     ...extra,
@@ -296,7 +302,12 @@ describe("the overview and the ownership card", () => {
   });
 
   it("shows exactly the buttons whose actions flag is true, never a release", async () => {
-    browserApi(overviewRoutes(detail(), ownership(actions({ allot: true, request_transfer: true }))));
+    browserApi(
+      overviewRoutes(
+        detail(),
+        ownership(actions({ allot: true, allot_departments: ["EDU"], request_transfer: true, transfer_from: "EDU" })),
+      ),
+    );
     renderWithClient(<Overview caseRef={REF} />);
     const card = await screen.findByRole("region", { name: "Ownership" });
     await within(card).findByRole("button", { name: "Allot" });
@@ -334,9 +345,9 @@ describe("the overview and the ownership card", () => {
     expect(within(dialog).getByRole("option", { name: "EDU — Education" })).toBeInTheDocument();
   });
 
-  it("take over sends the officer the screen showed", async () => {
+  it("take over sends the department and the officer the screen showed", async () => {
     const api = browserApi({
-      ...overviewRoutes(detail(), ownership(actions({ take_over: true }))),
+      ...overviewRoutes(detail(), ownership(actions({ take_over: true, take_over_departments: ["EDU"] }))),
       [`POST ${BASE}/take-over`]: {},
     });
     renderWithClient(<Overview caseRef={REF} />);
@@ -345,12 +356,12 @@ describe("the overview and the ownership card", () => {
     expect(within(dialog).getByText(/allotted to Officer Two/)).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole("button", { name: "Take over" }));
     await waitFor(() =>
-      expect(api.calls.find((c) => c.method === "POST")?.body).toEqual({ expected_officer_user_id: "u-8" }),
+      expect(api.calls.find((c) => c.method === "POST")?.body).toEqual({ office_code: "EDU", expected_officer_user_id: "u-8" }),
     );
   });
 
   it("stop watching needs a reason", async () => {
-    const view = ownership(actions({ stop_watching: true }), {
+    const view = ownership(actions({ stop_watching: true, stop_watching_departments: ["EDU"] }), {
       primary: { ...ownership(actions()).primary!, office_code: "HEALTH" },
       watchers: [{ ...ownership(actions()).primary!, id: "o-2", role: "watcher", office_code: "EDU", officer: null, unit: null }],
     });
@@ -363,12 +374,14 @@ describe("the overview and the ownership card", () => {
     expect(api.calls.some((c) => c.method === "POST")).toBe(false);
     await userEvent.type(within(dialog).getByLabelText("Reason (required)"), "no longer ours");
     await userEvent.click(within(dialog).getByRole("button", { name: "Stop watching" }));
-    await waitFor(() => expect(api.calls.find((c) => c.method === "POST")?.body).toEqual({ reason: "no longer ours" }));
+    await waitFor(() =>
+      expect(api.calls.find((c) => c.method === "POST")?.body).toEqual({ office_code: "EDU", reason: "no longer ours" }),
+    );
   });
 
-  it("a transfer request sends stay_as_watcher", async () => {
+  it("a transfer request sends stay_as_watcher and never offers the department it comes from", async () => {
     const api = browserApi({
-      ...overviewRoutes(detail(), ownership(actions({ request_transfer: true }))),
+      ...overviewRoutes(detail(), ownership(actions({ request_transfer: true, transfer_from: "EDU" }))),
       "GET /custody/recipients": { departments: [{ code: "EDU", name: "Education" }, { code: "HEALTH", name: "Health" }], items: [], units: [], total: 2 },
       [`POST ${BASE}/transfers`]: json(201, {}),
     });
@@ -376,6 +389,7 @@ describe("the overview and the ownership card", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Request transfer" }));
     const dialog = screen.getByRole("dialog", { name: "Request a transfer" });
     await waitFor(() => expect(within(dialog).getByRole("option", { name: "HEALTH — Health" })).toBeInTheDocument());
+    expect(within(dialog).queryByRole("option", { name: "EDU — Education" })).toBeNull();
     await userEvent.selectOptions(within(dialog).getByLabelText("Department"), "HEALTH");
     await userEvent.type(within(dialog).getByLabelText("Reason (required)"), "health matter");
     await userEvent.click(within(dialog).getByLabelText("Stay as a watcher after the transfer"));
@@ -434,14 +448,16 @@ describe("tabs", () => {
         archived_at: null,
         ...extra,
       }) as DocumentItem;
+    const byGroup: Record<string, DocumentItem[]> = {
+      court_record: [doc("d-1", "court_record")],
+      court_filing: [],
+      internal: [doc("d-2", "internal", { visibility: "private_to_office", mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" })],
+    };
     browserApi({
       "GET /me": me(),
-      [`GET ${BASE}/documents`]: {
-        items: [
-          doc("d-1", "court_record"),
-          doc("d-2", "internal", { visibility: "private_to_office", mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }),
-        ],
-        total: 2,
+      [`GET ${BASE}/documents`]: (call: { url: string }) => {
+        const g = new URL(call.url, "http://x").searchParams.get("group") ?? "";
+        return { items: byGroup[g] ?? [], total: (byGroup[g] ?? []).length };
       },
     });
     renderWithClient(<Documents caseRef={REF} />);
@@ -558,5 +574,329 @@ describe("tabs", () => {
     expect(within(svg).getByRole("link", { name: "WA/2/2026" })).toHaveAttribute("href", "/cases/ASLMS-GOA-CASE-2026-000002");
     expect(within(svg).queryByRole("link", { name: "WP(C)/3/2026" })).toBeNull();
     expect(api.calls.some((c) => c.url.includes("/links/graph?depth=2"))).toBe(true);
+  });
+});
+
+// ------------------------------------------------------------------------------------------------ portal-cases-followups
+
+const DEPTS = {
+  departments: [
+    { code: "EDU", name: "Education" },
+    { code: "HEALTH", name: "Health" },
+    { code: "FIN", name: "Finance" },
+    { code: "REV", name: "Revenue" },
+  ],
+  items: [],
+  units: [],
+  total: 4,
+};
+
+function primaryRow(extra: Partial<Ownership> = {}): Ownership {
+  return { ...ownership(actions()).primary!, ...extra };
+}
+
+/** EDU primary (unit EDU-DSE, Officer Two) and HEALTH watcher (no unit, Health Officer). */
+function twoRows(a: OwnershipActions): CaseOwnershipView {
+  return ownership(a, {
+    watchers: [
+      primaryRow({ id: "o-2", role: "watcher", office_code: "HEALTH", unit: null, officer: { id: "u-9", full_name: "Health Officer" } }),
+    ],
+  });
+}
+
+function posted(api: ReturnType<typeof browserApi>, path: string): unknown[] {
+  return api.calls.filter((c) => c.method === "POST" && c.path === path).map((c) => c.body);
+}
+
+describe("the department that acts (portal-cases-followups)", () => {
+  it("dismiss with one department names it and sends it without asking", async () => {
+    const api = browserApi({
+      ...overviewRoutes(detail(), ownership(actions({ dismiss: true, dismiss_departments: ["EDU"] }))),
+      [`POST ${BASE}/dismiss`]: {},
+    });
+    renderWithClient(<Overview caseRef={REF} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Dismiss" }));
+    const dialog = screen.getByRole("dialog", { name: "Dismiss this recommendation" });
+    expect(within(dialog).getByText("EDU")).toBeInTheDocument();
+    expect(within(dialog).queryByRole("combobox")).toBeNull();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Dismiss" }));
+    await waitFor(() => expect(posted(api, `${BASE}/dismiss`)).toEqual([{ office_code: "EDU" }]));
+  });
+
+  it("dismiss with two departments asks, with nothing pre-selected, and sends the chosen one", async () => {
+    const api = browserApi({
+      ...overviewRoutes(detail(), ownership(actions({ dismiss: true, dismiss_departments: ["EDU", "HEALTH"] }))),
+      [`POST ${BASE}/dismiss`]: {},
+    });
+    renderWithClient(<Overview caseRef={REF} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Dismiss" }));
+    const dialog = screen.getByRole("dialog", { name: "Dismiss this recommendation" });
+    const pick = within(dialog).getByLabelText("For");
+    expect(pick).toHaveValue("");
+    expect(within(pick).getAllByRole("option").map((o) => o.textContent)).toEqual(["Choose a department", "EDU", "HEALTH"]);
+    await userEvent.click(within(dialog).getByRole("button", { name: "Dismiss" }));
+    expect(within(dialog).getByText("Choose a department.")).toBeInTheDocument();
+    expect(posted(api, `${BASE}/dismiss`)).toEqual([]);
+    await userEvent.selectOptions(pick, "HEALTH");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Dismiss" }));
+    await waitFor(() => expect(posted(api, `${BASE}/dismiss`)).toEqual([{ office_code: "HEALTH" }]));
+  });
+
+  it("an office_required answer opens the department choice instead of failing", async () => {
+    let n = 0;
+    const api = browserApi({
+      ...overviewRoutes(detail(), ownership(actions({ stop_watching: true, stop_watching_departments: ["EDU"] }))),
+      [`POST ${BASE}/stop-watching`]: () =>
+        n++ === 0
+          ? json(400, { detail: { code: "office_required", message: "office_code is required", candidates: ["EDU", "HEALTH"] } })
+          : {},
+    });
+    renderWithClient(<Overview caseRef={REF} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Stop watching" }));
+    const dialog = screen.getByRole("dialog", { name: "Stop watching this case" });
+    await userEvent.type(within(dialog).getByLabelText("Reason (required)"), "not ours");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Stop watching" }));
+    const pick = await within(dialog).findByLabelText("For");
+    expect(pick).toHaveValue("");
+    await userEvent.selectOptions(pick, "HEALTH");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Stop watching" }));
+    await waitFor(() =>
+      expect(posted(api, `${BASE}/stop-watching`)).toEqual([
+        { office_code: "EDU", reason: "not ours" },
+        { office_code: "HEALTH", reason: "not ours" },
+      ]),
+    );
+  });
+
+  it("stop watching with two departments asks which one", async () => {
+    const view = ownership(actions({ stop_watching: true, stop_watching_departments: ["EDU", "HEALTH"] }), {
+      primary: primaryRow({ office_code: "FIN" }),
+      watchers: [
+        primaryRow({ id: "o-2", role: "watcher", office_code: "EDU" }),
+        primaryRow({ id: "o-3", role: "watcher", office_code: "HEALTH" }),
+      ],
+    });
+    const api = browserApi({ ...overviewRoutes(detail(), view), [`POST ${BASE}/stop-watching`]: {} });
+    renderWithClient(<Overview caseRef={REF} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Stop watching" }));
+    const dialog = screen.getByRole("dialog", { name: "Stop watching this case" });
+    await userEvent.type(within(dialog).getByLabelText("Reason (required)"), "done");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Stop watching" }));
+    expect(within(dialog).getByText("Choose a department.")).toBeInTheDocument();
+    await userEvent.selectOptions(within(dialog).getByLabelText("For"), "EDU");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Stop watching" }));
+    await waitFor(() => expect(posted(api, `${BASE}/stop-watching`)).toEqual([{ office_code: "EDU", reason: "done" }]));
+  });
+
+  it("suggest leaves out the from department and the holders, and sends from_office_code", async () => {
+    const view = ownership(actions({ suggest: true, suggest_departments: ["EDU", "HEALTH"] }), {
+      primary: primaryRow({ office_code: "FIN" }),
+    });
+    const api = browserApi({
+      ...overviewRoutes(detail(), view),
+      "GET /custody/recipients": DEPTS,
+      [`POST ${BASE}/suggest`]: {},
+    });
+    renderWithClient(<Overview caseRef={REF} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Suggest department" }));
+    const dialog = screen.getByRole("dialog", { name: "Suggest another department" });
+    await userEvent.selectOptions(within(dialog).getByLabelText("Suggest from"), "HEALTH");
+    const target = within(dialog).getByLabelText("Department");
+    await waitFor(() => expect(within(target).getByRole("option", { name: "EDU — Education" })).toBeInTheDocument());
+    expect(within(target).getAllByRole("option").map((o) => o.textContent)).toEqual([
+      "Choose a department",
+      "EDU — Education",
+      "REV — Revenue",
+    ]);
+    await userEvent.selectOptions(target, "EDU");
+    await userEvent.type(within(dialog).getByLabelText("Reason (required)"), "education matter");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Suggest department" }));
+    await waitFor(() =>
+      expect(posted(api, `${BASE}/suggest`)).toEqual([
+        { office_code: "EDU", reason: "education matter", from_office_code: "HEALTH" },
+      ]),
+    );
+  });
+
+  it("suggest with no department of the caller (the central operator) sends none", async () => {
+    const api = browserApi({
+      ...overviewRoutes(detail(), ownership(actions({ suggest: true, suggest_departments: [] }), { primary: null })),
+      "GET /custody/recipients": DEPTS,
+      [`POST ${BASE}/suggest`]: {},
+    });
+    renderWithClient(<Overview caseRef={REF} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Suggest department" }));
+    const dialog = screen.getByRole("dialog", { name: "Suggest another department" });
+    expect(within(dialog).queryByLabelText("Suggest from")).toBeNull();
+    await waitFor(() => expect(within(dialog).getByRole("option", { name: "FIN — Finance" })).toBeInTheDocument());
+    await userEvent.selectOptions(within(dialog).getByLabelText("Department"), "FIN");
+    await userEvent.type(within(dialog).getByLabelText("Reason (required)"), "theirs");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Suggest department" }));
+    await waitFor(() => expect(posted(api, `${BASE}/suggest`)).toEqual([{ office_code: "FIN", reason: "theirs" }]));
+  });
+
+  it("allot with two departments shows the chosen department's unit and officer and sends its code", async () => {
+    const api = browserApi({
+      ...overviewRoutes(detail(), twoRows(actions({ allot: true, allot_departments: ["EDU", "HEALTH"] }))),
+      "GET /custody/recipients": (call: { url: string }) =>
+        call.url.includes("department=HEALTH")
+          ? { departments: [], units: [], total: 1, items: [{ user_id: "u-10", full_name: "New Officer", designation: null, office_code: "HEALTH" }] }
+          : DEPTS,
+      [`POST ${BASE}/allot`]: {},
+    });
+    renderWithClient(<Overview caseRef={REF} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Allot" }));
+    const dialog = screen.getByRole("dialog", { name: "Allot this case" });
+    expect(within(dialog).queryByLabelText("Officer")).toBeNull(); // nothing until the department is chosen
+    await userEvent.selectOptions(within(dialog).getByLabelText("For"), "EDU");
+    expect(within(dialog).getByRole("option", { name: "Keep as is (EDU-DSE)" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("option", { name: "Keep as is (Officer Two)" })).toBeInTheDocument();
+    await userEvent.selectOptions(within(dialog).getByLabelText("For"), "HEALTH");
+    expect(within(dialog).getByRole("option", { name: "Keep as is (Health Officer)" })).toBeInTheDocument();
+    expect(within(dialog).queryByRole("option", { name: "Keep as is (Officer Two)" })).toBeNull();
+    await waitFor(() => expect(within(dialog).getByRole("option", { name: "New Officer, HEALTH" })).toBeInTheDocument());
+    await userEvent.selectOptions(within(dialog).getByLabelText("Officer"), "u-10");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Allot" }));
+    await waitFor(() => expect(posted(api, `${BASE}/allot`)).toEqual([{ office_code: "HEALTH", officer_user_id: "u-10" }]));
+  });
+
+  it("take over with two departments sends the chosen code and that row's officer", async () => {
+    const api = browserApi({
+      ...overviewRoutes(detail(), twoRows(actions({ take_over: true, take_over_departments: ["EDU", "HEALTH"] }))),
+      [`POST ${BASE}/take-over`]: {},
+    });
+    renderWithClient(<Overview caseRef={REF} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Take over" }));
+    const dialog = screen.getByRole("dialog", { name: "Take over this case" });
+    expect(within(dialog).queryByText(/allotted to/)).toBeNull();
+    await userEvent.selectOptions(within(dialog).getByLabelText("For"), "HEALTH");
+    expect(within(dialog).getByText(/allotted to Health Officer/)).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Take over" }));
+    await waitFor(() =>
+      expect(posted(api, `${BASE}/take-over`)).toEqual([{ office_code: "HEALTH", expected_officer_user_id: "u-9" }]),
+    );
+  });
+
+  it("no Allot or Take over button without a department list", async () => {
+    browserApi(overviewRoutes(detail(), ownership(actions({ request_transfer: true, transfer_from: "EDU" }))));
+    renderWithClient(<Overview caseRef={REF} />);
+    const card = await screen.findByRole("region", { name: "Ownership" });
+    await within(card).findByRole("button", { name: "Request transfer" });
+    expect(within(card).queryByRole("button", { name: "Allot" })).toBeNull();
+    expect(within(card).queryByRole("button", { name: "Take over" })).toBeNull();
+  });
+
+  it("the super admin's claim with a list offers only those departments", async () => {
+    const api = browserApi({
+      ...overviewRoutes(detail(), ownership(actions({ claim: true, claim_departments: ["HEALTH", "REV"] }))),
+      "GET /custody/recipients": DEPTS,
+      [`POST ${BASE}/claim`]: json(201, {}),
+    });
+    renderWithClient(<Overview caseRef={REF} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Claim" }));
+    const dialog = screen.getByRole("dialog", { name: "Claim this case" });
+    const pick = within(dialog).getByLabelText("Claim for");
+    expect(within(pick).getAllByRole("option").map((o) => o.textContent)).toEqual(["Choose a department", "HEALTH", "REV"]);
+    await userEvent.selectOptions(pick, "REV");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Claim" }));
+    await waitFor(() => expect(posted(api, `${BASE}/claim`)).toEqual([{ office_code: "REV" }]));
+    expect(api.calls.some((c) => c.path === "/custody/recipients")).toBe(false);
+  });
+});
+
+describe("documents paging and inline viewing (portal-cases-followups)", () => {
+  const doc = (id: string, group: string, extra: Partial<DocumentItem> = {}): DocumentItem =>
+    ({
+      id,
+      doc_group: group,
+      doc_type: "affidavit",
+      doc_type_label: "Affidavit",
+      doc_date: "2026-09-01",
+      description: `${id} description`,
+      original_filename: `${id}.pdf`,
+      mime: "application/pdf",
+      size_bytes: 2048,
+      page_count: 1,
+      uploaded_by: null,
+      office: null,
+      visibility: "case_scope",
+      assistant_available: false,
+      sourcetrace_status: "not_applicable",
+      text_status: "extracted",
+      archived_at: null,
+      ...extra,
+    }) as DocumentItem;
+
+  it("each group is its own query with its own pager; empty groups are hidden", async () => {
+    const records = Array.from({ length: 51 }, (_, i) => doc(`r-${i}`, "court_record"));
+    const api = browserApi({
+      "GET /me": me(),
+      [`GET ${BASE}/documents`]: (call: { url: string }) => {
+        const q = new URL(call.url, "http://x").searchParams;
+        const g = q.get("group");
+        const offset = Number(q.get("offset") ?? 0);
+        const limit = Number(q.get("limit") ?? 50);
+        if (g === "court_record") return { items: records.slice(offset, offset + limit), total: records.length };
+        if (g === "internal") return { items: [doc("i-1", "internal")], total: 1 };
+        return { items: [], total: 0 };
+      },
+    });
+    renderWithClient(<Documents caseRef={REF} />);
+    const orders = await screen.findByRole("region", { name: "Court orders" });
+    expect(within(orders).getByText("51 in this group")).toBeInTheDocument();
+    expect(within(orders).getByText("1–50 of 51")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Internal documents" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Court filings" })).toBeNull();
+    const groups = api.calls.filter((c) => c.path.startsWith(`${BASE}/documents`)).map((c) => new URL(c.url, "http://x").searchParams.get("group"));
+    expect(new Set(groups)).toEqual(new Set(["court_record", "court_filing", "internal"]));
+    expect(api.calls.every((c) => !c.url.includes("limit=200"))).toBe(true);
+    await userEvent.click(within(orders).getByRole("button", { name: "Next" }));
+    expect(await within(orders).findByText("51–51 of 51")).toBeInTheDocument();
+    expect(api.calls.some((c) => c.url.includes("group=court_record") && c.url.includes("offset=50"))).toBe(true);
+  });
+
+  it("says No documents when all three groups are empty", async () => {
+    browserApi({ "GET /me": me(), [`GET ${BASE}/documents`]: { items: [], total: 0 } });
+    renderWithClient(<Documents caseRef={REF} />);
+    expect(await screen.findByText("No documents.")).toBeInTheDocument();
+  });
+
+  it("note attachments: Word downloads only, a PDF and an image can be viewed", async () => {
+    const att = (id: string, mime: string) => ({ id, ref_no: null, doc_type: "other", original_filename: `${id}`, mime, size_bytes: 10 });
+    browserApi({
+      "GET /me": me(),
+      [`GET ${BASE}/notes`]: {
+        items: [
+          {
+            id: "n-1",
+            ref_no: "ASLMS/EDU/NOTE/2026/000001",
+            seq_no: 1,
+            kind: "remark",
+            kind_label: "Remark",
+            body: "with files",
+            author: { name: "Edu Admin", designation: null, office_code: "EDU", role: "dept_admin" },
+            created_at: "2026-10-01T10:00:00Z",
+            visibility: "case_scope",
+            attachments: [
+              att("a-word", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+              att("a-pdf", "application/pdf"),
+              att("a-img", "image/png"),
+            ],
+            supersedes: null,
+            superseded_by: null,
+            custody_leg_seq_no: null,
+            drafted_at: null,
+          } as unknown as Note,
+        ],
+        total: 1,
+      },
+    });
+    renderWithClient(<Notes caseRef={REF} />);
+    const item = (name: string) => screen.getByText(name, { exact: false }).closest("li")!;
+    await screen.findByText("with files");
+    expect(within(item("a-word")).queryByRole("link", { name: "View" })).toBeNull();
+    expect(within(item("a-word")).getByRole("link", { name: "Download" })).toBeInTheDocument();
+    expect(within(item("a-pdf")).getByRole("link", { name: "View" })).toHaveAttribute("href", "/api/backend/documents/a-pdf/file?disposition=inline");
+    expect(within(item("a-img")).getByRole("link", { name: "View" })).toBeInTheDocument();
   });
 });

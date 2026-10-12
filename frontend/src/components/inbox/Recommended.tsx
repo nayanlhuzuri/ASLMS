@@ -4,7 +4,8 @@
  * The Recommended tab (design portal-cases, decision 5; Annexure B "Case inbox"): the department's active
  * recommendations in the API's order (strong first, score, next hearing), each with the score badge from the API's
  * `band`, the parties, the case number, the latest listing, one chip per signal, "Suggested by" and "Owned by", and
- * Claim / Dismiss / Suggest department by the function of the selected department's membership.
+ * Claim / Dismiss / Suggest department by the function of the selected department's membership. Every action acts for
+ * the selected department (Suggest sends it as `from_office_code`, design portal-cases-followups, decision 6).
  */
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -139,7 +140,17 @@ export function Recommended({ params, department }: { params: Params; department
                             </Button>
                           ) : null}
                           {canSuggest ? (
-                            <Button variant="secondary" onClick={() => setDialog({ kind: "suggest", caseRef: ref })}>
+                            <Button
+                              variant="secondary"
+                              onClick={() =>
+                                setDialog({
+                                  kind: "suggest",
+                                  caseRef: ref,
+                                  from: department,
+                                  exclude: [r.current_owner_code],
+                                })
+                              }
+                            >
                               {T.own.suggest}
                             </Button>
                           ) : null}

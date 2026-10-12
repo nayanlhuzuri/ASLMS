@@ -284,3 +284,27 @@ Expected: every step passes; the report records the two browser results and the 
 
 ## Open questions
 None.
+
+## Deviations
+Recorded by the developer during the build (12 Oct 2026); none changes a rule of the plan or an API field beyond
+the design.
+1. **`request_transfer` is exactly "`transfer_from` is set".** Decision 1 kept the boolean as it was (true on an
+   `office_required` answer). After decision 3 an `office_required` from the fallback resolution can only come from a
+   caller with no membership in the primary department, whose request always ends in `not_primary`; the flag would
+   show a button the API always refuses. `test_actions_match_outcomes` checks the strict outcome.
+2. **Super admin's claim list: active departments only.** `_super_admin_claim_departments` lists the recommended
+   departments that do not hold the case and are active departments, because claim's own check refuses any other.
+3. **Frontend helpers.** `useOfficeRequired(departments, fixed)` holds the whole department choice (the codes, the
+   chosen one, `check()` and `onError()`), `officeRequiredCandidates(error)` reads the candidates, and
+   `DepartmentChoice` renders it. `src/lib/documents.ts` also exports `pdfDownloadOnly(mime)` (the hint);
+   `canViewInline` and `pdfDownloadOnly` take an optional `inlinePdf` argument defaulting to `INLINE_PDF`, so the
+   unit tests cover both values directly; the component tests with `INLINE_PDF` false mock the module in their own
+   file (`components/case/inlinePdf.test.tsx`).
+4. **Suggest with one "from" department** shows it as text ("Suggest from: EDU", decision 4's one-department rule);
+   the select appears only with more than one. The inbox's Recommended tab also leaves the case's current owner
+   (`current_owner_code`) out of the targets (`target_owns`).
+5. **Claim from search results.** While `GET /cases/{ref}/ownership` loads or after it fails, Claim is disabled; a 404
+   shows the API's message; an empty `claim_departments` shows "None of the departments you may act for can claim
+   this case now." and Claim stays disabled.
+6. **Documents tab.** Each group shows its total ("51 in this group") above its table, and keeps the current page on
+   screen while the next one loads; "Show archived" returns every group to its first page.

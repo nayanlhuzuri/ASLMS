@@ -127,6 +127,52 @@ describe("local search", () => {
     expect(screen.getByRole("dialog", { name: "Claim this case" })).toBeInTheDocument();
   });
 
+  it("Claim on a result reads the case's ownership and offers its claim_departments", async () => {
+    const own = "/cases/ASLMS-GOA-CASE-2026-000003";
+    const api = browserApi({
+      "GET /me": me(SEARCHER),
+      "GET /reference/case-types": TYPES,
+      "GET /cases/search": { items: [item(3, { visible: false, claimable: true, owner_office_code: "FIN" })], total: 1 },
+      [`GET ${own}/ownership`]: {
+        primary: null,
+        watchers: [],
+        recommendations: [],
+        open_transfer: null,
+        actions: { claim: true, claim_departments: ["EDU", "HEALTH"] },
+      },
+      [`POST ${own}/claim`]: json(201, {}),
+    });
+    renderWithClient(<Search params={{ q: "RAM KUMAR" }} />);
+    const row = (await screen.findByText("WP(C)/3/2026")).closest("tr")!;
+    await userEvent.click(within(row).getByRole("button", { name: "Claim" }));
+    const dialog = screen.getByRole("dialog", { name: "Claim this case" });
+    const pick = await within(dialog).findByLabelText("Claim for");
+    expect(within(pick).getAllByRole("option").map((o) => o.textContent)).toEqual(["Choose a department", "EDU", "HEALTH"]);
+    await userEvent.selectOptions(pick, "HEALTH");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Claim" }));
+    await waitFor(() =>
+      expect(api.calls.find((c) => c.method === "POST" && c.path === `${own}/claim`)?.body).toEqual({ office_code: "HEALTH" }),
+    );
+    expect(api.calls.some((c) => c.path === "/custody/recipients")).toBe(false);
+  });
+
+  it("Claim on a result shows the API's message when the ownership answers 404", async () => {
+    const own = "/cases/ASLMS-GOA-CASE-2026-000003";
+    const api = browserApi({
+      "GET /me": me(SEARCHER),
+      "GET /reference/case-types": TYPES,
+      "GET /cases/search": { items: [item(3, { visible: false, claimable: true })], total: 1 },
+      [`GET ${own}/ownership`]: json(404, { detail: "no such case" }),
+    });
+    renderWithClient(<Search params={{ q: "RAM KUMAR" }} />);
+    const row = (await screen.findByText("WP(C)/3/2026")).closest("tr")!;
+    await userEvent.click(within(row).getByRole("button", { name: "Claim" }));
+    const dialog = screen.getByRole("dialog", { name: "Claim this case" });
+    expect(await within(dialog).findByText("no such case")).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Claim" }));
+    expect(api.calls.some((c) => c.method === "POST")).toBe(false);
+  });
+
   it("a single visible match by CNR opens the case page", async () => {
     browserApi({
       "GET /me": me(READER),

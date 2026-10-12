@@ -4,7 +4,7 @@
  * The Orders tab (design portal-cases, decisions 10 and 15): number, date, kind, judge and the file's state; View
  * (inline, `documents.view`) opens the API's file in a new tab through the relay, which keeps the API's nosniff and
  * sandbox headers; Download (`documents.download`) saves it. An order not stored says "not yet published" or "fetch
- * pending".
+ * pending". Order files are PDFs: View follows `INLINE_PDF` (design portal-cases-followups, decision 10).
  */
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -14,6 +14,7 @@ import { api } from "@/lib/api/client";
 import { caseKey, useMe } from "@/lib/api/hooks";
 import type { OrderList } from "@/lib/api/types";
 import { can } from "@/lib/can";
+import { canViewInline, pdfDownloadOnly } from "@/lib/documents";
 import { formatDate } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { apiCasePath } from "@/lib/refs";
@@ -28,6 +29,8 @@ export function fileUrl(caseRef: string, orderId: string, disposition: "inline" 
 export function documentUrl(documentId: string, disposition: "inline" | "attachment"): string {
   return `/api/backend/documents/${encodeURIComponent(documentId)}/file?disposition=${disposition}`;
 }
+
+const ORDER_MIME = "application/pdf";
 
 export function fileState(status: string): string {
   if (status === "stored") return "";
@@ -73,7 +76,7 @@ export function Orders({ caseRef }: { caseRef: string }) {
                     <td>
                       {o.download_status === "stored" ? (
                         <div className="row">
-                          {canView ? (
+                          {canView && canViewInline(ORDER_MIME) ? (
                             <a href={fileUrl(caseRef, o.id, "inline")} target="_blank" rel="noopener noreferrer">
                               {T.case.view}
                             </a>
@@ -82,6 +85,9 @@ export function Orders({ caseRef }: { caseRef: string }) {
                             <a href={fileUrl(caseRef, o.id, "attachment")} download>
                               {T.case.download}
                             </a>
+                          ) : null}
+                          {canDownload && pdfDownloadOnly(ORDER_MIME) ? (
+                            <span className="muted">{T.case.opensAsDownload}</span>
                           ) : null}
                         </div>
                       ) : (
