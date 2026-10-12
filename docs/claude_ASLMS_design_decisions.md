@@ -1298,3 +1298,5 @@ early Current Status re-run, coverage summary table, Compose verification). Migr
 dev database: the worker is stopped briefly, the migration applied, and the worker restarted; the running backdated
 load moves to the `load` lane and continues. NAPIX search by advocate and filing number remains row 21.
 
+
+- 2026-10-12 — napix-window: approved by the owner (resets detected from the remaining count, worker waits for the expected reset plus 60 s with at most one probe per pass every 180 s, every budget band and figure on the detected window, the user who caused each call in napix_call_log visible to NAPIX operators only; daily and load calls carry no user; docs/design/napix-window.md)
