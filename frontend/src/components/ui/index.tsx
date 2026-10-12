@@ -19,6 +19,8 @@ import {
 
 import { formatNumber } from "@/lib/format";
 import { errorText, T } from "@/lib/messages";
+import { casePath } from "@/lib/refs";
+import { signalText, type Signal } from "@/lib/signals";
 
 import s from "./ui.module.css";
 
@@ -303,5 +305,124 @@ export function Pagination({
         {T.next}
       </Button>
     </div>
+  );
+}
+
+/**
+ * The score as stored (three decimals) with the label of the API's `band` (STRONG / POSSIBLE): the colour and the
+ * label never come from the portal comparing numbers, because the bands are the super admin's settings.
+ */
+export function ScoreBadge({ score, band }: { score: number; band: string }) {
+  const label = band === "high" ? "STRONG" : band === "medium" ? "POSSIBLE" : band.toUpperCase();
+  return (
+    <span className={cx(s.score, (band === "high" || band === "medium") && s[`score-${band}`])}>
+      <span>{score.toFixed(3)}</span>
+      <span className={s.scoreLabel}>{label}</span>
+    </span>
+  );
+}
+
+export function SignalChip({ signal }: { signal: Signal }) {
+  return <span className={s.chip}>{signalText(signal)}</span>;
+}
+
+export function SignalChips({ signals }: { signals: Signal[] }) {
+  if (signals.length === 0) return null;
+  return (
+    <ul className={s.chips} aria-label="Signals">
+      {signals.map((sig, i) => (
+        <li key={i}>
+          <SignalChip signal={sig} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export interface CaseRefLike {
+  ref_no: string;
+  cnr?: string | null;
+  case_no_text?: string | null;
+}
+
+/**
+ * A case reference (case number, else `ref_no`; monospace; the CNR as its title) as a link to the case page. A case
+ * the caller cannot open (`visible: false`) is plain text, never a link, because opening it answers 404.
+ */
+export function CaseLink({ value, visible = true }: { value: CaseRefLike | null | undefined; visible?: boolean }) {
+  if (!value) return <span>—</span>;
+  const text = value.case_no_text || value.ref_no;
+  if (!visible) {
+    return (
+      <span className="mono" title={value.cnr ?? undefined}>
+        {text}
+      </span>
+    );
+  }
+  return (
+    <Link href={casePath(value.ref_no)} className="mono" title={value.cnr ?? undefined}>
+      {text}
+    </Link>
+  );
+}
+
+export function DefinitionList({ items }: { items: [ReactNode, ReactNode][] }) {
+  return (
+    <dl className={s.dl}>
+      {items.map(([label, value], i) => (
+        <div key={i} style={{ display: "contents" }}>
+          <dt>{label}</dt>
+          <dd>{value === null || value === undefined || value === "" ? "—" : value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+/** A dialog that asks before an action: its fields, the API's refusal, and Confirm / Cancel. */
+export function ConfirmDialog({
+  open,
+  title,
+  onClose,
+  onConfirm,
+  busy,
+  error,
+  confirmLabel = T.own.confirm,
+  confirmDisabled,
+  danger,
+  children,
+}: {
+  open: boolean;
+  title: string;
+  onClose: () => void;
+  onConfirm: () => void;
+  busy?: boolean;
+  error?: unknown;
+  confirmLabel?: string;
+  confirmDisabled?: boolean;
+  danger?: boolean;
+  children?: ReactNode;
+}) {
+  return (
+    <Dialog open={open} title={title} onClose={onClose}>
+      <form
+        className="stack"
+        onSubmit={(e) => {
+          e.preventDefault();
+          onConfirm();
+        }}
+      >
+        {children}
+        <ErrorBanner error={error} />
+        <div className={s.dialogActions}>
+          <Button variant="secondary" onClick={onClose}>
+            {T.cancel}
+          </Button>
+          <Button type="submit" variant={danger ? "danger" : "primary"} busy={busy} disabled={confirmDisabled}>
+            {confirmLabel}
+          </Button>
+        </div>
+      </form>
+    </Dialog>
   );
 }

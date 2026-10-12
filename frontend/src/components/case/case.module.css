@@ -1,0 +1,92 @@
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.caseNo {
+  font-family: var(--font-serif);
+  font-size: var(--text-2xl);
+  margin: 0;
+}
+
+.parties {
+  margin: 0;
+  font-size: var(--text-lg);
+}
+
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  margin: 0;
+}
+
+.facts dt {
+  color: var(--ink-muted);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.facts dd {
+  margin: 0;
+}
+
+.banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--warning);
+  background: var(--warning-bg);
+  color: var(--warning);
+  border-radius: var(--radius);
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--space-4);
+}
+
+.cardList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.cardList li + li {
+  margin-top: var(--space-2);
+}
+
+.note {
+  border-left: 3px solid var(--navy-100);
+  padding: var(--space-2) var(--space-4);
+}
+
+.noteHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: baseline;
+}
+
+.noteBody {
+  white-space: pre-wrap;
+  margin: var(--space-2) 0;
+}
+
+.graph {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.graph text {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}

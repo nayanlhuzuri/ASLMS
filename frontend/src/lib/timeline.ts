@@ -1,0 +1,70 @@
+/**
+ * A one-line detail for the common timeline event types (design portal-cases, decision 13), read from known payload
+ * keys. Any other type shows the API's label only; the payload is never printed as raw JSON.
+ */
+import { formatDate } from "./format";
+
+type Payload = Record<string, unknown>;
+
+function str(value: unknown): string | null {
+  if (typeof value === "string" && value.trim()) return value;
+  if (typeof value === "number") return String(value);
+  return null;
+}
+
+function pair(value: unknown): [unknown, unknown] | null {
+  return Array.isArray(value) && value.length === 2 ? [value[0], value[1]] : null;
+}
+
+function date(value: unknown): string | null {
+  const s = str(value);
+  return s ? formatDate(s) : null;
+}
+
+function join(parts: (string | null | undefined)[]): string | null {
+  const kept = parts.filter((p): p is string => !!p);
+  return kept.length ? kept.join(" · ") : null;
+}
+
+const DETAIL: Record<string, (p: Payload) => string | null> = {
+  next_date_changed: (p) => {
+    const d = pair(p.next_hearing_date);
+    if (!d) return null;
+    return `${date(d[0]) ?? "—"} → ${date(d[1]) ?? "—"}`;
+  },
+  listed: (p) => join([date(p.list_date ?? p.date), str(p.court_no) ? `Court ${str(p.court_no)}` : null]),
+  listed_supplementary: (p) => join([date(p.list_date ?? p.date), str(p.court_no) ? `Court ${str(p.court_no)}` : null]),
+  order_found: (p) => join([str(p.order_no) ? `Order ${str(p.order_no)}` : null, date(p.order_date)]),
+  order_stored: (p) => join([str(p.order_no) ? `Order ${str(p.order_no)}` : null, date(p.order_date)]),
+  status_changed: (p) => {
+    const s = pair(p.status);
+    return s ? `${str(s[0]) ?? "—"} → ${str(s[1]) ?? "—"}` : null;
+  },
+  claimed: (p) => join([str(p.office_code), str(p.role)]),
+  allotted: (p) => join([str(p.office_code), str(p.unit_code)]),
+  dismissed: (p) => join([str(p.office_code), str(p.reason)]),
+  suggested_elsewhere: (p) => {
+    const from = str(p.from_office_code);
+    const to = str(p.to_office_code);
+    return to ? `${from ?? "—"} → ${to}` : null;
+  },
+  transfer_requested: (p) => {
+    const to = str(p.to_office_code);
+    return to ? join([`${str(p.from_office_code) ?? "—"} → ${to}`, str(p.ref_no)]) : null;
+  },
+  transfer_decided: (p) => join([str(p.decision), str(p.to_office_code), str(p.ref_no)]),
+  case_taken_over: (p) => {
+    const to = str(p.to_user_name);
+    return to ? join([`${str(p.from_user_name) ?? "—"} → ${to}`, str(p.office_code)]) : null;
+  },
+  case_merged: (p) => {
+    const merged = str(p.merged_ref_no);
+    return merged ? `Provisional ${merged} merged into this case` : null;
+  },
+};
+
+export function timelineDetail(type: string, payload: unknown): string | null {
+  const fn = DETAIL[type];
+  if (!fn || !payload || typeof payload !== "object" || Array.isArray(payload)) return null;
+  return fn(payload as Payload);
+}

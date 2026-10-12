@@ -22,6 +22,9 @@ const RESPONSE_HEADERS = [
   "cache-control",
   "retry-after",
   "x-total-count",
+  // a document viewed inline keeps the API's protection (design portal-cases, decision 15)
+  "x-content-type-options",
+  "content-security-policy",
 ] as const;
 const DENY_PREFIXES = ["/auth", "/docs", "/redoc"];
 const DENY_EXACT = new Set(["/openapi.json", "/me/password", ...tokenRoutes.routes.map((r) => r.path.toLowerCase())]);

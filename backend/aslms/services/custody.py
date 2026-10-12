@@ -294,7 +294,9 @@ def recipients(
     offset: int | None = None,
 ) -> inbox.Page:
     """Decision 3's targets: without `department`, the active Department-tier offices; with it, the eligible
-    memberships of that department's subtree (filtered by `q` over name, designation and office code)."""
+    memberships of that department's subtree (filtered by `q` over name, designation and office code), each
+    with the person's `user_id`, and `units`: the active offices strictly inside the department, by path
+    (design `portal-cases`, decision 14d)."""
     if not department:
         items = [{"code": o.code, "name": o.name} for o in _departments(session)]
         return inbox.Page(items, len(items))
@@ -329,6 +331,7 @@ def recipients(
     items = [
         {
             "membership_id": m.id,
+            "user_id": u.id,
             "full_name": u.full_name,
             "designation": m.designation,
             "office_code": o.code,
@@ -337,7 +340,15 @@ def recipients(
         }
         for m, u, o in rows
     ]
-    return inbox.Page(items, total)
+    units = [
+        {"code": o.code, "name": o.name}
+        for o in session.scalars(
+            select(Office)
+            .where(Office.is_active.is_(True), Office.path.like(dept.path + "/%"))
+            .order_by(Office.path)
+        ).all()
+    ]
+    return inbox.Page(items, total, {"units": units})
 
 
 # ------------------------------------------------------------------------------------------------ send / recall

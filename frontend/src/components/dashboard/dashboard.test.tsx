@@ -103,6 +103,11 @@ describe("dashboard", () => {
     const rows = within(block).getAllByRole("row");
     const critical = rows.find((r) => within(r).queryByText("WP(C)/1234/2026"))!;
     expect(within(critical).getByText("Within 48 h")).toBeInTheDocument();
+    // case references are links to the case page (design portal-cases, decision 2)
+    expect(within(critical).getByRole("link", { name: "WP(C)/1234/2026" })).toHaveAttribute(
+      "href",
+      "/cases/EDU-2026-0001",
+    );
     const later = rows.find((r) => within(r).queryByText("WA/55/2026"))!;
     expect(within(later).getByText("This week")).toBeInTheDocument();
     expect(within(block).getByText("Secondary Education")).toBeInTheDocument();

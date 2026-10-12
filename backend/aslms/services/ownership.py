@@ -306,6 +306,41 @@ def _custody_for(session: Session, actor: Actor, case: Case, row: CaseOwnership,
 # ------------------------------------------------------------------------------------------------ claim
 
 
+def _claim_state(
+    session: Session, case: Case, dept: Office
+) -> tuple[Recommendation | None, list[CaseOwnership]]:
+    """The case-state half of the claim check: not merged, not already held by `dept`, and in the pool or
+    recommended to `dept`."""
+    if case.merged_into_case_id is not None:
+        raise OwnershipError("the case was merged into another case")
+    rec = _active_rec(session, case, dept)
+    rows = _active_rows(session, case)
+    if any(r.office_id == dept.id for r in rows):
+        raise OwnershipConflict("already_claimed", f"{dept.code} already holds this case")
+    if ever_owned(session, case) and rec is None:
+        raise NotVisible("no such case")
+    return rec, rows
+
+
+def _check_claim(
+    session: Session,
+    actor_user: User,
+    case: Case,
+    *,
+    office_code: str | None = None,
+    allot_too: bool = False,
+) -> tuple[Member, Office, Recommendation | None, list[CaseOwnership]]:
+    """Everything `claim` checks before it writes (no lock, no write); raises what `claim` raises."""
+    access.require(session, actor_user, Permission.CASES_CLAIM)
+    if allot_too:
+        access.require(session, actor_user, Permission.CASES_ALLOT)
+    member, dept = acting_member(session, actor_user, office_code, Permission.CASES_CLAIM)
+    if allot_too and not member.holds(Permission.CASES_ALLOT):
+        raise access.Forbidden(f"cases.allot is not enabled for you in {dept.code}")
+    rec, rows = _claim_state(session, case, dept)
+    return member, dept, rec, rows
+
+
 def claim(
     session: Session,
     actor: Actor,
@@ -322,20 +357,12 @@ def claim(
     if allot_too:
         access.require(session, actor_user, Permission.CASES_ALLOT)
     note = _reason(note)
-    member, dept = acting_member(session, actor_user, office_code, Permission.CASES_CLAIM)
-    if allot_too and not member.holds(Permission.CASES_ALLOT):
-        raise access.Forbidden(f"cases.allot is not enabled for you in {dept.code}")
-    actor = access.actor_as(actor, member)
     _lock(session, case)
     session.refresh(case)
-    if case.merged_into_case_id is not None:
-        raise OwnershipError("the case was merged into another case")
-    rec = _active_rec(session, case, dept)
-    rows = _active_rows(session, case)
-    if any(r.office_id == dept.id for r in rows):
-        raise OwnershipConflict("already_claimed", f"{dept.code} already holds this case")
-    if ever_owned(session, case) and rec is None:
-        raise NotVisible("no such case")
+    member, dept, rec, rows = _check_claim(
+        session, actor_user, case, office_code=office_code, allot_too=allot_too
+    )
+    actor = access.actor_as(actor, member)
     has_primary = any(OwnershipRole(r.role) == OwnershipRole.PRIMARY for r in rows)
     row = CaseOwnership(
         case_id=case.id,
@@ -383,23 +410,50 @@ def claim(
 # ------------------------------------------------------------------------------------------------ dismiss / suggest
 
 
-def dismiss(
-    session: Session, actor: Actor, actor_user: User, case: Case, *, reason: str | None = None
-) -> Recommendation:
+def _own_department(session: Session, actor_user: User, office_code: str | None) -> str | None:
+    """Design `portal-cases`, deviation 10: `office_code` on dismiss and allot names one of the caller's own
+    departments (the inbox sends the department on screen); unlike claim, the super admin gains nothing here."""
+    if not office_code:
+        return None
+    target = _department_office(session, office_code)
+    if access.member_in_department(session, actor_user, target) is None:
+        raise OwnershipError(
+            f"you have no membership in {target.code}; office_code names your own department"
+        )
+    return target.code
+
+
+def _check_dismiss(
+    session: Session, actor_user: User, case: Case, *, office_code: str | None = None
+) -> tuple[Member, Office, Recommendation]:
     access.require(session, actor_user, Permission.CASES_DISMISS)
-    reason = _reason(reason)
     member, dept = acting_member(
         session,
         actor_user,
-        None,
+        _own_department(session, actor_user, office_code),
         Permission.CASES_DISMISS,
         relation=lambda d: _active_rec(session, case, d) is not None,
     )
-    actor = access.actor_as(actor, member)
-    _lock(session, case)
     rec = _active_rec(session, case, dept)
     if rec is None:
         raise NotVisible("no recommendation of your department for this case")
+    return member, dept, rec
+
+
+def dismiss(
+    session: Session,
+    actor: Actor,
+    actor_user: User,
+    case: Case,
+    *,
+    reason: str | None = None,
+    office_code: str | None = None,
+) -> Recommendation:
+    access.require(session, actor_user, Permission.CASES_DISMISS)
+    reason = _reason(reason)
+    _lock(session, case)
+    member, dept, rec = _check_dismiss(session, actor_user, case, office_code=office_code)
+    actor = access.actor_as(actor, member)
     rec.status, rec.acted_at, rec.reason = RecommendationStatus.DISMISSED, _now(), reason
     session.flush()
     write_audit(
@@ -423,12 +477,11 @@ def dismiss(
     return rec
 
 
-def suggest(
-    session: Session, actor: Actor, actor_user: User, case: Case, *, office_code: str, reason: str
-) -> SuggestResult:
+def _check_suggest(
+    session: Session, actor_user: User, case: Case, target: Office | None
+) -> tuple[Member | None, Office | None, Recommendation | None]:
+    """The suggest checks; without `target` only the caller's side (the screen asks for the target)."""
     access.require(session, actor_user, Permission.CASES_SUGGEST_ELSEWHERE)
-    reason = _reason(reason, required=True)
-    target = _department_office(session, office_code)
     holders = access.holders_in(session, actor_user, Permission.CASES_SUGGEST_ELSEWHERE)
     related = [
         m
@@ -441,11 +494,8 @@ def suggest(
     ]
     member = (related or holders or [None])[0]
     own_dept = member.department if member is not None else None
-    if member is not None:
-        actor = access.actor_as(actor, member)
-    if own_dept is not None and own_dept.id == target.id:
+    if target is not None and own_dept is not None and own_dept.id == target.id:
         raise OwnershipError("suggest a department other than your own")
-    _lock(session, case)
     own = _active_rec(session, case, own_dept) if own_dept is not None else None
     visible = (
         own is not None
@@ -458,8 +508,21 @@ def suggest(
     )
     if not visible:
         raise NotVisible("no such case")
-    if _active_row(session, case, target) is not None:
+    if target is not None and _active_row(session, case, target) is not None:
         raise OwnershipConflict("target_owns", f"{target.code} already holds this case")
+    return member, own_dept, own
+
+
+def suggest(
+    session: Session, actor: Actor, actor_user: User, case: Case, *, office_code: str, reason: str
+) -> SuggestResult:
+    access.require(session, actor_user, Permission.CASES_SUGGEST_ELSEWHERE)
+    reason = _reason(reason, required=True)
+    target = _department_office(session, office_code)
+    _lock(session, case)
+    member, own_dept, own = _check_suggest(session, actor_user, case, target)
+    if member is not None:
+        actor = access.actor_as(actor, member)
     existing = _active_rec(session, case, target)
     already = existing is not None
     if existing is None:
@@ -591,6 +654,23 @@ def _apply_allot(
     return row
 
 
+def _check_allot(
+    session: Session, actor_user: User, case: Case, *, office_code: str | None = None
+) -> tuple[Member, Office, CaseOwnership]:
+    access.require(session, actor_user, Permission.CASES_ALLOT)
+    member, dept = acting_member(
+        session,
+        actor_user,
+        _own_department(session, actor_user, office_code),
+        Permission.CASES_ALLOT,
+        relation=lambda d: _active_row(session, case, d) is not None,
+    )
+    row = _active_row(session, case, dept)
+    if row is None:
+        raise NotVisible("no such case")
+    return member, dept, row
+
+
 def allot(
     session: Session,
     actor: Actor,
@@ -599,23 +679,41 @@ def allot(
     *,
     unit_code: Any = UNSET,
     officer_user_id: Any = UNSET,
+    office_code: str | None = None,
 ) -> CaseOwnership:
     """Allots the actor's department's active row (primary or watcher) to a unit and/or an officer; `None`
-    clears, UNSET leaves as is."""
+    clears, UNSET leaves as is. `office_code` names which of the caller's departments acts."""
     access.require(session, actor_user, Permission.CASES_ALLOT)
-    member, dept = acting_member(
-        session,
-        actor_user,
-        None,
-        Permission.CASES_ALLOT,
-        relation=lambda d: _active_row(session, case, d) is not None,
-    )
-    actor = access.actor_as(actor, member)
     _lock(session, case)
+    member, dept, row = _check_allot(session, actor_user, case, office_code=office_code)
+    actor = access.actor_as(actor, member)
+    return _apply_allot(session, actor, case, row, dept, unit_code=unit_code, officer_user_id=officer_user_id)
+
+
+def _check_take_over(
+    session: Session, actor_user: User, case: Case, *, expected_officer_user_id: uuid.UUID | None = None
+) -> tuple[Member, Office, CaseOwnership]:
+    access.require(session, actor_user, Permission.CASES_TAKE_OVER)
+    taker: Member | None = None
+    for m in access.holders_in(session, actor_user, Permission.CASES_TAKE_OVER):
+        if m.department is None or eligible_member(session, m.department, m) is None:
+            continue
+        if _active_row(session, case, m.department) is not None:
+            taker = m
+            break
+    if taker is None or taker.department is None:
+        raise NotVisible("no such case")
+    dept = taker.department
     row = _active_row(session, case, dept)
     if row is None:
         raise NotVisible("no such case")
-    return _apply_allot(session, actor, case, row, dept, unit_code=unit_code, officer_user_id=officer_user_id)
+    if row.officer_user_id is None:
+        raise OwnershipConflict("not_allotted", "the case is not allotted to an officer; allot it instead")
+    if row.officer_user_id == taker.id:
+        raise OwnershipConflict("already_holder", "you already hold this case")
+    if expected_officer_user_id is not None and expected_officer_user_id != row.officer_user_id:
+        raise OwnershipConflict("stale", "the case was allotted to someone else meanwhile")
+    return taker, dept, row
 
 
 def take_over(
@@ -631,27 +729,12 @@ def take_over(
     the unit follows the taker."""
     access.require(session, actor_user, Permission.CASES_TAKE_OVER)
     reason = _reason(reason)
-    taker: Member | None = None
-    for m in access.holders_in(session, actor_user, Permission.CASES_TAKE_OVER):
-        if m.department is None or eligible_member(session, m.department, m) is None:
-            continue
-        if _active_row(session, case, m.department) is not None:
-            taker = m
-            break
-    if taker is None:
-        raise NotVisible("no such case")
-    actor = access.actor_as(actor, taker)
-    actor_office, dept = taker.office, taker.department
     _lock(session, case)
-    row = _active_row(session, case, dept)
-    if row is None:
-        raise NotVisible("no such case")
-    if row.officer_user_id is None:
-        raise OwnershipConflict("not_allotted", "the case is not allotted to an officer; allot it instead")
-    if row.officer_user_id == taker.id:
-        raise OwnershipConflict("already_holder", "you already hold this case")
-    if expected_officer_user_id is not None and expected_officer_user_id != row.officer_user_id:
-        raise OwnershipConflict("stale", "the case was allotted to someone else meanwhile")
+    taker, dept, row = _check_take_over(
+        session, actor_user, case, expected_officer_user_id=expected_officer_user_id
+    )
+    actor = access.actor_as(actor, taker)
+    actor_office = taker.office
     before = ownership_summary(session, row)
     previous = session.get(User, row.officer_user_id)
     unit = _office(session, row.unit_office_id)
@@ -697,12 +780,10 @@ def take_over(
 # ------------------------------------------------------------------------------------------------ stop watching
 
 
-def stop_watching(
-    session: Session, actor: Actor, actor_user: User, case: Case, *, reason: str
-) -> CaseOwnership:
-    """Ends the department's watcher row. A primary row is never released (decision 10)."""
+def _check_stop_watching(
+    session: Session, actor_user: User, case: Case
+) -> tuple[Member, Office, CaseOwnership]:
     access.require(session, actor_user, Permission.CASES_RELEASE)
-    reason = _reason(reason, required=True)
     member, dept = acting_member(
         session,
         actor_user,
@@ -710,8 +791,6 @@ def stop_watching(
         Permission.CASES_RELEASE,
         relation=lambda d: _active_row(session, case, d) is not None,
     )
-    actor = access.actor_as(actor, member)
-    _lock(session, case)
     row = _active_row(session, case, dept)
     if row is None:
         raise NotVisible("no such case")
@@ -719,6 +798,18 @@ def stop_watching(
         raise OwnershipConflict(
             "primary_cannot_release", "the primary owner cannot let go; transfer the case instead"
         )
+    return member, dept, row
+
+
+def stop_watching(
+    session: Session, actor: Actor, actor_user: User, case: Case, *, reason: str
+) -> CaseOwnership:
+    """Ends the department's watcher row. A primary row is never released (decision 10)."""
+    access.require(session, actor_user, Permission.CASES_RELEASE)
+    reason = _reason(reason, required=True)
+    _lock(session, case)
+    member, dept, row = _check_stop_watching(session, actor_user, case)
+    actor = access.actor_as(actor, member)
     before = ownership_summary(session, row)
     row.status, row.released_at, row.release_reason = OwnershipStatus.RELEASED, _now(), reason
     session.flush()
@@ -759,6 +850,41 @@ def transfer_summary(session: Session, t: OwnershipTransfer) -> dict:
     }
 
 
+def _check_request_transfer(
+    session: Session, actor_user: User, case: Case, to_office_code: str | None
+) -> tuple[Member, Office, Office | None]:
+    """The transfer-request checks; without `to_office_code` only the caller's side."""
+    access.require(session, actor_user, Permission.CASES_TRANSFER_REQUEST)
+    member, dept = acting_member(
+        session,
+        actor_user,
+        None,
+        Permission.CASES_TRANSFER_REQUEST,
+        relation=lambda d: _active_row(session, case, d) is not None,
+    )
+    target = None
+    if to_office_code is not None:
+        target = _department_office(session, to_office_code)
+        if target.id == dept.id:
+            raise OwnershipError("a transfer goes to another department")
+    row = _active_row(session, case, dept)
+    if row is None:
+        raise NotVisible("no such case")
+    if OwnershipRole(row.role) != OwnershipRole.PRIMARY:
+        raise OwnershipConflict("not_primary", "only the primary owner may request a transfer")
+    if _open_transfer(session, case) is not None:
+        raise OwnershipConflict("transfer_open", "a transfer request is already open for this case")
+    return member, dept, target
+
+
+def _open_transfer(session: Session, case: Case) -> OwnershipTransfer | None:
+    return session.scalar(
+        select(OwnershipTransfer).where(
+            OwnershipTransfer.case_id == case.id, OwnershipTransfer.status == TransferStatus.REQUESTED
+        )
+    )
+
+
 def request_transfer(
     session: Session,
     actor: Actor,
@@ -771,30 +897,10 @@ def request_transfer(
 ) -> OwnershipTransfer:
     access.require(session, actor_user, Permission.CASES_TRANSFER_REQUEST)
     reason = _reason(reason, required=True)
-    member, dept = acting_member(
-        session,
-        actor_user,
-        None,
-        Permission.CASES_TRANSFER_REQUEST,
-        relation=lambda d: _active_row(session, case, d) is not None,
-    )
-    actor = access.actor_as(actor, member)
-    target = _department_office(session, to_office_code)
-    if target.id == dept.id:
-        raise OwnershipError("a transfer goes to another department")
     _lock(session, case)
-    row = _active_row(session, case, dept)
-    if row is None:
-        raise NotVisible("no such case")
-    if OwnershipRole(row.role) != OwnershipRole.PRIMARY:
-        raise OwnershipConflict("not_primary", "only the primary owner may request a transfer")
-    open_ = session.scalar(
-        select(OwnershipTransfer.id).where(
-            OwnershipTransfer.case_id == case.id, OwnershipTransfer.status == TransferStatus.REQUESTED
-        )
-    )
-    if open_ is not None:
-        raise OwnershipConflict("transfer_open", "a transfer request is already open for this case")
+    member, dept, target = _check_request_transfer(session, actor_user, case, to_office_code)
+    assert target is not None
+    actor = access.actor_as(actor, member)
     t = OwnershipTransfer(
         case_id=case.id,
         from_office_id=dept.id,
@@ -831,6 +937,27 @@ def request_transfer(
     return t
 
 
+def _check_decide_transfer(
+    session: Session, actor_user: User, transfer: OwnershipTransfer
+) -> tuple[Member, Office]:
+    access.require(session, actor_user, Permission.CASES_TRANSFER_DECIDE)
+    try:
+        member, dept = acting_member(
+            session,
+            actor_user,
+            None,
+            Permission.CASES_TRANSFER_DECIDE,
+            relation=lambda d: transfer.to_office_id == d.id,
+        )
+    except NotVisible as exc:
+        raise NotVisible("no such transfer") from exc
+    if transfer.to_office_id != dept.id:
+        raise NotVisible("no such transfer")
+    if TransferStatus(transfer.status) != TransferStatus.REQUESTED:
+        raise OwnershipConflict("not_open", "the transfer is no longer open")
+    return member, dept
+
+
 def decide_transfer(
     session: Session,
     actor: Actor,
@@ -842,24 +969,11 @@ def decide_transfer(
 ) -> OwnershipTransfer:
     access.require(session, actor_user, Permission.CASES_TRANSFER_DECIDE)
     note = _reason(note)
-    try:
-        member, dept = acting_member(
-            session,
-            actor_user,
-            None,
-            Permission.CASES_TRANSFER_DECIDE,
-            relation=lambda d: transfer.to_office_id == d.id,
-        )
-    except NotVisible as exc:
-        raise NotVisible("no such transfer") from exc
-    actor = access.actor_as(actor, member)
-    if transfer.to_office_id != dept.id:
-        raise NotVisible("no such transfer")
     case = session.get(Case, transfer.case_id)
     _lock(session, case)
     session.refresh(transfer)
-    if TransferStatus(transfer.status) != TransferStatus.REQUESTED:
-        raise OwnershipConflict("not_open", "the transfer is no longer open")
+    member, dept = _check_decide_transfer(session, actor_user, transfer)
+    actor = access.actor_as(actor, member)
     before = transfer_summary(session, transfer)
     now = _now()
     if accept:
@@ -938,9 +1052,9 @@ def decide_transfer(
     return transfer
 
 
-def withdraw_transfer(
-    session: Session, actor: Actor, actor_user: User, transfer: OwnershipTransfer
-) -> OwnershipTransfer:
+def _check_withdraw_transfer(
+    session: Session, actor_user: User, transfer: OwnershipTransfer
+) -> tuple[Member, Office]:
     access.require(session, actor_user, Permission.CASES_TRANSFER_REQUEST)
     try:
         member, dept = acting_member(
@@ -952,14 +1066,22 @@ def withdraw_transfer(
         )
     except NotVisible as exc:
         raise NotVisible("no such transfer") from exc
-    actor = access.actor_as(actor, member)
     if transfer.from_office_id != dept.id:
         raise NotVisible("no such transfer")
+    if TransferStatus(transfer.status) != TransferStatus.REQUESTED:
+        raise OwnershipConflict("not_open", "the transfer is no longer open")
+    return member, dept
+
+
+def withdraw_transfer(
+    session: Session, actor: Actor, actor_user: User, transfer: OwnershipTransfer
+) -> OwnershipTransfer:
+    access.require(session, actor_user, Permission.CASES_TRANSFER_REQUEST)
     case = session.get(Case, transfer.case_id)
     _lock(session, case)
     session.refresh(transfer)
-    if TransferStatus(transfer.status) != TransferStatus.REQUESTED:
-        raise OwnershipConflict("not_open", "the transfer is no longer open")
+    member, _dept = _check_withdraw_transfer(session, actor_user, transfer)
+    actor = access.actor_as(actor, member)
     before = transfer_summary(session, transfer)
     transfer.status, transfer.withdrawn_at = TransferStatus.WITHDRAWN, _now()
     session.flush()
@@ -1034,6 +1156,66 @@ def case_ownership_view(session: Session, actor_user: User, case: Case) -> dict:
         "watchers": [r for r in rows if r.role == OwnershipRole.WATCHER],
         "recommendations": recs,
         "open_transfer": open_transfer,
+    }
+
+
+def _passes(check: Callable[[], object]) -> bool:
+    """True when the check passes or only asks which department acts (the action is possible once the
+    department is named); False on any refusal."""
+    try:
+        check()
+    except OfficeRequired:
+        return True
+    except (access.Forbidden, OwnershipError):
+        return False
+    return True
+
+
+def _super_admin_can_claim(session: Session, actor_user: User, case: Case) -> bool:
+    """The super admin names any department: some department could claim the case now (the pool, or an
+    active recommendation of a department that does not hold the case)."""
+    if not access.has(session, actor_user, Permission.CASES_CLAIM) or case.merged_into_case_id is not None:
+        return False
+    if not ever_owned(session, case):
+        return True
+    held = {r.office_id for r in _active_rows(session, case)}
+    conds = [Recommendation.case_id == case.id, Recommendation.status == RecommendationStatus.RECOMMENDED]
+    if held:
+        conds.append(Recommendation.office_id.not_in(held))
+    return bool(session.scalar(select(exists().where(*conds))))
+
+
+def available_actions(session: Session, actor_user: User, case: Case) -> dict[str, Any]:
+    """Design `portal-cases`, decision 14c: which ownership actions the caller may take on the case now, by
+    running each action's own checks without locking or writing. A refusal is False; `office_required` is
+    True. `claim_departments` lists the caller's departments that may claim (None for the super admin, who
+    names any department). The API still decides on every call."""
+    if access.super_admin_member(session, actor_user) is not None:
+        claim_departments: list[str] | None = None
+        can_claim = _super_admin_can_claim(session, actor_user, case)
+    else:
+        codes: list[str] = []
+        for m in access.members(session, actor_user):
+            code = m.department.code if m.department is not None else None
+            if code is None or code in codes:
+                continue
+            if _passes(lambda c=code: _check_claim(session, actor_user, case, office_code=c)):
+                codes.append(code)
+        claim_departments, can_claim = codes, bool(codes)
+    open_t = _open_transfer(session, case)
+    return {
+        "claim": can_claim,
+        "claim_departments": claim_departments,
+        "dismiss": _passes(lambda: _check_dismiss(session, actor_user, case)),
+        "suggest": _passes(lambda: _check_suggest(session, actor_user, case, None)),
+        "allot": _passes(lambda: _check_allot(session, actor_user, case)),
+        "take_over": _passes(lambda: _check_take_over(session, actor_user, case)),
+        "stop_watching": _passes(lambda: _check_stop_watching(session, actor_user, case)),
+        "request_transfer": _passes(lambda: _check_request_transfer(session, actor_user, case, None)),
+        "withdraw_transfer": open_t is not None
+        and _passes(lambda: _check_withdraw_transfer(session, actor_user, open_t)),
+        "decide_transfer": open_t is not None
+        and _passes(lambda: _check_decide_transfer(session, actor_user, open_t)),
     }
 
 

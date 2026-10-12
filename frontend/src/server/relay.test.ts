@@ -83,6 +83,33 @@ describe("relay", () => {
     expect(r.headers.get("cache-control")).toBe("no-store");
   });
 
+  it("passes the API's nosniff and sandbox headers of a document viewed inline", async () => {
+    const api = fakeApi();
+    api.on(
+      "GET",
+      "/documents/d-1/file",
+      () =>
+        new Response("%PDF-1.7", {
+          status: 200,
+          headers: {
+            "content-type": "application/pdf",
+            "content-disposition": 'inline; filename="order.pdf"',
+            "x-content-type-options": "nosniff",
+            "content-security-policy": "sandbox",
+            "x-frame-options": "DENY",
+            server: "uvicorn",
+          },
+        }),
+    );
+    const r = await relay(portalRequest("/api/backend/documents/d-1/file?disposition=inline", { cookies: SIGNED_IN }));
+    expect(r.status).toBe(200);
+    expect(r.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(r.headers.get("content-security-policy")).toBe("sandbox");
+    expect(r.headers.get("content-disposition")).toContain("inline");
+    expect(r.headers.get("x-frame-options")).toBeNull();
+    expect(r.headers.get("server")).toBeNull();
+  });
+
   it("keeps the API's Cache-Control when it sets one", async () => {
     const api = fakeApi();
     api.on("GET", "/x", () => new Response("{}", { headers: { "cache-control": "private, max-age=60" } }));

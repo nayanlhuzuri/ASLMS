@@ -31,15 +31,12 @@ import type { TicketDetail, TicketDocument, TicketList } from "@/lib/api/types";
 import { can, isSuperAdmin } from "@/lib/can";
 import { formatDate, formatDateTime, formatNumber } from "@/lib/format";
 import { T } from "@/lib/messages";
+import { refPath } from "@/lib/refs";
 import { STATUSES, type TicketStatus } from "@/lib/tickets";
 import { useAction } from "@/lib/useAction";
 
 import { assignableOptions, DesignationInput, PAGE_SIZE } from "./Users";
 
-/** A ticket reference as it appears in URLs (`/` written as `-`; the API resolves that form). */
-export function refPath(ref: string): string {
-  return ref.replaceAll("/", "-");
-}
 
 function statusBadge(status: string) {
   const tone = status === "approved" ? "success" : status === "rejected" ? "danger" : status === "open" ? "warning" : undefined;

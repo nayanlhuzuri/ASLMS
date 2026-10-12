@@ -694,6 +694,20 @@
       "AllotIn": {
         "description": "Fields left out are not changed; null clears.",
         "properties": {
+          "office_code": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the department to act for: one the caller has a membership in (default: decision 6)",
+            "title": "Office Code"
+          },
           "officer_user_id": {
             "anyOf": [
               {
@@ -2173,6 +2187,43 @@
         "title": "CaseIdentityOut",
         "type": "object"
       },
+      "CaseLastListingOut": {
+        "description": "The latest cause-list entry of a case (latest date, then the lowest item number).",
+        "properties": {
+          "court_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Court No"
+          },
+          "list_date": {
+            "format": "date",
+            "title": "List Date",
+            "type": "string"
+          },
+          "list_type": {
+            "title": "List Type",
+            "type": "string"
+          },
+          "sr_no": {
+            "title": "Sr No",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "list_date",
+          "list_type",
+          "court_no",
+          "sr_no"
+        ],
+        "title": "CaseLastListingOut",
+        "type": "object"
+      },
       "CaseOwnershipCompactOut": {
         "properties": {
           "primary": {
@@ -2202,6 +2253,9 @@
       },
       "CaseOwnershipViewOut": {
         "properties": {
+          "actions": {
+            "$ref": "#/components/schemas/OwnershipActionsOut"
+          },
           "open_transfer": {
             "anyOf": [
               {
@@ -2241,7 +2295,8 @@
           "primary",
           "watchers",
           "recommendations",
-          "open_transfer"
+          "open_transfer",
+          "actions"
         ],
         "title": "CaseOwnershipViewOut",
         "type": "object"
@@ -2913,6 +2968,16 @@
             ],
             "title": "Last Listed On"
           },
+          "last_listing": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CaseLastListingOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "next_hearing_date": {
             "anyOf": [
               {
@@ -2966,7 +3031,8 @@
           "respondent_summary",
           "status",
           "next_hearing_date",
-          "last_listed_on"
+          "last_listed_on",
+          "last_listing"
         ],
         "title": "CaseSummaryOut",
         "type": "object"
@@ -2992,6 +3058,49 @@
           "provisional"
         ],
         "title": "CaseTotalsOut",
+        "type": "object"
+      },
+      "CaseTypeOut": {
+        "description": "An active case type of the High Court master (court-public).",
+        "properties": {
+          "case_type_code": {
+            "title": "Case Type Code",
+            "type": "integer"
+          },
+          "full_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Name"
+          },
+          "short_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Short Name"
+          },
+          "type_name": {
+            "title": "Type Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "case_type_code",
+          "short_name",
+          "full_name",
+          "type_name"
+        ],
+        "title": "CaseTypeOut",
         "type": "object"
       },
       "CauselistDayRowOut": {
@@ -5463,6 +5572,20 @@
       },
       "DismissIn": {
         "properties": {
+          "office_code": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the department to act for: one the caller has a membership in (default: decision 6)",
+            "title": "Office Code"
+          },
           "reason": {
             "anyOf": [
               {
@@ -11141,6 +11264,75 @@
         "title": "OverrideOut",
         "type": "object"
       },
+      "OwnershipActionsOut": {
+        "description": "Which ownership actions the caller may take on the case now (computed by the actions' own checks; the\nAPI still decides on every call). `claim_departments`: the caller's departments that may claim, or null for\nthe super admin, who names any department.",
+        "properties": {
+          "allot": {
+            "title": "Allot",
+            "type": "boolean"
+          },
+          "claim": {
+            "title": "Claim",
+            "type": "boolean"
+          },
+          "claim_departments": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Claim Departments"
+          },
+          "decide_transfer": {
+            "title": "Decide Transfer",
+            "type": "boolean"
+          },
+          "dismiss": {
+            "title": "Dismiss",
+            "type": "boolean"
+          },
+          "request_transfer": {
+            "title": "Request Transfer",
+            "type": "boolean"
+          },
+          "stop_watching": {
+            "title": "Stop Watching",
+            "type": "boolean"
+          },
+          "suggest": {
+            "title": "Suggest",
+            "type": "boolean"
+          },
+          "take_over": {
+            "title": "Take Over",
+            "type": "boolean"
+          },
+          "withdraw_transfer": {
+            "title": "Withdraw Transfer",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "claim",
+          "claim_departments",
+          "dismiss",
+          "suggest",
+          "allot",
+          "take_over",
+          "stop_watching",
+          "request_transfer",
+          "withdraw_transfer",
+          "decide_transfer"
+        ],
+        "title": "OwnershipActionsOut",
+        "type": "object"
+      },
       "OwnershipListOut": {
         "properties": {
           "items": {
@@ -12195,6 +12387,15 @@
           "total": {
             "title": "Total",
             "type": "integer"
+          },
+          "units": {
+            "default": [],
+            "description": "with `department`: the active offices inside it (code and name), by path",
+            "items": {
+              "$ref": "#/components/schemas/DepartmentRefOut"
+            },
+            "title": "Units",
+            "type": "array"
           }
         },
         "required": [
@@ -12236,10 +12437,16 @@
           "role_label": {
             "title": "Role Label",
             "type": "string"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
           }
         },
         "required": [
           "membership_id",
+          "user_id",
           "full_name",
           "designation",
           "office_code",
@@ -24471,7 +24678,7 @@
     },
     "/cases/{ref}/allot": {
       "post": {
-        "description": "Allot the department's row to a unit and/or an officer; a field left out is unchanged, `null` clears.",
+        "description": "Allot the department's row to a unit and/or an officer; a field left out is unchanged, `null` clears.\n`office_code` names which of the caller's departments acts (the inbox sends the one on screen).",
         "operationId": "allot_cases__ref__allot_post",
         "parameters": [
           {
@@ -24891,6 +25098,7 @@
     },
     "/cases/{ref}/dismiss": {
       "post": {
+        "description": "Dismiss the recommendation of the caller's department; `office_code` names which of the caller's\ndepartments (the inbox sends the one on screen), else decision 6 picks it.",
         "operationId": "dismiss_cases__ref__dismiss_post",
         "parameters": [
           {
@@ -25973,7 +26181,7 @@
     },
     "/cases/{ref}/ownership": {
       "get": {
-        "description": "Primary owner, watchers, recommendations and the open transfer of a case. Visible when the caller's\ndepartment owns, watches or is recommended the case, the case is in the pool and the caller holds\n`cases.claim`, or the caller holds `cases.view_all`; other departments' recommendations only with\n`cases.view_all`.",
+        "description": "Primary owner, watchers, recommendations and the open transfer of a case. Visible when the caller's\ndepartment owns, watches or is recommended the case, the case is in the pool and the caller holds\n`cases.claim`, or the caller holds `cases.view_all`; other departments' recommendations only with\n`cases.view_all`. `actions` says which ownership actions the caller may take now.",
         "operationId": "case_ownership_cases__ref__ownership_get",
         "parameters": [
           {
@@ -26704,7 +26912,7 @@
     },
     "/custody/recipients": {
       "get": {
-        "description": "Without `department`: the departments a file may be sent to; with it: that department's officers (one\nrow per membership; State-wide types excluded).",
+        "description": "Without `department`: the departments a file may be sent to; with it: that department's officers (one\nrow per membership, with the person's `user_id`; State-wide types excluded) and `units`, the active offices\ninside the department.",
         "operationId": "custody_recipients_custody_recipients_get",
         "parameters": [
           {
@@ -28031,7 +28239,7 @@
     },
     "/inbox/recommended": {
       "get": {
-        "description": "The department's active recommendations, strongest first, each with the signals behind its score.",
+        "description": "The department's active recommendations, strongest first, each with the signals behind its score.\n`listed_from` / `listed_to` keep the cases with a cause-list entry dated in the range.",
         "operationId": "recommended_inbox_recommended_get",
         "parameters": [
           {
@@ -28080,6 +28288,40 @@
                 }
               ],
               "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "listed_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Listed From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "listed_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Listed To"
             }
           },
           {
@@ -28870,6 +29112,37 @@
         "summary": "Get Note",
         "tags": [
           "workflow"
+        ]
+      }
+    },
+    "/reference/case-types": {
+      "get": {
+        "description": "The active case types of the High Court master (code, short and full name, the master's name), for the\nsearch filter and the court search form. The same for every reader.",
+        "operationId": "case_types_reference_case_types_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CaseTypeOut"
+                  },
+                  "title": "Response Case Types Reference Case Types Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Case Types",
+        "tags": [
+          "reference"
         ]
       }
     },

@@ -101,7 +101,7 @@ def case_ownership(
     """Primary owner, watchers, recommendations and the open transfer of a case. Visible when the caller's
     department owns, watches or is recommended the case, the case is in the pool and the caller holds
     `cases.claim`, or the caller holds `cases.view_all`; other departments' recommendations only with
-    `cases.view_all`."""
+    `cases.view_all`. `actions` says which ownership actions the caller may take now."""
     case = _case(session, ref)
     try:
         view = own.case_ownership_view(session, caller, case)
@@ -112,6 +112,7 @@ def case_ownership(
         watchers=[_ownership_out(session, r) for r in view["watchers"]],
         recommendations=[_recommendation_out(session, r) for r in view["recommendations"]],
         open_transfer=_transfer_out(session, view["open_transfer"]) if view["open_transfer"] else None,
+        actions=schemas.OwnershipActionsOut(**own.available_actions(session, caller, case)),
     )
 
 
@@ -154,9 +155,18 @@ def dismiss(
     session: Session = Depends(get_session),
     caller: User = Depends(require(Permission.CASES_DISMISS)),
 ) -> schemas.RecommendationOut:
+    """Dismiss the recommendation of the caller's department; `office_code` names which of the caller's
+    departments (the inbox sends the one on screen), else decision 6 picks it."""
     case = _case(session, ref)
     try:
-        rec = own.dismiss(session, actor_of(request, caller, session), caller, case, reason=body.reason)
+        rec = own.dismiss(
+            session,
+            actor_of(request, caller, session),
+            caller,
+            case,
+            reason=body.reason,
+            office_code=body.office_code,
+        )
         session.flush()
     except HANDLED as exc:
         raise _http(exc) from exc
@@ -201,7 +211,8 @@ def allot(
     session: Session = Depends(get_session),
     caller: User = Depends(require(Permission.CASES_ALLOT)),
 ) -> schemas.OwnershipOut:
-    """Allot the department's row to a unit and/or an officer; a field left out is unchanged, `null` clears."""
+    """Allot the department's row to a unit and/or an officer; a field left out is unchanged, `null` clears.
+    `office_code` names which of the caller's departments acts (the inbox sends the one on screen)."""
     case = _case(session, ref)
     given = body.model_fields_set
     try:
@@ -212,6 +223,7 @@ def allot(
             case,
             unit_code=body.unit_code if "unit_code" in given else UNSET,
             officer_user_id=body.officer_user_id if "officer_user_id" in given else UNSET,
+            office_code=body.office_code,
         )
         session.flush()
     except HANDLED as exc:

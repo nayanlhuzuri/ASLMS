@@ -12,6 +12,7 @@ import { useState, type FormEvent } from "react";
 import {
   Badge,
   Button,
+  CaseLink,
   Dialog,
   EmptyState,
   ErrorBanner,
@@ -476,7 +477,7 @@ export function ExitDialog({
                   <tr key={i.key}>
                     <td>
                       {i.kind === "file" ? T.exit.file : T.exit.allotment}:{" "}
-                      <span className="mono">{i.case.case_no || i.case.ref_no}</span>
+                      <CaseLink value={{ ref_no: i.case.ref_no, cnr: i.case.cnr, case_no_text: i.case.case_no }} visible={i.case.visible} />
                       {i.pending_action ? <span className="muted"> · {i.pending_action}</span> : null}
                       {i.due_date ? <span className="muted"> · {formatDate(i.due_date)}</span> : null}
                     </td>

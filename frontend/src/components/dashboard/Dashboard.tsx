@@ -9,7 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 
-import { Badge, EmptyState, ErrorBanner, Loading, numCell, SelectField, Table, Tile } from "@/components/ui";
+import { Badge, CaseLink, EmptyState, ErrorBanner, Loading, numCell, SelectField, Table, Tile } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { labelOf, useLabels, useMe } from "@/lib/api/hooks";
 import type {
@@ -30,14 +30,9 @@ import { CASE_READERS, navFor } from "@/lib/routes";
 
 import s from "./dashboard.module.css";
 
-/** A case reference as plain text until the case page exists (row 12). */
+/** A case reference as a link to its case page (design portal-cases, decision 2). */
 export function CaseRef({ value }: { value: AlertCase | null | undefined }) {
-  if (!value) return <span>—</span>;
-  return (
-    <span className="mono" title={value.cnr ?? undefined}>
-      {value.case_no_text || value.ref_no}
-    </span>
-  );
+  return <CaseLink value={value} />;
 }
 
 function Block({ title, sub, children }: { title: string; sub?: ReactNode; children: ReactNode }) {

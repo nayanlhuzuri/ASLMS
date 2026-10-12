@@ -179,6 +179,39 @@ function UserMenu({ me }: { me: Me }) {
   );
 }
 
+/**
+ * The header search box (design portal-cases, decision 3; Annexure B "Search by CINO, case number or party name"):
+ * shown to case readers, it opens `/search?q=…`.
+ */
+export function HeaderSearch({ me }: { me: Me }) {
+  const router = useRouter();
+  const [q, setQ] = useState("");
+  if (!canAny(me, CASE_READERS)) return null;
+  return (
+    <form
+      role="search"
+      className={s.search}
+      onSubmit={(e) => {
+        e.preventDefault();
+        const text = q.trim();
+        router.push(text ? `/search?q=${encodeURIComponent(text)}` : "/search");
+      }}
+    >
+      <label htmlFor="header-search" className="visually-hidden">
+        {T.search.box}
+      </label>
+      <input
+        id="header-search"
+        type="search"
+        placeholder={T.search.box}
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+      />
+      <button type="submit">{T.search.go}</button>
+    </form>
+  );
+}
+
 export function Breadcrumb() {
   const pathname = usePathname() ?? "/";
   const parts = pathname.split("/").filter(Boolean);
@@ -219,6 +252,7 @@ export function PortalShell({ children }: { children: ReactNode }) {
         <header className={s.header}>
           <Breadcrumb />
           <div className={s.tools}>
+            <HeaderSearch me={me.data} />
             <AlertBell me={me.data} />
             <UserMenu me={me.data} />
           </div>

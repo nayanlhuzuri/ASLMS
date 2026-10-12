@@ -151,6 +151,15 @@ class LabelOut(BaseModel):
     label: str
 
 
+class CaseTypeOut(BaseModel):
+    """An active case type of the High Court master (court-public)."""
+
+    case_type_code: int
+    short_name: str | None
+    full_name: str | None
+    type_name: str
+
+
 class ReferenceLabelsOut(BaseModel):
     """Design `portal-shell`, decision 16a: the database's labels; `assignable` is the caller's."""
 
@@ -423,6 +432,15 @@ class CaseScoreOut(BaseModel):
 # ------------------------------------------------------------------------------------------------ inbox
 
 
+class CaseLastListingOut(BaseModel):
+    """The latest cause-list entry of a case (latest date, then the lowest item number)."""
+
+    list_date: date
+    list_type: str
+    court_no: str | None
+    sr_no: int
+
+
 class CaseSummaryOut(BaseModel):
     id: uuid.UUID
     ref_no: str
@@ -434,6 +452,7 @@ class CaseSummaryOut(BaseModel):
     status: str
     next_hearing_date: date | None
     last_listed_on: date | None
+    last_listing: CaseLastListingOut | None
 
 
 class RecommendationOut(BaseModel):
@@ -527,11 +546,29 @@ class InboxCountsListOut(BaseModel):
 # ------------------------------------------------------------------------------------------------ ownership
 
 
+class OwnershipActionsOut(BaseModel):
+    """Which ownership actions the caller may take on the case now (computed by the actions' own checks; the
+    API still decides on every call). `claim_departments`: the caller's departments that may claim, or null for
+    the super admin, who names any department."""
+
+    claim: bool
+    claim_departments: list[str] | None
+    dismiss: bool
+    suggest: bool
+    allot: bool
+    take_over: bool
+    stop_watching: bool
+    request_transfer: bool
+    withdraw_transfer: bool
+    decide_transfer: bool
+
+
 class CaseOwnershipViewOut(BaseModel):
     primary: OwnershipOut | None
     watchers: list[OwnershipOut]
     recommendations: list[RecommendationOut]
     open_transfer: TransferOut | None
+    actions: OwnershipActionsOut
 
 
 class ClaimIn(BaseModel):
@@ -547,6 +584,12 @@ class ClaimIn(BaseModel):
 
 
 class DismissIn(BaseModel):
+    office_code: str | None = Field(
+        None,
+        min_length=1,
+        max_length=40,
+        description="the department to act for: one the caller has a membership in (default: decision 6)",
+    )
     reason: str | None = Field(None, max_length=500)
 
 
@@ -564,6 +607,12 @@ class SuggestOut(BaseModel):
 class AllotIn(BaseModel):
     """Fields left out are not changed; null clears."""
 
+    office_code: str | None = Field(
+        None,
+        min_length=1,
+        max_length=40,
+        description="the department to act for: one the caller has a membership in (default: decision 6)",
+    )
     unit_code: str | None = Field(None, min_length=1, max_length=40)
     officer_user_id: uuid.UUID | None = None
 
@@ -1656,6 +1705,7 @@ class DepartmentRefOut(BaseModel):
 
 class RecipientOut(BaseModel):
     membership_id: uuid.UUID
+    user_id: uuid.UUID
     full_name: str
     designation: str | None
     office_code: str
@@ -1666,6 +1716,9 @@ class RecipientOut(BaseModel):
 class RecipientListOut(BaseModel):
     departments: list[DepartmentRefOut] = []
     items: list[RecipientOut] = []
+    units: list[DepartmentRefOut] = Field(
+        default=[], description="with `department`: the active offices inside it (code and name), by path"
+    )
     total: int
 
 

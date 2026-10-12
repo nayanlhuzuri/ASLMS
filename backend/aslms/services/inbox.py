@@ -21,6 +21,7 @@ from datetime import date, timedelta
 from typing import Any, Literal
 
 from sqlalchemy import Select, and_, exists, func, or_, select
+from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.orm import Session
 
 from aslms.domain.cases import Case, CaseStatus
@@ -77,6 +78,7 @@ CaseSummary = dict[str, Any]  # the CaseSummaryOut shape of the API
 class Page:
     items: list[dict[str, Any]] = field(default_factory=list)
     total: int = 0
+    extra: dict[str, Any] = field(default_factory=dict)  # list-specific blocks (e.g. recipients' `units`)
 
 
 # ------------------------------------------------------------------------------------------------ helpers
@@ -126,22 +128,41 @@ def target_department(
     raise access.Forbidden(f"{own_permission.value} is not enabled for you")
 
 
-def _last_listed(session: Session, case_ids: list[uuid.UUID]) -> dict[uuid.UUID, date]:
+def _last_listings(session: Session, case_ids: list[uuid.UUID]) -> dict[uuid.UUID, dict[str, Any]]:
+    """The latest cause-list entry of each case (latest list date, then the lowest item number): court-public
+    data, the same as the listings tab (design `portal-cases`, decision 14b)."""
     if not case_ids:
         return {}
     rows = session.execute(
-        select(CauselistEntry.case_id, func.max(Causelist.list_date))
+        select(
+            CauselistEntry.case_id,
+            Causelist.list_date,
+            Causelist.list_type,
+            CauselistEntry.court_no,
+            CauselistEntry.sr_no,
+        )
         .join(Causelist, Causelist.id == CauselistEntry.causelist_id)
         .where(CauselistEntry.case_id.in_(case_ids))
-        .group_by(CauselistEntry.case_id)
+        .ext(distinct_on(CauselistEntry.case_id))
+        .order_by(CauselistEntry.case_id, Causelist.list_date.desc(), CauselistEntry.sr_no, CauselistEntry.id)
     ).all()
-    return {cid: d for cid, d in rows}
+    return {
+        cid: {
+            "list_date": d,
+            "list_type": lt.value if hasattr(lt, "value") else str(lt),
+            "court_no": court_no,
+            "sr_no": sr_no,
+        }
+        for cid, d, lt, court_no, sr_no in rows
+    }
 
 
 def summaries(session: Session, cases: list[Case]) -> dict[uuid.UUID, CaseSummary]:
-    listed = _last_listed(session, [c.id for c in cases])
-    return {
-        c.id: {
+    listings = _last_listings(session, [c.id for c in cases])
+    out: dict[uuid.UUID, CaseSummary] = {}
+    for c in cases:
+        last = listings.get(c.id)
+        out[c.id] = {
             "id": c.id,
             "ref_no": c.ref_no,
             "cnr": c.cnr,
@@ -151,10 +172,10 @@ def summaries(session: Session, cases: list[Case]) -> dict[uuid.UUID, CaseSummar
             "respondent_summary": c.respondent_summary,
             "status": CaseStatus(c.status).value,
             "next_hearing_date": c.next_hearing_date,
-            "last_listed_on": listed.get(c.id),
+            "last_listed_on": last["list_date"] if last else None,
+            "last_listing": last,
         }
-        for c in cases
-    }
+    return out
 
 
 def _office_codes(session: Session, ids: set[uuid.UUID]) -> dict[uuid.UUID, Office]:
@@ -209,7 +230,33 @@ def _count(session: Session, stmt: Select) -> int:
 # ------------------------------------------------------------------------------------------------ recommended
 
 
-def recommended_stmt(department: Office, *, band: ScoreBand | None = None, q: str | None = None) -> Select:
+def _listed_condition(listed_from: date | None, listed_to: date | None):
+    """A cause-list entry of the case dated in the range (either end open); None without a range."""
+    if listed_from is None and listed_to is None:
+        return None
+    if listed_from is not None and listed_to is not None and listed_from > listed_to:
+        raise InboxError("listed_from is after listed_to")
+    conds = [CauselistEntry.case_id == Case.id]
+    if listed_from is not None:
+        conds.append(Causelist.list_date >= listed_from)
+    if listed_to is not None:
+        conds.append(Causelist.list_date <= listed_to)
+    return exists(
+        select(1)
+        .select_from(CauselistEntry)
+        .join(Causelist, Causelist.id == CauselistEntry.causelist_id)
+        .where(and_(*conds))
+    )
+
+
+def recommended_stmt(
+    department: Office,
+    *,
+    band: ScoreBand | None = None,
+    q: str | None = None,
+    listed_from: date | None = None,
+    listed_to: date | None = None,
+) -> Select:
     stmt = (
         select(Recommendation, Case)
         .join(Case, Case.id == Recommendation.case_id)
@@ -224,6 +271,9 @@ def recommended_stmt(department: Office, *, band: ScoreBand | None = None, q: st
     cond = _q_condition(q)
     if cond is not None:
         stmt = stmt.where(cond)
+    listed = _listed_condition(listed_from, listed_to)
+    if listed is not None:
+        stmt = stmt.where(listed)
     return stmt
 
 
@@ -234,13 +284,15 @@ def recommended(
     office: str | None = None,
     band: ScoreBand | str | None = None,
     q: str | None = None,
+    listed_from: date | None = None,
+    listed_to: date | None = None,
     limit: int | None = None,
     offset: int | None = None,
 ) -> Page:
     dept, _ = target_department(session, user, office, own_permission=Permission.CASES_CLAIM)
     band_v = ScoreBand(band) if band else None
     limit, offset = clamp(limit, offset)
-    stmt = recommended_stmt(dept, band=band_v, q=q)
+    stmt = recommended_stmt(dept, band=band_v, q=q, listed_from=listed_from, listed_to=listed_to)
     total = _count(session, stmt)
     rows = session.execute(
         stmt.order_by(

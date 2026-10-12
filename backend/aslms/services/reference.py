@@ -1,12 +1,15 @@
 """Reference labels for the portal (design `portal-shell`, decision 16a): the user types, office kinds and ticket
 kinds from their `ref_*` tables, so the portal shows the database's labels instead of a copy, and the user types
-the caller may assign (the server still decides on every write). Reads only; no audit row."""
+the caller may assign (the server still decides on every write); the High Court's case types (design
+`portal-cases`, decision 14e). Reads only; no audit row."""
 
 from __future__ import annotations
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from aslms.core.config import get_settings
+from aslms.domain.courts import CaseType, Court
 from aslms.domain.org import User
 from aslms.domain.reference import Permission, RefOfficeKind, RefRole, RefTicketKind, Role
 from aslms.services import access
@@ -40,3 +43,25 @@ def labels(session: Session, user: User) -> dict:
         "office_kinds": [{"code": r.code, "label": r.label} for r in _rows(session, RefOfficeKind)],
         "ticket_kinds": [{"code": r.code, "label": r.label} for r in _rows(session, RefTicketKind)],
     }
+
+
+def case_types(session: Session, est_code: str | None = None) -> list[dict]:
+    """The active case types of the High Court's `courts` row (`NAPIX_EST_CODE`), by short name then code.
+    Master data, court-public; empty when the court is not seeded."""
+    court = session.scalar(select(Court).where(Court.est_code == (est_code or get_settings().napix_est_code)))
+    if court is None:
+        return []
+    rows = session.scalars(
+        select(CaseType)
+        .where(CaseType.court_id == court.id, CaseType.is_active.is_(True))
+        .order_by(CaseType.short_name.asc().nulls_last(), CaseType.case_type_code)
+    ).all()
+    return [
+        {
+            "case_type_code": ct.case_type_code,
+            "short_name": ct.short_name,
+            "full_name": ct.full_name,
+            "type_name": ct.type_name,
+        }
+        for ct in rows
+    ]

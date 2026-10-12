@@ -269,3 +269,77 @@
   justify-content: flex-end;
   margin-top: var(--space-3);
 }
+
+/* portal-cases: score badge, signal chips, definition lists, chips row */
+.score {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  padding: 2px 8px;
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  border: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.score-high {
+  background: var(--success-bg);
+  color: var(--success);
+  border-color: var(--success);
+}
+
+.score-medium {
+  background: var(--warning-bg);
+  color: var(--warning);
+  border-color: var(--warning);
+}
+
+.scoreLabel {
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  list-style: none;
+  margin: var(--space-1) 0 0;
+  padding: 0;
+}
+
+.chip {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--navy-100);
+  color: var(--navy-800);
+  font-size: var(--text-xs);
+}
+
+.dl {
+  display: grid;
+  grid-template-columns: minmax(140px, max-content) 1fr;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+}
+
+.dl dt {
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+}
+
+.dl dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.dialogActions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+  margin-top: var(--space-4);
+}

@@ -209,3 +209,27 @@
     height: auto;
   }
 }
+
+.search {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.search input {
+  width: 300px;
+  max-width: 40vw;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font: inherit;
+}
+
+.search button {
+  padding: 6px 12px;
+  border: 1px solid var(--navy-700);
+  border-radius: var(--radius);
+  background: var(--navy-700);
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+}

@@ -2199,6 +2199,7 @@ export interface paths {
         /**
          * Allot
          * @description Allot the department's row to a unit and/or an officer; a field left out is unchanged, `null` clears.
+         *     `office_code` names which of the caller's departments acts (the inbox sends the one on screen).
          */
         post: operations["allot_cases__ref__allot_post"];
         delete?: never;
@@ -2301,7 +2302,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Dismiss */
+        /**
+         * Dismiss
+         * @description Dismiss the recommendation of the caller's department; `office_code` names which of the caller's
+         *     departments (the inbox sends the one on screen), else decision 6 picks it.
+         */
         post: operations["dismiss_cases__ref__dismiss_post"];
         delete?: never;
         options?: never;
@@ -2526,7 +2531,7 @@ export interface paths {
          * @description Primary owner, watchers, recommendations and the open transfer of a case. Visible when the caller's
          *     department owns, watches or is recommended the case, the case is in the pool and the caller holds
          *     `cases.claim`, or the caller holds `cases.view_all`; other departments' recommendations only with
-         *     `cases.view_all`.
+         *     `cases.view_all`. `actions` says which ownership actions the caller may take now.
          */
         get: operations["case_ownership_cases__ref__ownership_get"];
         put?: never;
@@ -2711,7 +2716,8 @@ export interface paths {
         /**
          * Custody Recipients
          * @description Without `department`: the departments a file may be sent to; with it: that department's officers (one
-         *     row per membership; State-wide types excluded).
+         *     row per membership, with the person's `user_id`; State-wide types excluded) and `units`, the active offices
+         *     inside the department.
          */
         get: operations["custody_recipients_custody_recipients_get"];
         put?: never;
@@ -3040,6 +3046,7 @@ export interface paths {
         /**
          * Recommended
          * @description The department's active recommendations, strongest first, each with the signals behind its score.
+         *     `listed_from` / `listed_to` keep the cases with a cause-list entry dated in the range.
          */
         get: operations["recommended_inbox_recommended_get"];
         put?: never;
@@ -3246,6 +3253,27 @@ export interface paths {
          * @description One note by id or `ref_no` (404 when it is not visible to you).
          */
         get: operations["get_note_notes__note__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/reference/case-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Case Types
+         * @description The active case types of the High Court master (code, short and full name, the master's name), for the
+         *     search filter and the court search form. The same for every reader.
+         */
+        get: operations["case_types_reference_case_types_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3659,6 +3687,11 @@ export interface components {
          * @description Fields left out are not changed; null clears.
          */
         AllotIn: {
+            /**
+             * Office Code
+             * @description the department to act for: one the caller has a membership in (default: decision 6)
+             */
+            office_code?: string | null;
             /** Officer User Id */
             officer_user_id?: string | null;
             /** Unit Code */
@@ -4051,6 +4084,23 @@ export interface components {
             /** Registration Date */
             registration_date: string | null;
         };
+        /**
+         * CaseLastListingOut
+         * @description The latest cause-list entry of a case (latest date, then the lowest item number).
+         */
+        CaseLastListingOut: {
+            /** Court No */
+            court_no: string | null;
+            /**
+             * List Date
+             * Format: date
+             */
+            list_date: string;
+            /** List Type */
+            list_type: string;
+            /** Sr No */
+            sr_no: number;
+        };
         /** CaseOwnershipCompactOut */
         CaseOwnershipCompactOut: {
             primary: components["schemas"]["PrimaryOwnerOut"] | null;
@@ -4059,6 +4109,7 @@ export interface components {
         };
         /** CaseOwnershipViewOut */
         CaseOwnershipViewOut: {
+            actions: components["schemas"]["OwnershipActionsOut"];
             open_transfer: components["schemas"]["TransferOut"] | null;
             primary: components["schemas"]["OwnershipOut"] | null;
             /** Recommendations */
@@ -4232,6 +4283,7 @@ export interface components {
             is_provisional: boolean;
             /** Last Listed On */
             last_listed_on: string | null;
+            last_listing: components["schemas"]["CaseLastListingOut"] | null;
             /** Next Hearing Date */
             next_hearing_date: string | null;
             /** Petitioner Summary */
@@ -4251,6 +4303,20 @@ export interface components {
             provisional: number;
             /** With Details */
             with_details: number;
+        };
+        /**
+         * CaseTypeOut
+         * @description An active case type of the High Court master (court-public).
+         */
+        CaseTypeOut: {
+            /** Case Type Code */
+            case_type_code: number;
+            /** Full Name */
+            full_name: string | null;
+            /** Short Name */
+            short_name: string | null;
+            /** Type Name */
+            type_name: string;
         };
         /** CauselistDayRowOut */
         CauselistDayRowOut: {
@@ -5046,6 +5112,11 @@ export interface components {
         };
         /** DismissIn */
         DismissIn: {
+            /**
+             * Office Code
+             * @description the department to act for: one the caller has a membership in (default: decision 6)
+             */
+            office_code?: string | null;
             /** Reason */
             reason?: string | null;
         };
@@ -6863,6 +6934,34 @@ export interface components {
             /** Valid To */
             valid_to?: string | null;
         };
+        /**
+         * OwnershipActionsOut
+         * @description Which ownership actions the caller may take on the case now (computed by the actions' own checks; the
+         *     API still decides on every call). `claim_departments`: the caller's departments that may claim, or null for
+         *     the super admin, who names any department.
+         */
+        OwnershipActionsOut: {
+            /** Allot */
+            allot: boolean;
+            /** Claim */
+            claim: boolean;
+            /** Claim Departments */
+            claim_departments: string[] | null;
+            /** Decide Transfer */
+            decide_transfer: boolean;
+            /** Dismiss */
+            dismiss: boolean;
+            /** Request Transfer */
+            request_transfer: boolean;
+            /** Stop Watching */
+            stop_watching: boolean;
+            /** Suggest */
+            suggest: boolean;
+            /** Take Over */
+            take_over: boolean;
+            /** Withdraw Transfer */
+            withdraw_transfer: boolean;
+        };
         /** OwnershipListOut */
         OwnershipListOut: {
             /** Items */
@@ -7170,6 +7269,12 @@ export interface components {
             items: components["schemas"]["RecipientOut"][];
             /** Total */
             total: number;
+            /**
+             * Units
+             * @description with `department`: the active offices inside it (code and name), by path
+             * @default []
+             */
+            units: components["schemas"]["DepartmentRefOut"][];
         };
         /** RecipientOut */
         RecipientOut: {
@@ -7188,6 +7293,11 @@ export interface components {
             office_name: string;
             /** Role Label */
             role_label: string;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
         };
         /** RecommendationListOut */
         RecommendationListOut: {
@@ -15511,6 +15621,8 @@ export interface operations {
                 office?: string | null;
                 band?: string | null;
                 q?: string | null;
+                listed_from?: string | null;
+                listed_to?: string | null;
                 limit?: number;
                 offset?: number;
             };
@@ -16026,6 +16138,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    case_types_reference_case_types_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaseTypeOut"][];
                 };
             };
         };

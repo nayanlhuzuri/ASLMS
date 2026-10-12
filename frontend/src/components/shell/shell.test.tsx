@@ -7,7 +7,9 @@ import type { Permission } from "@/lib/api/types";
 import { resetNav } from "@/test/nav";
 import { browserApi, labels, makeMe, renderWithClient } from "@/test/render";
 
-import { AlertBell, PortalShell, Sidebar } from "./PortalShell";
+import { nav } from "@/test/nav";
+
+import { AlertBell, HeaderSearch, PortalShell, Sidebar } from "./PortalShell";
 
 const OFFICER: Permission[] = ["cases.view_scope", "notes.add", "documents.view", "alerts.acknowledge"];
 const DEPT_ADMIN: Permission[] = [
@@ -33,9 +35,54 @@ describe("navigation by functions", () => {
     const nav = screen.getByRole("navigation", { name: "Main navigation" });
     expect(within(nav).getByRole("link", { name: "Dashboard" })).toHaveAttribute("aria-current", "page");
     expect(within(nav).queryByRole("link", { name: "Administration" })).toBeNull();
-    for (const unbuilt of ["Case inbox", "Search", "Alerts & calendar", "Reports", "Audit log", "Data collection"]) {
+    for (const unbuilt of ["Alerts & calendar", "Reports", "Audit log", "Data collection"]) {
       expect(within(nav).queryByRole("link", { name: unbuilt })).toBeNull();
     }
+  });
+
+  it("Case inbox shows with a department membership, Search for every case reader", () => {
+    browserApi({ "GET /reference/labels": labels() });
+    renderWithClient(<Sidebar me={makeMe(OFFICER)} />);
+    const nav = screen.getByRole("navigation", { name: "Main navigation" });
+    expect(within(nav).getByRole("link", { name: "Case inbox" })).toHaveAttribute("href", "/inbox");
+    expect(within(nav).getByRole("link", { name: "Search" })).toHaveAttribute("href", "/search");
+  });
+
+  it("standing counsel without a department use Search, not the inbox", () => {
+    browserApi({ "GET /reference/labels": labels() });
+    const counsel = makeMe(["cases.view_scope", "documents.view"], "standing_counsel", {
+      memberships: [
+        {
+          id: "m-9",
+          office: { code: "GOA-SC", name: "Standing Counsel", kind: "unit" },
+          department_code: null,
+          designation: null,
+          role: "standing_counsel",
+          is_primary: true,
+          is_active: true,
+        },
+      ],
+    });
+    renderWithClient(<Sidebar me={counsel} />);
+    const nav = screen.getByRole("navigation", { name: "Main navigation" });
+    expect(within(nav).queryByRole("link", { name: "Case inbox" })).toBeNull();
+    expect(within(nav).getByRole("link", { name: "Search" })).toBeInTheDocument();
+  });
+
+  it("a State-wide reader without a department sees the inbox through cases.view_all", () => {
+    browserApi({ "GET /reference/labels": labels() });
+    const reader = makeMe(["cases.view_scope", "cases.view_all"], "state_oversight", { memberships: [] });
+    renderWithClient(<Sidebar me={reader} />);
+    const nav = screen.getByRole("navigation", { name: "Main navigation" });
+    expect(within(nav).getByRole("link", { name: "Case inbox" })).toBeInTheDocument();
+  });
+
+  it("a login without case functions sees neither", () => {
+    browserApi({ "GET /reference/labels": labels() });
+    renderWithClient(<Sidebar me={makeMe(["users.view"], "dept_admin")} />);
+    const nav = screen.getByRole("navigation", { name: "Main navigation" });
+    expect(within(nav).queryByRole("link", { name: "Case inbox" })).toBeNull();
+    expect(within(nav).queryByRole("link", { name: "Search" })).toBeNull();
   });
 
   it("a department admin sees Administration with Users and Offices", async () => {
@@ -136,5 +183,20 @@ describe("header and sidebar foot", () => {
     );
     expect(await screen.findByText("page body")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole("button", { name: "User menu" })).toBeInTheDocument());
+  });
+
+  it("the header search box opens /search?q= for case readers", async () => {
+    browserApi({});
+    renderWithClient(<HeaderSearch me={makeMe(OFFICER)} />);
+    const box = screen.getByRole("searchbox", { name: "Search by CINO, case number or party name" });
+    await userEvent.type(box, "WP(C) 4326/2025");
+    await userEvent.click(screen.getByRole("button", { name: "Search" }));
+    expect(nav.push).toHaveBeenCalledWith("/search?q=WP(C)%204326%2F2025");
+  });
+
+  it("no header search box without case functions", () => {
+    browserApi({});
+    renderWithClient(<HeaderSearch me={makeMe(["users.view"])} />);
+    expect(screen.queryByRole("search")).toBeNull();
   });
 });

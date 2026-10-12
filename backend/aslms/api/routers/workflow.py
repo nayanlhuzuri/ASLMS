@@ -194,13 +194,14 @@ def custody_recipients(
     user: User = Depends(require(Permission.CASES_VIEW_SCOPE)),
 ) -> schemas.RecipientListOut:
     """Without `department`: the departments a file may be sent to; with it: that department's officers (one
-    row per membership; State-wide types excluded)."""
+    row per membership, with the person's `user_id`; State-wide types excluded) and `units`, the active offices
+    inside the department."""
     try:
         page = custody_svc.recipients(session, user, department=department, q=q, limit=limit, offset=offset)
     except HANDLED as exc:
         raise _http(exc) from exc
     if department:
-        return schemas.RecipientListOut(items=page.items, total=page.total)
+        return schemas.RecipientListOut(items=page.items, total=page.total, units=page.extra.get("units", []))
     return schemas.RecipientListOut(departments=page.items, total=page.total)
 
 

@@ -39,14 +39,27 @@ def recommended(
     office: str | None = None,
     band: str | None = None,
     q: str | None = None,
+    listed_from: date | None = None,
+    listed_to: date | None = None,
     limit: int = inbox.DEFAULT_LIMIT,
     offset: int = 0,
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
 ) -> schemas.RecommendationListOut:
-    """The department's active recommendations, strongest first, each with the signals behind its score."""
+    """The department's active recommendations, strongest first, each with the signals behind its score.
+    `listed_from` / `listed_to` keep the cases with a cause-list entry dated in the range."""
     try:
-        page = inbox.recommended(session, user, office=office, band=band, q=q, limit=limit, offset=offset)
+        page = inbox.recommended(
+            session,
+            user,
+            office=office,
+            band=band,
+            q=q,
+            listed_from=listed_from,
+            listed_to=listed_to,
+            limit=limit,
+            offset=offset,
+        )
     except (Forbidden, ValueError) as exc:
         raise _http(exc) from exc
     return schemas.RecommendationListOut(items=page.items, total=page.total)

@@ -73,3 +73,78 @@ def test_labels_answer_during_first_sign_in_gate(api):
     assert gated.status_code == 403 and gated.json()["detail"]["code"] == "profile_confirmation_required"
     r = api.get("/reference/labels", headers=h)
     assert r.status_code == 200 and r.json()["user_types"]
+
+
+# ------------------------------------------------------------------------------------------------ case types (portal-cases 14e)
+
+
+def _add_case_types(api) -> None:
+    from aslms.domain.courts import CaseType, Court
+
+    with api.app.state.session_factory() as s:
+        court = s.scalar(sa.select(Court).where(Court.est_code == "GAHC01"))
+        s.execute(sa.update(CaseType).where(CaseType.court_id == court.id).values(is_active=False))
+        s.add_all(
+            [
+                CaseType(
+                    court_id=court.id,
+                    case_type_code=9001,
+                    type_name="WP(C)",
+                    short_name="WP(C)",
+                    full_name="Writ Petition (Civil)",
+                ),
+                CaseType(
+                    court_id=court.id,
+                    case_type_code=9002,
+                    type_name="CRL.A",
+                    short_name="Crl.A.",
+                    full_name="Criminal Appeal",
+                ),
+                CaseType(
+                    court_id=court.id,
+                    case_type_code=9003,
+                    type_name="OLD",
+                    short_name="AAA",
+                    full_name="Retired type",
+                    is_active=False,
+                ),
+                CaseType(court_id=court.id, case_type_code=9004, type_name="NO SHORT NAME"),
+            ]
+        )
+        s.commit()
+
+
+def test_case_types_active_only_sorted(api):
+    _add_case_types(api)
+    r = api.get("/reference/case-types", headers=headers(api, "anil.kumar@example.org"))
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert [t["case_type_code"] for t in body] == [9002, 9001, 9004]
+    assert body[1] == {
+        "case_type_code": 9001,
+        "short_name": "WP(C)",
+        "full_name": "Writ Petition (Civil)",
+        "type_name": "WP(C)",
+    }
+    # the same list for every case reader
+    assert api.get("/reference/case-types", headers=headers(api, "root@example.org")).json() == body
+
+
+def test_case_types_need_case_reading(api):
+    from aslms.domain.org import PermissionEffect, User
+    from aslms.domain.reference import Permission
+    from aslms.services import access
+
+    with api.app.state.session_factory() as s:
+        root = s.scalar(sa.select(User).where(User.email == "root@example.org"))
+        officer = s.scalar(sa.select(User).where(User.email == "anil.kumar@example.org"))
+        actor = access.actor_for(root)
+        for perm in (Permission.CASES_VIEW_SCOPE, Permission.CASES_VIEW_ALL):
+            access.set_override(s, actor, root, officer, perm, PermissionEffect.DENY, reason="test")
+        s.commit()
+    r = api.get("/reference/case-types", headers=headers(api, "anil.kumar@example.org"))
+    assert r.status_code == 403
+
+
+def test_case_types_signed_out_401(api):
+    assert api.get("/reference/case-types").status_code == 401

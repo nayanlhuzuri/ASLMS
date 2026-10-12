@@ -6,6 +6,7 @@
  * number only. "Scan now" needs `admin.data_load`.
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { useState } from "react";
 
 import { Button, EmptyState, ErrorBanner, Loading, Notice, Pagination, Table } from "@/components/ui";
@@ -15,6 +16,7 @@ import type { DedupeScan, DuplicateItem, Duplicates as DuplicatesList } from "@/
 import { can } from "@/lib/can";
 import { formatDateTime } from "@/lib/format";
 import { T } from "@/lib/messages";
+import { casePath } from "@/lib/refs";
 import { useAction } from "@/lib/useAction";
 
 const LIMIT = 50;
@@ -24,7 +26,9 @@ function brief(c: DuplicateItem["case"]) {
   if (!c) return "—";
   return (
     <>
-      <span className="mono">{c.ref_no}</span>
+      <Link href={casePath(c.ref_no)} className="mono">
+        {c.ref_no}
+      </Link>
       <br />
       <span className="mono muted">{[c.cnr, c.case_no_text].filter(Boolean).join(" · ") || "—"}</span>
     </>

@@ -1350,3 +1350,42 @@ Design `docs/design/napix-window.md` (backlog row 47), branch `feature/napix-win
 reset, which needs the owner's decision. Migration 0015 is not yet applied to the dev database.
 
 - 2026-10-12 — portal-cases: approved by the owner with the department mapping screens split out into row 50 portal-mapping (inbox, search, case page, ownership actions, CaseLink, five read-only API additions, the relay header fix of row 44 item 1; docs/design/portal-cases.md)
+
+
+## Portal case screens: inbox, search, case page (2026-10-12)
+Design `docs/design/portal-cases.md` (backlog row 12), branch `feature/portal-cases`. No migration; `schema.md` unchanged.
+
+**What was built**
+- Portal (`frontend/`): the case inbox at `/inbox/{recommended|claimed|pool|transfers}` with a department selector, tabs
+  shown by the API's counts, the score badge and signal chips from the API's `band` and signals, and the claim, dismiss,
+  suggest, allot, transfer request / decide / withdraw dialogs; `/search` (local list and search, NAPIX court search by
+  CNR, case number or party with each error in words, order and document text); `/cases/[ref]` with eight tabs
+  (Overview, Hearings, Orders with inline View and Download, Parties, Documents, Linked cases with an SVG graph, Notes
+  read-only, Timeline, Details), banners for provisional, merged and not-fetched cases, and the Ownership card driven by
+  the API's `actions`. Every case reference is a link through one `CaseLink`; hidden cases render as text. The header
+  search box opens `/search?q=`.
+- API (read-only additions): `last_listing` on `CaseSummaryOut`, `listed_from` / `listed_to` on `GET /inbox/recommended`,
+  `actions` and `claim_departments` on `GET /cases/{ref}/ownership`, `user_id` and `units` on `GET /custody/recipients`,
+  `GET /reference/case-types`. The relay now passes the API's `x-content-type-options` and `content-security-policy`
+  headers on files viewed inline (item 1 of row 44).
+
+**Decisions and reasons**
+- The score colour and label come from the API's `band`, never from the portal comparing numbers: the bands are the
+  super admin's settings.
+- Server decides every permission; the portal shows buttons from `actions` and answers a hidden case with one neutral 404.
+- Ownership checks were factored into `_check_*` functions so `available_actions` and the actions share one rule.
+- Department mapping screens were split out at approval (owner, 12 Oct 2026) into row 50 `portal-mapping`.
+
+**Deviations from the design note** (ten are listed in the note's "Deviations")
+- Case API paths use the dash form of `ref_no` because the relay refuses an encoded `/`.
+- Each ownership action now checks under the case row lock; outcomes and audit rows unchanged.
+- Review fix: `POST /cases/{ref}/dismiss` and `/allot` took no department, so a login in two departments could act on
+  the primary membership's recommendation. Both gain an optional `office_code` that must name one of the caller's own
+  departments (400 otherwise, 403 without the function, 404 without the row); the inbox sends the selected department.
+  The case page's Dismiss still sends none.
+- The web smoke run used the branch's standalone server, not the Compose image (no registry access): all 41 pages
+  answered 200.
+
+**Left for later**: backlog row 51 (Compose `web` rebuild and smoke run, verification steps 3-9, whether the sandboxed
+inline PDF renders, a department choice for the case page's Dismiss, Documents tab paging); row 50 mapping screens;
+row 13 custody screens.

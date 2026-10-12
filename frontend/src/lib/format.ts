@@ -77,3 +77,31 @@ export function formatNumber(value: number | null | undefined): string {
   }
   return `${negative ? "-" : ""}${grouped}${fraction ? "." + fraction : ""}`;
 }
+
+/** The IST calendar day of an instant as `YYYY-MM-DD`. */
+export function istDay(now: Date = new Date()): string {
+  const p = istParts(now);
+  return `${p.year}-${String(p.month).padStart(2, "0")}-${String(p.day).padStart(2, "0")}`;
+}
+
+/** `YYYY-MM-DD` plus `days` calendar days. */
+export function addDays(day: string, days: number): string {
+  const d = new Date(`${day}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * The badge of a hearing date (design portal-cases, decision 10), from IST dates as the hearing calendar: "critical"
+ * when the hearing (at the 10:30 sitting) is today or later and at most 48 hours away, "week" when it falls within
+ * the next 7 days, else null. The dashboard keeps using the API's own `critical`.
+ */
+export function hearingBadge(date: string | null | undefined, now: Date = new Date()): "critical" | "week" | null {
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+  const today = istDay(now);
+  if (date < today) return null;
+  const sitting = new Date(`${date}T10:30:00+05:30`).getTime();
+  if (sitting - now.getTime() <= 48 * 3600 * 1000) return "critical";
+  if (date <= addDays(today, 7)) return "week";
+  return null;
+}

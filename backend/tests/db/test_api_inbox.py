@@ -576,3 +576,103 @@ def test_rule_endpoints(api, world):
         "name_pattern.create",
         "watchlist.create",
     } <= actions
+
+
+# ------------------------------------------------------------------------------------------------ portal-cases 14a/14b
+
+
+def _listing(s, case, on: date, sr_no: int, *, list_type=ListType.DAILY, court_no: str | None = "3"):
+    """A cause-list entry of `case` on `on` (one causelist per date and type)."""
+    court = s.scalar(sa.select(Court).where(Court.est_code == "GAHC01"))
+    cl = s.scalar(
+        sa.select(Causelist).where(
+            Causelist.court_id == court.id, Causelist.list_date == on, Causelist.list_type == list_type
+        )
+    )
+    if cl is None:
+        cl = Causelist(court_id=court.id, list_date=on, list_type=list_type, source=ListSource.GHC_WEBSITE)
+        s.add(cl)
+        s.flush()
+    s.add(
+        CauselistEntry(
+            causelist_id=cl.id,
+            sr_no=sr_no,
+            court_no=court_no,
+            case_id=case.id,
+            cnr=case.cnr,
+            source=EntrySource.PDF_PARSE,
+            petitioner_text="X",
+            respondent_text="Y",
+        )
+    )
+    s.flush()
+
+
+def test_recommended_listed_range_filters(api, world):
+    with world.Session() as s:
+        a, b, c = make_case(s), make_case(s), make_case(s)
+        for case in (a, b, c):
+            recommend(s, world, case, "EDU")
+        _listing(s, a, date(2025, 1, 6), 1)
+        _listing(s, b, date(2025, 2, 10), 1)
+        s.commit()
+        a_id, b_id = str(a.id), str(b.id)
+    admin = login(api, "edu_admin")
+    assert api.get("/inbox/recommended", headers=admin).json()["total"] == 3
+    r = api.get("/inbox/recommended?listed_from=2025-01-01&listed_to=2025-01-31", headers=admin)
+    assert r.status_code == 200 and ids(r.json()) == [a_id]
+    assert ids(api.get("/inbox/recommended?listed_from=2025-02-01", headers=admin).json()) == [b_id]
+    assert sorted(ids(api.get("/inbox/recommended?listed_to=2025-12-31", headers=admin).json())) == sorted(
+        [a_id, b_id]
+    )
+    assert api.get("/inbox/recommended?listed_from=2025-03-01", headers=admin).json()["total"] == 0
+
+
+def test_recommended_listed_range_reversed_400(api, world):
+    admin = login(api, "edu_admin")
+    r = api.get("/inbox/recommended?listed_from=2025-02-01&listed_to=2025-01-01", headers=admin)
+    assert r.status_code == 400 and "listed_from" in r.json()["detail"]
+
+
+def test_summary_last_listing_is_latest_entry(api, world):
+    with world.Session() as s:
+        case = make_case(s)
+        recommend(s, world, case, "EDU")
+        _listing(s, case, date(2025, 1, 6), 2)
+        _listing(s, case, date(2025, 1, 20), 41, court_no="3")
+        _listing(s, case, date(2025, 1, 20), 7, list_type=ListType.SUPPLEMENTARY, court_no="5")
+        s.commit()
+    item = api.get("/inbox/recommended", headers=login(api, "edu_admin")).json()["items"][0]
+    assert item["case"]["last_listed_on"] == "2025-01-20"
+    assert item["case"]["last_listing"] == {
+        "list_date": "2025-01-20",
+        "list_type": "supplementary",
+        "court_no": "5",
+        "sr_no": 7,
+    }
+
+
+def test_summary_last_listing_null_without_entries(api, world):
+    with world.Session() as s:
+        case = make_case(s)
+        recommend(s, world, case, "EDU")
+        s.commit()
+    item = api.get("/inbox/recommended", headers=login(api, "edu_admin")).json()["items"][0]
+    assert item["case"]["last_listing"] is None and item["case"]["last_listed_on"] is None
+
+
+def test_last_listing_in_search_and_pool_items(api, world):
+    with world.Session() as s:
+        case = make_case(s)
+        _listing(s, case, date(2025, 1, 8), 12, court_no="2")
+        s.commit()
+        case_id, cnr = str(case.id), case.cnr
+    expected = {"list_date": "2025-01-08", "list_type": "daily", "court_no": "2", "sr_no": 12}
+    admin = login(api, "edu_admin")
+    pool = api.get("/inbox/pool", headers=admin).json()
+    item = next(i for i in pool["items"] if str(i["case"]["id"]) == case_id)
+    assert item["case"]["last_listing"] == expected
+    r = api.get(f"/cases/search?q={cnr}", headers=login(api, "root"))
+    assert r.status_code == 200, r.text
+    hit = next(i for i in r.json()["items"] if str(i["case"]["id"]) == case_id)
+    assert hit["case"]["last_listing"] == expected

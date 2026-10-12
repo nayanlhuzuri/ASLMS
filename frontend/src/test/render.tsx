@@ -45,7 +45,7 @@ export function browserApi(routes: Record<string, Answer>) {
     const bare = path.split("?")[0];
     const answer = routes[`${method} ${path}`] ?? routes[`${method} ${bare}`];
     if (answer === undefined) return json(404, { detail: "Not Found" });
-    const value = typeof answer === "function" ? (answer as (c: BrowserCall) => unknown)(call) : answer;
+    const value = await (typeof answer === "function" ? (answer as (c: BrowserCall) => unknown)(call) : answer);
     if (value instanceof Response) return value;
     return json(200, value);
   });

@@ -64,7 +64,8 @@ read from orders on the "Latest order" card — rows 26 and 37; NAPIX search by 
 ## Decisions
 1. **Routes.** `/inbox/{recommended|claimed|pool|transfers}` (`/inbox` opens the first tab the login may read),
    `/search`, `/cases/[ref]` with one route per tab (`/cases/[ref]`, `/hearings`, `/orders`, `/parties`,
-   `/documents`, `/links`, `/notes`, `/timeline`, `/details`), `/admin/mapping/{codes|keywords|watchlist|scoring}`.
+   `/documents`, `/links`, `/notes`, `/timeline`, `/details`). (`/admin/mapping/{codes|keywords|watchlist|scoring}`
+   moved to row 50 `portal-mapping` at approval.)
    `[ref]` is the case's `ref_no` in the dash form (the form the notification mails already use,
    `<PORTAL_BASE_URL>/cases/<ref>`); the API also resolves an id or a CNR, so a pasted CNR URL works. One helper
    `refPath()` (moved from `Tickets.tsx` to `src/lib/refs.ts`) writes every link. Alternatives: tabs in a query
@@ -78,8 +79,8 @@ read from orders on the "Latest order" card — rows 26 and 37; NAPIX search by 
    `cases.view_all`. "Case inbox" shows with `cases.view_all`, or when `/me.memberships` holds a membership with a
    `department_code` (standing counsel and other logins without a department use Search, whose default list is their
    visible cases). The header search box (Annexure B: "Search by CINO, case number or party name") appears for case
-   readers and opens `/search?q=…`. Administration gains the "Department mapping" tab (decision 12) and its functions
-   join `ADMIN_FUNCTIONS`.
+   readers and opens `/search?q=…`. (The "Department mapping" Administration tab and its functions in
+   `ADMIN_FUNCTIONS` moved to row 50 `portal-mapping` at approval.)
 4. **Inbox department.** The inbox is read for one department at a time (`?department=CODE`, sent to the API as
    `office`). The selector lists the departments of `/inbox/counts` (one block per department the login works in);
    a holder of `cases.view_all` may also pick any active department from `GET /custody/recipients` (no
@@ -288,8 +289,8 @@ Backend (Python), read-only changes:
 Frontend (`frontend/`):
 - `src/server/relay.ts`: `RESPONSE_HEADERS` adds `x-content-type-options`, `content-security-policy` (decision 15).
 - `src/lib/refs.ts` (`refPath`, moved), `src/lib/can.ts` (`canIn(me, departmentCode, fn)`), `src/lib/routes.ts`
-  (decision 3; `CRUMBS` for the new segments; `MAPPING_TABS`), `src/lib/timeline.ts` (decision 13),
-  `src/lib/signals.ts` (signal chip text), `src/lib/messages.ts` (inbox, search, case, mapping strings and the error
+  (decision 3; `CRUMBS` for the new segments), `src/lib/timeline.ts` (decision 13),
+  `src/lib/signals.ts` (signal chip text), `src/lib/messages.ts` (inbox, search and case strings and the error
   codes of decisions 7 and 9), `src/lib/format.ts` (`hearingBadge(date)` — "Within 48 h" / "This week" from IST dates;
   the dashboard keeps using the API's `critical`).
 - `src/lib/api/hooks.ts`: `useDepartments()` (`/custody/recipients`, 10 minutes), `useCaseTypes()`,
@@ -301,11 +302,12 @@ Frontend (`frontend/`):
 - `src/components/search/*`: `Search` (local list and search, filters), `CourtSearch`, `TextSearch`.
 - `src/components/case/*`: `CaseFrame` (header, banners, tabs, 404), `Overview`, `OwnershipCard`, `Hearings`, `Orders`,
   `Parties`, `Documents`, `Links`, `LinkGraph`, `Notes`, `Timeline`, `Details`.
-- `src/components/admin/mapping/*`: `CounselCodes`, `Keywords`, `Watchlist`, `Scoring`.
+- Moved to row 50 `portal-mapping` at approval: `src/components/admin/mapping/*` (`CounselCodes`, `Keywords`,
+  `Watchlist`, `Scoring`), `MAPPING_TABS` in `src/lib/routes.ts`, the mapping strings and the `(portal)/admin/mapping/*`
+  pages.
 - Pages: `(portal)/inbox/{layout,page}.tsx`, `inbox/recommended`, `inbox/claimed`, `inbox/pool`, `inbox/transfers`;
   `(portal)/search/page.tsx`; `(portal)/cases/[ref]/{layout,page}.tsx`, `hearings`, `orders`, `parties`, `documents`,
-  `links`, `notes`, `timeline`, `details`; `(portal)/admin/mapping/{layout,page}.tsx`, `codes`, `keywords`,
-  `watchlist`, `scoring`. Changed: `PortalShell` (header search box), `Dashboard` (`CaseRef` → `CaseLink`),
+  `links`, `notes`, `timeline`, `details`. Changed: `PortalShell` (header search box), `Dashboard` (`CaseRef` → `CaseLink`),
   `Duplicates`, `UserDetail` (exit items linked), `Tickets` (imports `refPath`).
 
 Audit and events: the portal writes none. Every action it offers is an existing API call that already audits
@@ -370,8 +372,8 @@ Frontend (Vitest, `frontend/src/**/*.test.ts(x)`, the `fakeApi` helper):
   gives no detail; no raw JSON. `lib/signals.test.ts`: each signal kind's chip text. `lib/format.test.ts` (added):
   `hearingBadge` near midnight IST.
 - `components/shell/shell.test.tsx` (added): Case inbox shown with a department membership or `cases.view_all`, hidden
-  for standing counsel; Search shown for case readers; the header box goes to `/search?q=`; Department mapping tab
-  by its functions.
+  for standing counsel; Search shown for case readers; the header box goes to `/search?q=`. (The Department mapping
+  tab test moved to row 50 `portal-mapping`.)
 - `components/inbox/inbox.test.tsx`: tabs follow the `null` counts; the selector appears with two departments and
   for a `cases.view_all` reader, who sees no action buttons in a department they do not work in; Recommended shows
   the band label from the API (a 0.849 score with `band: medium` says POSSIBLE), signal chips and the latest listing;
@@ -394,7 +396,7 @@ Frontend (Vitest, `frontend/src/**/*.test.ts(x)`, the `fakeApi` helper):
   `doc_group` with the Case Assistant and visibility badges; notes link corrections both ways and hide corrected notes
   on request; the Details tab renders every block of the overview response; the link graph draws nodes and edges and
   says when `truncated`; non-visible linked cases are not links; no Case Assistant, Upload or Hand over button.
-- `components/admin/mapping.test.tsx`: tabs by function; weight inputs only with `admin.scoring`; the scoring save
+- Moved to row 50 `portal-mapping` at approval, not in this row: `components/admin/mapping.test.tsx`: tabs by function; weight inputs only with `admin.scoring`; the scoring save
   sends `expected_version`, a 409 reloads with the message; history listed; Unmapped "Map" pre-fills the code form; the
   watchlist refuses a CNR that is not 16 characters before sending; the "within 15 minutes" note after a save.
 - `components/dashboard/dashboard.test.tsx` (changed): case references are links to `/cases/<dash ref>`.
@@ -416,7 +418,8 @@ Frontend (Vitest, `frontend/src/**/*.test.ts(x)`, the `fakeApi` helper):
    (Chrome and Firefox; record whether the sandboxed PDF renders, decision 15) and downloads with Download;
    `curl -sI` of the same relay URL with the session cookie shows `x-content-type-options: nosniff` and
    `content-security-policy: sandbox` for `disposition=inline`.
-5. Department admin of a department with mapped codes (create one in Administration → Department mapping if none;
+5. Department admin of a department with mapped codes (if none, map one through `POST /admin/counsel-codes` as the
+   super admin; the mapping screen is row 50;
    `aslms rescore --all` or wait 15 minutes): `/inbox/recommended` badge equals `recommended_high + recommended_medium`
    of `GET /inbox/counts`; claim one strong recommendation; `aslms audit search --action ownership.claim --limit 1`
    shows the row with the browser's address; the case's Ownership card shows the department as primary and no claim
@@ -437,3 +440,48 @@ Frontend (Vitest, `frontend/src/**/*.test.ts(x)`, the `fakeApi` helper):
 
 ## Open questions
 None.
+
+## Deviations
+Recorded by the developer while building (12 Oct 2026). None changes a rule of the plan.
+1. **Ownership checks run under the row lock.** Each action now takes the case row lock first and then calls its
+   `_check_*` function (before, the acting membership was resolved before the lock and the state checked after it).
+   The outcomes, codes and audit rows are unchanged; the whole backend suite is green.
+2. **`inbox.Page.extra`.** The recipients list returns `units` through a new `extra` dict on the shared `Page`
+   dataclass rather than a second return type.
+3. **API paths use the dash form.** The relay refuses an encoded `/`, so every portal call to `/cases/{ref}/…` writes
+   the `ref_no` with `-` (`apiCasePath()` in `src/lib/refs.ts`); the query keys of a case use the same form so the
+   inbox's re-reads reach an open case page.
+4. **Suggest department in the pool shows with `cases.suggest_elsewhere` in any membership**, not only in the
+   selected department's, so the central operator (whose membership is not a department) can follow up an
+   unclaimed case as decision 6 intends. The API decides the call.
+5. **Claim from search results** offers the departments of the login's memberships that hold `cases.claim` (the
+   super admin: every department), as the case page does with `claim_departments`.
+6. **`/cases`** (the breadcrumb above a case page) is a page that sends the browser to `/search` (a client
+   redirect, so the portal smoke check still sees HTTP 200).
+7. **Small additions not named in the note:** `useDepartmentPeople()` (recipients of one department for the claim
+   and allot fields), `departmentsOf()` in `can.ts`, `src/lib/params.ts` (query-string filters shared by server
+   pages and client lists), `SignalChips`; the Claimed tab's officer filter shows only with `cases.allot`; the
+   Documents tab reads one page of 200; the Details tab hides internal ids (UUIDs); the test helper `browserApi`
+   now awaits an answer that is a promise (used to test the disabled court-search button).
+8. **Verification steps 3-9 were not run by the developer.** Migrations 0014 and 0015 are not applied to the dev
+   database and starting `api` would apply them through `init` while the historical load runs; that needs the
+   owner's go-ahead. `docker compose build web` and `portal_smoke.py` are left to the tester and the integrator.
+9. **Web smoke run against the branch's standalone server, not the Compose image** (fix after the tester's report,
+   12 Oct 2026). `docker compose build web` cannot run in this session: Docker Hub does not resolve (no network) and
+   `node:22-alpine` is not cached, so the running `web` container is still the old image. The same pages were checked
+   with the code the image would hold: `npm run build`, the `.next/standalone` server (with `.next/static`) started on
+   `127.0.0.1:3100` with the Compose `web` variables (`API_BASE_URL=http://localhost:8000`), then
+   `portal_smoke.py --base http://127.0.0.1:3100`: all 41 pages answered 200, including `/cases`, `/cases/smoke-x` and
+   its 8 tabs, `/inbox` and its 4 tabs and `/search`; that server's log had no error line. The Compose rebuild
+   (`docker compose build web`, `docker compose up -d --wait --no-deps web`, `portal_smoke.py`) remains to be run
+   once the registry is reachable, before merge.
+10. **Dismiss and Allot name the department on screen** (fix after review, 12 Oct 2026). The inbox is read for one
+    department, but `POST /cases/{ref}/dismiss` and `/allot` took no department, so for a login in two departments
+    the API acted for the primary membership and could dismiss or allot another department's recommendation or row
+    (decisions 4 and 7). `DismissIn` and `AllotIn` gain an optional `office_code`; the inbox's Dismiss sends the
+    selected department and Allot (inbox and case page) sends the department of the row it shows. Unlike claim,
+    `office_code` here must name one of the caller's own departments (400 otherwise; the super admin gains no new
+    power); the named membership must hold the function (403) and that department must have the recommendation or
+    row (404). Without `office_code` the API resolves the department as before. The case page's Dismiss still sends
+    none (the page has no selected department; `office_required` shows as its message). `frontend/openapi.json` and
+    `schema.d.ts` regenerated; tests in `tests/db/test_ownership_office_code.py` and `inbox.test.tsx`.
