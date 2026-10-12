@@ -10,8 +10,10 @@ import type {
   CaseType,
   InboxCountsList,
   Me,
+  OfficeOut,
   RecipientList,
   ReferenceLabels,
+  ScoringSettings,
 } from "./types";
 
 export const ME_KEY = ["me"] as const;
@@ -94,6 +96,28 @@ export function useOwnership(ref: string, enabled = true) {
   return useQuery({
     queryKey: [...caseKey(ref), "ownership"],
     queryFn: () => api<CaseOwnershipView>(apiCasePath(ref, "ownership")),
+    enabled,
+  });
+}
+
+/** The active offices of the caller's `users.view` scope, by path (`GET /admin/offices`), for office pickers. */
+export function useScopedOffices(enabled = true) {
+  return useQuery({
+    queryKey: ["admin", "offices", "scope"],
+    queryFn: () => api<OfficeOut[]>("/admin/offices"),
+    staleTime: 10 * 60_000,
+    enabled,
+  });
+}
+
+export const MAPPING_KEY = ["mapping"] as const;
+export const SCORING_KEY = [...MAPPING_KEY, "scoring"] as const;
+
+/** The current scoring settings (`GET /admin/scoring-settings`; State-wide, read-only without `admin.scoring`). */
+export function useScoringSettings(enabled = true) {
+  return useQuery({
+    queryKey: [...SCORING_KEY, "current"],
+    queryFn: () => api<ScoringSettings>("/admin/scoring-settings"),
     enabled,
   });
 }

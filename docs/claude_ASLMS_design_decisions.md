@@ -1391,3 +1391,40 @@ inline PDF renders, a department choice for the case page's Dismiss, Documents t
 row 13 custody screens.
 
 - 2026-10-12 — portal-mapping: approved by the owner (Department mapping tab: counsel codes with the unmapped-codes panel, keywords and name patterns, watchlist, scoring settings with history; weights editable only with admin.scoring; frontend only; docs/design/portal-mapping.md)
+
+## Portal mapping screens (2026-10-12)
+
+**Built** (frontend only; no migration, no table, no endpoint, no function; `docs/design/portal-mapping.md`, row 50)
+- Routes `/admin/mapping` (opens the first tab the login may read), `/admin/mapping/codes`, `/keywords`, `/watchlist`,
+  `/scoring`, under a new "Department mapping" Administration tab. `MAPPING_FUNCTIONS`, `MAPPING_TABS`,
+  `mappingTabsFor(me)` and `PEOPLE_ADMIN_FUNCTIONS` in `src/lib/routes.ts`; `ADMIN_FUNCTIONS` now includes the mapping
+  functions while Designations keeps its six.
+- Counsel codes with the unmapped-codes panel (read only when first opened; "Map" fills the form and sends nothing),
+  keywords and name patterns on one page, the watchlist, and the scoring settings with version history.
+- Components in `src/components/admin/mapping/`; helpers in `src/lib/mapping.ts` (`isCnr`, `weightBody`,
+  `isRootOffice`, `scoringErrors`, `changedFields`, `given`); strings in `T.mapping`; hooks `useScopedOffices`,
+  `useScoringSettings`.
+
+**Decisions and reasons**
+- Weight inputs and Clear override exist only with `admin.scoring`; `weight` is sent only when changed (a number, or
+  `null` to clear), never without the function, because the API refuses any `weight` key without it.
+- A code mapped to the root office is sent with `is_generic_state: true`, so the form has one input, not two that must
+  agree.
+- Case references in the watchlist and the unmapped panel link to `/search?q=<ref>`, not the case page, so a link never
+  leads to a 404 for a case the department cannot open yet.
+- The scoring tab shows settings only; the portal never computes a band of a stored score.
+- The mock-up's "code shared by more than one department" box is not built (a code maps to one office).
+
+**Deviations from the design note** (eight in the note's "Deviations")
+- "Reactivated" is said only when the answer's `id` was already in the list the screen held.
+- A typed office code (login without `users.view`) never makes a code generic; the API refuses the root office itself.
+- The mapping screens show the server's own message for 400, 403, 404, 409, 500, 503 and 504 through `given()`.
+- After a watchlist edit or status change the line is "scored again now" or "Saved." (the answers carry no
+  `dossier_queued`); an edit dialog with nothing changed closes without a call.
+- Verification: `docker compose build web` and smoke run done (46 pages 200, no error line); backend `pytest -q`
+  888 passed; frontend `npm test` 282 passed (25 files); lint, typecheck, build clean. The unmapped query measured
+  0.11 s and 0.06 s cold on the dev database (49,128 cause-list entries), so nothing recorded for row 20.
+
+**Left for later**: browser verification steps 4, 5 and 7 (they need the e-mailed sign-in code) are for the owner or
+the integrator; the shared-codes box and paging of the rule lists (row 20); row 51 follow-ups; row 13 custody screens.
+

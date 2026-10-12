@@ -30,7 +30,8 @@ export function showsInbox(me: MeLike): boolean {
 
 export const CASE_READERS: readonly Permission[] = ["cases.view_scope", "cases.view_all"];
 
-export const ADMIN_FUNCTIONS: readonly Permission[] = [
+/** The people and offices functions of Administration (the Designations tab shows with any of them). */
+export const PEOPLE_ADMIN_FUNCTIONS: readonly Permission[] = [
   "users.view",
   "offices.manage",
   "admin.designations",
@@ -38,6 +39,17 @@ export const ADMIN_FUNCTIONS: readonly Permission[] = [
   "users.propose_head",
   "admin.tickets",
 ];
+
+/** The department mapping functions (design portal-mapping, decision 2). */
+export const MAPPING_FUNCTIONS: readonly Permission[] = [
+  "admin.counsel_codes",
+  "admin.keywords",
+  "admin.watchlist",
+  "admin.scoring",
+];
+
+/** The Administration entry of the sidebar: any people, offices or mapping function. */
+export const ADMIN_FUNCTIONS: readonly Permission[] = [...PEOPLE_ADMIN_FUNCTIONS, ...MAPPING_FUNCTIONS];
 
 /** Reading the data-collection screens (design data-load-console, decision 17); every action has its own function. */
 export const DATA_READERS: readonly Permission[] = [
@@ -69,8 +81,25 @@ export const ADMIN_TABS: readonly AdminTab[] = [
   { key: "users", label: "Users", href: "/admin/users", functions: ["users.view"] },
   { key: "access", label: "User types", href: "/admin/access", functions: ["users.view", "access.manage_types"] },
   { key: "offices", label: "Offices", href: "/admin/offices", functions: ["users.view", "offices.manage"] },
-  { key: "designations", label: "Designations", href: "/admin/designations", functions: ADMIN_FUNCTIONS },
+  { key: "designations", label: "Designations", href: "/admin/designations", functions: PEOPLE_ADMIN_FUNCTIONS },
+  { key: "mapping", label: "Department mapping", href: "/admin/mapping", functions: MAPPING_FUNCTIONS },
   { key: "tickets", label: "Tickets", href: "/admin/tickets", functions: ["users.propose_head", "admin.tickets"] },
+];
+
+/**
+ * The department mapping tabs (design portal-mapping, decision 2), each its own route. Scoring shows with the API's
+ * read rule (`admin.scoring`, `admin.counsel_codes` or `admin.keywords`); only `admin.scoring` may change it.
+ */
+export const MAPPING_TABS: readonly AdminTab[] = [
+  { key: "codes", label: "Counsel codes", href: "/admin/mapping/codes", functions: ["admin.counsel_codes"] },
+  { key: "keywords", label: "Keywords and name patterns", href: "/admin/mapping/keywords", functions: ["admin.keywords"] },
+  { key: "watchlist", label: "Watchlist", href: "/admin/mapping/watchlist", functions: ["admin.watchlist"] },
+  {
+    key: "scoring",
+    label: "Scoring",
+    href: "/admin/mapping/scoring",
+    functions: ["admin.scoring", "admin.counsel_codes", "admin.keywords"],
+  },
 ];
 
 export interface DataTab {
@@ -105,6 +134,10 @@ export function adminTabsFor(me: Pick<Me, "functions"> | null | undefined): Admi
   return ADMIN_TABS.filter((tab) => visible(me, tab.functions));
 }
 
+export function mappingTabsFor(me: Pick<Me, "functions"> | null | undefined): AdminTab[] {
+  return MAPPING_TABS.filter((tab) => visible(me, tab.functions));
+}
+
 /** The breadcrumb label of a path segment. */
 export const CRUMBS: Record<string, string> = {
   admin: "Administration",
@@ -135,6 +168,11 @@ export const CRUMBS: Record<string, string> = {
   notes: "Notes",
   timeline: "Timeline",
   details: "Details",
+  mapping: "Department mapping",
+  codes: "Counsel codes",
+  keywords: "Keywords and name patterns",
+  watchlist: "Watchlist",
+  scoring: "Scoring",
 };
 
 /** The inbox tabs (design portal-cases, decisions 4-6), in order; which show comes from `/inbox/counts`. */

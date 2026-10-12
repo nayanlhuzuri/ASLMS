@@ -1,0 +1,34 @@
+.weight {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  white-space: nowrap;
+}
+
+.source {
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+}
+
+.changed {
+  font-weight: 600;
+  background: var(--warning-bg);
+  color: var(--warning);
+  padding: 0 4px;
+  border-radius: var(--radius);
+}
+
+.form {
+  align-items: flex-start;
+}
+
+.panel {
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-3);
+}
+
+.values {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--space-3);
+}

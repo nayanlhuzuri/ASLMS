@@ -310,3 +310,42 @@ Frontend (Vitest, the `fakeApi` / `browserApi` helpers):
 
 ## Open questions
 None.
+
+## Deviations
+Recorded by the developer on 12 Oct 2026. None changes the plan, an API or a table.
+
+1. **"Reactivated" is said only when the screen knew the row.** The API answers the same `201` for a new rule and for a
+   deactivated one it reactivates, so the keyword and name-pattern forms compare the answer's `id` with the list they
+   hold; a deactivated rule is in that list only with "Include deactivated" ticked. Otherwise the plain after-save line
+   shows (the audit row still says `reactivate`). Applied to keywords and name patterns, as decision 6 says.
+2. **A typed office code never makes a code generic.** A login without `users.view` types the office (decision 4), so
+   the portal cannot tell whether the code typed is the root office; the form then sends `is_generic_state: false`
+   and the API refuses the root office with its own message. Every login whose scope holds the root (the super admin,
+   a State-tier login) holds `users.view` and picks from the list.
+3. **"Shown as given" through one helper.** The shared `errorText` turns a 403 into the fixed "You do not have the
+   function needed for this.", so the mapping screens pass errors through `given()` (`src/lib/mapping.ts`), which
+   shows the server's own message for 400, 403, 404, 409, 500, 503 and 504; sign-in, gate, network and relay (502)
+   errors keep the usual text. The UI kit is unchanged.
+4. **Watchlist lines after an edit or a status change.** The `PATCH` and status answers carry no `dossier_queued`;
+   the screen says "The case was scored again now." when the entry has a held case and "Saved." when it has none
+   (nothing to score yet). The watchlist's deactivate / reactivate confirmation says the case is scored again at once
+   instead of the rules' "within 15 minutes" (decision 7: watchlist changes rescore inline).
+5. **An edit dialog with nothing changed closes without a call** (no empty `PATCH`, no audit row).
+6. **While `/me` loads the office picker is an empty list**, so the field does not change from a text box to a list
+   under the user's hand.
+7. **Verification run by the developer.** Steps 1 and 2 (`ruff`, `pytest`, the OpenAPI export with no diff,
+   `npm run gen:api` with no diff, lint, typecheck, tests, build) pass. `docker compose build web` was not run (the
+   running `web` container is left to the tester and integrator); step 3 was run against the branch's standalone
+   server as in portal-cases deviation 9 (`.next/standalone` on `127.0.0.1:3100`, `API_BASE_URL=http://localhost:8000`,
+   `portal_smoke.py --base http://127.0.0.1:3100`): all 46 pages answered 200, including the five new ones, and that
+   server's log had no error line. Steps 4, 5 and 7 need a signed-in browser (the e-mailed sign-in code) and are left
+   to the tester. Step 6 was measured in the database rather than through the relay (no session): the two queries of
+   `unmapped_codes` over the dev database (49,128 cause-list entries, 726 distinct raw codes, 287 current advocate
+   codes) took 0.11 s and 0.06 s cold, 0.02 s warm, with no statement timeout set; far under 10 seconds, so nothing is
+   recorded for row 20 yet. The panel's error and Retry path is covered by a unit test.
+8. **Verification after the tester's report (12 Oct 2026).** `docker compose build web` built the branch image and
+   `docker compose up -d --wait --no-deps web` brought it up healthy; `portal_smoke.py` against it: all 46 pages
+   answered 200, including the five mapping pages, and the `web` log had no error line. Backend `ruff check` clean
+   and the full `pytest -q` green: `888 passed, 71 warnings in 721.82s`. Frontend `npm run lint`, `npm run typecheck`
+   clean and `npm test` 282 passed (25 files). Steps 4, 5 and 7 still need a signed-in browser (the e-mailed sign-in
+   code) and are left to the owner or the integrator; they were not bypassed.

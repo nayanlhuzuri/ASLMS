@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { AdminFrame } from "@/components/admin/AdminFrame";
+import { MappingFrame } from "@/components/admin/mapping/MappingFrame";
 import type { Permission } from "@/lib/api/types";
 import { resetNav } from "@/test/nav";
 import { browserApi, labels, makeMe, renderWithClient } from "@/test/render";
@@ -119,6 +120,83 @@ describe("navigation by functions", () => {
     );
     await screen.findByText("body");
     expect(screen.queryByRole("navigation", { name: "Administration sections" })).toBeNull();
+  });
+});
+
+describe("department mapping tab", () => {
+  const MAPPING_ADMIN: Permission[] = [...DEPT_ADMIN, "admin.counsel_codes", "admin.keywords", "admin.watchlist"];
+
+  async function adminTabs(me: ReturnType<typeof makeMe>) {
+    browserApi({ "GET /me": me });
+    renderWithClient(
+      <AdminFrame>
+        <p>body</p>
+      </AdminFrame>,
+    );
+    await screen.findByText("body");
+    return screen.queryByRole("navigation", { name: "Administration sections" });
+  }
+
+  it("a department admin sees Department mapping", async () => {
+    resetNav("/admin/mapping/codes");
+    const tabs = await adminTabs(makeMe(MAPPING_ADMIN, "dept_admin"));
+    expect(within(tabs!).getByRole("link", { name: "Department mapping" })).toHaveAttribute("aria-current", "page");
+    expect(within(tabs!).getByRole("link", { name: "Department mapping" })).toHaveAttribute("href", "/admin/mapping");
+  });
+
+  it("a department officer does not", async () => {
+    const tabs = await adminTabs(makeMe(OFFICER));
+    expect(tabs).toBeNull();
+    expect(screen.queryByRole("link", { name: "Department mapping" })).toBeNull();
+  });
+
+  it("a login holding only admin.watchlist reaches Administration with the mapping tab and without Designations", async () => {
+    const me = makeMe(["admin.watchlist"], "central_operator");
+    browserApi({ "GET /reference/labels": labels(), "GET /me": me });
+    const { unmount } = renderWithClient(<Sidebar me={me} />);
+    const side = screen.getByRole("navigation", { name: "Main navigation" });
+    expect(within(side).getByRole("link", { name: "Administration" })).toHaveAttribute("href", "/admin");
+    unmount();
+    const tabs = await adminTabs(me);
+    expect(within(tabs!).getByRole("link", { name: "Department mapping" })).toBeInTheDocument();
+    expect(within(tabs!).queryByRole("link", { name: "Designations" })).toBeNull();
+  });
+
+  it("the super admin sees it", async () => {
+    const tabs = await adminTabs(makeMe([...MAPPING_ADMIN, "admin.scoring", "admin.designations"], "super_admin"));
+    expect(within(tabs!).getByRole("link", { name: "Department mapping" })).toBeInTheDocument();
+    expect(within(tabs!).getByRole("link", { name: "Designations" })).toBeInTheDocument();
+  });
+
+  async function mappingTabs(functions: Permission[]) {
+    browserApi({ "GET /me": makeMe(functions, "dept_admin") });
+    renderWithClient(
+      <MappingFrame>
+        <p>tab body</p>
+      </MappingFrame>,
+    );
+    await screen.findByText("tab body");
+    const nav = screen.getByRole("navigation", { name: "Department mapping sections" });
+    return within(nav)
+      .getAllByRole("link")
+      .map((a) => a.textContent);
+  }
+
+  it("the mapping sub-tabs follow the functions", async () => {
+    expect(await mappingTabs(["admin.watchlist"])).toEqual(["Watchlist"]);
+  });
+
+  it("Scoring shows for admin.keywords without admin.scoring", async () => {
+    expect(await mappingTabs(["admin.keywords"])).toEqual(["Keywords and name patterns", "Scoring"]);
+  });
+
+  it("every tab for the super admin's functions", async () => {
+    expect(await mappingTabs(["admin.counsel_codes", "admin.keywords", "admin.watchlist", "admin.scoring"])).toEqual([
+      "Counsel codes",
+      "Keywords and name patterns",
+      "Watchlist",
+      "Scoring",
+    ]);
   });
 });
 
