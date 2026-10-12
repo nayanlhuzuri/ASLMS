@@ -1428,3 +1428,5 @@ row 13 custody screens.
 **Left for later**: browser verification steps 4, 5 and 7 (they need the e-mailed sign-in code) are for the owner or
 the integrator; the shared-codes box and paging of the rule lists (row 20); row 51 follow-ups; row 13 custody screens.
 
+
+- 2026-10-12 — portal-cases-followups: approved by the owner (server-computed department lists per ownership action, a department choice in every dialog, sensible target lists, documents paged per group, inline view for PDFs and images only); merge not held for the owner's browser checklist, which follows as a post-merge task (INLINE_PDF true by default); docs/design/portal-cases-followups.md
