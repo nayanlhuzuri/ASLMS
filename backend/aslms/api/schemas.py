@@ -1244,6 +1244,7 @@ class AlertItemOut(BaseModel):
     closed_at: datetime | None
     created_at: datetime
     can_act: bool  # design portal-workflow, decision 20d: Acknowledge / Done may be offered
+    case_visible: bool  # design portal-files-alerts, decision 6: the caller can open the case now
 
 
 class AlertDetailOut(AlertItemOut):
@@ -2073,6 +2074,7 @@ class DashboardAlertOut(BaseModel):
     title: str
     due_at: datetime | None
     case: AlertCaseOut | None
+    case_visible: bool  # design portal-files-alerts, decision 6
     created_at: datetime
 
 

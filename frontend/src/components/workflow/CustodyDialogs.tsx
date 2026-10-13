@@ -4,8 +4,8 @@
  * Send file and Recall (design portal-workflow, decisions 5-7; Annexure B's "Hand over", replaced by sending under the
  * owner's rules of 7 Oct 2026). The buttons show only when the custody card's `can_send` / `can_recall` are true; the
  * API decides every call. Sending never claims, allots or changes the owner. After a move the finalised drafts are
- * listed; when the answer's `card` is null the sender no longer sees the case and the portal goes to the dashboard
- * with a notice (until row 55 builds Files → Sent), dropping the case's cached queries.
+ * listed; when the answer's `card` is null the sender no longer sees the case and the portal goes to Files → Sent
+ * with a notice (design portal-files-alerts, decision 14), marking the case's cached queries stale.
  */
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
@@ -145,9 +145,9 @@ export function SendDialog({
       setFlash(movedNotice(out.value, T.wf.sentAway(to)));
       reset();
       onClose();
-      router.push("/");
+      router.push("/files/sent");
       // Mark the case's data stale without refetching: removing it here, while the case page is still mounted,
-      // made its observers fetch the case again and show the not-found message before the dashboard (review of
+      // made its observers fetch the case again and show the not-found message before the next page (review of
       // 13 Oct 2026). A later visit fetches afresh.
       void queryClient.cancelQueries({ queryKey: caseKey(caseRef) });
       await Promise.all([

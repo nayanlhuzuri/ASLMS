@@ -244,7 +244,12 @@ export function PersonalBlock({ data }: { data: DashboardMe }) {
   return (
     <Block title={T.dash.personal} sub={T.dash.generated(formatDateTime(data.generated_at))}>
       <div className={s.tiles}>
-        <Tile label={T.dash.files} value={data.files.held} sub={T.dash.filesSub(n(data.files.with_pending_action), n(data.files.overdue))} />
+        <Tile
+          label={T.dash.files}
+          value={data.files.held}
+          sub={T.dash.filesSub(n(data.files.with_pending_action), n(data.files.overdue))}
+          href="/files/mine"
+        />
         <Tile label={T.dash.myAlerts} value={data.alerts.unread} sub={T.dash.unread(n(data.alerts.unread))} />
         <Tile label={T.dash.myHearings} value={data.hearings.total} sub={T.dash.hearings48(n(data.hearings.critical))} />
         <Tile label={T.dash.drafts} value={data.drafts} />
@@ -282,7 +287,9 @@ export function PersonalBlock({ data }: { data: DashboardMe }) {
       <FileList items={data.files.items} caption={T.dash.files} />
       <div className={s.columns}>
         <div id="alerts">
-          <h3>{T.dash.myAlerts}</h3>
+          <h3>
+            <Link href="/alerts">{T.dash.myAlerts}</Link>
+          </h3>
           {data.alerts.items.length === 0 ? (
             <EmptyState>{T.dash.noAlerts}</EmptyState>
           ) : (
@@ -292,7 +299,7 @@ export function PersonalBlock({ data }: { data: DashboardMe }) {
                   <Badge tone={a.severity === "critical" ? "danger" : a.severity === "high" ? "warning" : undefined}>
                     {a.kind_label}
                   </Badge>{" "}
-                  {a.title} {a.case ? <CaseRef value={a.case} /> : null}
+                  {a.title} {a.case ? <CaseLink value={a.case} visible={a.case_visible} /> : null}
                   <span className="muted"> · {formatDate(a.due_at ?? a.created_at)}</span>
                 </li>
               ))}

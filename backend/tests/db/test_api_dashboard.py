@@ -97,3 +97,17 @@ def test_dashboard_endpoints_status_codes(api, world):
     reviewer = login(api, "edu_reviewer")
     for path in ("/dashboard", "/dashboard/me", "/dashboard/department"):
         assert api.get(path, headers=reviewer).status_code == 403, path
+
+
+def test_personal_alert_items_carry_case_visible(api, world):
+    """Design portal-files-alerts, decision 6: the personal block's alert items carry `case_visible`."""
+    from aslms.services import alerts
+
+    with world.Session() as s:
+        claim(s, world, new_case(s, next_hearing=today() + timedelta(days=1)), officer="edu_off1")
+        s.commit()
+        alerts.sweep_dates(s)
+        s.commit()
+    body = api.get("/dashboard/me", headers=login(api, "edu_off1")).json()
+    items = body["alerts"]["items"]
+    assert items and all(i["case"] is not None and i["case_visible"] is True for i in items)

@@ -6,23 +6,21 @@
  * the list of all memberships; the header with the breadcrumb, the alert bell and the user menu. There is no
  * acting-membership switch: the API picks the membership that holds the function for each action.
  */
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { ErrorBanner, Loading } from "@/components/ui";
-import { api, session } from "@/lib/api/client";
-import { labelOf, useLabels, useMe } from "@/lib/api/hooks";
-import type { AlertCounts, Me } from "@/lib/api/types";
+import { session } from "@/lib/api/client";
+import { labelOf, useAlertCounts, useLabels, useMe } from "@/lib/api/hooks";
+import type { Me } from "@/lib/api/types";
 import { canAny } from "@/lib/can";
 import { formatNumber } from "@/lib/format";
 import { T } from "@/lib/messages";
-import { CASE_READERS, CRUMBS, navFor } from "@/lib/routes";
+import { CASE_READERS, crumbLabel, navFor } from "@/lib/routes";
 
 import s from "./shell.module.css";
-
-export const ALERT_POLL_MS = 2 * 60 * 1000;
 
 function isActive(pathname: string, href: string): boolean {
   if (href === "/") return pathname === "/";
@@ -97,16 +95,12 @@ export function MembershipsFoot({ me }: { me: Me }) {
 
 export function AlertBell({ me }: { me: Me }) {
   const enabled = canAny(me, CASE_READERS);
-  const counts = useQuery({
-    queryKey: ["alerts", "counts"],
-    queryFn: () => api<AlertCounts>("/alerts/counts"),
-    enabled,
-    refetchInterval: ALERT_POLL_MS,
-  });
+  // design portal-files-alerts, decision 4: the list is the bell's target; one shared counts query
+  const counts = useAlertCounts(enabled);
   if (!enabled) return null;
   const unread = counts.data?.unread ?? 0;
   return (
-    <Link href="/#alerts" className={s.bell} aria-label={T.shell.alerts(unread)}>
+    <Link href="/alerts" className={s.bell} aria-label={T.shell.alerts(unread)}>
       <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
         <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
@@ -216,8 +210,9 @@ export function Breadcrumb() {
   const pathname = usePathname() ?? "/";
   const parts = pathname.split("/").filter(Boolean);
   const crumbs = [{ href: "/", label: T.dash.title }];
-  parts.forEach((part, i) => {
-    crumbs.push({ href: "/" + parts.slice(0, i + 1).join("/"), label: CRUMBS[part] ?? decodeURIComponent(part) });
+  parts.forEach((_part, i) => {
+    const href = "/" + parts.slice(0, i + 1).join("/");
+    crumbs.push({ href, label: crumbLabel(href) });
   });
   return (
     <nav aria-label={T.shell.breadcrumb} className={s.crumbs}>

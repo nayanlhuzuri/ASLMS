@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { acceptOf, checkFile, dueDateBounds, megabytes, todayIst } from "./workflow";
+import {
+  acceptOf,
+  checkFile,
+  dueDateBounds,
+  megabytes,
+  monthGrid,
+  monthRange,
+  parseMonth,
+  shiftMonth,
+  todayIst,
+} from "./workflow";
 
 const LIMITS = { max_bytes: 20 * 1024 * 1024, extensions: ["pdf", "docx", "doc", "jpg", "jpeg", "png"] };
 
@@ -35,5 +45,54 @@ describe("file pre-checks", () => {
     expect(megabytes(1.5 * 1024 * 1024)).toBe("1.5 MB");
     expect(megabytes(300 * 1024)).toBe("300 KB");
     expect(megabytes(50)).toBe("50 bytes");
+  });
+});
+
+describe("the hearing calendar's month helpers (portal-files-alerts, decision 10)", () => {
+  it("a month starting on a Monday has no leading padding", () => {
+    const weeks = monthGrid("2026-06");
+    expect(weeks).toHaveLength(5);
+    expect(weeks.every((w) => w.length === 7)).toBe(true);
+    expect(weeks[0]![0]).toBe("2026-06-01");
+    expect(weeks[4]).toEqual(["2026-06-29", "2026-06-30", null, null, null, null, null]);
+  });
+
+  it("a month starting on a Sunday puts the 1st in the last column", () => {
+    const weeks = monthGrid("2026-02");
+    expect(weeks[0]).toEqual([null, null, null, null, null, null, "2026-02-01"]);
+    expect(weeks[1]![0]).toBe("2026-02-02");
+    expect(weeks.flat().filter(Boolean)).toHaveLength(28);
+    expect(weeks.every((w) => w.length === 7)).toBe(true);
+  });
+
+  it("February of a leap year has 29 days", () => {
+    const weeks = monthGrid("2028-02");
+    const days = weeks.flat().filter(Boolean);
+    expect(days).toHaveLength(29);
+    expect(days.at(-1)).toBe("2028-02-29");
+    expect(weeks[0]![0]).toBeNull();
+    expect(weeks[0]![1]).toBe("2028-02-01");
+    expect(weeks.every((w) => w.length === 7)).toBe(true);
+  });
+
+  it("monthRange gives the first and last day", () => {
+    expect(monthRange("2026-10")).toEqual({ from: "2026-10-01", to: "2026-10-31" });
+    expect(monthRange("2026-02")).toEqual({ from: "2026-02-01", to: "2026-02-28" });
+    expect(monthRange("2028-02")).toEqual({ from: "2028-02-01", to: "2028-02-29" });
+  });
+
+  it("shiftMonth crosses a year both ways", () => {
+    expect(shiftMonth("2026-12", 1)).toBe("2027-01");
+    expect(shiftMonth("2027-01", -1)).toBe("2026-12");
+    expect(shiftMonth("2026-10", 0)).toBe("2026-10");
+  });
+
+  it("parseMonth refuses a month 13 and junk", () => {
+    expect(parseMonth("2026-10")).toBe("2026-10");
+    expect(parseMonth("2026-13")).toBeNull();
+    expect(parseMonth("2026-00")).toBeNull();
+    expect(parseMonth("junk")).toBeNull();
+    expect(parseMonth("2026-1")).toBeNull();
+    expect(parseMonth(undefined)).toBeNull();
   });
 });

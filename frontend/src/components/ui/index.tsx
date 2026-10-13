@@ -275,14 +275,33 @@ export function Dialog({
   );
 }
 
-export function Tile({ label, value, sub }: { label: string; value: number | null | undefined; sub?: ReactNode }) {
-  return (
-    <div className={s.tile}>
+/** A figure with its label; with `href` the whole tile is one link named by its label and value. */
+export function Tile({
+  label,
+  value,
+  sub,
+  href,
+}: {
+  label: string;
+  value: number | null | undefined;
+  sub?: ReactNode;
+  href?: string;
+}) {
+  const body = (
+    <>
       <div className={s.tileValue}>{formatNumber(value)}</div>
       <div className={s.tileLabel}>{label}</div>
       {sub ? <div className={s.tileSub}>{sub}</div> : null}
-    </div>
+    </>
   );
+  if (href) {
+    return (
+      <Link href={href} className={cx(s.tile, s.tileLink)} aria-label={`${label}: ${formatNumber(value)}`}>
+        {body}
+      </Link>
+    );
+  }
+  return <div className={s.tile}>{body}</div>;
 }
 
 export function EmptyState({ children }: { children: ReactNode }) {

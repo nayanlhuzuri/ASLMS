@@ -527,3 +527,131 @@ def test_closed_alert_can_act_false(api, world, alerted):
     (item,) = api.get(f"/cases/{ref}/alerts?status=all", headers=admin).json()["items"]
     assert item["status"] == "done" and item["can_act"] is False
     assert api.get(f"/alerts/{alr}", headers=login(api, "edu_off1")).json()["can_act"] is False
+
+
+# ------------------------------------------------------------------------------------------------ case_visible (portal-files-alerts)
+
+
+def test_list_case_visible_true_for_visible_case(api, world, alerted):
+    """Design portal-files-alerts, decision 6: an alert about a case the caller can open says so."""
+    (item,) = api.get("/alerts", headers=login(api, "edu_off1")).json()["items"]
+    assert item["case"]["id"] == alerted["edu_case"] and item["case_visible"] is True
+
+
+def test_recalled_holder_notice_case_visible_false(api, world):
+    """The officer a file was recalled from lists the `file_recalled` notice with the case summary present and
+    `case_visible` false (they no longer see the case)."""
+    from tests.db import workflow_support as w
+
+    with world.Session() as s:
+        case = w.claimed_case(s, world)
+        w.send(s, world, "edu_off1", case, "health_off", due_date=w.in_days(30))
+        s.commit()
+        case_id = case.id
+    with world.Session() as s:
+        alerts.scan_events(s, now=h.now_utc())
+        s.commit()
+    hoff = login(api, "health_off")
+    received = next(i for i in api.get("/alerts", headers=hoff).json()["items"] if i["kind"] == "workflow")
+    assert received["data"]["event"] == "file_received" and received["case_visible"] is True
+    with world.Session() as s:
+        w.recall(s, world, "edu_admin", s.get(alerts.Case, case_id))
+        s.commit()
+    with world.Session() as s:
+        alerts.scan_events(s, now=h.now_utc() + timedelta(minutes=5))
+        s.commit()
+    items = api.get("/alerts", headers=hoff).json()["items"]
+    recalled = next(i for i in items if i["data"].get("event") == "file_recalled")
+    assert recalled["case"]["id"] == str(case_id) and recalled["case_visible"] is False
+    assert api.get(f"/cases/{recalled['case']['id']}", headers=hoff).status_code == 404
+
+
+def test_taken_over_notice_case_visible_false(api, world, alerted):
+    """The officer a case was taken from reads the `case_taken_over` notice; the case is no longer theirs."""
+    with world.Session() as s:
+        actor, off2 = world.actor(s, "edu_off2")
+        own.take_over(s, actor, off2, s.get(alerts.Case, alerted["edu_case"]), reason="leave")
+        s.commit()
+        alerts.scan_events(s, now=h.now_utc())
+        s.commit()
+    items = api.get("/alerts", headers=login(api, "edu_off1")).json()["items"]
+    taken = next(i for i in items if i["data"].get("event") == "case_taken_over")
+    assert taken["case"]["id"] == alerted["edu_case"] and taken["case_visible"] is False
+    detail = api.get(f"/alerts/{taken['id']}", headers=login(api, "edu_off1")).json()
+    assert detail["case_visible"] is False
+    # the taker sees the case: their own notices about it (if any) say so
+    for item in api.get("/alerts", headers=login(api, "edu_off2")).json()["items"]:
+        if item["case"] and item["case"]["id"] == alerted["edu_case"]:
+            assert item["case_visible"] is True
+
+
+def test_admin_ticket_alert_case_visible_false(api, world):
+    from aslms.services import tickets
+
+    with world.Session() as s:
+        a_actor, admin = world.actor(s, "edu_admin")
+        t = tickets.request_head_change(
+            s,
+            a_actor,
+            admin,
+            {
+                "operation": "replace",
+                "department_code": "EDU",
+                "incoming": {"membership_id": str(world.membership(s, "edu_off1").id)},
+                "outgoing": {"mode": "retype"},
+            },
+            request_remark="the order of 1 Oct",
+        )
+        s.commit()
+        ticket_ref = t.ref_no
+    (item,) = api.get("/alerts", headers=login(api, "root")).json()["items"]
+    assert item["case"] is None and item["ticket_ref"] == ticket_ref and item["case_visible"] is False
+
+
+def test_case_tab_items_case_visible_true(api, world, alerted):
+    for key in ("edu_off1", "edu_admin", "edu_auditor"):
+        items = api.get(f"/cases/{alerted['edu_case_ref']}/alerts", headers=login(api, key)).json()["items"]
+        assert items and all(i["case_visible"] is True for i in items), key
+
+
+def test_detail_and_acknowledge_answer_carry_case_visible(api, world, alerted):
+    off1 = login(api, "edu_off1")
+    alr = alerted["edu_alert"]
+    assert api.get(f"/alerts/{alr}", headers=off1).json()["case_visible"] is True
+    r = api.post(f"/alerts/{alr}/acknowledge", json={}, headers=off1)
+    assert r.status_code == 200 and r.json()["case_visible"] is True
+    r = api.post(f"/alerts/{alr}/done", json={}, headers=off1)
+    assert r.status_code == 200 and r.json()["case_visible"] is True
+
+
+def test_case_visible_one_query_per_page(api, world, alerted):
+    """The statement count of `GET /alerts` does not grow with the page size (one visibility query)."""
+    from sqlalchemy import event
+    from sqlalchemy.engine import Engine
+
+    off1 = login(api, "edu_off1")
+
+    def statements() -> tuple[int, int]:
+        seen: list[str] = []
+
+        def count(conn, cursor, statement, *args):
+            seen.append(statement)
+
+        event.listen(Engine, "before_cursor_execute", count)
+        try:
+            body = api.get("/alerts", headers=off1).json()
+        finally:
+            event.remove(Engine, "before_cursor_execute", count)
+        return len(seen), len(body["items"])
+
+    one, n1 = statements()
+    assert n1 == 1
+    with world.Session() as s:
+        for _ in range(4):
+            case = make_case(s, next_hearing=d(3))
+            h.claim(s, world, "edu_admin", case, officer_user_id=world.users["edu_off1"].id)
+        s.commit()
+        alerts.sweep_dates(s, now=NOW)
+        s.commit()
+    many, n5 = statements()
+    assert n5 == 5 and many == one

@@ -39,7 +39,7 @@ const PERSONAL: DashboardMe = {
     unread: 2,
     open: { critical: 1, high: 0, normal: 1 },
     items: [
-      { id: "a1", ref_no: "ALR-1", kind: "hearing", kind_label: "Hearing", severity: "critical", status: "open", title: "Hearing tomorrow", created_at: "2026-10-10T01:00:00Z", due_at: null, case: CASE },
+      { id: "a1", ref_no: "ALR-1", kind: "hearing", kind_label: "Hearing", severity: "critical", status: "open", title: "Hearing tomorrow", created_at: "2026-10-10T01:00:00Z", due_at: null, case: CASE, case_visible: true },
     ],
   },
   hearings: { total: 0, critical: 0, items: [] },
@@ -213,5 +213,33 @@ describe("dashboard", () => {
     expect(await screen.findByText("There is no case dashboard for your login.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Administration" })).toBeInTheDocument();
     expect(api.calls.some((c) => c.path === "/dashboard")).toBe(false);
+  });
+
+  it("links the My alerts heading to /alerts and the Files I hold tile to /files/mine (portal-files-alerts)", async () => {
+    const hidden = { ...CASE, id: "c9", ref_no: "EDU/2026/0009", case_no_text: "WA/9/2026" };
+    browserApi({
+      "GET /me": makeMe(["cases.view_scope"]),
+      "GET /dashboard": { me: true, departments: [], state: false },
+      "GET /dashboard/me": {
+        ...PERSONAL,
+        alerts: {
+          ...PERSONAL.alerts,
+          items: [
+            ...PERSONAL.alerts.items,
+            { id: "a2", ref_no: "ALR-2", kind: "workflow", kind_label: "File movement", severity: "normal", status: "open", title: "File recalled", created_at: "2026-10-10T02:00:00Z", due_at: null, case: hidden, case_visible: false },
+          ],
+        },
+      },
+    });
+    renderWithClient(<Dashboard />);
+    await screen.findByText(/File recalled/);
+    const block = screen.getByRole("region", { name: "My work" });
+    expect(within(block).getByRole("link", { name: "My alerts" })).toHaveAttribute("href", "/alerts");
+    expect(within(block).getByRole("link", { name: "Files I hold: 3" })).toHaveAttribute("href", "/files/mine");
+    // a visible case is a link; a case the reader can no longer open is text
+    expect(within(block).getByRole("link", { name: "WP(C)/1234/2026" })).toHaveAttribute("href", "/cases/EDU-2026-0001");
+    expect(within(block).getByText("WA/9/2026").tagName).toBe("SPAN");
+    expect(within(block).queryByRole("link", { name: "WA/9/2026" })).toBeNull();
+    expect(document.getElementById("alerts")).not.toBeNull();
   });
 });

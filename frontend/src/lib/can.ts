@@ -38,3 +38,14 @@ export function departmentsOf(me: Pick<Me, "memberships"> | null | undefined): s
   }
   return out;
 }
+
+/**
+ * Whether the login tracks a department's files (design portal-files-alerts, decision 12): an active membership with
+ * a `department_code` holding `custody.track` (the API's `_tracked_departments` rule; the super admin's State
+ * membership has no department). Display only; the API decides.
+ */
+export function tracksDepartment(me: Partial<Pick<Me, "memberships">> | null | undefined): boolean {
+  return (me?.memberships ?? []).some(
+    (m) => m.is_active !== false && !!m.department_code && (m.functions ?? []).includes("custody.track"),
+  );
+}

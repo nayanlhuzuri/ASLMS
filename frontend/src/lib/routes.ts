@@ -4,7 +4,7 @@
  * their backlog rows. Showing an entry is convenience only: the API decides every figure and action.
  */
 import type { Me, Permission } from "./api/types";
-import { can, canAny, departmentsOf } from "./can";
+import { can, canAny, departmentsOf, tracksDepartment } from "./can";
 
 /** What the navigation reads of `/me`: the functions, and the memberships where an entry needs them. */
 export type MeLike = Pick<Me, "functions"> & Partial<Pick<Me, "memberships">>;
@@ -63,7 +63,9 @@ export const NAV: readonly NavEntry[] = [
   { key: "dashboard", label: "Dashboard", href: "/", functions: [], built: true },
   { key: "inbox", label: "Case inbox", href: "/inbox", functions: CASE_READERS, built: true, show: showsInbox },
   { key: "search", label: "Search", href: "/search", functions: CASE_READERS, built: true },
-  { key: "alerts", label: "Alerts & calendar", href: "/alerts", functions: CASE_READERS, built: false },
+  // design portal-files-alerts, decision 2: anyone may be sent a file, so Files shows with `cases.view_scope`
+  { key: "files", label: "Files", href: "/files", functions: ["cases.view_scope"], built: true },
+  { key: "alerts", label: "Alerts & calendar", href: "/alerts", functions: CASE_READERS, built: true },
   { key: "reports", label: "Reports", href: "/reports", functions: ["reports.department", "reports.state"], built: false },
   { key: "audit", label: "Audit log", href: "/audit", functions: ["audit.view"], built: false },
   { key: "data", label: "Data collection", href: "/data/load", functions: DATA_READERS, built: true },
@@ -136,6 +138,61 @@ export function adminTabsFor(me: Pick<Me, "functions"> | null | undefined): Admi
 
 export function mappingTabsFor(me: Pick<Me, "functions"> | null | undefined): AdminTab[] {
   return MAPPING_TABS.filter((tab) => visible(me, tab.functions));
+}
+
+export interface FilesTab {
+  key: "mine" | "offices" | "department" | "sent";
+  label: string;
+  href: string;
+  functions: readonly Permission[];
+  show?: (me: MeLike) => boolean;
+}
+
+/**
+ * The Files tabs (design portal-files-alerts, decisions 12 and 13), each its own route. "Department files" shows only
+ * with a department membership holding `custody.track` (the API's tracked-departments rule).
+ */
+export const FILES_TABS: readonly FilesTab[] = [
+  { key: "mine", label: "With me", href: "/files/mine", functions: CASE_READERS },
+  { key: "offices", label: "My offices", href: "/files/offices", functions: CASE_READERS },
+  { key: "department", label: "Department files", href: "/files/department", functions: [], show: tracksDepartment },
+  { key: "sent", label: "Sent", href: "/files/sent", functions: CASE_READERS },
+];
+
+export function filesTabsFor(me: MeLike | null | undefined): FilesTab[] {
+  if (!me) return [];
+  return FILES_TABS.filter((tab) => (tab.show ? tab.show(me) : visible(me, tab.functions)));
+}
+
+/** The Alerts & calendar tabs (decision 1); both show to case readers. */
+export const ALERTS_TABS: readonly DataTab[] = [
+  { key: "list", label: "Alerts", href: "/alerts", functions: CASE_READERS },
+  { key: "calendar", label: "Hearing calendar", href: "/alerts/calendar", functions: CASE_READERS },
+];
+
+export function alertsTabsFor(me: Pick<Me, "functions"> | null | undefined): DataTab[] {
+  return ALERTS_TABS.filter((tab) => visible(me, tab.functions));
+}
+
+/**
+ * Breadcrumb labels by full path, read before the segment labels (design portal-files-alerts, decision 3): the
+ * segment `offices` means Administration → Offices and `alerts` the case tab, so the Files and Alerts screens are
+ * named by path.
+ */
+export const CRUMB_PATHS: Record<string, string> = {
+  "/files": "Files",
+  "/files/mine": "With me",
+  "/files/offices": "My offices",
+  "/files/department": "Department files",
+  "/files/sent": "Sent",
+  "/alerts": "Alerts & calendar",
+  "/alerts/calendar": "Hearing calendar",
+};
+
+/** The breadcrumb label of a path (`CRUMB_PATHS` first, then the segment's label, else the segment itself). */
+export function crumbLabel(path: string): string {
+  const part = path.split("/").filter(Boolean).pop() ?? "";
+  return CRUMB_PATHS[path] ?? CRUMBS[part] ?? decodeURIComponent(part);
 }
 
 /** The breadcrumb label of a path segment. */

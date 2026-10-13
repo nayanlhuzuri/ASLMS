@@ -217,7 +217,7 @@ describe("Send file and Recall", () => {
     await userEvent.click(within(dialog).getByRole("button", { name: "Send file" }));
   }
 
-  it("a card: null answer goes to the dashboard with the notice and the finalised notes", async () => {
+  it("a card: null answer goes to Files → Sent with the notice and the finalised notes", async () => {
     browserApi({
       "GET /workflow/codes": CODES,
       "GET /custody/recipients": (call: { url: string }) => (call.url.includes("department=HEALTH") ? HEALTH_PEOPLE : DEPTS),
@@ -226,13 +226,13 @@ describe("Send file and Recall", () => {
     renderWithClient(<CustodyActions caseRef={REF} detail={detail()} card={card()} />);
     await userEvent.click(screen.getByRole("button", { name: "Send file" }));
     await fillAndSend(screen.getByRole("dialog", { name: "Send the file" }));
-    await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/"));
+    await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/files/sent"));
     expect(sessionStorage.getItem("aslms.flash")).toBe(
       "File sent to Health Off, Under Secretary, HEALTH. You no longer hold this case. Made permanent: ASLMS/HEALTH/NOTE/2026/000001",
     );
   });
 
-  it("sending the file away does not fetch the case again before the dashboard (no not-found flash)", async () => {
+  it("sending the file away does not fetch the case again before Files → Sent (no not-found flash)", async () => {
     const calls = browserApi({
       "GET /workflow/codes": CODES,
       "GET /custody/recipients": (call: { url: string }) => (call.url.includes("department=HEALTH") ? HEALTH_PEOPLE : DEPTS),
@@ -259,7 +259,7 @@ describe("Send file and Recall", () => {
     expect(await screen.findByText("case loaded")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Send file" }));
     await fillAndSend(screen.getByRole("dialog", { name: "Send the file" }));
-    await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/"));
+    await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/files/sent"));
     await new Promise((r) => setTimeout(r, 50));
     expect(calls.calls.filter((c) => c.method === "GET" && c.path === BASE)).toHaveLength(1);
     expect(screen.getByText("case loaded")).toBeInTheDocument();
@@ -787,6 +787,7 @@ function alert(extra: Partial<AlertItem> = {}): AlertItem {
     closed_at: null,
     created_at: "2026-10-13T04:30:00Z",
     can_act: true,
+    case_visible: false,
     ...extra,
   };
 }

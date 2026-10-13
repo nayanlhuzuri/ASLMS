@@ -150,3 +150,12 @@ export type UploadLimitsOut = S["UploadLimitsOut"];
 export type AlertItem = S["AlertItemOut"];
 export type AlertList = S["AlertListOut"];
 export type AlertDetail = S["AlertDetailOut"];
+// portal-files-alerts: files lists, tracking summary, hearing calendar
+export type HeldList = S["HeldListOut"];
+export type HeldItem = S["HeldItemOut"];
+export type SentList = S["SentListOut"];
+export type SentItem = S["SentItemOut"];
+export type CustodySummary = S["CustodySummaryOut"];
+export type DepartmentCustodySummary = S["DepartmentCustodySummaryOut"];
+export type CalendarList = S["CalendarOut"];
+export type CalendarItem = S["CalendarItemOut"];

@@ -1,12 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import type { Permission } from "./api/types";
+import type { Permission, Role } from "./api/types";
+import { tracksDepartment } from "./can";
 import {
   ADMIN_FUNCTIONS,
   ADMIN_TABS,
   adminTabsFor,
+  alertsTabsFor,
   CASE_TABS,
+  CRUMB_PATHS,
+  crumbLabel,
   CRUMBS,
+  filesTabsFor,
   MAPPING_FUNCTIONS,
   mappingTabsFor,
   navFor,
@@ -59,9 +64,61 @@ describe("the case page tabs (portal-workflow)", () => {
     expect(CRUMBS.alerts).toBe("Alerts");
   });
 
-  it("the Files and Alerts & calendar screens stay unbuilt until row 55", () => {
-    const keys = navFor({ functions: ["cases.view_scope", "custody.track"] }).map((e) => e.key);
-    expect(keys).not.toContain("alerts");
-    expect(keys).not.toContain("files");
+});
+
+const membership = (department_code: string | null, functions: Permission[], role: Role = "dept_admin") => ({
+  id: `m-${department_code ?? "state"}`,
+  office: { code: department_code ?? "GOA", name: department_code ?? "Assam", kind: department_code ? "department" : "state" },
+  department_code,
+  designation: null,
+  role,
+  is_primary: true,
+  is_active: true,
+  functions,
+});
+
+describe("Files and Alerts & calendar navigation (portal-files-alerts)", () => {
+  it("Alerts & calendar shows for case readers", () => {
+    expect(navFor({ functions: ["cases.view_scope"] }).map((e) => e.key)).toContain("alerts");
+    expect(navFor({ functions: ["cases.view_all"] }).map((e) => e.key)).toContain("alerts");
+    expect(navFor({ functions: ["users.view"] }).map((e) => e.key)).not.toContain("alerts");
+  });
+
+  it("Files shows with cases.view_scope, right after Search", () => {
+    const keys = navFor({ functions: ["cases.view_scope"], memberships: [] }).map((e) => e.key);
+    expect(keys.indexOf("files")).toBe(keys.indexOf("search") + 1);
+    expect(navFor({ functions: ["users.view"] }).map((e) => e.key)).not.toContain("files");
+  });
+
+  it("the Department files tab needs a department membership holding custody.track", () => {
+    const officer = { functions: ["cases.view_scope"] as Permission[], memberships: [membership("EDU", ["cases.view_scope"])] };
+    expect(keys(filesTabsFor(officer))).toEqual(["mine", "offices", "sent"]);
+    const tracker = {
+      functions: ["cases.view_scope", "custody.track"] as Permission[],
+      memberships: [membership("EDU", ["cases.view_scope", "custody.track"])],
+    };
+    expect(keys(filesTabsFor(tracker))).toEqual(["mine", "offices", "department", "sent"]);
+    expect(tracksDepartment(tracker)).toBe(true);
+    // the super admin's State membership has no department: no Department files tab
+    const root = {
+      functions: ["cases.view_scope", "cases.view_all", "custody.track"] as Permission[],
+      memberships: [membership(null, ["cases.view_scope", "cases.view_all", "custody.track"], "super_admin")],
+    };
+    expect(keys(filesTabsFor(root))).toEqual(["mine", "offices", "sent"]);
+    expect(filesTabsFor(null)).toEqual([]);
+  });
+
+  it("the Alerts frame has two tabs for case readers", () => {
+    expect(keys(alertsTabsFor({ functions: ["cases.view_scope"] }))).toEqual(["list", "calendar"]);
+    expect(alertsTabsFor({ functions: ["users.view"] })).toEqual([]);
+  });
+
+  it("CRUMB_PATHS names the screens by path, while the segments keep their meaning", () => {
+    expect(crumbLabel("/files/offices")).toBe("My offices");
+    expect(crumbLabel("/admin/offices")).toBe("Offices");
+    expect(crumbLabel("/alerts")).toBe("Alerts & calendar");
+    expect(crumbLabel("/cases/x/alerts")).toBe("Alerts");
+    expect(crumbLabel("/alerts/calendar")).toBe("Hearing calendar");
+    expect(CRUMB_PATHS["/files"]).toBe("Files");
   });
 });

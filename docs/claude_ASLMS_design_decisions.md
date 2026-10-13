@@ -1527,3 +1527,37 @@ table, column, code or migration; `docs/schema/schema.md` is unchanged.
 design's steps).
 
 - 2026-10-13 — portal-files-alerts: approved by the owner (Files tabs With me, My offices, Department files with the tracking summary, Sent; Alerts list with explicit read marks; hearing calendar with 7-day agenda and month grid; case_visible on alerts so no link leads to a 404; a move that hides the case goes to /files/sent; docs/design/portal-files-alerts.md)
+
+## Portal Files and Alerts & calendar screens (2026-10-13)
+
+**Built** (row 55, design `docs/design/portal-files-alerts.md`, approved 13 Oct 2026; no migration, no table or column)
+- Files frame `/files` with tabs `/files/mine` (With me), `/files/offices` (My offices), `/files/department`
+  (Department files, with the tracking summary per tracked department) and `/files/sent`; filters and paging in the
+  query string; no action buttons on the lists (sending and recalling stay on the case page).
+- Alerts frame: `/alerts` (counts, filters by status, kind, severity and unread, Mark read, Mark all read,
+  Acknowledge / Done) and `/alerts/calendar` (next 7 days agenda, month grid with the agenda below, department choice
+  for State-wide readers).
+- Navigation: "Alerts & calendar" built, new "Files" entry after Search, full-path breadcrumbs (`CRUMB_PATHS`), the
+  header bell links to `/alerts` through a shared `useAlertCounts()`, the dashboard "My alerts" heading and "Files I
+  hold" tile are links (`Tile` gains an optional `href`). A send or recall that hides the case now goes to
+  `/files/sent` with the one-time notice (portal-workflow decision 6, as the approval said).
+- One read-only API addition: `case_visible` on alert items and on the dashboard's alert list, computed by one
+  `visible_case_condition` query per page (`services/alerts.py`, `services/dashboard.py`, `api/schemas.py`).
+- Tests: backend `test_api_alerts.py` and `test_api_dashboard.py` additions; frontend `files.test.tsx`,
+  `alerts.test.tsx`, `calendar.test.tsx`, additions to `shell.test.tsx`, `dashboard.test.tsx`, `routes.test.ts`,
+  `workflow.test.ts`, `workflow.test.tsx`.
+
+**Decisions and reasons**
+- `case_visible` comes from the server so no alert row links to a 404 and the visibility rule is written once;
+  the browser never guesses from kind and event.
+- Opening `/alerts` marks nothing read; reading is by Mark read, Mark all read (no confirmation) or following the
+  row's link (a failed mark never blocks navigation), so the bell count never drops unseen.
+- The calendar is a plain table (Monday to Sunday, no calendar library); badges "Within 48 h" and "This week" are the
+  API's flags, never computed in the browser; a month request never exceeds the API's 62-day range.
+- The Department files tab shows only for a membership with a department and `custody.track`, the API's own rule.
+
+**Deviations from the design note**: none recorded in the design; the note itself closes the split left by
+portal-workflow (`useAlertCounts()`, `monthGrid()` and the `/files/sent` destination were deferred there).
+
+**Left for later**: row 56 (Compose verification of the workflow and these screens in a browser); the reports screen
+(row 39); row 53 browser checklist still with the owner.

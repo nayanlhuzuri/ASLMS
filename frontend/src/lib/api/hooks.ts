@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { apiCasePath, refPath } from "../refs";
 import { api } from "./client";
 import type {
+  AlertCounts,
   CaseDetail,
   CaseOwnershipView,
   CaseType,
@@ -172,5 +173,19 @@ export function useDrafts(ref: string, enabled = true) {
     queryKey: [...caseKey(ref), "drafts"],
     queryFn: () => api<DraftList>(apiCasePath(ref, "notes/drafts")),
     enabled,
+  });
+}
+
+// ------------------------------------------------------------------------------------------------ portal-files-alerts
+
+export const ALERT_POLL_MS = 2 * 60 * 1000;
+
+/** The caller's alert counts (`GET /alerts/counts`), re-read every two minutes; the bell and the list share it. */
+export function useAlertCounts(enabled = true) {
+  return useQuery({
+    queryKey: ["alerts", "counts"],
+    queryFn: () => api<AlertCounts>("/alerts/counts"),
+    enabled,
+    refetchInterval: ALERT_POLL_MS,
   });
 }

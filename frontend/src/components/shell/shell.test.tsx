@@ -10,7 +10,7 @@ import { browserApi, labels, makeMe, renderWithClient } from "@/test/render";
 
 import { nav } from "@/test/nav";
 
-import { AlertBell, HeaderSearch, PortalShell, Sidebar } from "./PortalShell";
+import { AlertBell, Breadcrumb, HeaderSearch, PortalShell, Sidebar } from "./PortalShell";
 
 const OFFICER: Permission[] = ["cases.view_scope", "notes.add", "documents.view", "alerts.acknowledge"];
 const DEPT_ADMIN: Permission[] = [
@@ -30,13 +30,33 @@ beforeEach(() => {
 });
 
 describe("navigation by functions", () => {
+  it("Files after Search and Alerts & calendar show for a case reader (portal-files-alerts)", () => {
+    browserApi({ "GET /reference/labels": labels() });
+    renderWithClient(<Sidebar me={makeMe(OFFICER)} />);
+    const nav = screen.getByRole("navigation", { name: "Main navigation" });
+    const names = within(nav)
+      .getAllByRole("link")
+      .map((a) => a.textContent);
+    expect(names.indexOf("Files")).toBe(names.indexOf("Search") + 1);
+    expect(within(nav).getByRole("link", { name: "Files" })).toHaveAttribute("href", "/files");
+    expect(within(nav).getByRole("link", { name: "Alerts & calendar" })).toHaveAttribute("href", "/alerts");
+  });
+
+  it("Files stays current across its tabs", () => {
+    resetNav("/files/sent");
+    browserApi({ "GET /reference/labels": labels() });
+    renderWithClient(<Sidebar me={makeMe(OFFICER)} />);
+    const nav = screen.getByRole("navigation", { name: "Main navigation" });
+    expect(within(nav).getByRole("link", { name: "Files" })).toHaveAttribute("aria-current", "page");
+  });
+
   it("an officer sees no Administration and no unbuilt entries", () => {
     browserApi({ "GET /reference/labels": labels() });
     renderWithClient(<Sidebar me={makeMe(OFFICER)} />);
     const nav = screen.getByRole("navigation", { name: "Main navigation" });
     expect(within(nav).getByRole("link", { name: "Dashboard" })).toHaveAttribute("aria-current", "page");
     expect(within(nav).queryByRole("link", { name: "Administration" })).toBeNull();
-    for (const unbuilt of ["Alerts & calendar", "Reports", "Audit log", "Data collection"]) {
+    for (const unbuilt of ["Reports", "Audit log", "Data collection"]) {
       expect(within(nav).queryByRole("link", { name: unbuilt })).toBeNull();
     }
   });
@@ -204,7 +224,27 @@ describe("header and sidebar foot", () => {
   it("the alert badge shows the unread count from /alerts/counts", async () => {
     browserApi({ "GET /alerts/counts": { unread: 7, open: { critical: 1, high: 2, normal: 4 } } });
     renderWithClient(<AlertBell me={makeMe(OFFICER)} />);
-    expect(await screen.findByRole("link", { name: "7 unread alerts" })).toHaveAttribute("href", "/#alerts");
+    expect(await screen.findByRole("link", { name: "7 unread alerts" })).toHaveAttribute("href", "/alerts");
+  });
+
+  it("the breadcrumb names the Files and Alerts screens by path, the case tab by segment", () => {
+    for (const [path, last] of [
+      ["/files/offices", "My offices"],
+      ["/files/mine", "With me"],
+      ["/alerts", "Alerts & calendar"],
+      ["/alerts/calendar", "Hearing calendar"],
+      ["/cases/EDU-2026-0001/alerts", "Alerts"],
+      ["/admin/offices", "Offices"],
+    ] as const) {
+      resetNav(path);
+      const { unmount } = renderWithClient(<Breadcrumb />);
+      const crumbs = screen.getByRole("navigation", { name: "Breadcrumb" });
+      expect(within(crumbs).getByText(last, { selector: "[aria-current=page]" })).toBeInTheDocument();
+      unmount();
+    }
+    resetNav("/files/offices");
+    renderWithClient(<Breadcrumb />);
+    expect(screen.getByRole("link", { name: "Files" })).toHaveAttribute("href", "/files");
   });
 
   it("no bell for a login without case functions", () => {

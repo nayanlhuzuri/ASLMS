@@ -283,7 +283,18 @@ def me_block(
     alert_items = [
         {
             k: item[k]
-            for k in ("id", "ref_no", "kind", "kind_label", "severity", "status", "title", "due_at", "case")
+            for k in (
+                "id",
+                "ref_no",
+                "kind",
+                "kind_label",
+                "severity",
+                "status",
+                "title",
+                "due_at",
+                "case",
+                "case_visible",
+            )
         }
         | {"created_at": item["created_at"]}
         for item in alerts.list_for_user(session, user, limit=cfg.list_size).items

@@ -318,3 +318,20 @@ Frontend (Vitest, the `fakeApi` helper):
 
 ## Open questions
 None.
+
+## Deviations
+Recorded by the developer during the build (13 Oct 2026); none changes a rule of the plan, a business rule or an API
+field beyond the design.
+1. **Decision 14, Recall.** Only Send can answer `card: null`: a recall brings the file to the recaller, who then
+   holds it, so the Recall dialog keeps its in-page notice and only Send goes to `/files/sent`.
+2. **A Files tab the login may not open.** Typing `/files/department` without a tracked department shows the neutral
+   not-found text (as for a login with no Files tab at all) and requests nothing; the 403 text of decision 16 still
+   shows when tracking is withdrawn while `/me` is cached.
+3. **"Longer than two lines" (decision 12).** The remark is clamped by CSS (`line-clamp: 2`); "Show more" is offered
+   when the text has more than 140 characters or a third line, because a browser test cannot measure rendered lines.
+   The full text is always in the page.
+4. **`bad_range` on the calendar (decision 16).** The shared `bad_range` text belongs to the load console, so the
+   calendar passes the server's own message as its context text.
+5. **Small helpers.** `useFilters` (inbox) is reused for every query-string filter; `ALERT_POLL_MS` moved to
+   `lib/api/hooks.ts` with `useAlertCounts()`; `crumbLabel(path)` in `routes.ts` reads `CRUMB_PATHS` then `CRUMBS`;
+   `monthOf()` joins the calendar helpers in `lib/workflow.ts`; `Tile` with `href` gets a `tileLink` style.

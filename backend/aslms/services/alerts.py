@@ -1210,6 +1210,7 @@ def alert_item(
     notified_at: datetime | None = None,
     read_at: datetime | None = None,
     can_act: bool = False,
+    case_visible: bool = False,
 ) -> dict[str, Any]:
     kind = alert.kind.value if hasattr(alert.kind, "value") else str(alert.kind)
     ack = users.get(alert.acknowledged_by_user_id) if alert.acknowledged_by_user_id else None
@@ -1233,7 +1234,21 @@ def alert_item(
         "closed_at": alert.closed_at,
         "created_at": alert.created_at,
         "can_act": can_act,
+        # design portal-files-alerts, decision 6: whether the caller can open the alert's case now
+        "case_visible": case_visible and case is not None,
     }
+
+
+def _visible_case_ids(session: Session, user: User, case_ids: Iterable[uuid.UUID]) -> set[uuid.UUID]:
+    """The ids among `case_ids` the caller can open now, in one query (the method of 20g)."""
+    ids = list({i for i in case_ids if i is not None})
+    if not ids:
+        return set()
+    return set(
+        session.scalars(
+            select(Case.id).where(Case.id.in_(ids), visibility.visible_case_condition(session, user))
+        ).all()
+    )
 
 
 def _users_for(session: Session, alerts: list[Alert]) -> dict[uuid.UUID, User]:
@@ -1296,6 +1311,7 @@ def list_for_user(
     users = _users_for(session, [r[0] for r in rows])
     # the caller's own list: a recipient by construction, so the function and the status decide (20d)
     acts = access.has(session, user, Permission.ALERTS_ACKNOWLEDGE)
+    seen = _visible_case_ids(session, user, [c.id for _, c, _, _ in rows if c is not None])
     items = [
         alert_item(
             session,
@@ -1306,6 +1322,7 @@ def list_for_user(
             notified_at=created,
             read_at=read,
             can_act=acts and AlertStatus(a.status) in OPEN_STATUSES,
+            case_visible=c is not None and c.id in seen,
         )
         for a, c, created, read in rows
     ]
@@ -1390,6 +1407,7 @@ def alerts_for_case(
                 notified_at=created,
                 read_at=read,
                 can_act=may_act(session, user, a, has_function=acts),
+                case_visible=True,  # the case passed `require_visible` above
             )
         )
     return Page(items, total)
@@ -1417,6 +1435,7 @@ def detail_item(session: Session, user: User, alert: Alert) -> dict[str, Any]:
         notified_at=row[0] if row else None,
         read_at=row[1] if row else None,
         can_act=may_act(session, user, alert),
+        case_visible=case is not None and case.id in _visible_case_ids(session, user, [case.id]),
     )
     item["recipients_count"] = recipients_count(session, alert)
     return item

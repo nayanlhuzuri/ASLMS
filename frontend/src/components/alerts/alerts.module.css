@@ -1,0 +1,58 @@
+/* The hearing calendar's month grid (design portal-files-alerts, decision 10): a table, Monday first. */
+
+.grid {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  background: var(--surface);
+}
+
+.grid caption {
+  text-align: left;
+  font-family: var(--font-serif);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  padding-bottom: var(--space-2);
+}
+
+.grid th {
+  padding: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+  border-bottom: 1px solid var(--line);
+}
+
+.grid th abbr {
+  text-decoration: none;
+}
+
+.grid td {
+  vertical-align: top;
+  height: 4.5rem;
+  padding: var(--space-2);
+  border: 1px solid var(--line);
+}
+
+.outside {
+  background: var(--navy-100);
+}
+
+.today {
+  box-shadow: inset 0 0 0 2px var(--navy-700);
+}
+
+.dayNo {
+  font-weight: 600;
+}
+
+.dayLink {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--text-sm);
+}
+
+.critical {
+  color: var(--danger);
+  font-weight: 600;
+}

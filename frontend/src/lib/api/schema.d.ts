@@ -3570,6 +3570,8 @@ export interface components {
             /** Can Act */
             can_act: boolean;
             case: components["schemas"]["AlertCaseOut"] | null;
+            /** Case Visible */
+            case_visible: boolean;
             /** Closed At */
             closed_at: string | null;
             /**
@@ -3619,6 +3621,8 @@ export interface components {
             /** Can Act */
             can_act: boolean;
             case: components["schemas"]["AlertCaseOut"] | null;
+            /** Case Visible */
+            case_visible: boolean;
             /** Closed At */
             closed_at: string | null;
             /**
@@ -4665,6 +4669,8 @@ export interface components {
         /** DashboardAlertOut */
         DashboardAlertOut: {
             case: components["schemas"]["AlertCaseOut"] | null;
+            /** Case Visible */
+            case_visible: boolean;
             /**
              * Created At
              * Format: date-time
