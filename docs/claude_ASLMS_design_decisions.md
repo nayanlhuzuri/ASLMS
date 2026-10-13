@@ -1645,3 +1645,27 @@ Backlog row 61, design `docs/design/case-stages-extension.md` (approved by the o
 - 2026-10-14 — Cause list screen, owner's decision on the review finding: recommendation labels stay as built. While a recommendation is open (status recommended), every member of the department sees its band and score on the Cause list entry, including directorate users on cases outside their directorate; once the department claims, dismisses or suggests the case elsewhere the label is gone. The published entries themselves are shown to every case reader.
 
 - 2026-10-14 — department-discovery: approved by the owner with changes: automatic party-name discovery covers registration years 2025 onwards only (older cases arrive through case links); older years searched only when a user enters them on the Court search tab, with no call counts shown to users and a plain-words warning when the same search was made recently; live verification limited to 10 NAPIX calls, testing a blank reg_year first; docs/design/department-discovery.md
+
+## Department discovery (department-discovery) (2026-10-14)
+
+Backlog row 19, design `docs/design/department-discovery.md` (approved by the owner 14 Oct 2026 with changes). Plan §3.1 Table 4 and §5.4.
+
+**What was built**
+- Migration 0017 (`0017_department_discovery.py`): `discover` boolean on `office_keywords` and `office_name_patterns` (CHECK `ck_office_name_patterns_discover`: never on a regex); new tables `discovery_terms` and `discovery_hits`; enum values `fetch_kind.party_search`, `fetch_lane.discovery` (between `daily` and `load`) and recommendation origin `discovery`; the data step ticks existing discoverable rules.
+- `services/discovery.py`: terms derived live from ticked active rules; a new term's first sweep (priority 43); a weekly sweep (priority 42, Saturday 02:00 IST); a manual sweep (`admin.data_load`); a user's request for older years. The `party_search` handler stores rows through `store_search_rows`, records hits, queues dossiers of found cases (41) and their order PDFs (49). Found cases are scored by the unchanged engine; nothing is assigned automatically.
+- Runner: discovery rows are claimed only at or above `NAPIX_RATE_RESERVE` and while the window's discovery calls are below `NAPIX_DISCOVERY_SHARE` (default 100); when only discovery work waits and the share is spent the pass ends as a load-only block.
+- API: `/admin/discovery` (summary, terms, term cases, search, sweep), `discover` on keyword and name-pattern endpoints, `GET /inbox/pool?found_for=`. CLI `aslms discovery status|terms|sweep`. Settings `NAPIX_DISCOVERY_SHARE`, `DISCOVERY_FROM_YEAR` in `.env.example`.
+- Portal: "Search the court" tick and per-row toggle on the Keywords and name patterns forms; the Department mapping "Court search" tab; the Data collection "Discovery" tab; the discovery lane on the Load, Health and Queue screens; the pool filter "Found by our court search".
+- Tests: unit `test_discovery_terms.py`; database `test_discovery_rules.py`, `test_discovery_run.py`, `test_discovery_weekly.py`, `test_migration_0017.py`, `test_api_discovery.py`, `test_api_discovery_negative.py`, `test_cli_discovery.py`; portal `discovery.test.tsx`, `discovery.test.ts`, additions to `mapping.test.tsx` and `inbox.test.tsx`.
+
+**Decisions and reasons (owner's, 14 Oct 2026)**
+- Automatic discovery covers registration years 2025 onwards only (`DISCOVERY_FROM_YEAR`); older cases come in through case links. The design's 90-day full sweep back to 2000 and the two-recent-years split were dropped; the first and weekly sweeps cover the same range.
+- Older years only when a user enters a name and years on the Court search tab (`POST /admin/discovery/search`, audited `discovery.sweep`). Users see no call counts or allowance; the screen says the court is being searched and results appear as found. A repeat of a name and year already searched is answered with "already searched on <date>; search again?" (409 `searched_before`, `force` to repeat), following the already-held rule of the data-load console. Counts and the allowance appear only on the Data collection screens.
+- The name must be one of the caller's terms (400 `not_a_term`), so each found case has a department that sees it and a rule that scores it.
+- Discovery has its own lane and share, so it cannot starve the daily cycle and the historical load is not paused by it.
+
+**Deviations from the design note** (full list in its Deviations section): single year range for every automatic sweep (no `scope` or `--full`); the search endpoint and its 409 rule; re-adding a deactivated rule keeps its `discover` value; the weekly job creates missing term rows; tests grouped differently from the plan.
+
+**Left for later**
+- Live verification (owner's go-ahead, limited to 10 NAPIX calls with `NAPIX_DISCOVERY_SHARE=10` for that run): try the party-name search with a blank year first and record in `napix_integration_notes.md` §7 whether the gateway accepts it; then one name for 2025 and 2026. Not run in this cycle; the share returns to 100 afterwards.
+- Compose verification of migration 0017 and the portal tabs (design Verification steps 2-9).

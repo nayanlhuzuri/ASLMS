@@ -2,9 +2,12 @@
 
 /**
  * Keywords and name patterns (design portal-mapping, decision 6; plan §4.1: "department names and designations
- * appearing in the party names"; §5.11), both under `admin.keywords`, two tables on one page. The API's `PATCH` takes
- * the weight only, so Edit shows only with `admin.scoring`; a wording change is a deactivation and a new rule. Adding
+ * appearing in the party names"; §5.11), both under `admin.keywords`, two tables on one page. Edit changes the
+ * weight only, so it shows only with `admin.scoring`; a wording change is a deactivation and a new rule. Adding
  * a rule that exists deactivated reactivates it (the API's behaviour); the screen says so when it knew the row.
+ * "Search the court" (design department-discovery, decision 13a): the add forms pre-tick it for a text the court's
+ * party-name search accepts and disable it for a regular expression; each row has its toggle (`PATCH {discover}`, the
+ * server's refusal shown as given) with when it was last searched and the cases found.
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useId, useState, type FormEvent } from "react";
@@ -28,6 +31,7 @@ import { MAPPING_KEY, useMe } from "@/lib/api/hooks";
 import type { Keyword, KeywordList, NamePattern, NamePatternList } from "@/lib/api/types";
 import { can } from "@/lib/can";
 import { formatDateTime } from "@/lib/format";
+import { isDiscoverable } from "@/lib/discovery";
 import { given, weightBody } from "@/lib/mapping";
 import { T } from "@/lib/messages";
 import { useAction } from "@/lib/useAction";
@@ -69,6 +73,70 @@ function ListFilter({ choices, filter, onChange }: { choices: OfficeChoices; fil
   );
 }
 
+/** The add forms' "Search the court" box: untouched, it follows the text (and is off for a regex). */
+function DiscoverBox({
+  text,
+  kind,
+  value,
+  onChange,
+}: {
+  text: string;
+  kind?: string;
+  value: boolean | null;
+  onChange: (v: boolean) => void;
+}) {
+  const regex = kind === "regex";
+  const checked = regex ? false : (value ?? isDiscoverable(text, kind));
+  return (
+    <CheckField
+      label={T.discovery.searchCourt}
+      title={T.discovery.searchCourtHint}
+      checked={checked}
+      disabled={regex}
+      onChange={(e) => onChange(e.target.checked)}
+    />
+  );
+}
+
+/** `discover` in a create body: only when the user changed the box (the API defaults it from the text). */
+function discoverBody(value: boolean | null, kind?: string): { discover?: boolean } {
+  return value === null || kind === "regex" ? {} : { discover: value };
+}
+
+/** A row's toggle and its last search (`PATCH {discover}`). */
+function DiscoverCell<R extends Keyword | NamePattern>({
+  path,
+  row,
+  label,
+  onDone,
+}: {
+  path: string;
+  row: Keyword | NamePattern;
+  label: string;
+  onDone: (r: R) => void;
+}) {
+  const action = useAction();
+  const regex = "kind" in row && row.kind === "regex";
+  async function toggle(next: boolean) {
+    const out = await action.run(() => api<R>(path, { method: "PATCH", body: { discover: next } }));
+    if (out.ok) onDone(out.value);
+  }
+  const last = row.discovery?.last_searched_at ? formatDateTime(row.discovery.last_searched_at) : null;
+  return (
+    <div className="stack">
+      <CheckField
+        label={T.discovery.searchCourt}
+        aria-label={T.discovery.searchCourtFor(label)}
+        checked={row.discover}
+        disabled={regex || action.busy}
+        onChange={(e) => void toggle(e.target.checked)}
+      />
+      {row.discover ? <span className="muted">{T.discovery.ruleLine(last, row.discovery?.cases_found ?? 0)}</span> : null}
+      <ErrorBanner error={given(action.error)} />
+    </div>
+  );
+}
+
 export function KeywordsAndPatterns() {
   return (
     <div className="stack">
@@ -94,6 +162,7 @@ function Keywords() {
   });
   const refresh = () => queryClient.invalidateQueries({ queryKey: KEYWORDS_KEY });
   const [draft, setDraft] = useState({ keyword: "", office: "" });
+  const [discover, setDiscover] = useState<boolean | null>(null);
   const [weight, setWeight] = useState<WeightDraft>(weightDraft(null));
   const [notice, setNotice] = useState<string | null>(null);
   const [editing, setEditing] = useState<Keyword | null>(null);
@@ -111,6 +180,7 @@ function Keywords() {
             body: {
               keyword: draft.keyword.trim(),
               office_code: draft.office.trim(),
+              ...discoverBody(discover),
               ...(canScore ? weightBody(weight.changed, weight.value) : {}),
             },
           }),
@@ -121,6 +191,7 @@ function Keywords() {
       const line = T.mapping.appliesWithin(out.value.applies_within_minutes ?? 15);
       setNotice(known.has(out.value.id) ? `${T.mapping.reactivated} ${line}` : line);
       setDraft({ keyword: "", office: "" });
+      setDiscover(null);
       setWeight(weightDraft(null));
       await refresh();
     }
@@ -139,6 +210,7 @@ function Keywords() {
           onChange={(e) => setDraft({ ...draft, keyword: e.target.value })}
         />
         <OfficePicker id={officeId} choices={choices} required value={draft.office} onChange={(office) => setDraft({ ...draft, office })} />
+        <DiscoverBox text={draft.keyword} value={discover} onChange={setDiscover} />
         {canScore ? <WeightField mode="create" draft={weight} onChange={setWeight} /> : null}
         <Button type="submit" busy={action.busy}>
           {T.mapping.addKeyword}
@@ -161,6 +233,7 @@ function Keywords() {
                 <th scope="col" className={numCell}>
                   {T.mapping.effectiveWeight}
                 </th>
+                <th scope="col">{T.discovery.searchCourt}</th>
                 <th scope="col">{T.mapping.status}</th>
                 <th scope="col">{T.mapping.updated}</th>
                 <th scope="col">{T.mapping.actions}</th>
@@ -175,6 +248,14 @@ function Keywords() {
                   </td>
                   <td className={numCell}>
                     <WeightCell effective={row.effective_weight} override={row.weight_override} />
+                  </td>
+                  <td>
+                    <DiscoverCell<Keyword>
+                      path={`/admin/keywords/${row.id}`}
+                      row={row}
+                      label={row.keyword}
+                      onDone={() => void refresh()}
+                    />
                   </td>
                   <td>{row.is_active ? <Badge tone="success">{T.active}</Badge> : <Badge>{T.inactive}</Badge>}</td>
                   <td>{formatDateTime(row.updated_at)}</td>
@@ -238,6 +319,7 @@ function NamePatterns() {
   });
   const refresh = () => queryClient.invalidateQueries({ queryKey: PATTERNS_KEY });
   const [draft, setDraft] = useState({ pattern: "", kind: "exact", office: "" });
+  const [discover, setDiscover] = useState<boolean | null>(null);
   const [weight, setWeight] = useState<WeightDraft>(weightDraft(null));
   const [notice, setNotice] = useState<string | null>(null);
   const [editing, setEditing] = useState<NamePattern | null>(null);
@@ -256,6 +338,7 @@ function NamePatterns() {
               pattern: draft.pattern.trim(),
               kind: draft.kind,
               office_code: draft.office.trim(),
+              ...discoverBody(discover, draft.kind),
               ...(canScore ? weightBody(weight.changed, weight.value) : {}),
             },
           }),
@@ -266,6 +349,7 @@ function NamePatterns() {
       const line = T.mapping.appliesWithin(out.value.applies_within_minutes ?? 15);
       setNotice(known.has(out.value.id) ? `${T.mapping.reactivated} ${line}` : line);
       setDraft({ pattern: "", kind: draft.kind, office: "" });
+      setDiscover(null);
       setWeight(weightDraft(null));
       await refresh();
     }
@@ -289,6 +373,7 @@ function NamePatterns() {
           onChange={(e) => setDraft({ ...draft, kind: e.target.value })}
         />
         <OfficePicker id={officeId} choices={choices} required value={draft.office} onChange={(office) => setDraft({ ...draft, office })} />
+        <DiscoverBox text={draft.pattern} kind={draft.kind} value={discover} onChange={setDiscover} />
         {canScore ? <WeightField mode="create" draft={weight} onChange={setWeight} /> : null}
         <Button type="submit" busy={action.busy}>
           {T.mapping.addPattern}
@@ -312,6 +397,7 @@ function NamePatterns() {
                 <th scope="col" className={numCell}>
                   {T.mapping.effectiveWeight}
                 </th>
+                <th scope="col">{T.discovery.searchCourt}</th>
                 <th scope="col">{T.mapping.status}</th>
                 <th scope="col">{T.mapping.updated}</th>
                 <th scope="col">{T.mapping.actions}</th>
@@ -327,6 +413,14 @@ function NamePatterns() {
                   </td>
                   <td className={numCell}>
                     <WeightCell effective={row.effective_weight} override={row.weight_override} />
+                  </td>
+                  <td>
+                    <DiscoverCell<NamePattern>
+                      path={`/admin/name-patterns/${row.id}`}
+                      row={row}
+                      label={row.pattern}
+                      onDone={() => void refresh()}
+                    />
                   </td>
                   <td>{row.is_active ? <Badge tone="success">{T.active}</Badge> : <Badge>{T.inactive}</Badge>}</td>
                   <td>{formatDateTime(row.updated_at)}</td>

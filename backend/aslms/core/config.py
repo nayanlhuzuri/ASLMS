@@ -141,6 +141,12 @@ class Settings(BaseSettings):
     # --- the data-load console (design data-load-console, decision 8) ------------------------
     data_load_estimate_window_days: int = Field(7, ge=1, le=30)  # rates measured over this many days
 
+    # --- department discovery (design department-discovery, decisions 5, 6 and 14; owner's decisions of 14 Oct 2026)
+    # calls per detected quota window that discovery-lane rows may make (0 stops discovery claims; rows wait)
+    napix_discovery_share: int = Field(100, ge=0, le=1000)
+    # automatic sweeps cover registration years from this one to the current year; older years only on request
+    discovery_from_year: int = Field(2025, ge=1950)
+
     @model_validator(mode="after")
     def _reserves_ordered(self) -> Settings:
         """Decision 4: searches stop first, then the daily cycle, then the load."""
@@ -148,6 +154,17 @@ class Settings(BaseSettings):
             raise ValueError(
                 "NAPIX_SEARCH_FLOOR <= NAPIX_LIVE_RESERVE <= NAPIX_RATE_RESERVE must hold "
                 f"({self.napix_search_floor}, {self.napix_live_reserve}, {self.napix_rate_reserve})"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _discovery_year(self) -> Settings:
+        """DISCOVERY_FROM_YEAR lies between 1950 and the current year."""
+        from datetime import date
+
+        if self.discovery_from_year > date.today().year:
+            raise ValueError(
+                f"DISCOVERY_FROM_YEAR must not be after the current year ({self.discovery_from_year})"
             )
         return self
 

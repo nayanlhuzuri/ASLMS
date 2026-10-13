@@ -1,7 +1,9 @@
 """The queue runner: pulls `fetch_queue` rows in priority order and dispatches them to the pipeline stages,
 spending the gateway budget by bands (design `data-load-console`, decision 4): any lane while the window's remaining
 quota is at least `NAPIX_RATE_RESERVE`; only the daily and request lanes between `NAPIX_LIVE_RESERVE` and it; nothing
-below `NAPIX_LIVE_RESERVE`.
+below `NAPIX_LIVE_RESERVE`. The discovery lane (design `department-discovery`, decision 6) is claimed in the top band
+only and while its calls in the current window are below `NAPIX_DISCOVERY_SHARE`; once the share is spent the pass
+claims the other lanes only, and when they hold nothing runnable it ends as a load-only block.
 
 The window is detected, not assumed (design `napix-window`, decisions 3-4): each pass seeds the remaining count from
 `napix_window.current`. When that count is unknown (the reset is due, overdue or the timing not known yet) and work is
@@ -35,7 +37,7 @@ from aslms.domain.courts import Court
 from aslms.domain.ops import FetchKind, FetchLane, FetchQueueItem, JobRun, JobStatus
 from aslms.integration.napix.client import NapixClient
 from aslms.integration.napix.hc import NapixHighCourt
-from aslms.services import case_dedupe, court_search, napix_window, queue
+from aslms.services import case_dedupe, court_search, discovery, napix_window, queue
 from aslms.services.cases import find_case, get_or_create_case
 from aslms.services.causelists import load_causelist_day
 from aslms.services.load_policy import QueueOrigin, current_settings, load_priority
@@ -90,6 +92,10 @@ class QueueRunner:
         self.reserve = self.settings.napix_rate_reserve if reserve is None else reserve
         self.live_reserve = min(self.settings.napix_live_reserve, self.reserve)
         self.window: napix_window.WindowState | None = None
+        self.discovery_share = self.settings.napix_discovery_share
+        self.discovery_used = (
+            0  # discovery-lane calls in the current window (log + this pass since the last read)
+        )
 
     # ------------------------------------------------------------------ lifecycle
     def start_job(self, job: str) -> uuid.UUID:
@@ -118,15 +124,28 @@ class QueueRunner:
             self.recorder.flush(s)
             s.commit()
 
+    def share_left(self) -> int:
+        """Discovery calls still allowed in the current window (design `department-discovery`, decision 6)."""
+        return max(0, self.discovery_share - self.discovery_used)
+
     def budget_lanes(self) -> tuple[bool, list[FetchLane] | None]:
-        """Decision 4: (may claim, lanes). Any lane at or above the rate reserve; the daily and request lanes
-        between the live reserve and it; nothing below the live reserve."""
+        """Decision 4: (may claim, lanes). Any lane at or above the rate reserve, the discovery lane only while its
+        share of the window is not spent; the daily and request lanes between the live reserve and it; nothing below
+        the live reserve."""
         rem = self.recorder.last_remaining
         if rem is None or rem >= self.reserve:
-            return True, None
+            if self.share_left() > 0:
+                return True, None
+            return True, [FetchLane.REQUEST, FetchLane.DAILY, FetchLane.LOAD]
         if rem >= self.live_reserve:
             return True, [FetchLane.REQUEST, FetchLane.DAILY]
         return False, None
+
+    def read_share(self, s: Session, now: datetime | None = None) -> int:
+        """Discovery calls logged since the window's start (the last 3,600 s when unknown); replaces the count."""
+        window = self.window or napix_window.current(s, self.settings, now)
+        self.discovery_used = discovery.discovery_calls(s, window, now)
+        return self.discovery_used
 
     def budget_ok(self) -> bool:
         return self.budget_lanes()[0]
@@ -137,6 +156,7 @@ class QueueRunner:
         item."""
         with self.session_factory() as s:
             self.window = napix_window.current(s, self.settings, now)
+            self.read_share(s, now)
         self.recorder.last_remaining = self.window.remaining
         return self.window
 
@@ -165,16 +185,22 @@ class QueueRunner:
             report.calls = self.recorder.calls
         return ok
 
-    def _blocked(self, report: RunReport, reason: str, *, load_only: bool, read_at: int) -> bool:
+    def _blocked(
+        self, report: RunReport, reason: str, *, load_only: bool, read_at: int, share: bool = False
+    ) -> bool:
         """The bands block. When items ran since the window was read, it is read again (their calls are in the log):
-        an unknown remaining (the reset fell due meanwhile) lets the pass go on, to probe or to claim. Otherwise the
-        pass stops with `resume_at`. True when the pass stops."""
+        an unknown remaining (the reset fell due meanwhile) lets the pass go on, to probe or to claim, and so does a
+        discovery share that a new window freed (`share`). Otherwise the pass stops with `resume_at`. True when the
+        pass stops."""
         now = datetime.now(UTC)
         if self.window is None or report.processed > read_at:
             with self.session_factory() as s:
                 self.window = napix_window.current(s, self.settings, now)
+                self.read_share(s, now)
             if self.window.remaining is None:
                 self.recorder.last_remaining = None
+                return False
+            if share and self.share_left() > 0:
                 return False
         window = self.window
         report.window = window
@@ -222,13 +248,24 @@ class QueueRunner:
                     continue
                 with self.session_factory() as s:
                     item = queue.claim(s, kinds, lanes=lanes)
+                    share_waits = (
+                        item is None
+                        and lanes is not None
+                        and FetchLane.LOAD in lanes
+                        and queue.has_runnable(s, kinds, [FetchLane.DISCOVERY])
+                    )
                     if item is None:
                         s.commit()
-                        if lanes is None:
+                        if lanes is None or (FetchLane.LOAD in lanes and not share_waits):
                             report.stopped_reason = report.stopped_reason or "queue empty"
                             break
-                        reason = f"load waits: {self.recorder.last_remaining} left < reserve {self.reserve}"
-                        if self._blocked(report, reason, load_only=True, read_at=read_at):
+                        if share_waits:
+                            reason = f"discovery share spent: {self.discovery_used} of {self.discovery_share}"
+                        else:
+                            reason = (
+                                f"load waits: {self.recorder.last_remaining} left < reserve {self.reserve}"
+                            )
+                        if self._blocked(report, reason, load_only=True, read_at=read_at, share=share_waits):
                             break
                         read_at = report.processed
                         continue
@@ -237,9 +274,12 @@ class QueueRunner:
                     requested_by = item.requested_by
                     s.commit()
                 report.processed += 1
+                calls_before = self.recorder.calls
                 await self._process(
                     item_id, kind, ref, report, lane=lane, list_date=list_date, requested_by=requested_by
                 )
+                if lane == FetchLane.DISCOVERY:
+                    self.discovery_used += self.recorder.calls - calls_before
         except BudgetExhausted as exc:
             report.stopped_reason = str(exc)
         except Exception:  # noqa: BLE001
@@ -334,6 +374,10 @@ class QueueRunner:
             if self.hc is None:
                 raise RuntimeError("NAPIX is off: order PDFs cannot be fetched")
             return await fetch_order_pdf(s, self.hc, self.store, ref)
+        if kind == FetchKind.PARTY_SEARCH:
+            if self.hc is None:
+                raise RuntimeError("NAPIX is off: party-name searches cannot run")
+            return await discovery.run_party_search(s, self.hc, self._court(s), ref, origin)
         raise NotImplementedError(f"queue kind {kind.value} is not handled yet")
 
     def _court(self, s: Session) -> Court:

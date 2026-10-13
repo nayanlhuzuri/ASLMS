@@ -129,6 +129,14 @@ export type WatchList = S["WatchListOut"];
 export type ScoringSettings = S["ScoringSettingsOut"];
 export type ScoringSettingsSaved = S["ScoringSettingsSavedOut"];
 export type ScoringSettingsHistory = S["ScoringSettingsHistoryOut"];
+// department-discovery: the Court search tab and the Discovery data tab
+export type DiscoveryTerm = S["DiscoveryTermOut"];
+export type DiscoveryTermList = S["DiscoveryTermListOut"];
+export type DiscoveryCase = S["DiscoveryCaseOut"];
+export type DiscoveryCaseList = S["DiscoveryCaseListOut"];
+export type DiscoverySearch = S["DiscoverySearchOut"];
+export type DiscoverySweep = S["DiscoverySweepOut"];
+export type DiscoverySummary = S["DiscoverySummaryOut"];
 // portal-workflow: custody, stages, notes and drafts, uploads, case alerts
 export type CaseWorkflowActions = S["CaseWorkflowActionsOut"];
 export type WorkflowCodes = S["WorkflowCodesOut"];

@@ -7,8 +7,9 @@
  * selected department; Suggest department (`cases.suggest_elsewhere`) is how the central operator follows up an
  * unclaimed case (plan §4.2); a pool case has no active recommendation to suggest from, so no originating department is
  * sent (design portal-cases-followups, decision 6). The one filter bar (design portal-filters): the shared case filters,
- * "Matched to department" (`scored_for`, with the minimum score on that department's row), minimum score and "State is
- * a party"; an old `status=` link is read as `case_status`. The filtered `total` is shown above the list.
+ * "Matched to department" (`scored_for`, with the minimum score on that department's row), minimum score, "State is
+ * a party" and "Found by our court search" (`found_for`, design department-discovery); an old `status=` link is read
+ * as `case_status`. The filtered `total` is shown above the list.
  */
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -44,6 +45,7 @@ export function Pool({ params, department }: { params: Params; department: strin
     ...toApiQuery(params, "pool"),
     min_score: params.min_score || undefined,
     state_party: params.state_party || undefined,
+    found_for: params.found_for || undefined,
     limit: PAGE,
     offset,
   };
@@ -70,6 +72,18 @@ export function Pool({ params, department }: { params: Params; department: strin
             placeholder: T.inbox.stateParties[""],
             more: true,
           },
+          // design department-discovery, decision 13 (c): the department's court-search finds
+          ...(department
+            ? [
+                {
+                  key: "found_for",
+                  kind: "select" as const,
+                  label: T.filters.foundFor,
+                  options: [{ value: department, label: department }],
+                  placeholder: T.filters.foundForAny,
+                },
+              ]
+            : []),
         ]}
         total={list.data?.total}
       />

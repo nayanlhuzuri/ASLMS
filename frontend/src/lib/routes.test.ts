@@ -11,8 +11,11 @@ import {
   CRUMB_PATHS,
   crumbLabel,
   CRUMBS,
+  DATA_TABS,
+  dataTabsFor,
   filesTabsFor,
   MAPPING_FUNCTIONS,
+  MAPPING_TABS,
   mappingTabsFor,
   navFor,
   PEOPLE_ADMIN_FUNCTIONS,
@@ -45,11 +48,28 @@ describe("department mapping navigation", () => {
 
   it("each mapping function alone opens its tabs (Scoring by the API's read rule)", () => {
     expect(keys(mappingTabsFor(only("admin.counsel_codes")))).toEqual(["codes", "scoring"]);
-    expect(keys(mappingTabsFor(only("admin.keywords")))).toEqual(["keywords", "scoring"]);
+    expect(keys(mappingTabsFor(only("admin.keywords")))).toEqual(["keywords", "discovery", "scoring"]);
     expect(keys(mappingTabsFor(only("admin.watchlist")))).toEqual(["watchlist"]);
     expect(keys(mappingTabsFor(only("admin.scoring")))).toEqual(["scoring"]);
     expect(mappingTabsFor(only("users.view"))).toEqual([]);
     expect(mappingTabsFor(null)).toEqual([]);
+  });
+});
+
+describe("department discovery navigation", () => {
+  it("the Court search tab follows admin.keywords and the Discovery data tab the data readers", () => {
+    const court = MAPPING_TABS.find((t) => t.key === "discovery")!;
+    expect(court.href).toBe("/admin/mapping/discovery");
+    expect(court.functions).toEqual(["admin.keywords"]);
+    expect(keys(mappingTabsFor(only("admin.counsel_codes")))).not.toContain("discovery");
+    const data = DATA_TABS.find((t) => t.key === "discovery")!;
+    expect(data.href).toBe("/data/discovery");
+    for (const fn of ["admin.data_load", "reports.state", "admin.napix_refetch", "admin.masters_sync"] as const) {
+      expect(keys(dataTabsFor(only(fn)))).toContain("discovery");
+    }
+    expect(keys(dataTabsFor(only("admin.keywords")))).not.toContain("discovery");
+    expect(crumbLabel("/admin/mapping/discovery")).toBe("Court search");
+    expect(crumbLabel("/data/discovery")).toBe("Discovery");
   });
 });
 

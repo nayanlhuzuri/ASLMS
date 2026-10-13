@@ -8,7 +8,9 @@ cycle.
   kind runs at 41 inside the period brought forward and 44 outside it, the 2nd at 42 / 46, the 3rd at 43 / 48.
 - `QueueOrigin(lane, list_date)`: who asked for the work a stage is doing; the rows it spawns inherit the lane and
   the `list_date`. Daily: dossiers 40, order PDFs 40 (pending case) or 80 (disposed). Load: `load_priority`.
-  Request: dossiers 30, order PDFs 40. A request origin also carries `requested_by`, the person who asked (design
+  Request: dossiers 30, order PDFs 40. Discovery (design `department-discovery`, decision 6): dossiers 41, order
+  PDFs 49; its searches 42 (weekly sweep and a user's requested years) and 43 (a new term's first sweep). A request
+  origin also carries `requested_by`, the person who asked (design
   `napix-window`, decision 9); the rows it spawns inherit it."""
 
 from __future__ import annotations
@@ -36,6 +38,11 @@ REQUEST_PRIORITY = 30
 DAILY_DOSSIER = 40
 LIVE_ORDER_PDF = 40
 DISPOSED_ORDER_PDF = 80
+# the discovery lane (design department-discovery, decision 6)
+DISCOVERY_DOSSIER = 41
+DISCOVERY_RECENT = 42
+DISCOVERY_FULL = 43
+DISCOVERY_ORDER_PDF = 49
 
 
 @dataclass(frozen=True)
@@ -119,6 +126,8 @@ class QueueOrigin:
             return load_priority(self.settings or DEFAULTS, FetchKind.DOSSIER, self.list_date)
         if self.lane == FetchLane.REQUEST:
             return REQUEST_PRIORITY
+        if self.lane == FetchLane.DISCOVERY:
+            return DISCOVERY_DOSSIER
         return DAILY_DOSSIER
 
     def order_pdf_priority(self, pending_case: bool) -> int:
@@ -126,6 +135,8 @@ class QueueOrigin:
             return load_priority(self.settings or DEFAULTS, FetchKind.ORDER_PDF, self.list_date)
         if self.lane == FetchLane.REQUEST:
             return LIVE_ORDER_PDF
+        if self.lane == FetchLane.DISCOVERY:
+            return DISCOVERY_ORDER_PDF
         return LIVE_ORDER_PDF if pending_case else DISPOSED_ORDER_PDF
 
 

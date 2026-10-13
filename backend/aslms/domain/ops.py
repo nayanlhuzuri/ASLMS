@@ -37,10 +37,12 @@ from aslms.db.base import (
 
 class FetchLane(enum.StrEnum):
     """Who asked for a queue row (design `data-load-console`, decision 1), in order of precedence: a person's
-    request, the daily cycle, the backdated load. A row asked by two lanes keeps the higher one."""
+    request, the daily cycle, department discovery (design `department-discovery`, decision 6; migration 0017), the
+    backdated load. A row asked by two lanes keeps the higher one."""
 
     REQUEST = "request"
     DAILY = "daily"
+    DISCOVERY = "discovery"
     LOAD = "load"
 
 
@@ -158,6 +160,7 @@ class FetchKind(enum.StrEnum):
     DOSSIER = "dossier"
     STATUS_BATCH = "status_batch"
     ORDER_PDF = "order_pdf"
+    PARTY_SEARCH = "party_search"  # design department-discovery, decision 3 (migration 0017)
 
 
 class FetchStatus(enum.StrEnum):

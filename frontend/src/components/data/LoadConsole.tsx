@@ -109,7 +109,7 @@ function AllowanceCard({ data }: { data: DataLoad }) {
     <section className="stack" aria-label={T.data.allowance}>
       <h2>{T.data.allowance}</h2>
       <div className="row">
-        {(["load", "daily", "request", "outside_queue"] as const).map((lane) => (
+        {(["load", "discovery", "daily", "request", "outside_queue"] as const).map((lane) => (
           <Tile key={lane} label={T.data.lanes[lane] ?? lane} value={a.used[lane]} />
         ))}
       </div>

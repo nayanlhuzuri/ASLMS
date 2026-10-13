@@ -101,6 +101,9 @@ def pool(
     ),
     min_score: float | None = None,
     state_party: bool | None = None,
+    found_for: str | None = Query(
+        None, description="Keep cases found by this department's court search (department discovery)"
+    ),
     limit: int = inbox.DEFAULT_LIMIT,
     offset: int = 0,
     session: Session = Depends(get_session),
@@ -116,6 +119,7 @@ def pool(
             scored_for=scored_for,
             min_score=min_score,
             state_party=state_party,
+            found_for=found_for,
             limit=limit,
             offset=offset,
         )

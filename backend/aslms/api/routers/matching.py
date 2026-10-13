@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from aslms.api import schemas
 from aslms.api.deps import actor_of, current_user, get_session, require
+from aslms.api.errors import detail
 from aslms.core.config import Settings
 from aslms.domain.cases import Case
 from aslms.domain.org import Office, User
@@ -34,7 +35,8 @@ from aslms.services import access, matching, matching_rules
 from aslms.services import scoring_settings as ss
 from aslms.services.access import Forbidden
 from aslms.services.cases import CaseNotFound, resolve_case_ref
-from aslms.services.matching_rules import UNSET, DuplicateRule, RuleError, effective_weight
+from aslms.services.discovery import discoverable, rule_discovery
+from aslms.services.matching_rules import UNSET, DuplicateRule, NotDiscoverable, RuleError, effective_weight
 from aslms.services.offices import find_office
 from aslms.services.scoring_settings import SettingsError, StaleSettings
 
@@ -56,6 +58,8 @@ def _http(exc: Exception) -> HTTPException:
         return HTTPException(status.HTTP_409_CONFLICT, "another change happened at the same time")
     if isinstance(exc, CaseNotFound):
         return HTTPException(status.HTTP_404_NOT_FOUND, "no such case")
+    if isinstance(exc, NotDiscoverable):
+        return HTTPException(status.HTTP_400_BAD_REQUEST, detail(NotDiscoverable.code, str(exc)))
     if isinstance(exc, RuleError | SettingsError | ValueError):
         return HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
     raise exc
@@ -80,6 +84,12 @@ def _optional_office(session: Session, code: str | None) -> Office | None:
 def _weight_arg(body: Any) -> Any:
     """`weight` left out → UNSET (no change); `null` → clear; a number → the override."""
     return body.weight if "weight" in body.model_fields_set else UNSET
+
+
+def _discover_arg(body: Any) -> Any:
+    """`discover` left out or null → UNSET (the default on create, unchanged on update)."""
+    value = getattr(body, "discover", None)
+    return UNSET if value is None else bool(value)
 
 
 def _load_rule(session: Session, caller: User, model, rule_id: uuid.UUID):
@@ -345,6 +355,9 @@ def _keyword_out(session: Session, row: OfficeKeyword, settings: ss.Settings, **
         effective_weight=effective_weight(row, "keyword", settings),
         is_active=row.is_active,
         updated_at=row.updated_at,
+        discover=bool(row.discover),
+        discoverable=discoverable(row.keyword),
+        discovery=rule_discovery(session, row.keyword, bool(row.discover)),
         **extra,
     )
 
@@ -353,6 +366,7 @@ def _keyword_out(session: Session, row: OfficeKeyword, settings: ss.Settings, **
 def list_keywords(
     office: str | None = None,
     include_inactive: bool = False,
+    discover: bool | None = None,
     session: Session = Depends(get_session),
     caller: User = Depends(require(Permission.ADMIN_KEYWORDS)),
 ) -> schemas.KeywordListOut:
@@ -363,6 +377,7 @@ def list_keywords(
         Permission.ADMIN_KEYWORDS,
         office=_optional_office(session, office),
         include_inactive=include_inactive,
+        discover=discover,
     )
     settings = ss.current(session)
     return schemas.KeywordListOut(items=[_keyword_out(session, r, settings) for r in rows], total=len(rows))
@@ -383,6 +398,7 @@ def create_keyword(
             keyword=body.keyword,
             office=_office_by_code(session, body.office_code),
             weight=_weight_arg(body),
+            discover=_discover_arg(body),
         )
         session.flush()
     except (Forbidden, RuleError, IntegrityError) as exc:
@@ -393,7 +409,7 @@ def create_keyword(
 @router.patch("/keywords/{rule_id}", response_model=schemas.KeywordOut)
 def patch_keyword(
     rule_id: uuid.UUID,
-    body: schemas.RuleWeightPatchIn,
+    body: schemas.DiscoverRulePatchIn,
     request: Request,
     session: Session = Depends(get_session),
     caller: User = Depends(require(Permission.ADMIN_KEYWORDS)),
@@ -401,7 +417,12 @@ def patch_keyword(
     row = _load_rule(session, caller, OfficeKeyword, rule_id)
     try:
         matching_rules.update_keyword(
-            session, actor_of(request, caller, session), caller, row, weight=_weight_arg(body)
+            session,
+            actor_of(request, caller, session),
+            caller,
+            row,
+            weight=_weight_arg(body),
+            discover=_discover_arg(body),
         )
         session.flush()
     except (Forbidden, RuleError) as exc:
@@ -454,6 +475,9 @@ def _pattern_out(
         effective_weight=effective_weight(row, "name_pattern", settings),
         is_active=row.is_active,
         updated_at=row.updated_at,
+        discover=bool(row.discover),
+        discoverable=discoverable(row.pattern, row.kind),
+        discovery=rule_discovery(session, row.pattern, bool(row.discover)),
         **extra,
     )
 
@@ -462,6 +486,7 @@ def _pattern_out(
 def list_name_patterns(
     office: str | None = None,
     include_inactive: bool = False,
+    discover: bool | None = None,
     session: Session = Depends(get_session),
     caller: User = Depends(require(Permission.ADMIN_KEYWORDS)),
 ) -> schemas.NamePatternListOut:
@@ -472,6 +497,7 @@ def list_name_patterns(
         Permission.ADMIN_KEYWORDS,
         office=_optional_office(session, office),
         include_inactive=include_inactive,
+        discover=discover,
     )
     settings = ss.current(session)
     return schemas.NamePatternListOut(
@@ -495,6 +521,7 @@ def create_name_pattern(
             kind=body.kind,
             office=_office_by_code(session, body.office_code),
             weight=_weight_arg(body),
+            discover=_discover_arg(body),
         )
         session.flush()
     except (Forbidden, RuleError, IntegrityError) as exc:
@@ -505,7 +532,7 @@ def create_name_pattern(
 @router.patch("/name-patterns/{rule_id}", response_model=schemas.NamePatternOut)
 def patch_name_pattern(
     rule_id: uuid.UUID,
-    body: schemas.RuleWeightPatchIn,
+    body: schemas.DiscoverRulePatchIn,
     request: Request,
     session: Session = Depends(get_session),
     caller: User = Depends(require(Permission.ADMIN_KEYWORDS)),
@@ -513,7 +540,12 @@ def patch_name_pattern(
     row = _load_rule(session, caller, OfficeNamePattern, rule_id)
     try:
         matching_rules.update_name_pattern(
-            session, actor_of(request, caller, session), caller, row, weight=_weight_arg(body)
+            session,
+            actor_of(request, caller, session),
+            caller,
+            row,
+            weight=_weight_arg(body),
+            discover=_discover_arg(body),
         )
         session.flush()
     except (Forbidden, RuleError) as exc:

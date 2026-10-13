@@ -852,6 +852,10 @@
             "title": "Daily",
             "type": "integer"
           },
+          "discovery": {
+            "title": "Discovery",
+            "type": "integer"
+          },
           "load": {
             "title": "Load",
             "type": "integer"
@@ -867,6 +871,7 @@
         },
         "required": [
           "load",
+          "discovery",
           "daily",
           "request",
           "outside_queue"
@@ -6400,6 +6405,668 @@
         "title": "DeviceOut",
         "type": "object"
       },
+      "DiscoverRulePatchIn": {
+        "description": "A keyword or name pattern: the weight override and/or `discover` (left out = unchanged).",
+        "properties": {
+          "discover": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discover"
+          },
+          "weight": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight"
+          }
+        },
+        "title": "DiscoverRulePatchIn",
+        "type": "object"
+      },
+      "DiscoveryCaseCountsOut": {
+        "properties": {
+          "created_by_discovery": {
+            "title": "Created By Discovery",
+            "type": "integer"
+          },
+          "found": {
+            "title": "Found",
+            "type": "integer"
+          },
+          "recommended_from_discovery": {
+            "title": "Recommended From Discovery",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "found",
+          "created_by_discovery",
+          "recommended_from_discovery"
+        ],
+        "title": "DiscoveryCaseCountsOut",
+        "type": "object"
+      },
+      "DiscoveryCaseListOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DiscoveryCaseOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "DiscoveryCaseListOut",
+        "type": "object"
+      },
+      "DiscoveryCaseOut": {
+        "properties": {
+          "case": {
+            "$ref": "#/components/schemas/CaseSummaryOut"
+          },
+          "claimable": {
+            "title": "Claimable",
+            "type": "boolean"
+          },
+          "first_found_at": {
+            "format": "date-time",
+            "title": "First Found At",
+            "type": "string"
+          },
+          "last_found_at": {
+            "format": "date-time",
+            "title": "Last Found At",
+            "type": "string"
+          },
+          "owner_office_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Office Code"
+          },
+          "recommendation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DiscoveryRecommendationOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reg_year": {
+            "title": "Reg Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "case",
+          "reg_year",
+          "first_found_at",
+          "last_found_at",
+          "owner_office_code",
+          "recommendation",
+          "claimable"
+        ],
+        "title": "DiscoveryCaseOut",
+        "type": "object"
+      },
+      "DiscoveryFailureOut": {
+        "properties": {
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "ref",
+          "last_error",
+          "finished_at"
+        ],
+        "title": "DiscoveryFailureOut",
+        "type": "object"
+      },
+      "DiscoveryQueueByKindOut": {
+        "properties": {
+          "dossier": {
+            "$ref": "#/components/schemas/DiscoveryQueueCountsOut"
+          },
+          "order_pdf": {
+            "$ref": "#/components/schemas/DiscoveryQueueCountsOut"
+          },
+          "party_search": {
+            "$ref": "#/components/schemas/DiscoveryQueueCountsOut"
+          }
+        },
+        "required": [
+          "party_search",
+          "dossier",
+          "order_pdf"
+        ],
+        "title": "DiscoveryQueueByKindOut",
+        "type": "object"
+      },
+      "DiscoveryQueueCountsOut": {
+        "properties": {
+          "failed": {
+            "title": "Failed",
+            "type": "integer"
+          },
+          "pending": {
+            "title": "Pending",
+            "type": "integer"
+          },
+          "running": {
+            "title": "Running",
+            "type": "integer"
+          },
+          "waiting": {
+            "title": "Waiting",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pending",
+          "waiting",
+          "running",
+          "failed"
+        ],
+        "title": "DiscoveryQueueCountsOut",
+        "type": "object"
+      },
+      "DiscoveryQueueOut": {
+        "properties": {
+          "by_kind": {
+            "$ref": "#/components/schemas/DiscoveryQueueByKindOut"
+          }
+        },
+        "required": [
+          "by_kind"
+        ],
+        "title": "DiscoveryQueueOut",
+        "type": "object"
+      },
+      "DiscoveryRecommendationOut": {
+        "properties": {
+          "band": {
+            "title": "Band",
+            "type": "string"
+          },
+          "office_code": {
+            "title": "Office Code",
+            "type": "string"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "office_code",
+          "band",
+          "score",
+          "status"
+        ],
+        "title": "DiscoveryRecommendationOut",
+        "type": "object"
+      },
+      "DiscoveryRuleOut": {
+        "properties": {
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "office_code": {
+            "title": "Office Code",
+            "type": "string"
+          },
+          "rule_id": {
+            "format": "uuid",
+            "title": "Rule Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "rule_id",
+          "office_code",
+          "is_active"
+        ],
+        "title": "DiscoveryRuleOut",
+        "type": "object"
+      },
+      "DiscoverySearchIn": {
+        "description": "A user's request on the Court search tab: a name (one of the department's terms) and the years to search.",
+        "properties": {
+          "force": {
+            "default": false,
+            "description": "search again a name and year searched before",
+            "title": "Force",
+            "type": "boolean"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "years": {
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 30,
+            "minItems": 1,
+            "title": "Years",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "years"
+        ],
+        "title": "DiscoverySearchIn",
+        "type": "object"
+      },
+      "DiscoverySearchOut": {
+        "properties": {
+          "queued": {
+            "title": "Queued",
+            "type": "boolean"
+          },
+          "term": {
+            "title": "Term",
+            "type": "string"
+          },
+          "term_id": {
+            "format": "uuid",
+            "title": "Term Id",
+            "type": "string"
+          },
+          "years": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Years",
+            "type": "array"
+          }
+        },
+        "required": [
+          "term_id",
+          "term",
+          "years",
+          "queued"
+        ],
+        "title": "DiscoverySearchOut",
+        "type": "object"
+      },
+      "DiscoverySettingsOut": {
+        "properties": {
+          "from_year": {
+            "title": "From Year",
+            "type": "integer"
+          },
+          "share": {
+            "title": "Share",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "share",
+          "from_year"
+        ],
+        "title": "DiscoverySettingsOut",
+        "type": "object"
+      },
+      "DiscoverySummaryOut": {
+        "description": "`GET /admin/discovery`: system figures only, for the Data collection screens.",
+        "properties": {
+          "cases": {
+            "$ref": "#/components/schemas/DiscoveryCaseCountsOut"
+          },
+          "last_searched_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Searched At"
+          },
+          "latest_failures": {
+            "items": {
+              "$ref": "#/components/schemas/DiscoveryFailureOut"
+            },
+            "title": "Latest Failures",
+            "type": "array"
+          },
+          "queue": {
+            "$ref": "#/components/schemas/DiscoveryQueueOut"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/DiscoverySettingsOut"
+          },
+          "terms": {
+            "$ref": "#/components/schemas/DiscoveryTermCountsOut"
+          },
+          "window": {
+            "$ref": "#/components/schemas/DiscoveryWindowOut"
+          }
+        },
+        "required": [
+          "settings",
+          "window",
+          "queue",
+          "terms",
+          "cases",
+          "last_searched_at",
+          "latest_failures"
+        ],
+        "title": "DiscoverySummaryOut",
+        "type": "object"
+      },
+      "DiscoverySweepIn": {
+        "properties": {
+          "term_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Term Id"
+          }
+        },
+        "title": "DiscoverySweepIn",
+        "type": "object"
+      },
+      "DiscoverySweepOut": {
+        "properties": {
+          "rows_queued": {
+            "title": "Rows Queued",
+            "type": "integer"
+          },
+          "terms": {
+            "title": "Terms",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "terms",
+          "rows_queued"
+        ],
+        "title": "DiscoverySweepOut",
+        "type": "object"
+      },
+      "DiscoveryTermCountsOut": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "integer"
+          },
+          "inactive": {
+            "title": "Inactive",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "active",
+          "inactive"
+        ],
+        "title": "DiscoveryTermCountsOut",
+        "type": "object"
+      },
+      "DiscoveryTermListOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DiscoveryTermOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "DiscoveryTermListOut",
+        "type": "object"
+      },
+      "DiscoveryTermOut": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "cases_found": {
+            "title": "Cases Found",
+            "type": "integer"
+          },
+          "departments": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Departments",
+            "type": "array"
+          },
+          "found_last_7_days": {
+            "title": "Found Last 7 Days",
+            "type": "integer"
+          },
+          "full_sweep_queued_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Sweep Queued At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_searched_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Searched At"
+          },
+          "recent_sweep_queued_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recent Sweep Queued At"
+          },
+          "rules": {
+            "items": {
+              "$ref": "#/components/schemas/DiscoveryRuleOut"
+            },
+            "title": "Rules",
+            "type": "array"
+          },
+          "term": {
+            "title": "Term",
+            "type": "string"
+          },
+          "years": {
+            "$ref": "#/components/schemas/DiscoveryYearsOut"
+          }
+        },
+        "required": [
+          "id",
+          "term",
+          "active",
+          "departments",
+          "rules",
+          "years",
+          "last_searched_at",
+          "cases_found",
+          "found_last_7_days",
+          "full_sweep_queued_at",
+          "recent_sweep_queued_at"
+        ],
+        "title": "DiscoveryTermOut",
+        "type": "object"
+      },
+      "DiscoveryWindowOut": {
+        "properties": {
+          "discovery_calls": {
+            "title": "Discovery Calls",
+            "type": "integer"
+          },
+          "next_reset_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Reset At"
+          },
+          "share_left": {
+            "title": "Share Left",
+            "type": "integer"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "started_at",
+          "next_reset_at",
+          "discovery_calls",
+          "share_left"
+        ],
+        "title": "DiscoveryWindowOut",
+        "type": "object"
+      },
+      "DiscoveryYearsOut": {
+        "properties": {
+          "done": {
+            "title": "Done",
+            "type": "integer"
+          },
+          "failed": {
+            "title": "Failed",
+            "type": "integer"
+          },
+          "waiting": {
+            "title": "Waiting",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "done",
+          "waiting",
+          "failed"
+        ],
+        "title": "DiscoveryYearsOut",
+        "type": "object"
+      },
       "DismissIn": {
         "properties": {
           "office_code": {
@@ -8031,16 +8698,18 @@
           "causelist_day",
           "dossier",
           "status_batch",
-          "order_pdf"
+          "order_pdf",
+          "party_search"
         ],
         "title": "FetchKind",
         "type": "string"
       },
       "FetchLane": {
-        "description": "Who asked for a queue row (design `data-load-console`, decision 1), in order of precedence: a person's\nrequest, the daily cycle, the backdated load. A row asked by two lanes keeps the higher one.",
+        "description": "Who asked for a queue row (design `data-load-console`, decision 1), in order of precedence: a person's\nrequest, the daily cycle, department discovery (design `department-discovery`, decision 6; migration 0017), the\nbackdated load. A row asked by two lanes keeps the higher one.",
         "enum": [
           "request",
           "daily",
+          "discovery",
           "load"
         ],
         "title": "FetchLane",
@@ -8758,6 +9427,18 @@
       },
       "KeywordIn": {
         "properties": {
+          "discover": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Search the court (department discovery); left out = on when the text is discoverable",
+            "title": "Discover"
+          },
           "keyword": {
             "maxLength": 200,
             "minLength": 1,
@@ -8823,6 +9504,24 @@
             ],
             "title": "Applies Within Minutes"
           },
+          "discover": {
+            "title": "Discover",
+            "type": "boolean"
+          },
+          "discoverable": {
+            "title": "Discoverable",
+            "type": "boolean"
+          },
+          "discovery": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RuleDiscoveryOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "effective_weight": {
             "title": "Effective Weight",
             "type": "number"
@@ -8867,7 +9566,9 @@
           "weight_override",
           "effective_weight",
           "is_active",
-          "updated_at"
+          "updated_at",
+          "discover",
+          "discoverable"
         ],
         "title": "KeywordOut",
         "type": "object"
@@ -8919,6 +9620,10 @@
             "title": "Daily",
             "type": "integer"
           },
+          "discovery": {
+            "title": "Discovery",
+            "type": "integer"
+          },
           "load": {
             "title": "Load",
             "type": "integer"
@@ -8931,6 +9636,7 @@
         "required": [
           "request",
           "daily",
+          "discovery",
           "load"
         ],
         "title": "LaneCountsOut",
@@ -10440,6 +11146,18 @@
       },
       "NamePatternIn": {
         "properties": {
+          "discover": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Search the court (department discovery); never for a regex; left out = when discoverable",
+            "title": "Discover"
+          },
           "kind": {
             "pattern": "^(exact|prefix|regex)$",
             "title": "Kind",
@@ -10511,6 +11229,24 @@
             ],
             "title": "Applies Within Minutes"
           },
+          "discover": {
+            "title": "Discover",
+            "type": "boolean"
+          },
+          "discoverable": {
+            "title": "Discoverable",
+            "type": "boolean"
+          },
+          "discovery": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RuleDiscoveryOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "effective_weight": {
             "title": "Effective Weight",
             "type": "number"
@@ -10560,7 +11296,9 @@
           "weight_override",
           "effective_weight",
           "is_active",
-          "updated_at"
+          "updated_at",
+          "discover",
+          "discoverable"
         ],
         "title": "NamePatternOut",
         "type": "object"
@@ -13965,7 +14703,8 @@
               "causelist_day",
               "dossier",
               "status_batch",
-              "order_pdf"
+              "order_pdf",
+              "party_search"
             ],
             "title": "Kind",
             "type": "string"
@@ -13976,6 +14715,7 @@
                 "enum": [
                   "request",
                   "daily",
+                  "discovery",
                   "load"
                 ],
                 "type": "string"
@@ -14028,21 +14768,37 @@
         "title": "Role",
         "type": "string"
       },
-      "RuleWeightPatchIn": {
+      "RuleDiscoveryOut": {
+        "description": "The rule's discovery term (design `department-discovery`): when it was last searched and the cases found.",
         "properties": {
-          "weight": {
+          "cases_found": {
+            "title": "Cases Found",
+            "type": "integer"
+          },
+          "last_searched_at": {
             "anyOf": [
               {
-                "type": "number"
+                "format": "date-time",
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Weight"
+            "title": "Last Searched At"
+          },
+          "term_id": {
+            "format": "uuid",
+            "title": "Term Id",
+            "type": "string"
           }
         },
-        "title": "RuleWeightPatchIn",
+        "required": [
+          "term_id",
+          "last_searched_at",
+          "cases_found"
+        ],
+        "title": "RuleDiscoveryOut",
         "type": "object"
       },
       "ScoringSettingsHistoryOut": {
@@ -19205,6 +19961,493 @@
         ]
       }
     },
+    "/admin/discovery": {
+      "get": {
+        "description": "The discovery block of the Data collection screens: the share and the discovery calls of the current window,\ndiscovery-lane rows by kind, terms, cases found and created, the latest failures. No case data.",
+        "operationId": "get_summary_admin_discovery_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscoverySummaryOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Summary",
+        "tags": [
+          "discovery"
+        ]
+      }
+    },
+    "/admin/discovery/search": {
+      "post": {
+        "description": "Search the court for one of the department's names in the chosen years (older years included). The searches\nare queued; found cases appear on the term's list as they arrive. 409 `searched_before` (with the dates) when a\nyear was searched before or is still waiting, unless `force`; 400 `not_a_term` when the name is not an active\nrule ticked \"Search the court\" in the caller's offices. Audited `discovery.sweep`.",
+        "operationId": "search_years_admin_discovery_search_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiscoverySearchIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscoverySearchOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Search Years",
+        "tags": [
+          "discovery"
+        ]
+      }
+    },
+    "/admin/discovery/sweep": {
+      "post": {
+        "description": "Queue a sweep (2025 to the current year) of one term or of every active term; 404 unknown term, 409\n`term_inactive`. Audited `discovery.sweep`.",
+        "operationId": "post_sweep_admin_discovery_sweep_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiscoverySweepIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscoverySweepOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Post Sweep",
+        "tags": [
+          "discovery"
+        ]
+      }
+    },
+    "/admin/discovery/terms": {
+      "get": {
+        "description": "The terms with at least one rule ticked \"Search the court\" in the caller's subtree (all for the super admin):\ntheir rules and departments inside that subtree, years searched / waiting / failed, the last search and the\ncases found. `status` is `active` (default), `inactive` or `all`.",
+        "operationId": "list_terms_admin_discovery_terms_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "office",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Office"
+            }
+          },
+          {
+            "description": "active, inactive or all",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "default": "active",
+              "description": "active, inactive or all",
+              "title": "Status",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscoveryTermListOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Terms",
+        "tags": [
+          "discovery"
+        ]
+      }
+    },
+    "/admin/discovery/terms/{term_id}/cases": {
+      "get": {
+        "description": "The cases a term found (summaries), latest found first, with the owner, the caller's departments'\nrecommendation (every department's with `cases.view_all`) and `claimable`. `only` is `all`, `pool`,\n`recommended` or `owned`. 404 when the term has no rule in the caller's subtree.",
+        "operationId": "term_cases_admin_discovery_terms__term_id__cases_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "term_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Term Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "only",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "title": "Only",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscoveryCaseListOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Term Cases",
+        "tags": [
+          "discovery"
+        ]
+      }
+    },
     "/admin/failures": {
       "get": {
         "description": "Source failures (open by default); rows naming a document only when the document is visible to you.",
@@ -19323,6 +20566,22 @@
               "title": "Include Inactive",
               "type": "boolean"
             }
+          },
+          {
+            "in": "query",
+            "name": "discover",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Discover"
+            }
           }
         ],
         "responses": {
@@ -19421,7 +20680,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/RuleWeightPatchIn"
+                "$ref": "#/components/schemas/DiscoverRulePatchIn"
               }
             }
           },
@@ -19637,6 +20896,22 @@
               "title": "Include Inactive",
               "type": "boolean"
             }
+          },
+          {
+            "in": "query",
+            "name": "discover",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Discover"
+            }
           }
         ],
         "responses": {
@@ -19735,7 +21010,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/RuleWeightPatchIn"
+                "$ref": "#/components/schemas/DiscoverRulePatchIn"
               }
             }
           },
@@ -30560,6 +31835,24 @@
                 }
               ],
               "title": "State Party"
+            }
+          },
+          {
+            "description": "Keep cases found by this department's court search (department discovery)",
+            "in": "query",
+            "name": "found_for",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Keep cases found by this department's court search (department discovery)",
+              "title": "Found For"
             }
           },
           {

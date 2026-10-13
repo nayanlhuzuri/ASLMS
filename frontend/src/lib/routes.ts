@@ -97,6 +97,8 @@ export const ADMIN_TABS: readonly AdminTab[] = [
 export const MAPPING_TABS: readonly AdminTab[] = [
   { key: "codes", label: "Counsel codes", href: "/admin/mapping/codes", functions: ["admin.counsel_codes"] },
   { key: "keywords", label: "Keywords and name patterns", href: "/admin/mapping/keywords", functions: ["admin.keywords"] },
+  // design department-discovery, decision 13 (b): the department's names searched at the court and what they found
+  { key: "discovery", label: "Court search", href: "/admin/mapping/discovery", functions: ["admin.keywords"] },
   { key: "watchlist", label: "Watchlist", href: "/admin/mapping/watchlist", functions: ["admin.watchlist"] },
   {
     key: "scoring",
@@ -118,6 +120,8 @@ export const DATA_TABS: readonly DataTab[] = [
   { key: "health", label: "Health", href: "/data/health", functions: DATA_READERS },
   { key: "queue", label: "Queue and calls", href: "/data/queue", functions: DATA_READERS },
   { key: "duplicates", label: "Duplicates", href: "/data/duplicates", functions: DATA_READERS },
+  // design department-discovery, decision 13 (d): the discovery share, queue and finds (system figures only)
+  { key: "discovery", label: "Discovery", href: "/data/discovery", functions: DATA_READERS },
 ];
 
 function visible(me: Pick<Me, "functions"> | null | undefined, functions: readonly Permission[]): boolean {
@@ -190,6 +194,8 @@ export const CRUMB_PATHS: Record<string, string> = {
   "/files/sent": "Sent",
   "/alerts": "Alerts & calendar",
   "/alerts/calendar": "Hearing calendar",
+  "/admin/mapping/discovery": "Court search",
+  "/data/discovery": "Discovery",
 };
 
 /** The breadcrumb label of a path (`CRUMB_PATHS` first, then the segment's label, else the segment itself). */

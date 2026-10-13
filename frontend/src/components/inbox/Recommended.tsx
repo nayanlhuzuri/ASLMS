@@ -101,6 +101,7 @@ export function Recommended({ params, department }: { params: Params; department
                         <CaseLink value={r.case} />
                         <ListingLine c={r.case} />
                         <SignalChips signals={r.signals as Signal[]} />
+                        {r.origin === "discovery" ? <div className="muted">{T.inbox.originDiscovery}</div> : null}
                         {r.origin === "suggestion" && r.suggested_by_office_code ? (
                           <div className="muted">{T.inbox.suggestedBy(r.suggested_by_office_code, r.reason)}</div>
                         ) : null}

@@ -648,6 +648,8 @@ def origin_for_dossier(case: Case) -> RecommendationOrigin:
         return RecommendationOrigin.CAUSE_LIST
     if src == FirstSeenSource.SEARCH:
         return RecommendationOrigin.SEARCH
+    if src == FirstSeenSource.DISCOVERY:  # design department-discovery, decision 9
+        return RecommendationOrigin.DISCOVERY
     return RecommendationOrigin.RESCORE
 
 

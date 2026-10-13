@@ -45,6 +45,7 @@ from aslms.services.case_filters import CaseFilters
 from aslms.services.offices import find_office
 from aslms.services.visibility import (
     CaseState,
+    claim_departments,
     claimed_conditions,
     codes_condition,
     is_department,
@@ -452,10 +453,12 @@ def pool_stmt(
     min_score: float | None = None,
     scored_for: Office | None = None,
     state_party: bool | None = None,
+    found_for: Office | None = None,
 ) -> Select:
     """Never-owned non-merged cases, then the shared filters. `scored_for` keeps cases with a score row for
     that department, and with `min_score` the same row must reach it (design `portal-filters`, decision 5);
-    `min_score` alone: any department's row."""
+    `min_score` alone: any department's row. `found_for` keeps cases found by that department's court search
+    (design `department-discovery`, decision 10)."""
     stmt = _filtered(select(Case).where(Case.merged_into_case_id.is_(None), never_owned()), session, filters)
     if min_score is not None and not (0 <= float(min_score) <= 1):
         raise InboxError("min_score is between 0 and 1")
@@ -470,6 +473,10 @@ def pool_stmt(
         stmt = stmt.where(_state_party_condition(session))
     elif state_party is False:
         stmt = stmt.where(~_state_party_condition(session))
+    if found_for is not None:
+        from aslms.services.discovery import found_for_condition
+
+        stmt = stmt.where(found_for_condition(session, found_for))
     return stmt
 
 
@@ -489,14 +496,24 @@ def pool(
     min_score: float | None = None,
     scored_for: str | None = None,
     state_party: bool | None = None,
+    found_for: str | None = None,
     limit: int | None = None,
     offset: int | None = None,
 ) -> Page:
     _pool_allowed(session, user)
     scored = case_filters.department_code(session, "scored_for", case_filters.parse_office_code(scored_for))
+    found = case_filters.department_code(session, "found_for", case_filters.parse_office_code(found_for))
+    if found is not None and not access.has(session, user, Permission.CASES_VIEW_ALL):
+        if not any(d.id == found.id for d in claim_departments(session, user)):
+            raise access.Forbidden("cases.view_all is needed to see another department's court-search finds")
     limit, offset = clamp(limit, offset)
     stmt = pool_stmt(
-        session, filters=_no_owner(filters), min_score=min_score, scored_for=scored, state_party=state_party
+        session,
+        filters=_no_owner(filters),
+        min_score=min_score,
+        scored_for=scored,
+        state_party=state_party,
+        found_for=found,
     )
     total = _count(session, stmt)
     cases = list(

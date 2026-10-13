@@ -602,6 +602,22 @@ describe("the filter bar on the inbox (portal-filters)", () => {
     expect(nav.replace).toHaveBeenCalledWith("/inbox/pool?scored_for=FIN&min_score=0.5&case_status=disposed");
   });
 
+  it("the pool's Found by our court search writes found_for to the query string and the request", async () => {
+    resetNav("/inbox/pool");
+    const api = browserApi(inboxRoutes());
+    const { unmount } = renderWithClient(<InboxFrame tab="pool" params={{ found_for: "EDU" }} />);
+    await screen.findByText("0 cases match");
+    expect(urlOf(api.calls, "/inbox/pool")).toContain("found_for=EDU");
+    expect(screen.getByText("Found by our court search: EDU")).toBeInTheDocument();
+    unmount();
+    renderWithClient(<InboxFrame tab="pool" params={{}} />);
+    await screen.findByText("0 cases match");
+    expect(urlOf(api.calls, "/inbox/pool")).not.toContain("found_for");
+    await userEvent.selectOptions(screen.getByLabelText("Found by our court search"), "EDU");
+    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
+    expect(nav.replace).toHaveBeenCalledWith("/inbox/pool?found_for=EDU");
+  });
+
   it("Transfers send the case filters and other_office next to the transfer status", async () => {
     resetNav("/inbox/transfers");
     const api = browserApi(inboxRoutes());

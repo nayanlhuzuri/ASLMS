@@ -9,7 +9,11 @@ counsel codes (`admin.counsel_codes`), keywords and name patterns (`admin.keywor
 - Uniqueness as in the schema; re-adding a deactivated rule reactivates it. Rules are deactivated, never
   deleted. Every change writes an audit row and one `config_changed` event; an update that changes nothing
   writes nothing. Rule edits reach the scores through the dirty rescore (within 15 minutes); watchlist writes
-  rescore their case inline."""
+  rescore their case inline.
+- Keywords and exact / prefix name patterns carry `discover` ("Search the court", design `department-discovery`,
+  decision 1): on create it defaults to whether the text is discoverable; asking it for a text that is not (or a
+  regex) is `not_discoverable` (400). Every save hands the rule to `discovery.on_rule_saved`, which queues a new
+  term's first sweep in the same transaction."""
 
 from __future__ import annotations
 
@@ -45,6 +49,13 @@ class RuleError(ValueError):
 
 class DuplicateRule(RuleError):
     """The rule already exists and is active (HTTP 409)."""
+
+
+class NotDiscoverable(RuleError):
+    """`discover: true` for a text that cannot be sent to the court's party-name search, or for a regex (HTTP 400
+    `not_discoverable`)."""
+
+    code = "not_discoverable"
 
 
 class _Unset:
@@ -137,6 +148,30 @@ def _office_code(session: Session, office_id) -> str | None:
 def _set_active(row, enabled: bool) -> None:
     row.is_active = enabled
     row.deactivated_at = None if enabled else _now()
+
+
+def _discover(value: str, kind: PatternKind | None, discover: Any, current: bool | None = None) -> bool:
+    """UNSET → the current value, or on create whether the text is discoverable; True → refused unless it is."""
+    from aslms.services.discovery import discoverable
+
+    ok = discoverable(value, kind)
+    if discover is UNSET or discover is None:
+        return ok if current is None else (current and ok)
+    if bool(discover) and not ok:
+        if kind is not None and PatternKind(kind) == PatternKind.REGEX:
+            raise NotDiscoverable(
+                "a regular expression cannot be searched at the court; untick Search the court"
+            )
+        raise NotDiscoverable(
+            "only 3 to 200 letters, digits, spaces and . , ' & ( ) / - can be searched at the court"
+        )
+    return bool(discover)
+
+
+def _discovery_saved(session: Session, value: str, row) -> None:
+    from aslms.services import discovery
+
+    discovery.on_rule_saved(session, value, is_active_rule=bool(row.is_active), discover=bool(row.discover))
 
 
 # ------------------------------------------------------------------------------------------------ counsel codes
@@ -297,16 +332,27 @@ def list_counsel_codes(
 
 
 def keyword_summary(session: Session, row: OfficeKeyword) -> dict:
+    from aslms.services.discovery import discoverable
+
     return {
         "keyword": row.keyword,
         "office_code": _office_code(session, row.office_id),
         "weight": _w(row.weight),
         "is_active": row.is_active,
+        "discover": bool(row.discover),
+        "discoverable": discoverable(row.keyword),
     }
 
 
 def create_keyword(
-    session: Session, actor: Actor, actor_user: User, *, keyword: str, office: Office, weight: Any = UNSET
+    session: Session,
+    actor: Actor,
+    actor_user: User,
+    *,
+    keyword: str,
+    office: Office,
+    weight: Any = UNSET,
+    discover: Any = UNSET,
 ) -> OfficeKeyword:
     access.require(session, actor_user, Permission.ADMIN_KEYWORDS)
     office = _active_office(office)
@@ -322,38 +368,53 @@ def create_keyword(
         if row.is_active:
             raise DuplicateRule(f"the keyword {norm} already exists for {office.code}")
         before = keyword_summary(session, row)
+        disc = _discover(norm, None, discover, bool(row.discover))
         _set_active(row, True)
+        row.discover = disc
         if w is not UNSET:
             row.weight = w
         row.updated_by = actor.user_id
         _record(session, actor, "keyword", row, "reactivate", before, keyword_summary(session, row))
+        _discovery_saved(session, row.keyword, row)
         return row
     row = OfficeKeyword(
         office_id=office.id,
         keyword=norm,
         weight=None if w is UNSET else w,
+        discover=_discover(norm, None, discover),
+        is_active=True,
         created_by=actor.user_id,
         updated_by=actor.user_id,
     )
     session.add(row)
     _record(session, actor, "keyword", row, "create", None, keyword_summary(session, row))
+    _discovery_saved(session, row.keyword, row)
     return row
 
 
 def update_keyword(
-    session: Session, actor: Actor, actor_user: User, row: OfficeKeyword, *, weight: Any = UNSET
+    session: Session,
+    actor: Actor,
+    actor_user: User,
+    row: OfficeKeyword,
+    *,
+    weight: Any = UNSET,
+    discover: Any = UNSET,
 ) -> OfficeKeyword:
     access.require(session, actor_user, Permission.ADMIN_KEYWORDS)
     _scope(session, actor_user, session.get(Office, row.office_id), Permission.ADMIN_KEYWORDS)
     w = _weight(session, actor_user, weight)
+    disc = _discover(row.keyword, None, discover, bool(row.discover))
     before = keyword_summary(session, row)
     if w is not UNSET and _w(w) != _w(row.weight):
         row.weight = w
+    row.discover = disc
     after = keyword_summary(session, row)
     if after == before:
         return row
     row.updated_by = actor.user_id
     _record(session, actor, "keyword", row, "update", before, after)
+    _discovery_saved(session, row.keyword, row)
     return row
 
 
@@ -372,6 +433,7 @@ def set_keyword_active(
     row.updated_by = actor.user_id
     action = "reactivate" if enabled else "deactivate"
     _record(session, actor, "keyword", row, action, before, keyword_summary(session, row))
+    _discovery_saved(session, row.keyword, row)
     return row
 
 
@@ -379,12 +441,16 @@ def set_keyword_active(
 
 
 def pattern_summary(session: Session, row: OfficeNamePattern) -> dict:
+    from aslms.services.discovery import discoverable
+
     return {
         "pattern": row.pattern,
         "kind": PatternKind(row.kind).value,
         "office_code": _office_code(session, row.office_id),
         "weight": _w(row.weight),
         "is_active": row.is_active,
+        "discover": bool(row.discover),
+        "discoverable": discoverable(row.pattern, row.kind),
     }
 
 
@@ -410,6 +476,7 @@ def create_name_pattern(
     kind: PatternKind | str,
     office: Office,
     weight: Any = UNSET,
+    discover: Any = UNSET,
 ) -> OfficeNamePattern:
     access.require(session, actor_user, Permission.ADMIN_KEYWORDS)
     office = _active_office(office)
@@ -431,39 +498,54 @@ def create_name_pattern(
         if row.is_active:
             raise DuplicateRule(f"the pattern already exists for {office.code}")
         before = pattern_summary(session, row)
+        disc = _discover(text, kind, discover, bool(row.discover))
         _set_active(row, True)
+        row.discover = disc
         if w is not UNSET:
             row.weight = w
         row.updated_by = actor.user_id
         _record(session, actor, "name_pattern", row, "reactivate", before, pattern_summary(session, row))
+        _discovery_saved(session, row.pattern, row)
         return row
     row = OfficeNamePattern(
         office_id=office.id,
         pattern=text,
         kind=kind,
         weight=None if w is UNSET else w,
+        discover=_discover(text, kind, discover),
+        is_active=True,
         created_by=actor.user_id,
         updated_by=actor.user_id,
     )
     session.add(row)
     _record(session, actor, "name_pattern", row, "create", None, pattern_summary(session, row))
+    _discovery_saved(session, row.pattern, row)
     return row
 
 
 def update_name_pattern(
-    session: Session, actor: Actor, actor_user: User, row: OfficeNamePattern, *, weight: Any = UNSET
+    session: Session,
+    actor: Actor,
+    actor_user: User,
+    row: OfficeNamePattern,
+    *,
+    weight: Any = UNSET,
+    discover: Any = UNSET,
 ) -> OfficeNamePattern:
     access.require(session, actor_user, Permission.ADMIN_KEYWORDS)
     _scope(session, actor_user, session.get(Office, row.office_id), Permission.ADMIN_KEYWORDS)
     w = _weight(session, actor_user, weight)
+    disc = _discover(row.pattern, PatternKind(row.kind), discover, bool(row.discover))
     before = pattern_summary(session, row)
     if w is not UNSET and _w(w) != _w(row.weight):
         row.weight = w
+    row.discover = disc
     after = pattern_summary(session, row)
     if after == before:
         return row
     row.updated_by = actor.user_id
     _record(session, actor, "name_pattern", row, "update", before, after)
+    _discovery_saved(session, row.pattern, row)
     return row
 
 
@@ -482,14 +564,22 @@ def set_name_pattern_active(
     row.updated_by = actor.user_id
     action = "reactivate" if enabled else "deactivate"
     _record(session, actor, "name_pattern", row, action, before, pattern_summary(session, row))
+    _discovery_saved(session, row.pattern, row)
     return row
 
 
 def list_rules(
-    session: Session, actor_user: User, model, permission: Permission, *, office=None, include_inactive=False
+    session: Session,
+    actor_user: User,
+    model,
+    permission: Permission,
+    *,
+    office=None,
+    include_inactive=False,
+    discover: bool | None = None,
 ) -> list:
     """Keywords, name patterns or watchlist rows whose office is in the caller's subtree (all for the super
-    admin)."""
+    admin); `discover` keeps the rules ticked (or not) "Search the court" (keywords and name patterns)."""
     access.require(session, actor_user, permission)
     stmt = select(model).join(Office, Office.id == model.office_id)
     if not access.is_super_admin(actor_user):
@@ -501,6 +591,8 @@ def list_rules(
         stmt = stmt.where(or_(Office.id == office.id, Office.path.like(office.path + "/%")))
     if not include_inactive:
         stmt = stmt.where(model.is_active.is_(True))
+    if discover is not None and hasattr(model, "discover"):
+        stmt = stmt.where(model.discover.is_(bool(discover)))
     return list(session.scalars(stmt.order_by(Office.path, model.created_at)).all())
 
 

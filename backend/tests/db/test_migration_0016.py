@@ -155,7 +155,7 @@ def test_0016_downgrade_refuses_while_a_case_stage_uses_a_new_code(db_url, engin
 
 def test_models_match_head(db_url, engine):
     wipe_if_migrated(db_url)
-    assert _version(engine) == "0016" == head_revision()
+    assert _version(engine) == head_revision()  # 0016 or a later head
     with engine.connect() as conn:
         ctx = MigrationContext.configure(conn, opts={"compare_type": True, "compare_server_default": True})
         diff = compare_metadata(ctx, Base.metadata)

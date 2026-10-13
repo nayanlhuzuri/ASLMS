@@ -411,3 +411,48 @@ None. The owner checks are marked in decisions 1 (default on), 4 (pending cases 
 years, full sweep every 90 days), 6 (share of 100 calls per window) and 9 (no new scoring signal). Each is a default
 the owner may change at approval; none blocks the design. Decision 16's live step needs the owner's go-ahead because
 it spends quota.
+
+## Deviations
+Written by the developer while building (smallest reasonable choices where the design was silent, and the owner's
+decisions of 14 Oct 2026 carried into the build):
+1. **One year range for every automatic sweep (owner's decision 1).** `DISCOVERY_FROM_YEAR` defaults to 2025 and
+   `DISCOVERY_RECENT_YEARS` / `DISCOVERY_FULL_SWEEP_DAYS` are not added: a new term's first sweep (priority 43) and the
+   weekly sweep (42, Saturday 02:00 IST) both cover 2025 to the current year, newest first. `discovery_terms.
+   full_sweep_queued_at` records when the first sweep was queued and `recent_sweep_queued_at` the latest weekly or
+   manual sweep. `POST /admin/discovery/sweep` takes `{term_id?}` only (no `scope`), and `aslms discovery sweep` takes
+   `--term` only (no `--full`). `services/discovery.py::sweep_years(today, from_year)` replaces `years(scope, ...)`.
+2. **A user's request for older years (owner's decision 2) is `POST /admin/discovery/search`** (`admin.keywords`, the
+   Court search tab's function): body `{name, years: [int] (1-30, 1950 to the current year), force}`, answer 202
+   `{term_id, term, years, queued}` with no call counts. The name must be one of the caller's terms (an active rule
+   ticked "Search the court" in the caller's subtree; any active term for the super admin), else 400 `not_a_term`, so
+   every found case has a department that sees it on the tab and a rule the engine scores with. Before anything is
+   queued, a chosen year whose `party_search` row is `done` (its date) or still waiting answers 409 `searched_before`
+   `{term, last_searched_at, years: [{reg_year, state, searched_at}]}` and writes nothing; "recently" is read as "ever,
+   while the queue row exists", as the data-load console's `searched_before` rule does. `force: true` ("Search again")
+   re-queues with `requeue=True`. The rows go to the discovery lane at 42 and carry no `requested_by` (the CHECK keeps a
+   person to the `request` lane); the person is in the audit row `discovery.sweep` (`scope: "request"`, `term`, `years`,
+   `rows_queued`, `force`, `warned`). Bad text is 400 `not_discoverable`, bad years 400 `bad_years`.
+3. **Re-adding a deactivated rule through create** keeps its `discover` value when the caller leaves it out (still only
+   while the text is discoverable); a new rule takes the discoverable default.
+4. **The terms list** shows terms with a ticked rule (active or not) in the caller's subtree; `departments` and
+   `rules` are both limited to that subtree (the super admin sees all); each rule item also carries `is_active`.
+5. **A term's cases**: `recommendation` is the highest-scored active recommendation shown to the caller
+   (`ownership.shown_recommendations_condition`); `claimable` is `ownership.claimable_condition`; merged cases are
+   left out; a hit returned for a case merged meanwhile is recorded on the surviving case.
+6. **`GET /admin/discovery`**: `queue.by_kind.<kind>.waiting` counts pending rows whose `not_before` is still ahead;
+   `latest_failures` items carry `kind`; `window.discovery_calls` counts from the window's `started_at` (the last
+   3,600 s when unknown), as the runner does.
+7. **The runner**: when the share is spent and only discovery rows are runnable, the pass ends as a load-only block
+   with `discovery share spent: <used> of <share>; <window>`; when nothing at all is runnable it ends "queue empty".
+   A re-read of the window that finds the share freed (a new window) lets the pass go on.
+8. **Other lane lists**: `RetryFailedIn` accepts kind `party_search` and lane `discovery`; `LaneCountsOut` and
+   `AllowanceUsedOut` gain `discovery`; the portal's Load tiles, Health queue table and Queue lane filter show it.
+9. **The weekly job creates missing term rows** for active ticked rules (rules ticked by the migration's data step have
+   no term until then).
+10. **Tests are grouped**: the unit additions (discoverable texts, years, ref, discovery-lane priorities, the runner's
+    share bands, the two settings) are in `tests/unit/test_discovery_terms.py`; the share and scoring database tests
+    are in `tests/db/test_discovery_run.py`; the portal's Court search and Discovery tab tests are in
+    `components/admin/discovery.test.tsx`, the pool filter test in `inbox.test.tsx`.
+11. **The portal**: the add forms send `discover` only when the user changed the box (the API defaults it from the
+    text); the row toggle is disabled only for a regex (other refusals come back from the API and are shown as given).
+    The Court search tab's name field offers the department's active terms; years are typed as `2010, 2012-2014`.

@@ -149,7 +149,7 @@ def test_progress_start_pause_order_flow(api, world):
     body = r.json()
     assert body["period"] is None and body["totals"] is None and body["napix_enabled"] is False
     assert body["settings"]["load_order"] == "cases_first" and body["estimate"]["reason"] is None
-    assert set(body["allowance"]["used"]) == {"load", "daily", "request", "outside_queue"}
+    assert set(body["allowance"]["used"]) == {"load", "discovery", "daily", "request", "outside_queue"}
     r = api.post("/admin/data-load/preview", json={"from": "2025-01-01", "to": "2025-01-31"}, headers=h)
     assert r.status_code == 200 and r.json()["not_queued"] == 31 and r.json()["calls_estimate"] is None
     r = api.post("/admin/data-load/start", json={"from": "2025-01-01", "to": "2025-01-31"}, headers=h)

@@ -322,7 +322,7 @@ def test_progress_and_allowance_exact(world):
         }
         assert len(out["failures"]["latest"]) == 2
         allowance = out["allowance"]
-        assert allowance["used"] == {"load": 3, "daily": 2, "request": 1, "outside_queue": 5}
+        assert allowance["used"] == {"load": 3, "discovery": 0, "daily": 2, "request": 1, "outside_queue": 5}
         assert sum(allowance["used"].values()) == s.scalar(
             sa.select(sa.func.count()).where(NapixCallLog.called_at >= reset)
         )

@@ -40,7 +40,13 @@ from aslms.domain.ownership import RecommendationOrigin
 from aslms.integration.napix.hc import NapixHighCourt
 from aslms.services import case_dedupe, matching, napix_window
 from aslms.services.audit import Actor, write_audit
-from aslms.services.cases import ApplyReport, apply_dossier, get_or_create_case, refresh_search_vector
+from aslms.services.cases import (
+    ROOT_OFFICE,
+    ApplyReport,
+    apply_dossier,
+    get_or_create_case,
+    refresh_search_vector,
+)
 from aslms.services.load_policy import QueueOrigin
 from aslms.services.napix_store import NapixRecorder
 from aslms.services.napix_values import as_int, as_text, case_no_text
@@ -282,9 +288,19 @@ def _fill_empty(case: Case, name: str, value: Any) -> bool:
     return True
 
 
-def store_search_rows(session: Session, court: Court, rows: list[dict[str, Any]]) -> StoreReport:
+def store_search_rows(
+    session: Session,
+    court: Court,
+    rows: list[dict[str, Any]],
+    *,
+    source: FirstSeenSource = FirstSeenSource.SEARCH,
+    origin: RecommendationOrigin = RecommendationOrigin.SEARCH,
+    ref_office: str = ROOT_OFFICE,
+) -> StoreReport:
     """Decision 9: rows with a valid `cino` become cases (`source = search`), the search fields fill only empty
-    columns (a dossier is authoritative); then the vector is refreshed and the cases scored."""
+    columns (a dossier is authoritative); then the vector is refreshed and the cases scored. Department discovery
+    passes its own `source`, `origin` and the office the new cases' `ref_no` is allocated on (design
+    `department-discovery`, decisions 7-9); a person's search keeps the defaults."""
     report = StoreReport()
     changed: list[uuid.UUID] = []
     seen: set[str] = set()
@@ -306,7 +322,7 @@ def store_search_rows(session: Session, court: Court, rows: list[dict[str, Any]]
         reg_no, reg_year = as_int(row.get("reg_no")), as_int(row.get("reg_year"))
         case_no = case_no_text(type_name, reg_no, reg_year)
         case, created = get_or_create_case(
-            session, court, cnr=cino, case_no=case_no, source=FirstSeenSource.SEARCH
+            session, court, cnr=cino, case_no=case_no, source=source, ref_office=ref_office
         )
         touched = created
         touched |= _fill_empty(case, "petitioner_summary", as_text(row.get("pet_name")))
@@ -331,7 +347,7 @@ def store_search_rows(session: Session, court: Court, rows: list[dict[str, Any]]
     session.flush()
     if changed:
         refresh_search_vector(session, changed)
-        matching.score_cases(session, changed, origin=RecommendationOrigin.SEARCH)
+        matching.score_cases(session, changed, origin=origin)
     if report.cases:
         ids = [c.id for c in report.cases]
         case_dedupe.check_cases(session, ids)

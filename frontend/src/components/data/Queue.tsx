@@ -75,7 +75,7 @@ function QueueRows() {
           value={filter.lane}
           placeholder={T.data.allLanes}
           onChange={(e) => set({ lane: e.target.value })}
-          options={["request", "daily", "load"].map((value) => ({ value, label: T.data.lanes[value] ?? value }))}
+          options={["request", "daily", "discovery", "load"].map((value) => ({ value, label: T.data.lanes[value] ?? value }))}
         />
         <TextField label={T.data.refPrefix} value={filter.ref} onChange={(e) => set({ ref: e.target.value })} />
       </div>

@@ -46,7 +46,7 @@ PHASE_JITTER = (
     180  # seconds: resets seen up to this much before the phase point (11 Oct: HH:33:18 to HH:34:53)
 )
 STATUSES = ("current", "reset_due", "overdue", "unknown")
-LANES = ("load", "daily", "request")
+LANES = ("load", "discovery", "daily", "request")
 
 
 @dataclass(frozen=True)

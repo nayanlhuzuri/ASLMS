@@ -463,6 +463,115 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/discovery": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Summary
+         * @description The discovery block of the Data collection screens: the share and the discovery calls of the current window,
+         *     discovery-lane rows by kind, terms, cases found and created, the latest failures. No case data.
+         */
+        get: operations["get_summary_admin_discovery_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/discovery/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Search Years
+         * @description Search the court for one of the department's names in the chosen years (older years included). The searches
+         *     are queued; found cases appear on the term's list as they arrive. 409 `searched_before` (with the dates) when a
+         *     year was searched before or is still waiting, unless `force`; 400 `not_a_term` when the name is not an active
+         *     rule ticked "Search the court" in the caller's offices. Audited `discovery.sweep`.
+         */
+        post: operations["search_years_admin_discovery_search_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/discovery/sweep": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Sweep
+         * @description Queue a sweep (2025 to the current year) of one term or of every active term; 404 unknown term, 409
+         *     `term_inactive`. Audited `discovery.sweep`.
+         */
+        post: operations["post_sweep_admin_discovery_sweep_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/discovery/terms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Terms
+         * @description The terms with at least one rule ticked "Search the court" in the caller's subtree (all for the super admin):
+         *     their rules and departments inside that subtree, years searched / waiting / failed, the last search and the
+         *     cases found. `status` is `active` (default), `inactive` or `all`.
+         */
+        get: operations["list_terms_admin_discovery_terms_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/discovery/terms/{term_id}/cases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Term Cases
+         * @description The cases a term found (summaries), latest found first, with the owner, the caller's departments'
+         *     recommendation (every department's with `cases.view_all`) and `claimable`. `only` is `all`, `pool`,
+         *     `recommended` or `owned`. 404 when the term has no rule in the caller's subtree.
+         */
+        get: operations["term_cases_admin_discovery_terms__term_id__cases_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/failures": {
         parameters: {
             query?: never;
@@ -3852,6 +3961,8 @@ export interface components {
         AllowanceUsedOut: {
             /** Daily */
             daily: number;
+            /** Discovery */
+            discovery: number;
             /** Load */
             load: number;
             /** Outside Queue */
@@ -5525,6 +5636,237 @@ export interface components {
             /** Verified At */
             verified_at: string | null;
         };
+        /**
+         * DiscoverRulePatchIn
+         * @description A keyword or name pattern: the weight override and/or `discover` (left out = unchanged).
+         */
+        DiscoverRulePatchIn: {
+            /** Discover */
+            discover?: boolean | null;
+            /** Weight */
+            weight?: number | null;
+        };
+        /** DiscoveryCaseCountsOut */
+        DiscoveryCaseCountsOut: {
+            /** Created By Discovery */
+            created_by_discovery: number;
+            /** Found */
+            found: number;
+            /** Recommended From Discovery */
+            recommended_from_discovery: number;
+        };
+        /** DiscoveryCaseListOut */
+        DiscoveryCaseListOut: {
+            /** Items */
+            items: components["schemas"]["DiscoveryCaseOut"][];
+            /** Total */
+            total: number;
+        };
+        /** DiscoveryCaseOut */
+        DiscoveryCaseOut: {
+            case: components["schemas"]["CaseSummaryOut"];
+            /** Claimable */
+            claimable: boolean;
+            /**
+             * First Found At
+             * Format: date-time
+             */
+            first_found_at: string;
+            /**
+             * Last Found At
+             * Format: date-time
+             */
+            last_found_at: string;
+            /** Owner Office Code */
+            owner_office_code: string | null;
+            recommendation: components["schemas"]["DiscoveryRecommendationOut"] | null;
+            /** Reg Year */
+            reg_year: number;
+        };
+        /** DiscoveryFailureOut */
+        DiscoveryFailureOut: {
+            /** Finished At */
+            finished_at: string | null;
+            /** Kind */
+            kind: string;
+            /** Last Error */
+            last_error: string | null;
+            /** Ref */
+            ref: string;
+        };
+        /** DiscoveryQueueByKindOut */
+        DiscoveryQueueByKindOut: {
+            dossier: components["schemas"]["DiscoveryQueueCountsOut"];
+            order_pdf: components["schemas"]["DiscoveryQueueCountsOut"];
+            party_search: components["schemas"]["DiscoveryQueueCountsOut"];
+        };
+        /** DiscoveryQueueCountsOut */
+        DiscoveryQueueCountsOut: {
+            /** Failed */
+            failed: number;
+            /** Pending */
+            pending: number;
+            /** Running */
+            running: number;
+            /** Waiting */
+            waiting: number;
+        };
+        /** DiscoveryQueueOut */
+        DiscoveryQueueOut: {
+            by_kind: components["schemas"]["DiscoveryQueueByKindOut"];
+        };
+        /** DiscoveryRecommendationOut */
+        DiscoveryRecommendationOut: {
+            /** Band */
+            band: string;
+            /** Office Code */
+            office_code: string;
+            /** Score */
+            score: number;
+            /** Status */
+            status: string;
+        };
+        /** DiscoveryRuleOut */
+        DiscoveryRuleOut: {
+            /** Is Active */
+            is_active: boolean;
+            /** Kind */
+            kind: string;
+            /** Office Code */
+            office_code: string;
+            /**
+             * Rule Id
+             * Format: uuid
+             */
+            rule_id: string;
+        };
+        /**
+         * DiscoverySearchIn
+         * @description A user's request on the Court search tab: a name (one of the department's terms) and the years to search.
+         */
+        DiscoverySearchIn: {
+            /**
+             * Force
+             * @description search again a name and year searched before
+             * @default false
+             */
+            force: boolean;
+            /** Name */
+            name: string;
+            /** Years */
+            years: number[];
+        };
+        /** DiscoverySearchOut */
+        DiscoverySearchOut: {
+            /** Queued */
+            queued: boolean;
+            /** Term */
+            term: string;
+            /**
+             * Term Id
+             * Format: uuid
+             */
+            term_id: string;
+            /** Years */
+            years: number[];
+        };
+        /** DiscoverySettingsOut */
+        DiscoverySettingsOut: {
+            /** From Year */
+            from_year: number;
+            /** Share */
+            share: number;
+        };
+        /**
+         * DiscoverySummaryOut
+         * @description `GET /admin/discovery`: system figures only, for the Data collection screens.
+         */
+        DiscoverySummaryOut: {
+            cases: components["schemas"]["DiscoveryCaseCountsOut"];
+            /** Last Searched At */
+            last_searched_at: string | null;
+            /** Latest Failures */
+            latest_failures: components["schemas"]["DiscoveryFailureOut"][];
+            queue: components["schemas"]["DiscoveryQueueOut"];
+            settings: components["schemas"]["DiscoverySettingsOut"];
+            terms: components["schemas"]["DiscoveryTermCountsOut"];
+            window: components["schemas"]["DiscoveryWindowOut"];
+        };
+        /** DiscoverySweepIn */
+        DiscoverySweepIn: {
+            /** Term Id */
+            term_id?: string | null;
+        };
+        /** DiscoverySweepOut */
+        DiscoverySweepOut: {
+            /** Rows Queued */
+            rows_queued: number;
+            /** Terms */
+            terms: number;
+        };
+        /** DiscoveryTermCountsOut */
+        DiscoveryTermCountsOut: {
+            /** Active */
+            active: number;
+            /** Inactive */
+            inactive: number;
+        };
+        /** DiscoveryTermListOut */
+        DiscoveryTermListOut: {
+            /** Items */
+            items: components["schemas"]["DiscoveryTermOut"][];
+            /** Total */
+            total: number;
+        };
+        /** DiscoveryTermOut */
+        DiscoveryTermOut: {
+            /** Active */
+            active: boolean;
+            /** Cases Found */
+            cases_found: number;
+            /** Departments */
+            departments: string[];
+            /** Found Last 7 Days */
+            found_last_7_days: number;
+            /** Full Sweep Queued At */
+            full_sweep_queued_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Last Searched At */
+            last_searched_at: string | null;
+            /** Recent Sweep Queued At */
+            recent_sweep_queued_at: string | null;
+            /** Rules */
+            rules: components["schemas"]["DiscoveryRuleOut"][];
+            /** Term */
+            term: string;
+            years: components["schemas"]["DiscoveryYearsOut"];
+        };
+        /** DiscoveryWindowOut */
+        DiscoveryWindowOut: {
+            /** Discovery Calls */
+            discovery_calls: number;
+            /** Next Reset At */
+            next_reset_at: string | null;
+            /** Share Left */
+            share_left: number;
+            /** Started At */
+            started_at: string | null;
+            /** Status */
+            status: string;
+        };
+        /** DiscoveryYearsOut */
+        DiscoveryYearsOut: {
+            /** Done */
+            done: number;
+            /** Failed */
+            failed: number;
+            /** Waiting */
+            waiting: number;
+        };
         /** DismissIn */
         DismissIn: {
             /**
@@ -6026,14 +6368,15 @@ export interface components {
          * FetchKind
          * @enum {string}
          */
-        FetchKind: "masters" | "causelist_day" | "dossier" | "status_batch" | "order_pdf";
+        FetchKind: "masters" | "causelist_day" | "dossier" | "status_batch" | "order_pdf" | "party_search";
         /**
          * FetchLane
          * @description Who asked for a queue row (design `data-load-console`, decision 1), in order of precedence: a person's
-         *     request, the daily cycle, the backdated load. A row asked by two lanes keeps the higher one.
+         *     request, the daily cycle, department discovery (design `department-discovery`, decision 6; migration 0017), the
+         *     backdated load. A row asked by two lanes keeps the higher one.
          * @enum {string}
          */
-        FetchLane: "request" | "daily" | "load";
+        FetchLane: "request" | "daily" | "discovery" | "load";
         /**
          * FetchStatus
          * @enum {string}
@@ -6229,6 +6572,11 @@ export interface components {
         };
         /** KeywordIn */
         KeywordIn: {
+            /**
+             * Discover
+             * @description Search the court (department discovery); left out = on when the text is discoverable
+             */
+            discover?: boolean | null;
             /** Keyword */
             keyword: string;
             /** Office Code */
@@ -6247,6 +6595,11 @@ export interface components {
         KeywordOut: {
             /** Applies Within Minutes */
             applies_within_minutes?: number | null;
+            /** Discover */
+            discover: boolean;
+            /** Discoverable */
+            discoverable: boolean;
+            discovery?: components["schemas"]["RuleDiscoveryOut"] | null;
             /** Effective Weight */
             effective_weight: number;
             /**
@@ -6287,6 +6640,8 @@ export interface components {
         LaneCountsOut: {
             /** Daily */
             daily: number;
+            /** Discovery */
+            discovery: number;
             /** Load */
             load: number;
             /** Request */
@@ -6807,6 +7162,11 @@ export interface components {
         };
         /** NamePatternIn */
         NamePatternIn: {
+            /**
+             * Discover
+             * @description Search the court (department discovery); never for a regex; left out = when discoverable
+             */
+            discover?: boolean | null;
             /** Kind */
             kind: string;
             /** Office Code */
@@ -6827,6 +7187,11 @@ export interface components {
         NamePatternOut: {
             /** Applies Within Minutes */
             applies_within_minutes?: number | null;
+            /** Discover */
+            discover: boolean;
+            /** Discoverable */
+            discoverable: boolean;
+            discovery?: components["schemas"]["RuleDiscoveryOut"] | null;
             /** Effective Weight */
             effective_weight: number;
             /**
@@ -7965,9 +8330,9 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "masters" | "causelist_day" | "dossier" | "status_batch" | "order_pdf";
+            kind: "masters" | "causelist_day" | "dossier" | "status_batch" | "order_pdf" | "party_search";
             /** Lane */
-            lane?: ("request" | "daily" | "load") | null;
+            lane?: ("request" | "daily" | "discovery" | "load") | null;
         };
         /** RetryFailedOut */
         RetryFailedOut: {
@@ -7983,10 +8348,20 @@ export interface components {
          * @enum {string}
          */
         Role: "super_admin" | "state_oversight" | "dept_head" | "dept_admin" | "dept_officer" | "directorate_user" | "referral_reviewer" | "standing_counsel" | "central_operator" | "auditor";
-        /** RuleWeightPatchIn */
-        RuleWeightPatchIn: {
-            /** Weight */
-            weight?: number | null;
+        /**
+         * RuleDiscoveryOut
+         * @description The rule's discovery term (design `department-discovery`): when it was last searched and the cases found.
+         */
+        RuleDiscoveryOut: {
+            /** Cases Found */
+            cases_found: number;
+            /** Last Searched At */
+            last_searched_at: string | null;
+            /**
+             * Term Id
+             * Format: uuid
+             */
+            term_id: string;
         };
         /** ScoringSettingsHistoryOut */
         ScoringSettingsHistoryOut: {
@@ -10440,6 +10815,342 @@ export interface operations {
             };
         };
     };
+    get_summary_admin_discovery_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscoverySummaryOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    search_years_admin_discovery_search_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DiscoverySearchIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscoverySearchOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_sweep_admin_discovery_sweep_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DiscoverySweepIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscoverySweepOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_terms_admin_discovery_terms_get: {
+        parameters: {
+            query?: {
+                office?: string | null;
+                /** @description active, inactive or all */
+                status?: string;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscoveryTermListOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    term_cases_admin_discovery_terms__term_id__cases_get: {
+        parameters: {
+            query?: {
+                only?: string;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                term_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscoveryCaseListOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_failures_admin_failures_get: {
         parameters: {
             query?: {
@@ -10479,6 +11190,7 @@ export interface operations {
             query?: {
                 office?: string | null;
                 include_inactive?: boolean;
+                discover?: boolean | null;
             };
             header?: never;
             path?: never;
@@ -10550,7 +11262,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["RuleWeightPatchIn"];
+                "application/json": components["schemas"]["DiscoverRulePatchIn"];
             };
         };
         responses: {
@@ -10672,6 +11384,7 @@ export interface operations {
             query?: {
                 office?: string | null;
                 include_inactive?: boolean;
+                discover?: boolean | null;
             };
             header?: never;
             path?: never;
@@ -10743,7 +11456,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["RuleWeightPatchIn"];
+                "application/json": components["schemas"]["DiscoverRulePatchIn"];
             };
         };
         responses: {
@@ -16422,6 +17135,8 @@ export interface operations {
                 scored_for?: string | null;
                 min_score?: number | null;
                 state_party?: boolean | null;
+                /** @description Keep cases found by this department's court search (department discovery) */
+                found_for?: string | null;
                 limit?: number;
                 offset?: number;
                 /** @description Words as the Search box (at least 3 characters): a CNR, a case number (`WP(C) 4326/2025`), a `ref_no`, or words matched as prefixes over parties, advocates, counsel codes and numbers */

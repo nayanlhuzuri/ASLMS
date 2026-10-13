@@ -75,6 +75,9 @@ function keyword(extra: Partial<Keyword> = {}): Keyword {
     effective_weight: 0.4,
     is_active: true,
     updated_at: "2026-10-10T05:00:00Z",
+    discover: true,
+    discoverable: true,
+    discovery: null,
     ...extra,
   };
 }
@@ -373,6 +376,74 @@ describe("keywords and name patterns", () => {
     await userEvent.click(within(pform).getByRole("button", { name: "Add a name pattern" }));
     await waitFor(() => expect(posts(api, "POST", "/admin/name-patterns")).toHaveLength(1));
     expect(posts(api, "POST", "/admin/name-patterns")[0]!.body).toEqual({ pattern: "STATE OF ASSAM", kind: "prefix", office_code: "EDU" });
+  });
+});
+
+describe("Search the court (department-discovery)", () => {
+  it("the add forms pre-tick it for a discoverable text, untick it for others and disable it for a regex", async () => {
+    const api = browserApi({
+      "GET /me": deptAdmin(),
+      "GET /admin/offices": [EDU, DSE],
+      "GET /admin/keywords": { items: [], total: 0 },
+      "GET /admin/name-patterns": { items: [], total: 0 },
+      "POST /admin/name-patterns": json(201, { id: "np-1", pattern: "PRITAM", kind: "prefix", office: { code: "EDU", name: "Education" }, weight_override: null, effective_weight: 0.8, is_active: true, updated_at: "2026-10-10T05:00:00Z", discover: false, discoverable: true, discovery: null, applies_within_minutes: 15 }),
+    });
+    renderWithClient(<KeywordsAndPatterns />);
+    const kform = await screen.findByRole("form", { name: "Add a keyword" });
+    const kbox = within(kform).getByLabelText("Search the court");
+    await userEvent.type(within(kform).getByLabelText("Keyword"), "Dr. Pritam Saikia");
+    expect(kbox).toBeChecked();
+    await userEvent.clear(within(kform).getByLabelText("Keyword"));
+    await userEvent.type(within(kform).getByLabelText("Keyword"), "100% pass");
+    expect(kbox).not.toBeChecked();
+
+    const pform = screen.getByRole("form", { name: "Add a name pattern" });
+    const pbox = within(pform).getByLabelText("Search the court");
+    await userEvent.type(within(pform).getByLabelText("Pattern"), "PRITAM");
+    expect(pbox).toBeChecked();
+    expect(pbox).not.toBeDisabled();
+    await userEvent.selectOptions(within(pform).getByLabelText("Kind"), "regex");
+    expect(pbox).not.toBeChecked();
+    expect(pbox).toBeDisabled();
+    await userEvent.selectOptions(within(pform).getByLabelText("Kind"), "prefix");
+    await userEvent.click(pbox); // the user unticks it: sent as false
+    await userEvent.selectOptions((await within(pform).findByLabelText("Office")), "EDU");
+    await userEvent.click(within(pform).getByRole("button", { name: "Add a name pattern" }));
+    await waitFor(() => expect(posts(api, "POST", "/admin/name-patterns")).toHaveLength(1));
+    expect(posts(api, "POST", "/admin/name-patterns")[0]!.body).toEqual({
+      pattern: "PRITAM",
+      kind: "prefix",
+      office_code: "EDU",
+      discover: false,
+    });
+  });
+
+  it("the row toggle sends PATCH {discover}, shows the last search and the refusal", async () => {
+    const api = browserApi({
+      "GET /me": deptAdmin(),
+      "GET /admin/offices": [EDU, DSE],
+      "GET /admin/keywords": {
+        items: [
+          keyword({ discovery: { term_id: "t-1", last_searched_at: "2026-10-13T05:00:00Z", cases_found: 4 } }),
+          keyword({ id: "kw-2", keyword: "100% PASS", discover: false, discoverable: false }),
+        ],
+        total: 2,
+      },
+      "GET /admin/name-patterns": { items: [], total: 0 },
+      "PATCH /admin/keywords/kw-1": { ...keyword({ discover: false }), applies_within_minutes: 15 },
+      "PATCH /admin/keywords/kw-2": json(400, {
+        detail: { code: "not_discoverable", message: "only 3 to 200 letters, digits, spaces and . , ' & ( ) / - can be searched at the court" },
+      }),
+    });
+    renderWithClient(<KeywordsAndPatterns />);
+    expect(await screen.findByText(/4 case\(s\) found/)).toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText("Search the court for DIRECTOR OF SECONDARY EDUCATION"));
+    await waitFor(() => expect(posts(api, "PATCH", "/admin/keywords/kw-1")).toHaveLength(1));
+    expect(posts(api, "PATCH", "/admin/keywords/kw-1")[0]!.body).toEqual({ discover: false });
+    await userEvent.click(screen.getByLabelText("Search the court for 100% PASS"));
+    await waitFor(() => expect(posts(api, "PATCH", "/admin/keywords/kw-2")).toHaveLength(1));
+    expect(posts(api, "PATCH", "/admin/keywords/kw-2")[0]!.body).toEqual({ discover: true });
+    expect(await screen.findByText(/can be searched at the court/)).toBeInTheDocument();
   });
 });
 

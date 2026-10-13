@@ -372,10 +372,28 @@ class KeywordIn(BaseModel):
     keyword: str = Field(min_length=1, max_length=200)
     office_code: str = Field(min_length=1, max_length=40)
     weight: float | None = None
+    discover: bool | None = Field(
+        None,
+        description="Search the court (department discovery); left out = on when the text is discoverable",
+    )
 
 
 class RuleWeightPatchIn(BaseModel):
     weight: float | None = None
+
+
+class DiscoverRulePatchIn(RuleWeightPatchIn):
+    """A keyword or name pattern: the weight override and/or `discover` (left out = unchanged)."""
+
+    discover: bool | None = None
+
+
+class RuleDiscoveryOut(BaseModel):
+    """The rule's discovery term (design `department-discovery`): when it was last searched and the cases found."""
+
+    term_id: uuid.UUID
+    last_searched_at: datetime | None
+    cases_found: int
 
 
 class KeywordOut(BaseModel):
@@ -386,6 +404,9 @@ class KeywordOut(BaseModel):
     effective_weight: float
     is_active: bool
     updated_at: datetime
+    discover: bool
+    discoverable: bool
+    discovery: RuleDiscoveryOut | None = None
     applies_within_minutes: int | None = None
 
 
@@ -399,6 +420,10 @@ class NamePatternIn(BaseModel):
     kind: str = Field(pattern="^(exact|prefix|regex)$")
     office_code: str = Field(min_length=1, max_length=40)
     weight: float | None = None
+    discover: bool | None = Field(
+        None,
+        description="Search the court (department discovery); never for a regex; left out = when discoverable",
+    )
 
 
 class NamePatternOut(BaseModel):
@@ -410,6 +435,9 @@ class NamePatternOut(BaseModel):
     effective_weight: float
     is_active: bool
     updated_at: datetime
+    discover: bool
+    discoverable: bool
+    discovery: RuleDiscoveryOut | None = None
     applies_within_minutes: int | None = None
 
 
@@ -2391,6 +2419,7 @@ class NapixHealthOut(BaseModel):
 class LaneCountsOut(BaseModel):
     request: int
     daily: int
+    discovery: int  # design department-discovery, decision 13 (e)
     load: int
 
 
@@ -2579,8 +2608,8 @@ class RefetchOrderIn(BaseModel):
 
 
 class RetryFailedIn(BaseModel):
-    kind: Literal["masters", "causelist_day", "dossier", "status_batch", "order_pdf"]
-    lane: Literal["request", "daily", "load"] | None = None
+    kind: Literal["masters", "causelist_day", "dossier", "status_batch", "order_pdf", "party_search"]
+    lane: Literal["request", "daily", "discovery", "load"] | None = None
 
 
 class RetryFailedOut(BaseModel):
@@ -2667,6 +2696,7 @@ class LoadFailuresOut(BaseModel):
 
 class AllowanceUsedOut(BaseModel):
     load: int
+    discovery: int  # design department-discovery, decision 13 (e)
     daily: int
     request: int
     outside_queue: int
@@ -2968,3 +2998,144 @@ class CauselistEntriesOut(BaseModel):
     total: int
     counts: CauselistCountsOut
     items: list[CauselistEntryOut]
+
+
+# ------------------------------------------------------------------------------------------------ department discovery
+
+
+class DiscoveryRuleOut(BaseModel):
+    kind: str  # keyword | exact | prefix
+    rule_id: uuid.UUID
+    office_code: str
+    is_active: bool
+
+
+class DiscoveryYearsOut(BaseModel):
+    done: int
+    waiting: int
+    failed: int
+
+
+class DiscoveryTermOut(BaseModel):
+    id: uuid.UUID
+    term: str
+    active: bool
+    departments: list[str]
+    rules: list[DiscoveryRuleOut]
+    years: DiscoveryYearsOut
+    last_searched_at: datetime | None
+    cases_found: int
+    found_last_7_days: int
+    full_sweep_queued_at: datetime | None
+    recent_sweep_queued_at: datetime | None
+
+
+class DiscoveryTermListOut(BaseModel):
+    items: list[DiscoveryTermOut]
+    total: int
+
+
+class DiscoveryRecommendationOut(BaseModel):
+    office_code: str
+    band: str
+    score: float
+    status: str
+
+
+class DiscoveryCaseOut(BaseModel):
+    case: CaseSummaryOut
+    reg_year: int
+    first_found_at: datetime
+    last_found_at: datetime
+    owner_office_code: str | None
+    recommendation: DiscoveryRecommendationOut | None
+    claimable: bool
+
+
+class DiscoveryCaseListOut(BaseModel):
+    items: list[DiscoveryCaseOut]
+    total: int
+
+
+class DiscoverySearchIn(BaseModel):
+    """A user's request on the Court search tab: a name (one of the department's terms) and the years to search."""
+
+    name: str = Field(min_length=1, max_length=200)
+    years: list[int] = Field(min_length=1, max_length=30)
+    force: bool = Field(False, description="search again a name and year searched before")
+
+
+class DiscoverySearchOut(BaseModel):
+    term_id: uuid.UUID
+    term: str
+    years: list[int]
+    queued: bool
+
+
+class DiscoverySweepIn(BaseModel):
+    term_id: uuid.UUID | None = None
+
+
+class DiscoverySweepOut(BaseModel):
+    terms: int
+    rows_queued: int
+
+
+class DiscoverySettingsOut(BaseModel):
+    share: int
+    from_year: int
+
+
+class DiscoveryWindowOut(BaseModel):
+    status: str
+    started_at: datetime | None
+    next_reset_at: datetime | None
+    discovery_calls: int
+    share_left: int
+
+
+class DiscoveryQueueCountsOut(BaseModel):
+    pending: int
+    waiting: int
+    running: int
+    failed: int
+
+
+class DiscoveryQueueByKindOut(BaseModel):
+    party_search: DiscoveryQueueCountsOut
+    dossier: DiscoveryQueueCountsOut
+    order_pdf: DiscoveryQueueCountsOut
+
+
+class DiscoveryQueueOut(BaseModel):
+    by_kind: DiscoveryQueueByKindOut
+
+
+class DiscoveryTermCountsOut(BaseModel):
+    active: int
+    inactive: int
+
+
+class DiscoveryCaseCountsOut(BaseModel):
+    found: int
+    created_by_discovery: int
+    recommended_from_discovery: int
+
+
+class DiscoveryFailureOut(BaseModel):
+    kind: str
+    ref: str
+    last_error: str | None
+    finished_at: datetime | None
+
+
+class DiscoverySummaryOut(BaseModel):
+    """`GET /admin/discovery`: system figures only, for the Data collection screens."""
+
+    settings: DiscoverySettingsOut
+    window: DiscoveryWindowOut
+    queue: DiscoveryQueueOut
+    terms: DiscoveryTermCountsOut
+    cases: DiscoveryCaseCountsOut
+    last_searched_at: datetime | None
+    latest_failures: list[DiscoveryFailureOut]

@@ -64,6 +64,11 @@ app.conf.update(
         "digests-build": {"task": "aslms.digests_build", "schedule": crontab(hour=8, minute=0)},
         "sourcetrace-ingest": {"task": "aslms.sourcetrace_ingest", "schedule": crontab(minute="*/5")},
         "dedupe-sweep": {"task": "aslms.dedupe_sweep", "schedule": crontab(hour=3, minute=0)},
+        # department discovery (design department-discovery, decision 5): only enqueues; the worker fetches
+        "discovery-weekly": {
+            "task": "aslms.enqueue_discovery",
+            "schedule": crontab(day_of_week="saturday", hour=2, minute=0),
+        },
     },
 )
 
@@ -90,6 +95,16 @@ def enqueue_daily_status() -> int:
 def enqueue_weekly() -> dict[str, int]:
     with session_scope() as s:
         return schedules.enqueue_weekly(s)
+
+
+@app.task(name="aslms.enqueue_discovery")
+def enqueue_discovery() -> dict[str, int]:
+    """The weekly discovery sweep: every active term, registration years 2025 to the current year (owner's decision
+    of 14 Oct 2026). Only queues `party_search` rows in the discovery lane."""
+    from aslms.services import discovery
+
+    with session_scope() as s:
+        return discovery.enqueue_weekly(s)
 
 
 @app.task(name="aslms.rescore_if_dirty")

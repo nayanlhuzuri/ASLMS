@@ -138,6 +138,7 @@ function SnapshotBlocks({ data }: { data: DataHealth }) {
               <th scope="col">{T.data.kind}</th>
               <th scope="col" className={numCell}>{T.data.pending}</th>
               <th scope="col" className={numCell}>{T.data.lanes.load}</th>
+              <th scope="col" className={numCell}>{T.data.lanes.discovery}</th>
               <th scope="col" className={numCell}>{T.data.lanes.daily}</th>
               <th scope="col" className={numCell}>{T.data.lanes.request}</th>
               <th scope="col" className={numCell}>{T.data.runningCol}</th>
@@ -150,6 +151,7 @@ function SnapshotBlocks({ data }: { data: DataHealth }) {
                 <td>{T.data.kinds[k.kind] ?? k.kind}</td>
                 <td className={numCell}>{formatNumber(k.pending)}</td>
                 <td className={numCell}>{formatNumber(k.by_lane.load)}</td>
+                <td className={numCell}>{formatNumber(k.by_lane.discovery)}</td>
                 <td className={numCell}>{formatNumber(k.by_lane.daily)}</td>
                 <td className={numCell}>{formatNumber(k.by_lane.request)}</td>
                 <td className={numCell}>{formatNumber(k.running)}</td>

@@ -102,12 +102,15 @@ class OfficeNamePattern(TimestampMixin, DeactivateMixin, CreatedByMixin, Base):
     __table_args__ = (
         UniqueConstraint("office_id", "pattern", "kind"),
         CheckConstraint(WEIGHT_CHECK, name="weight"),
+        CheckConstraint("kind <> 'regex' OR NOT discover", name="discover"),
     )
     id: Mapped[uuid.UUID] = uuid_pk()
     office_id: Mapped[uuid.UUID] = uuid_fk("offices.id")
     pattern: Mapped[str] = mapped_column(String(300), nullable=False)
     kind: Mapped[PatternKind] = mapped_column(pg_enum(PatternKind, "pattern_kind"), nullable=False)
     weight: Mapped[float | None] = mapped_column(Numeric(4, 3))
+    # run through NAPIX Search by Party Name (design department-discovery, decision 1; migration 0017)
+    discover: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
 
 
 class OfficeKeyword(TimestampMixin, DeactivateMixin, CreatedByMixin, Base):
@@ -118,6 +121,8 @@ class OfficeKeyword(TimestampMixin, DeactivateMixin, CreatedByMixin, Base):
     office_id: Mapped[uuid.UUID] = uuid_fk("offices.id")
     keyword: Mapped[str] = mapped_column(String(200), nullable=False)
     weight: Mapped[float | None] = mapped_column(Numeric(4, 3))
+    # run through NAPIX Search by Party Name (design department-discovery, decision 1; migration 0017)
+    discover: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
 
 
 class OfficeWatchlist(TimestampMixin, DeactivateMixin, ActorSnapshotMixin, Base):
@@ -168,6 +173,7 @@ class RecommendationOrigin(enum.StrEnum):
     SEARCH = "search"
     SUGGESTION = "suggestion"
     WATCHLIST = "watchlist"
+    DISCOVERY = "discovery"  # design department-discovery, decision 9 (migration 0017)
 
 
 class Recommendation(TimestampMixin, ActorSnapshotMixin, Base):
@@ -286,3 +292,39 @@ class OwnershipTransfer(TimestampMixin, RefNoMixin, ActorSnapshotMixin, Base):
     decided_by_user_id: Mapped[uuid.UUID | None] = uuid_fk("users.id", nullable=True, ondelete="SET NULL")
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     withdrawn_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class DiscoveryTerm(TimestampMixin, Base):
+    """One distinct discoverable rule text, shared by every department that uses it (design `department-discovery`,
+    decision 2). Its departments and active state are derived live from the active discoverable rules; never
+    deleted."""
+
+    __tablename__ = "discovery_terms"
+    __table_class__ = TableClass.DERIVED
+    __table_args__ = (CheckConstraint("term ~ '^[A-Z0-9 .,''&()/-]{3,200}$'", name="term"),)
+    id: Mapped[uuid.UUID] = uuid_pk()
+    term: Mapped[str] = mapped_column(String(200), nullable=False, unique=True)
+    full_sweep_queued_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    recent_sweep_queued_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_searched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    searches_done: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    cases_found: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+
+
+class DiscoveryHit(TimestampMixin, Base):
+    """A case a term's search returned (design `department-discovery`, decision 7); `last_found_at` is bumped on every
+    later return. Written only by the `party_search` handler; never deleted."""
+
+    __tablename__ = "discovery_hits"
+    __table_class__ = TableClass.DERIVED
+    __table_args__ = (UniqueConstraint("term_id", "case_id"),)
+    id: Mapped[uuid.UUID] = uuid_pk()
+    term_id: Mapped[uuid.UUID] = uuid_fk("discovery_terms.id", index=False)
+    case_id: Mapped[uuid.UUID] = uuid_fk("cases.id")
+    reg_year: Mapped[int] = mapped_column(Integer, nullable=False)
+    first_found_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    last_found_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )

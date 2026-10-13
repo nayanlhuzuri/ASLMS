@@ -104,10 +104,13 @@ def get_or_create_case(
     cnr: str | None,
     case_no: str | None,
     source: FirstSeenSource,
+    ref_office: str = ROOT_OFFICE,
 ) -> tuple[Case, bool]:
     """A case by CNR, or a provisional case by its printed number when the list gave no CNR. Never fabricates a
     CNR. Creation takes the advisory lock on (court, compact number) and looks again, so two transactions cannot
-    create two rows for one printed number (decision 13). Returns (case, created)."""
+    create two rows for one printed number (decision 13). A new case's `ref_no` is allocated on `ref_office` (the
+    root by default; a discovery search passes the term's department, design `department-discovery` decision 8).
+    Returns (case, created)."""
     from aslms.services import case_dedupe
 
     case = find_case(session, court, cnr=cnr, case_no=case_no)
@@ -126,7 +129,7 @@ def get_or_create_case(
         cnr=cnr,
         court_id=court.id,
         case_no_text=case_no,
-        ref_no=allocate_ref_no(session, ROOT_OFFICE, "CASE"),
+        ref_no=allocate_ref_no(session, ref_office, "CASE"),
         first_seen_source=source,
         is_provisional=True,
     )
