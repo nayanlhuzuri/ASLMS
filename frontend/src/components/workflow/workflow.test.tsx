@@ -8,6 +8,12 @@ import type { AlertItem, CaseDetail, CustodyCard, DocumentItem, Draft, Note, Per
 import { nav, resetNav } from "@/test/nav";
 import { browserApi, json, makeMe, renderWithClient } from "@/test/render";
 
+import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+
+import { api } from "@/lib/api/client";
+import { caseKey } from "@/lib/api/hooks";
+
 import { CaseAlerts } from "./CaseAlerts";
 import { CustodyActions } from "./CustodyDialogs";
 import { CustodyTab } from "./CustodyTab";
@@ -224,6 +230,39 @@ describe("Send file and Recall", () => {
     expect(sessionStorage.getItem("aslms.flash")).toBe(
       "File sent to Health Off, Under Secretary, HEALTH. You no longer hold this case. Made permanent: ASLMS/HEALTH/NOTE/2026/000001",
     );
+  });
+
+  it("sending the file away does not fetch the case again before the dashboard (no not-found flash)", async () => {
+    const calls = browserApi({
+      "GET /workflow/codes": CODES,
+      "GET /custody/recipients": (call: { url: string }) => (call.url.includes("department=HEALTH") ? HEALTH_PEOPLE : DEPTS),
+      [`POST ${BASE}/custody/send`]: moved(null, []),
+      [`GET ${BASE}`]: detail(),
+    });
+    function CasePageProbe() {
+      // stands in for the case page that observes the case's query while the dialog is open and re-renders
+      // (as CaseFrame does when the dialog closes) before the navigation commits
+      const [, tick] = useState(0);
+      useEffect(() => {
+        const t = setInterval(() => tick((n) => n + 1), 5);
+        return () => clearInterval(t);
+      }, []);
+      const q = useQuery({ queryKey: caseKey(REF), queryFn: () => api<CaseDetail>(BASE) });
+      return <span>{q.data ? "case loaded" : "loading"}</span>;
+    }
+    renderWithClient(
+      <>
+        <CasePageProbe />
+        <CustodyActions caseRef={REF} detail={detail()} card={card()} />
+      </>,
+    );
+    expect(await screen.findByText("case loaded")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Send file" }));
+    await fillAndSend(screen.getByRole("dialog", { name: "Send the file" }));
+    await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/"));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(calls.calls.filter((c) => c.method === "GET" && c.path === BASE)).toHaveLength(1);
+    expect(screen.getByText("case loaded")).toBeInTheDocument();
   });
 
   it("the finalised notes are listed when the sender still sees the case", async () => {

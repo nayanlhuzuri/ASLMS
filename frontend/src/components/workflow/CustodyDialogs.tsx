@@ -146,8 +146,12 @@ export function SendDialog({
       reset();
       onClose();
       router.push("/");
-      queryClient.removeQueries({ queryKey: caseKey(caseRef) });
+      // Mark the case's data stale without refetching: removing it here, while the case page is still mounted,
+      // made its observers fetch the case again and show the not-found message before the dashboard (review of
+      // 13 Oct 2026). A later visit fetches afresh.
+      void queryClient.cancelQueries({ queryKey: caseKey(caseRef) });
       await Promise.all([
+        queryClient.invalidateQueries({ queryKey: caseKey(caseRef), refetchType: "none" }),
         queryClient.invalidateQueries({ queryKey: ["alerts"] }),
         queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
         queryClient.invalidateQueries({ queryKey: ["files"] }),
