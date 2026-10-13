@@ -2,7 +2,7 @@
 
 ```
 slug: portal-files-alerts
-status: approved
+status: built
 author: architect
 date: 2026-10-13
 approved_by: owner (nayanlhuzuri) on 2026-10-13
