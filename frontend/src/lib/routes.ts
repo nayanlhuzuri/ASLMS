@@ -63,6 +63,8 @@ export const NAV: readonly NavEntry[] = [
   { key: "dashboard", label: "Dashboard", href: "/", functions: [], built: true },
   { key: "inbox", label: "Case inbox", href: "/inbox", functions: CASE_READERS, built: true, show: showsInbox },
   { key: "search", label: "Search", href: "/search", functions: CASE_READERS, built: true },
+  // design portal-causelist, decision 11: the published lists are court-public, read by every reader of cases
+  { key: "causelist", label: "Cause list", href: "/causelist", functions: CASE_READERS, built: true },
   // design portal-files-alerts, decision 2: anyone may be sent a file, so Files shows with `cases.view_scope`
   { key: "files", label: "Files", href: "/files", functions: ["cases.view_scope"], built: true },
   { key: "alerts", label: "Alerts & calendar", href: "/alerts", functions: CASE_READERS, built: true },
@@ -180,6 +182,7 @@ export function alertsTabsFor(me: Pick<Me, "functions"> | null | undefined): Dat
  * named by path.
  */
 export const CRUMB_PATHS: Record<string, string> = {
+  "/causelist": "Cause list",
   "/files": "Files",
   "/files/mine": "With me",
   "/files/offices": "My offices",

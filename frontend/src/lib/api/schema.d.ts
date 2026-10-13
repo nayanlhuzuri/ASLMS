@@ -2690,6 +2690,94 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/causelists/dates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Causelist Dates
+         * @description Decision 4: the dates of the range (at most 400 days; default today − 60 to today + 7, IST) with lists or
+         *     a queue row, each with its state, and `default_date` — the first date on or after today with lists, else the
+         *     latest.
+         */
+        get: operations["causelist_dates_causelists_dates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/causelists/lists/{causelist_id}/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Causelist File
+         * @description Decision 9: the list's original PDF, `inline` (`documents.view`) or `attachment` (`documents.download`);
+         *     404 `no_pdf` (with the list's `fetch_status`) when the court's PDF is not stored, 404 `file_missing` when the
+         *     stored file is gone (a `source_failures` row is kept). Not audited.
+         */
+        get: operations["causelist_file_causelists_lists__causelist_id__file_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/causelists/{list_date}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Causelist Day
+         * @description Decision 2: the day's benches ordered by court number, each with its label, court numbers, entry count and
+         *     lists; a day with nothing is an empty answer with its state, never 404.
+         */
+        get: operations["causelist_day_causelists__list_date__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/causelists/{list_date}/entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Causelist Entries
+         * @description Decisions 1, 3, 6-8: every stored row of the date (narrowed by bench or list, list type and court), in
+         *     court order, with `visible`, the owner, `held_by_you`, the recommendations the caller is shown and
+         *     `claimable`; `q` (words over the printed row, or a CNR / case number) and `only` (`recommended`, `mine`,
+         *     `claimable`, `unclaimed`, `claimed`, `visible`) narrow the page; `counts` are for the place.
+         */
+        get: operations["causelist_entries_causelists__list_date__entries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/custody/held": {
         parameters: {
             query?: never;
@@ -4405,6 +4493,111 @@ export interface components {
             /** Upload */
             upload: boolean;
         };
+        /** CauselistBenchOut */
+        CauselistBenchOut: {
+            /** Bench Id */
+            bench_id: number | null;
+            /** Court Nos */
+            court_nos: string[];
+            /** Entries */
+            entries: number;
+            /** Label */
+            label: string | null;
+            /** Lists */
+            lists: components["schemas"]["CauselistOut"][];
+            /** Source */
+            source: string;
+        };
+        /** CauselistCountsOut */
+        CauselistCountsOut: {
+            /** Claimable */
+            claimable: number;
+            /** Claimed */
+            claimed: number;
+            /** Entries */
+            entries: number;
+            /** Mine */
+            mine: number;
+            /** Recommended */
+            recommended: number;
+            /** Unclaimed */
+            unclaimed: number;
+        };
+        /** CauselistDateOut */
+        CauselistDateOut: {
+            /** Benches */
+            benches: number;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Entries */
+            entries: number;
+            /** Lists */
+            lists: number;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "held" | "loading" | "no_list" | "failed" | "not_loaded";
+        };
+        /**
+         * CauselistDatesOut
+         * @description Design `portal-causelist`, decision 4: the dates of a range with lists or a queue row, and the date the
+         *     screen opens on (court-public, the same for every reader).
+         */
+        CauselistDatesOut: {
+            /**
+             * Default Date
+             * Format: date
+             */
+            default_date: string;
+            /**
+             * From
+             * Format: date
+             */
+            from: string;
+            /** Items */
+            items: components["schemas"]["CauselistDateOut"][];
+            /**
+             * To
+             * Format: date
+             */
+            to: string;
+            /**
+             * Today
+             * Format: date
+             */
+            today: string;
+        };
+        /**
+         * CauselistDayOut
+         * @description Decision 2: one day's benches in court order with their lists (court-public).
+         */
+        CauselistDayOut: {
+            /** Benches */
+            benches: components["schemas"]["CauselistBenchOut"][];
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Next Date */
+            next_date: string | null;
+            /** Previous Date */
+            previous_date: string | null;
+            /** Queue Finished At */
+            queue_finished_at: string | null;
+            /** Queue Status */
+            queue_status: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "held" | "loading" | "no_list" | "failed" | "not_loaded";
+            totals: components["schemas"]["CauselistDayTotalsOut"];
+        };
         /** CauselistDayRowOut */
         CauselistDayRowOut: {
             /** Attempts */
@@ -4415,6 +4608,124 @@ export interface components {
             last_error: string | null;
             /** Status */
             status: string;
+        };
+        /** CauselistDayTotalsOut */
+        CauselistDayTotalsOut: {
+            /** Benches */
+            benches: number;
+            /** Entries */
+            entries: number;
+            /** Lists */
+            lists: number;
+        };
+        /**
+         * CauselistEntriesOut
+         * @description Decisions 1, 3, 6-8: every stored row of the place in court order, with the portal's facts scoped to the
+         *     caller; `counts` are for the place before `q` and `only`.
+         */
+        CauselistEntriesOut: {
+            counts: components["schemas"]["CauselistCountsOut"];
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Items */
+            items: components["schemas"]["CauselistEntryOut"][];
+            /** Total */
+            total: number;
+        };
+        /** CauselistEntryOut */
+        CauselistEntryOut: {
+            /** Bench Id */
+            bench_id: number | null;
+            /** Bench Label */
+            bench_label: string | null;
+            case: components["schemas"]["CaseSummaryOut"] | null;
+            /** Case No Text */
+            case_no_text: string | null;
+            /**
+             * Causelist Id
+             * Format: uuid
+             */
+            causelist_id: string;
+            /** Claimable */
+            claimable: boolean;
+            /** Cnr */
+            cnr: string | null;
+            /** Counsel Codes */
+            counsel_codes: string[];
+            /** Court No */
+            court_no: string | null;
+            /** Held By You */
+            held_by_you: ("primary" | "watcher") | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** In Pool */
+            in_pool: boolean;
+            /** Is Connected */
+            is_connected: boolean;
+            /** List Type */
+            list_type: string;
+            /** Owner Office Code */
+            owner_office_code: string | null;
+            /** Pet Advocate Text */
+            pet_advocate_text: string | null;
+            /** Petitioner Text */
+            petitioner_text: string | null;
+            /** Printed Sr No */
+            printed_sr_no: string | null;
+            /** Recommendations */
+            recommendations: components["schemas"]["EntryRecommendationOut"][];
+            /** Remarks */
+            remarks: string | null;
+            /** Res Advocate Text */
+            res_advocate_text: string | null;
+            /** Resolution Status */
+            resolution_status: string;
+            /** Respondent Text */
+            respondent_text: string | null;
+            /** Section */
+            section: string | null;
+            /** Source */
+            source: string;
+            /** Sr No */
+            sr_no: number;
+            /** Visible */
+            visible: boolean;
+            /** With Text */
+            with_text: string | null;
+        };
+        /** CauselistOut */
+        CauselistOut: {
+            /** Entries Stored */
+            entries_stored: number;
+            /** Entry Count */
+            entry_count: number;
+            /** Fetch Status */
+            fetch_status: string;
+            /** Has Pdf */
+            has_pdf: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Label */
+            label: string | null;
+            /** List Type */
+            list_type: string;
+            /** List Type Text */
+            list_type_text: string | null;
+            /** Napix Causelist Id */
+            napix_causelist_id: number | null;
+            /** Parse Status */
+            parse_status: string;
+            /** Source */
+            source: string;
         };
         /** ClaimIn */
         ClaimIn: {
@@ -5499,6 +5810,15 @@ export interface components {
             digest: string;
             /** Enabled */
             enabled: boolean;
+        };
+        /** EntryRecommendationOut */
+        EntryRecommendationOut: {
+            /** Band */
+            band: string;
+            /** Office Code */
+            office_code: string;
+            /** Score */
+            score: number;
         };
         /** ErrorOut */
         ErrorOut: {
@@ -15111,6 +15431,179 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["TransferOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    causelist_dates_causelists_dates_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CauselistDatesOut"];
+                };
+            };
+            /** @description bad range */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    causelist_file_causelists_lists__causelist_id__file_get: {
+        parameters: {
+            query?: {
+                disposition?: string;
+            };
+            header?: never;
+            path: {
+                causelist_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description bad disposition */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description without the file function */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    causelist_day_causelists__list_date__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                list_date: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CauselistDayOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    causelist_entries_causelists__list_date__entries_get: {
+        parameters: {
+            query?: {
+                bench_id?: number | null;
+                list_id?: string | null;
+                list_type?: string | null;
+                court_no?: string | null;
+                q?: string | null;
+                only?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                list_date: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CauselistEntriesOut"];
+                };
+            };
+            /** @description bad filter */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

@@ -2846,3 +2846,125 @@ class DedupeScanOut(BaseModel):
     merged: int
     needs_review: int
     court_linked: int
+
+
+# ------------------------------------------------------------------------------------------------ cause lists
+
+
+class CauselistDateOut(BaseModel):
+    date: date
+    state: Literal["held", "loading", "no_list", "failed", "not_loaded"]
+    lists: int
+    benches: int
+    entries: int
+
+
+class CauselistDatesOut(BaseModel):
+    """Design `portal-causelist`, decision 4: the dates of a range with lists or a queue row, and the date the
+    screen opens on (court-public, the same for every reader)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    from_: date = Field(alias="from")
+    to: date
+    today: date
+    default_date: date
+    items: list[CauselistDateOut]
+
+
+class CauselistOut(BaseModel):
+    id: uuid.UUID
+    list_type: str
+    list_type_text: str | None
+    label: str | None
+    napix_causelist_id: int | None
+    source: str
+    entry_count: int
+    entries_stored: int
+    fetch_status: str
+    parse_status: str
+    has_pdf: bool
+
+
+class CauselistBenchOut(BaseModel):
+    bench_id: int | None
+    label: str | None
+    court_nos: list[str]
+    source: str
+    entries: int
+    lists: list[CauselistOut]
+
+
+class CauselistDayTotalsOut(BaseModel):
+    benches: int
+    lists: int
+    entries: int
+
+
+class CauselistDayOut(BaseModel):
+    """Decision 2: one day's benches in court order with their lists (court-public)."""
+
+    date: date
+    state: Literal["held", "loading", "no_list", "failed", "not_loaded"]
+    queue_status: str | None
+    queue_finished_at: datetime | None
+    previous_date: date | None
+    next_date: date | None
+    totals: CauselistDayTotalsOut
+    benches: list[CauselistBenchOut]
+
+
+class EntryRecommendationOut(BaseModel):
+    office_code: str
+    band: str
+    score: float
+
+
+class CauselistCountsOut(BaseModel):
+    entries: int
+    recommended: int
+    mine: int
+    claimable: int
+    claimed: int
+    unclaimed: int
+
+
+class CauselistEntryOut(BaseModel):
+    id: uuid.UUID
+    causelist_id: uuid.UUID
+    list_type: str
+    bench_id: int | None
+    bench_label: str | None
+    court_no: str | None
+    sr_no: int
+    printed_sr_no: str | None
+    section: str | None
+    is_connected: bool
+    with_text: str | None
+    case_no_text: str | None
+    cnr: str | None
+    petitioner_text: str | None
+    respondent_text: str | None
+    pet_advocate_text: str | None
+    res_advocate_text: str | None
+    counsel_codes: list[str]
+    remarks: str | None
+    source: str
+    resolution_status: str
+    case: CaseSummaryOut | None
+    visible: bool
+    owner_office_code: str | None
+    held_by_you: Literal["primary", "watcher"] | None
+    in_pool: bool
+    recommendations: list[EntryRecommendationOut]
+    claimable: bool
+
+
+class CauselistEntriesOut(BaseModel):
+    """Decisions 1, 3, 6-8: every stored row of the place in court order, with the portal's facts scoped to the
+    caller; `counts` are for the place before `q` and `only`."""
+
+    date: date
+    total: int
+    counts: CauselistCountsOut
+    items: list[CauselistEntryOut]

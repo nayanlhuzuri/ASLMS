@@ -3224,6 +3224,274 @@
         "title": "CaseWorkflowActionsOut",
         "type": "object"
       },
+      "CauselistBenchOut": {
+        "properties": {
+          "bench_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bench Id"
+          },
+          "court_nos": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Court Nos",
+            "type": "array"
+          },
+          "entries": {
+            "title": "Entries",
+            "type": "integer"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "lists": {
+            "items": {
+              "$ref": "#/components/schemas/CauselistOut"
+            },
+            "title": "Lists",
+            "type": "array"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "bench_id",
+          "label",
+          "court_nos",
+          "source",
+          "entries",
+          "lists"
+        ],
+        "title": "CauselistBenchOut",
+        "type": "object"
+      },
+      "CauselistCountsOut": {
+        "properties": {
+          "claimable": {
+            "title": "Claimable",
+            "type": "integer"
+          },
+          "claimed": {
+            "title": "Claimed",
+            "type": "integer"
+          },
+          "entries": {
+            "title": "Entries",
+            "type": "integer"
+          },
+          "mine": {
+            "title": "Mine",
+            "type": "integer"
+          },
+          "recommended": {
+            "title": "Recommended",
+            "type": "integer"
+          },
+          "unclaimed": {
+            "title": "Unclaimed",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "entries",
+          "recommended",
+          "mine",
+          "claimable",
+          "claimed",
+          "unclaimed"
+        ],
+        "title": "CauselistCountsOut",
+        "type": "object"
+      },
+      "CauselistDateOut": {
+        "properties": {
+          "benches": {
+            "title": "Benches",
+            "type": "integer"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "entries": {
+            "title": "Entries",
+            "type": "integer"
+          },
+          "lists": {
+            "title": "Lists",
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "held",
+              "loading",
+              "no_list",
+              "failed",
+              "not_loaded"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "state",
+          "lists",
+          "benches",
+          "entries"
+        ],
+        "title": "CauselistDateOut",
+        "type": "object"
+      },
+      "CauselistDatesOut": {
+        "description": "Design `portal-causelist`, decision 4: the dates of a range with lists or a queue row, and the date the\nscreen opens on (court-public, the same for every reader).",
+        "properties": {
+          "default_date": {
+            "format": "date",
+            "title": "Default Date",
+            "type": "string"
+          },
+          "from": {
+            "format": "date",
+            "title": "From",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CauselistDateOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "to": {
+            "format": "date",
+            "title": "To",
+            "type": "string"
+          },
+          "today": {
+            "format": "date",
+            "title": "Today",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "today",
+          "default_date",
+          "items"
+        ],
+        "title": "CauselistDatesOut",
+        "type": "object"
+      },
+      "CauselistDayOut": {
+        "description": "Decision 2: one day's benches in court order with their lists (court-public).",
+        "properties": {
+          "benches": {
+            "items": {
+              "$ref": "#/components/schemas/CauselistBenchOut"
+            },
+            "title": "Benches",
+            "type": "array"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "next_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Date"
+          },
+          "previous_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Date"
+          },
+          "queue_finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Queue Finished At"
+          },
+          "queue_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Queue Status"
+          },
+          "state": {
+            "enum": [
+              "held",
+              "loading",
+              "no_list",
+              "failed",
+              "not_loaded"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/CauselistDayTotalsOut"
+          }
+        },
+        "required": [
+          "date",
+          "state",
+          "queue_status",
+          "queue_finished_at",
+          "previous_date",
+          "next_date",
+          "totals",
+          "benches"
+        ],
+        "title": "CauselistDayOut",
+        "type": "object"
+      },
       "CauselistDayRowOut": {
         "properties": {
           "attempts": {
@@ -3265,6 +3533,417 @@
           "last_error"
         ],
         "title": "CauselistDayRowOut",
+        "type": "object"
+      },
+      "CauselistDayTotalsOut": {
+        "properties": {
+          "benches": {
+            "title": "Benches",
+            "type": "integer"
+          },
+          "entries": {
+            "title": "Entries",
+            "type": "integer"
+          },
+          "lists": {
+            "title": "Lists",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "benches",
+          "lists",
+          "entries"
+        ],
+        "title": "CauselistDayTotalsOut",
+        "type": "object"
+      },
+      "CauselistEntriesOut": {
+        "description": "Decisions 1, 3, 6-8: every stored row of the place in court order, with the portal's facts scoped to the\ncaller; `counts` are for the place before `q` and `only`.",
+        "properties": {
+          "counts": {
+            "$ref": "#/components/schemas/CauselistCountsOut"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CauselistEntryOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "date",
+          "total",
+          "counts",
+          "items"
+        ],
+        "title": "CauselistEntriesOut",
+        "type": "object"
+      },
+      "CauselistEntryOut": {
+        "properties": {
+          "bench_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bench Id"
+          },
+          "bench_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bench Label"
+          },
+          "case": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CaseSummaryOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "case_no_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Case No Text"
+          },
+          "causelist_id": {
+            "format": "uuid",
+            "title": "Causelist Id",
+            "type": "string"
+          },
+          "claimable": {
+            "title": "Claimable",
+            "type": "boolean"
+          },
+          "cnr": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cnr"
+          },
+          "counsel_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Counsel Codes",
+            "type": "array"
+          },
+          "court_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Court No"
+          },
+          "held_by_you": {
+            "anyOf": [
+              {
+                "enum": [
+                  "primary",
+                  "watcher"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Held By You"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "in_pool": {
+            "title": "In Pool",
+            "type": "boolean"
+          },
+          "is_connected": {
+            "title": "Is Connected",
+            "type": "boolean"
+          },
+          "list_type": {
+            "title": "List Type",
+            "type": "string"
+          },
+          "owner_office_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Office Code"
+          },
+          "pet_advocate_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pet Advocate Text"
+          },
+          "petitioner_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Petitioner Text"
+          },
+          "printed_sr_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Printed Sr No"
+          },
+          "recommendations": {
+            "items": {
+              "$ref": "#/components/schemas/EntryRecommendationOut"
+            },
+            "title": "Recommendations",
+            "type": "array"
+          },
+          "remarks": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remarks"
+          },
+          "res_advocate_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Res Advocate Text"
+          },
+          "resolution_status": {
+            "title": "Resolution Status",
+            "type": "string"
+          },
+          "respondent_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Respondent Text"
+          },
+          "section": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Section"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "sr_no": {
+            "title": "Sr No",
+            "type": "integer"
+          },
+          "visible": {
+            "title": "Visible",
+            "type": "boolean"
+          },
+          "with_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "With Text"
+          }
+        },
+        "required": [
+          "id",
+          "causelist_id",
+          "list_type",
+          "bench_id",
+          "bench_label",
+          "court_no",
+          "sr_no",
+          "printed_sr_no",
+          "section",
+          "is_connected",
+          "with_text",
+          "case_no_text",
+          "cnr",
+          "petitioner_text",
+          "respondent_text",
+          "pet_advocate_text",
+          "res_advocate_text",
+          "counsel_codes",
+          "remarks",
+          "source",
+          "resolution_status",
+          "case",
+          "visible",
+          "owner_office_code",
+          "held_by_you",
+          "in_pool",
+          "recommendations",
+          "claimable"
+        ],
+        "title": "CauselistEntryOut",
+        "type": "object"
+      },
+      "CauselistOut": {
+        "properties": {
+          "entries_stored": {
+            "title": "Entries Stored",
+            "type": "integer"
+          },
+          "entry_count": {
+            "title": "Entry Count",
+            "type": "integer"
+          },
+          "fetch_status": {
+            "title": "Fetch Status",
+            "type": "string"
+          },
+          "has_pdf": {
+            "title": "Has Pdf",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "list_type": {
+            "title": "List Type",
+            "type": "string"
+          },
+          "list_type_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "List Type Text"
+          },
+          "napix_causelist_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Napix Causelist Id"
+          },
+          "parse_status": {
+            "title": "Parse Status",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "list_type",
+          "list_type_text",
+          "label",
+          "napix_causelist_id",
+          "source",
+          "entry_count",
+          "entries_stored",
+          "fetch_status",
+          "parse_status",
+          "has_pdf"
+        ],
+        "title": "CauselistOut",
         "type": "object"
       },
       "ClaimIn": {
@@ -6655,6 +7334,29 @@
           "critical_only"
         ],
         "title": "EmailPrefOut",
+        "type": "object"
+      },
+      "EntryRecommendationOut": {
+        "properties": {
+          "band": {
+            "title": "Band",
+            "type": "string"
+          },
+          "office_code": {
+            "title": "Office Code",
+            "type": "string"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          }
+        },
+        "required": [
+          "office_code",
+          "band",
+          "score"
+        ],
+        "title": "EntryRecommendationOut",
         "type": "object"
       },
       "ErrorOut": {
@@ -27522,6 +28224,374 @@
         "summary": "Request Transfer",
         "tags": [
           "ownership"
+        ]
+      }
+    },
+    "/causelists/dates": {
+      "get": {
+        "description": "Decision 4: the dates of the range (at most 400 days; default today − 60 to today + 7, IST) with lists or\na queue row, each with its state, and `default_date` — the first date on or after today with lists, else the\nlatest.",
+        "operationId": "causelist_dates_causelists_dates_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CauselistDatesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "description": "bad range"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Causelist Dates",
+        "tags": [
+          "causelists"
+        ]
+      }
+    },
+    "/causelists/lists/{causelist_id}/file": {
+      "get": {
+        "description": "Decision 9: the list's original PDF, `inline` (`documents.view`) or `attachment` (`documents.download`);\n404 `no_pdf` (with the list's `fetch_status`) when the court's PDF is not stored, 404 `file_missing` when the\nstored file is gone (a `source_failures` row is kept). Not audited.",
+        "operationId": "causelist_file_causelists_lists__causelist_id__file_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "causelist_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Causelist Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "disposition",
+            "required": false,
+            "schema": {
+              "default": "attachment",
+              "pattern": "^(inline|attachment)$",
+              "title": "Disposition",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "description": "bad disposition"
+          },
+          "403": {
+            "description": "without the file function"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Causelist File",
+        "tags": [
+          "causelists"
+        ]
+      }
+    },
+    "/causelists/{list_date}": {
+      "get": {
+        "description": "Decision 2: the day's benches ordered by court number, each with its label, court numbers, entry count and\nlists; a day with nothing is an empty answer with its state, never 404.",
+        "operationId": "causelist_day_causelists__list_date__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "list_date",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "List Date",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CauselistDayOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Causelist Day",
+        "tags": [
+          "causelists"
+        ]
+      }
+    },
+    "/causelists/{list_date}/entries": {
+      "get": {
+        "description": "Decisions 1, 3, 6-8: every stored row of the date (narrowed by bench or list, list type and court), in\ncourt order, with `visible`, the owner, `held_by_you`, the recommendations the caller is shown and\n`claimable`; `q` (words over the printed row, or a CNR / case number) and `only` (`recommended`, `mine`,\n`claimable`, `unclaimed`, `claimed`, `visible`) narrow the page; `counts` are for the place.",
+        "operationId": "causelist_entries_causelists__list_date__entries_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "list_date",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "List Date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "bench_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Bench Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "list_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "List Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "list_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "List Type"
+            }
+          },
+          {
+            "in": "query",
+            "name": "court_no",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Court No"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "only",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Only"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CauselistEntriesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "description": "bad filter"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Causelist Entries",
+        "tags": [
+          "causelists"
         ]
       }
     },

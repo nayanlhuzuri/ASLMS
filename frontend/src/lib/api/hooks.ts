@@ -10,6 +10,9 @@ import type {
   CaseDetail,
   CaseOwnershipView,
   CaseType,
+  CauselistDates,
+  CauselistDay,
+  CauselistEntries,
   CustodyHistory,
   DocumentTypes,
   DraftList,
@@ -199,5 +202,37 @@ export function useAlertCounts(enabled = true) {
     queryFn: () => api<AlertCounts>("/alerts/counts"),
     enabled,
     refetchInterval: ALERT_POLL_MS,
+  });
+}
+
+// ------------------------------------------------------------------------------------------------ portal-causelist
+
+export const CAUSELISTS_KEY = ["causelists"] as const;
+
+/** The dates of a range with what is known about each, and the date the screen opens on (`GET /causelists/dates`). */
+export function useCauselistDates(from?: string, to?: string, enabled = true) {
+  return useQuery({
+    queryKey: [...CAUSELISTS_KEY, "dates", from ?? null, to ?? null],
+    queryFn: () => api<CauselistDates>("/causelists/dates", { query: { from, to } }),
+    staleTime: 60_000,
+    enabled,
+  });
+}
+
+/** One day's benches in court order with their lists and the day's state (`GET /causelists/{date}`). */
+export function useCauselistDay(date: string | null | undefined) {
+  return useQuery({
+    queryKey: [...CAUSELISTS_KEY, "day", date],
+    queryFn: () => api<CauselistDay>(`/causelists/${encodeURIComponent(date!)}`),
+    enabled: !!date,
+  });
+}
+
+/** One page of the day's entries with the portal's facts for the caller (`GET /causelists/{date}/entries`). */
+export function useCauselistEntries(date: string | null | undefined, params: Record<string, string | number | undefined>) {
+  return useQuery({
+    queryKey: [...CAUSELISTS_KEY, "entries", date, params],
+    queryFn: () => api<CauselistEntries>(`/causelists/${encodeURIComponent(date!)}/entries`, { query: params }),
+    enabled: !!date,
   });
 }

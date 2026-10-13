@@ -335,3 +335,26 @@ Frontend (Vitest, the `fakeApi` helper):
 
 ## Open questions
 None.
+
+## Deviations
+Recorded by the developer while building (none changes the plan or a decision above).
+1. `documents.serve_stored(session, doc, disposition, *, store, filename=None)` takes the store and an optional served
+   name (the cause-list file name of Services). `open_file` calls it after its own checks and before its download
+   audit, so a file missing from the store still writes no `document.downloaded` row (behaviour unchanged).
+2. Day states: a `causelist_day` queue row that is `done` with no list stored counts as `no_list` (the design names
+   only `skipped`); `default_date` is today when no list is held at all, so the field is never empty.
+3. `GET /causelists/dates` with one bound only takes the other 67 days away (the default span) instead of today − 60 /
+   today + 7, so a lone `from` in the past is not refused as a range over 400 days.
+4. The court-number ordering casts to `numeric` rather than `int`, so a long digit string in `court_no` cannot
+   overflow; the Python twin `court_sort_key` orders the same way.
+5. Words: a case number in `q` also matches the printed case number of a row without a case (compact form), besides
+   the row's case.
+6. A row whose case was merged points to the survivor (`COALESCE(merged_into_case_id, case_id)`, one level); merges
+   already re-point entries, so this only matters for a row left behind.
+7. Tests: the world's second department HEALTH stands for the design's FIN. Decision 6 ("the caller's departments, any
+   membership") means a directorate user under EDU is shown EDU's recommendations; their test checks that a case they
+   cannot open shows `visible` false, its owner and no other department's recommendation.
+8. Portal: the state label beside the date is shown for a held day only (the banner says the other states); the list
+   type and court number selects appear when the place has more than one value; "Visible to me" carries no count
+   (the counts block has none). Cause list sits after Search, so Files moves one place down (the shell and routes
+   tests now expect Files after Cause list); a breadcrumb label for `/causelist`.

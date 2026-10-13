@@ -84,9 +84,9 @@ describe("Files and Alerts & calendar navigation (portal-files-alerts)", () => {
     expect(navFor({ functions: ["users.view"] }).map((e) => e.key)).not.toContain("alerts");
   });
 
-  it("Files shows with cases.view_scope, right after Search", () => {
+  it("Files shows with cases.view_scope, after Search and Cause list", () => {
     const keys = navFor({ functions: ["cases.view_scope"], memberships: [] }).map((e) => e.key);
-    expect(keys.indexOf("files")).toBe(keys.indexOf("search") + 1);
+    expect(keys.indexOf("files")).toBe(keys.indexOf("causelist") + 1);
     expect(navFor({ functions: ["users.view"] }).map((e) => e.key)).not.toContain("files");
   });
 
@@ -120,5 +120,20 @@ describe("Files and Alerts & calendar navigation (portal-files-alerts)", () => {
     expect(crumbLabel("/cases/x/alerts")).toBe("Alerts");
     expect(crumbLabel("/alerts/calendar")).toBe("Hearing calendar");
     expect(CRUMB_PATHS["/files"]).toBe("Files");
+  });
+});
+
+describe("the Cause list navigation (portal-causelist)", () => {
+  it("shows for cases.view_scope and for cases.view_all, right after Search, and not without them", () => {
+    for (const fn of ["cases.view_scope", "cases.view_all"] as const) {
+      const keys = navFor({ functions: [fn], memberships: [] }).map((e) => e.key);
+      expect(keys).toContain("causelist");
+      expect(keys.indexOf("causelist")).toBe(keys.indexOf("search") + 1);
+    }
+    expect(navFor({ functions: ["users.view"] }).map((e) => e.key)).not.toContain("causelist");
+    expect(navFor({ functions: [] }).map((e) => e.key)).not.toContain("causelist");
+    const entry = navFor({ functions: ["cases.view_scope"] }).find((e) => e.key === "causelist")!;
+    expect(entry.label).toBe("Cause list");
+    expect(entry.href).toBe("/causelist");
   });
 });

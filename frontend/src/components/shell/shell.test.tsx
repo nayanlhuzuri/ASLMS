@@ -30,14 +30,16 @@ beforeEach(() => {
 });
 
 describe("navigation by functions", () => {
-  it("Files after Search and Alerts & calendar show for a case reader (portal-files-alerts)", () => {
+  it("Cause list after Search, Files after it and Alerts & calendar show for a case reader", () => {
     browserApi({ "GET /reference/labels": labels() });
     renderWithClient(<Sidebar me={makeMe(OFFICER)} />);
     const nav = screen.getByRole("navigation", { name: "Main navigation" });
     const names = within(nav)
       .getAllByRole("link")
       .map((a) => a.textContent);
-    expect(names.indexOf("Files")).toBe(names.indexOf("Search") + 1);
+    expect(names.indexOf("Cause list")).toBe(names.indexOf("Search") + 1);
+    expect(names.indexOf("Files")).toBe(names.indexOf("Cause list") + 1);
+    expect(within(nav).getByRole("link", { name: "Cause list" })).toHaveAttribute("href", "/causelist");
     expect(within(nav).getByRole("link", { name: "Files" })).toHaveAttribute("href", "/files");
     expect(within(nav).getByRole("link", { name: "Alerts & calendar" })).toHaveAttribute("href", "/alerts");
   });

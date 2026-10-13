@@ -23,7 +23,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import exists, select
+from sqlalchemy import ColumnElement, and_, exists, false, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -44,13 +44,13 @@ from aslms.domain.ownership import (
 from aslms.domain.reference import EventType, Permission, RecordType
 from aslms.services import access, matching
 from aslms.services import scoring_settings as ss
-from aslms.services.access import Member
+from aslms.services.access import DEPARTMENT_TIER_KINDS, Member
 from aslms.services.audit import Actor, snapshot, write_audit
 from aslms.services.cases import emit_event
 from aslms.services.custody import move_custody
 from aslms.services.offices import find_office
 from aslms.services.refno import allocate_ref_no
-from aslms.services.visibility import in_subtree, is_department
+from aslms.services.visibility import in_subtree, is_department, never_owned
 
 
 class OwnershipError(ValueError):
@@ -1344,6 +1344,87 @@ def available_actions(session: Session, actor_user: User, case: Case) -> dict[st
         "decide_transfer": open_t is not None
         and _passes(lambda: _check_decide_transfer(session, actor_user, open_t)),
     }
+
+
+def _active_row_of(office_id: Any, case_id: Any = None) -> ColumnElement[bool]:
+    """An active ownership row (primary or watcher) of the office for the case (`case_id`, default `Case.id`;
+    a nested subquery passes its own column so that it correlates to the right row)."""
+    return exists().where(
+        CaseOwnership.case_id == (Case.id if case_id is None else case_id),
+        CaseOwnership.office_id == office_id,
+        CaseOwnership.status == OwnershipStatus.ACTIVE,
+    )
+
+
+def _department_office_sql() -> ColumnElement[bool]:
+    """Over `Office`: the SQL twin of `is_department` (a direct child of the State root of a department-tier
+    kind) and active, as `_department_office` requires."""
+    return and_(
+        Office.is_active.is_(True),
+        Office.path.op("~")("^[^/]+/[^/]+$"),
+        Office.kind.in_(list(DEPARTMENT_TIER_KINDS)),
+    )
+
+
+def claimable_condition(session: Session, user: User | Member) -> ColumnElement[bool]:
+    """Design `portal-causelist`, decision 7: over `Case`, the SQL twin of `available_actions(...)["claim"]`
+    (which is unchanged and stays the per-case decision; `claim` itself decides on every call). Not merged and,
+    for some department D where the caller's membership holds `cases.claim` (D an active department), D holds no
+    active ownership row and either the case has never had a primary owner or D has an active recommendation.
+    For the super admin: never owned, or an active recommendation to an active department that does not hold
+    the case."""
+    not_merged = Case.merged_into_case_id.is_(None)
+    if access.super_admin_member(session, user) is not None:
+        if not access.has(session, user, Permission.CASES_CLAIM):
+            return false()
+        recommended_free = exists(
+            select(Recommendation.id)
+            .join(Office, Office.id == Recommendation.office_id)
+            .where(
+                Recommendation.case_id == Case.id,
+                Recommendation.status == RecommendationStatus.RECOMMENDED,
+                _department_office_sql(),
+                ~_active_row_of(Recommendation.office_id, Recommendation.case_id),
+            )
+        )
+        return and_(not_merged, or_(never_owned(), recommended_free))
+    depts: list[Office] = []
+    for m in access.members(session, user):
+        d = m.department
+        if d is None or not d.is_active or not is_department(d) or any(x.id == d.id for x in depts):
+            continue
+        mine = access.member_in_department(session, user, d)
+        if mine is not None and mine.holds(Permission.CASES_CLAIM):
+            depts.append(d)
+    if not depts:
+        return false()
+    per_department = [
+        and_(
+            ~_active_row_of(d.id),
+            or_(
+                never_owned(),
+                exists().where(
+                    Recommendation.case_id == Case.id,
+                    Recommendation.office_id == d.id,
+                    Recommendation.status == RecommendationStatus.RECOMMENDED,
+                ),
+            ),
+        )
+        for d in depts
+    ]
+    return and_(not_merged, or_(*per_department))
+
+
+def shown_recommendations_condition(session: Session, user: User | Member) -> ColumnElement[bool]:
+    """Over `Recommendation`: the active recommendations the caller is shown — to one of their departments (any
+    membership), or to every department with `cases.view_all` (the rule of `case_ownership_view`)."""
+    active = Recommendation.status == RecommendationStatus.RECOMMENDED
+    if access.has(session, user, Permission.CASES_VIEW_ALL):
+        return active
+    ids = [d.id for d in access.departments(session, user)]
+    if not ids:
+        return false()
+    return and_(active, Recommendation.office_id.in_(ids))
 
 
 # ------------------------------------------------------------------------------------------------ the exit step

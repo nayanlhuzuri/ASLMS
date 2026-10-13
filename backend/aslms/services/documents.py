@@ -735,6 +735,32 @@ def _served_name(session: Session, doc: Document, order: Order | None) -> str:
     return safe_filename(name)
 
 
+def serve_stored(
+    session: Session,
+    doc: Document,
+    disposition: str,
+    *,
+    store: LocalStore,
+    filename: str | None = None,
+) -> ServedFile:
+    """The stored file of a document, after the caller has made its own checks (design `portal-causelist`,
+    decision 9): inline only for PDF, JPEG and PNG; a file missing from the store records a `source_failures`
+    row and raises `FileMissing`; the served name is `filename` or the document's own. Writes no audit row."""
+    if disposition == "inline" and doc.mime not in INLINE_MIMES:
+        raise InlineNotSupported("inline viewing is offered for PDF, JPEG and PNG only")
+    path = store.path(doc.storage_key)
+    if not path.is_file():
+        record_failure(
+            session, MISSING_FILE_KIND, str(doc.id), f"{doc.storage_key} is missing from the store"
+        )
+        session.flush()
+        raise FileMissing(f"the stored file of {doc.ref_no or doc.id} is missing")
+    if filename is None:
+        order = _order_for(session, doc) if DocKind(doc.kind) == DocKind.ORDER else None
+        filename = _served_name(session, doc, order)
+    return ServedFile(path, doc.mime, filename, doc.size_bytes, disposition)
+
+
 def open_file(
     session: Session,
     actor: Actor,
@@ -745,7 +771,8 @@ def open_file(
     disposition: str = "attachment",
 ) -> ServedFile:
     """Decision 14: `inline` needs `documents.view` (PDF and images only), `attachment` needs
-    `documents.download`; the visibility rule either way; downloads of user files are audited."""
+    `documents.download`; the visibility rule either way; downloads of user files are audited (once the file is
+    known to be there)."""
     disposition = (disposition or "attachment").strip().lower()
     if disposition not in ("inline", "attachment"):
         raise DocumentError("disposition must be inline or attachment")
@@ -753,16 +780,7 @@ def open_file(
     if not access.has(session, user, permission):
         raise NotAllowed(f"{permission.value} is not enabled for you")
     require_visible_document(session, user, doc, permission=permission)
-    if disposition == "inline" and doc.mime not in INLINE_MIMES:
-        raise InlineNotSupported("inline viewing is offered for PDF, JPEG and PNG only")
-    path = store.path(doc.storage_key)
-    if not path.is_file():
-        record_failure(
-            session, MISSING_FILE_KIND, str(doc.id), f"{doc.storage_key} is missing from the store"
-        )
-        session.flush()
-        raise FileMissing(f"the stored file of {doc.ref_no or doc.id} is missing")
-    order = _order_for(session, doc) if DocKind(doc.kind) == DocKind.ORDER else None
+    served = serve_stored(session, doc, disposition, store=store)
     if DocKind(doc.kind) in USER_KINDS:
         write_audit(
             session,
@@ -777,7 +795,7 @@ def open_file(
                 "original_filename": doc.original_filename,
             },
         )
-    return ServedFile(path, doc.mime, _served_name(session, doc, order), doc.size_bytes, disposition)
+    return served
 
 
 def order_file(

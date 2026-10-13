@@ -160,3 +160,13 @@ export type CustodySummary = S["CustodySummaryOut"];
 export type DepartmentCustodySummary = S["DepartmentCustodySummaryOut"];
 export type CalendarList = S["CalendarOut"];
 export type CalendarItem = S["CalendarItemOut"];
+// portal-causelist: the Cause list screen
+export type CauselistDates = S["CauselistDatesOut"];
+export type CauselistDate = S["CauselistDateOut"];
+export type CauselistDay = S["CauselistDayOut"];
+export type CauselistBench = S["CauselistBenchOut"];
+export type Causelist = S["CauselistOut"];
+export type CauselistEntries = S["CauselistEntriesOut"];
+export type CauselistEntry = S["CauselistEntryOut"];
+export type CauselistCounts = S["CauselistCountsOut"];
+export type EntryRecommendation = S["EntryRecommendationOut"];

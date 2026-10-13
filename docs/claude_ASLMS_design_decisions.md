@@ -1597,3 +1597,24 @@ Backlog row 59, design `docs/design/portal-filters.md` (approved by the owner 13
 
 
 - 2026-10-13 — portal-causelist: approved by the owner (Cause list screen for any date and bench in court order; published rows to every case reader with portal facts scoped on the server; other departments' recommendations only for State-wide readers; claimable includes the watcher claim; words on the printed row; the day fetch only for admin.napix_refetch; original PDF; docs/design/portal-causelist.md)
+
+## Portal: the Cause list screen (portal-causelist) (2026-10-13)
+
+Backlog row 60, design `docs/design/portal-causelist.md` (approved by the owner 13 Oct 2026). No migration; no table, column, index, reference code, function or setting added, so `docs/schema/schema.md` is unchanged (every read uses existing columns of `causelists`, `causelist_entries`, `causelist_bench_days`, `documents`, `fetch_queue`, `recommendations`, `case_ownership`, `cases`).
+
+**What was built**
+- Backend: `services/causelist_view.py` (dates, a day with its benches and lists, entries in court order with recommendation, owner and `claimable`, the list PDF), `api/routers/causelists.py`, schemas in `api/schemas.py`. Endpoints: `GET /causelists/dates`, `GET /causelists/{list_date}`, `GET /causelists/{list_date}/entries` (filters `bench_id` or `list_id`, `list_type`, `court_no`, `q`, `only`), `GET /causelists/lists/{id}/file` (inline needs `documents.view`, attachment needs `documents.download`). All need `cases.view_scope` or `cases.view_all`. Small changes in `services/documents.py` (`serve_stored`) and `services/ownership.py`.
+- Portal: `/causelist` (day bar, bench select, list strip, entry table, ownership cell, Claim with the usual department choice), toggles with counts, the Hearings tab link from each listing to that day's list for its bench, the "Cause list" menu item after Search, `lib/causelist.ts`, messages and hooks; `frontend/openapi.json` and `schema.d.ts` regenerated.
+- Tests: backend `test_api_causelists.py`, `test_causelist_view.py`, `causelist_support.py`, unit `test_causelist_view.py`; frontend `causelist.test.tsx`, `causelist.test.ts`, additions to `case.test.tsx`, `shell.test.tsx`, `routes.test.ts`.
+
+**Decisions and reasons** (the five points the owner confirmed)
+- Every case reader sees every stored entry, since the published cause list is court-public; recommendations, owner and claim are scoped per person on the server.
+- Other departments' recommendations only to State-wide readers; department users see their own departments' recommendations.
+- Claimable includes the watcher claim (recommended to my department but owned by another).
+- Words match the printed entry text (parties, advocates, codes), not the case record.
+- The missing-day fetch reuses the existing re-fetch button and its "already held" step, only for `admin.napix_refetch`.
+- The list PDF is a court record and is not audited; Claim is audited as usual.
+
+**Deviations from the design note** (full list in the note's Deviations section): `serve_stored` takes the store and a served name; a `causelist_day` row `done` with no list counts as `no_list`; a lone `from` or `to` takes the default span from the other end; court numbers sort via `numeric`; a case number in words also matches the printed case number of a row without a case; a merged case's row points to the survivor; the world's second department stands for FIN in tests; the state label shows for a held day only, the list type and court selects appear only with more than one value, and "Visible to me" carries no count.
+
+**Left for later**: Compose browser check of the screen (with row 56); an index only if day-entries timing on the full load exceeds one second (row 64).

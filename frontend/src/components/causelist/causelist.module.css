@@ -1,0 +1,97 @@
+/* The Cause list screen (design portal-causelist, decision 11): shell tokens only. */
+
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.state {
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+
+.lists {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.lists li {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: var(--space-2) var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.toggle {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  padding: var(--space-1) var(--space-3);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.toggle[aria-pressed="true"] {
+  background: var(--navy-800);
+  border-color: var(--navy-800);
+  color: #fff;
+}
+
+.toggle:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.heading th {
+  text-align: left;
+  background: var(--navy-100);
+  color: var(--navy-900);
+}
+
+.heading-court th {
+  font-size: var(--text-md);
+}
+
+.heading-bench th,
+.heading-list th {
+  font-weight: 600;
+  font-size: var(--text-sm);
+}
+
+.heading-section th {
+  background: var(--page);
+  font-weight: 600;
+  font-size: var(--text-sm);
+  text-transform: none;
+}
+
+.connected {
+  padding-left: var(--space-4);
+}
+
+.pre {
+  white-space: pre-line;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}

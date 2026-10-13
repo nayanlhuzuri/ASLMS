@@ -3,14 +3,17 @@
 /**
  * The Hearings tab (design portal-cases, decision 10): the hearings (business date, purpose, bench, next date,
  * business text, short order) and, below, the cause-list appearances (date, list type, bench, court, item, section,
- * connected, counsel codes, remarks).
+ * connected, counsel codes, remarks), each linking to that day's cause list for its bench (design portal-causelist,
+ * decision 12).
  */
 import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
 import { useState } from "react";
 
 import { EmptyState, ErrorBanner, Loading, Pagination, Table } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { caseKey } from "@/lib/api/hooks";
+import { causelistHref } from "@/lib/causelist";
 import type { HearingList, ListingList } from "@/lib/api/types";
 import { formatDate } from "@/lib/format";
 import { T } from "@/lib/messages";
@@ -102,7 +105,12 @@ export function Hearings({ caseRef }: { caseRef: string }) {
                 <tbody>
                   {listings.data.items.map((l, i) => (
                     <tr key={i}>
-                      <td>{formatDate(l.list_date)}</td>
+                      <td>
+                        {formatDate(l.list_date)}
+                        <div>
+                          <Link href={causelistHref(l.list_date, l.bench_id)}>{T.causelist.openCauselist}</Link>
+                        </div>
+                      </td>
                       <td>{l.list_type}</td>
                       <td>{l.bench_label ?? "—"}</td>
                       <td>{l.court_no ?? "—"}</td>

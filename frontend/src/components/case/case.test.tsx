@@ -9,6 +9,7 @@ import { browserApi, json, makeMe, renderWithClient } from "@/test/render";
 import { CaseFrame } from "./CaseFrame";
 import { Details } from "./Details";
 import { Documents } from "./Documents";
+import { Hearings } from "./Hearings";
 import { Links } from "./Links";
 import { Notes } from "./Notes";
 import { Orders } from "./Orders";
@@ -921,5 +922,39 @@ describe("documents paging and inline viewing (portal-cases-followups)", () => {
     expect(within(item("a-word")).getByRole("link", { name: "Download" })).toBeInTheDocument();
     expect(within(item("a-pdf")).getByRole("link", { name: "View" })).toHaveAttribute("href", "/api/backend/documents/a-pdf/file?disposition=inline");
     expect(within(item("a-img")).getByRole("link", { name: "View" })).toBeInTheDocument();
+  });
+});
+
+describe("the Hearings tab (portal-causelist, decision 12)", () => {
+  it("each listing links to that day's cause list for its bench (date only without a bench id)", async () => {
+    const listing = {
+      list_type: "daily",
+      bench_label: "HONOURABLE THE CHIEF JUSTICE",
+      court_no: "10",
+      sr_no: 4,
+      printed_sr: "4",
+      section: "ORDERS",
+      is_connected: false,
+      counsel_codes: [],
+      remarks: null,
+      source: "pdf_parse",
+    };
+    browserApi({
+      "GET /me": me(),
+      [`GET ${BASE}/hearings`]: { items: [], total: 0 },
+      [`GET ${BASE}/listings`]: {
+        items: [
+          { ...listing, list_date: "2026-10-13", bench_id: 1854 },
+          { ...listing, list_date: "2026-10-20", bench_id: null, bench_label: null },
+        ],
+        total: 2,
+      },
+    });
+    renderWithClient(<Hearings caseRef={REF} />);
+    const links = await screen.findAllByRole("link", { name: "Open the cause list" });
+    expect(links.map((a) => a.getAttribute("href"))).toEqual([
+      "/causelist?date=2026-10-13&bench_id=1854",
+      "/causelist?date=2026-10-20",
+    ]);
   });
 });

@@ -13,6 +13,7 @@ from aslms.api.routers import alerts as alerts_router
 from aslms.api.routers import audit as audit_router
 from aslms.api.routers import auth as auth_router
 from aslms.api.routers import cases as cases_router
+from aslms.api.routers import causelists as causelists_router
 from aslms.api.routers import dashboard as dashboard_router
 from aslms.api.routers import data_load as data_load_router
 from aslms.api.routers import documents as documents_router
@@ -53,6 +54,7 @@ def create_app(settings: Settings | None = None, session_factory=None) -> FastAP
     app.include_router(matching_router.router)
     app.include_router(inbox_router.router)
     app.include_router(cases_router.router)
+    app.include_router(causelists_router.router)
     app.include_router(documents_router.router)
     documents_router.upload_size_guard(app)
     app.include_router(ownership_router.router)
