@@ -115,7 +115,7 @@ ORDER BY called_at;
 | Show Order | GET `/hc-order-api/order` | `cino|order_no|order_date` | ✅ the order PDF as a Base64 JSON string |
 | Show Business | GET `/hc-show-business-api/showBusiness` | `cino|business_date` | ✅ `desgname, case_number, business_date, business, short_order_det` |
 | Search by Case Number | GET `/hc-case-search-api/casesearch` | `est_code|case_type|reg_no|reg_year` (`case_type` = the master's numeric code, `case_type_id` in a dossier) | ✅ `establishment_name, casenos.case{n}.…` |
-| Search by Party Name | GET `/hc-party-name-api/partyname` | `est_code|pend_disp|litigant_name|reg_year` (`pend_disp` must match the case: `P` does not find a disposed case) | ✅ `establishment_name, casenos.case{n}.…` |
+| Search by Party Name | GET `/hc-party-name-api/partyname` | `est_code|pend_disp|litigant_name|reg_year` (`pend_disp` must match the case: `P` does not find a disposed case; **`reg_year` is mandatory**: blank gives `606 INVALID_REG_YEAR`, so a name is searched one registration year per call; `litigant_name` is matched as the **whole phrase** in the petitioner or respondent name, live 14 Oct 2026) | ✅ `establishment_name, casenos.case{n}.…` |
 | Search by Advocate / Filing / Act, Advocate Bar Reg, Neutral Citation, Caveat | stubs in `docs/specs/napix/hc/` | | ⚠️ not needed yet |
 
 Dates are `yyyy-mm-dd`. Update the Status column (and this file) whenever an endpoint is verified live, and save a decrypted sample to `docs/specs/samples/<api>_<date>.json` (no credentials in samples).
@@ -137,3 +137,6 @@ Dates are `yyyy-mm-dd`. Update the Status column (and this file) whenever an end
   1,000 calls, reset at a fixed minute of the hour (HH:33-HH:35 IST from 1 to 11 Oct), detected from
   `X-RateLimit-Remaining` (§6).
 - A dossier for a **pending** case with IAs and objections has not been sampled yet (the sample case `GAHC010277142024` is disposed); needed before the field inventory is called complete.
+
+
+**Search by Party Name, live check of 14 Oct 2026** (department-discovery, owner-approved budget of 10 calls, 4 used, all in `napix_call_log`): `litigant_name=NARAYAN KONWAR`, `pend_disp=P`. Blank `reg_year` → `NapixInputError 606 INVALID_REG_YEAR` (the year cannot be left out). `reg_year=2025` → 52 rows, `reg_year=2026` → 103 rows; every 2025 row holds the full phrase "NARAYAN KONWAR" in `pet_name`/`res_name` (typically `res_name` "NARAYAN KONWAR, IAS AND 2 ORS."), all of type `Cont.Cas(C)` or `I.A.(Civil)`; 16 of the 52 CNRs were already held. Row keys: `case_type_id, cino, pet_name, police_st_code, reg_no, reg_year, res_name, type_name, uniform_code`; every row's `reg_year` equals the year asked for.

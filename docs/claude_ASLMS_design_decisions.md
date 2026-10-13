@@ -1669,3 +1669,5 @@ Backlog row 19, design `docs/design/department-discovery.md` (approved by the ow
 **Left for later**
 - Live verification (owner's go-ahead, limited to 10 NAPIX calls with `NAPIX_DISCOVERY_SHARE=10` for that run): try the party-name search with a blank year first and record in `napix_integration_notes.md` §7 whether the gateway accepts it; then one name for 2025 and 2026. Not run in this cycle; the share returns to 100 afterwards.
 - Compose verification of migration 0017 and the portal tabs (design Verification steps 2-9).
+
+- 2026-10-14 — department-discovery live check (owner-approved, at most 10 NAPIX calls; 4 used): Search by Party Name refuses a blank `reg_year` (606 INVALID_REG_YEAR), so discovery stays one call per registration year; the court matches `litigant_name` as the whole phrase. "NARAYAN KONWAR" (pending): 52 cases registered in 2025 and 103 in 2026, all contempt cases or applications in them; 16 of the 2025 cases were already held, 36 were new. Recorded in napix_integration_notes.md §7.
