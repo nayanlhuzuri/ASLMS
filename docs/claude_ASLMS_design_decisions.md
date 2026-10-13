@@ -1525,3 +1525,5 @@ table, column, code or migration; `docs/schema/schema.md` is unchanged.
 
 **Left for later**: row 55 (Files and Alerts & calendar screens); row 56 (Compose and browser verification of the
 design's steps).
+
+- 2026-10-13 — portal-files-alerts: approved by the owner (Files tabs With me, My offices, Department files with the tracking summary, Sent; Alerts list with explicit read marks; hearing calendar with 7-day agenda and month grid; case_visible on alerts so no link leads to a 404; a move that hides the case goes to /files/sent; docs/design/portal-files-alerts.md)
