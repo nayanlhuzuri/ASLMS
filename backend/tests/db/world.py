@@ -158,3 +158,44 @@ def make_case(
     s.add(case)
     s.flush()
     return case
+
+
+DIVISION_BENCH = "HONOURABLE THE CHIEF JUSTICE, HONOURABLE MR. JUSTICE SOUMITRA SAIKIA"
+SINGLE_BENCH = "HONOURABLE MR. JUSTICE SOUMITRA SAIKIA"
+OTHER_BENCH = "HONOURABLE MRS. JUSTICE SUSMITA PHUKAN KHAUND"
+
+
+def add_listing(
+    s: Session, case: Case, list_date: date, *, court_no: str = "3", bench: str | None = SINGLE_BENCH
+):
+    """One cause-list entry of `case` on `list_date` in a court and before a bench, written directly (the
+    filter tests' listings: design `portal-filters`)."""
+    from aslms.domain.causelists import Causelist, CauselistEntry, EntrySource, ListSource, ListType
+
+    court = s.scalar(sa.select(Court).where(Court.est_code == "GAHC01"))
+    cl = s.scalar(
+        sa.select(Causelist).where(
+            Causelist.list_date == list_date, Causelist.source == ListSource.GHC_WEBSITE
+        )
+    )
+    if cl is None:
+        cl = Causelist(
+            court_id=court.id, list_date=list_date, list_type=ListType.DAILY, source=ListSource.GHC_WEBSITE
+        )
+        s.add(cl)
+        s.flush()
+    n = int(s.scalar(sa.select(sa.func.count()).select_from(CauselistEntry)) or 0) + 1
+    e = CauselistEntry(
+        causelist_id=cl.id,
+        sr_no=n,
+        cnr=case.cnr,
+        case_id=case.id,
+        case_no_text=case.case_no_text,
+        court_no=court_no,
+        bench_text=bench,
+        petitioner_text=case.petitioner_summary,
+        source=EntrySource.PDF_PARSE,
+    )
+    s.add(e)
+    s.flush()
+    return e

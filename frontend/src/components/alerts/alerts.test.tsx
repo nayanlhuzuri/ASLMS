@@ -76,14 +76,14 @@ describe("the alert list (portal-files-alerts, decisions 7-9)", () => {
     const { unmount } = renderWithClient(<AlertList params={{}} />);
     expect(await screen.findByText("You have no open alerts.")).toBeInTheDocument();
     await userEvent.selectOptions(screen.getByLabelText("Status"), "all");
-    expect(nav.replace).toHaveBeenLastCalledWith("/alerts?status=all");
+    await userEvent.click(screen.getByRole("button", { name: "More filters" }));
     await waitFor(() => expect(screen.getByRole("option", { name: "File movement" })).toBeInTheDocument());
     await userEvent.selectOptions(screen.getByLabelText("Kind"), "workflow");
-    expect(nav.replace).toHaveBeenLastCalledWith("/alerts?kind=workflow");
     await userEvent.selectOptions(screen.getByLabelText("Severity"), "critical");
-    expect(nav.replace).toHaveBeenLastCalledWith("/alerts?severity=critical");
     await userEvent.click(screen.getByLabelText("Unread only"));
-    expect(nav.replace).toHaveBeenLastCalledWith("/alerts?unread=true");
+    expect(nav.replace).not.toHaveBeenCalled(); // nothing is requested until Apply
+    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
+    expect(nav.replace).toHaveBeenLastCalledWith("/alerts?status=all&kind=workflow&severity=critical&unread=true");
     unmount();
     renderWithClient(<AlertList params={{ status: "done", kind: "workflow", severity: "critical", unread: "true", offset: "50" }} />);
     expect(await screen.findByText("No alerts match these filters.")).toBeInTheDocument();
@@ -97,7 +97,9 @@ describe("the alert list (portal-files-alerts, decisions 7-9)", () => {
     browserApi(routes([]));
     renderWithClient(<AlertList params={{ offset: "50" }} />);
     await screen.findByText("No alerts match these filters.");
+    await userEvent.click(screen.getByRole("button", { name: "More filters" }));
     await userEvent.selectOptions(screen.getByLabelText("Severity"), "high");
+    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
     expect(nav.replace).toHaveBeenLastCalledWith("/alerts?severity=high");
   });
 
@@ -248,5 +250,31 @@ describe("the Alerts frame (decisions 1, 13)", () => {
     );
     expect(await screen.findByText("The page does not exist, or you cannot see it.")).toBeInTheDocument();
     expect(screen.queryByText("body")).toBeNull();
+  });
+});
+
+describe("the filter bar on Alerts (portal-filters)", () => {
+  it("sends the case filters with the alert filters", async () => {
+    const api = browserApi(routes([], { "GET /custody/recipients": { departments: [], items: [], units: [], total: 0 } }));
+    renderWithClient(
+      <AlertList params={{ status: "all", severity: "high", year: "2025", owner: "EDU", next: "n7", bench: "SAIKIA" }} />,
+    );
+    await screen.findByText("No alerts match these filters.");
+    const url = alertCalls(api.calls).at(-1)!.path;
+    for (const part of ["status=all", "severity=high", "year=2025", "owner=EDU", "next_from=", "next_to=", "bench=SAIKIA"]) {
+      expect(url).toContain(part);
+    }
+  });
+
+  it("the case-less line shows only while a case filter is set", async () => {
+    browserApi(routes([alert()]));
+    const { unmount } = renderWithClient(<AlertList params={{ status: "all", kind: "workflow" }} />);
+    await screen.findByText("1 alerts match");
+    expect(screen.queryByText("Alerts without a case are hidden while case filters are set.")).toBeNull();
+    unmount();
+    browserApi(routes([alert()]));
+    renderWithClient(<AlertList params={{ case_status: "pending" }} />);
+    expect(await screen.findByText("Alerts without a case are hidden while case filters are set.")).toBeInTheDocument();
+    expect(screen.getByText("Status: Pending")).toBeInTheDocument();
   });
 });

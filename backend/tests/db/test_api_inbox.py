@@ -25,8 +25,9 @@ from aslms.domain.ownership import (
     RecommendationStatus,
     ScoreBand,
 )
+from aslms.services.cases import refresh_search_vector
 from tests.db.auth_support import bearer
-from tests.db.world import PW, USERS, make_case
+from tests.db.world import OTHER_BENCH, PW, SINGLE_BENCH, USERS, add_listing, make_case
 
 
 @pytest.fixture()
@@ -203,6 +204,7 @@ def test_pool_excludes_owned_and_filters(api, world):
                 respondent_text="THE STATE OF ASSAM",
             )
         )
+        refresh_search_vector(s, [q1.id, q4.id])  # words are the Search box's (portal-filters, decision 3)
         s.commit()
         q = {k: str(v.id) for k, v in dict(q1=q1, q2=q2, q3=q3, q4=q4, q5=q5, q6=q6).items()}
     root = login(api, "root")
@@ -676,3 +678,232 @@ def test_last_listing_in_search_and_pool_items(api, world):
     assert r.status_code == 200, r.text
     hit = next(i for i in r.json()["items"] if str(i["case"]["id"]) == case_id)
     assert hit["case"]["last_listing"] == expected
+
+
+# ------------------------------------------------------------------------------------------------ portal-filters
+
+OCT1, OCT2 = date(2026, 10, 1), date(2026, 10, 2)
+
+
+def _typed(case, type_text, year, *, status=None):
+    case.case_type_text, case.reg_year = type_text, year
+    if status is not None:
+        case.status = status
+
+
+def test_recommended_filters_case_type_year_status_court_bench_next(api, world):
+    with world.Session() as s:
+        r1 = make_case(s, next_hearing=date(2026, 10, 20))
+        r2 = make_case(s, next_hearing=date(2026, 11, 5), status=CaseStatus.DISPOSED)
+        _typed(r1, "WP(C)", 2025)
+        _typed(r2, "WA", 2024)
+        for case in (r1, r2):
+            recommend(s, world, case, "EDU")
+        add_listing(s, r1, OCT1, court_no="3", bench=SINGLE_BENCH)
+        add_listing(s, r2, OCT2, court_no="5", bench=OTHER_BENCH)
+        s.commit()
+        r1_id, r2_id = str(r1.id), str(r2.id)
+    admin = login(api, "edu_admin")
+
+    def got(query):
+        r = api.get(f"/inbox/recommended?{query}", headers=admin)
+        assert r.status_code == 200, r.text
+        return sorted(ids(r.json()))
+
+    assert got("") == sorted([r1_id, r2_id])
+    assert got("case_type=wp(c)") == [r1_id]
+    assert got("year=2024") == [r2_id]
+    assert got("case_status=disposed") == [r2_id]
+    assert got("court_no=3") == [r1_id]
+    assert got("bench=phukan") == [r2_id]
+    assert got("next_from=2026-10-01&next_to=2026-10-31") == [r1_id]
+    assert got("listed_from=2026-10-01&listed_to=2026-10-01&court_no=5") == []
+    every = "case_type=WA&year=2024&case_status=disposed&court_no=5&bench=PHUKAN&next_from=2026-11-01"
+    assert got(every) == [r2_id]
+    for bad in ("year=99", "case_status=open", "bench=ab", "next_from=2026-11-02&next_to=2026-11-01", "q=ab"):
+        r = api.get(f"/inbox/recommended?{bad}", headers=admin)
+        assert r.status_code == 400, bad
+
+
+def test_claimed_filters_listed_and_next(api, world):
+    with world.Session() as s:
+        a = make_case(s, next_hearing=date(2026, 10, 20))
+        b = make_case(s)
+        add_listing(s, a, OCT1)
+        add_listing(s, b, OCT2)
+        s.commit()
+        a_id, b_id = str(a.id), str(b.id)
+    admin = login(api, "edu_admin")
+    for cid in (a_id, b_id):
+        assert api.post(f"/cases/{cid}/claim", json={}, headers=admin).status_code == 201
+    assert sorted(ids(api.get("/inbox/claimed", headers=admin).json())) == sorted([a_id, b_id])
+    r = api.get("/inbox/claimed?listed_from=2026-10-01&listed_to=2026-10-01", headers=admin)
+    assert r.status_code == 200 and ids(r.json()) == [a_id] and r.json()["total"] == 1
+    assert ids(api.get("/inbox/claimed?listed_from=2026-10-02", headers=admin).json()) == [b_id]
+    assert ids(api.get("/inbox/claimed?next_to=2026-10-31", headers=admin).json()) == [a_id]
+    r = api.get("/inbox/claimed?case_state=disposed&listed_from=2026-10-01", headers=admin)
+    assert r.json()["total"] == 0
+
+
+def test_pool_case_type_uses_master_names(api, world):
+    from aslms.domain.courts import CaseType
+
+    with world.Session() as s:
+        court = s.scalar(sa.select(Court).where(Court.est_code == "GAHC01"))
+        ct = CaseType(
+            court_id=court.id, case_type_code=9201, type_name="WP(C)", short_name="WP(C)", aliases=["WPC"]
+        )
+        s.add(ct)
+        s.flush()
+        typed = make_case(s)
+        typed.case_type_id = ct.id  # no type text: the old exact-text match missed it
+        texted = make_case(s)
+        texted.case_type_text = "WA"
+        s.commit()
+        typed_id, texted_id = str(typed.id), str(texted.id)
+    admin = login(api, "edu_admin")
+    assert ids(api.get("/inbox/pool?case_type=WPC", headers=admin).json()) == [typed_id]
+    assert ids(api.get("/inbox/pool?case_type=wp(c)", headers=admin).json()) == [typed_id]
+    assert ids(api.get("/inbox/pool?case_type=wa", headers=admin).json()) == [texted_id]
+    assert api.get("/inbox/pool?case_type=%20", headers=admin).status_code == 400
+
+
+def test_pool_scored_for_with_min_score_same_row(api, world):
+    with world.Session() as s:
+        c1, c2 = make_case(s), make_case(s)
+        make_case(s)
+        for case, code, score in ((c1, "EDU", 0.4), (c1, "HEALTH", 0.9), (c2, "EDU", 0.7)):
+            s.add(
+                CaseOfficeScore(
+                    case_id=case.id,
+                    office_id=world.offices[code].id,
+                    score=score,
+                    signals=[],
+                    engine_version="1.1",
+                )
+            )
+        s.commit()
+        c1_id, c2_id = str(c1.id), str(c2.id)
+    admin = login(api, "edu_admin")
+
+    def got(query):
+        r = api.get(f"/inbox/pool?{query}", headers=admin)
+        assert r.status_code == 200, r.text
+        return sorted(ids(r.json()))
+
+    assert got("scored_for=edu") == sorted([c1_id, c2_id])
+    assert got("scored_for=EDU&min_score=0.5") == [c2_id]  # c1's 0.9 is HEALTH's row
+    assert got("min_score=0.5") == sorted([c1_id, c2_id])
+    assert got("scored_for=HEALTH") == [c1_id]
+    r = api.get("/inbox/pool?scored_for=EDU-DSE", headers=admin)
+    assert r.status_code == 400 and "is not a department" in r.json()["detail"]
+
+
+def test_pool_status_alias_and_conflict_400(api, world):
+    with world.Session() as s:
+        make_case(s)
+        d = make_case(s, status=CaseStatus.DISPOSED)
+        s.commit()
+        d_id = str(d.id)
+    admin = login(api, "edu_admin")
+    assert ids(api.get("/inbox/pool?status=disposed", headers=admin).json()) == [d_id]
+    assert ids(api.get("/inbox/pool?case_status=disposed", headers=admin).json()) == [d_id]
+    assert ids(api.get("/inbox/pool?status=disposed&case_status=disposed", headers=admin).json()) == [d_id]
+    r = api.get("/inbox/pool?status=disposed&case_status=pending", headers=admin)
+    assert r.status_code == 400 and r.json()["detail"] == "status and case_status differ"
+
+
+def test_transfers_case_filters_and_other_office(api, world):
+    with world.Session() as s:
+        a, b = make_case(s), make_case(s)
+        _typed(a, "WP(C)", 2025)
+        _typed(b, "WA", 2024)
+        s.commit()
+        a_id, b_id = str(a.id), str(b.id)
+    admin = login(api, "edu_admin")
+    health = login(api, "health_admin")
+    for cid in (a_id, b_id):
+        assert api.post(f"/cases/{cid}/claim", json={}, headers=admin).status_code == 201
+        body = {"to_office_code": "HEALTH", "reason": "x"}
+        r = api.post(f"/cases/{cid}/transfers", json=body, headers=admin)
+        assert r.status_code == 201, r.text
+
+    def got(headers, query):
+        r = api.get(f"/inbox/transfers?{query}", headers=headers)
+        assert r.status_code == 200, r.text
+        return sorted(ids(r.json()))
+
+    both = sorted([a_id, b_id])
+    assert got(admin, "direction=out&other_office=HEALTH") == both
+    assert got(admin, "direction=in&other_office=HEALTH") == []
+    assert got(admin, "other_office=health") == both
+    assert got(health, "direction=in&other_office=EDU") == both
+    assert got(health, "direction=out&other_office=EDU") == []
+    assert got(admin, "direction=out&year=2025") == [a_id]
+    assert got(health, "direction=in&case_type=WA") == [b_id]
+    assert got(admin, "status=requested&case_status=pending") == both
+    r = api.get("/inbox/transfers?other_office=EDU-DSE", headers=admin)
+    assert r.status_code == 400 and "is not a department" in r.json()["detail"]
+
+
+def test_inbox_words_match_advocate_and_case_number(api, world):
+    with world.Session() as s:
+        a = make_case(s, case_no="WP(C)/4326/2025", pet="ASSAM TEA CORPORATION")
+        b = make_case(s, pet="RAM KUMAR")
+        entry = add_listing(s, b, OCT1)
+        entry.res_advocate_text = "SC, ELEM. EDU"
+        entry.pet_advocate_text = "MR. B KATHAR"
+        s.flush()
+        refresh_search_vector(s, [a.id, b.id])
+        for case in (a, b):
+            recommend(s, world, case, "EDU")
+        s.commit()
+        a_id, b_id = str(a.id), str(b.id)
+    admin = login(api, "edu_admin")
+    for tab in ("recommended", "pool"):
+        assert ids(api.get(f"/inbox/{tab}", params={"q": "WP(C) 4326/2025"}, headers=admin).json()) == [a_id]
+        assert ids(api.get(f"/inbox/{tab}", params={"q": "kathar"}, headers=admin).json()) == [b_id]
+        assert ids(api.get(f"/inbox/{tab}", params={"q": "elem edu"}, headers=admin).json()) == [b_id]
+        assert ids(api.get(f"/inbox/{tab}", params={"q": "Assa"}, headers=admin).json()) == [a_id]
+
+
+def test_filters_never_widen_claimed_scope(api, world):
+    with world.Session() as s:
+        a, b = make_case(s), make_case(s)
+        add_listing(s, a, OCT1)
+        add_listing(s, b, OCT1)
+        s.commit()
+        a_id, b_id = str(a.id), str(b.id)
+        off1 = str(world.users["edu_off1"].id)
+    admin = login(api, "edu_admin")
+    assert api.post(f"/cases/{a_id}/claim", json={"officer_user_id": off1}, headers=admin).status_code == 201
+    assert api.post(f"/cases/{b_id}/claim", json={}, headers=admin).status_code == 201
+    officer = login(api, "edu_off1")
+    plain = set(ids(api.get("/inbox/claimed", headers=officer).json()))
+    assert plain == {a_id}
+    for query in ("listed_from=2026-10-01", "court_no=3", "bench=SAIKIA", "case_status=pending"):
+        filtered = set(ids(api.get(f"/inbox/claimed?{query}", headers=officer).json()))
+        assert filtered <= plain and b_id not in filtered, query
+    # the pool never holds the claimed cases, whatever the filter
+    assert api.get("/inbox/pool?listed_from=2026-10-01", headers=admin).json()["total"] == 0
+
+
+def test_dashboard_counts_unchanged_by_filters_module(api, world):
+    with world.Session() as s:
+        r1, r2 = make_case(s), make_case(s)
+        recommend(s, world, r1, "EDU", score=0.95, band=ScoreBand.HIGH)
+        recommend(s, world, r2, "EDU", score=0.6, band=ScoreBand.MEDIUM)
+        c = make_case(s, next_hearing=date.today() + timedelta(days=2))
+        add_listing(s, r1, OCT1)
+        s.commit()
+        c_id = str(c.id)
+    admin = login(api, "edu_admin")
+    assert api.post(f"/cases/{c_id}/claim", json={}, headers=admin).status_code == 201
+    counts = api.get("/inbox/counts", headers=admin).json()["departments"][0]
+    assert counts["recommended_high"] == 1 and counts["recommended_medium"] == 1
+    assert counts["claimed_active"] == 1 and counts["claimed_disposed"] == 0
+    # a filtered list changes its own total, never the counts (the badges say what is waiting)
+    assert api.get("/inbox/recommended?listed_from=2026-10-01", headers=admin).json()["total"] == 1
+    assert api.get("/inbox/claimed?year=1999", headers=admin).json()["total"] == 0
+    assert api.get("/inbox/counts?year=1999", headers=admin).json()["departments"][0] == counts
+    assert api.get("/dashboard", headers=admin).status_code == 200

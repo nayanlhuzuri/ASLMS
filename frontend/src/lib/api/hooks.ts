@@ -6,6 +6,7 @@ import { apiCasePath, refPath } from "../refs";
 import { api } from "./client";
 import type {
   AlertCounts,
+  Benches,
   CaseDetail,
   CaseOwnershipView,
   CaseType,
@@ -69,6 +70,17 @@ export function useCaseTypes(enabled = true) {
     queryKey: ["reference", "case-types"],
     queryFn: () => api<CaseType[]>("/reference/case-types"),
     staleTime: 60 * 60_000,
+    enabled,
+  });
+}
+
+/** The court numbers and bench texts of recent cause lists (`GET /reference/benches`, design portal-filters,
+ * decision 12), for the filter bar's Court and Bench pickers. */
+export function useBenches(enabled = true) {
+  return useQuery({
+    queryKey: ["reference", "benches"],
+    queryFn: () => api<Benches>("/reference/benches"),
+    staleTime: 30 * 60_000,
     enabled,
   });
 }

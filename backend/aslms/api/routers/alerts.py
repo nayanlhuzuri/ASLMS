@@ -15,12 +15,14 @@ from sqlalchemy.orm import Session
 
 from aslms.api import schemas
 from aslms.api.deps import actor_of, current_user, current_user_pending, get_session, require, require_any
+from aslms.api.filters import case_filter_query
 from aslms.domain.org import User
 from aslms.domain.reference import Permission
 from aslms.services import alerts, calendar, notifications
 from aslms.services.access import Forbidden
 from aslms.services.alerts import AlertConflict, AlertError, AlertNotFound
 from aslms.services.calendar import CalendarError
+from aslms.services.case_filters import CaseFilters
 from aslms.services.cases import CaseNotFound, resolve_case_ref
 from aslms.services.notifications import PreferenceError
 from aslms.services.visibility import NotVisibleCase
@@ -84,13 +86,15 @@ def list_alerts(
     severity: str | None = None,
     unread: bool | None = None,
     case: str | None = None,
+    filters: CaseFilters = Depends(case_filter_query),
     limit: int = alerts.DEFAULT_LIMIT,
     offset: int = 0,
     session: Session = Depends(get_session),
     user: User = Depends(read),
 ) -> schemas.AlertListOut:
     """The caller's own in-app notifications (the latest per alert), newest first; `status` defaults to
-    open and acknowledged (`all` for every state)."""
+    open and acknowledged (`all` for every state). The shared case filters narrow them; with any set, alerts
+    without a case drop out."""
     try:
         page = alerts.list_for_user(
             session,
@@ -100,6 +104,7 @@ def list_alerts(
             severity=severity,
             unread=unread,
             case_ref=case,
+            filters=filters,
             limit=limit,
             offset=offset,
         )

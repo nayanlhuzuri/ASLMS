@@ -66,9 +66,10 @@ from aslms.domain.workflow import (
     CustodyHistory,
     PendingAction,
 )
-from aslms.services import access, calendar, notifications, visibility
+from aslms.services import access, calendar, case_filters, notifications, visibility
 from aslms.services import alert_rules as rules
 from aslms.services.audit import Actor, write_audit
+from aslms.services.case_filters import CaseFilters
 from aslms.services.cases import CaseNotFound, emit_event, ref_no_from_url, resolve_case_ref
 from aslms.services.recipients import (
     NAMED_RECIPIENT_EVENTS,
@@ -1267,11 +1268,13 @@ def list_for_user(
     severity: str | None = None,
     unread: bool | None = None,
     case_ref: str | None = None,
+    filters: CaseFilters | None = None,
     limit: int | None = None,
     offset: int | None = None,
 ) -> Page:
     """The caller's own in-app notifications (the latest per alert), newest first, their cases filtered by
-    the visibility rule in SQL."""
+    the visibility rule in SQL. `filters`: the shared case filters (design `portal-filters`); with any set,
+    alerts without a case drop out (decision 8)."""
     limit, offset = clamp(limit, offset)
     n = _latest_in_app(user)
     conds = [notification_visible_condition(session, user)]
@@ -1297,6 +1300,9 @@ def list_for_user(
             conds.append(Alert.case_id == resolve_case_ref(session, case_ref).id)
         except CaseNotFound:
             return Page([], 0)
+    if filters is not None and not filters.is_empty:
+        conds.append(Alert.case_id.is_not(None))
+        conds.extend(case_filters.conditions(session, filters))
     base = (
         select(Alert, Case, n.c.created_at, n.c.read_at)
         .join(n, n.c.alert_id == Alert.id)

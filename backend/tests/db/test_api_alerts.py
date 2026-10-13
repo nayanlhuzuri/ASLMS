@@ -655,3 +655,88 @@ def test_case_visible_one_query_per_page(api, world, alerted):
         s.commit()
     many, n5 = statements()
     assert n5 == 5 and many == one
+
+
+# ------------------------------------------------------------------------------------------------ portal-filters
+
+
+def _two_alerts_for_off1(world) -> tuple[str, str]:
+    """Two EDU cases allotted to off1 with hearings in three and twenty days (one alert each); the first is
+    listed in court 3 before a single bench and registered in 2025, the second in 2024."""
+    from datetime import date
+
+    from tests.db.world import SINGLE_BENCH, add_listing
+
+    with world.Session() as s:
+        a = make_case(s, next_hearing=d(3))
+        a.case_type_text, a.reg_year = "WP(C)", 2025
+        b = make_case(s, next_hearing=d(5))
+        b.case_type_text, b.reg_year = "WA", 2024
+        for case in (a, b):
+            h.claim(s, world, "edu_admin", case, officer_user_id=world.users["edu_off1"].id)
+        add_listing(s, a, date(2026, 10, 1), court_no="3", bench=SINGLE_BENCH)
+        s.commit()
+        alerts.sweep_dates(s, now=NOW)
+        s.commit()
+        return str(a.id), str(b.id)
+
+
+def _case_ids(body) -> list[str]:
+    return sorted(i["case"]["id"] for i in body["items"] if i["case"])
+
+
+def test_alert_list_case_filters(api, world):
+    a_id, b_id = _two_alerts_for_off1(world)
+    off1 = login(api, "edu_off1")
+
+    def got(query):
+        r = api.get(f"/alerts?{query}", headers=off1)
+        assert r.status_code == 200, r.text
+        return _case_ids(r.json())
+
+    assert got("") == sorted([a_id, b_id])
+    assert got("year=2025") == [a_id]
+    assert got("case_type=WA") == [b_id]
+    assert got("court_no=3&bench=saikia") == [a_id]
+    assert got(f"next_from={d(4)}") == [b_id]
+    assert got("owner=EDU") == sorted([a_id, b_id])
+    assert got("owner=HEALTH") == []
+    assert got("severity=high&year=2025") == [a_id]
+    assert api.get("/alerts?owner=EDU-DSE", headers=off1).status_code == 400
+    r = api.get("/alerts?listed_from=2026-10-02&listed_to=2026-10-01", headers=off1)
+    assert r.status_code == 400 and "listed_from is after listed_to" in r.json()["detail"]
+
+
+def test_case_filters_hide_caseless_alerts(api, world):
+    from aslms.services import tickets
+
+    with world.Session() as s:
+        a_actor, admin = world.actor(s, "edu_admin")
+        tickets.request_head_change(
+            s,
+            a_actor,
+            admin,
+            {
+                "operation": "replace",
+                "department_code": "EDU",
+                "incoming": {"membership_id": str(world.membership(s, "edu_off1").id)},
+                "outgoing": {"mode": "retype"},
+            },
+            request_remark="the order of 1 Oct",
+        )
+        s.commit()
+    root = login(api, "root")
+    (item,) = api.get("/alerts", headers=root).json()["items"]
+    assert item["case"] is None
+    assert api.get("/alerts?case_status=pending", headers=root).json()["total"] == 0
+    assert api.get("/alerts?kind=admin_ticket", headers=root).json()["total"] == 1  # an alert filter only
+
+
+def test_alert_filters_keep_visibility(api, world, alerted):
+    """A filter only narrows the caller's own visible notifications: the HEALTH case's alert never shows
+    for off1, whatever the filter names."""
+    off1 = login(api, "edu_off1")
+    for query in ("owner=HEALTH", f"next_to={d(1)}", "case_status=pending"):
+        body = api.get(f"/alerts?{query}", headers=off1).json()
+        assert alerted["health_case"] not in _case_ids(body), query
+    assert _case_ids(api.get("/alerts?owner=EDU", headers=off1).json()) == [alerted["edu_case"]]

@@ -161,3 +161,79 @@ def test_labels_carry_active_alert_kinds(api):
     assert codes == active and AlertKind.REQUEST_DUE.value not in codes
     assert AlertKind.HEARING_DUE.value in codes
     assert all(k["label"] for k in body["alert_kinds"])
+
+
+# ------------------------------------------------------------------------------------------------ benches (portal-filters 12)
+
+
+def _add_listings(api) -> None:
+    from datetime import timedelta
+
+    from aslms.services.reporting_common import today_ist
+    from tests.db.world import add_listing, make_case
+
+    today = today_ist()
+    with api.app.state.session_factory() as s:
+        case = make_case(s)
+        add_listing(s, case, today, court_no="10", bench="HONOURABLE MR. JUSTICE A")
+        add_listing(s, case, today, court_no="2", bench="HONOURABLE  MR. JUSTICE A ")  # same bench, spaced
+        add_listing(s, case, today - timedelta(days=10), court_no="111", bench="HONOURABLE MR. JUSTICE B")
+        add_listing(s, case, today - timedelta(days=10), court_no=" 2 ", bench=None)
+        add_listing(s, case, today - timedelta(days=89), court_no="ANNEX", bench="honourable mr. justice c")
+        add_listing(s, case, today - timedelta(days=90), court_no="7", bench="HONOURABLE MR. JUSTICE OLD")
+        add_listing(s, case, today + timedelta(days=1), court_no="8", bench="HONOURABLE MR. JUSTICE FUTURE")
+        s.commit()
+
+
+def test_benches_window_counts_and_order(api):
+    from datetime import timedelta
+
+    from aslms.services.reporting_common import today_ist
+
+    _add_listings(api)
+    today = today_ist()
+    r = api.get("/reference/benches", headers=headers(api, "anil.kumar@example.org"))
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["from"] == str(today - timedelta(days=89)) and body["to"] == str(today)
+    assert [c["court_no"] for c in body["court_numbers"]] == ["2", "10", "111", "ANNEX"]
+    two = body["court_numbers"][0]
+    assert two == {"court_no": "2", "last_listed": str(today), "entries": 2}
+    assert [b["text"] for b in body["benches"]] == [
+        "HONOURABLE MR. JUSTICE A",
+        "HONOURABLE MR. JUSTICE B",
+        "HONOURABLE MR. JUSTICE C",
+    ]
+    assert body["benches"][0]["entries"] == 2
+    # a wider window reaches the older list; the same answer for every reader
+    wide = api.get("/reference/benches?days=91", headers=headers(api, "root@example.org")).json()
+    assert "7" in [c["court_no"] for c in wide["court_numbers"]]
+    assert api.get("/reference/benches", headers=headers(api, "root@example.org")).json() == body
+
+
+def test_benches_days_bounds_400(api):
+    h = headers(api, "anil.kumar@example.org")
+    for days in (0, 401, -5):
+        r = api.get(f"/reference/benches?days={days}", headers=h)
+        assert r.status_code == 400 and r.json()["detail"] == "days is between 1 and 400", days
+    for days in (1, 400):
+        assert api.get(f"/reference/benches?days={days}", headers=h).status_code == 200
+
+
+def test_benches_need_case_reading(api):
+    from aslms.domain.org import PermissionEffect, User
+    from aslms.domain.reference import Permission
+    from aslms.services import access
+
+    with api.app.state.session_factory() as s:
+        root = s.scalar(sa.select(User).where(User.email == "root@example.org"))
+        officer = s.scalar(sa.select(User).where(User.email == "anil.kumar@example.org"))
+        actor = access.actor_for(root)
+        for perm in (Permission.CASES_VIEW_SCOPE, Permission.CASES_VIEW_ALL):
+            access.set_override(s, actor, root, officer, perm, PermissionEffect.DENY, reason="test")
+        s.commit()
+    assert api.get("/reference/benches", headers=headers(api, "anil.kumar@example.org")).status_code == 403
+
+
+def test_benches_signed_out_401(api):
+    assert api.get("/reference/benches").status_code == 401

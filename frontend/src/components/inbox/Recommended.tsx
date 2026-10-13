@@ -5,11 +5,14 @@
  * recommendations in the API's order (strong first, score, next hearing), each with the score badge from the API's
  * `band`, the parties, the case number, the latest listing, one chip per signal, "Suggested by" and "Owned by", and
  * Claim / Dismiss / Suggest department by the function of the selected department's membership. Every action acts for
- * the selected department (Suggest sends it as `from_office_code`, design portal-cases-followups, decision 6).
+ * the selected department (Suggest sends it as `from_office_code`, design portal-cases-followups, decision 6). The one
+ * filter bar (design portal-filters): the shared case filters plus match strength; `listed=today|d7|d30` links keep
+ * their meaning.
  */
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { FilterBar } from "@/components/filters/FilterBar";
 import {
   Button,
   CaseLink,
@@ -18,16 +21,14 @@ import {
   Loading,
   Pagination,
   ScoreBadge,
-  SelectField,
   SignalChips,
   Table,
-  TextField,
 } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { INBOX_KEY, useMe } from "@/lib/api/hooks";
 import type { RecommendationList } from "@/lib/api/types";
 import { canIn } from "@/lib/can";
-import { addDays, istDay } from "@/lib/format";
+import { toApiQuery } from "@/lib/filters";
 import { T } from "@/lib/messages";
 import { offsetOf, PAGE, type Params } from "@/lib/params";
 import type { Signal } from "@/lib/signals";
@@ -35,26 +36,15 @@ import type { Signal } from "@/lib/signals";
 import { ListingLine, PartiesLine, useFilters } from "./common";
 import { OwnershipDialogs, type DialogKind } from "./dialogs";
 
-/** The cause-list date choice as `listed_from` / `listed_to` (IST days). */
-export function listedRange(choice: string | undefined, now: Date = new Date()): { listed_from?: string; listed_to?: string } {
-  const today = istDay(now);
-  if (choice === "today") return { listed_from: today, listed_to: today };
-  if (choice === "d7") return { listed_from: addDays(today, -6), listed_to: today };
-  if (choice === "d30") return { listed_from: addDays(today, -29), listed_to: today };
-  return {};
-}
-
 export function Recommended({ params, department }: { params: Params; department: string }) {
   const me = useMe();
   const setFilters = useFilters(params);
-  const [q, setQ] = useState(params.q ?? "");
   const [dialog, setDialog] = useState<DialogKind | null>(null);
   const offset = offsetOf(params);
   const query = {
     office: department,
     band: params.band || undefined,
-    q: params.q || undefined,
-    ...listedRange(params.listed),
+    ...toApiQuery(params, "recommended"),
     limit: PAGE,
     offset,
   };
@@ -67,31 +57,22 @@ export function Recommended({ params, department }: { params: Params; department
   const canSuggest = canIn(me.data, department, "cases.suggest_elsewhere");
   return (
     <section className="stack" aria-label={T.inbox.title}>
-      <form
-        className="row"
-        role="search"
-        onSubmit={(e) => {
-          e.preventDefault();
-          setFilters({ q: q.trim() || undefined });
-        }}
-      >
-        <SelectField
-          label={T.inbox.strength}
-          options={Object.entries(T.inbox.strengths).map(([value, label]) => ({ value, label }))}
-          value={params.band ?? ""}
-          onChange={(e) => setFilters({ band: e.target.value || undefined })}
-        />
-        <SelectField
-          label={T.inbox.listDate}
-          options={["", "today", "d7", "d30"].map((value) => ({ value, label: T.inbox.listDates[value]! }))}
-          value={params.listed ?? ""}
-          onChange={(e) => setFilters({ listed: e.target.value || undefined })}
-        />
-        <TextField label={T.inbox.words} value={q} onChange={(e) => setQ(e.target.value)} />
-        <Button type="submit" variant="secondary">
-          {T.inbox.apply}
-        </Button>
-      </form>
+      <FilterBar
+        list="recommended"
+        params={params}
+        own={[
+          {
+            key: "band",
+            kind: "select",
+            label: T.inbox.strength,
+            options: Object.entries(T.inbox.strengths)
+              .filter(([value]) => value)
+              .map(([value, label]) => ({ value, label })),
+            placeholder: T.inbox.strengths[""],
+          },
+        ]}
+        total={list.data?.total}
+      />
       <ErrorBanner error={list.error} onRetry={() => list.refetch()} />
       {list.isPending ? <Loading /> : null}
       {list.data ? (

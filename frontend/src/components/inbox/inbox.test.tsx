@@ -235,7 +235,8 @@ describe("Recommended", () => {
     await waitFor(() =>
       expect(api.calls.some((c) => c.url.includes(`listed_from=${today}`) && c.url.includes(`listed_to=${today}`))).toBe(true),
     );
-    await userEvent.selectOptions(screen.getByLabelText("Cause list date"), "d7");
+    await userEvent.selectOptions(screen.getByLabelText("Cause-list date"), "d7");
+    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
     expect(nav.replace).toHaveBeenCalledWith("/inbox/recommended?listed=d7");
   });
 
@@ -520,5 +521,96 @@ describe("Transfers and no release", () => {
     expect(within(row).getByText("Officer One")).toBeInTheDocument();
     expect(within(row).getByRole("button", { name: "Allot" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /release|return|unclaim|stop watching/i })).toBeNull();
+  });
+});
+
+describe("the filter bar on the inbox (portal-filters)", () => {
+  function inboxRoutes(extra: Record<string, unknown> = {}) {
+    return {
+      "GET /me": admin(),
+      "GET /inbox/counts": { departments: [block("EDU")] },
+      "GET /inbox/recommended": { items: [rec(1), rec(2)], total: 2 },
+      "GET /inbox/claimed": { items: [], total: 0 },
+      "GET /inbox/pool": { items: [], total: 0 },
+      "GET /inbox/transfers": { items: [], total: 0 },
+      "GET /custody/recipients": DEPARTMENTS,
+      ...extra,
+    };
+  }
+
+  const urlOf = (calls: { path: string }[], prefix: string) => calls.filter((c) => c.path.startsWith(prefix)).at(-1)?.path ?? "";
+
+  it("Recommended sends the shared filters with the API names and never owner", async () => {
+    const api = browserApi(inboxRoutes());
+    renderWithClient(
+      <InboxFrame
+        tab="recommended"
+        params={{ q: "ram kumar", year: "2025", court_no: "3", bench: "SAIKIA", case_status: "pending", case_type: "WP(C)", owner: "FIN" }}
+      />,
+    );
+    expect(await screen.findByText("2 cases match")).toBeInTheDocument();
+    const url = urlOf(api.calls, "/inbox/recommended");
+    for (const part of ["office=EDU", "q=ram+kumar", "year=2025", "court_no=3", "bench=SAIKIA", "case_status=pending", "case_type=WP%28C%29"]) {
+      expect(url).toContain(part);
+    }
+    expect(url).not.toContain("owner=");
+  });
+
+  it("the tab badges stay the unfiltered counts", async () => {
+    const api = browserApi(inboxRoutes());
+    renderWithClient(<InboxFrame tab="recommended" params={{ year: "2025", listed: "d7" }} />);
+    const tabs = await screen.findByRole("navigation", { name: "Inbox sections" });
+    expect(within(tabs).getByRole("link", { name: "Recommended (3)" })).toBeInTheDocument();
+    expect(api.calls.filter((c) => c.path.startsWith("/inbox/counts")).every((c) => !c.path.includes("year="))).toBe(true);
+    await waitFor(() => expect(urlOf(api.calls, "/inbox/recommended")).toContain("listed_from="));
+  });
+
+  it("Claimed sends the cause-list range; Disposed has no next-hearing filter", async () => {
+    const api = browserApi(inboxRoutes());
+    const { unmount } = renderWithClient(
+      <InboxFrame tab="claimed" params={{ listed_from: "2026-10-01", listed_to: "2026-10-07", next: "n7" }} />,
+    );
+    await screen.findByText("0 cases match");
+    let url = urlOf(api.calls, "/inbox/claimed");
+    expect(url).toContain("case_state=active");
+    expect(url).toContain("listed_from=2026-10-01");
+    expect(url).toContain("listed_to=2026-10-07");
+    expect(url).toContain("next_from=");
+    unmount();
+    renderWithClient(<InboxFrame tab="claimed" params={{ case_state: "disposed", next: "n7", year: "2025" }} />);
+    await waitFor(() => expect(urlOf(api.calls, "/inbox/claimed")).toContain("case_state=disposed"));
+    url = urlOf(api.calls, "/inbox/claimed");
+    expect(url).toContain("year=2025");
+    expect(url).not.toContain("next_from");
+    expect(screen.queryByLabelText("Next hearing")).toBeNull();
+  });
+
+  it("the pool sends scored_for and reads an old status link as case_status", async () => {
+    resetNav("/inbox/pool");
+    const api = browserApi(inboxRoutes());
+    renderWithClient(<InboxFrame tab="pool" params={{ status: "disposed", scored_for: "FIN", min_score: "0.5" }} />);
+    await screen.findByText("0 cases match");
+    const url = urlOf(api.calls, "/inbox/pool");
+    expect(url).toContain("case_status=disposed");
+    expect(url).toContain("scored_for=FIN");
+    expect(url).toContain("min_score=0.5");
+    expect(url).not.toMatch(/[?&]status=/);
+    expect(screen.getByText("Status: Disposed")).toBeInTheDocument();
+    expect(screen.getByText("Matched to department: FIN")).toBeInTheDocument();
+    // the next apply rewrites the old key
+    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
+    expect(nav.replace).toHaveBeenCalledWith("/inbox/pool?scored_for=FIN&min_score=0.5&case_status=disposed");
+  });
+
+  it("Transfers send the case filters and other_office next to the transfer status", async () => {
+    resetNav("/inbox/transfers");
+    const api = browserApi(inboxRoutes());
+    renderWithClient(
+      <InboxFrame tab="transfers" params={{ direction: "out", status: "requested", other_office: "FIN", year: "2025" }} />,
+    );
+    await screen.findByText("0 transfers match");
+    const url = urlOf(api.calls, "/inbox/transfers");
+    for (const part of ["direction=out", "status=requested", "other_office=FIN", "year=2025"]) expect(url).toContain(part);
+    expect(url).not.toContain("case_status");
   });
 });

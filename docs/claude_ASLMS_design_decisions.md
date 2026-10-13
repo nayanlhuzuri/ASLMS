@@ -1572,3 +1572,26 @@ portal-workflow (`useAlertCounts()`, `monthGrid()` and the `/files/sent` destina
 - Note for setup: map counsel codes in the form the cause list prints them (`SC, SEC. EDU.`, `SC, ELEM. EDU`), not as the department wrote them (`SC, SEC. EDU`, `SC, ELEM, EDU`), since codes are matched exactly. The officer names can be entered as name patterns (both spellings for Pritam / Preetom Saikia); a name pattern alone scores 0.80, a possible match.
 
 - 2026-10-13 — portal-filters: approved by the owner (one shared set of case filters in every list API and portal URL: words, cause-list date presets or any range, court and bench, next hearing date, case type, year, status, department where relevant; server-side; one FilterBar; GET /reference/benches; word search as the Search box everywhere; docs/design/portal-filters.md)
+
+## Portal: one filter bar on every list (portal-filters) (2026-10-13)
+
+Backlog row 59, design `docs/design/portal-filters.md` (approved by the owner 13 Oct 2026). No migration; no table, column, index or setting added, so `docs/schema/schema.md` is unchanged (every filter reads existing columns).
+
+**What was built**
+- Backend: `services/case_filters.py` (`CaseFilters`, `parse`, `conditions`, and the SQL pieces moved out of `case_search.py`), `api/filters.py` (shared query-parameter dependency); every list API now takes the same filters: `q`, `listed_from`/`listed_to`, `court_no`, `bench`, `next_from`/`next_to`, `case_type`, `year`, `case_status`, `owner`. This covers `/inbox/recommended|claimed|pool|transfers`, `/custody/held|sent`, `/alerts`, `/cases` and `/cases/search`.
+- Own filters: `scored_for` on the pool ("Matched to department"), `other_office` on Transfers. Old names (`status`, `office`) stay accepted where they meant the same thing.
+- `GET /reference/benches?days=` (court numbers and bench texts from recent cause lists).
+- Portal: `FilterBar`, `DateRangeField`, `FilterChips`, `lib/filters.ts` (`LIST_FILTERS`), `useBenches()`; used on Recommended, Claimed, Pool, Transfers, Files (all tabs), Alerts and Search.
+- Tests: backend `test_case_filters.py` (db and unit), `test_filters_write_nothing.py`, `test_custody_held.py`, additions to `test_api_inbox.py`, `test_api_cases.py`, `test_api_alerts.py`, `test_api_reference.py`; frontend `filterbar.test.tsx`, `filters.test.ts`, and updated inbox, files, alerts and search tests.
+
+**Decisions and reasons**
+- One set of filter names and one behaviour everywhere, because the owner asked for "a filter everywhere" and each tab behaved differently.
+- Words are parsed as the Search box does (CNR, case number, `ref_no`, word prefixes over `search_vector`), replacing the inbox substring match. Advocates and counsel codes become searchable and the GIN index is used; a fragment in the middle of a word no longer matches.
+- Cause-list date, court and bench are matched on the same cause-list entry; bench is "contains" on normalised text, since NAPIX has no judge master.
+- Every filter only narrows what the list already returns; filtering is never audited and writes nothing (tested).
+- Department filter per list: `owner` where cases are owned, `scored_for` on the pool, `other_office` on Transfers.
+
+**Deviations from the design note** (recorded in the note's Deviations section): the department-code check runs where the session is, not in `parse`; length errors answer 400, not 422; the inbox refuses `owner`; next-hearing presets are today to today+6 and today+29; Search's total stays in its heading; `case_state=` in an old Search URL no longer filters; `/reference/benches` normalises spacing. Timings on the dev database were all under 0.6 s, so no index was proposed.
+
+**Left for later**: a court-establishment filter once outlying benches' cases arrive; Compose browser check of the bars (with row 56). The Cause list screen (row 60) follows and may reuse `/reference/benches`.
+

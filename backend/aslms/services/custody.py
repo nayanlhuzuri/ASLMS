@@ -41,9 +41,10 @@ from aslms.domain.workflow import (
     CustodyHistory,
     PendingAction,
 )
-from aslms.services import access, inbox, visibility
+from aslms.services import access, case_filters, inbox, visibility
 from aslms.services.access import Member
 from aslms.services.audit import Actor, snapshot, write_audit
+from aslms.services.case_filters import CaseFilters
 from aslms.services.cases import emit_event
 from aslms.services.workflow_common import (
     REMARK_MAX,
@@ -665,12 +666,13 @@ def held(
     scope: str = "me",
     overdue: bool | None = None,
     holder_department: str | None = None,
+    filters: CaseFilters | None = None,
     limit: int | None = None,
     offset: int | None = None,
 ) -> inbox.Page:
     """Decision 24: the cases held by the caller (`me`), by their offices (`office`), or owned by a department
     they track, wherever held (`owned`, decision 24a); always ANDed with the case visibility rule; ordered by
-    due date, then since."""
+    due date, then since. `filters`: the shared case filters (design `portal-filters`), on the held case."""
     if scope not in HELD_SCOPES:
         raise bad("scope must be me, office or owned")
     stmt = _held_stmt(session, user, scope)
@@ -684,6 +686,8 @@ def held(
         if dept is None:
             raise bad(f"unknown department {holder_department!r}")
         stmt = stmt.where(HELD.holder_office_id.in_(visibility.subtree_ids(dept)))
+    for cond in case_filters.conditions(session, filters):
+        stmt = stmt.where(cond)
     limit, offset = inbox.clamp(limit, offset)
     total = int(session.scalar(select(func.count()).select_from(stmt.order_by(None).subquery())) or 0)
     rows = session.execute(
@@ -694,14 +698,21 @@ def held(
 
 
 def sent(
-    session: Session, user: User | Member, *, limit: int | None = None, offset: int | None = None
+    session: Session,
+    user: User | Member,
+    *,
+    filters: CaseFilters | None = None,
+    limit: int | None = None,
+    offset: int | None = None,
 ) -> inbox.Page:
     """Decision 24: the legs the caller wrote (sends and recalls), with the case summary (searchable facts) and
-    the leg; the remark is the caller's own. Detail still needs the case visibility."""
+    the leg; the remark is the caller's own. Detail still needs the case visibility. `filters`: the shared case
+    filters on the leg's case (design `portal-filters`, decision 8: they match the facts the row shows)."""
     stmt = (
         select(CustodyHistory, Case)
         .join(Case, Case.id == CustodyHistory.case_id)
         .where(CustodyHistory.actor_user_id == user.id, CustodyHistory.reason.in_(SENT_LIST_REASONS))
+        .where(*case_filters.conditions(session, filters))
     )
     limit, offset = inbox.clamp(limit, offset)
     total = int(session.scalar(select(func.count()).select_from(stmt.order_by(None).subquery())) or 0)

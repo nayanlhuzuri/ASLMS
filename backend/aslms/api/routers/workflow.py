@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from aslms.api import schemas
 from aslms.api.deps import actor_of, get_scanner, get_session, require, require_any
+from aslms.api.filters import case_filter_query
 from aslms.api.routers.documents import dispatch_extract
 from aslms.core.config import Settings
 from aslms.domain.cases import Case
@@ -27,6 +28,7 @@ from aslms.domain.reference import Permission
 from aslms.domain.workflow import CaseNoteDraft
 from aslms.services import access, attachments, notes, stages, visibility, workflow_codes
 from aslms.services import custody as custody_svc
+from aslms.services.case_filters import CaseFilters
 from aslms.services.cases import CaseNotFound, resolve_case_ref
 from aslms.services.documents import DocumentError, UploadRefused
 from aslms.services.notes import DraftNotFound
@@ -289,6 +291,7 @@ def custody_held(
     scope: str = Query("me", pattern="^(me|office|owned)$"),
     overdue: bool | None = None,
     holder_department: str | None = None,
+    filters: CaseFilters = Depends(case_filter_query),
     limit: int = 50,
     offset: int = 0,
     session: Session = Depends(get_session),
@@ -303,6 +306,7 @@ def custody_held(
             scope=scope,
             overdue=overdue,
             holder_department=holder_department,
+            filters=filters,
             limit=limit,
             offset=offset,
         )
@@ -311,16 +315,20 @@ def custody_held(
     return schemas.HeldListOut(items=page.items, total=page.total)
 
 
-@router.get("/custody/sent", response_model=schemas.SentListOut)
+@router.get("/custody/sent", response_model=schemas.SentListOut, responses=ERRORS)
 def custody_sent(
+    filters: CaseFilters = Depends(case_filter_query),
     limit: int = 50,
     offset: int = 0,
     session: Session = Depends(get_session),
     user: User = Depends(read),
 ) -> schemas.SentListOut:
     """The legs the caller wrote (sends and recalls) with the case summary and `visible`: whether the caller can
-    open the case now (the sender usually loses sight of a case sent on)."""
-    page = custody_svc.sent(session, user, limit=limit, offset=offset)
+    open the case now (the sender usually loses sight of a case sent on). The shared case filters narrow them."""
+    try:
+        page = custody_svc.sent(session, user, filters=filters, limit=limit, offset=offset)
+    except HANDLED as exc:
+        raise _http(exc) from exc
     return schemas.SentListOut(items=page.items, total=page.total)
 
 

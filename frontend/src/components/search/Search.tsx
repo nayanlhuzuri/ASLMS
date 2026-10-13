@@ -6,18 +6,23 @@
  * "only cases I can open". Without words the page lists the caller's visible cases (`GET /cases`): the work list of
  * officers, directorate users, standing counsel and State-wide readers. With words it calls `/cases/search`; a single
  * visible result matched by CNR or `ref_no` opens the case page. "Search the court" follows the local results, and the
- * "Order and document text" tab searches stored text.
+ * "Order and document text" tab searches stored text. The one filter bar (design portal-filters): the box is its Words
+ * field; the shared case filters with the owning department, Status in place of the old Active / Disposed / All
+ * control, and "Only cases I can open" with words. Old links' `status=` and `office=` are read as `case_status` and
+ * `owner`.
  */
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 
-import { Button, CheckField, EmptyState, ErrorBanner, Loading, Pagination, SelectField, Tabs, TextField } from "@/components/ui";
+import { FilterBar } from "@/components/filters/FilterBar";
+import { EmptyState, ErrorBanner, Loading, Pagination, Tabs } from "@/components/ui";
 import { useFilters } from "@/components/inbox/common";
 import { api } from "@/lib/api/client";
-import { useCaseTypes, useMe } from "@/lib/api/hooks";
+import { useMe } from "@/lib/api/hooks";
 import type { CaseSearchList } from "@/lib/api/types";
 import { can } from "@/lib/can";
+import { legacyParams, MIN_WORDS, toApiQuery } from "@/lib/filters";
 import { formatNumber } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { offsetOf, PAGE, queryString, type Params } from "@/lib/params";
@@ -26,9 +31,6 @@ import { casePath } from "@/lib/refs";
 import { CaseResults } from "./CaseResults";
 import { CourtSearch } from "./CourtSearch";
 import { TextSearch } from "./TextSearch";
-
-const MIN_QUERY = 3;
-const FORM_KEYS = ["q", "year", "office", "listed_from", "listed_to", "next_from", "next_to"] as const;
 
 export function Search({ params }: { params: Params }) {
   const me = useMe();
@@ -54,31 +56,14 @@ function CaseSearch({ params }: { params: Params }) {
   const me = useMe();
   const router = useRouter();
   const setFilters = useFilters(params);
-  const types = useCaseTypes();
-  const [form, setForm] = useState<Record<string, string>>(() =>
-    Object.fromEntries(FORM_KEYS.map((k) => [k, params[k] ?? ""])),
-  );
-  const q = (params.q ?? "").trim();
-  const words = q.length >= MIN_QUERY;
+  const q = (legacyParams(params, "search").q ?? "").trim();
+  const words = q.length >= MIN_WORDS;
   const offset = offsetOf(params);
-  const common = {
-    status: params.status || undefined,
-    year: params.year || undefined,
-    case_type: params.case_type || undefined,
-    office: params.office || undefined,
-    listed_from: params.listed_from || undefined,
-    listed_to: params.listed_to || undefined,
-    limit: PAGE,
-    offset,
-  };
+  const shared = toApiQuery(params, "search");
+  delete shared.q; // the words go to /cases/search only (at least 3 characters)
   const query = words
-    ? { ...common, q, visible_only: params.visible_only === "true" ? true : undefined }
-    : {
-        ...common,
-        case_state: params.case_state || undefined,
-        next_from: params.next_from || undefined,
-        next_to: params.next_to || undefined,
-      };
+    ? { ...shared, q, visible_only: params.visible_only === "true" ? true : undefined, limit: PAGE, offset }
+    : { ...shared, limit: PAGE, offset };
   const path = words ? "/cases/search" : "/cases";
   const list = useQuery({
     queryKey: ["cases", path, query],
@@ -93,63 +78,16 @@ function CaseSearch({ params }: { params: Params }) {
     if (single) router.replace(casePath(single.case.ref_no));
   }, [single, router]);
 
-  const set = (key: string) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [key]: e.target.value }));
   const courtSearch = can(me.data, "cases.search_court");
   const found = (list.data?.items.length ?? 0) > 0;
   return (
     <section className="stack" aria-label={T.search.cases}>
-      <form
-        className="stack"
-        role="search"
-        onSubmit={(e) => {
-          e.preventDefault();
-          setFilters(Object.fromEntries(FORM_KEYS.map((k) => [k, form[k]?.trim() || undefined])));
-        }}
-      >
-        <div className="row">
-          <TextField label={T.search.box} value={form.q ?? ""} onChange={set("q")} style={{ minWidth: 320 }} />
-          <Button type="submit">{T.search.go}</Button>
-        </div>
-        <div className="row">
-          <SelectField
-            label={T.search.status}
-            options={Object.entries(T.inbox.statuses).map(([value, label]) => ({ value, label }))}
-            value={params.status ?? ""}
-            onChange={(e) => setFilters({ status: e.target.value || undefined })}
-          />
-          <TextField label={T.search.year} type="number" value={form.year ?? ""} onChange={set("year")} />
-          <SelectField
-            label={T.search.caseType}
-            options={(types.data ?? [])
-              .filter((t) => t.short_name)
-              .map((t) => ({ value: t.short_name!, label: `${t.short_name}${t.full_name ? ` — ${t.full_name}` : ""}` }))}
-            placeholder={T.search.anyType}
-            value={params.case_type ?? ""}
-            onChange={(e) => setFilters({ case_type: e.target.value || undefined })}
-          />
-          <TextField label={T.search.department} value={form.office ?? ""} onChange={set("office")} />
-          <TextField label={T.search.listedFrom} type="date" value={form.listed_from ?? ""} onChange={set("listed_from")} />
-          <TextField label={T.search.listedTo} type="date" value={form.listed_to ?? ""} onChange={set("listed_to")} />
-        </div>
-        {words ? (
-          <CheckField
-            label={T.search.visibleOnly}
-            checked={params.visible_only === "true"}
-            onChange={(e) => setFilters({ visible_only: e.target.checked ? "true" : undefined })}
-          />
-        ) : (
-          <div className="row">
-            <SelectField
-              label={T.search.caseState}
-              options={Object.entries(T.search.caseStates).map(([value, label]) => ({ value, label }))}
-              value={params.case_state ?? "all"}
-              onChange={(e) => setFilters({ case_state: e.target.value === "all" ? undefined : e.target.value })}
-            />
-            <TextField label={T.search.nextFrom} type="date" value={form.next_from ?? ""} onChange={set("next_from")} />
-            <TextField label={T.search.nextTo} type="date" value={form.next_to ?? ""} onChange={set("next_to")} />
-          </div>
-        )}
-      </form>
+      <FilterBar
+        list="search"
+        params={params}
+        wordsLabel={T.search.box}
+        own={words ? [{ key: "visible_only", kind: "check", label: T.search.visibleOnly }] : []}
+      />
       <ErrorBanner error={list.error} onRetry={() => list.refetch()} />
       {list.isPending || single ? <Loading /> : null}
       {list.data && !single ? (

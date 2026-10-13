@@ -169,6 +169,33 @@ class ReferenceLabelsOut(BaseModel):
     alert_kinds: list[LabelOut]  # design portal-workflow, decision 20f: active `ref_alert_kind` rows
 
 
+class CourtNumberOut(BaseModel):
+    """A court number printed in the cause lists of the window (trimmed)."""
+
+    court_no: str
+    last_listed: date
+    entries: int
+
+
+class BenchTextOut(BaseModel):
+    """A bench (judge names) printed in the cause lists of the window, upper-cased with white space collapsed."""
+
+    text: str
+    last_listed: date
+    entries: int
+
+
+class BenchesOut(BaseModel):
+    """Design `portal-filters`, decision 12: the court and bench pickers' choices (court-public)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    from_: date = Field(alias="from")
+    to: date
+    court_numbers: list[CourtNumberOut]
+    benches: list[BenchTextOut]
+
+
 # ------------------------------------------------------------------------------------------------ offices
 
 

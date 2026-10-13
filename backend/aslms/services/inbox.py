@@ -40,7 +40,8 @@ from aslms.domain.ownership import (
     TransferStatus,
 )
 from aslms.domain.reference import Permission
-from aslms.services import access
+from aslms.services import access, case_filters
+from aslms.services.case_filters import CaseFilters
 from aslms.services.offices import find_office
 from aslms.services.visibility import (
     CaseState,
@@ -204,23 +205,20 @@ def never_owned() -> Any:
     return visibility_never_owned()
 
 
-def _q_condition(q: str | None):
-    term = (q or "").strip()
-    if not term:
-        return None
-    if len(term) < MIN_QUERY:
-        raise InboxError(f"q is at least {MIN_QUERY} characters")
-    like = f"%{term}%"
-    return or_(
-        Case.cnr.ilike(like),
-        Case.case_no_text.ilike(like),
-        Case.petitioner_summary.ilike(like),
-        Case.respondent_summary.ilike(like),
-        exists().where(
-            CauselistEntry.case_id == Case.id,
-            or_(CauselistEntry.petitioner_text.ilike(like), CauselistEntry.respondent_text.ilike(like)),
-        ),
-    )
+def _filtered(stmt: Select, session: Session | None, filters: CaseFilters | None) -> Select:
+    """The shared case filters (design `portal-filters`) ANDed on the statement's `Case`."""
+    if filters is None or filters.is_empty:
+        return stmt
+    if session is None:
+        raise TypeError("a session is needed to apply case filters")
+    return stmt.where(*case_filters.conditions(session, filters))
+
+
+def _no_owner(filters: CaseFilters | None) -> CaseFilters | None:
+    """Recommended, Claimed, the pool and Transfers have no owner filter (design `portal-filters`, decision 5)."""
+    if filters is not None and filters.owner is not None:
+        raise InboxError("owner is not a filter of this list")
+    return filters
 
 
 def _count(session: Session, stmt: Select) -> int:
@@ -230,32 +228,12 @@ def _count(session: Session, stmt: Select) -> int:
 # ------------------------------------------------------------------------------------------------ recommended
 
 
-def _listed_condition(listed_from: date | None, listed_to: date | None):
-    """A cause-list entry of the case dated in the range (either end open); None without a range."""
-    if listed_from is None and listed_to is None:
-        return None
-    if listed_from is not None and listed_to is not None and listed_from > listed_to:
-        raise InboxError("listed_from is after listed_to")
-    conds = [CauselistEntry.case_id == Case.id]
-    if listed_from is not None:
-        conds.append(Causelist.list_date >= listed_from)
-    if listed_to is not None:
-        conds.append(Causelist.list_date <= listed_to)
-    return exists(
-        select(1)
-        .select_from(CauselistEntry)
-        .join(Causelist, Causelist.id == CauselistEntry.causelist_id)
-        .where(and_(*conds))
-    )
-
-
 def recommended_stmt(
     department: Office,
     *,
     band: ScoreBand | None = None,
-    q: str | None = None,
-    listed_from: date | None = None,
-    listed_to: date | None = None,
+    filters: CaseFilters | None = None,
+    session: Session | None = None,
 ) -> Select:
     stmt = (
         select(Recommendation, Case)
@@ -268,13 +246,7 @@ def recommended_stmt(
     )
     if band is not None:
         stmt = stmt.where(Recommendation.band == band)
-    cond = _q_condition(q)
-    if cond is not None:
-        stmt = stmt.where(cond)
-    listed = _listed_condition(listed_from, listed_to)
-    if listed is not None:
-        stmt = stmt.where(listed)
-    return stmt
+    return _filtered(stmt, session, filters)
 
 
 def recommended(
@@ -283,16 +255,14 @@ def recommended(
     *,
     office: str | None = None,
     band: ScoreBand | str | None = None,
-    q: str | None = None,
-    listed_from: date | None = None,
-    listed_to: date | None = None,
+    filters: CaseFilters | None = None,
     limit: int | None = None,
     offset: int | None = None,
 ) -> Page:
     dept, _ = target_department(session, user, office, own_permission=Permission.CASES_CLAIM)
     band_v = ScoreBand(band) if band else None
     limit, offset = clamp(limit, offset)
-    stmt = recommended_stmt(dept, band=band_v, q=q, listed_from=listed_from, listed_to=listed_to)
+    stmt = recommended_stmt(dept, band=band_v, filters=_no_owner(filters), session=session)
     total = _count(session, stmt)
     rows = session.execute(
         stmt.order_by(
@@ -375,7 +345,7 @@ def claimed_stmt(
     role: OwnershipRole | None = None,
     unit: Office | None = None,
     officer_user_id: uuid.UUID | None = None,
-    q: str | None = None,
+    filters: CaseFilters | None = None,
 ) -> Select:
     stmt = (
         select(CaseOwnership, Case)
@@ -389,10 +359,7 @@ def claimed_stmt(
         stmt = stmt.where(CaseOwnership.unit_office_id.in_(units))
     if officer_user_id is not None:
         stmt = stmt.where(CaseOwnership.officer_user_id == officer_user_id)
-    cond = _q_condition(q)
-    if cond is not None:
-        stmt = stmt.where(cond)
-    return stmt
+    return _filtered(stmt, session, filters)
 
 
 def _case_state(value: str | None) -> CaseState:
@@ -411,7 +378,7 @@ def claimed(
     role: OwnershipRole | str | None = None,
     unit: str | None = None,
     officer_user_id: uuid.UUID | None = None,
-    q: str | None = None,
+    filters: CaseFilters | None = None,
     limit: int | None = None,
     offset: int | None = None,
 ) -> Page:
@@ -434,7 +401,7 @@ def claimed(
         role=role_v,
         unit=unit_office,
         officer_user_id=officer_user_id,
-        q=q,
+        filters=_no_owner(filters),
     )
     total = _count(session, stmt)
     rows = session.execute(
@@ -481,45 +448,24 @@ def _state_party_condition(session: Session):
 def pool_stmt(
     session: Session,
     *,
-    q: str | None = None,
-    listed_from: date | None = None,
-    listed_to: date | None = None,
-    status: CaseStatus | None = None,
-    case_type: str | None = None,
-    year: int | None = None,
+    filters: CaseFilters | None = None,
     min_score: float | None = None,
+    scored_for: Office | None = None,
     state_party: bool | None = None,
 ) -> Select:
-    stmt = select(Case).where(Case.merged_into_case_id.is_(None), never_owned())
-    cond = _q_condition(q)
-    if cond is not None:
-        stmt = stmt.where(cond)
-    if listed_from is not None or listed_to is not None:
-        conds = [CauselistEntry.case_id == Case.id]
-        if listed_from is not None:
-            conds.append(Causelist.list_date >= listed_from)
-        if listed_to is not None:
-            conds.append(Causelist.list_date <= listed_to)
-        stmt = stmt.where(
-            exists(
-                select(1)
-                .select_from(CauselistEntry)
-                .join(Causelist, Causelist.id == CauselistEntry.causelist_id)
-                .where(and_(*conds))
-            )
-        )
-    if status is not None:
-        stmt = stmt.where(Case.status == status)
-    if case_type:
-        stmt = stmt.where(func.upper(Case.case_type_text) == case_type.strip().upper())
-    if year is not None:
-        stmt = stmt.where(Case.reg_year == year)
-    if min_score is not None:
-        if not (0 <= float(min_score) <= 1):
-            raise InboxError("min_score is between 0 and 1")
-        stmt = stmt.where(
-            exists().where(CaseOfficeScore.case_id == Case.id, CaseOfficeScore.score >= float(min_score))
-        )
+    """Never-owned non-merged cases, then the shared filters. `scored_for` keeps cases with a score row for
+    that department, and with `min_score` the same row must reach it (design `portal-filters`, decision 5);
+    `min_score` alone: any department's row."""
+    stmt = _filtered(select(Case).where(Case.merged_into_case_id.is_(None), never_owned()), session, filters)
+    if min_score is not None and not (0 <= float(min_score) <= 1):
+        raise InboxError("min_score is between 0 and 1")
+    if scored_for is not None or min_score is not None:
+        conds = [CaseOfficeScore.case_id == Case.id]
+        if scored_for is not None:
+            conds.append(CaseOfficeScore.office_id == scored_for.id)
+        if min_score is not None:
+            conds.append(CaseOfficeScore.score >= float(min_score))
+        stmt = stmt.where(exists().where(*conds))
     if state_party is True:
         stmt = stmt.where(_state_party_condition(session))
     elif state_party is False:
@@ -539,30 +485,18 @@ def pool(
     session: Session,
     user: User,
     *,
-    q: str | None = None,
-    listed_from: date | None = None,
-    listed_to: date | None = None,
-    status: CaseStatus | str | None = None,
-    case_type: str | None = None,
-    year: int | None = None,
+    filters: CaseFilters | None = None,
     min_score: float | None = None,
+    scored_for: str | None = None,
     state_party: bool | None = None,
     limit: int | None = None,
     offset: int | None = None,
 ) -> Page:
     _pool_allowed(session, user)
-    status_v = CaseStatus(status) if status else None
+    scored = case_filters.department_code(session, "scored_for", case_filters.parse_office_code(scored_for))
     limit, offset = clamp(limit, offset)
     stmt = pool_stmt(
-        session,
-        q=q,
-        listed_from=listed_from,
-        listed_to=listed_to,
-        status=status_v,
-        case_type=case_type,
-        year=year,
-        min_score=min_score,
-        state_party=state_party,
+        session, filters=_no_owner(filters), min_score=min_score, scored_for=scored, state_party=state_party
     )
     total = _count(session, stmt)
     cases = list(
@@ -620,23 +554,31 @@ def _transfers_allowed(session: Session, user: User) -> bool:
 
 
 def transfers_stmt(
-    department: Office, *, direction: Direction | None = None, status: TransferStatus | None = None
+    department: Office,
+    *,
+    direction: Direction | None = None,
+    status: TransferStatus | None = None,
+    other: Office | None = None,
+    filters: CaseFilters | None = None,
+    session: Session | None = None,
 ) -> Select:
+    """The department's transfers; `other` keeps those whose other side is that department (`from` for In,
+    `to` for Out, either side without a direction; design `portal-filters`, decision 5)."""
     stmt = select(OwnershipTransfer, Case).join(Case, Case.id == OwnershipTransfer.case_id)
+    incoming = OwnershipTransfer.to_office_id == department.id
+    outgoing = OwnershipTransfer.from_office_id == department.id
+    if other is not None:
+        incoming = and_(incoming, OwnershipTransfer.from_office_id == other.id)
+        outgoing = and_(outgoing, OwnershipTransfer.to_office_id == other.id)
     if direction == "in":
-        stmt = stmt.where(OwnershipTransfer.to_office_id == department.id)
+        stmt = stmt.where(incoming)
     elif direction == "out":
-        stmt = stmt.where(OwnershipTransfer.from_office_id == department.id)
+        stmt = stmt.where(outgoing)
     else:
-        stmt = stmt.where(
-            or_(
-                OwnershipTransfer.to_office_id == department.id,
-                OwnershipTransfer.from_office_id == department.id,
-            )
-        )
+        stmt = stmt.where(or_(incoming, outgoing))
     if status is not None:
         stmt = stmt.where(OwnershipTransfer.status == status)
-    return stmt
+    return _filtered(stmt, session, filters)
 
 
 def transfers(
@@ -646,6 +588,8 @@ def transfers(
     office: str | None = None,
     direction: str | None = None,
     status: TransferStatus | str | None = None,
+    other_office: str | None = None,
+    filters: CaseFilters | None = None,
     limit: int | None = None,
     offset: int | None = None,
 ) -> Page:
@@ -673,8 +617,18 @@ def transfers(
     if direction is not None and direction not in ("in", "out"):
         raise InboxError("direction is in or out")
     status_v = TransferStatus(status) if status else None
+    other = case_filters.department_code(
+        session, "other_office", case_filters.parse_office_code(other_office)
+    )
     limit, offset = clamp(limit, offset)
-    stmt = transfers_stmt(dept, direction=direction, status=status_v)  # type: ignore[arg-type]
+    stmt = transfers_stmt(
+        dept,
+        direction=direction,  # type: ignore[arg-type]
+        status=status_v,
+        other=other,
+        filters=_no_owner(filters),
+        session=session,
+    )
     total = _count(session, stmt)
     rows = session.execute(
         stmt.order_by(OwnershipTransfer.created_at.desc()).limit(limit).offset(offset)

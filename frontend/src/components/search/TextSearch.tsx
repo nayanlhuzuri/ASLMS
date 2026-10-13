@@ -3,13 +3,15 @@
 /**
  * "Order and document text" (design portal-cases, decision 9; plan §5.6 "searched by content"): with
  * `documents.view`, `GET /documents/search` with the API's snippet and the case link; visibility is applied by the API.
+ * The one filter bar (design portal-filters): the words, the document group and type and the document date range (the
+ * API's `group`, `doc_type`, `date_from`, `date_to`).
  */
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
-
-import { Button, CaseLink, EmptyState, ErrorBanner, Loading, Pagination, Table, TextField } from "@/components/ui";
+import { FilterBar } from "@/components/filters/FilterBar";
+import { CaseLink, EmptyState, ErrorBanner, Loading, Pagination, Table } from "@/components/ui";
 import { useFilters } from "@/components/inbox/common";
 import { api } from "@/lib/api/client";
+import { useDocumentTypes } from "@/lib/api/hooks";
 import type { DocumentSearch } from "@/lib/api/types";
 import { formatDate } from "@/lib/format";
 import { T } from "@/lib/messages";
@@ -17,27 +19,49 @@ import { offsetOf, PAGE, type Params } from "@/lib/params";
 
 export function TextSearch({ params }: { params: Params }) {
   const setFilters = useFilters(params);
-  const [text, setText] = useState(params.q ?? "");
+  const types = useDocumentTypes();
   const q = (params.q ?? "").trim();
   const offset = offsetOf(params);
+  const group = params.group || undefined;
+  const query = {
+    q,
+    group,
+    doc_type: params.doc_type || undefined,
+    date_from: params.date_from || undefined,
+    date_to: params.date_to || undefined,
+    limit: PAGE,
+    offset,
+  };
   const list = useQuery({
-    queryKey: ["documents", "search", q, offset],
-    queryFn: () => api<DocumentSearch>("/documents/search", { query: { q, limit: PAGE, offset } }),
+    queryKey: ["documents", "search", query],
+    queryFn: () => api<DocumentSearch>("/documents/search", { query }),
     enabled: q.length >= 3,
   });
+  const typeOptions = (types.data?.items ?? [])
+    .filter((t) => !group || t.doc_group === group)
+    .map((t) => ({ value: t.code, label: t.label }));
   return (
     <section className="stack" aria-label={T.search.text}>
-      <form
-        className="row"
-        role="search"
-        onSubmit={(e) => {
-          e.preventDefault();
-          setFilters({ q: text.trim() || undefined });
-        }}
-      >
-        <TextField label={T.search.textBox} value={text} minLength={3} onChange={(e) => setText(e.target.value)} />
-        <Button type="submit">{T.search.go}</Button>
-      </form>
+      <FilterBar
+        list="documents"
+        params={params}
+        wordsLabel={T.search.textBox}
+        own={[
+          {
+            key: "group",
+            kind: "select",
+            label: T.search.docGroup,
+            placeholder: T.search.anyGroup,
+            options: Object.entries(T.case.docGroups).map(([value, label]) => ({ value, label })),
+          },
+          { key: "doc_type", kind: "select", label: T.search.docType, placeholder: T.search.anyDocType, options: typeOptions },
+          { key: "date_from", kind: "date", label: T.search.docDateFrom },
+          { key: "date_to", kind: "date", label: T.search.docDateTo },
+        ]}
+        ownRanges={[["date_from", "date_to"]]}
+        total={q.length >= 3 ? list.data?.total : undefined}
+        noun="documents"
+      />
       <ErrorBanner error={list.error} onRetry={() => list.refetch()} />
       {q.length >= 3 && list.isPending ? <Loading /> : null}
       {list.data ? (

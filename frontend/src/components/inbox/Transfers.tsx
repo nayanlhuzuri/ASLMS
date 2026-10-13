@@ -3,16 +3,19 @@
 /**
  * The Transfers tab (design portal-cases, decision 6): In / Out and status. In rows still requested offer Accept /
  * Decline with `cases.transfer_decide`; Out rows still requested offer Withdraw with `cases.transfer_request` (both in
- * the selected department's membership).
+ * the selected department's membership). The one filter bar (design portal-filters): the shared case filters, "Other
+ * department" (`other_office`) and the transfer's status.
  */
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { Badge, Button, CaseLink, EmptyState, ErrorBanner, Loading, Pagination, SelectField, Table } from "@/components/ui";
+import { FilterBar } from "@/components/filters/FilterBar";
+import { Badge, Button, CaseLink, EmptyState, ErrorBanner, Loading, Pagination, Table } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { INBOX_KEY, useMe } from "@/lib/api/hooks";
 import type { TransferList } from "@/lib/api/types";
 import { canIn } from "@/lib/can";
+import { toApiQuery } from "@/lib/filters";
 import { formatDate } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { offsetOf, PAGE, type Params } from "@/lib/params";
@@ -32,7 +35,14 @@ export function Transfers({ params, department }: { params: Params; department: 
   const [dialog, setDialog] = useState<DialogKind | null>(null);
   const direction = params.direction === "out" ? "out" : "in";
   const offset = offsetOf(params);
-  const query = { office: department, direction, status: params.status || undefined, limit: PAGE, offset };
+  const query = {
+    office: department,
+    direction,
+    status: params.status || undefined,
+    ...toApiQuery(params, "transfers"),
+    limit: PAGE,
+    offset,
+  };
   const list = useQuery({
     queryKey: [...INBOX_KEY, "transfers", query],
     queryFn: () => api<TransferList>("/inbox/transfers", { query }),
@@ -54,13 +64,24 @@ export function Transfers({ params, department }: { params: Params; department: 
             </Button>
           ))}
         </div>
-        <SelectField
-          label={T.inbox.status}
-          options={Object.entries(T.inbox.transferStatuses).map(([value, label]) => ({ value, label }))}
-          value={params.status ?? ""}
-          onChange={(e) => setFilters({ status: e.target.value || undefined })}
-        />
       </div>
+      <FilterBar
+        list="transfers"
+        params={params}
+        own={[
+          {
+            key: "status",
+            kind: "select",
+            label: T.inbox.transferStatus,
+            options: Object.entries(T.inbox.transferStatuses)
+              .filter(([value]) => value)
+              .map(([value, label]) => ({ value, label })),
+            placeholder: T.inbox.transferStatuses[""],
+          },
+        ]}
+        total={list.data?.total}
+        noun="transfers"
+      />
       <ErrorBanner error={list.error} onRetry={() => list.refetch()} />
       {list.isPending ? <Loading /> : null}
       {list.data ? (

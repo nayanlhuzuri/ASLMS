@@ -6,30 +6,32 @@
  * and go to the API as its parameters. Opening the list marks nothing read; a row is marked read by "Mark read", by
  * "Mark all read", or by following its subject link (marked first; a failed mark never blocks the navigation).
  * Acknowledge / Done show by the item's `can_act` and status; a case is a link only when the API's `case_visible`
- * says the caller can open it.
+ * says the caller can open it. The one filter bar (design portal-filters): the shared case filters with the owning
+ * department, plus the alert status, kind, severity and Unread only; with any case filter set the alerts without a case
+ * drop out, and the bar says so.
  */
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { MouseEvent, ReactNode } from "react";
 
+import { FilterBar } from "@/components/filters/FilterBar";
 import { useFilters } from "@/components/inbox/common";
 import {
   Badge,
   Button,
   CaseLink,
-  CheckField,
   EmptyState,
   ErrorBanner,
   Loading,
   Pagination,
-  SelectField,
   SeverityBadge,
 } from "@/components/ui";
 import { AlertActions } from "@/components/workflow/CaseAlerts";
 import { api } from "@/lib/api/client";
 import { caseKey, useAlertCounts, useLabels } from "@/lib/api/hooks";
 import type { AlertItem, AlertList as AlertListOut } from "@/lib/api/types";
+import { hasCaseFilter, toApiQuery } from "@/lib/filters";
 import { formatDateTime, formatNumber } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { offsetOf, PAGE, type Params } from "@/lib/params";
@@ -206,11 +208,13 @@ export function AlertList({ params }: { params: Params }) {
   const setFilters = useFilters(params);
   const labels = useLabels();
   const offset = offsetOf(params);
+  const caseFilters = toApiQuery(params, "alerts");
   const filters = {
     status: params.status || undefined,
     kind: params.kind || undefined,
     severity: params.severity || undefined,
     unread: params.unread === "true" ? true : undefined,
+    ...caseFilters,
     offset,
   };
   const list = useQuery({
@@ -218,37 +222,44 @@ export function AlertList({ params }: { params: Params }) {
     queryFn: () => api<AlertListOut>("/alerts", { query: { ...filters, limit: PAGE } }),
     placeholderData: keepPreviousData,
   });
-  const defaults = !filters.status && !filters.kind && !filters.severity && !filters.unread && offset === 0;
+  const defaults =
+    !filters.status && !filters.kind && !filters.severity && !filters.unread && offset === 0 && !hasCaseFilter(params, "alerts");
   return (
     <div className="stack">
       <CountsHeader />
-      <div className="row" style={{ alignItems: "flex-end" }}>
-        <SelectField
-          label={T.alerts.status}
-          options={STATUSES.map((st) => ({ value: st, label: T.alerts.statuses[st] ?? st }))}
-          value={params.status ?? ""}
-          onChange={(e) => setFilters({ status: e.target.value || undefined })}
-        />
-        <SelectField
-          label={T.alerts.kind}
-          placeholder={T.alerts.allKinds}
-          options={(labels.data?.alert_kinds ?? []).map((k) => ({ value: k.code, label: k.label }))}
-          value={params.kind ?? ""}
-          onChange={(e) => setFilters({ kind: e.target.value || undefined })}
-        />
-        <SelectField
-          label={T.alerts.severity}
-          placeholder={T.alerts.allSeverities}
-          options={SEVERITIES.map((sev) => ({ value: sev, label: T.wf.severity[sev] ?? sev }))}
-          value={params.severity ?? ""}
-          onChange={(e) => setFilters({ severity: e.target.value || undefined })}
-        />
-        <CheckField
-          label={T.alerts.unreadOnly}
-          checked={params.unread === "true"}
-          onChange={(e) => setFilters({ unread: e.target.checked ? "true" : undefined })}
-        />
-      </div>
+      <FilterBar
+        list="alerts"
+        params={params}
+        own={[
+          {
+            key: "status",
+            kind: "select",
+            label: T.alerts.status,
+            options: STATUSES.filter((st) => st).map((st) => ({ value: st, label: T.alerts.statuses[st] ?? st })),
+            placeholder: T.alerts.statuses[""],
+          },
+          {
+            key: "kind",
+            kind: "select",
+            label: T.alerts.kind,
+            placeholder: T.alerts.allKinds,
+            options: (labels.data?.alert_kinds ?? []).map((k) => ({ value: k.code, label: k.label })),
+            more: true,
+          },
+          {
+            key: "severity",
+            kind: "select",
+            label: T.alerts.severity,
+            placeholder: T.alerts.allSeverities,
+            options: SEVERITIES.map((sev) => ({ value: sev, label: T.wf.severity[sev] ?? sev })),
+            more: true,
+          },
+          { key: "unread", kind: "check", label: T.alerts.unreadOnly, more: true },
+        ]}
+        total={list.data?.total}
+        noun="alerts"
+        note={hasCaseFilter(params, "alerts") ? T.filters.caselessHidden : null}
+      />
       <ErrorBanner error={list.error} onRetry={() => list.refetch()} />
       {list.isPending ? <Loading /> : null}
       {list.data ? (

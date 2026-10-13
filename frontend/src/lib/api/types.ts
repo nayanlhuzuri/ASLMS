@@ -112,6 +112,7 @@ export type RecipientList = S["RecipientListOut"];
 export type Recipient = S["RecipientOut"];
 export type DepartmentRef = S["DepartmentRefOut"];
 export type CaseType = S["CaseTypeOut"];
+export type Benches = S["BenchesOut"];
 export type UnmatchedRow = S["UnmatchedRowOut"];
 // portal-mapping: counsel codes, keywords, name patterns, watchlist, scoring settings
 export type OfficeOut = S["OfficeOut"];

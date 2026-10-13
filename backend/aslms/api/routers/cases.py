@@ -10,17 +10,18 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
 from aslms.api import schemas
 from aslms.api.deps import actor_of, get_session, napix_client, require, require_any
+from aslms.api.filters import case_filter_query, search_filter_query, with_legacy
 from aslms.domain.cases import Case
 from aslms.domain.org import User
 from aslms.domain.reference import Permission
 from aslms.services import case_detail, case_search, court_search
+from aslms.services.case_filters import CaseFilters
 from aslms.services.case_search import SearchError
 from aslms.services.cases import CaseNotFound, resolve_case_ref
 from aslms.services.court_search import (
@@ -58,17 +59,11 @@ def _case(session: Session, ref: str) -> Case:
 
 @router.get("", response_model=schemas.CaseSearchListOut)
 def list_cases(
-    q: str | None = None,
+    filters: CaseFilters = Depends(case_filter_query),
     field: str = "auto",
-    status_: str | None = Query(None, alias="status"),
     case_state: str = "all",
-    year: int | None = None,
-    case_type: str | None = None,
-    office: str | None = None,
-    listed_from: date | None = None,
-    listed_to: date | None = None,
-    next_from: date | None = None,
-    next_to: date | None = None,
+    status_: str | None = Query(None, alias="status", deprecated=True, description="Use case_status"),
+    office: str | None = Query(None, deprecated=True, description="Use owner"),
     limit: int = case_search.DEFAULT_LIMIT,
     offset: int = 0,
     session: Session = Depends(get_session),
@@ -76,23 +71,10 @@ def list_cases(
 ) -> schemas.CaseSearchListOut:
     """The caller's visible cases (the work list of officers, directorate users, standing counsel and the
     State-wide readers); `q` is optional, filters alone are fine; `total` is counted up to 10,000."""
+    filters = with_legacy(filters, status=status_, office=office)
     try:
         page = case_search.list_visible(
-            session,
-            user,
-            q=q,
-            field_=field,
-            status=status_,
-            case_state=case_state,
-            year=year,
-            case_type=case_type,
-            office=office,
-            listed_from=listed_from,
-            listed_to=listed_to,
-            next_from=next_from,
-            next_to=next_to,
-            limit=limit,
-            offset=offset,
+            session, user, field_=field, case_state=case_state, filters=filters, limit=limit, offset=offset
         )
     except (SearchError, ValueError) as exc:
         raise _http(exc) from exc
@@ -101,14 +83,10 @@ def list_cases(
 
 @router.get("/search", response_model=schemas.CaseSearchListOut)
 def search_cases(
-    q: str = Query(..., min_length=case_search.MIN_QUERY),
+    filters: CaseFilters = Depends(search_filter_query),
     field: str = "auto",
-    status_: str | None = Query(None, alias="status"),
-    year: int | None = None,
-    case_type: str | None = None,
-    office: str | None = None,
-    listed_from: date | None = None,
-    listed_to: date | None = None,
+    status_: str | None = Query(None, alias="status", deprecated=True, description="Use case_status"),
+    office: str | None = Query(None, deprecated=True, description="Use owner"),
     visible_only: bool = False,
     limit: int = case_search.DEFAULT_LIMIT,
     offset: int = 0,
@@ -117,18 +95,14 @@ def search_cases(
 ) -> schemas.CaseSearchListOut:
     """One box: a CNR, a case number (`WP(C) 4326/2025`), a `ref_no`, an id, or party / advocate words;
     every matching case as a court-public summary with `visible`, `owner_office_code`, `in_pool`, `claimable`."""
+    filters = with_legacy(filters, status=status_, office=office)
     try:
         page = case_search.search(
             session,
             user,
-            q=q,
+            q=filters.q or "",
             field_=field,
-            status=status_,
-            year=year,
-            case_type=case_type,
-            office=office,
-            listed_from=listed_from,
-            listed_to=listed_to,
+            filters=filters,
             visible_only=visible_only,
             limit=limit,
             offset=offset,

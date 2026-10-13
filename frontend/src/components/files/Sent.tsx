@@ -3,14 +3,17 @@
 /**
  * "Sent" (design portal-files-alerts, decision 12; custody-workflow decision 24): the legs the caller wrote, sends and
  * recalls, newest first. The case is a link only when the API says the caller can open it (`visible`); otherwise its
- * number is text, never a link to a 404. The remark is the caller's own.
+ * number is text, never a link to a 404. The remark is the caller's own. The one filter bar (design portal-filters):
+ * the shared case filters with the owning department; they match the facts the row already shows.
  */
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
+import { FilterBar } from "@/components/filters/FilterBar";
 import { useFilters } from "@/components/inbox/common";
 import { CaseLink, EmptyState, ErrorBanner, Loading, Pagination, Table } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import type { SentItem, SentList } from "@/lib/api/types";
+import { toApiQuery } from "@/lib/filters";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { offsetOf, PAGE, type Params } from "@/lib/params";
@@ -32,13 +35,15 @@ function SentTo({ item }: { item: SentItem }) {
 export function Sent({ params }: { params: Params }) {
   const setFilters = useFilters(params);
   const offset = offsetOf(params);
+  const query = { ...toApiQuery(params, "sent"), limit: PAGE, offset };
   const list = useQuery({
-    queryKey: ["files", "sent", offset],
-    queryFn: () => api<SentList>("/custody/sent", { query: { limit: PAGE, offset } }),
+    queryKey: ["files", "sent", query],
+    queryFn: () => api<SentList>("/custody/sent", { query }),
     placeholderData: keepPreviousData,
   });
   return (
     <div className="stack">
+      <FilterBar list="sent" params={params} total={list.data?.total} noun="files" />
       <ErrorBanner error={list.error} onRetry={() => list.refetch()} />
       {list.isPending ? <Loading /> : null}
       {list.data ? (

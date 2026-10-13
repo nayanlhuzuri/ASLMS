@@ -1758,7 +1758,8 @@ export interface paths {
         /**
          * List Alerts
          * @description The caller's own in-app notifications (the latest per alert), newest first; `status` defaults to
-         *     open and acknowledged (`all` for every state).
+         *     open and acknowledged (`all` for every state). The shared case filters narrow them; with any set, alerts
+         *     without a case drop out.
          */
         get: operations["list_alerts_alerts_get"];
         put?: never;
@@ -2742,7 +2743,7 @@ export interface paths {
         /**
          * Custody Sent
          * @description The legs the caller wrote (sends and recalls) with the case summary and `visible`: whether the caller can
-         *     open the case now (the sender usually loses sight of a case sent on).
+         *     open the case now (the sender usually loses sight of a case sent on). The shared case filters narrow them.
          */
         get: operations["custody_sent_custody_sent_get"];
         put?: never;
@@ -3051,8 +3052,8 @@ export interface paths {
         };
         /**
          * Recommended
-         * @description The department's active recommendations, strongest first, each with the signals behind its score.
-         *     `listed_from` / `listed_to` keep the cases with a cause-list entry dated in the range.
+         * @description The department's active recommendations, strongest first, each with the signals behind its score;
+         *     the shared case filters narrow them.
          */
         get: operations["recommended_inbox_recommended_get"];
         put?: never;
@@ -3259,6 +3260,28 @@ export interface paths {
          * @description One note by id or `ref_no` (404 when it is not visible to you).
          */
         get: operations["get_note_notes__note__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/reference/benches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Benches
+         * @description The court numbers and bench texts printed in the cause lists of the last `days` days up to today (IST),
+         *     each with the last date it appeared and its entry count; court numbers numerically, benches by text.
+         *     Court-public data, the same for every reader.
+         */
+        get: operations["benches_reference_benches_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3833,6 +3856,41 @@ export interface components {
             bench_name: string | null;
             /** Judge Names */
             judge_names: string | null;
+        };
+        /**
+         * BenchTextOut
+         * @description A bench (judge names) printed in the cause lists of the window, upper-cased with white space collapsed.
+         */
+        BenchTextOut: {
+            /** Entries */
+            entries: number;
+            /**
+             * Last Listed
+             * Format: date
+             */
+            last_listed: string;
+            /** Text */
+            text: string;
+        };
+        /**
+         * BenchesOut
+         * @description Design `portal-filters`, decision 12: the court and bench pickers' choices (court-public).
+         */
+        BenchesOut: {
+            /** Benches */
+            benches: components["schemas"]["BenchTextOut"][];
+            /** Court Numbers */
+            court_numbers: components["schemas"]["CourtNumberOut"][];
+            /**
+             * From
+             * Format: date
+             */
+            from: string;
+            /**
+             * To
+             * Format: date
+             */
+            to: string;
         };
         /** Body_add_note_cases__ref__notes_post */
         Body_add_note_cases__ref__notes_post: {
@@ -4438,6 +4496,21 @@ export interface components {
             office_code?: string | null;
             /** Weight */
             weight?: number | null;
+        };
+        /**
+         * CourtNumberOut
+         * @description A court number printed in the cause lists of the window (trimmed).
+         */
+        CourtNumberOut: {
+            /** Court No */
+            court_no: string;
+            /** Entries */
+            entries: number;
+            /**
+             * Last Listed
+             * Format: date
+             */
+            last_listed: string;
         };
         /** CourtRefOut */
         CourtRefOut: {
@@ -12835,6 +12908,28 @@ export interface operations {
                 case?: string | null;
                 limit?: number;
                 offset?: number;
+                /** @description Words as the Search box (at least 3 characters): a CNR, a case number (`WP(C) 4326/2025`), a `ref_no`, or words matched as prefixes over parties, advocates, counsel codes and numbers */
+                q?: string | null;
+                /** @description The department holding the active primary ownership (a department code) */
+                owner?: string | null;
+                /** @description A cause-list entry of the case dated on or after this day (IST) */
+                listed_from?: string | null;
+                /** @description A cause-list entry of the case dated on or before this day */
+                listed_to?: string | null;
+                /** @description That same entry's court number, as printed */
+                court_no?: string | null;
+                /** @description That same entry's bench (judge names) contains this text (case and spacing ignored) */
+                bench?: string | null;
+                /** @description Next hearing date on or after this day */
+                next_from?: string | null;
+                /** @description Next hearing date on or before this day */
+                next_to?: string | null;
+                /** @description The case type: the master's short name or an alias, or the case's type text */
+                case_type?: string | null;
+                /** @description Registration year (1900-2100) */
+                year?: number | null;
+                /** @description pending, disposed or unknown */
+                case_status?: string | null;
             };
             header?: never;
             path?: never;
@@ -13486,19 +13581,42 @@ export interface operations {
     list_cases_cases_get: {
         parameters: {
             query?: {
-                q?: string | null;
                 field?: string;
-                status?: string | null;
                 case_state?: string;
-                year?: number | null;
-                case_type?: string | null;
+                /**
+                 * @deprecated
+                 * @description Use case_status
+                 */
+                status?: string | null;
+                /**
+                 * @deprecated
+                 * @description Use owner
+                 */
                 office?: string | null;
-                listed_from?: string | null;
-                listed_to?: string | null;
-                next_from?: string | null;
-                next_to?: string | null;
                 limit?: number;
                 offset?: number;
+                /** @description Words as the Search box (at least 3 characters): a CNR, a case number (`WP(C) 4326/2025`), a `ref_no`, or words matched as prefixes over parties, advocates, counsel codes and numbers */
+                q?: string | null;
+                /** @description The department holding the active primary ownership (a department code) */
+                owner?: string | null;
+                /** @description A cause-list entry of the case dated on or after this day (IST) */
+                listed_from?: string | null;
+                /** @description A cause-list entry of the case dated on or before this day */
+                listed_to?: string | null;
+                /** @description That same entry's court number, as printed */
+                court_no?: string | null;
+                /** @description That same entry's bench (judge names) contains this text (case and spacing ignored) */
+                bench?: string | null;
+                /** @description Next hearing date on or after this day */
+                next_from?: string | null;
+                /** @description Next hearing date on or before this day */
+                next_to?: string | null;
+                /** @description The case type: the master's short name or an alias, or the case's type text */
+                case_type?: string | null;
+                /** @description Registration year (1900-2100) */
+                year?: number | null;
+                /** @description pending, disposed or unknown */
+                case_status?: string | null;
             };
             header?: never;
             path?: never;
@@ -13529,17 +13647,42 @@ export interface operations {
     search_cases_cases_search_get: {
         parameters: {
             query: {
-                q: string;
                 field?: string;
+                /**
+                 * @deprecated
+                 * @description Use case_status
+                 */
                 status?: string | null;
-                year?: number | null;
-                case_type?: string | null;
+                /**
+                 * @deprecated
+                 * @description Use owner
+                 */
                 office?: string | null;
-                listed_from?: string | null;
-                listed_to?: string | null;
                 visible_only?: boolean;
                 limit?: number;
                 offset?: number;
+                /** @description Words as the Search box (at least 3 characters): a CNR, a case number (`WP(C) 4326/2025`), a `ref_no`, or words matched as prefixes over parties, advocates, counsel codes and numbers */
+                q: string;
+                /** @description The department holding the active primary ownership (a department code) */
+                owner?: string | null;
+                /** @description A cause-list entry of the case dated on or after this day (IST) */
+                listed_from?: string | null;
+                /** @description A cause-list entry of the case dated on or before this day */
+                listed_to?: string | null;
+                /** @description That same entry's court number, as printed */
+                court_no?: string | null;
+                /** @description That same entry's bench (judge names) contains this text (case and spacing ignored) */
+                bench?: string | null;
+                /** @description Next hearing date on or after this day */
+                next_from?: string | null;
+                /** @description Next hearing date on or before this day */
+                next_to?: string | null;
+                /** @description The case type: the master's short name or an alias, or the case's type text */
+                case_type?: string | null;
+                /** @description Registration year (1900-2100) */
+                year?: number | null;
+                /** @description pending, disposed or unknown */
+                case_status?: string | null;
             };
             header?: never;
             path?: never;
@@ -14988,6 +15131,28 @@ export interface operations {
                 holder_department?: string | null;
                 limit?: number;
                 offset?: number;
+                /** @description Words as the Search box (at least 3 characters): a CNR, a case number (`WP(C) 4326/2025`), a `ref_no`, or words matched as prefixes over parties, advocates, counsel codes and numbers */
+                q?: string | null;
+                /** @description The department holding the active primary ownership (a department code) */
+                owner?: string | null;
+                /** @description A cause-list entry of the case dated on or after this day (IST) */
+                listed_from?: string | null;
+                /** @description A cause-list entry of the case dated on or before this day */
+                listed_to?: string | null;
+                /** @description That same entry's court number, as printed */
+                court_no?: string | null;
+                /** @description That same entry's bench (judge names) contains this text (case and spacing ignored) */
+                bench?: string | null;
+                /** @description Next hearing date on or after this day */
+                next_from?: string | null;
+                /** @description Next hearing date on or before this day */
+                next_to?: string | null;
+                /** @description The case type: the master's short name or an alias, or the case's type text */
+                case_type?: string | null;
+                /** @description Registration year (1900-2100) */
+                year?: number | null;
+                /** @description pending, disposed or unknown */
+                case_status?: string | null;
             };
             header?: never;
             path?: never;
@@ -15126,6 +15291,28 @@ export interface operations {
             query?: {
                 limit?: number;
                 offset?: number;
+                /** @description Words as the Search box (at least 3 characters): a CNR, a case number (`WP(C) 4326/2025`), a `ref_no`, or words matched as prefixes over parties, advocates, counsel codes and numbers */
+                q?: string | null;
+                /** @description The department holding the active primary ownership (a department code) */
+                owner?: string | null;
+                /** @description A cause-list entry of the case dated on or after this day (IST) */
+                listed_from?: string | null;
+                /** @description A cause-list entry of the case dated on or before this day */
+                listed_to?: string | null;
+                /** @description That same entry's court number, as printed */
+                court_no?: string | null;
+                /** @description That same entry's bench (judge names) contains this text (case and spacing ignored) */
+                bench?: string | null;
+                /** @description Next hearing date on or after this day */
+                next_from?: string | null;
+                /** @description Next hearing date on or before this day */
+                next_to?: string | null;
+                /** @description The case type: the master's short name or an alias, or the case's type text */
+                case_type?: string | null;
+                /** @description Registration year (1900-2100) */
+                year?: number | null;
+                /** @description pending, disposed or unknown */
+                case_status?: string | null;
             };
             header?: never;
             path?: never;
@@ -15140,6 +15327,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SentListOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
                 };
             };
             /** @description Validation Error */
@@ -15614,9 +15837,28 @@ export interface operations {
                 role?: string | null;
                 unit?: string | null;
                 officer_user_id?: string | null;
-                q?: string | null;
                 limit?: number;
                 offset?: number;
+                /** @description Words as the Search box (at least 3 characters): a CNR, a case number (`WP(C) 4326/2025`), a `ref_no`, or words matched as prefixes over parties, advocates, counsel codes and numbers */
+                q?: string | null;
+                /** @description A cause-list entry of the case dated on or after this day (IST) */
+                listed_from?: string | null;
+                /** @description A cause-list entry of the case dated on or before this day */
+                listed_to?: string | null;
+                /** @description That same entry's court number, as printed */
+                court_no?: string | null;
+                /** @description That same entry's bench (judge names) contains this text (case and spacing ignored) */
+                bench?: string | null;
+                /** @description Next hearing date on or after this day */
+                next_from?: string | null;
+                /** @description Next hearing date on or before this day */
+                next_to?: string | null;
+                /** @description The case type: the master's short name or an alias, or the case's type text */
+                case_type?: string | null;
+                /** @description Registration year (1900-2100) */
+                year?: number | null;
+                /** @description pending, disposed or unknown */
+                case_status?: string | null;
             };
             header?: never;
             path?: never;
@@ -15678,16 +15920,37 @@ export interface operations {
     pool_inbox_pool_get: {
         parameters: {
             query?: {
-                q?: string | null;
-                listed_from?: string | null;
-                listed_to?: string | null;
+                /**
+                 * @deprecated
+                 * @description Use case_status
+                 */
                 status?: string | null;
-                case_type?: string | null;
-                year?: number | null;
+                /** @description Keep cases with a score row for this department (with min_score: on that row) */
+                scored_for?: string | null;
                 min_score?: number | null;
                 state_party?: boolean | null;
                 limit?: number;
                 offset?: number;
+                /** @description Words as the Search box (at least 3 characters): a CNR, a case number (`WP(C) 4326/2025`), a `ref_no`, or words matched as prefixes over parties, advocates, counsel codes and numbers */
+                q?: string | null;
+                /** @description A cause-list entry of the case dated on or after this day (IST) */
+                listed_from?: string | null;
+                /** @description A cause-list entry of the case dated on or before this day */
+                listed_to?: string | null;
+                /** @description That same entry's court number, as printed */
+                court_no?: string | null;
+                /** @description That same entry's bench (judge names) contains this text (case and spacing ignored) */
+                bench?: string | null;
+                /** @description Next hearing date on or after this day */
+                next_from?: string | null;
+                /** @description Next hearing date on or before this day */
+                next_to?: string | null;
+                /** @description The case type: the master's short name or an alias, or the case's type text */
+                case_type?: string | null;
+                /** @description Registration year (1900-2100) */
+                year?: number | null;
+                /** @description pending, disposed or unknown */
+                case_status?: string | null;
             };
             header?: never;
             path?: never;
@@ -15720,11 +15983,28 @@ export interface operations {
             query?: {
                 office?: string | null;
                 band?: string | null;
-                q?: string | null;
-                listed_from?: string | null;
-                listed_to?: string | null;
                 limit?: number;
                 offset?: number;
+                /** @description Words as the Search box (at least 3 characters): a CNR, a case number (`WP(C) 4326/2025`), a `ref_no`, or words matched as prefixes over parties, advocates, counsel codes and numbers */
+                q?: string | null;
+                /** @description A cause-list entry of the case dated on or after this day (IST) */
+                listed_from?: string | null;
+                /** @description A cause-list entry of the case dated on or before this day */
+                listed_to?: string | null;
+                /** @description That same entry's court number, as printed */
+                court_no?: string | null;
+                /** @description That same entry's bench (judge names) contains this text (case and spacing ignored) */
+                bench?: string | null;
+                /** @description Next hearing date on or after this day */
+                next_from?: string | null;
+                /** @description Next hearing date on or before this day */
+                next_to?: string | null;
+                /** @description The case type: the master's short name or an alias, or the case's type text */
+                case_type?: string | null;
+                /** @description Registration year (1900-2100) */
+                year?: number | null;
+                /** @description pending, disposed or unknown */
+                case_status?: string | null;
             };
             header?: never;
             path?: never;
@@ -15757,9 +16037,32 @@ export interface operations {
             query?: {
                 office?: string | null;
                 direction?: string | null;
+                /** @description The transfer's status */
                 status?: string | null;
+                /** @description The department on the other side (from for in, to for out, either without) */
+                other_office?: string | null;
                 limit?: number;
                 offset?: number;
+                /** @description Words as the Search box (at least 3 characters): a CNR, a case number (`WP(C) 4326/2025`), a `ref_no`, or words matched as prefixes over parties, advocates, counsel codes and numbers */
+                q?: string | null;
+                /** @description A cause-list entry of the case dated on or after this day (IST) */
+                listed_from?: string | null;
+                /** @description A cause-list entry of the case dated on or before this day */
+                listed_to?: string | null;
+                /** @description That same entry's court number, as printed */
+                court_no?: string | null;
+                /** @description That same entry's bench (judge names) contains this text (case and spacing ignored) */
+                bench?: string | null;
+                /** @description Next hearing date on or after this day */
+                next_from?: string | null;
+                /** @description Next hearing date on or before this day */
+                next_to?: string | null;
+                /** @description The case type: the master's short name or an alias, or the case's type text */
+                case_type?: string | null;
+                /** @description Registration year (1900-2100) */
+                year?: number | null;
+                /** @description pending, disposed or unknown */
+                case_status?: string | null;
             };
             header?: never;
             path?: never;
@@ -16229,6 +16532,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    benches_reference_benches_get: {
+        parameters: {
+            query?: {
+                /** @description The window in days up to today (1-400) */
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BenchesOut"];
                 };
             };
             /** @description Validation Error */

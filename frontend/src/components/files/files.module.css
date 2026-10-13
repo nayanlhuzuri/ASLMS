@@ -17,10 +17,6 @@
   max-width: 28rem;
 }
 
-.filters {
-  align-items: flex-end;
-}
-
 .summary {
   border: 1px solid var(--line);
   border-radius: var(--radius);

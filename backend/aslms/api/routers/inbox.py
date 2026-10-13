@@ -1,21 +1,24 @@
 """`/inbox/*`: the department case inbox (design `recommend-and-claim`, decisions 15 and 23) — Recommended,
 Claimed (Active / Disposed), the Unclaimed pool, Transfers and the dashboard counts. Summary data only; every
 list is filtered on the server by the caller's department and functions (`services/inbox.py`); `?office=`
-other than the caller's department needs `cases.view_all`."""
+other than the caller's department needs `cases.view_all`. The lists take the shared case filters (design
+`portal-filters`: `q`, `listed_from` / `listed_to`, `court_no`, `bench`, `next_from` / `next_to`, `case_type`,
+`year`, `case_status`), which only narrow."""
 
 from __future__ import annotations
 
 import uuid
-from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from aslms.api import schemas
 from aslms.api.deps import current_user, get_session
+from aslms.api.filters import inbox_filter_query, with_legacy
 from aslms.domain.org import User
 from aslms.services import inbox
 from aslms.services.access import Forbidden
+from aslms.services.case_filters import CaseFilters
 from aslms.services.inbox import InboxError, OfficeRequired
 
 router = APIRouter(prefix="/inbox", tags=["inbox"])
@@ -38,27 +41,17 @@ def _http(exc: Exception) -> HTTPException:
 def recommended(
     office: str | None = None,
     band: str | None = None,
-    q: str | None = None,
-    listed_from: date | None = None,
-    listed_to: date | None = None,
+    filters: CaseFilters = Depends(inbox_filter_query),
     limit: int = inbox.DEFAULT_LIMIT,
     offset: int = 0,
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
 ) -> schemas.RecommendationListOut:
-    """The department's active recommendations, strongest first, each with the signals behind its score.
-    `listed_from` / `listed_to` keep the cases with a cause-list entry dated in the range."""
+    """The department's active recommendations, strongest first, each with the signals behind its score;
+    the shared case filters narrow them."""
     try:
         page = inbox.recommended(
-            session,
-            user,
-            office=office,
-            band=band,
-            q=q,
-            listed_from=listed_from,
-            listed_to=listed_to,
-            limit=limit,
-            offset=offset,
+            session, user, office=office, band=band, filters=filters, limit=limit, offset=offset
         )
     except (Forbidden, ValueError) as exc:
         raise _http(exc) from exc
@@ -72,7 +65,7 @@ def claimed(
     role: str | None = None,
     unit: str | None = None,
     officer_user_id: uuid.UUID | None = None,
-    q: str | None = None,
+    filters: CaseFilters = Depends(inbox_filter_query),
     limit: int = inbox.DEFAULT_LIMIT,
     offset: int = 0,
     session: Session = Depends(get_session),
@@ -90,7 +83,7 @@ def claimed(
             role=role,
             unit=unit,
             officer_user_id=officer_user_id,
-            q=q,
+            filters=filters,
             limit=limit,
             offset=offset,
         )
@@ -101,12 +94,11 @@ def claimed(
 
 @router.get("/pool", response_model=schemas.PoolListOut)
 def pool(
-    q: str | None = None,
-    listed_from: date | None = None,
-    listed_to: date | None = None,
-    status_: str | None = Query(None, alias="status"),
-    case_type: str | None = None,
-    year: int | None = None,
+    filters: CaseFilters = Depends(inbox_filter_query),
+    status_: str | None = Query(None, alias="status", deprecated=True, description="Use case_status"),
+    scored_for: str | None = Query(
+        None, description="Keep cases with a score row for this department (with min_score: on that row)"
+    ),
     min_score: float | None = None,
     state_party: bool | None = None,
     limit: int = inbox.DEFAULT_LIMIT,
@@ -115,16 +107,13 @@ def pool(
     user: User = Depends(current_user),
 ) -> schemas.PoolListOut:
     """The unclaimed pool: non-merged cases that have never had a primary owner, next hearing first."""
+    filters = with_legacy(filters, status=status_)
     try:
         page = inbox.pool(
             session,
             user,
-            q=q,
-            listed_from=listed_from,
-            listed_to=listed_to,
-            status=status_,
-            case_type=case_type,
-            year=year,
+            filters=filters,
+            scored_for=scored_for,
             min_score=min_score,
             state_party=state_party,
             limit=limit,
@@ -139,7 +128,11 @@ def pool(
 def transfers(
     office: str | None = None,
     direction: str | None = None,
-    status_: str | None = Query(None, alias="status"),
+    status_: str | None = Query(None, alias="status", description="The transfer's status"),
+    other_office: str | None = Query(
+        None, description="The department on the other side (from for in, to for out, either without)"
+    ),
+    filters: CaseFilters = Depends(inbox_filter_query),
     limit: int = inbox.DEFAULT_LIMIT,
     offset: int = 0,
     session: Session = Depends(get_session),
@@ -148,7 +141,15 @@ def transfers(
     """Transfers in (`to` the department) or out (`from` it), newest first."""
     try:
         page = inbox.transfers(
-            session, user, office=office, direction=direction, status=status_, limit=limit, offset=offset
+            session,
+            user,
+            office=office,
+            direction=direction,
+            status=status_,
+            other_office=other_office,
+            filters=filters,
+            limit=limit,
+            offset=offset,
         )
     except (Forbidden, ValueError) as exc:
         raise _http(exc) from exc

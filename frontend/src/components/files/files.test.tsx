@@ -159,6 +159,8 @@ describe("Files lists (portal-files-alerts, decision 12)", () => {
     const { unmount } = renderWithClient(<Held scope="me" params={{}} />);
     expect(await screen.findByText("No file is with you.")).toBeInTheDocument();
     await userEvent.click(screen.getByLabelText("Overdue only"));
+    expect(nav.replace).not.toHaveBeenCalled(); // the bar applies with Apply (portal-filters, decision 9)
+    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
     expect(nav.replace).toHaveBeenCalledWith("/files/mine?overdue=true");
     unmount();
     renderWithClient(<Held scope="me" params={{ overdue: "true" }} />);
@@ -180,8 +182,10 @@ describe("Files lists (portal-files-alerts, decision 12)", () => {
     expect(screen.getByRole("region", { name: "Tracking summary: FIN" })).toBeInTheDocument();
     expect(await screen.findByText("No file of your department matches.")).toBeInTheDocument();
     expect(api.calls.find((c) => c.path.startsWith("/custody/held"))!.path).toContain("scope=owned");
+    await userEvent.click(screen.getByRole("button", { name: "More filters" }));
     await waitFor(() => expect(screen.getByRole("option", { name: "HEALTH — Health" })).toBeInTheDocument());
     await userEvent.selectOptions(screen.getByLabelText("Holder department"), "HEALTH");
+    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
     expect(nav.replace).toHaveBeenCalledWith("/files/department?holder_department=HEALTH");
     unmount();
     renderWithClient(<Held scope="owned" params={{ holder_department: "HEALTH", overdue: "true" }} />);
@@ -211,7 +215,7 @@ describe("Files lists (portal-files-alerts, decision 12)", () => {
     expect(within(table).queryByRole("link", { name: "WA/2/2026" })).toBeNull();
     expect(within(table).getByText("WA/2/2026")).toBeInTheDocument();
     expect(within(table).getAllByText("Health Off, Under Secretary")).toHaveLength(2);
-    expect(api.calls[0]!.path).toBe("/custody/sent?limit=50&offset=0");
+    expect(api.calls.find((c) => c.path.startsWith("/custody/sent"))!.path).toBe("/custody/sent?limit=50&offset=0");
   });
 
   it("no list offers an action button", async () => {
@@ -227,7 +231,7 @@ describe("Files lists (portal-files-alerts, decision 12)", () => {
     );
     await screen.findByRole("table", { name: "Files with me" });
     await screen.findByRole("table", { name: "Files I sent or recalled" });
-    expect(screen.queryAllByRole("button")).toHaveLength(0);
+    for (const table of screen.getAllByRole("table")) expect(within(table).queryAllByRole("button")).toHaveLength(0);
   });
 
   it("a remark longer than two lines has Show more, with the full text in the page", async () => {
@@ -311,5 +315,56 @@ describe("the Files frame (decisions 1, 13, 14)", () => {
     );
     await screen.findByText("body");
     expect(screen.queryByText(/You no longer hold this case/)).toBeNull();
+  });
+});
+
+describe("the filter bar on Files (portal-filters)", () => {
+  const SHARED = { q: "ram kumar", year: "2025", court_no: "3", bench: "SAIKIA", owner: "EDU", next: "n7" };
+
+  it("each tab sends the shared filters and owner", async () => {
+    for (const scope of ["me", "office", "owned"] as const) {
+      const api = browserApi({
+        "GET /me": tracker(),
+        "GET /custody/held": held([]),
+        "GET /custody/summary": SUMMARY,
+        "GET /custody/recipients": DEPTS,
+      });
+      const { unmount } = renderWithClient(<Held scope={scope} params={{ ...SHARED, overdue: "true" }} />);
+      await waitFor(() => expect(api.calls.some((c) => c.path.startsWith("/custody/held"))).toBe(true));
+      const url = api.calls.find((c) => c.path.startsWith("/custody/held"))!.path;
+      for (const part of [`scope=${scope}`, "overdue=true", "q=ram+kumar", "year=2025", "court_no=3", "bench=SAIKIA", "owner=EDU", "next_from="]) {
+        expect(url, scope).toContain(part);
+      }
+      unmount();
+    }
+    const api = browserApi({ "GET /custody/sent": { items: [], total: 0 }, "GET /custody/recipients": DEPTS });
+    renderWithClient(<Sent params={SHARED} />);
+    await screen.findByText("0 files match");
+    const url = api.calls.find((c) => c.path.startsWith("/custody/sent"))!.path;
+    for (const part of ["q=ram+kumar", "year=2025", "owner=EDU", "next_to="]) expect(url).toContain(part);
+  });
+
+  it("Department files offers only the tracked departments as owner", async () => {
+    resetNav("/files/department");
+    browserApi({
+      "GET /me": tracker(),
+      "GET /custody/held": held([]),
+      "GET /custody/summary": SUMMARY,
+      "GET /custody/recipients": DEPTS,
+    });
+    renderWithClient(<Held scope="owned" params={{ owner: "EDU" }} />);
+    const owner = await screen.findByLabelText("Department");
+    await waitFor(() => expect(within(owner).getAllByRole("option").map((o) => o.textContent)).toEqual(["Any department", "EDU"]));
+    // the holder department still offers every department
+    const holder = screen.getByLabelText("Holder department");
+    await waitFor(() => expect(within(holder).getByRole("option", { name: "HEALTH — Health" })).toBeInTheDocument());
+  });
+
+  it("With me offers every department as owner", async () => {
+    browserApi({ "GET /me": tracker(), "GET /custody/held": held([]), "GET /custody/recipients": DEPTS });
+    renderWithClient(<Held scope="me" params={{ owner: "HEALTH" }} />);
+    const owner = await screen.findByLabelText("Department");
+    await waitFor(() => expect(within(owner).getByRole("option", { name: "HEALTH — Health" })).toBeInTheDocument());
+    expect(screen.getByText("Department: HEALTH")).toBeInTheDocument();
   });
 });

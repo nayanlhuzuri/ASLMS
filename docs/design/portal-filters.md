@@ -353,3 +353,39 @@ Frontend (Vitest, the `fakeApi` helper):
 
 ## Open questions
 None.
+
+## Deviations
+Recorded by the developer during the build (13 Oct 2026); none changes a rule of the plan, a business rule or an API
+field beyond the design.
+1. **Department codes are checked where the session is.** `case_filters.parse` has no session, so it only trims and
+   upper-cases `owner`; the "is not a department" check (400, the same message shape `owner 'X' is not a
+   department`) runs when the conditions are built, and in `inbox.pool` / `inbox.transfers` for `scored_for` and
+   `other_office`.
+2. **Lengths answer 400, not 422.** `court_no` and `bench` are declared without FastAPI length limits so the over-long
+   value answers 400 with the decision-7 message, like every other filter error. The shared-filter 400 from the
+   dependency is a plain-string `detail` on every router; a service-level filter error (an unknown `owner`) keeps the
+   router's own shape (`{code: "bad_field" | "bad_request", message}` on the workflow and alerts routers). The portal
+   reads both.
+3. **`owner` on the inbox.** The inbox endpoints do not declare `owner` (an unknown query parameter is ignored by
+   FastAPI); the service refuses an `owner` passed in a `CaseFilters` there ("owner is not a filter of this list").
+4. **Next-hearing presets.** "Next 7 days" is today through today + 6 and "Next 30 days" today through today + 29
+   (IST), mirroring "Last 7 days" / "Last 30 days".
+5. **Where each list's own controls sit.** First row: match strength (Recommended), role (Claimed), minimum score
+   (pool), transfer status (Transfers), Overdue only (Files), alert status (Alerts), "Only cases I can open" (Search,
+   with words); under "More filters": unit and officer (Claimed), State is a party (pool), holder department
+   (Department files), kind, severity and Unread only (Alerts). The document-text tab has no "More filters" (its
+   group, type and date range are on the first row) and its date range is checked like the case ranges. "More
+   filters" is shown only when the list has something under it.
+6. **Search's total** stays in the existing results heading ("Results · 128 cases") rather than repeated in the bar;
+   every other list shows "n … match" in the bar. A Search URL's old `case_state=` no longer filters (Status replaces
+   the control; Active is pending and unknown together, so it has no single Status value).
+7. **Chip names** are short ("Words", "Cause list", "Bench"); the field labels stay as designed.
+8. **`/reference/benches` normalises** as the filters match: court numbers trimmed (blank ones left out), bench texts
+   upper-cased with white space collapsed and trimmed, so spacing variants of one bench are one choice.
+9. **Test files.** `tests/db/test_api_cases.py` did not exist and is new; the custody list tests are in the new
+   `tests/db/test_custody_held.py`. The existing pool test refreshes the search vectors of its cases, since inbox words
+   now match `cases.search_vector` (decision 3).
+10. **Timing (Verification step 4), measured by the developer on the dev database (13 Oct 2026, read-only):**
+    `/reference/benches` 0.06 s (23 court numbers, 34 benches in 90 days); `/cases` for the latest date and court
+    0.02 s with `total` equal to the SQL count (8); `/cases?bench=SAIKIA` 0.50 s (5,608); `/cases` and `/cases/search`
+    with every shared filter 0.04 s and 0.06 s; `/inbox/pool` with every filter 0.01 s. No index proposed.

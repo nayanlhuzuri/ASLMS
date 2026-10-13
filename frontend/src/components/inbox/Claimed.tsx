@@ -2,11 +2,14 @@
 
 /**
  * The Claimed tab (design portal-cases, decision 6): Active / Disposed, role, unit, officer and words; each row shows
- * the unit and officer it is allotted to and an "Allot" action with `cases.allot` in the selected department.
+ * the unit and officer it is allotted to and an "Allot" action with `cases.allot` in the selected department. The one
+ * filter bar (design portal-filters): the shared case filters (no next hearing on Disposed; the status is the Active /
+ * Disposed split) plus role, unit and officer.
  */
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { FilterBar, type OwnControl } from "@/components/filters/FilterBar";
 import {
   Badge,
   Button,
@@ -15,14 +18,13 @@ import {
   ErrorBanner,
   Loading,
   Pagination,
-  SelectField,
   Table,
-  TextField,
 } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { INBOX_KEY, useDepartmentPeople, useMe } from "@/lib/api/hooks";
 import type { OwnershipList } from "@/lib/api/types";
 import { canIn } from "@/lib/can";
+import { toApiQuery } from "@/lib/filters";
 import { T } from "@/lib/messages";
 import { offsetOf, PAGE, type Params } from "@/lib/params";
 
@@ -34,20 +36,19 @@ const STATES = ["active", "disposed"] as const;
 export function Claimed({ params, department }: { params: Params; department: string }) {
   const me = useMe();
   const setFilters = useFilters(params);
-  const [q, setQ] = useState(params.q ?? "");
-  const [unit, setUnit] = useState(params.unit ?? "");
   const [dialog, setDialog] = useState<DialogKind | null>(null);
   const canAllot = canIn(me.data, department, "cases.allot");
   const people = useDepartmentPeople(department, canAllot);
   const offset = offsetOf(params);
   const caseState = params.case_state === "disposed" ? "disposed" : "active";
+  const listKey = caseState === "disposed" ? "claimed_disposed" : "claimed_active";
   const query = {
     office: department,
     case_state: caseState,
     role: params.role || undefined,
-    unit: params.unit || undefined,
+    unit: params.unit ? params.unit.toUpperCase() : undefined,
     officer_user_id: params.officer || undefined,
-    q: params.q || undefined,
+    ...toApiQuery(params, listKey),
     limit: PAGE,
     offset,
   };
@@ -56,6 +57,30 @@ export function Claimed({ params, department }: { params: Params; department: st
     queryFn: () => api<OwnershipList>("/inbox/claimed", { query }),
   });
   const officers = new Map((people.data?.items ?? []).map((p) => [p.user_id, p.full_name]));
+  const own: OwnControl[] = [
+    {
+      key: "role",
+      kind: "select",
+      label: T.inbox.role,
+      options: Object.entries(T.inbox.roles)
+        .filter(([value]) => value)
+        .map(([value, label]) => ({ value, label })),
+      placeholder: T.inbox.roles[""],
+    },
+    { key: "unit", kind: "text", label: T.inbox.unit, more: true },
+    ...(canAllot
+      ? [
+          {
+            key: "officer",
+            kind: "select" as const,
+            label: T.own.officer,
+            options: [...officers.entries()].map(([value, label]) => ({ value, label })),
+            placeholder: T.inbox.roles[""],
+            more: true,
+          },
+        ]
+      : []),
+  ];
   return (
     <section className="stack" aria-label={T.inbox.caseState}>
       <div className="row" role="group" aria-label={T.inbox.caseState}>
@@ -70,35 +95,7 @@ export function Claimed({ params, department }: { params: Params; department: st
           </Button>
         ))}
       </div>
-      <form
-        className="row"
-        role="search"
-        onSubmit={(e) => {
-          e.preventDefault();
-          setFilters({ q: q.trim() || undefined, unit: unit.trim().toUpperCase() || undefined });
-        }}
-      >
-        <SelectField
-          label={T.inbox.role}
-          options={Object.entries(T.inbox.roles).map(([value, label]) => ({ value, label }))}
-          value={params.role ?? ""}
-          onChange={(e) => setFilters({ role: e.target.value || undefined })}
-        />
-        <TextField label={T.inbox.unit} value={unit} onChange={(e) => setUnit(e.target.value)} />
-        {canAllot ? (
-          <SelectField
-            label={T.own.officer}
-            options={[...officers.entries()].map(([value, label]) => ({ value, label }))}
-            placeholder={T.inbox.roles[""]}
-            value={params.officer ?? ""}
-            onChange={(e) => setFilters({ officer: e.target.value || undefined })}
-          />
-        ) : null}
-        <TextField label={T.inbox.words} value={q} onChange={(e) => setQ(e.target.value)} />
-        <Button type="submit" variant="secondary">
-          {T.inbox.apply}
-        </Button>
-      </form>
+      <FilterBar list={listKey} params={params} own={own} total={list.data?.total} />
       <ErrorBanner error={list.error} onRetry={() => list.refetch()} />
       {list.isPending ? <Loading /> : null}
       {list.data ? (

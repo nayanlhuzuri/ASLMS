@@ -1198,6 +1198,68 @@
         "title": "BenchRefOut",
         "type": "object"
       },
+      "BenchTextOut": {
+        "description": "A bench (judge names) printed in the cause lists of the window, upper-cased with white space collapsed.",
+        "properties": {
+          "entries": {
+            "title": "Entries",
+            "type": "integer"
+          },
+          "last_listed": {
+            "format": "date",
+            "title": "Last Listed",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "last_listed",
+          "entries"
+        ],
+        "title": "BenchTextOut",
+        "type": "object"
+      },
+      "BenchesOut": {
+        "description": "Design `portal-filters`, decision 12: the court and bench pickers' choices (court-public).",
+        "properties": {
+          "benches": {
+            "items": {
+              "$ref": "#/components/schemas/BenchTextOut"
+            },
+            "title": "Benches",
+            "type": "array"
+          },
+          "court_numbers": {
+            "items": {
+              "$ref": "#/components/schemas/CourtNumberOut"
+            },
+            "title": "Court Numbers",
+            "type": "array"
+          },
+          "from": {
+            "format": "date",
+            "title": "From",
+            "type": "string"
+          },
+          "to": {
+            "format": "date",
+            "title": "To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "court_numbers",
+          "benches"
+        ],
+        "title": "BenchesOut",
+        "type": "object"
+      },
       "Body_add_note_cases__ref__notes_post": {
         "properties": {
           "body": {
@@ -3470,6 +3532,31 @@
           }
         },
         "title": "CounselCodePatchIn",
+        "type": "object"
+      },
+      "CourtNumberOut": {
+        "description": "A court number printed in the cause lists of the window (trimmed).",
+        "properties": {
+          "court_no": {
+            "title": "Court No",
+            "type": "string"
+          },
+          "entries": {
+            "title": "Entries",
+            "type": "integer"
+          },
+          "last_listed": {
+            "format": "date",
+            "title": "Last Listed",
+            "type": "string"
+          }
+        },
+        "required": [
+          "court_no",
+          "last_listed",
+          "entries"
+        ],
+        "title": "CourtNumberOut",
         "type": "object"
       },
       "CourtRefOut": {
@@ -23113,7 +23200,7 @@
     },
     "/alerts": {
       "get": {
-        "description": "The caller's own in-app notifications (the latest per alert), newest first; `status` defaults to\nopen and acknowledged (`all` for every state).",
+        "description": "The caller's own in-app notifications (the latest per alert), newest first; `status` defaults to\nopen and acknowledged (`all` for every state). The shared case filters narrow them; with any set, alerts\nwithout a case drop out.",
         "operationId": "list_alerts_alerts_get",
         "parameters": [
           {
@@ -23214,6 +23301,208 @@
               "default": 0,
               "title": "Offset",
               "type": "integer"
+            }
+          },
+          {
+            "description": "Words as the Search box (at least 3 characters): a CNR, a case number (`WP(C) 4326/2025`), a `ref_no`, or words matched as prefixes over parties, advocates, counsel codes and numbers",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Words as the Search box (at least 3 characters): a CNR, a case number (`WP(C) 4326/2025`), a `ref_no`, or words matched as prefixes over parties, advocates, counsel codes and numbers",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "The department holding the active primary ownership (a department code)",
+            "in": "query",
+            "name": "owner",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The department holding the active primary ownership (a department code)",
+              "title": "Owner"
+            }
+          },
+          {
+            "description": "A cause-list entry of the case dated on or after this day (IST)",
+            "in": "query",
+            "name": "listed_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A cause-list entry of the case dated on or after this day (IST)",
+              "title": "Listed From"
+            }
+          },
+          {
+            "description": "A cause-list entry of the case dated on or before this day",
+            "in": "query",
+            "name": "listed_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A cause-list entry of the case dated on or before this day",
+              "title": "Listed To"
+            }
+          },
+          {
+            "description": "That same entry's court number, as printed",
+            "in": "query",
+            "name": "court_no",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "That same entry's court number, as printed",
+              "title": "Court No"
+            }
+          },
+          {
+            "description": "That same entry's bench (judge names) contains this text (case and spacing ignored)",
+            "in": "query",
+            "name": "bench",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "That same entry's bench (judge names) contains this text (case and spacing ignored)",
+              "title": "Bench"
+            }
+          },
+          {
+            "description": "Next hearing date on or after this day",
+            "in": "query",
+            "name": "next_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Next hearing date on or after this day",
+              "title": "Next From"
+            }
+          },
+          {
+            "description": "Next hearing date on or before this day",
+            "in": "query",
+            "name": "next_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Next hearing date on or before this day",
+              "title": "Next To"
+            }
+          },
+          {
+            "description": "The case type: the master's short name or an alias, or the case's type text",
+            "in": "query",
+            "name": "case_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The case type: the master's short name or an alias, or the case's type text",
+              "title": "Case Type"
+            }
+          },
+          {
+            "description": "Registration year (1900-2100)",
+            "in": "query",
+            "name": "year",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Registration year (1900-2100)",
+              "title": "Year"
+            }
+          },
+          {
+            "description": "pending, disposed or unknown",
+            "in": "query",
+            "name": "case_status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "pending, disposed or unknown",
+              "title": "Case Status"
             }
           }
         ],
@@ -24307,44 +24596,12 @@
         "parameters": [
           {
             "in": "query",
-            "name": "q",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Q"
-            }
-          },
-          {
-            "in": "query",
             "name": "field",
             "required": false,
             "schema": {
               "default": "auto",
               "title": "Field",
               "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "status",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Status"
             }
           },
           {
@@ -24358,24 +24615,10 @@
             }
           },
           {
+            "deprecated": true,
+            "description": "Use case_status",
             "in": "query",
-            "name": "year",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Year"
-            }
-          },
-          {
-            "in": "query",
-            "name": "case_type",
+            "name": "status",
             "required": false,
             "schema": {
               "anyOf": [
@@ -24386,10 +24629,14 @@
                   "type": "null"
                 }
               ],
-              "title": "Case Type"
+              "deprecated": true,
+              "description": "Use case_status",
+              "title": "Status"
             }
           },
           {
+            "deprecated": true,
+            "description": "Use owner",
             "in": "query",
             "name": "office",
             "required": false,
@@ -24402,75 +24649,9 @@
                   "type": "null"
                 }
               ],
+              "deprecated": true,
+              "description": "Use owner",
               "title": "Office"
-            }
-          },
-          {
-            "in": "query",
-            "name": "listed_from",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Listed From"
-            }
-          },
-          {
-            "in": "query",
-            "name": "listed_to",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Listed To"
-            }
-          },
-          {
-            "in": "query",
-            "name": "next_from",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Next From"
-            }
-          },
-          {
-            "in": "query",
-            "name": "next_to",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Next To"
             }
           },
           {
@@ -24491,6 +24672,208 @@
               "default": 0,
               "title": "Offset",
               "type": "integer"
+            }
+          },
+          {
+            "description": "Words as the Search box (at least 3 characters): a CNR, a case number (`WP(C) 4326/2025`), a `ref_no`, or words matched as prefixes over parties, advocates, counsel codes and numbers",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Words as the Search box (at least 3 characters): a CNR, a case number (`WP(C) 4326/2025`), a `ref_no`, or words matched as prefixes over parties, advocates, counsel codes and numbers",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "The department holding the active primary ownership (a department code)",
+            "in": "query",
+            "name": "owner",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The department holding the active primary ownership (a department code)",
+              "title": "Owner"
+            }
+          },
+          {
+            "description": "A cause-list entry of the case dated on or after this day (IST)",
+            "in": "query",
+            "name": "listed_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A cause-list entry of the case dated on or after this day (IST)",
+              "title": "Listed From"
+            }
+          },
+          {
+            "description": "A cause-list entry of the case dated on or before this day",
+            "in": "query",
+            "name": "listed_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A cause-list entry of the case dated on or before this day",
+              "title": "Listed To"
+            }
+          },
+          {
+            "description": "That same entry's court number, as printed",
+            "in": "query",
+            "name": "court_no",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "That same entry's court number, as printed",
+              "title": "Court No"
+            }
+          },
+          {
+            "description": "That same entry's bench (judge names) contains this text (case and spacing ignored)",
+            "in": "query",
+            "name": "bench",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "That same entry's bench (judge names) contains this text (case and spacing ignored)",
+              "title": "Bench"
+            }
+          },
+          {
+            "description": "Next hearing date on or after this day",
+            "in": "query",
+            "name": "next_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Next hearing date on or after this day",
+              "title": "Next From"
+            }
+          },
+          {
+            "description": "Next hearing date on or before this day",
+            "in": "query",
+            "name": "next_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Next hearing date on or before this day",
+              "title": "Next To"
+            }
+          },
+          {
+            "description": "The case type: the master's short name or an alias, or the case's type text",
+            "in": "query",
+            "name": "case_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The case type: the master's short name or an alias, or the case's type text",
+              "title": "Case Type"
+            }
+          },
+          {
+            "description": "Registration year (1900-2100)",
+            "in": "query",
+            "name": "year",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Registration year (1900-2100)",
+              "title": "Year"
+            }
+          },
+          {
+            "description": "pending, disposed or unknown",
+            "in": "query",
+            "name": "case_status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "pending, disposed or unknown",
+              "title": "Case Status"
             }
           }
         ],
@@ -24534,16 +24917,6 @@
         "parameters": [
           {
             "in": "query",
-            "name": "q",
-            "required": true,
-            "schema": {
-              "minLength": 3,
-              "title": "Q",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
             "name": "field",
             "required": false,
             "schema": {
@@ -24553,6 +24926,8 @@
             }
           },
           {
+            "deprecated": true,
+            "description": "Use case_status",
             "in": "query",
             "name": "status",
             "required": false,
@@ -24565,42 +24940,14 @@
                   "type": "null"
                 }
               ],
+              "deprecated": true,
+              "description": "Use case_status",
               "title": "Status"
             }
           },
           {
-            "in": "query",
-            "name": "year",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Year"
-            }
-          },
-          {
-            "in": "query",
-            "name": "case_type",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Case Type"
-            }
-          },
-          {
+            "deprecated": true,
+            "description": "Use owner",
             "in": "query",
             "name": "office",
             "required": false,
@@ -24613,41 +24960,9 @@
                   "type": "null"
                 }
               ],
+              "deprecated": true,
+              "description": "Use owner",
               "title": "Office"
-            }
-          },
-          {
-            "in": "query",
-            "name": "listed_from",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Listed From"
-            }
-          },
-          {
-            "in": "query",
-            "name": "listed_to",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Listed To"
             }
           },
           {
@@ -24678,6 +24993,202 @@
               "default": 0,
               "title": "Offset",
               "type": "integer"
+            }
+          },
+          {
+            "description": "Words as the Search box (at least 3 characters): a CNR, a case number (`WP(C) 4326/2025`), a `ref_no`, or words matched as prefixes over parties, advocates, counsel codes and numbers",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "description": "Words as the Search box (at least 3 characters): a CNR, a case number (`WP(C) 4326/2025`), a `ref_no`, or words matched as prefixes over parties, advocates, counsel codes and numbers",
+              "minLength": 3,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The department holding the active primary ownership (a department code)",
+            "in": "query",
+            "name": "owner",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The department holding the active primary ownership (a department code)",
+              "title": "Owner"
+            }
+          },
+          {
+            "description": "A cause-list entry of the case dated on or after this day (IST)",
+            "in": "query",
+            "name": "listed_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A cause-list entry of the case dated on or after this day (IST)",
+              "title": "Listed From"
+            }
+          },
+          {
+            "description": "A cause-list entry of the case dated on or before this day",
+            "in": "query",
+            "name": "listed_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A cause-list entry of the case dated on or before this day",
+              "title": "Listed To"
+            }
+          },
+          {
+            "description": "That same entry's court number, as printed",
+            "in": "query",
+            "name": "court_no",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "That same entry's court number, as printed",
+              "title": "Court No"
+            }
+          },
+          {
+            "description": "That same entry's bench (judge names) contains this text (case and spacing ignored)",
+            "in": "query",
+            "name": "bench",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "That same entry's bench (judge names) contains this text (case and spacing ignored)",
+              "title": "Bench"
+            }
+          },
+          {
+            "description": "Next hearing date on or after this day",
+            "in": "query",
+            "name": "next_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Next hearing date on or after this day",
+              "title": "Next From"
+            }
+          },
+          {
+            "description": "Next hearing date on or before this day",
+            "in": "query",
+            "name": "next_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Next hearing date on or before this day",
+              "title": "Next To"
+            }
+          },
+          {
+            "description": "The case type: the master's short name or an alias, or the case's type text",
+            "in": "query",
+            "name": "case_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The case type: the master's short name or an alias, or the case's type text",
+              "title": "Case Type"
+            }
+          },
+          {
+            "description": "Registration year (1900-2100)",
+            "in": "query",
+            "name": "year",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Registration year (1900-2100)",
+              "title": "Year"
+            }
+          },
+          {
+            "description": "pending, disposed or unknown",
+            "in": "query",
+            "name": "case_status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "pending, disposed or unknown",
+              "title": "Case Status"
             }
           }
         ],
@@ -27081,6 +27592,208 @@
               "title": "Offset",
               "type": "integer"
             }
+          },
+          {
+            "description": "Words as the Search box (at least 3 characters): a CNR, a case number (`WP(C) 4326/2025`), a `ref_no`, or words matched as prefixes over parties, advocates, counsel codes and numbers",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Words as the Search box (at least 3 characters): a CNR, a case number (`WP(C) 4326/2025`), a `ref_no`, or words matched as prefixes over parties, advocates, counsel codes and numbers",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "The department holding the active primary ownership (a department code)",
+            "in": "query",
+            "name": "owner",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The department holding the active primary ownership (a department code)",
+              "title": "Owner"
+            }
+          },
+          {
+            "description": "A cause-list entry of the case dated on or after this day (IST)",
+            "in": "query",
+            "name": "listed_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A cause-list entry of the case dated on or after this day (IST)",
+              "title": "Listed From"
+            }
+          },
+          {
+            "description": "A cause-list entry of the case dated on or before this day",
+            "in": "query",
+            "name": "listed_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A cause-list entry of the case dated on or before this day",
+              "title": "Listed To"
+            }
+          },
+          {
+            "description": "That same entry's court number, as printed",
+            "in": "query",
+            "name": "court_no",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "That same entry's court number, as printed",
+              "title": "Court No"
+            }
+          },
+          {
+            "description": "That same entry's bench (judge names) contains this text (case and spacing ignored)",
+            "in": "query",
+            "name": "bench",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "That same entry's bench (judge names) contains this text (case and spacing ignored)",
+              "title": "Bench"
+            }
+          },
+          {
+            "description": "Next hearing date on or after this day",
+            "in": "query",
+            "name": "next_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Next hearing date on or after this day",
+              "title": "Next From"
+            }
+          },
+          {
+            "description": "Next hearing date on or before this day",
+            "in": "query",
+            "name": "next_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Next hearing date on or before this day",
+              "title": "Next To"
+            }
+          },
+          {
+            "description": "The case type: the master's short name or an alias, or the case's type text",
+            "in": "query",
+            "name": "case_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The case type: the master's short name or an alias, or the case's type text",
+              "title": "Case Type"
+            }
+          },
+          {
+            "description": "Registration year (1900-2100)",
+            "in": "query",
+            "name": "year",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Registration year (1900-2100)",
+              "title": "Year"
+            }
+          },
+          {
+            "description": "pending, disposed or unknown",
+            "in": "query",
+            "name": "case_status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "pending, disposed or unknown",
+              "title": "Case Status"
+            }
           }
         ],
         "responses": {
@@ -27290,7 +28003,7 @@
     },
     "/custody/sent": {
       "get": {
-        "description": "The legs the caller wrote (sends and recalls) with the case summary and `visible`: whether the caller can\nopen the case now (the sender usually loses sight of a case sent on).",
+        "description": "The legs the caller wrote (sends and recalls) with the case summary and `visible`: whether the caller can\nopen the case now (the sender usually loses sight of a case sent on). The shared case filters narrow them.",
         "operationId": "custody_sent_custody_sent_get",
         "parameters": [
           {
@@ -27312,6 +28025,208 @@
               "title": "Offset",
               "type": "integer"
             }
+          },
+          {
+            "description": "Words as the Search box (at least 3 characters): a CNR, a case number (`WP(C) 4326/2025`), a `ref_no`, or words matched as prefixes over parties, advocates, counsel codes and numbers",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Words as the Search box (at least 3 characters): a CNR, a case number (`WP(C) 4326/2025`), a `ref_no`, or words matched as prefixes over parties, advocates, counsel codes and numbers",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "The department holding the active primary ownership (a department code)",
+            "in": "query",
+            "name": "owner",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The department holding the active primary ownership (a department code)",
+              "title": "Owner"
+            }
+          },
+          {
+            "description": "A cause-list entry of the case dated on or after this day (IST)",
+            "in": "query",
+            "name": "listed_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A cause-list entry of the case dated on or after this day (IST)",
+              "title": "Listed From"
+            }
+          },
+          {
+            "description": "A cause-list entry of the case dated on or before this day",
+            "in": "query",
+            "name": "listed_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A cause-list entry of the case dated on or before this day",
+              "title": "Listed To"
+            }
+          },
+          {
+            "description": "That same entry's court number, as printed",
+            "in": "query",
+            "name": "court_no",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "That same entry's court number, as printed",
+              "title": "Court No"
+            }
+          },
+          {
+            "description": "That same entry's bench (judge names) contains this text (case and spacing ignored)",
+            "in": "query",
+            "name": "bench",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "That same entry's bench (judge names) contains this text (case and spacing ignored)",
+              "title": "Bench"
+            }
+          },
+          {
+            "description": "Next hearing date on or after this day",
+            "in": "query",
+            "name": "next_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Next hearing date on or after this day",
+              "title": "Next From"
+            }
+          },
+          {
+            "description": "Next hearing date on or before this day",
+            "in": "query",
+            "name": "next_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Next hearing date on or before this day",
+              "title": "Next To"
+            }
+          },
+          {
+            "description": "The case type: the master's short name or an alias, or the case's type text",
+            "in": "query",
+            "name": "case_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The case type: the master's short name or an alias, or the case's type text",
+              "title": "Case Type"
+            }
+          },
+          {
+            "description": "Registration year (1900-2100)",
+            "in": "query",
+            "name": "year",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Registration year (1900-2100)",
+              "title": "Year"
+            }
+          },
+          {
+            "description": "pending, disposed or unknown",
+            "in": "query",
+            "name": "case_status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "pending, disposed or unknown",
+              "title": "Case Status"
+            }
           }
         ],
         "responses": {
@@ -27324,6 +28239,46 @@
               }
             },
             "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
           },
           "422": {
             "content": {
@@ -28171,22 +29126,6 @@
           },
           {
             "in": "query",
-            "name": "q",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Q"
-            }
-          },
-          {
-            "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
@@ -28203,6 +29142,190 @@
               "default": 0,
               "title": "Offset",
               "type": "integer"
+            }
+          },
+          {
+            "description": "Words as the Search box (at least 3 characters): a CNR, a case number (`WP(C) 4326/2025`), a `ref_no`, or words matched as prefixes over parties, advocates, counsel codes and numbers",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Words as the Search box (at least 3 characters): a CNR, a case number (`WP(C) 4326/2025`), a `ref_no`, or words matched as prefixes over parties, advocates, counsel codes and numbers",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "A cause-list entry of the case dated on or after this day (IST)",
+            "in": "query",
+            "name": "listed_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A cause-list entry of the case dated on or after this day (IST)",
+              "title": "Listed From"
+            }
+          },
+          {
+            "description": "A cause-list entry of the case dated on or before this day",
+            "in": "query",
+            "name": "listed_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A cause-list entry of the case dated on or before this day",
+              "title": "Listed To"
+            }
+          },
+          {
+            "description": "That same entry's court number, as printed",
+            "in": "query",
+            "name": "court_no",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "That same entry's court number, as printed",
+              "title": "Court No"
+            }
+          },
+          {
+            "description": "That same entry's bench (judge names) contains this text (case and spacing ignored)",
+            "in": "query",
+            "name": "bench",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "That same entry's bench (judge names) contains this text (case and spacing ignored)",
+              "title": "Bench"
+            }
+          },
+          {
+            "description": "Next hearing date on or after this day",
+            "in": "query",
+            "name": "next_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Next hearing date on or after this day",
+              "title": "Next From"
+            }
+          },
+          {
+            "description": "Next hearing date on or before this day",
+            "in": "query",
+            "name": "next_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Next hearing date on or before this day",
+              "title": "Next To"
+            }
+          },
+          {
+            "description": "The case type: the master's short name or an alias, or the case's type text",
+            "in": "query",
+            "name": "case_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The case type: the master's short name or an alias, or the case's type text",
+              "title": "Case Type"
+            }
+          },
+          {
+            "description": "Registration year (1900-2100)",
+            "in": "query",
+            "name": "year",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Registration year (1900-2100)",
+              "title": "Year"
+            }
+          },
+          {
+            "description": "pending, disposed or unknown",
+            "in": "query",
+            "name": "case_status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "pending, disposed or unknown",
+              "title": "Case Status"
             }
           }
         ],
@@ -28300,56 +29423,8 @@
         "operationId": "pool_inbox_pool_get",
         "parameters": [
           {
-            "in": "query",
-            "name": "q",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Q"
-            }
-          },
-          {
-            "in": "query",
-            "name": "listed_from",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Listed From"
-            }
-          },
-          {
-            "in": "query",
-            "name": "listed_to",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Listed To"
-            }
-          },
-          {
+            "deprecated": true,
+            "description": "Use case_status",
             "in": "query",
             "name": "status",
             "required": false,
@@ -28362,12 +29437,15 @@
                   "type": "null"
                 }
               ],
+              "deprecated": true,
+              "description": "Use case_status",
               "title": "Status"
             }
           },
           {
+            "description": "Keep cases with a score row for this department (with min_score: on that row)",
             "in": "query",
-            "name": "case_type",
+            "name": "scored_for",
             "required": false,
             "schema": {
               "anyOf": [
@@ -28378,23 +29456,8 @@
                   "type": "null"
                 }
               ],
-              "title": "Case Type"
-            }
-          },
-          {
-            "in": "query",
-            "name": "year",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Year"
+              "description": "Keep cases with a score row for this department (with min_score: on that row)",
+              "title": "Scored For"
             }
           },
           {
@@ -28448,6 +29511,190 @@
               "title": "Offset",
               "type": "integer"
             }
+          },
+          {
+            "description": "Words as the Search box (at least 3 characters): a CNR, a case number (`WP(C) 4326/2025`), a `ref_no`, or words matched as prefixes over parties, advocates, counsel codes and numbers",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Words as the Search box (at least 3 characters): a CNR, a case number (`WP(C) 4326/2025`), a `ref_no`, or words matched as prefixes over parties, advocates, counsel codes and numbers",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "A cause-list entry of the case dated on or after this day (IST)",
+            "in": "query",
+            "name": "listed_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A cause-list entry of the case dated on or after this day (IST)",
+              "title": "Listed From"
+            }
+          },
+          {
+            "description": "A cause-list entry of the case dated on or before this day",
+            "in": "query",
+            "name": "listed_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A cause-list entry of the case dated on or before this day",
+              "title": "Listed To"
+            }
+          },
+          {
+            "description": "That same entry's court number, as printed",
+            "in": "query",
+            "name": "court_no",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "That same entry's court number, as printed",
+              "title": "Court No"
+            }
+          },
+          {
+            "description": "That same entry's bench (judge names) contains this text (case and spacing ignored)",
+            "in": "query",
+            "name": "bench",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "That same entry's bench (judge names) contains this text (case and spacing ignored)",
+              "title": "Bench"
+            }
+          },
+          {
+            "description": "Next hearing date on or after this day",
+            "in": "query",
+            "name": "next_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Next hearing date on or after this day",
+              "title": "Next From"
+            }
+          },
+          {
+            "description": "Next hearing date on or before this day",
+            "in": "query",
+            "name": "next_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Next hearing date on or before this day",
+              "title": "Next To"
+            }
+          },
+          {
+            "description": "The case type: the master's short name or an alias, or the case's type text",
+            "in": "query",
+            "name": "case_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The case type: the master's short name or an alias, or the case's type text",
+              "title": "Case Type"
+            }
+          },
+          {
+            "description": "Registration year (1900-2100)",
+            "in": "query",
+            "name": "year",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Registration year (1900-2100)",
+              "title": "Year"
+            }
+          },
+          {
+            "description": "pending, disposed or unknown",
+            "in": "query",
+            "name": "case_status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "pending, disposed or unknown",
+              "title": "Case Status"
+            }
           }
         ],
         "responses": {
@@ -28485,7 +29732,7 @@
     },
     "/inbox/recommended": {
       "get": {
-        "description": "The department's active recommendations, strongest first, each with the signals behind its score.\n`listed_from` / `listed_to` keep the cases with a cause-list entry dated in the range.",
+        "description": "The department's active recommendations, strongest first, each with the signals behind its score;\nthe shared case filters narrow them.",
         "operationId": "recommended_inbox_recommended_get",
         "parameters": [
           {
@@ -28522,56 +29769,6 @@
           },
           {
             "in": "query",
-            "name": "q",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Q"
-            }
-          },
-          {
-            "in": "query",
-            "name": "listed_from",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Listed From"
-            }
-          },
-          {
-            "in": "query",
-            "name": "listed_to",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Listed To"
-            }
-          },
-          {
-            "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
@@ -28588,6 +29785,190 @@
               "default": 0,
               "title": "Offset",
               "type": "integer"
+            }
+          },
+          {
+            "description": "Words as the Search box (at least 3 characters): a CNR, a case number (`WP(C) 4326/2025`), a `ref_no`, or words matched as prefixes over parties, advocates, counsel codes and numbers",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Words as the Search box (at least 3 characters): a CNR, a case number (`WP(C) 4326/2025`), a `ref_no`, or words matched as prefixes over parties, advocates, counsel codes and numbers",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "A cause-list entry of the case dated on or after this day (IST)",
+            "in": "query",
+            "name": "listed_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A cause-list entry of the case dated on or after this day (IST)",
+              "title": "Listed From"
+            }
+          },
+          {
+            "description": "A cause-list entry of the case dated on or before this day",
+            "in": "query",
+            "name": "listed_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A cause-list entry of the case dated on or before this day",
+              "title": "Listed To"
+            }
+          },
+          {
+            "description": "That same entry's court number, as printed",
+            "in": "query",
+            "name": "court_no",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "That same entry's court number, as printed",
+              "title": "Court No"
+            }
+          },
+          {
+            "description": "That same entry's bench (judge names) contains this text (case and spacing ignored)",
+            "in": "query",
+            "name": "bench",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "That same entry's bench (judge names) contains this text (case and spacing ignored)",
+              "title": "Bench"
+            }
+          },
+          {
+            "description": "Next hearing date on or after this day",
+            "in": "query",
+            "name": "next_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Next hearing date on or after this day",
+              "title": "Next From"
+            }
+          },
+          {
+            "description": "Next hearing date on or before this day",
+            "in": "query",
+            "name": "next_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Next hearing date on or before this day",
+              "title": "Next To"
+            }
+          },
+          {
+            "description": "The case type: the master's short name or an alias, or the case's type text",
+            "in": "query",
+            "name": "case_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The case type: the master's short name or an alias, or the case's type text",
+              "title": "Case Type"
+            }
+          },
+          {
+            "description": "Registration year (1900-2100)",
+            "in": "query",
+            "name": "year",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Registration year (1900-2100)",
+              "title": "Year"
+            }
+          },
+          {
+            "description": "pending, disposed or unknown",
+            "in": "query",
+            "name": "case_status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "pending, disposed or unknown",
+              "title": "Case Status"
             }
           }
         ],
@@ -28662,6 +30043,7 @@
             }
           },
           {
+            "description": "The transfer's status",
             "in": "query",
             "name": "status",
             "required": false,
@@ -28674,7 +30056,26 @@
                   "type": "null"
                 }
               ],
+              "description": "The transfer's status",
               "title": "Status"
+            }
+          },
+          {
+            "description": "The department on the other side (from for in, to for out, either without)",
+            "in": "query",
+            "name": "other_office",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The department on the other side (from for in, to for out, either without)",
+              "title": "Other Office"
             }
           },
           {
@@ -28695,6 +30096,190 @@
               "default": 0,
               "title": "Offset",
               "type": "integer"
+            }
+          },
+          {
+            "description": "Words as the Search box (at least 3 characters): a CNR, a case number (`WP(C) 4326/2025`), a `ref_no`, or words matched as prefixes over parties, advocates, counsel codes and numbers",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Words as the Search box (at least 3 characters): a CNR, a case number (`WP(C) 4326/2025`), a `ref_no`, or words matched as prefixes over parties, advocates, counsel codes and numbers",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "A cause-list entry of the case dated on or after this day (IST)",
+            "in": "query",
+            "name": "listed_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A cause-list entry of the case dated on or after this day (IST)",
+              "title": "Listed From"
+            }
+          },
+          {
+            "description": "A cause-list entry of the case dated on or before this day",
+            "in": "query",
+            "name": "listed_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A cause-list entry of the case dated on or before this day",
+              "title": "Listed To"
+            }
+          },
+          {
+            "description": "That same entry's court number, as printed",
+            "in": "query",
+            "name": "court_no",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "That same entry's court number, as printed",
+              "title": "Court No"
+            }
+          },
+          {
+            "description": "That same entry's bench (judge names) contains this text (case and spacing ignored)",
+            "in": "query",
+            "name": "bench",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "That same entry's bench (judge names) contains this text (case and spacing ignored)",
+              "title": "Bench"
+            }
+          },
+          {
+            "description": "Next hearing date on or after this day",
+            "in": "query",
+            "name": "next_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Next hearing date on or after this day",
+              "title": "Next From"
+            }
+          },
+          {
+            "description": "Next hearing date on or before this day",
+            "in": "query",
+            "name": "next_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Next hearing date on or before this day",
+              "title": "Next To"
+            }
+          },
+          {
+            "description": "The case type: the master's short name or an alias, or the case's type text",
+            "in": "query",
+            "name": "case_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The case type: the master's short name or an alias, or the case's type text",
+              "title": "Case Type"
+            }
+          },
+          {
+            "description": "Registration year (1900-2100)",
+            "in": "query",
+            "name": "year",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Registration year (1900-2100)",
+              "title": "Year"
+            }
+          },
+          {
+            "description": "pending, disposed or unknown",
+            "in": "query",
+            "name": "case_status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "pending, disposed or unknown",
+              "title": "Case Status"
             }
           }
         ],
@@ -29358,6 +30943,57 @@
         "summary": "Get Note",
         "tags": [
           "workflow"
+        ]
+      }
+    },
+    "/reference/benches": {
+      "get": {
+        "description": "The court numbers and bench texts printed in the cause lists of the last `days` days up to today (IST),\neach with the last date it appeared and its entry count; court numbers numerically, benches by text.\nCourt-public data, the same for every reader.",
+        "operationId": "benches_reference_benches_get",
+        "parameters": [
+          {
+            "description": "The window in days up to today (1-400)",
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 90,
+              "description": "The window in days up to today (1-400)",
+              "title": "Days",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BenchesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Benches",
+        "tags": [
+          "reference"
         ]
       }
     },

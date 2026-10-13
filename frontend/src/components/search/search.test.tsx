@@ -105,6 +105,7 @@ describe("local search", () => {
     const select = await screen.findByLabelText("Case type");
     await waitFor(() => expect(within(select).getByRole("option", { name: /Crl.A. — Criminal Appeal/ })).toBeInTheDocument());
     await userEvent.selectOptions(select, "WP(C)");
+    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
     expect(nav.replace).toHaveBeenCalledWith("/search?case_type=WP%28C%29");
   });
 
@@ -153,7 +154,7 @@ describe("local search", () => {
     await waitFor(() =>
       expect(api.calls.find((c) => c.method === "POST" && c.path === `${own}/claim`)?.body).toEqual({ office_code: "HEALTH" }),
     );
-    expect(api.calls.some((c) => c.path === "/custody/recipients")).toBe(false);
+    expect(api.calls.some((c) => c.path.startsWith("/custody/recipients?department="))).toBe(false);
   });
 
   it("Claim on a result shows the API's message when the ownership answers 404", async () => {
@@ -270,5 +271,74 @@ describe("court search", () => {
     await userEvent.click(within(panel).getByRole("button", { name: "Fetch details" }));
     await waitFor(() => expect(within(panel).queryByRole("button", { name: "Fetch details" })).toBeNull());
     expect(api.calls.some((c) => c.method === "POST" && c.path === "/cases/ASLMS-GOA-CASE-2026-000005/fetch-court")).toBe(true);
+  });
+});
+
+describe("the filter bar on Search (portal-filters)", () => {
+  const SHARED = { case_status: "disposed", owner: "FIN", court_no: "3", bench: "SAIKIA", next_from: "2026-10-01", next_to: "2026-10-31" };
+  const parts = ["case_status=disposed", "owner=FIN", "court_no=3", "bench=SAIKIA", "next_from=2026-10-01", "next_to=2026-10-31"];
+
+  it("without words: /cases with case_status, owner, court, bench and the next range; no case_state", async () => {
+    const api = browserApi({ "GET /me": me(READER), "GET /reference/case-types": TYPES, "GET /cases": { items: [], total: 0 } });
+    renderWithClient(<Search params={SHARED} />);
+    await screen.findByRole("heading", { name: /Your cases/ });
+    const call = api.calls.find((c) => c.path.startsWith("/cases?"))!;
+    for (const part of parts) expect(call.path).toContain(part);
+    expect(call.path).not.toContain("case_state");
+    expect(screen.queryByRole("combobox", { name: "Cases" })).toBeNull(); // Status replaces Active / Disposed / All
+  });
+
+  it("with words: /cases/search with the same filters", async () => {
+    const api = browserApi({ "GET /me": me(READER), "GET /reference/case-types": TYPES, "GET /cases/search": { items: [], total: 0 } });
+    renderWithClient(<Search params={{ ...SHARED, q: "ram kumar" }} />);
+    await screen.findByRole("heading", { name: /Results/ });
+    const call = api.calls.find((c) => c.path.startsWith("/cases/search"))!;
+    for (const part of [...parts, "q=ram+kumar"]) expect(call.path).toContain(part);
+  });
+
+  it("an old status=disposed&office=FIN link is sent as case_status and owner", async () => {
+    const api = browserApi({ "GET /me": me(READER), "GET /reference/case-types": TYPES, "GET /cases": { items: [], total: 0 } });
+    renderWithClient(<Search params={{ status: "disposed", office: "FIN" }} />);
+    await screen.findByRole("heading", { name: /Your cases/ });
+    const call = api.calls.find((c) => c.path.startsWith("/cases?"))!;
+    expect(call.path).toContain("case_status=disposed");
+    expect(call.path).toContain("owner=FIN");
+    expect(call.path).not.toMatch(/[?&](status|office)=/);
+    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
+    expect(nav.replace).toHaveBeenCalledWith("/search?case_status=disposed&owner=FIN");
+  });
+
+  it("the text tab sends group, doc_type, date_from and date_to", async () => {
+    const api = browserApi({
+      "GET /me": me(READER),
+      "GET /documents/types": {
+        items: [{ code: "order", label: "Order", doc_group: "court_record", group_choosable: false }],
+        upload: { max_bytes: 1, allowed_types: [] },
+      },
+      "GET /documents/search": { items: [], total: 0 },
+    });
+    renderWithClient(
+      <Search
+        params={{ tab: "text", q: "eviction", group: "court_record", doc_type: "order", date_from: "2026-01-01", date_to: "2026-06-30" }}
+      />,
+    );
+    await waitFor(() => expect(api.calls.some((c) => c.path.startsWith("/documents/search"))).toBe(true));
+    const call = api.calls.find((c) => c.path.startsWith("/documents/search"))!;
+    for (const part of ["q=eviction", "group=court_record", "doc_type=order", "date_from=2026-01-01", "date_to=2026-06-30"]) {
+      expect(call.path).toContain(part);
+    }
+    expect(screen.getByText("Document group: Court orders")).toBeInTheDocument();
+  });
+
+  it("the text tab refuses a reversed document date range", async () => {
+    const api = browserApi({ "GET /me": me(READER), "GET /documents/types": { items: [], upload: {} } });
+    renderWithClient(<Search params={{ tab: "text" }} />);
+    await userEvent.type(await screen.findByLabelText("Words in orders and documents"), "eviction");
+    await userEvent.type(screen.getByLabelText("Document date from"), "2026-06-30");
+    await userEvent.type(screen.getByLabelText("Document date to"), "2026-01-01");
+    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
+    expect(screen.getByText("The start date is after the end date.")).toBeInTheDocument();
+    expect(nav.replace).not.toHaveBeenCalled();
+    expect(api.calls.some((c) => c.path.startsWith("/documents/search"))).toBe(false);
   });
 });
