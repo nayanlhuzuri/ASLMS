@@ -1561,3 +1561,7 @@ portal-workflow (`useAlertCounts()`, `monthGrid()` and the `/files/sent` destina
 
 **Left for later**: row 56 (Compose verification of the workflow and these screens in a browser); the reports screen
 (row 39); row 53 browser checklist still with the owner.
+
+## Owner decisions of 13 Oct 2026: filters, cause list screen, counsel code variants
+- Filters on every list (portal-filters) and a Cause list screen for a chosen date and bench with Claim (portal-causelist) are added to the backlog right after portal-files-alerts, before the reports and audit screens and the Case Assistant.
+- Counsel codes stay exact: normalisation remains upper case, collapsed whitespace and comma spacing only; a dot makes a different code, so variants such as `SC, ELEM. EDU` and `SC, ELEM. EDU.` are each mapped on the mapping screen (several codes may map to one department).
