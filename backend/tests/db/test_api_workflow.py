@@ -8,6 +8,7 @@ import pytest
 import sqlalchemy as sa
 
 from aslms.domain.events import AuditLog
+from aslms.domain.reference import EventType
 from tests import samplefiles as sf
 from tests.db import alerts_support as h
 from tests.db import docs_support as ds
@@ -36,6 +37,18 @@ def case_id(api, world):
         return case.id
 
 
+# design case-stages-extension, decision 1: code → phase
+NEW_STAGES = {
+    "review_petition_filed": "appeal",
+    "appeal_dismissed": "appeal",
+    "appeal_allowed": "appeal",
+    "further_appeal_filed": "appeal",
+    "complied_after_dismissal": "appeal",
+    "vakalatnama_submitted": "contempt",
+    "contempt_disposed": "contempt",
+}
+
+
 def _send(api, headers, case_id, world, to, **extra):
     with world.Session() as s:
         target = world.membership(s, to).id
@@ -51,7 +64,9 @@ def test_codes(api):
     assert kinds["hand_over"] and kinds["opinion"] and kinds["counsel_advice"] and not kinds["correction"]
     actions = {a["code"]: a for a in body["pending_actions"]}
     assert actions["parawise_comments"]["label"] == "Parawise comments" and not actions["none"]["sendable"]
-    assert len(body["stages"]) == 17
+    assert len(body["stages"]) == 24
+    phases = {st["code"]: st["phase"] for st in body["stages"]}
+    assert {c: phases.get(c) for c in NEW_STAGES} == NEW_STAGES  # case-stages-extension
     assert {r["code"] for r in body["custody_reasons"]} >= {"sent", "recalled", "reassigned_on_exit"}
     labels = {k["code"]: k["label"] for k in body["note_kinds"]}
     assert labels["hearing"] == "Hearing note"
@@ -217,3 +232,34 @@ def test_codes_carry_limits(api):
         "attachments_max_files": s.attachments_max_files,
         "note_drafts_max": s.note_drafts_max,
     }
+
+
+def test_set_new_contempt_stage(api, world, case_id):
+    """Design case-stages-extension: a new contempt-phase stage is set like any other, with no gaps, one
+    `stage_set` event carrying the phase and one `stage.set` audit row."""
+    h1 = w.login(api, "edu_off1")
+    r = api.post(f"/cases/{case_id}/stages", headers=h1, json={"stage": "vakalatnama_submitted"})
+    assert r.status_code == 201, r.text
+    assert r.json()["current"]["label"] == "Vakalatnama submitted"
+    out = api.get(f"/cases/{case_id}/stages", headers=h1).json()
+    assert out["current"]["stage"] == "vakalatnama_submitted" and out["current"]["phase"] == "contempt"
+    assert out["gaps"] == []
+    assert api.get(f"/cases/{case_id}/stages", headers=w.login(api, "fin_off")).status_code == 404
+    with world.Session() as s:
+        events = w.events(s, case_id, EventType.STAGE_SET)
+        assert len(events) == 1 and events[0].payload["phase"] == "contempt"
+        assert events[0].payload["stage"] == "vakalatnama_submitted"
+        audit = w.audits(s, "stage.set", case_id)
+        assert len(audit) == 1
+
+
+def test_set_new_appeal_stage_through_send(api, world, case_id):
+    h1 = w.login(api, "edu_off1")
+    r = _send(api, h1, case_id, world, "edu_off2", stage="appeal_dismissed")
+    assert r.status_code == 201, r.text
+    out = api.get(f"/cases/{case_id}/stages", headers=h1).json()
+    assert out["current"]["stage"] == "appeal_dismissed"
+    assert out["current"]["label"] == "Appeal or review dismissed" and out["current"]["phase"] == "appeal"
+    assert out["gaps"] == []
+    with world.Session() as s:
+        assert len(w.audits(s, "stage.set", case_id)) == 1

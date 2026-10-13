@@ -1,9 +1,9 @@
-"""Case stages (design `custody-workflow`, decision 19): one track of the 17 stages per case; the current stage is
-the latest `case_stages` row; any stage may be set (guided, not enforced) by a `stages.set` holder with a working
-basis on a claimed case — the personal holder from another department included (decision 9). The read returns
-the history and the gaps (main-phase stages ordered before a main current stage that were never recorded). No
-stage is set by the system. Writes take the case row lock, emit `stage_set` and audit `stage.set` (the stage
-note's length and hash, never its text)."""
+"""Case stages (design `custody-workflow`, decision 19): one track of the stages in `ref_case_stage` per case; the
+current stage is the latest `case_stages` row; any stage may be set (guided, not enforced) by a `stages.set`
+holder with a working basis on a claimed case — the personal holder from another department included (decision
+9). The read returns the history and the gaps (main-phase stages ordered before a main current stage that were
+never recorded). No stage is set by the system. Writes take the case row lock, emit `stage_set` and audit
+`stage.set` (the stage note's length and hash, never its text)."""
 
 from __future__ import annotations
 

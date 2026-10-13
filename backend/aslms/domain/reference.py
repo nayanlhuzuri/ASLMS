@@ -57,6 +57,14 @@ class Stage(enum.StrEnum):
     CONTEMPT_NOTICE = "contempt_notice"
     CONTEMPT_REPLY_FILED = "contempt_reply_filed"
     CLOSED = "closed"
+    # case-stages-extension (migration 0016): appeal / review outcomes and the contempt track
+    REVIEW_PETITION_FILED = "review_petition_filed"
+    APPEAL_DISMISSED = "appeal_dismissed"
+    APPEAL_ALLOWED = "appeal_allowed"
+    FURTHER_APPEAL_FILED = "further_appeal_filed"
+    COMPLIED_AFTER_DISMISSAL = "complied_after_dismissal"
+    VAKALATNAMA_SUBMITTED = "vakalatnama_submitted"
+    CONTEMPT_DISPOSED = "contempt_disposed"
 
 
 class NoteKind(enum.StrEnum):

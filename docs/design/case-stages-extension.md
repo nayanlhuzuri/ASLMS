@@ -210,3 +210,12 @@ None.
 ## Open questions
 None. The labels in decision 1 ("Appeal or review dismissed / allowed") are a wording choice for the owner to
 confirm or change at approval. They do not block the build.
+
+## Deviations
+Recorded by the developer while building (none changes the plan or a decision above).
+1. Migration 0016 is written by hand: it changes no table, so `alembic revision --autogenerate` has nothing to
+   generate. It runs one parameterised `INSERT … ON CONFLICT (code) DO NOTHING` per row of `NEW_STAGES` instead of
+   one multi-row `VALUES` statement (same effect), and the downgrade's guard and delete use `= ANY(:codes)`.
+2. `test_0016_after_seed_is_a_no_op` also edits one seeded label before the upgrade and checks the edit survives
+   (`ON CONFLICT DO NOTHING` never relabels). A unit test `test_migration_rows_equal_the_seed` compares the
+   migration's `NEW_STAGES` with the seed's output without a database, next to the database comparison.

@@ -61,6 +61,21 @@ STAGE_PHASE = {
     Stage.APPEAL_FILED: "appeal",
     Stage.CONTEMPT_NOTICE: "contempt",
     Stage.CONTEMPT_REPLY_FILED: "contempt",
+    # case-stages-extension (decision 3; the same rows as migration 0016)
+    Stage.REVIEW_PETITION_FILED: "appeal",
+    Stage.APPEAL_DISMISSED: "appeal",
+    Stage.APPEAL_ALLOWED: "appeal",
+    Stage.FURTHER_APPEAL_FILED: "appeal",
+    Stage.COMPLIED_AFTER_DISMISSAL: "appeal",
+    Stage.VAKALATNAMA_SUBMITTED: "contempt",
+    Stage.CONTEMPT_DISPOSED: "contempt",
+}
+# labels that differ from the code (design case-stages-extension, decision 1; the same labels as migration 0016)
+STAGE_LABELS = {
+    Stage.APPEAL_DISMISSED: "Appeal or review dismissed",
+    Stage.APPEAL_ALLOWED: "Appeal or review allowed",
+    Stage.FURTHER_APPEAL_FILED: "Further appeal filed (higher court)",
+    Stage.COMPLIED_AFTER_DISMISSAL: "Complied after dismissal of appeal or review",
 }
 DOC_GROUP = {
     DocType.CAUSELIST: "court_record",
@@ -122,7 +137,10 @@ TRACKING_CARD_EVENTS = {
 
 def _extra_columns(model: type, member: enum.Enum) -> dict:
     if model is RefCaseStage:
-        return {"phase": STAGE_PHASE.get(member, "main")}
+        out = {"phase": STAGE_PHASE.get(member, "main")}
+        if member in STAGE_LABELS:
+            out["label"] = STAGE_LABELS[member]
+        return out
     if model is RefDocType:
         out = {"doc_group": DOC_GROUP.get(member, "internal")}
         if member in DOC_TYPE_LABELS:

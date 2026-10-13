@@ -1620,3 +1620,24 @@ Backlog row 60, design `docs/design/portal-causelist.md` (approved by the owner 
 **Left for later**: Compose browser check of the screen (with row 56); an index only if day-entries timing on the full load exceeds one second (row 64).
 
 - 2026-10-13 — case-stages-extension: approved by the owner (seven stages: review petition filed, appeal or review dismissed, appeal or review allowed, further appeal filed (higher court), complied after dismissal of appeal or review; Vakalatnama submitted, contempt disposed; migration 0016 inserts the reference rows; docs/design/case-stages-extension.md)
+
+## Case stages: appeal, review and contempt outcomes (case-stages-extension) (2026-10-13)
+
+Backlog row 61, design `docs/design/case-stages-extension.md` (approved by the owner 13 Oct 2026). Source: the department's `Case_Handling.docx`.
+
+**What was built**
+- Migration 0016 (`0016_case_stages.py`, reference data only, no table or column change) inserts seven rows into `ref_case_stage` with `ON CONFLICT (code) DO NOTHING`: `review_petition_filed`, `appeal_dismissed`, `appeal_allowed`, `further_appeal_filed`, `complied_after_dismissal` (phase `appeal`, sort 180-220) and `vakalatnama_submitted`, `contempt_disposed` (phase `contempt`, sort 230-240). The catalogue is now 24 stages.
+- The `Stage` enum gains the seven members after `CLOSED`; `aslms seed` carries the same phases and labels (`STAGE_PHASE`, `STAGE_LABELS`), so a migrated or a freshly seeded database gives identical rows.
+- No API, permission, screen or frontend change: `GET /workflow/codes`, `POST /cases/{ref}/stages` and the Send file stage choice read the catalogue. The `stages.py` docstring was updated; no logic change.
+- Tests: unit `test_case_stages_extension.py`; database `test_migration_0016.py`; additions to `test_api_workflow.py` (24 codes, a contempt stage set, an appeal stage set through custody send).
+
+**Decisions and reasons**
+- Labels "Appeal or review dismissed" and "Appeal or review allowed" (codes stay `appeal_dismissed` / `appeal_allowed`): one outcome stage covers both kinds of challenge, following Option C of the department's document. Labels are data and can change without a release.
+- Ordered after the existing codes (no renumbering); each appears at the end of its phase group in the dialogs. No new phase. Gaps still count only `main` stages, so the new stages never create gaps.
+- A reference-data migration, at the owner's request, is a change of convention (earlier `ref_*` additions were seed only), not a deviation from the plan. The migration hard-codes its rows and imports no application code.
+- No audit row for the migration; recording a stage on a case is audited as before (`stage.set`).
+- The downgrade refuses while any `case_stages` row uses a new code, otherwise deletes the seven rows (so a re-upgrade restores them active).
+
+**Deviations from the design note** (in the note's Deviations section): migration written by hand with one insert per row; the no-op test also checks that a seeded label edit survives; a unit test compares the migration rows with the seed.
+
+**Left for later**: alerts to a named officer in a contempt case (row 62, parked); any behaviour tied to a stage (for example stopping compliance alerts after "Contempt disposed") needs an owner rule.

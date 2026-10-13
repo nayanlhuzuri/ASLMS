@@ -32,7 +32,7 @@ written from this document plus the approved addendum. **As built (1 Oct 2026):*
   eight `ref_*` tables plus `ref_record_type` and `ref_ticket_kind`. Retired codes stay as rows with
   `is_active = false` (the Python members stay, so old rows still load). The business columns are
   `varchar(40) REFERENCES ref_*(code)`; the Python enums stay the ORM type (their values are the codes) and the seed
-  upserts one row per member. The other 48 enumerations (statuses, sources, channels, scan states…) stay native
+  upserts one row per member (`ref_case_stage`'s seven appeal and contempt codes also come from migration 0016). The other 48 enumerations (statuses, sources, channels, scan states…) stay native
   Postgres enum types.
 - **Timestamps.** `timestamptz` in UTC, IST in the API; court dates as `date`. `created_at` everywhere, `updated_at`
   on the mutable tables (`case_note_drafts` added by `custody-workflow`), maintained by the `set_updated_at()` trigger.
@@ -73,7 +73,7 @@ written from this document plus the approved addendum. **As built (1 Oct 2026):*
 | Table | Columns | Notes |
 |---|---|---|
 | `ref_role`, `ref_office_kind`, `ref_note_kind`, `ref_record_type` | code (PK), label, description, sort_order, is_active | Seeded from `Role`, `OfficeKind`, `NoteKind`, `RecordType`. (custody-workflow) `ref_note_kind` + `opinion`, `hand_over`; `hearing` labelled "Hearing note"; `correction` retired; `ref_record_type` `REQ` retired. `ref_request_kind` dropped by migration 0009. |
-| `ref_case_stage` | + phase (`main` / `appeal` / `contempt` / `counsel`) | The 17 lifecycle stages in order. |
+| `ref_case_stage` | + phase (`main` / `appeal` / `contempt` / `counsel`) | The lifecycle stages in order (reference class; `code` PK; `case_stages.stage` → RESTRICT). 17 seeded from `Stage`, then 7 added by `case-stages-extension` (migration 0016, a reference-data migration: `ON CONFLICT DO NOTHING`, the seed carries the same labels and phases): `review_petition_filed`, `appeal_dismissed` ("Appeal or review dismissed"), `appeal_allowed` ("Appeal or review allowed"), `further_appeal_filed` ("Further appeal filed (higher court)"), `complied_after_dismissal` (phase `appeal`, sort 180–220); `vakalatnama_submitted`, `contempt_disposed` (phase `contempt`, sort 230–240). 24 rows, all active. Gaps count only `main` stages. |
 | `ref_doc_type` | + doc_group (`court_record` / `court_filing` / `internal`) | The filing vocabulary. |
 | `ref_alert_kind` | + default_severity | (custody-workflow) + `workflow` ("Workflow", `normal`); `request_due` retired. |
 | `ref_event_type` | + timeline_label, icon_key, is_tracking_card | Timeline labels live in data. `case_taken_over` (tracking card) added by recommend-and-claim (seed only). (custody-workflow) `request_sent`, `request_answered` retired. (data-load-console) `case_merged` ("Case merged", not on the tracking card), seed only. |
