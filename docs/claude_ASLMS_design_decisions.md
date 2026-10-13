@@ -1595,3 +1595,5 @@ Backlog row 59, design `docs/design/portal-filters.md` (approved by the owner 13
 
 **Left for later**: a court-establishment filter once outlying benches' cases arrive; Compose browser check of the bars (with row 56). The Cause list screen (row 60) follows and may reuse `/reference/benches`.
 
+
+- 2026-10-13 — portal-causelist: approved by the owner (Cause list screen for any date and bench in court order; published rows to every case reader with portal facts scoped on the server; other departments' recommendations only for State-wide readers; claimable includes the watcher claim; words on the printed row; the day fetch only for admin.napix_refetch; original PDF; docs/design/portal-causelist.md)
