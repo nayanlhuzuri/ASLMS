@@ -1,7 +1,17 @@
 import { describe, expect, it } from "vitest";
 
 import type { Permission } from "./api/types";
-import { ADMIN_FUNCTIONS, ADMIN_TABS, adminTabsFor, MAPPING_FUNCTIONS, mappingTabsFor, PEOPLE_ADMIN_FUNCTIONS } from "./routes";
+import {
+  ADMIN_FUNCTIONS,
+  ADMIN_TABS,
+  adminTabsFor,
+  CASE_TABS,
+  CRUMBS,
+  MAPPING_FUNCTIONS,
+  mappingTabsFor,
+  navFor,
+  PEOPLE_ADMIN_FUNCTIONS,
+} from "./routes";
 
 const only = (fn: Permission) => ({ functions: [fn] });
 const keys = (tabs: { key: string }[]) => tabs.map((t) => t.key);
@@ -35,5 +45,23 @@ describe("department mapping navigation", () => {
     expect(keys(mappingTabsFor(only("admin.scoring")))).toEqual(["scoring"]);
     expect(mappingTabsFor(only("users.view"))).toEqual([]);
     expect(mappingTabsFor(null)).toEqual([]);
+  });
+});
+
+describe("the case page tabs (portal-workflow)", () => {
+  it("include Custody and stage after Overview and Alerts after Notes, without a count on Alerts", () => {
+    const tabs = CASE_TABS.map((t) => t.key);
+    expect(tabs.slice(0, 2)).toEqual(["", "custody"]);
+    expect(tabs[tabs.indexOf("notes") + 1]).toBe("alerts");
+    expect(CASE_TABS.find((t) => t.key === "custody")!.label).toBe("Custody and stage");
+    expect(CASE_TABS.find((t) => t.key === "alerts")!.count).toBeNull();
+    expect(CRUMBS.custody).toBe("Custody and stage");
+    expect(CRUMBS.alerts).toBe("Alerts");
+  });
+
+  it("the Files and Alerts & calendar screens stay unbuilt until row 55", () => {
+    const keys = navFor({ functions: ["cases.view_scope", "custody.track"] }).map((e) => e.key);
+    expect(keys).not.toContain("alerts");
+    expect(keys).not.toContain("files");
   });
 });

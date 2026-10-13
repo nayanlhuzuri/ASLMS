@@ -2,19 +2,23 @@
 
 /**
  * The Overview tab (design portal-cases, decision 10; Annexure B cards): Next hearing, Parties and advocates,
- * Proceedings, Custody (read-only here; row 13 adds Send and Recall), Stage, Latest order and Ownership, with a muted
+ * Proceedings, Custody (with Send file and Recall by the card's `can_send` / `can_recall`, design portal-workflow,
+ * decisions 5-7), Stage (Set stage by `workflow.set_stage`, decision 9), Latest order and Ownership, with a muted
  * "You see this case as: …" line from `access_basis`.
  */
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
-import { Badge, ErrorBanner, Loading } from "@/components/ui";
+import { Badge, Button, ErrorBanner, Loading, Notice } from "@/components/ui";
+import { CustodyActions } from "@/components/workflow/CustodyDialogs";
+import { CustodyFacts } from "@/components/workflow/CustodyTab";
+import { StageDialog } from "@/components/workflow/StageDialog";
 import { api } from "@/lib/api/client";
 import { caseKey, useCase, useMe } from "@/lib/api/hooks";
 import type { CaseDetail, HearingList, ListingList, OrderList } from "@/lib/api/types";
 import { can } from "@/lib/can";
-import { formatDate, formatDateTime, hearingBadge } from "@/lib/format";
+import { formatDate, hearingBadge } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { apiCasePath, casePath } from "@/lib/refs";
 
@@ -127,60 +131,46 @@ function Proceedings({ caseRef }: { caseRef: string }) {
   );
 }
 
-function Custody({ c }: { c: CaseDetail }) {
+function Custody({ caseRef, c }: { caseRef: string; c: CaseDetail }) {
   const k = c.custody;
   return (
-    <Card title={T.case.custody}>
-      {k ? (
-        <dl className={s.facts}>
-          <div>
-            <dt>{T.case.holder}</dt>
-            <dd>
-              {k.holder_office ? `${k.holder_office.code} — ${k.holder_office.name}` : "—"}
-              {k.holder_user ? (
-                <div>
-                  {k.holder_user.full_name}
-                  {k.holder_user.designation ? `, ${k.holder_user.designation}` : ""}
-                </div>
-              ) : null}
-            </dd>
-          </div>
-          <div>
-            <dt>{T.case.pendingAction}</dt>
-            <dd>{k.pending_action_label}</dd>
-          </div>
-          <div>
-            <dt>{T.case.since}</dt>
-            <dd>{formatDateTime(k.since)}</dd>
-          </div>
-          <div>
-            <dt>{T.case.due}</dt>
-            <dd>
-              {formatDate(k.due_date)}
-              {k.overdue ? (
-                <>
-                  {" "}
-                  <Badge tone="danger">{T.case.overdue(k.overdue_days)}</Badge>
-                </>
-              ) : null}
-            </dd>
-          </div>
-          {k.sent_by ? (
-            <div>
-              <dt>{T.case.sentBy}</dt>
-              <dd>{[k.sent_by.name, k.sent_by.designation, k.sent_by.office_code].filter(Boolean).join(", ")}</dd>
-            </div>
-          ) : null}
-          {k.remark ? (
-            <div>
-              <dt>{T.case.remark}</dt>
-              <dd>{k.remark}</dd>
-            </div>
-          ) : null}
-        </dl>
+    <Card title={T.case.custody} more={k ? <Link href={casePath(caseRef, "custody")}>{T.wf.openCustody}</Link> : null}>
+      {k ? <CustodyFacts card={k} /> : <p className="muted">{T.case.noCustody}</p>}
+      {k ? <CustodyActions caseRef={caseRef} detail={c} card={k} /> : null}
+    </Card>
+  );
+}
+
+function StageCard({ caseRef, c }: { caseRef: string; c: CaseDetail }) {
+  const [open, setOpen] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  return (
+    <Card title={T.case.stage} more={c.ownership.primary ? <Link href={casePath(caseRef, "custody")}>{T.wf.openCustody}</Link> : null}>
+      {notice ? <Notice>{notice}</Notice> : null}
+      {c.stage ? (
+        <div>
+          <strong>{c.stage.label}</strong>
+          {c.stage.phase ? <span className="muted"> · {c.stage.phase}</span> : null}
+        </div>
       ) : (
-        <p className="muted">{T.case.noCustody}</p>
+        <p className="muted">{T.case.noStage}</p>
       )}
+      {c.workflow.set_stage ? (
+        <>
+          <div className="row">
+            <Button variant="secondary" onClick={() => setOpen(true)}>
+              {T.wf.setStage}
+            </Button>
+          </div>
+          <StageDialog
+            open={open}
+            caseRef={caseRef}
+            current={c.stage ? { stage: c.stage.stage, response_mode: c.stage.response_mode } : null}
+            onClose={() => setOpen(false)}
+            onDone={setNotice}
+          />
+        </>
+      ) : null}
     </Card>
   );
 }
@@ -224,17 +214,8 @@ export function Overview({ caseRef }: { caseRef: string }) {
         <NextHearing caseRef={caseRef} c={c} />
         <PartiesCard caseRef={caseRef} c={c} />
         <Proceedings caseRef={caseRef} />
-        <Custody c={c} />
-        <Card title={T.case.stage}>
-          {c.stage ? (
-            <div>
-              <strong>{c.stage.label}</strong>
-              {c.stage.phase ? <span className="muted"> · {c.stage.phase}</span> : null}
-            </div>
-          ) : (
-            <p className="muted">{T.case.noStage}</p>
-          )}
-        </Card>
+        <Custody caseRef={caseRef} c={c} />
+        <StageCard caseRef={caseRef} c={c} />
         <LatestOrder caseRef={caseRef} />
       </div>
       <OwnershipCard caseRef={caseRef} detail={c} />

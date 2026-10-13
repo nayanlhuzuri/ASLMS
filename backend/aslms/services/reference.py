@@ -1,5 +1,5 @@
 """Reference labels for the portal (design `portal-shell`, decision 16a): the user types, office kinds and ticket
-kinds from their `ref_*` tables, so the portal shows the database's labels instead of a copy, and the user types
+kinds (and alert kinds, design `portal-workflow`, decision 20f) from their `ref_*` tables, so the portal shows the database's labels instead of a copy, and the user types
 the caller may assign (the server still decides on every write); the High Court's case types (design
 `portal-cases`, decision 14e). Reads only; no audit row."""
 
@@ -11,7 +11,14 @@ from sqlalchemy.orm import Session
 from aslms.core.config import get_settings
 from aslms.domain.courts import CaseType, Court
 from aslms.domain.org import User
-from aslms.domain.reference import Permission, RefOfficeKind, RefRole, RefTicketKind, Role
+from aslms.domain.reference import (
+    Permission,
+    RefAlertKind,
+    RefOfficeKind,
+    RefRole,
+    RefTicketKind,
+    Role,
+)
 from aslms.services import access
 
 
@@ -42,6 +49,7 @@ def labels(session: Session, user: User) -> dict:
         ],
         "office_kinds": [{"code": r.code, "label": r.label} for r in _rows(session, RefOfficeKind)],
         "ticket_kinds": [{"code": r.code, "label": r.label} for r in _rows(session, RefTicketKind)],
+        "alert_kinds": [{"code": r.code, "label": r.label} for r in _rows(session, RefAlertKind)],
     }
 
 

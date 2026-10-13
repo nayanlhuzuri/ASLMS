@@ -191,3 +191,21 @@ def test_stage_with_send(wide):
         # without the stage the counsel sends on
         w.send(s, wide, "edu_counsel", case, "edu_off2")
         s.rollback()
+
+
+def test_sent_item_visible_false_after_sending_on(wide):
+    """Design portal-workflow, decision 20g: the HEALTH officer who sends an EDU file on loses sight of it
+    (`visible` false); the EDU admin's own send of a case EDU owns stays visible."""
+    from aslms.services import custody
+
+    with wide.Session() as s:
+        case = w.claimed_case(s, wide, officer=None)  # held by the EDU office; the admin controls it
+        w.send(s, wide, "edu_admin", case, "health_off")
+        w.send(s, wide, "health_off", case, "fin_off")
+        _, hoff = wide.actor(s, "health_off")
+        _, admin = wide.actor(s, "edu_admin")
+        (mine,) = custody.sent(s, hoff).items
+        assert mine["visible"] is False and mine["leg"]["remark"]
+        (theirs,) = custody.sent(s, admin).items
+        assert theirs["visible"] is True
+        s.rollback()

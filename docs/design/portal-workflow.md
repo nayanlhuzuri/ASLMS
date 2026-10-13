@@ -431,3 +431,35 @@ Frontend (Vitest, the `fakeApi` helper):
 
 ## Open questions
 None.
+
+## Deviations
+Recorded by the developer during the build (13 Oct 2026); none changes a rule of the plan, a business rule or an API
+field beyond the design.
+1. **The owner's split.** Not built here (row 55): decisions 16 (`/alerts`), 17 (`/alerts/calendar`), 18
+   (`/files/*`), the "Files" and "Alerts & calendar" navigation entries, the bell link and the dashboard links of
+   decision 3. With them go their only consumers' helpers: `useAlertCounts()` and `monthGrid()` are left for row 55
+   (the bell keeps its own query; a case alert action invalidates `["alerts"]`, which re-reads the bell). The API
+   additions `alert_kinds` and `SentItemOut.visible` are built for row 55 to use. Decision 6 follows the approval
+   note: when the answer's `card` is `null`, the portal stores a one-time notice in `sessionStorage`
+   (`src/lib/flash.ts`, nothing secret), goes to the dashboard, which shows it once (`FlashNotice`), and drops the
+   case's cached queries.
+2. **UI kit, beyond `FileField`, `CharCounter`, `SeverityBadge`.** `RadioGroup` (visibility, nothing pre-selected);
+   `SelectField` takes `groups` for `<optgroup>` (stages by phase); `ErrorBanner` and `ConfirmDialog` take a
+   `messages` context and `errorText(error, context)` prefers it, because three codes already meant something else
+   (`not_open` for transfers, `bad_target` for the exit step) or needed the upload wording of decision 13
+   (`infected`, `scanner_unavailable`, `too_large`): `CUSTODY_ERRORS`, `UPLOAD_ERRORS`, `ALERT_ERRORS` in
+   `messages.ts`. `unchanged` and `too_many_drafts` show the server's message (decisions 9, 11, 12).
+3. **Dialogs.** The shared `Dialog` now traps Tab inside the dialog (decision 25) and keeps the latest `onClose` in a
+   ref: before, a parent passing a new function on each render re-ran the focus effect and moved the focus back to
+   the first control after every keystroke.
+4. **Required fields** carry `aria-required` and the portal's own messages instead of the native `required`, which
+   would stop the submit before the form could say what is missing; the API still checks every field.
+5. **Small choices.** A first stage's response mode is pre-filled with `department` (the API's default when none is
+   sent). The draft-mode composer has no file field at all (decision 10's "refuses files"). The duplicate answer
+   links to the existing document by its `ref_no` in dash form through `/documents/{doc}/file?disposition=inline`.
+   Timeline lines take their labels (custody reasons, pending actions, note kinds, stages, alert kinds) from
+   `/workflow/codes` and `/reference/labels`, passed to `timelineDetail(type, payload, labels)`; a missing label
+   shows the code. The link picker reads the case's documents with `limit=200` and leaves out archived ones.
+6. **Tests.** `backend/tests/db/test_api_documents.py` is a new file (the design said "added"; it did not exist).
+   The relay check of decision 23 was also run against a real Node 20 HTTP server: `fetch` forwards
+   `content-length` with a streamed body, so no fallback was needed.

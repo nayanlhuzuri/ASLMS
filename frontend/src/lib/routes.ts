@@ -168,6 +168,8 @@ export const CRUMBS: Record<string, string> = {
   notes: "Notes",
   timeline: "Timeline",
   details: "Details",
+  custody: "Custody and stage",
+  alerts: "Alerts",
   mapping: "Department mapping",
   codes: "Counsel codes",
   keywords: "Keywords and name patterns",
@@ -185,15 +187,20 @@ export const INBOX_TABS = [
 
 export type InboxTab = (typeof INBOX_TABS)[number]["key"];
 
-/** The case page tabs (design portal-cases, decision 10), each its own route under `/cases/[ref]`. */
+/**
+ * The case page tabs (design portal-cases, decision 10), each its own route under `/cases/[ref]`; "Custody and stage"
+ * and "Alerts" come with portal-workflow (decision 2). The Alerts tab has no count (the overview carries none).
+ */
 export const CASE_TABS = [
   { key: "", label: "Overview", count: null },
+  { key: "custody", label: "Custody and stage", count: null },
   { key: "hearings", label: "Hearings", count: "hearings" },
   { key: "orders", label: "Orders", count: "orders" },
   { key: "parties", label: "Parties", count: null },
   { key: "documents", label: "Documents", count: "documents" },
   { key: "links", label: "Linked cases", count: "links" },
   { key: "notes", label: "Notes", count: "notes" },
+  { key: "alerts", label: "Alerts", count: null },
   { key: "timeline", label: "Timeline", count: "timeline" },
   { key: "details", label: "Details", count: null },
 ] as const;

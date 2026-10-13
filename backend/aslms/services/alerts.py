@@ -1058,6 +1058,22 @@ def _may_act_on(session: Session, user: User, alert: Alert) -> Case | None:
     return case
 
 
+def may_act(session: Session, user: User, alert: Alert, *, has_function: bool | None = None) -> bool:
+    """Design portal-workflow, decision 20d: Acknowledge / Done may be offered — the alert is open or
+    acknowledged, the caller holds `alerts.acknowledge`, and `_may_act_on` passes (without raising)."""
+    if AlertStatus(alert.status) not in OPEN_STATUSES:
+        return False
+    if has_function is None:
+        has_function = access.has(session, user, Permission.ALERTS_ACKNOWLEDGE)
+    if not has_function:
+        return False
+    try:
+        _may_act_on(session, user, alert)
+    except AlertNotFound:
+        return False
+    return True
+
+
 def get_for_user(session: Session, user: User, ref: str) -> Alert:
     alert = resolve_alert_ref(session, ref)
     _may_act_on(session, user, alert)
@@ -1193,6 +1209,7 @@ def alert_item(
     users: dict[uuid.UUID, User],
     notified_at: datetime | None = None,
     read_at: datetime | None = None,
+    can_act: bool = False,
 ) -> dict[str, Any]:
     kind = alert.kind.value if hasattr(alert.kind, "value") else str(alert.kind)
     ack = users.get(alert.acknowledged_by_user_id) if alert.acknowledged_by_user_id else None
@@ -1215,6 +1232,7 @@ def alert_item(
         "acknowledged_at": alert.acknowledged_at,
         "closed_at": alert.closed_at,
         "created_at": alert.created_at,
+        "can_act": can_act,
     }
 
 
@@ -1276,8 +1294,19 @@ def list_for_user(
     ).all()
     labels = _labels(session)
     users = _users_for(session, [r[0] for r in rows])
+    # the caller's own list: a recipient by construction, so the function and the status decide (20d)
+    acts = access.has(session, user, Permission.ALERTS_ACKNOWLEDGE)
     items = [
-        alert_item(session, a, c, labels=labels, users=users, notified_at=created, read_at=read)
+        alert_item(
+            session,
+            a,
+            c,
+            labels=labels,
+            users=users,
+            notified_at=created,
+            read_at=read,
+            can_act=acts and AlertStatus(a.status) in OPEN_STATUSES,
+        )
         for a, c, created, read in rows
     ]
     return Page(items, total)
@@ -1347,11 +1376,21 @@ def alerts_for_case(
             .order_by(Notification.created_at)
         ).all()
     }
+    acts = access.has(session, user, Permission.ALERTS_ACKNOWLEDGE)
     items = []
     for a in rows:
         created, read = mine.get(a.id, (None, None))
         items.append(
-            alert_item(session, a, case, labels=labels, users=users, notified_at=created, read_at=read)
+            alert_item(
+                session,
+                a,
+                case,
+                labels=labels,
+                users=users,
+                notified_at=created,
+                read_at=read,
+                can_act=may_act(session, user, a, has_function=acts),
+            )
         )
     return Page(items, total)
 
@@ -1377,6 +1416,7 @@ def detail_item(session: Session, user: User, alert: Alert) -> dict[str, Any]:
         users=_users_for(session, [alert]),
         notified_at=row[0] if row else None,
         read_at=row[1] if row else None,
+        can_act=may_act(session, user, alert),
     )
     item["recipients_count"] = recipients_count(session, alert)
     return item

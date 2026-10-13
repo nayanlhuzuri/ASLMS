@@ -2741,8 +2741,8 @@ export interface paths {
         };
         /**
          * Custody Sent
-         * @description The legs the caller wrote (sends and recalls) with the case summary; the case detail still needs the
-         *     visibility rule.
+         * @description The legs the caller wrote (sends and recalls) with the case summary and `visible`: whether the caller can
+         *     open the case now (the sender usually loses sight of a case sent on).
          */
         get: operations["custody_sent_custody_sent_get"];
         put?: never;
@@ -2886,7 +2886,9 @@ export interface paths {
         };
         /**
          * Document Types
-         * @description The uploadable document types with their group; `other` lets the uploader choose the group.
+         * @description The uploadable document types with their group; `other` lets the uploader choose the group. `upload`:
+         *     the size limit and the permitted extensions, for the portal's checks before sending (the API still decides
+         *     by content).
          */
         get: operations["document_types_documents_types_get"];
         put?: never;
@@ -3466,8 +3468,8 @@ export interface paths {
         };
         /**
          * Codes
-         * @description Note kinds (with `selectable`), pending actions with labels, stages with phase, response modes and
-         *     custody reasons.
+         * @description Note kinds (with `selectable`), pending actions with labels, stages with phase, response modes, custody
+         *     reasons and the note limits (`note_max_chars`, `attachments_max_files`, `note_drafts_max`).
          */
         get: operations["codes_workflow_codes_get"];
         put?: never;
@@ -3565,6 +3567,8 @@ export interface components {
             acknowledged_by: components["schemas"]["UserRefOut"] | null;
             /** Body */
             body: string | null;
+            /** Can Act */
+            can_act: boolean;
             case: components["schemas"]["AlertCaseOut"] | null;
             /** Closed At */
             closed_at: string | null;
@@ -3612,6 +3616,8 @@ export interface components {
             acknowledged_by: components["schemas"]["UserRefOut"] | null;
             /** Body */
             body: string | null;
+            /** Can Act */
+            can_act: boolean;
             case: components["schemas"]["AlertCaseOut"] | null;
             /** Closed At */
             closed_at: string | null;
@@ -4052,6 +4058,7 @@ export interface components {
             ref_no: string;
             stage: components["schemas"]["StageBlockOut"] | null;
             status: components["schemas"]["CaseStatusOut"];
+            workflow: components["schemas"]["CaseWorkflowActionsOut"];
             /** Writ Info */
             writ_info: components["schemas"]["WritInfoOut"][];
         };
@@ -4321,6 +4328,20 @@ export interface components {
             short_name: string | null;
             /** Type Name */
             type_name: string;
+        };
+        /**
+         * CaseWorkflowActionsOut
+         * @description Design portal-workflow, decision 20a: what the caller may do, from the checks the writes run. `note_mode`
+         *     is `draft` when the caller's acting membership holds the file, `permanent` when they may write a note
+         *     otherwise, `null` when they may not write one.
+         */
+        CaseWorkflowActionsOut: {
+            /** Note Mode */
+            note_mode: ("draft" | "permanent") | null;
+            /** Set Stage */
+            set_stage: boolean;
+            /** Upload */
+            upload: boolean;
         };
         /** CauselistDayRowOut */
         CauselistDayRowOut: {
@@ -5264,6 +5285,7 @@ export interface components {
         DocumentTypesOut: {
             /** Items */
             items: components["schemas"]["DocumentTypeOut"][];
+            upload: components["schemas"]["UploadLimitsOut"];
         };
         /** DocumentUploaderOut */
         DocumentUploaderOut: {
@@ -5281,6 +5303,15 @@ export interface components {
         };
         /** DraftDocumentOut */
         DraftDocumentOut: {
+            /** Doc Type */
+            doc_type: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Mime */
+            mime: string;
             /** Original Filename */
             original_filename: string | null;
             /** Ref No */
@@ -6614,6 +6645,8 @@ export interface components {
             author: components["schemas"]["NoteAuthorOut"];
             /** Body */
             body: string;
+            /** Can Correct */
+            can_correct: boolean;
             /**
              * Created At
              * Format: date-time
@@ -7365,6 +7398,8 @@ export interface components {
          * @description Design `portal-shell`, decision 16a: the database's labels; `assignable` is the caller's.
          */
         ReferenceLabelsOut: {
+            /** Alert Kinds */
+            alert_kinds: components["schemas"]["LabelOut"][];
             /** Office Kinds */
             office_kinds: components["schemas"]["LabelOut"][];
             /** Ticket Kinds */
@@ -7647,6 +7682,8 @@ export interface components {
         SentItemOut: {
             case: components["schemas"]["CaseSummaryOut"];
             leg: components["schemas"]["CustodyLegOut"];
+            /** Visible */
+            visible: boolean;
         };
         /** SentListOut */
         SentListOut: {
@@ -8234,6 +8271,17 @@ export interface components {
             /** Type Name */
             type_name?: string | null;
         };
+        /**
+         * UploadLimitsOut
+         * @description Design portal-workflow, decision 20e: `UPLOAD_MAX_BYTES` and the permitted extensions, for the portal's
+         *     pre-checks (the API still decides by content).
+         */
+        UploadLimitsOut: {
+            /** Extensions */
+            extensions: string[];
+            /** Max Bytes */
+            max_bytes: number;
+        };
         /** UserCallsOut */
         UserCallsOut: {
             /** Calls */
@@ -8456,6 +8504,7 @@ export interface components {
         WorkflowCodesOut: {
             /** Custody Reasons */
             custody_reasons: components["schemas"]["CodeLabelOut"][];
+            limits: components["schemas"]["WorkflowLimitsOut"];
             /** Note Kinds */
             note_kinds: components["schemas"]["NoteKindOut"][];
             /** Pending Actions */
@@ -8464,6 +8513,18 @@ export interface components {
             response_modes: components["schemas"]["CodeLabelOut"][];
             /** Stages */
             stages: components["schemas"]["StageCodeOut"][];
+        };
+        /**
+         * WorkflowLimitsOut
+         * @description Design portal-workflow, decision 20e: the settings the note composer follows.
+         */
+        WorkflowLimitsOut: {
+            /** Attachments Max Files */
+            attachments_max_files: number;
+            /** Note Drafts Max */
+            note_drafts_max: number;
+            /** Note Max Chars */
+            note_max_chars: number;
         };
         /** WritInfoOut */
         WritInfoOut: {

@@ -94,14 +94,67 @@ const ERRORS: Record<string, (extra: Record<string, unknown>) => string> = {
   // the court search (design portal-cases, decision 9)
   not_found_at_court: () => "The court does not know that case number.",
   already_fetched: () => "The court details of this case are already held.",
+  // custody, stages and notes (design portal-workflow, decision 21)
+  not_owned: () => "The case has not been claimed by a department yet, so it has no file to move.",
+  unchanged: () => "Nothing changed: that is already the case.",
+  not_in_control: () => "You do not hold this file and do not control the office that holds it.",
+  bad_due_date: () => "Choose a due date from today up to a year ahead.",
+  not_owner_department: () => "Only the department that owns the case may recall its file.",
+  function_missing: () => "Recalling files is not among your functions in the owning department.",
+  drafts_take_links_only: () =>
+    "You hold this file, so your notes are drafts and take links only. Upload the file to the case first, then link it.",
+  not_author: () => "Only the note's author or the department's nodal officer may correct this note.",
+  already_superseded: () => "Someone corrected this note first. Correct the latest note instead.",
+  too_many_drafts: () => "You have reached the limit of drafts on this case. Send the file or delete a draft.",
+  draft_finalised: () => "This draft became a permanent note when the file moved.",
+  bad_document_ref: () => "A linked document is not a document of this case that you can open.",
+  not_working_on_case: () => "Your office does not own, hold or appear in this case.",
+  // uploads and documents (decisions 13, 14)
+  type_not_allowed: () => "Refused: only PDF, Word documents and JPEG or PNG images are accepted.",
+  duplicate: (x) => `Refused: this file is already on the case${x.existing_ref_no ? ` as ${String(x.existing_ref_no)}` : ""}.`,
+  already_ingested: () => "This document is already in the Case Assistant, so it cannot be made private.",
+  attachment_follows_note: () => "An attachment follows its note: its visibility and archive state cannot be changed.",
+  document_busy: () => "The document is being sent to the Case Assistant just now. Try again in a moment.",
+};
+
+/**
+ * The same code means different things on different screens; a component passes its context's texts and they win
+ * over the shared ones (design portal-workflow, decision 21).
+ */
+export type ErrorTexts = Record<string, (extra: Record<string, unknown>) => string>;
+
+export const CUSTODY_ERRORS: ErrorTexts = {
+  bad_target: () => "That officer cannot receive files (an inactive or State-wide membership). Choose another.",
+};
+
+export const UPLOAD_ERRORS: ErrorTexts = {
+  too_large: () => "Refused: the file is larger than the limit.",
+  infected: () => "Refused: a virus was found; nothing was stored.",
+  scanner_unavailable: () => "The virus scanner is not available; try again in a few minutes.",
+};
+
+export const ALERT_ERRORS: ErrorTexts = {
+  not_open: () => "Only an open alert can be acknowledged. The list has been read again.",
+  closed: () => "The alert is already closed. The list has been read again.",
 };
 
 // codes whose server message says more than a fixed text (the password policy, the field at fault)
-const SERVER_MESSAGE = new Set(["weak_password", "bad_field", "validation", "bad_period", "bad_input"]);
+// `unchanged` and `too_many_drafts` name the stage or the limit in the server's own words (portal-workflow)
+const SERVER_MESSAGE = new Set([
+  "weak_password",
+  "bad_field",
+  "validation",
+  "bad_period",
+  "bad_input",
+  "unchanged",
+  "too_many_drafts",
+]);
 
-export function errorText(error: unknown): string {
+export function errorText(error: unknown, context?: ErrorTexts): string {
   if (error && typeof error === "object" && "code" in error) {
     const e = error as ApiError;
+    const contextual = context?.[e.code];
+    if (contextual) return contextual(e.extra ?? {});
     if (SERVER_MESSAGE.has(e.code) && e.message) return e.message;
     const known = ERRORS[e.code];
     if (known) return known(e.extra ?? {});
@@ -1050,5 +1103,170 @@ export const T = {
     case: "Case",
     other: "Other",
     at: "When",
+  },
+  wf: {
+    // custody card and dialogs (decisions 5-8)
+    send: "Send file",
+    recall: "Recall",
+    sendTitle: "Send the file",
+    recallTitle: "Recall the file",
+    department: "Department",
+    chooseDepartment: "Choose a department",
+    officer: "Officer",
+    chooseOfficer: "Choose the officer and office",
+    searchPeople: "Search by name or designation",
+    noPeople: "No officers found in that department.",
+    morePeople: (shown: number, total: number) => `Showing ${shown} of ${total}. Narrow the search to find others.`,
+    pendingAction: "Pending action",
+    chooseAction: "Choose the pending action",
+    dueDate: "Due date (optional)",
+    dueHint: (min: string, max: string) => `From ${min} to ${max}.`,
+    remark: "Remark",
+    remarkHint: "3 to 2,000 characters.",
+    stageOptional: "Stage (optional)",
+    keepStage: "Leave the stage as it is",
+    summary: (to: string, action: string, due: string | null) => `Send to ${to} — ${action}${due ? ` — due ${due}` : ""}`,
+    draftsWarning: (n: number) =>
+      n === 1
+        ? "Your 1 draft note becomes a permanent note of the case when you send."
+        : `Your ${n} draft notes become permanent notes of the case when you send.`,
+    recallText: (holder: string) => `The file is with ${holder}.`,
+    recallEffect: "The holder's draft notes become permanent notes; the file comes to you with 'Examine' pending.",
+    sent: (to: string) => `File sent to ${to}.`,
+    recalled: "The file is with you now, with 'Examine' pending.",
+    sentAway: (to: string) => `File sent to ${to}. You no longer hold this case.`,
+    finalised: (refs: string) => `Made permanent: ${refs}`,
+    remarkRequired: "Give a remark of 3 to 2,000 characters.",
+    required: "Required.",
+    // custody tab (decision 8)
+    custodyTab: "Custody and stage",
+    movement: "Movement record",
+    noLegs: "No movements recorded.",
+    seq: "No.",
+    holderCol: "Holder",
+    reason: "Reason",
+    started: "Started",
+    sentByCol: "Sent by",
+    remarkCol: "Remark",
+    notShown: "Not shown",
+    noCustodyYet: "Custody begins when a department claims the case.",
+    openCustody: "Custody and stage",
+    // stages (decision 9)
+    stageBlock: "Stage",
+    currentStage: "Current stage",
+    responseMode: "Response mode",
+    stageNote: "Note (optional)",
+    setBy: "Set by",
+    stageHistory: "Stage history",
+    noStageHistory: "No stage recorded yet.",
+    notRecorded: (labels: string) => `Not recorded: ${labels}`,
+    setStage: "Set stage",
+    stageTitle: "Set the stage",
+    chooseStage: "Choose the stage",
+    currentMark: " (current)",
+    stageSaved: "Stage recorded.",
+    // notes (decisions 10-12)
+    writeNote: "Write a note",
+    composerDraft:
+      "You hold this file. Your notes are drafts, visible only to you, until the file is sent on or recalled; then they become permanent notes of the case.",
+    composerPermanent:
+      "This note becomes part of the case record at once and cannot be edited or deleted. A mistake is corrected by a new note.",
+    noteKind: "Kind",
+    chooseKind: "Choose the kind",
+    noteBody: "Note",
+    noteVisibility: "Who may see it",
+    visibilityHelp: {
+      case_scope: "Everyone who can open the case.",
+      counsel_shared: "Your department's offices and the standing counsel of the case.",
+      private_to_office: "Only your office (and State-wide readers).",
+    } as Record<string, string>,
+    links: "Link documents of the case",
+    linksHint: "A link never widens who can see the document.",
+    noLinkable: "No documents of this case to link.",
+    attachFiles: "Attach new files",
+    attachHint: (n: number) => `Up to ${n} file(s); each is checked for viruses before it is stored.`,
+    attachmentType: (name: string) => `Document type for ${name}`,
+    removeFile: (name: string) => `Remove ${name}`,
+    tooManyFiles: (n: number) => `At most ${n} file(s) may be attached.`,
+    internalLine: "Notes and their attachments are internal and are never sent to the Case Assistant.",
+    saveDraft: "Save draft",
+    addNote: "Add note",
+    noteAdded: (ref: string) => `Note ${ref} added.`,
+    draftSaved: "Draft saved.",
+    correct: "Correct",
+    correcting: (ref: string) => `Corrects ${ref}`,
+    correctionFixed: "A correction keeps the original note's kind and visibility.",
+    cancelCorrection: "Cancel correction",
+    drafts: "My drafts",
+    draftBadge: "Draft",
+    draftsNote: "Drafts are visible only to you and become permanent notes when the file is sent on or recalled.",
+    noDrafts: "No drafts.",
+    editDraft: "Edit",
+    editTitle: "Edit the draft",
+    deleteDraft: "Delete",
+    deleteTitle: "Delete the draft",
+    deleteText: "The draft is deleted for good. This is the only delete in a case's records.",
+    updated: (t: string) => `updated ${t}`,
+    created: (t: string) => `written ${t}`,
+    attachNew: "Attach a new file",
+    attachNewLine: "The file is uploaded to the case now, with its own visibility; the note stays a draft.",
+    linked: "Linked documents",
+    // uploads (decisions 13, 14)
+    upload: "Upload a document",
+    file: "File",
+    fileHint: (exts: string, max: string) => `${exts}; at most ${max}.`,
+    docType: "Document type",
+    chooseType: "Choose the type",
+    docGroup: "Group",
+    chooseGroup: "Choose the group",
+    docDate: "Document date",
+    docDescription: "Description",
+    descriptionHint: "3 to 500 characters.",
+    docVisibility: "Who may see it",
+    assistantLine:
+      "Court filings visible to the whole case or shared with counsel are sent to the Case Assistant. Internal documents and files private to your office never are.",
+    uploadButton: "Upload",
+    uploading: "Uploading and checking for viruses…",
+    uploaded: (ref: string) => `Uploaded as ${ref}.`,
+    preTypeNotAllowed: (exts: string) => `This file type is not accepted. Choose one of: ${exts}.`,
+    preTooLarge: (max: string) => `The file is larger than ${max}.`,
+    preEmpty: "The file is empty.",
+    openExisting: (ref: string) => `Open ${ref}`,
+    dateRange: "The date cannot be in the future or before 1 Jan 1950.",
+    changeVisibility: "Change visibility",
+    visibilityTitle: "Change who may see the document",
+    currentMarkShort: "current",
+    archive: "Archive",
+    archiveTitle: "Archive the document",
+    archiveReason: "Reason",
+    archiveText: "Archived documents stay readable under the same visibility; there is no unarchive and no delete.",
+    reasonHint: "3 to 500 characters.",
+    reasonRequired: "Give a reason of 3 to 500 characters.",
+    visibilityChanged: "Visibility changed.",
+    archivedDone: "Document archived.",
+    // case alerts tab (decision 15)
+    alertsTab: "Alerts",
+    alertsReader: "Alerts of this case are shown to the offices working on it.",
+    noAlerts: "No alerts.",
+    statusFilter: "Show",
+    openAndAcknowledged: "Open and acknowledged",
+    allAlerts: "All",
+    severity: { critical: "Critical", high: "High", normal: "Normal" } as Record<string, string>,
+    alertStatus: {
+      open: "Open",
+      acknowledged: "Acknowledged",
+      done: "Done",
+      expired: "Expired",
+      superseded: "Superseded",
+    } as Record<string, string>,
+    acknowledge: "Acknowledge",
+    done: "Done",
+    alertNote: "Note (optional)",
+    alertNoteHint: "Up to 500 characters.",
+    ackTitle: "Acknowledge the alert",
+    doneTitle: "Mark the alert done",
+    acknowledgedBy: (name: string, at: string) => `Acknowledged by ${name}, ${at}`,
+    dueAt: (t: string) => `Due ${t}`,
+    characters: (n: number, max: number) => `${n} / ${max} characters`,
   },
 };

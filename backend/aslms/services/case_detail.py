@@ -35,7 +35,7 @@ from aslms.domain.org import Office, User
 from aslms.domain.ownership import CaseOwnership, OwnershipRole, OwnershipStatus
 from aslms.domain.reference import EventType, Permission, RefEventType
 from aslms.domain.workflow import CaseNote
-from aslms.services import access, inbox, stages
+from aslms.services import access, inbox, stages, workflow_actions
 from aslms.services.visibility import (
     alert_document_condition,
     claim_departments,
@@ -375,6 +375,7 @@ def overview(session: Session, user: User, case: Case) -> dict[str, Any]:
         "dossier_status": "fetched" if case.last_full_refresh_at is not None else "not_fetched",
         "merged_into_ref_no": merged_into.ref_no if merged_into else None,
         "counts": _counts(session, user, case),
+        "workflow": workflow_actions.available(session, user, case),
     }
 
 

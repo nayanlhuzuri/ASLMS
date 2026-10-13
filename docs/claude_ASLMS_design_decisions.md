@@ -1479,3 +1479,49 @@ fails, `INLINE_PDF` becomes `false`); the live court search only with `NAPIX_ENA
 
 
 - 2026-10-13 — portal-workflow: approved by the owner with the Files and Alerts & calendar screens split out into row 55 portal-files-alerts (send file, recall, custody and stage tab, notes with drafts and corrections and visibility always chosen, uploads and document management, case alerts tab; seven read-only API additions and the relay content-length header; docs/design/portal-workflow.md)
+
+## Portal case-page workflow: custody, stages, notes, uploads, case alerts (2026-10-13)
+
+Backlog row 13, design `docs/design/portal-workflow.md` (approved by the owner 13 Oct 2026, "approve, split"). No
+table, column, code or migration; `docs/schema/schema.md` is unchanged.
+
+**What was built**
+- Backend (read-only additions, decision 20): `GET /cases/{ref}` carries `workflow` (`note_mode` draft / permanent /
+  null, `upload`, `set_stage`), computed by the same checks the writes run, without locking or writing; `NoteOut.can_correct`;
+  `DraftDocumentOut` gains `id`, `doc_type`, `mime`; `AlertItemOut.can_act`; `GET /workflow/codes` carries `limits`
+  and `GET /documents/types` carries `upload` (`max_bytes`, extensions) so the portal's pre-checks follow the server's
+  settings; `GET /reference/labels` carries `alert_kinds`; `SentItemOut.visible`. `frontend/openapi.json` and
+  `schema.d.ts` regenerated.
+- Relay: forwards `content-length` (and the multipart content type) so the API's 413 guard refuses an oversized
+  upload early.
+- Portal, case page: Send file and Recall on the custody card; the Custody and stage tab
+  (`/cases/[ref]/custody`: holder, movement history with remarks only where visible, stage history); Set stage; the
+  note composer (says draft or permanent before writing, visibility chosen every time with nothing pre-selected),
+  corrections as linked new notes, the drafts panel; the upload panel (type and size checked before sending, says
+  which uploads reach the Case Assistant, every refusal explained) and document actions (change visibility, archive
+  with a reason; no delete, no unarchive); the case Alerts tab (`/cases/[ref]/alerts`) with Acknowledge and Done;
+  timeline lines for the new events; messages for each API error code.
+- Tests: backend `test_workflow_actions.py` (new), additions to `test_notes.py`, `test_api_alerts.py`,
+  `test_api_workflow.py`, `test_api_reference.py`, `test_custody_send.py`, new `test_api_documents.py`; frontend
+  `workflow.test.tsx`, `workflow.test.ts`, `timeline.test.ts`, `routes.test.ts`, `relay.test.ts`, `case.test.tsx`.
+
+**Decisions and reasons**
+- Owner's split at approval: the Files screens, the Alerts & calendar screens (alerts list and hearing calendar), their
+  navigation entries, the bell link and the dashboard links are row 55. This keeps the review on the case page, where
+  notes, custody and visibility rules matter most.
+- What a page offers comes from the server (flags, `can_correct`, `can_act`, `workflow`), so each rule is written
+  once and the screen cannot offer what the API refuses.
+- Nothing is sent to SourceTrace from these screens: notes, drafts and attachments are labelled internal.
+
+**Deviations from the design note** (six in the note's "Deviations")
+- Split as above; `useAlertCounts()` and `monthGrid()` are left for row 55. When a move hides the case from the
+  sender, the portal stores a one-time notice (`src/lib/flash.ts`), goes to the dashboard and shows it once, instead
+  of `/files/sent`.
+- UI kit additions (`RadioGroup`, grouped `SelectField`, message contexts `CUSTODY_ERRORS`, `UPLOAD_ERRORS`,
+  `ALERT_ERRORS`); the shared `Dialog` traps Tab and keeps the latest `onClose` in a ref (it stole focus on each
+  keystroke); required fields use `aria-required` and the portal's own messages.
+- A first stage pre-fills response mode `department`; the draft composer has no file field; the relay check was also
+  run against a real Node 20 server, so no fallback for `content-length` was needed.
+
+**Left for later**: row 55 (Files and Alerts & calendar screens); row 56 (Compose and browser verification of the
+design's steps).

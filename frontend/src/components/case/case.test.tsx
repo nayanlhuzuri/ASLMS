@@ -44,6 +44,7 @@ function detail(extra: Partial<CaseDetail> = {}): CaseDetail {
       sub_category: "Transfer",
     },
     counts: { documents: 2, hearings: 7, links: 1, listings: 3, my_drafts: 0, notes: 4, orders: 5, timeline: 12 },
+    workflow: { note_mode: null, upload: false, set_stage: false },
     court: { est_code: "GAHC01", name: "Principal Seat at Guwahati" },
     court_transfers: [{ from_court_text: "Court 1", to_court_text: "Court 3", transfer_date: "2026-03-01" }],
     custody: {
@@ -281,6 +282,8 @@ describe("the frame", () => {
     expect(within(tabs).getByRole("link", { name: "Hearings (7)" })).toHaveAttribute("href", `${BASE}/hearings`);
     expect(within(tabs).getByRole("link", { name: "Orders (5)" })).toBeInTheDocument();
     expect(within(tabs).getByRole("link", { name: "Notes (4)" })).toBeInTheDocument();
+    expect(within(tabs).getByRole("link", { name: "Custody and stage" })).toHaveAttribute("href", `${BASE}/custody`);
+    expect(within(tabs).getByRole("link", { name: "Alerts" })).toHaveAttribute("href", `${BASE}/alerts`);
     expect(within(tabs).queryByRole("link", { name: /Assistant/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /Upload|Hand over|Assistant/ })).toBeNull();
     expect(screen.getByRole("heading", { name: "WP(C)/1234/2026" })).toBeInTheDocument();
@@ -289,16 +292,36 @@ describe("the frame", () => {
 });
 
 describe("the overview and the ownership card", () => {
-  it("the custody card is read-only and the basis line is shown", async () => {
+  it("the custody card shows Send file and Recall by its flags, and the basis line", async () => {
     browserApi(overviewRoutes(detail(), ownership(actions())));
-    renderWithClient(<Overview caseRef={REF} />);
+    const { unmount } = renderWithClient(<Overview caseRef={REF} />);
     const custody = await screen.findByRole("region", { name: "Custody" });
     expect(within(custody).getByText("Prepare reply")).toBeInTheDocument();
     expect(within(custody).getByText("2 day(s) overdue")).toBeInTheDocument();
     expect(within(custody).getByText("Please draft the affidavit")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Send|Recall/ })).toBeNull();
+    expect(within(custody).getByRole("button", { name: "Send file" })).toBeInTheDocument();
+    expect(within(custody).getByRole("button", { name: "Recall" })).toBeInTheDocument();
+    expect(within(custody).getByRole("link", { name: "Custody and stage" })).toHaveAttribute("href", `${BASE}/custody`);
     expect(screen.getByText("You see this case as: owning department")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "+ 1 more" })).toHaveAttribute("href", `${BASE}/parties`);
+    unmount();
+    const card = { ...detail().custody!, can_send: false, can_recall: false };
+    browserApi(overviewRoutes(detail({ custody: card }), ownership(actions())));
+    renderWithClient(<Overview caseRef={REF} />);
+    const readOnly = await screen.findByRole("region", { name: "Custody" });
+    expect(within(readOnly).queryByRole("button", { name: /Send|Recall/ })).toBeNull();
+  });
+
+  it("the Stage card offers Set stage only with workflow.set_stage", async () => {
+    browserApi(overviewRoutes(detail(), ownership(actions())));
+    const { unmount } = renderWithClient(<Overview caseRef={REF} />);
+    const stage = await screen.findByRole("region", { name: "Stage" });
+    expect(within(stage).queryByRole("button", { name: "Set stage" })).toBeNull();
+    unmount();
+    browserApi(overviewRoutes(detail({ workflow: { note_mode: "permanent", upload: true, set_stage: true } }), ownership(actions())));
+    renderWithClient(<Overview caseRef={REF} />);
+    const withFlag = await screen.findByRole("region", { name: "Stage" });
+    expect(within(withFlag).getByRole("button", { name: "Set stage" })).toBeInTheDocument();
   });
 
   it("shows exactly the buttons whose actions flag is true, never a release", async () => {

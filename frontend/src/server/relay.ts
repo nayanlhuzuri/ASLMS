@@ -14,7 +14,8 @@ import tokenRoutes from "./token-routes.json";
 
 export const RELAY_PREFIX = "/api/backend";
 
-const REQUEST_HEADERS = ["content-type", "accept", "user-agent"] as const;
+// `content-length` lets the API refuse an oversized upload before reading it (design portal-workflow, decision 23)
+const REQUEST_HEADERS = ["content-type", "content-length", "accept", "user-agent"] as const;
 const RESPONSE_HEADERS = [
   "content-type",
   "content-length",

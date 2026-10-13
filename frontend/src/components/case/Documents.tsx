@@ -1,10 +1,11 @@
 "use client";
 
 /**
- * The Documents tab, read-only (design portal-cases, decision 10; Annexure B "Case documents"): grouped Court orders /
+ * The Documents tab (design portal-cases, decision 10; Annexure B "Case documents and upload"): grouped Court orders /
  * Court filings / Internal documents (`doc_group`), each with type, date, description, uploader and office, size and
  * pages, "In Case Assistant" / "Not sent to SourceTrace", the visibility badge and the text status; View / Download by
- * function; "Show archived". The upload panel comes with row 13.
+ * function; "Show archived". The upload panel sits alongside when the overview's `workflow.upload` is true, and each
+ * row the API marks `can_manage` offers Change visibility and Archive (design portal-workflow, decisions 13, 14).
  *
  * Each group is its own query of 50 with its own pager and the API's `total` (design portal-cases-followups,
  * decision 8); an empty group is not shown, "No documents" when all three are empty; "Show archived" applies to all
@@ -14,8 +15,10 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { Badge, CheckField, EmptyState, ErrorBanner, Loading, Pagination, Table } from "@/components/ui";
+import { DocumentActions } from "@/components/workflow/DocumentActions";
+import { UploadPanel } from "@/components/workflow/Upload";
 import { api } from "@/lib/api/client";
-import { caseKey, useMe } from "@/lib/api/hooks";
+import { caseKey, useCase, useMe } from "@/lib/api/hooks";
 import type { DocumentItem, DocumentList } from "@/lib/api/types";
 import { can } from "@/lib/can";
 import { canViewInline, pdfDownloadOnly } from "@/lib/documents";
@@ -34,7 +37,17 @@ export function sizeText(bytes: number): string {
   return `${formatNumber(bytes)} B`;
 }
 
-function DocRow({ d, canView, canDownload }: { d: DocumentItem; canView: boolean; canDownload: boolean }) {
+function DocRow({
+  caseRef,
+  d,
+  canView,
+  canDownload,
+}: {
+  caseRef: string;
+  d: DocumentItem;
+  canView: boolean;
+  canDownload: boolean;
+}) {
   return (
     <tr>
       <td>
@@ -84,6 +97,7 @@ function DocRow({ d, canView, canDownload }: { d: DocumentItem; canView: boolean
             </a>
           ) : null}
           {canDownload && pdfDownloadOnly(d.mime) ? <span className="muted">{T.case.opensAsDownload}</span> : null}
+          <DocumentActions caseRef={caseRef} doc={d} />
         </div>
       </td>
     </tr>
@@ -105,6 +119,7 @@ function useGroup(caseRef: string, group: Group, archived: boolean, offset: numb
 }
 
 function GroupSection({
+  caseRef,
   group,
   list,
   offset,
@@ -112,6 +127,7 @@ function GroupSection({
   canView,
   canDownload,
 }: {
+  caseRef: string;
   group: Group;
   list: DocumentList;
   offset: number;
@@ -140,7 +156,7 @@ function GroupSection({
         </thead>
         <tbody>
           {list.items.map((d) => (
-            <DocRow key={d.id} d={d} canView={canView} canDownload={canDownload} />
+            <DocRow key={d.id} caseRef={caseRef} d={d} canView={canView} canDownload={canDownload} />
           ))}
         </tbody>
       </Table>
@@ -153,6 +169,8 @@ const START: Record<Group, number> = { court_record: 0, court_filing: 0, interna
 
 export function Documents({ caseRef }: { caseRef: string }) {
   const me = useMe();
+  const detail = useCase(caseRef);
+  const canUpload = detail.data?.workflow.upload ?? false;
   const [archived, setArchived] = useState(false);
   const [offsets, setOffsets] = useState<Record<Group, number>>(START);
   const canView = can(me.data, "documents.view");
@@ -161,13 +179,14 @@ export function Documents({ caseRef }: { caseRef: string }) {
   const filings = useGroup(caseRef, "court_filing", archived, offsets.court_filing, canView);
   const internal = useGroup(caseRef, "internal", archived, offsets.internal, canView);
   const queries: Record<Group, typeof records> = { court_record: records, court_filing: filings, internal };
-  if (!canView) return <EmptyState>{T.case.noDocumentAccess}</EmptyState>;
+  if (!canView) return canUpload ? <UploadPanel caseRef={caseRef} /> : <EmptyState>{T.case.noDocumentAccess}</EmptyState>;
   const all = GROUPS.map((g) => queries[g]);
   const pending = all.some((q) => q.isPending);
   const error = all.find((q) => q.error)?.error ?? null;
   const empty = !pending && all.every((q) => q.data && q.data.total === 0);
   return (
     <div className="stack">
+      {canUpload ? <UploadPanel caseRef={caseRef} /> : null}
       <CheckField
         label={T.case.showArchived}
         checked={archived}
@@ -185,6 +204,7 @@ export function Documents({ caseRef }: { caseRef: string }) {
         return (
           <GroupSection
             key={g}
+            caseRef={caseRef}
             group={g}
             list={data}
             offset={offsets[g]}

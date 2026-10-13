@@ -166,6 +166,7 @@ class ReferenceLabelsOut(BaseModel):
     user_types: list[UserTypeLabelOut]
     office_kinds: list[LabelOut]
     ticket_kinds: list[LabelOut]
+    alert_kinds: list[LabelOut]  # design portal-workflow, decision 20f: active `ref_alert_kind` rows
 
 
 # ------------------------------------------------------------------------------------------------ offices
@@ -909,6 +910,16 @@ class CaseCountsOut(BaseModel):
     my_drafts: int
 
 
+class CaseWorkflowActionsOut(BaseModel):
+    """Design portal-workflow, decision 20a: what the caller may do, from the checks the writes run. `note_mode`
+    is `draft` when the caller's acting membership holds the file, `permanent` when they may write a note
+    otherwise, `null` when they may not write one."""
+
+    note_mode: Literal["draft", "permanent"] | None
+    upload: bool
+    set_stage: bool
+
+
 class CaseDetailOut(BaseModel):
     id: uuid.UUID
     ref_no: str
@@ -936,6 +947,7 @@ class CaseDetailOut(BaseModel):
     dossier_status: str
     merged_into_ref_no: str | None
     counts: CaseCountsOut
+    workflow: CaseWorkflowActionsOut
 
 
 class HearingOut(BaseModel):
@@ -1169,8 +1181,17 @@ class DocumentTypeOut(BaseModel):
     group_choosable: bool
 
 
+class UploadLimitsOut(BaseModel):
+    """Design portal-workflow, decision 20e: `UPLOAD_MAX_BYTES` and the permitted extensions, for the portal's
+    pre-checks (the API still decides by content)."""
+
+    max_bytes: int
+    extensions: list[str]
+
+
 class DocumentTypesOut(BaseModel):
     items: list[DocumentTypeOut]
+    upload: UploadLimitsOut
 
 
 class DocumentSearchItemOut(BaseModel):
@@ -1222,6 +1243,7 @@ class AlertItemOut(BaseModel):
     acknowledged_at: datetime | None
     closed_at: datetime | None
     created_at: datetime
+    can_act: bool  # design portal-workflow, decision 20d: Acknowledge / Done may be offered
 
 
 class AlertDetailOut(AlertItemOut):
@@ -1694,12 +1716,21 @@ class StageCodeOut(CodeLabelOut):
     sort_order: int
 
 
+class WorkflowLimitsOut(BaseModel):
+    """Design portal-workflow, decision 20e: the settings the note composer follows."""
+
+    note_max_chars: int
+    attachments_max_files: int
+    note_drafts_max: int
+
+
 class WorkflowCodesOut(BaseModel):
     note_kinds: list[NoteKindOut]
     pending_actions: list[PendingActionOut]
     stages: list[StageCodeOut]
     response_modes: list[CodeLabelOut]
     custody_reasons: list[CodeLabelOut]
+    limits: WorkflowLimitsOut
 
 
 class CustodyLegOut(BaseModel):
@@ -1780,6 +1811,7 @@ class HeldListOut(BaseModel):
 class SentItemOut(BaseModel):
     case: CaseSummaryOut
     leg: CustodyLegOut
+    visible: bool  # design portal-workflow, decision 20g: the caller can open the case now
 
 
 class SentListOut(BaseModel):
@@ -1879,6 +1911,7 @@ class NoteOut(BaseModel):
     supersedes: NoteRefOut | None
     superseded_by: NoteRefOut | None
     attachments: list[NoteAttachmentOut]
+    can_correct: bool  # design portal-workflow, decision 20b
     draft: Literal[False] = False
 
 
@@ -1888,8 +1921,11 @@ class NoteListOut(BaseModel):
 
 
 class DraftDocumentOut(BaseModel):
+    id: uuid.UUID  # design portal-workflow, decision 20c: an order PDF has no `ref_no`
     ref_no: str | None
     original_filename: str | None
+    doc_type: str
+    mime: str
 
 
 class DraftOut(BaseModel):

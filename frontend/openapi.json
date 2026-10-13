@@ -288,6 +288,10 @@
             ],
             "title": "Body"
           },
+          "can_act": {
+            "title": "Can Act",
+            "type": "boolean"
+          },
           "case": {
             "anyOf": [
               {
@@ -419,6 +423,7 @@
           "acknowledged_at",
           "closed_at",
           "created_at",
+          "can_act",
           "recipients_count"
         ],
         "title": "AlertDetailOut",
@@ -458,6 +463,10 @@
               }
             ],
             "title": "Body"
+          },
+          "can_act": {
+            "title": "Can Act",
+            "type": "boolean"
           },
           "case": {
             "anyOf": [
@@ -585,7 +594,8 @@
           "acknowledged_by",
           "acknowledged_at",
           "closed_at",
-          "created_at"
+          "created_at",
+          "can_act"
         ],
         "title": "AlertItemOut",
         "type": "object"
@@ -1955,6 +1965,9 @@
           "status": {
             "$ref": "#/components/schemas/CaseStatusOut"
           },
+          "workflow": {
+            "$ref": "#/components/schemas/CaseWorkflowActionsOut"
+          },
           "writ_info": {
             "items": {
               "$ref": "#/components/schemas/WritInfoOut"
@@ -1989,7 +2002,8 @@
           "claimable",
           "dossier_status",
           "merged_into_ref_no",
-          "counts"
+          "counts",
+          "workflow"
         ],
         "title": "CaseDetailOut",
         "type": "object"
@@ -3101,6 +3115,41 @@
           "type_name"
         ],
         "title": "CaseTypeOut",
+        "type": "object"
+      },
+      "CaseWorkflowActionsOut": {
+        "description": "Design portal-workflow, decision 20a: what the caller may do, from the checks the writes run. `note_mode`\nis `draft` when the caller's acting membership holds the file, `permanent` when they may write a note\notherwise, `null` when they may not write one.",
+        "properties": {
+          "note_mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "draft",
+                  "permanent"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Mode"
+          },
+          "set_stage": {
+            "title": "Set Stage",
+            "type": "boolean"
+          },
+          "upload": {
+            "title": "Upload",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "note_mode",
+          "upload",
+          "set_stage"
+        ],
+        "title": "CaseWorkflowActionsOut",
         "type": "object"
       },
       "CauselistDayRowOut": {
@@ -6061,10 +6110,14 @@
             },
             "title": "Items",
             "type": "array"
+          },
+          "upload": {
+            "$ref": "#/components/schemas/UploadLimitsOut"
           }
         },
         "required": [
-          "items"
+          "items",
+          "upload"
         ],
         "title": "DocumentTypesOut",
         "type": "object"
@@ -6120,6 +6173,19 @@
       },
       "DraftDocumentOut": {
         "properties": {
+          "doc_type": {
+            "title": "Doc Type",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "mime": {
+            "title": "Mime",
+            "type": "string"
+          },
           "original_filename": {
             "anyOf": [
               {
@@ -6144,8 +6210,11 @@
           }
         },
         "required": [
+          "id",
           "ref_no",
-          "original_filename"
+          "original_filename",
+          "doc_type",
+          "mime"
         ],
         "title": "DraftDocumentOut",
         "type": "object"
@@ -10296,6 +10365,10 @@
             "title": "Body",
             "type": "string"
           },
+          "can_correct": {
+            "title": "Can Correct",
+            "type": "boolean"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -10390,7 +10463,8 @@
           "custody_leg_seq_no",
           "supersedes",
           "superseded_by",
-          "attachments"
+          "attachments",
+          "can_correct"
         ],
         "title": "NoteOut",
         "type": "object"
@@ -12646,6 +12720,13 @@
       "ReferenceLabelsOut": {
         "description": "Design `portal-shell`, decision 16a: the database's labels; `assignable` is the caller's.",
         "properties": {
+          "alert_kinds": {
+            "items": {
+              "$ref": "#/components/schemas/LabelOut"
+            },
+            "title": "Alert Kinds",
+            "type": "array"
+          },
           "office_kinds": {
             "items": {
               "$ref": "#/components/schemas/LabelOut"
@@ -12671,7 +12752,8 @@
         "required": [
           "user_types",
           "office_kinds",
-          "ticket_kinds"
+          "ticket_kinds",
+          "alert_kinds"
         ],
         "title": "ReferenceLabelsOut",
         "type": "object"
@@ -13458,11 +13540,16 @@
           },
           "leg": {
             "$ref": "#/components/schemas/CustodyLegOut"
+          },
+          "visible": {
+            "title": "Visible",
+            "type": "boolean"
           }
         },
         "required": [
           "case",
-          "leg"
+          "leg",
+          "visible"
         ],
         "title": "SentItemOut",
         "type": "object"
@@ -15429,6 +15516,28 @@
         "title": "UnmatchedRowOut",
         "type": "object"
       },
+      "UploadLimitsOut": {
+        "description": "Design portal-workflow, decision 20e: `UPLOAD_MAX_BYTES` and the permitted extensions, for the portal's\npre-checks (the API still decides by content).",
+        "properties": {
+          "extensions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Extensions",
+            "type": "array"
+          },
+          "max_bytes": {
+            "title": "Max Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "max_bytes",
+          "extensions"
+        ],
+        "title": "UploadLimitsOut",
+        "type": "object"
+      },
       "UserCallsOut": {
         "properties": {
           "calls": {
@@ -16105,6 +16214,9 @@
             "title": "Custody Reasons",
             "type": "array"
           },
+          "limits": {
+            "$ref": "#/components/schemas/WorkflowLimitsOut"
+          },
           "note_kinds": {
             "items": {
               "$ref": "#/components/schemas/NoteKindOut"
@@ -16139,9 +16251,34 @@
           "pending_actions",
           "stages",
           "response_modes",
-          "custody_reasons"
+          "custody_reasons",
+          "limits"
         ],
         "title": "WorkflowCodesOut",
+        "type": "object"
+      },
+      "WorkflowLimitsOut": {
+        "description": "Design portal-workflow, decision 20e: the settings the note composer follows.",
+        "properties": {
+          "attachments_max_files": {
+            "title": "Attachments Max Files",
+            "type": "integer"
+          },
+          "note_drafts_max": {
+            "title": "Note Drafts Max",
+            "type": "integer"
+          },
+          "note_max_chars": {
+            "title": "Note Max Chars",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "note_max_chars",
+          "attachments_max_files",
+          "note_drafts_max"
+        ],
+        "title": "WorkflowLimitsOut",
         "type": "object"
       },
       "WritInfoOut": {
@@ -27138,7 +27275,7 @@
     },
     "/custody/sent": {
       "get": {
-        "description": "The legs the caller wrote (sends and recalls) with the case summary; the case detail still needs the\nvisibility rule.",
+        "description": "The legs the caller wrote (sends and recalls) with the case summary and `visible`: whether the caller can\nopen the case now (the sender usually loses sight of a case sent on).",
         "operationId": "custody_sent_custody_sent_get",
         "parameters": [
           {
@@ -27579,7 +27716,7 @@
     },
     "/documents/types": {
       "get": {
-        "description": "The uploadable document types with their group; `other` lets the uploader choose the group.",
+        "description": "The uploadable document types with their group; `other` lets the uploader choose the group. `upload`:\nthe size limit and the permitted extensions, for the portal's checks before sending (the API still decides\nby content).",
         "operationId": "document_types_documents_types_get",
         "responses": {
           "200": {
@@ -29824,7 +29961,7 @@
     },
     "/workflow/codes": {
       "get": {
-        "description": "Note kinds (with `selectable`), pending actions with labels, stages with phase, response modes and\ncustody reasons.",
+        "description": "Note kinds (with `selectable`), pending actions with labels, stages with phase, response modes, custody\nreasons and the note limits (`note_max_chars`, `attachments_max_files`, `note_drafts_max`).",
         "operationId": "codes_workflow_codes_get",
         "responses": {
           "200": {

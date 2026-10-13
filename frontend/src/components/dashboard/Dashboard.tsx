@@ -10,6 +10,7 @@ import Link from "next/link";
 import { useState, type ReactNode } from "react";
 
 import { Badge, CaseLink, EmptyState, ErrorBanner, Loading, numCell, SelectField, Table, Tile } from "@/components/ui";
+import { FlashNotice } from "@/components/workflow/common";
 import { api } from "@/lib/api/client";
 import { labelOf, useLabels, useMe } from "@/lib/api/hooks";
 import type {
@@ -539,6 +540,7 @@ export function Dashboard() {
   return (
     <div className="stack">
       <h1>{T.dash.title}</h1>
+      <FlashNotice />
       {handlesTickets ? <TicketsSection /> : null}
       {index.isPending ? <Loading /> : null}
       {index.error ? <ErrorBanner error={index.error} onRetry={() => index.refetch()} /> : null}

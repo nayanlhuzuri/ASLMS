@@ -206,3 +206,14 @@ def test_size_guard_on_the_notes_path(api, world, case_id):
         files={"files": ("big.pdf", huge)},
     )
     assert r.status_code == 413 and r.json()["detail"]["code"] == "too_large"
+
+
+def test_codes_carry_limits(api):
+    """Design portal-workflow, decision 20e: the note limits come from the settings object."""
+    body = api.get("/workflow/codes", headers=w.login(api, "edu_off1")).json()
+    s = api.settings
+    assert body["limits"] == {
+        "note_max_chars": s.note_max_chars,
+        "attachments_max_files": s.attachments_max_files,
+        "note_drafts_max": s.note_drafts_max,
+    }

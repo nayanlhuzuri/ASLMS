@@ -9,18 +9,31 @@ import { useState } from "react";
 
 import { EmptyState, ErrorBanner, Loading, Pagination } from "@/components/ui";
 import { api } from "@/lib/api/client";
-import { caseKey } from "@/lib/api/hooks";
+import { caseKey, useLabels, useWorkflowCodes } from "@/lib/api/hooks";
 import type { TimelineList } from "@/lib/api/types";
 import { formatDateTime } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { apiCasePath } from "@/lib/refs";
 import { PAGE } from "@/lib/params";
-import { timelineDetail } from "@/lib/timeline";
+import { timelineDetail, type TimelineLabels } from "@/lib/timeline";
 
 import s from "./case.module.css";
 
+function toMap(list: { code: string; label: string }[] | undefined): Record<string, string> {
+  return Object.fromEntries((list ?? []).map((x) => [x.code, x.label]));
+}
+
 export function Timeline({ caseRef }: { caseRef: string }) {
   const [offset, setOffset] = useState(0);
+  const codes = useWorkflowCodes();
+  const refLabels = useLabels();
+  const labels: TimelineLabels = {
+    reasons: toMap(codes.data?.custody_reasons),
+    actions: toMap(codes.data?.pending_actions),
+    kinds: toMap(codes.data?.note_kinds),
+    stages: toMap(codes.data?.stages),
+    alertKinds: toMap(refLabels.data?.alert_kinds),
+  };
   const list = useQuery({
     queryKey: [...caseKey(caseRef), "timeline", offset],
     queryFn: () => api<TimelineList>(`${apiCasePath(caseRef)}/timeline`, { query: { limit: PAGE, offset } }),
@@ -36,7 +49,7 @@ export function Timeline({ caseRef }: { caseRef: string }) {
           <>
             <ol className="stack" style={{ listStyle: "none", padding: 0 }} aria-label={T.case.timeline}>
               {list.data.items.map((e, i) => {
-                const detail = timelineDetail(e.type, e.payload);
+                const detail = timelineDetail(e.type, e.payload, labels);
                 return (
                   <li key={`${e.occurred_at}-${i}`} className={s.note}>
                     <div className={s.noteHead}>

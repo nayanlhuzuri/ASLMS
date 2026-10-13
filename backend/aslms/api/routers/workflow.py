@@ -157,10 +157,12 @@ def _move_out(
 
 
 @router.get("/workflow/codes", response_model=schemas.WorkflowCodesOut)
-def codes(session: Session = Depends(get_session), user: User = Depends(read)) -> schemas.WorkflowCodesOut:
-    """Note kinds (with `selectable`), pending actions with labels, stages with phase, response modes and
-    custody reasons."""
-    return schemas.WorkflowCodesOut(**workflow_codes.codes(session))
+def codes(
+    request: Request, session: Session = Depends(get_session), user: User = Depends(read)
+) -> schemas.WorkflowCodesOut:
+    """Note kinds (with `selectable`), pending actions with labels, stages with phase, response modes, custody
+    reasons and the note limits (`note_max_chars`, `attachments_max_files`, `note_drafts_max`)."""
+    return schemas.WorkflowCodesOut(**workflow_codes.codes(session, _settings(request)))
 
 
 # ------------------------------------------------------------------------------------------------ custody
@@ -316,8 +318,8 @@ def custody_sent(
     session: Session = Depends(get_session),
     user: User = Depends(read),
 ) -> schemas.SentListOut:
-    """The legs the caller wrote (sends and recalls) with the case summary; the case detail still needs the
-    visibility rule."""
+    """The legs the caller wrote (sends and recalls) with the case summary and `visible`: whether the caller can
+    open the case now (the sender usually loses sight of a case sent on)."""
     page = custody_svc.sent(session, user, limit=limit, offset=offset)
     return schemas.SentListOut(items=page.items, total=page.total)
 

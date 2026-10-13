@@ -22,6 +22,49 @@ describe("timeline lines", () => {
     );
   });
 
+  it("formats the workflow types (portal-workflow, decision 19) with the given labels", () => {
+    const labels = {
+      reasons: { sent: "Sent", recalled: "Recalled" },
+      actions: { parawise_comments: "Parawise comments" },
+      kinds: { opinion: "Opinion" },
+      alertKinds: { file_received: "File received" },
+    };
+    expect(
+      timelineDetail(
+        "custody_moved",
+        {
+          reason: "sent",
+          office_code: "HEALTH",
+          user_name: "Health Off",
+          holder_designation: "Under Secretary",
+          pending_action: "parawise_comments",
+          due_date: "2026-10-20",
+          remark: "must never show",
+        },
+        labels,
+      ),
+    ).toBe("Sent · HEALTH · Health Off, Under Secretary · Parawise comments · due 20 Oct 2026");
+    expect(timelineDetail("custody_moved", { reason: "recalled", office_code: "EDU", pending_action: "examine" }, labels)).toBe(
+      "Recalled · EDU · examine",
+    );
+    expect(timelineDetail("stage_set", { stage: "reply_due", label: "Reply due", office_code: "EDU" })).toBe("Reply due · EDU");
+    expect(timelineDetail("note_added", { kind: "opinion", ref_no: "ASLMS/EDU/NOTE/2026/000003", finalised: true }, labels)).toBe(
+      "Opinion · ASLMS/EDU/NOTE/2026/000003 · from a draft",
+    );
+    expect(timelineDetail("note_added", { kind: "opinion", ref_no: "N/1", finalised: false }, labels)).toBe("Opinion · N/1");
+    expect(timelineDetail("document_uploaded", { doc_type: "counter_affidavit", office_code: "EDU" })).toBe(
+      "counter affidavit · EDU",
+    );
+    expect(timelineDetail("alert_raised", { kind: "file_received", title: "x" }, labels)).toBe("File received");
+  });
+
+  it("never shows a remark, and never raw JSON from workflow payloads", () => {
+    const line = timelineDetail("custody_moved", { reason: "sent", remark: "secret remark", office_code: { x: 1 } });
+    expect(line).toBe("sent");
+    expect(line).not.toContain("secret");
+    expect(timelineDetail("note_added", { kind: ["x"], ref_no: { y: 1 } })).toBeNull();
+  });
+
   it("an unknown type gives no detail", () => {
     expect(timelineDetail("config_changed", { key: "x" })).toBeNull();
   });

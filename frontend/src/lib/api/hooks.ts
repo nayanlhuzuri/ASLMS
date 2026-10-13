@@ -8,12 +8,17 @@ import type {
   CaseDetail,
   CaseOwnershipView,
   CaseType,
+  CustodyHistory,
+  DocumentTypes,
+  DraftList,
   InboxCountsList,
   Me,
   OfficeOut,
   RecipientList,
   ReferenceLabels,
   ScoringSettings,
+  StageHistory,
+  WorkflowCodes,
 } from "./types";
 
 export const ME_KEY = ["me"] as const;
@@ -118,6 +123,54 @@ export function useScoringSettings(enabled = true) {
   return useQuery({
     queryKey: [...SCORING_KEY, "current"],
     queryFn: () => api<ScoringSettings>("/admin/scoring-settings"),
+    enabled,
+  });
+}
+
+// ------------------------------------------------------------------------------------------------ portal-workflow
+
+/** Note kinds, pending actions, stages, response modes, custody reasons and the note limits (`GET /workflow/codes`). */
+export function useWorkflowCodes(enabled = true) {
+  return useQuery({
+    queryKey: ["workflow", "codes"],
+    queryFn: () => api<WorkflowCodes>("/workflow/codes"),
+    staleTime: 10 * 60_000,
+    enabled,
+  });
+}
+
+/** The uploadable document types and the upload limits (`GET /documents/types`). */
+export function useDocumentTypes(enabled = true) {
+  return useQuery({
+    queryKey: ["documents", "types"],
+    queryFn: () => api<DocumentTypes>("/documents/types"),
+    staleTime: 10 * 60_000,
+    enabled,
+  });
+}
+
+/** A case's current stage, its history and the gaps (`GET /cases/{ref}/stages`). */
+export function useStages(ref: string, enabled = true) {
+  return useQuery({
+    queryKey: [...caseKey(ref), "stages"],
+    queryFn: () => api<StageHistory>(apiCasePath(ref, "stages")),
+    enabled,
+  });
+}
+
+/** The custody card and one page of the movement record, oldest first (`GET /cases/{ref}/custody`). */
+export function useCustodyHistory(ref: string, offset = 0, limit = 50) {
+  return useQuery({
+    queryKey: [...caseKey(ref), "custody", offset],
+    queryFn: () => api<CustodyHistory>(apiCasePath(ref, "custody"), { query: { limit, offset } }),
+  });
+}
+
+/** The caller's own drafts on a case (`GET /cases/{ref}/notes/drafts`). */
+export function useDrafts(ref: string, enabled = true) {
+  return useQuery({
+    queryKey: [...caseKey(ref), "drafts"],
+    queryFn: () => api<DraftList>(apiCasePath(ref, "notes/drafts")),
     enabled,
   });
 }

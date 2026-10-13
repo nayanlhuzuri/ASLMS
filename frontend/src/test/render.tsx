@@ -80,6 +80,10 @@ export function labels(assignable: readonly string[] = []): ReferenceLabels {
       { code: "directorate", label: "Directorate" },
     ],
     ticket_kinds: [{ code: "head_change", label: "Head change" }],
+    alert_kinds: [
+      { code: "hearing_due", label: "Hearing due" },
+      { code: "workflow", label: "File movement" },
+    ],
   };
 }
 

@@ -465,3 +465,65 @@ def test_alert_addressed_to_another_department_is_hidden_from_the_owner(api, wor
     assert (
         api.post(f"/alerts/{alerted['health_alert']}/acknowledge", json={}, headers=hoff).status_code == 200
     )
+
+
+# ------------------------------------------------------------------------------------------------ can_act (portal-workflow)
+
+
+def test_own_list_can_act_by_function_and_status(api, world, alerted):
+    """Design portal-workflow, decision 20d: on the caller's own list, the function and the status decide."""
+    off1 = login(api, "edu_off1")
+    (item,) = api.get("/alerts", headers=off1).json()["items"]
+    assert item["status"] == "open" and item["can_act"] is True
+    with world.Session() as s:
+        actor, root = world.actor(s, "root")
+        access.set_override(
+            s, actor, root, world.user(s, "edu_off1"), Permission.ALERTS_ACKNOWLEDGE, PermissionEffect.DENY
+        )
+        s.commit()
+    off1 = login(api, "edu_off1")
+    assert api.get("/alerts", headers=off1).json()["items"][0]["can_act"] is False
+    with world.Session() as s:
+        actor, root = world.actor(s, "root")
+        access.set_override(s, actor, root, world.user(s, "edu_off1"), Permission.ALERTS_ACKNOWLEDGE, None)
+        s.commit()
+    off1 = login(api, "edu_off1")
+    r = api.post(f"/alerts/{alerted['edu_alert']}/acknowledge", json={}, headers=off1)
+    assert r.status_code == 200 and r.json()["can_act"] is True  # Done is still possible
+    assert api.get("/alerts", headers=off1).json()["items"][0]["can_act"] is True
+    r = api.post(f"/alerts/{alerted['edu_alert']}/done", json={}, headers=off1)
+    assert r.status_code == 200 and r.json()["can_act"] is False
+    assert api.get("/alerts?status=all", headers=off1).json()["items"][0]["can_act"] is False
+
+
+def test_case_tab_can_act_false_for_state_reader(api, world, alerted):
+    ref, alr = alerted["edu_case_ref"], alerted["edu_alert"]
+    auditor = login(api, "edu_auditor")
+    (item,) = api.get(f"/cases/{ref}/alerts", headers=auditor).json()["items"]
+    assert item["can_act"] is False
+    assert api.post(f"/alerts/{alr}/acknowledge", json={}, headers=auditor).status_code == 403  # no function
+    # the super admin holds every function and reads State-wide, but was not notified: no action, 404 as before
+    root = login(api, "root")
+    (item,) = api.get(f"/cases/{ref}/alerts", headers=root).json()["items"]
+    assert item["can_act"] is False
+    assert api.post(f"/alerts/{alr}/acknowledge", json={}, headers=root).status_code == 404
+
+
+def test_case_tab_can_act_true_for_working_recipient(api, world, alerted):
+    ref, alr = alerted["edu_case_ref"], alerted["edu_alert"]
+    off1 = login(api, "edu_off1")
+    (item,) = api.get(f"/cases/{ref}/alerts", headers=off1).json()["items"]
+    assert item["can_act"] is True
+    assert api.get(f"/alerts/{alr}", headers=off1).json()["can_act"] is True
+    # the department admin works on the case and the alert is addressed to EDU
+    (item,) = api.get(f"/cases/{ref}/alerts", headers=login(api, "edu_admin")).json()["items"]
+    assert item["can_act"] is True
+
+
+def test_closed_alert_can_act_false(api, world, alerted):
+    ref, alr = alerted["edu_case_ref"], alerted["edu_alert"]
+    admin = login(api, "edu_admin")
+    assert api.post(f"/alerts/{alr}/done", json={}, headers=admin).status_code == 200
+    (item,) = api.get(f"/cases/{ref}/alerts?status=all", headers=admin).json()["items"]
+    assert item["status"] == "done" and item["can_act"] is False
+    assert api.get(f"/alerts/{alr}", headers=login(api, "edu_off1")).json()["can_act"] is False

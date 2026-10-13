@@ -22,6 +22,7 @@ from aslms.domain.cases import Case
 from aslms.domain.org import User
 from aslms.domain.reference import Permission
 from aslms.services import documents as svc
+from aslms.services import filetypes
 from aslms.services.cases import CaseNotFound, resolve_case_ref
 from aslms.services.documents import (
     DocumentError,
@@ -291,10 +292,20 @@ def order_file(
 
 @router.get("/documents/types", response_model=schemas.DocumentTypesOut)
 def document_types(
-    session: Session = Depends(get_session), user: User = Depends(require(Permission.DOCUMENTS_VIEW))
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(require(Permission.DOCUMENTS_VIEW)),
 ) -> schemas.DocumentTypesOut:
-    """The uploadable document types with their group; `other` lets the uploader choose the group."""
-    return schemas.DocumentTypesOut(items=svc.upload_types(session))
+    """The uploadable document types with their group; `other` lets the uploader choose the group. `upload`:
+    the size limit and the permitted extensions, for the portal's checks before sending (the API still decides
+    by content)."""
+    return schemas.DocumentTypesOut(
+        items=svc.upload_types(session),
+        upload={
+            "max_bytes": request.app.state.settings.upload_max_bytes,
+            "extensions": filetypes.permitted_extensions(),
+        },
+    )
 
 
 @router.get("/documents/search", response_model=schemas.DocumentSearchOut)

@@ -148,3 +148,16 @@ def test_case_types_need_case_reading(api):
 
 def test_case_types_signed_out_401(api):
     assert api.get("/reference/case-types").status_code == 401
+
+
+def test_labels_carry_active_alert_kinds(api):
+    """Design portal-workflow, decision 20f: active `ref_alert_kind` rows; the retired `request_due` is absent."""
+    from aslms.domain.reference import AlertKind, RefAlertKind
+
+    body = _labels(api, "anita.sharma@example.org")
+    codes = {k["code"] for k in body["alert_kinds"]}
+    with api.app.state.session_factory() as s:
+        active = set(s.scalars(sa.select(RefAlertKind.code).where(RefAlertKind.is_active.is_(True))).all())
+    assert codes == active and AlertKind.REQUEST_DUE.value not in codes
+    assert AlertKind.HEARING_DUE.value in codes
+    assert all(k["label"] for k in body["alert_kinds"])

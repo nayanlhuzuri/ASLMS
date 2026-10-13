@@ -41,6 +41,14 @@ JPEG = FileType(JPEG_MIME, "jpg", False, ("jpg", "jpeg"))
 PNG = FileType(PNG_MIME, "png", False, ("png",))
 
 
+PERMITTED = (PDF, DOCX, DOC, JPEG, PNG)
+
+
+def permitted_extensions() -> list[str]:
+    """Every extension a permitted type accepts (design `portal-workflow`, decision 20e)."""
+    return [ext for ftype in PERMITTED for ext in ftype.allowed_extensions]
+
+
 class EmptyFile(ValueError):
     """No bytes at all (HTTP 400)."""
 
@@ -102,7 +110,7 @@ def detect(data: bytes, filename: str) -> FileType:
         raise TypeNotAllowed("macro_enabled", "docx", ext)
     if kind == "zip":
         raise TypeNotAllowed("not_word", "zip", ext)
-    ftype = {"pdf": PDF, "docx": DOCX, "doc": DOC, "jpg": JPEG, "png": PNG}.get(kind or "")
+    ftype = {t.ext: t for t in PERMITTED}.get(kind or "")
     if ftype is None:
         raise TypeNotAllowed("unknown_type", None, ext)
     if ext not in ftype.allowed_extensions:

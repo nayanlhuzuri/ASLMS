@@ -57,6 +57,7 @@ from aslms.services.workflow_common import (
     digest,
     forbidden,
     lock_case,
+    primary_owner,
     require_function,
     require_owned,
     require_visible_basis,
@@ -631,14 +632,33 @@ def _kind_labels(session: Session) -> dict[str, str]:
     return {r.code: r.label for r in session.scalars(select(RefNoteKind)).all()}
 
 
+def may_write(session: Session, user: User | Member, case: Case) -> bool:
+    """Design portal-workflow, decision 20b: the caller may write a note on the case (claimed, and a membership
+    with a working basis holds `notes.add`) — the checks of `add_note`, without locking or writing."""
+    return (
+        primary_owner(session, case) is not None
+        and visibility.acting_member_for_case(session, user, case, Permission.NOTES_ADD) is not None
+    )
+
+
 def note_out(
-    session: Session, user: User | Member, note: CaseNote, *, labels: dict[str, str] | None = None
+    session: Session,
+    user: User | Member,
+    note: CaseNote,
+    *,
+    labels: dict[str, str] | None = None,
+    writer: bool | None = None,
 ) -> dict[str, Any]:
+    """`writer`: whether the caller may write a note on the note's case (`may_write`), computed once per list;
+    `can_correct` adds the note's own rules (not superseded, `_may_correct`)."""
     labels = labels if labels is not None else _kind_labels(session)
     sup = session.get(CaseNote, note.supersedes_id) if note.supersedes_id else None
     by = session.scalar(
         select(CaseNote).where(CaseNote.supersedes_id == note.id, note_visible_condition(session, user))
     )
+    if writer is None:
+        writer = may_write(session, user, session.get(Case, note.case_id))
+    can_correct = bool(writer) and not _superseded(session, note.id) and _may_correct(session, user, note)
     leg = session.get(CustodyHistory, note.custody_leg_id) if note.custody_leg_id else None
     docs = session.scalars(
         select(Document)
@@ -678,6 +698,7 @@ def note_out(
             }
             for d in docs
         ],
+        "can_correct": can_correct,
         "draft": False,
     }
 
@@ -691,7 +712,13 @@ def draft_out(session: Session, draft: CaseNoteDraft) -> dict[str, Any]:
         "visibility": value(draft.visibility),
         "supersedes": {"ref_no": sup.ref_no, "seq_no": sup.seq_no} if sup else None,
         "documents": [
-            {"ref_no": d.ref_no, "original_filename": d.original_filename}
+            {
+                "id": d.id,
+                "ref_no": d.ref_no,
+                "original_filename": d.original_filename,
+                "doc_type": value(d.doc_type),
+                "mime": d.mime,
+            }
             for d in _draft_docs(session, draft)
         ],
         "created_at": draft.created_at,
@@ -734,7 +761,8 @@ def list_for_case(
     total = int(session.scalar(select(func.count()).select_from(stmt.order_by(None).subquery())) or 0)
     rows = session.scalars(stmt.order_by(CaseNote.seq_no).limit(limit).offset(offset)).all()
     labels = _kind_labels(session)
-    return inbox.Page([note_out(session, user, n, labels=labels) for n in rows], total)
+    writer = may_write(session, user, case)
+    return inbox.Page([note_out(session, user, n, labels=labels, writer=writer) for n in rows], total)
 
 
 def list_drafts(session: Session, user: User | Member, case: Case) -> list[dict[str, Any]]:

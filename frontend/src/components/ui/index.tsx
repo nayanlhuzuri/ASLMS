@@ -12,13 +12,14 @@ import {
   useRef,
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
+  type Ref,
   type ReactNode,
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from "react";
 
 import { formatNumber } from "@/lib/format";
-import { errorText, T } from "@/lib/messages";
+import { errorText, T, type ErrorTexts } from "@/lib/messages";
 import { casePath } from "@/lib/refs";
 import { signalText, type Signal } from "@/lib/signals";
 
@@ -125,9 +126,16 @@ export function SelectField({
   error,
   id,
   options,
+  groups,
   placeholder,
   ...rest
-}: FieldShell & SelectHTMLAttributes<HTMLSelectElement> & { options: Option[]; placeholder?: string }) {
+}: FieldShell &
+  SelectHTMLAttributes<HTMLSelectElement> & {
+    options: Option[];
+    /** Options under `<optgroup>` headings, after `options`. */
+    groups?: { label: string; options: Option[] }[];
+    placeholder?: string;
+  }) {
   const ids = useFieldIds(id);
   return (
     <FieldFrame ids={ids} label={label} hint={hint} error={error}>
@@ -143,6 +151,15 @@ export function SelectField({
           <option key={o.value} value={o.value}>
             {o.label}
           </option>
+        ))}
+        {(groups ?? []).map((g) => (
+          <optgroup key={g.label} label={g.label}>
+            {g.options.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </optgroup>
         ))}
       </select>
     </FieldFrame>
@@ -208,20 +225,40 @@ export function Dialog({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const titleId = useId();
+  // the latest onClose, so a parent's new function on each render does not move the focus back to the start
+  const closeRef = useRef(onClose);
+  useEffect(() => {
+    closeRef.current = onClose;
+  }, [onClose]);
   useEffect(() => {
     if (!open) return;
     const previous = document.activeElement as HTMLElement | null;
     const first = ref.current?.querySelector<HTMLElement>("input, select, textarea, button");
     first?.focus();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") closeRef.current();
+      if (e.key !== "Tab" || !ref.current) return;
+      // keep the focus inside the dialog (WCAG 2.1: a modal dialog traps focus)
+      const focusable = Array.from(
+        ref.current.querySelectorAll<HTMLElement>("a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])"),
+      );
+      if (focusable.length === 0) return;
+      const firstEl = focusable[0]!;
+      const lastEl = focusable[focusable.length - 1]!;
+      if (e.shiftKey && document.activeElement === firstEl) {
+        e.preventDefault();
+        lastEl.focus();
+      } else if (!e.shiftKey && document.activeElement === lastEl) {
+        e.preventDefault();
+        firstEl.focus();
+      }
     };
     document.addEventListener("keydown", onKey);
     return () => {
       document.removeEventListener("keydown", onKey);
       previous?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
   if (!open) return null;
   return (
     <div className={s.overlay}>
@@ -252,11 +289,24 @@ export function EmptyState({ children }: { children: ReactNode }) {
   return <div className={s.empty}>{children}</div>;
 }
 
-export function ErrorBanner({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
+export function ErrorBanner({
+  error,
+  onRetry,
+  messages,
+  children,
+}: {
+  error: unknown;
+  onRetry?: () => void;
+  /** The screen's own texts for codes that mean something else elsewhere (design portal-workflow, decision 21). */
+  messages?: ErrorTexts;
+  /** More after the message (a link to an existing document, for example). */
+  children?: ReactNode;
+}) {
   if (!error) return null;
   return (
     <div className={s.banner} role="alert" aria-live="assertive">
-      <span>{errorText(error)}</span>
+      <span>{errorText(error, messages)}</span>
+      {children}
       {onRetry ? (
         <Button variant="secondary" onClick={onRetry}>
           {T.retry}
@@ -390,6 +440,7 @@ export function ConfirmDialog({
   confirmLabel = T.own.confirm,
   confirmDisabled,
   danger,
+  messages,
   children,
 }: {
   open: boolean;
@@ -401,6 +452,7 @@ export function ConfirmDialog({
   confirmLabel?: string;
   confirmDisabled?: boolean;
   danger?: boolean;
+  messages?: ErrorTexts;
   children?: ReactNode;
 }) {
   return (
@@ -413,7 +465,7 @@ export function ConfirmDialog({
         }}
       >
         {children}
-        <ErrorBanner error={error} />
+        <ErrorBanner error={error} messages={messages} />
         <div className={s.dialogActions}>
           <Button variant="secondary" onClick={onClose}>
             {T.cancel}
@@ -424,5 +476,110 @@ export function ConfirmDialog({
         </div>
       </form>
     </Dialog>
+  );
+}
+
+/** The number of characters typed against the limit, read out politely (design portal-workflow, decision 25). */
+export function CharCounter({ value, max, id }: { value: string; max: number; id?: string }) {
+  const n = value.length;
+  return (
+    <span id={id} className={cx(s.hint, n > max && s.error)} aria-live="polite">
+      {T.wf.characters(n, max)}
+    </span>
+  );
+}
+
+/** A file input with its label, hint and error; `accept` from the server's permitted extensions. */
+export function FileField({
+  label,
+  hint,
+  error,
+  id,
+  onFiles,
+  multiple,
+  accept,
+  required,
+  inputRef,
+}: FieldShell & {
+  id?: string;
+  onFiles: (files: File[]) => void;
+  multiple?: boolean;
+  accept?: string;
+  required?: boolean;
+  inputRef?: Ref<HTMLInputElement>;
+}) {
+  const ids = useFieldIds(id);
+  return (
+    <FieldFrame ids={ids} label={label} hint={hint} error={error}>
+      <input
+        ref={inputRef}
+        id={ids.id}
+        type="file"
+        className={s.input}
+        accept={accept}
+        multiple={multiple}
+        aria-required={required || undefined}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={describedBy(ids, hint, error)}
+        onChange={(e) => onFiles(Array.from(e.target.files ?? []))}
+      />
+    </FieldFrame>
+  );
+}
+
+/** The API's severity of an alert (critical / high / normal), never computed in the browser. */
+export function SeverityBadge({ severity }: { severity: string }) {
+  const tone = severity === "critical" ? "danger" : severity === "high" ? "warning" : undefined;
+  return <Badge tone={tone}>{T.wf.severity[severity] ?? severity}</Badge>;
+}
+
+/** Radio buttons in a fieldset; nothing is selected until the user chooses (`value` empty). */
+export function RadioGroup({
+  legend,
+  name,
+  options,
+  value,
+  onChange,
+  error,
+  disabled,
+}: {
+  legend: ReactNode;
+  name: string;
+  options: (Option & { hint?: ReactNode })[];
+  value: string;
+  onChange: (value: string) => void;
+  error?: ReactNode;
+  disabled?: boolean;
+}) {
+  const errorId = useId();
+  return (
+    <fieldset className={s.radios} aria-describedby={error ? errorId : undefined}>
+      <legend className={s.label}>{legend}</legend>
+      {options.map((o) => {
+        const id = `${name}-${o.value}`;
+        return (
+          <div key={o.value} className={s.check}>
+            <input
+              id={id}
+              type="radio"
+              name={name}
+              value={o.value}
+              checked={value === o.value}
+              disabled={disabled}
+              onChange={() => onChange(o.value)}
+            />
+            <label htmlFor={id}>
+              {o.label}
+              {o.hint ? <span className={s.hint}> — {o.hint}</span> : null}
+            </label>
+          </div>
+        );
+      })}
+      {error ? (
+        <span id={errorId} className={s.error} role="alert">
+          {error}
+        </span>
+      ) : null}
+    </fieldset>
   );
 }

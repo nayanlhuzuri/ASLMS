@@ -709,8 +709,22 @@ def sent(
         stmt.order_by(CustodyHistory.created_at.desc(), CustodyHistory.id.desc()).limit(limit).offset(offset)
     ).all()
     summaries = inbox.summaries(session, [c for _, c in rows])
+    ids = list({c.id for _, c in rows})
+    seen = (
+        set(
+            session.scalars(
+                select(Case.id).where(Case.id.in_(ids), visibility.visible_case_condition(session, user))
+            ).all()
+        )
+        if ids
+        else set()
+    )
     return inbox.Page(
-        [{"case": summaries[c.id], "leg": leg_out(session, leg, show_remark=True)} for leg, c in rows], total
+        [
+            {"case": summaries[c.id], "leg": leg_out(session, leg, show_remark=True), "visible": c.id in seen}
+            for leg, c in rows
+        ],
+        total,
     )
 
 

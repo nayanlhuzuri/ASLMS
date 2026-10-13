@@ -1,6 +1,7 @@
 """The codes the workflow screens need, in one read (design `custody-workflow`, `GET /workflow/codes`): note
 kinds with `selectable`, pending actions with their labels (`domain/workflow.py::PENDING_ACTION_LABELS`), stages
-with phase, response modes and custody reasons."""
+with phase, response modes and custody reasons; and the note limits from the settings (design `portal-workflow`,
+decision 20e)."""
 
 from __future__ import annotations
 
@@ -8,6 +9,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from aslms.core.config import Settings, get_settings
 from aslms.domain.workflow import (
     CUSTODY_REASON_LABELS,
     CUSTODY_REASONS,
@@ -19,7 +21,8 @@ from aslms.services import notes, stages
 from aslms.services.workflow_common import RESPONSE_MODE_LABELS
 
 
-def codes(session: Session) -> dict[str, Any]:
+def codes(session: Session, settings: Settings | None = None) -> dict[str, Any]:
+    settings = settings or get_settings()
     return {
         "note_kinds": notes.kinds(session),
         "pending_actions": [
@@ -32,4 +35,9 @@ def codes(session: Session) -> dict[str, Any]:
         ],
         "response_modes": [{"code": m.value, "label": RESPONSE_MODE_LABELS[m]} for m in ResponseMode],
         "custody_reasons": [{"code": r, "label": CUSTODY_REASON_LABELS[r]} for r in CUSTODY_REASONS],
+        "limits": {
+            "note_max_chars": settings.note_max_chars,
+            "attachments_max_files": settings.attachments_max_files,
+            "note_drafts_max": settings.note_drafts_max,
+        },
     }

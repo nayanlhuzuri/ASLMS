@@ -4,8 +4,9 @@
  * The case page frame (design portal-cases, decision 10; plan §5.3; Annexure B "Case detail"): the header (status,
  * case type, case number, parties, CNR, court, registration date, owner department), the banners for provisional,
  * merged and not-yet-fetched cases, and one route per tab with the API's `counts` as badges. A case the API answers
- * 404 shows one neutral message, so the page reveals nothing. The Case Assistant tab and the Upload / Hand over
- * buttons are not shown until rows 14 and 13.
+ * 404 shows one neutral message, so the page reveals nothing. "Custody and stage" and "Alerts" are tabs of their
+ * own (design portal-workflow, decision 2); Send file replaces the mock-up's "Hand over" and sits on the custody
+ * card; the upload panel is on the Documents tab. The Case Assistant tab comes with row 14.
  */
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";

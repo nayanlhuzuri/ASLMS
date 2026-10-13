@@ -1,20 +1,26 @@
 "use client";
 
 /**
- * The Notes tab, read-only (design portal-cases, decision 10): the trail by `seq_no` with kind, the author's name,
- * designation and office at the time, date, body, visibility badge, "corrects NOTE/…" and "corrected by NOTE/…" links
- * within the page, and attachments with View (only for types a browser shows itself, `canViewInline`, design
- * portal-cases-followups, decision 9) / Download through `/documents/{doc}/file`; "Hide corrected notes" asks
- * the API for `include_superseded=false`. Writing notes and drafts come with row 13. Notes are never sent to
- * SourceTrace.
+ * The Notes tab (design portal-cases, decision 10): the trail by `seq_no` with kind, the author's name, designation
+ * and office at the time, date, body, visibility badge, "corrects NOTE/…" and "corrected by NOTE/…" links within the
+ * page, and attachments with View (only for types a browser shows itself, `canViewInline`, design
+ * portal-cases-followups, decision 9) / Download through `/documents/{doc}/file`; "Hide corrected notes" asks the API
+ * for `include_superseded=false`.
+ *
+ * Writing (design portal-workflow, decisions 10-12): the composer when the overview's `workflow.note_mode` is not
+ * null, saying before anything is written whether the note will be a draft or permanent; the drafts panel when the
+ * caller holds the file or has drafts; Correct on a note only where the API's `can_correct` is true. There is no Edit
+ * or Delete on any permanent note. Notes are never sent to SourceTrace.
  */
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { Badge, CheckField, EmptyState, ErrorBanner, Loading, Pagination } from "@/components/ui";
+import { Badge, Button, CheckField, EmptyState, ErrorBanner, Loading, Notice, Pagination } from "@/components/ui";
+import { DraftsPanel } from "@/components/workflow/DraftsPanel";
+import { NoteComposer } from "@/components/workflow/NoteComposer";
 import { api } from "@/lib/api/client";
-import { caseKey, useMe } from "@/lib/api/hooks";
-import type { NoteList } from "@/lib/api/types";
+import { caseKey, useCase, useMe } from "@/lib/api/hooks";
+import type { Note, NoteList } from "@/lib/api/types";
 import { can } from "@/lib/can";
 import { canViewInline, pdfDownloadOnly } from "@/lib/documents";
 import { formatDateTime } from "@/lib/format";
@@ -30,10 +36,45 @@ function anchor(seq: number): string {
   return `note-${seq}`;
 }
 
+function Writing({
+  caseRef,
+  mode,
+  correcting,
+  onClearCorrection,
+}: {
+  caseRef: string;
+  mode: "draft" | "permanent";
+  correcting: Note | null;
+  onClearCorrection: () => void;
+}) {
+  const [notice, setNotice] = useState<string | null>(null);
+  return (
+    <section className="card stack" aria-label={T.wf.writeNote} id="write-note">
+      <h2>{T.wf.writeNote}</h2>
+      {notice ? <Notice>{notice}</Notice> : null}
+      <NoteComposer
+        key={correcting?.id ?? "new"}
+        caseRef={caseRef}
+        mode={mode}
+        correcting={correcting}
+        onCancel={correcting ? onClearCorrection : undefined}
+        onDone={(text) => {
+          setNotice(text);
+          onClearCorrection();
+        }}
+      />
+    </section>
+  );
+}
+
 export function Notes({ caseRef }: { caseRef: string }) {
   const me = useMe();
+  const detail = useCase(caseRef);
   const [hide, setHide] = useState(false);
   const [offset, setOffset] = useState(0);
+  const [correcting, setCorrecting] = useState<Note | null>(null);
+  const mode = detail.data?.workflow.note_mode ?? null;
+  const showDrafts = mode === "draft" || (detail.data?.counts.my_drafts ?? 0) > 0;
   const list = useQuery({
     queryKey: [...caseKey(caseRef), "notes", hide, offset],
     queryFn: () =>
@@ -45,6 +86,10 @@ export function Notes({ caseRef }: { caseRef: string }) {
   const canDownload = can(me.data, "documents.download");
   return (
     <div className="stack">
+      {showDrafts ? <DraftsPanel caseRef={caseRef} /> : null}
+      {mode ? (
+        <Writing caseRef={caseRef} mode={mode} correcting={correcting} onClearCorrection={() => setCorrecting(null)} />
+      ) : null}
       <CheckField
         label={T.case.hideCorrected}
         checked={hide}
@@ -85,6 +130,19 @@ export function Notes({ caseRef }: { caseRef: string }) {
                     </div>
                   ) : null}
                   <p className={s.noteBody}>{n.body}</p>
+                  {n.can_correct && mode ? (
+                    <div className="row">
+                      <Button
+                        variant="secondary"
+                        onClick={() => {
+                          setCorrecting(n);
+                          document.getElementById("write-note")?.scrollIntoView?.({ behavior: "smooth" });
+                        }}
+                      >
+                        {T.wf.correct}
+                      </Button>
+                    </div>
+                  ) : null}
                   {n.attachments.length > 0 ? (
                     <div>
                       <span className="muted">{T.case.attachments}:</span>

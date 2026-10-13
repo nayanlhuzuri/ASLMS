@@ -185,3 +185,99 @@ def test_correction_rules(wide):
             s.scalar(sa.select(sa.func.count()).select_from(CaseNote).where(CaseNote.case_id == case.id)) == 3
         )
         s.rollback()
+
+
+# ------------------------------------------------------------------------------------------------ portal-workflow
+
+
+def _can_correct(s, world, key, case) -> dict[str, bool]:
+    from aslms.services import notes
+
+    _, user = world.actor(s, key)
+    return {n["ref_no"]: n["can_correct"] for n in notes.list_for_case(s, user, case).items}
+
+
+def test_can_correct_author_and_whole_department(wide):
+    """Design portal-workflow, decision 20b: the author and a whole-department membership of the note's
+    department may correct; the FIN holder, who sees the note and writes on the case, may not."""
+    with wide.Session() as s:
+        case = w.claimed_case(s, wide)
+        w.send(s, wide, "edu_off1", case, "fin_off")
+        original, _ = w.note(s, wide, "edu_off1", case, body="first", kind="opinion")
+        assert _can_correct(s, wide, "edu_off1", case)[original.ref_no] is True
+        assert _can_correct(s, wide, "edu_admin", case)[original.ref_no] is True
+        assert _can_correct(s, wide, "fin_off", case)[original.ref_no] is False
+        from aslms.services import notes
+
+        _, admin = wide.actor(s, "edu_admin")
+        assert notes.note_out(s, admin, notes.get(s, admin, original.ref_no))["can_correct"] is True
+        s.rollback()
+
+
+def test_can_correct_false_when_superseded(wide):
+    with wide.Session() as s:
+        case = w.claimed_case(s, wide)
+        w.send(s, wide, "edu_off1", case, "fin_off")
+        original, _ = w.note(s, wide, "edu_off1", case, body="first", kind="opinion")
+        corr, _ = w.note(s, wide, "edu_off1", case, body="fixed", supersedes=original.ref_no, kind=None)
+        flags = _can_correct(s, wide, "edu_admin", case)
+        assert flags == {original.ref_no: False, corr.ref_no: True}
+        s.rollback()
+
+
+def test_can_correct_false_for_reader_without_working_basis(wide):
+    with wide.Session() as s:
+        case = w.claimed_case(s, wide)
+        original, _ = w.note(s, wide, "edu_admin", case, body="case-wide note")
+        for key in ("oversight", "edu_auditor", "root"):
+            assert _can_correct(s, wide, key, case) == {original.ref_no: False}, key
+        s.rollback()
+
+
+@pytest.fixture()
+def api(wide, tmp_path):
+    from tests.db import docs_support as ds
+
+    client = ds.make_api(wide, tmp_path)
+    yield client
+    client.__exit__(None, None, None)
+
+
+def test_draft_documents_carry_id_type_mime(api, wide):
+    """Design portal-workflow, decision 20c: an order PDF linked to a draft has an `id` and no `ref_no`, and
+    a `PATCH` resending that id keeps the link."""
+    from tests import samplefiles as sf
+    from tests.db import docs_support as ds
+
+    with wide.Session() as s:
+        case = w.claimed_case(s, wide)
+        w.send(s, wide, "edu_off1", case, "health_off")
+        _, order_doc = ds.stored_order(s, api.store, case, sf.text_pdf(["ORDER"]))
+        s.commit()
+        case_id, doc_id = case.id, str(order_doc.id)
+    hh = w.login(api, "health_off")
+    r = api.post(
+        f"/cases/{case_id}/notes",
+        headers=hh,
+        data={
+            "kind": "general",
+            "body": "see the order",
+            "visibility": "case_scope",
+            "document_refs": [doc_id],
+        },
+    )
+    assert r.status_code == 201, r.text
+    draft = r.json()
+    assert draft["draft"] is True
+    (doc,) = draft["documents"]
+    assert doc["id"] == doc_id and doc["ref_no"] is None
+    assert doc["doc_type"] == "order" and doc["mime"] == "application/pdf"
+    r = api.patch(
+        f"/notes/drafts/{draft['id']}",
+        headers=hh,
+        json={"body": "see the order, again", "document_refs": [doc_id]},
+    )
+    assert r.status_code == 200, r.text
+    assert [d["id"] for d in r.json()["documents"]] == [doc_id]
+    listed = api.get(f"/cases/{case_id}/notes/drafts", headers=hh).json()["items"]
+    assert [d["id"] for d in listed[0]["documents"]] == [doc_id]

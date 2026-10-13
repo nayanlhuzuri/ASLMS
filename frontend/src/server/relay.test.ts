@@ -216,6 +216,33 @@ describe("relay", () => {
     expect(data.body).toContain('filename="order.pdf"');
   });
 
+  it("forwards content-length and the multipart boundary of an upload, and still drops other headers", async () => {
+    const api = fakeApi();
+    api.on("POST", "/cases/C-1/documents", () => jsonResponse(201, {}));
+    const form = new FormData();
+    form.append("file", new Blob(["%PDF-1.4 upload"], { type: "application/pdf" }), "petition.pdf");
+    form.append("visibility", "case_scope");
+    const encoded = new Response(form);
+    const type = encoded.headers.get("content-type")!;
+    const bytes = new Uint8Array(await encoded.arrayBuffer());
+    const r = await relay(
+      portalRequest("/api/backend/cases/C-1/documents", {
+        method: "POST",
+        cookies: SIGNED_IN,
+        headers: { "content-type": type, "content-length": String(bytes.byteLength), "x-other": "dropped", cookie: "x=1" },
+        body: bytes,
+      }),
+    );
+    expect(r.status).toBe(201);
+    const call = api.calls[0]!;
+    expect(call.headers.get("content-length")).toBe(String(bytes.byteLength));
+    expect(call.headers.get("content-type")).toBe(type);
+    expect(type).toMatch(/^multipart\/form-data; boundary=/);
+    expect(call.body).toContain('filename="petition.pdf"');
+    expect(call.headers.get("x-other")).toBeNull();
+    expect(call.headers.get("cookie")).toBeNull();
+  });
+
   it("answers 502 api_unavailable when the API does not answer in time", async () => {
     process.env.RELAY_TIMEOUT_SECONDS = "0.05";
     const api = fakeApi();
