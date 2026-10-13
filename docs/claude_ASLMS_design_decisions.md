@@ -1477,3 +1477,5 @@ column, code or migration; `docs/schema/schema.md` is unchanged.
 **Left for later**: the owner's signed-in browser checklist and the Chrome / Firefox PDF result (row 53; if either
 fails, `INLINE_PDF` becomes `false`); the live court search only with `NAPIX_ENABLED` set by the owner for that run.
 
+
+- 2026-10-13 — portal-workflow: approved by the owner with the Files and Alerts & calendar screens split out into row 55 portal-files-alerts (send file, recall, custody and stage tab, notes with drafts and corrections and visibility always chosen, uploads and document management, case alerts tab; seven read-only API additions and the relay content-length header; docs/design/portal-workflow.md)
