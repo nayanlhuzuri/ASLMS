@@ -1641,3 +1641,5 @@ Backlog row 61, design `docs/design/case-stages-extension.md` (approved by the o
 **Deviations from the design note** (in the note's Deviations section): migration written by hand with one insert per row; the no-op test also checks that a seeded label edit survives; a unit test compares the migration rows with the seed.
 
 **Left for later**: alerts to a named officer in a contempt case (row 62, parked); any behaviour tied to a stage (for example stopping compliance alerts after "Contempt disposed") needs an owner rule.
+
+- 2026-10-14 — Cause list screen, owner's decision on the review finding: recommendation labels stay as built. While a recommendation is open (status recommended), every member of the department sees its band and score on the Cause list entry, including directorate users on cases outside their directorate; once the department claims, dismisses or suggests the case elsewhere the label is gone. The published entries themselves are shown to every case reader.
