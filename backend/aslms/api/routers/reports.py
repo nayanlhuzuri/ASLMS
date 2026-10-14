@@ -3,7 +3,8 @@ decisions 4-8, 12-14). `GET /reports` lists what the caller may run; each report
 `xlsx` or `pdf` and returns the same content. Department scope needs `reports.department` in that department
 (or `reports.state`); State scope and `data-health` need `reports.state`. An xlsx or pdf file is built in memory,
 streamed with `Content-Disposition: attachment` and `Cache-Control: no-store`, and audited (`report.exported`);
-a JSON report writes nothing. No NAPIX or SourceTrace call is made."""
+a JSON report writes nothing. A report that runs past the statement timeout answers 503 `report_timeout` (design
+`portal-reports`, decision 9b). No NAPIX or SourceTrace call is made."""
 
 from __future__ import annotations
 
@@ -70,9 +71,10 @@ def _run(
 
 @router.get("", response_model=schemas.ReportCatalogueOut)
 def catalogue(session: Session = Depends(get_session), user: User = Depends(reporter)) -> dict:
-    """The reports the caller may run, their parameters, scopes and the departments they may name."""
+    """The reports the caller may run, their parameters, scopes and the departments they may name; `departments`
+    names every code the items list (with `is_active`)."""
     try:
-        return {"reports": reports.catalogue_for(session, user)}
+        return reports.catalogue_for(session, user)
     except (Forbidden, ReportError) as exc:
         raise http_error(exc) from exc
 
@@ -85,7 +87,8 @@ def pending_cases(
     session: Session = Depends(get_session),
     user: User = Depends(reporter),
 ):
-    """Active cases (pending or unknown) by department (or unit), court and NJDG age band, as of now."""
+    """Active cases (pending or unknown) by department (or unit), court and NJDG age band, as of now (503 `report_timeout`
+    past the statement timeout)."""
     return _run(request, session, user, "pending-cases", fmt, department=department)
 
 
@@ -100,7 +103,7 @@ def hearings_disposals(
     user: User = Depends(reporter),
 ):
     """Listings, proceedings, cases listed and disposals in the period, by group and by month (422 on a bad
-    period)."""
+    period; 503 `report_timeout` past the statement timeout)."""
     return _run(request, session, user, "hearings-disposals", fmt, department=department, from_=from_, to=to)
 
 
@@ -115,7 +118,8 @@ def pending_actions(
     user: User = Depends(reporter),
 ):
     """Files with a pending action by holder office and officer, overdue compliance by office, and with
-    `include_cases=true` one row per file the caller may open (never the remark)."""
+    `include_cases=true` one row per file the caller may open (never the remark); 503 `report_timeout` past the
+    statement timeout."""
     return _run(
         request,
         session,
@@ -139,5 +143,5 @@ def data_health(
     user: User = Depends(reporter),
 ):
     """The daily data cycle per date, NAPIX calls by API, open source failures, SourceTrace status (State scope;
-    default the last 7 days; `department` refused with 400)."""
+    default the last 7 days; `department` refused with 400; 503 `report_timeout` past the statement timeout)."""
     return _run(request, session, user, "data-health", fmt, department=department, from_=from_, to=to)

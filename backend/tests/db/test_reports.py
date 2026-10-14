@@ -461,10 +461,10 @@ def test_report_scope_rules(world):
         with pytest.raises(ReportError) as e:
             reports.resolve_scope(s, oversight, "pending-cases", "EDU-DSE")
         assert e.value.code == "bad_department"
-        cat = {c["key"]: c for c in reports.catalogue_for(s, admin)}
+        cat = {c["key"]: c for c in reports.catalogue_for(s, admin)["reports"]}
         assert cat["pending-cases"]["scopes"] == ["department"] and "data-health" not in cat
         assert cat["pending-cases"]["departments"] == ["EDU", "HEALTH"]
-        cat = {c["key"]: c for c in reports.catalogue_for(s, oversight)}
+        cat = {c["key"]: c for c in reports.catalogue_for(s, oversight)["reports"]}
         assert cat["data-health"]["scopes"] == ["state"] and "EDU" in cat["pending-cases"]["departments"]
         with pytest.raises(Forbidden):
             reports.catalogue_for(s, world.user(s, "edu_off1"))

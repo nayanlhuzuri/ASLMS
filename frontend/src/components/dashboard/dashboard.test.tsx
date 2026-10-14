@@ -242,4 +242,49 @@ describe("dashboard", () => {
     expect(within(block).queryByRole("link", { name: "WA/9/2026" })).toBeNull();
     expect(document.getElementById("alerts")).not.toBeNull();
   });
+
+  it("the State block links to Reports with reports.state only (portal-reports)", async () => {
+    browserApi({
+      "GET /me": makeMe(["cases.view_all", "dashboard.state", "reports.state"], "state_oversight"),
+      "GET /dashboard": { me: false, departments: [], state: true },
+      "GET /dashboard/state": STATE,
+    });
+    const { unmount } = renderWithClient(<Dashboard />);
+    await screen.findByRole("table", { name: "Cases by department" });
+    const block = screen.getByRole("region", { name: "State overview" });
+    expect(within(block).getByRole("link", { name: "Reports" })).toHaveAttribute("href", "/reports/pending-cases");
+    unmount();
+    browserApi({
+      "GET /me": makeMe(["cases.view_all", "dashboard.state"], "state_oversight"),
+      "GET /dashboard": { me: false, departments: [], state: true },
+      "GET /dashboard/state": STATE,
+    });
+    renderWithClient(<Dashboard />);
+    await screen.findByRole("table", { name: "Cases by department" });
+    const plain = screen.getByRole("region", { name: "State overview" });
+    expect(within(plain).queryByRole("link", { name: "Reports" })).toBeNull();
+  });
+
+  it("a department block links to that department's reports with reports.department there", async () => {
+    const routes = {
+      "GET /dashboard": { me: false, state: false, departments: [{ code: "EDU", name: "Education" }] },
+      "GET /dashboard/department": department("EDU", "Education"),
+    };
+    const reader = makeMe(["cases.view_scope", "reports.department"]);
+    reader.memberships = (reader.memberships ?? []).map((m) => ({ ...m, functions: ["cases.view_scope", "reports.department"] }));
+    browserApi({ ...routes, "GET /me": reader });
+    const { unmount } = renderWithClient(<Dashboard />);
+    await screen.findByText("1,28,400");
+    const block = screen.getByRole("region", { name: "Department: Education" });
+    expect(within(block).getByRole("link", { name: "Department reports" })).toHaveAttribute(
+      "href",
+      "/reports/pending-cases?department=EDU",
+    );
+    unmount();
+    browserApi({ ...routes, "GET /me": makeMe(["cases.view_scope"]) });
+    renderWithClient(<Dashboard />);
+    await screen.findByText("1,28,400");
+    const plain = screen.getByRole("region", { name: "Department: Education" });
+    expect(within(plain).queryByRole("link", { name: "Department reports" })).toBeNull();
+  });
 });

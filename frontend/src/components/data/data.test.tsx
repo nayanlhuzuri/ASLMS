@@ -443,6 +443,17 @@ describe("the health tab", () => {
     expect(screen.getByText(text)).toBeInTheDocument();
   });
 
+  it("links to the period report with reports.state only (portal-reports)", async () => {
+    healthRoutes(["reports.state"]);
+    const { unmount } = renderWithClient(<Health />);
+    expect(await screen.findByRole("link", { name: "Period report" })).toHaveAttribute("href", "/reports/data-health");
+    unmount();
+    healthRoutes(["admin.napix_refetch"]);
+    renderWithClient(<Health />);
+    expect(await screen.findByRole("heading", { name: "Court gateway" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Period report" })).toBeNull();
+  });
+
   it("lists the recent resets with the precise mark", async () => {
     healthRoutes(["reports.state"]);
     renderWithClient(<Health />);

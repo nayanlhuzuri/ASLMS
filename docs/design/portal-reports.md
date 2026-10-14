@@ -291,3 +291,22 @@ None. Points for the owner to check at approval (decided here, reversible):
   screens accept the same grouping as filters.
 - Row 40 (`reports-hardening`) corrects two counts of the dashboard department block; the reports themselves are
   unaffected.
+
+## Deviations
+Recorded by the developer while building (14 Oct 2026); none changes what a report counts or who may run it.
+1. **Page files pass the URL's parameters.** Each tab page reads `searchParams` on the server and renders
+   `<ReportPage reportKey="…" params={…} />`, the pattern of the Cause list and Files screens, instead of reading
+   `useSearchParams` in the client (which would need a Suspense boundary per page). The behaviour of decision 3 is
+   unchanged: "Show report" writes the parameters with `router.push`, and the form is keyed by the query string so Back
+   restores its choices.
+2. **Which sections are paged.** `ReportView` pages a section by `PAGE` (50) when its rows carry `ref_no` (today only
+   the `files` section of `pending-actions`), so the rule stays generic; aggregate sections are never paged.
+3. **The truncated line is shown beside the API's note.** The `files` note already begins "First N of M rows."; the
+   screen still adds decision 7's line ("First N of M rows; narrow the report to see the rest.") so every truncated
+   section says so the same way.
+4. **The totals row** is drawn with `<td>` cells in `<tfoot>` (bold), not a `<th scope="row">`, because the API puts
+   the "Total" label in different columns (the second column of the group sections, none in some).
+5. **`QUERY_CANCELED`** is imported from `services/audit_search.py` rather than defined a third time.
+6. **`useReportCatalogue`** is not retried on 403 and retried up to twice on other failures (the portal's default);
+   a 403 makes the frame say "This report is not available to you." and render no tab or report.
+7. **The Health "Period report" link** sits at the top of the Data collection → Health tab, above the snapshot.

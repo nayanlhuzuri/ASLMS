@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { apiCasePath, refPath } from "../refs";
-import { api } from "./client";
+import { api, ApiError } from "./client";
 import type {
   AlertCounts,
   Benches,
@@ -21,6 +21,7 @@ import type {
   OfficeOut,
   RecipientList,
   ReferenceLabels,
+  ReportCatalogue,
   ScoringSettings,
   StageHistory,
   WorkflowCodes,
@@ -234,5 +235,18 @@ export function useCauselistEntries(date: string | null | undefined, params: Rec
     queryKey: [...CAUSELISTS_KEY, "entries", date, params],
     queryFn: () => api<CauselistEntries>(`/causelists/${encodeURIComponent(date!)}/entries`, { query: params }),
     enabled: !!date,
+  });
+}
+
+// ------------------------------------------------------------------------------------------------ portal-reports
+
+/** The reports the caller may run and the departments they may name (`GET /reports`); a 403 is not retried. */
+export function useReportCatalogue(enabled = true) {
+  return useQuery({
+    queryKey: ["reports", "catalogue"],
+    queryFn: () => api<ReportCatalogue>("/reports"),
+    staleTime: 5 * 60_000,
+    retry: (count, error) => !(error instanceof ApiError && error.status === 403) && count < 2,
+    enabled,
   });
 }

@@ -178,3 +178,10 @@ export type CauselistEntries = S["CauselistEntriesOut"];
 export type CauselistEntry = S["CauselistEntryOut"];
 export type CauselistCounts = S["CauselistCountsOut"];
 export type EntryRecommendation = S["EntryRecommendationOut"];
+// portal-reports: the Reports screen
+export type ReportCatalogue = S["ReportCatalogueOut"];
+export type ReportCatalogueItem = S["ReportCatalogueItemOut"];
+export type ReportDepartment = S["ReportDepartmentOut"];
+export type Report = S["ReportOut"];
+export type ReportSection = S["ReportSectionOut"];
+export type ReportColumn = S["ReportColumnOut"];

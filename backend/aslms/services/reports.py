@@ -22,6 +22,7 @@ from datetime import UTC, date, datetime, time, timedelta
 from typing import Any, Literal
 
 from sqlalchemy import Date, and_, case, cast, exists, false, func, literal_column, select
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, aliased
 
 from aslms.core.config import Settings, get_settings
@@ -42,6 +43,7 @@ from aslms.domain.reference import Permission
 from aslms.domain.workflow import PENDING_ACTION_LABELS, CustodyHistory, PendingAction, SourcetraceIngestion
 from aslms.services import access, custody, sourcetrace_ingest, visibility
 from aslms.services.access import Forbidden, Member
+from aslms.services.audit_search import QUERY_CANCELED
 from aslms.services.dashboard import compliance_flags, open_compliance_conditions
 from aslms.services.offices import find_office
 from aslms.services.refno import now_ist
@@ -248,16 +250,19 @@ def resolve_scope(
     raise Forbidden("reports.department or reports.state is not enabled for you")
 
 
-def catalogue_for(session: Session, user: User | Member) -> list[dict[str, Any]]:
-    """The reports the caller may run, their parameters, scopes and the departments they may name."""
+def catalogue_for(session: Session, user: User | Member) -> dict[str, Any]:
+    """The reports the caller may run, their parameters, scopes and the departments they may name, and
+    `departments`: every code named by any item with its name and `is_active` (design `portal-reports`, decision
+    9a), so a department no longer active that still owns cases is named too."""
     state = bool(_state_members(session, user))
-    own = []
+    own: list[Office] = []
     for m in _department_members(session, user):
-        if m.department.code not in own:
-            own.append(m.department.code)
+        if all(o.id != m.department.id for o in own):
+            own.append(m.department)
     if not state and not own:
         raise Forbidden("reports.department or reports.state is not enabled for you")
-    all_depts = [d.code for d in department_rows(session)] if state else own
+    offices = department_rows(session) if state else own
+    all_depts = [d.code for d in offices]
     out = []
     for key, entry in CATALOGUE.items():
         scopes = []
@@ -276,7 +281,11 @@ def catalogue_for(session: Session, user: User | Member) -> list[dict[str, Any]]
                 "departments": all_depts if "department" in scopes else [],
             }
         )
-    return out
+    named = {code for item in out for code in item["departments"]}
+    departments = [
+        {"code": o.code, "name": o.name, "is_active": bool(o.is_active)} for o in offices if o.code in named
+    ]
+    return {"reports": out, "departments": departments}
 
 
 def check_period(from_: date | None, to: date | None, max_days: int, *, today: date | None = None) -> None:
@@ -1139,6 +1148,45 @@ def build(
     """One entry point for the router and the CLI: the scope (decision 7), then the report."""
     check_report(key)
     scope = resolve_scope(session, user, key, department)
+    try:
+        report = _run_builder(
+            session,
+            user,
+            key,
+            scope,
+            from_=from_,
+            to=to,
+            holder_department=holder_department,
+            include_cases=include_cases,
+            row_cap=row_cap,
+            config=config,
+            settings=settings,
+        )
+    except OperationalError as exc:
+        # Design `portal-reports`, decision 9b: a statement timeout is a 503 the screen can explain, not a 500.
+        # The transaction is left for the request's session handling to roll back.
+        if getattr(getattr(exc, "orig", None), "sqlstate", None) == QUERY_CANCELED:
+            raise ReportError(
+                "report_timeout", "the report took too long; choose a shorter period or one department", 503
+            ) from exc
+        raise
+    return report, scope
+
+
+def _run_builder(
+    session: Session,
+    user: User | Member,
+    key: str,
+    scope: Scope,
+    *,
+    from_: date | None,
+    to: date | None,
+    holder_department: str | None,
+    include_cases: bool,
+    row_cap: int | None,
+    config: ReportConfig | None,
+    settings: Settings | None,
+) -> Report:
     if key == "pending-cases":
         report = pending_cases(session, user, scope, config=config)
     elif key == "hearings-disposals":
@@ -1158,4 +1206,4 @@ def build(
             to = today_ist()
             from_ = to - timedelta(days=6)
         report = data_health(session, user, scope, from_=from_, to=to, settings=settings, config=config)
-    return report, scope
+    return report

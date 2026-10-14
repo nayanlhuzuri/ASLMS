@@ -24,7 +24,7 @@ import type {
   Me,
   TicketCounts,
 } from "@/lib/api/types";
-import { canAny } from "@/lib/can";
+import { can, canAny, canIn } from "@/lib/can";
 import { formatDate, formatDateTime, formatNumber } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { CASE_READERS, navFor } from "@/lib/routes";
@@ -36,11 +36,23 @@ export function CaseRef({ value }: { value: AlertCase | null | undefined }) {
   return <CaseLink value={value} />;
 }
 
-function Block({ title, sub, children }: { title: string; sub?: ReactNode; children: ReactNode }) {
+function Block({
+  title,
+  sub,
+  action,
+  children,
+}: {
+  title: string;
+  sub?: ReactNode;
+  /** A link beside the heading (the reports of design portal-reports, decision 10). */
+  action?: ReactNode;
+  children: ReactNode;
+}) {
   return (
     <section className={s.block} aria-label={title}>
       <div className={s.blockHead}>
         <h2>{title}</h2>
+        {action}
         {sub ? <span className="muted">{sub}</span> : null}
       </div>
       {children}
@@ -138,12 +150,23 @@ function FileList({ items, caption }: { items: DashboardFile[]; caption: string 
 }
 
 export function DepartmentBlock({ data }: { data: DashboardDepartment }) {
+  const me = useMe();
   const n = formatNumber;
   const rec = data.recommendations;
   const pending = data.pending_actions;
   const att = data.attention;
+  const code = data.department.code;
+  // design portal-reports, decision 10: a link, not a gate; the Reports screen asks the API
+  const reports =
+    canIn(me.data, code, "reports.department") || can(me.data, "reports.state") ? (
+      <Link href={`/reports/pending-cases?department=${encodeURIComponent(code)}`}>{T.reports.departmentReports}</Link>
+    ) : null;
   return (
-    <Block title={`${T.dash.department}: ${data.department.name}`} sub={T.dash.generated(formatDateTime(data.generated_at))}>
+    <Block
+      title={`${T.dash.department}: ${data.department.name}`}
+      sub={T.dash.generated(formatDateTime(data.generated_at))}
+      action={reports}
+    >
       <div className={s.tiles}>
         {rec ? (
           <Tile label={T.dash.recommendations} value={rec.high + rec.medium} sub={T.dash.recommendationsSub(n(rec.high), n(rec.medium))} />
@@ -316,10 +339,12 @@ export function PersonalBlock({ data }: { data: DashboardMe }) {
 }
 
 export function StateBlock({ data }: { data: DashboardState }) {
+  const me = useMe();
   const n = formatNumber;
   const nc = data.not_claimed;
+  const reports = can(me.data, "reports.state") ? <Link href="/reports/pending-cases">{T.reports.dashboardLink}</Link> : null;
   return (
-    <Block title={T.dash.state} sub={T.dash.generated(formatDateTime(data.generated_at))}>
+    <Block title={T.dash.state} sub={T.dash.generated(formatDateTime(data.generated_at))} action={reports}>
       <div className={s.tiles}>
         <Tile label={T.dash.stateHearings} value={data.hearings.total} sub={T.dash.hearings48(n(data.hearings.critical))} />
         <Tile label={T.dash.overdueFiles} value={data.overdue_actions.total} />

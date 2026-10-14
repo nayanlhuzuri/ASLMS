@@ -157,3 +157,18 @@ describe("the Cause list navigation (portal-causelist)", () => {
     expect(entry.href).toBe("/causelist");
   });
 });
+
+describe("Reports navigation (portal-reports)", () => {
+  it("the entry is built and shows with either reports function", () => {
+    expect(navFor(only("reports.department")).map((e) => e.key)).toContain("reports");
+    expect(navFor(only("reports.state")).map((e) => e.key)).toContain("reports");
+    expect(navFor(only("cases.view_scope")).map((e) => e.key)).not.toContain("reports");
+  });
+
+  it("names the four tabs in the breadcrumb", () => {
+    expect(CRUMBS.reports).toBe("Reports");
+    expect(crumbLabel("/reports")).toBe("Reports");
+    expect(CRUMB_PATHS["/reports/hearings-disposals"]).toBe("Hearings and disposals");
+    expect(crumbLabel("/reports/pending-actions")).toBe("Pending actions");
+  });
+});

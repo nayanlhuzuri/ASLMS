@@ -2257,8 +2257,15 @@ class ReportCatalogueItemOut(BaseModel):
     departments: list[str]
 
 
+class ReportDepartmentOut(BaseModel):
+    code: str
+    name: str
+    is_active: bool
+
+
 class ReportCatalogueOut(BaseModel):
     reports: list[ReportCatalogueItemOut]
+    departments: list[ReportDepartmentOut]
 
 
 class ReportColumnOut(BaseModel):

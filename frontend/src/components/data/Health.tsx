@@ -9,6 +9,7 @@
  * anyway" resends with `force`); the connectivity check either function. No GET calls NAPIX.
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { useState, type FormEvent } from "react";
 
 import { Badge, Button, Dialog, ErrorBanner, Loading, Notice, numCell, Table, TextField, Tile } from "@/components/ui";
@@ -39,6 +40,12 @@ export function Health() {
   const checker = canAny(me.data, ["admin.napix_refetch", "admin.masters_sync"]);
   return (
     <section className="stack" aria-label={T.data.health}>
+      {can(me.data, "reports.state") ? (
+        // design portal-reports, decision 10: the dated report of the same figures
+        <p>
+          <Link href="/reports/data-health">{T.reports.periodReport}</Link>
+        </p>
+      ) : null}
       <ErrorBanner error={snapshot.error ?? napix.error} onRetry={() => (snapshot.refetch(), napix.refetch())} />
       {snapshot.isPending || napix.isPending ? <Loading /> : null}
       {napix.data ? <NapixBlock data={napix.data} /> : null}

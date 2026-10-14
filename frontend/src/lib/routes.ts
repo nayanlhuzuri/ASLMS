@@ -68,7 +68,8 @@ export const NAV: readonly NavEntry[] = [
   // design portal-files-alerts, decision 2: anyone may be sent a file, so Files shows with `cases.view_scope`
   { key: "files", label: "Files", href: "/files", functions: ["cases.view_scope"], built: true },
   { key: "alerts", label: "Alerts & calendar", href: "/alerts", functions: CASE_READERS, built: true },
-  { key: "reports", label: "Reports", href: "/reports", functions: ["reports.department", "reports.state"], built: false },
+  // design portal-reports, decision 2: the tabs inside come from `GET /reports`; the API decides every report
+  { key: "reports", label: "Reports", href: "/reports", functions: ["reports.department", "reports.state"], built: true },
   { key: "audit", label: "Audit log", href: "/audit", functions: ["audit.view"], built: false },
   { key: "data", label: "Data collection", href: "/data/load", functions: DATA_READERS, built: true },
   { key: "admin", label: "Administration", href: "/admin", functions: ADMIN_FUNCTIONS, built: true },
@@ -196,6 +197,10 @@ export const CRUMB_PATHS: Record<string, string> = {
   "/alerts/calendar": "Hearing calendar",
   "/admin/mapping/discovery": "Court search",
   "/data/discovery": "Discovery",
+  "/reports/pending-cases": "Pending cases",
+  "/reports/hearings-disposals": "Hearings and disposals",
+  "/reports/pending-actions": "Pending actions",
+  "/reports/data-health": "Data collection health",
 };
 
 /** The breadcrumb label of a path (`CRUMB_PATHS` first, then the segment's label, else the segment itself). */
@@ -215,6 +220,7 @@ export const CRUMBS: Record<string, string> = {
   tickets: "Tickets",
   profile: "My profile",
   data: "Data collection",
+  reports: "Reports",
   load: "Load",
   health: "Health",
   queue: "Queue and calls",

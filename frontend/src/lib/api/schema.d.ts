@@ -3534,7 +3534,8 @@ export interface paths {
         };
         /**
          * Catalogue
-         * @description The reports the caller may run, their parameters, scopes and the departments they may name.
+         * @description The reports the caller may run, their parameters, scopes and the departments they may name; `departments`
+         *     names every code the items list (with `is_active`).
          */
         get: operations["catalogue_reports_get"];
         put?: never;
@@ -3555,7 +3556,7 @@ export interface paths {
         /**
          * Data Health
          * @description The daily data cycle per date, NAPIX calls by API, open source failures, SourceTrace status (State scope;
-         *     default the last 7 days; `department` refused with 400).
+         *     default the last 7 days; `department` refused with 400; 503 `report_timeout` past the statement timeout).
          */
         get: operations["data_health_reports_data_health_get"];
         put?: never;
@@ -3576,7 +3577,7 @@ export interface paths {
         /**
          * Hearings Disposals
          * @description Listings, proceedings, cases listed and disposals in the period, by group and by month (422 on a bad
-         *     period).
+         *     period; 503 `report_timeout` past the statement timeout).
          */
         get: operations["hearings_disposals_reports_hearings_disposals_get"];
         put?: never;
@@ -3597,7 +3598,8 @@ export interface paths {
         /**
          * Pending Actions
          * @description Files with a pending action by holder office and officer, overdue compliance by office, and with
-         *     `include_cases=true` one row per file the caller may open (never the remark).
+         *     `include_cases=true` one row per file the caller may open (never the remark); 503 `report_timeout` past the
+         *     statement timeout.
          */
         get: operations["pending_actions_reports_pending_actions_get"];
         put?: never;
@@ -3617,7 +3619,8 @@ export interface paths {
         };
         /**
          * Pending Cases
-         * @description Active cases (pending or unknown) by department (or unit), court and NJDG age band, as of now.
+         * @description Active cases (pending or unknown) by department (or unit), court and NJDG age band, as of now (503 `report_timeout`
+         *     past the statement timeout).
          */
         get: operations["pending_cases_reports_pending_cases_get"];
         put?: never;
@@ -8226,6 +8229,8 @@ export interface components {
         };
         /** ReportCatalogueOut */
         ReportCatalogueOut: {
+            /** Departments */
+            departments: components["schemas"]["ReportDepartmentOut"][];
             /** Reports */
             reports: components["schemas"]["ReportCatalogueItemOut"][];
         };
@@ -8237,6 +8242,15 @@ export interface components {
             kind: string;
             /** Label */
             label: string;
+        };
+        /** ReportDepartmentOut */
+        ReportDepartmentOut: {
+            /** Code */
+            code: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Name */
+            name: string;
         };
         /** ReportGeneratedByOut */
         ReportGeneratedByOut: {

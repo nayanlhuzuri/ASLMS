@@ -14421,6 +14421,13 @@
       },
       "ReportCatalogueOut": {
         "properties": {
+          "departments": {
+            "items": {
+              "$ref": "#/components/schemas/ReportDepartmentOut"
+            },
+            "title": "Departments",
+            "type": "array"
+          },
           "reports": {
             "items": {
               "$ref": "#/components/schemas/ReportCatalogueItemOut"
@@ -14430,7 +14437,8 @@
           }
         },
         "required": [
-          "reports"
+          "reports",
+          "departments"
         ],
         "title": "ReportCatalogueOut",
         "type": "object"
@@ -14456,6 +14464,29 @@
           "kind"
         ],
         "title": "ReportColumnOut",
+        "type": "object"
+      },
+      "ReportDepartmentOut": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "is_active"
+        ],
+        "title": "ReportDepartmentOut",
         "type": "object"
       },
       "ReportGeneratedByOut": {
@@ -33419,7 +33450,7 @@
     },
     "/reports": {
       "get": {
-        "description": "The reports the caller may run, their parameters, scopes and the departments they may name.",
+        "description": "The reports the caller may run, their parameters, scopes and the departments they may name; `departments`\nnames every code the items list (with `is_active`).",
         "operationId": "catalogue_reports_get",
         "responses": {
           "200": {
@@ -33446,7 +33477,7 @@
     },
     "/reports/data-health": {
       "get": {
-        "description": "The daily data cycle per date, NAPIX calls by API, open source failures, SourceTrace status (State scope;\ndefault the last 7 days; `department` refused with 400).",
+        "description": "The daily data cycle per date, NAPIX calls by API, open source failures, SourceTrace status (State scope;\ndefault the last 7 days; `department` refused with 400; 503 `report_timeout` past the statement timeout).",
         "operationId": "data_health_reports_data_health_get",
         "parameters": [
           {
@@ -33552,7 +33583,7 @@
     },
     "/reports/hearings-disposals": {
       "get": {
-        "description": "Listings, proceedings, cases listed and disposals in the period, by group and by month (422 on a bad\nperiod).",
+        "description": "Listings, proceedings, cases listed and disposals in the period, by group and by month (422 on a bad\nperiod; 503 `report_timeout` past the statement timeout).",
         "operationId": "hearings_disposals_reports_hearings_disposals_get",
         "parameters": [
           {
@@ -33644,7 +33675,7 @@
     },
     "/reports/pending-actions": {
       "get": {
-        "description": "Files with a pending action by holder office and officer, overdue compliance by office, and with\n`include_cases=true` one row per file the caller may open (never the remark).",
+        "description": "Files with a pending action by holder office and officer, overdue compliance by office, and with\n`include_cases=true` one row per file the caller may open (never the remark); 503 `report_timeout` past the\nstatement timeout.",
         "operationId": "pending_actions_reports_pending_actions_get",
         "parameters": [
           {
@@ -33742,7 +33773,7 @@
     },
     "/reports/pending-cases": {
       "get": {
-        "description": "Active cases (pending or unknown) by department (or unit), court and NJDG age band, as of now.",
+        "description": "Active cases (pending or unknown) by department (or unit), court and NJDG age band, as of now (503 `report_timeout`\npast the statement timeout).",
         "operationId": "pending_cases_reports_pending_cases_get",
         "parameters": [
           {

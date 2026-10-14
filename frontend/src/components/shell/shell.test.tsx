@@ -44,6 +44,18 @@ describe("navigation by functions", () => {
     expect(within(nav).getByRole("link", { name: "Alerts & calendar" })).toHaveAttribute("href", "/alerts");
   });
 
+  it("Reports shows between Alerts & calendar and Data collection with a reports function (portal-reports)", () => {
+    browserApi({ "GET /reference/labels": labels() });
+    renderWithClient(<Sidebar me={makeMe(["cases.view_all", "reports.state"], "state_oversight")} />);
+    const nav = screen.getByRole("navigation", { name: "Main navigation" });
+    const names = within(nav)
+      .getAllByRole("link")
+      .map((a) => a.textContent);
+    expect(names.indexOf("Reports")).toBe(names.indexOf("Alerts & calendar") + 1);
+    expect(names.indexOf("Data collection")).toBe(names.indexOf("Reports") + 1);
+    expect(within(nav).getByRole("link", { name: "Reports" })).toHaveAttribute("href", "/reports");
+  });
+
   it("Files stays current across its tabs", () => {
     resetNav("/files/sent");
     browserApi({ "GET /reference/labels": labels() });
@@ -238,6 +250,8 @@ describe("header and sidebar foot", () => {
       ["/alerts/calendar", "Hearing calendar"],
       ["/cases/EDU-2026-0001/alerts", "Alerts"],
       ["/admin/offices", "Offices"],
+      ["/reports/pending-cases", "Pending cases"],
+      ["/reports/data-health", "Data collection health"],
     ] as const) {
       resetNav(path);
       const { unmount } = renderWithClient(<Breadcrumb />);

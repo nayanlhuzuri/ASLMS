@@ -1678,3 +1678,22 @@ The user experience stays friendly: no "already held / already searched — fetc
 - 2026-10-14 — Correction to the owner decision "no re-fetch questions" above, on reflection the same day: everything stays as built except the Court search tab, where a name and year may be searched as often as the user likes with no "searched before" warning (department-discovery decision 2's warning removed). The Search page's court search and the Data collection screens keep their "already held, fetch anyway?" questions; the owner's rule of 11 Oct 2026 stands for them. Row 69 done.
 
 - 2026-10-14 — portal-reports: approved by the owner (Reports tabs per report the caller may run; scope Whole State or a department; periods with presets; parameters in the URL; Excel and PDF downloads after the on-screen report, audited by the server; two read-only API additions: department names in GET /reports and 503 report_timeout; snapshots, scheduled e-mail reports and call-log retention parked as reports-followups; docs/design/portal-reports.md)
+
+## Portal: the Reports screen (portal-reports) (2026-10-14)
+
+Backlog row 39, design `docs/design/portal-reports.md` (approved by the owner 14 Oct 2026). Plan §5.10. No migration, no new table or column.
+
+**What was built**
+- Portal: `/reports` with one tab per report the caller may run (`/reports/pending-cases`, `/hearings-disposals`, `/pending-actions`, `/data-health`), taken from `GET /reports`; the form (scope, period presets and own dates, holding department, "List the files"), the on-screen report, the Excel and PDF buttons shown once the report has loaded, and a note that downloads are audited. Parameters live in the page address so a report can be bookmarked and Back restores the choices. A report runs when its tab opens with defaults. Components in `frontend/src/components/reports/`, helpers in `src/lib/reports.ts`; the Reports navigation entry is now built.
+- Links: dashboard State section to Reports and each department section to that department's reports; data-health report and Data collection Health link to each other; pending actions links to Files and each file to its case page.
+- Two read-only API additions: `GET /reports` now also returns `departments` (code, name, `is_active`) for every code its items list, so an inactive department that still owns cases is named; a report past the statement timeout answers 503 `report_timeout`, which the screen explains ("took too long, try a shorter period"). Other operational errors are not mapped.
+- Tests: `backend/tests/db/test_api_reports.py` (`test_catalogue_names_its_departments`, `test_report_timeout_is_503`, `test_other_operational_errors_are_not_mapped`), `test_reports.py` adjusted; portal `reports.test.tsx`, `lib/reports.test.ts`, additions to `dashboard.test.tsx`, `data.test.tsx`, `shell.test.tsx`, `routes.test.ts`.
+
+**Decisions and reasons**
+- The API stays the authority on which reports, scopes and departments a caller may use; the screen builds tabs and choices from the catalogue and renders nothing private (no remarks, notes, documents or party names). Viewing writes nothing; only downloads are audited, by the server.
+- State users default to Whole State; department users have their department filled in. Hearings and disposals opens on this month, data-health on the last 7 days.
+- A timeout is a 503 the user can act on, not an error page.
+
+**Deviations from the design note** (its Deviations section): page files pass the URL parameters from the server; only sections whose rows carry `ref_no` are paged (50); the truncated line is shown beside the API note; totals row drawn with `td` in `tfoot`; `QUERY_CANCELED` imported from `services/audit_search.py`; the catalogue is not retried on 403; the Health "Period report" link sits above the snapshot.
+
+**Left for later**: month-end snapshots and trends, scheduled e-mailed reports and a retention job for `napix_call_log` (row 70, each needing an owner rule); drill-down from an aggregate row to a case or file list. The owner's browser check follows the design's Verification section.
