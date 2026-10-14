@@ -6,8 +6,8 @@
  * "Search the court") with the years searched, the last search and the cases found, and per name the found cases with
  * their owner, our recommendation and Claim (the shared `ClaimDialog`). A user may ask for older years of a name: they
  * pick the name and the years and press Search; the searches are queued for the worker and found cases appear here as
- * they arrive. No call counts or allowance are shown; a name and year searched before asks "search again?" first (a
- * 409 `searched_before` that writes nothing). Summaries only; the API decides every list and action.
+ * they arrive. No call counts or allowance are shown, and no "searched before" question: the user may search a name
+ * and year as often as they like (owner, 14 Oct 2026). Summaries only; the API decides every list and action.
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useId, useState, type FormEvent } from "react";
@@ -18,7 +18,6 @@ import {
   Badge,
   Button,
   CaseLink,
-  ConfirmDialog,
   EmptyState,
   ErrorBanner,
   Loading,
@@ -30,7 +29,7 @@ import {
   Table,
   TextField,
 } from "@/components/ui";
-import { api, ApiError } from "@/lib/api/client";
+import { api } from "@/lib/api/client";
 import { INBOX_KEY, MAPPING_KEY } from "@/lib/api/hooks";
 import type { DiscoveryCaseList, DiscoverySearch, DiscoveryTerm, DiscoveryTermList } from "@/lib/api/types";
 import { isDiscoverable, normaliseTerm, parseYears } from "@/lib/discovery";
@@ -41,12 +40,6 @@ import { useAction } from "@/lib/useAction";
 export const DISCOVERY_KEY = [...MAPPING_KEY, "discovery"] as const;
 const LIMIT = 50;
 const ONLY = ["all", "pool", "recommended", "owned"] as const;
-
-interface Again {
-  name: string;
-  years: number[];
-  date: string | null;
-}
 
 export function CourtSearch() {
   const queryClient = useQueryClient();
@@ -145,36 +138,20 @@ export function CourtSearch() {
   );
 }
 
-/** The name and the years to search; a warning dialog when a year was searched before. */
+/** The name and the years to search; every search is queued, with no warning (owner, 14 Oct 2026). */
 function AskYears({ terms, onQueued }: { terms: DiscoveryTerm[]; onQueued: (out: DiscoverySearch) => void }) {
   const listId = useId();
   const [name, setName] = useState("");
   const [years, setYears] = useState("");
   const [problem, setProblem] = useState<{ name?: string; years?: string }>({});
-  const [again, setAgain] = useState<Again | null>(null);
   const action = useAction();
   const thisYear = new Date().getFullYear();
 
-  async function send(body: { name: string; years: number[]; force?: boolean }) {
-    let caught: unknown = null;
-    const out = await action.run(async () => {
-      try {
-        return await api<DiscoverySearch>("/admin/discovery/search", { method: "POST", body });
-      } catch (e) {
-        caught = e;
-        throw e;
-      }
-    });
+  async function send(body: { name: string; years: number[] }) {
+    const out = await action.run(() => api<DiscoverySearch>("/admin/discovery/search", { method: "POST", body }));
     if (out.ok) {
-      setAgain(null);
       setYears("");
       onQueued(out.value);
-      return;
-    }
-    if (caught instanceof ApiError && caught.code === "searched_before" && !body.force) {
-      action.reset();
-      const last = caught.extra.last_searched_at;
-      setAgain({ name: body.name, years: body.years, date: typeof last === "string" ? last : null });
     }
   }
 
@@ -218,24 +195,11 @@ function AskYears({ terms, onQueued }: { terms: DiscoveryTerm[]; onQueued: (out:
           error={problem.years}
           onChange={(e) => setYears(e.target.value)}
         />
-        <Button type="submit" busy={action.busy && !again}>
+        <Button type="submit" busy={action.busy}>
           {T.discovery.search}
         </Button>
       </form>
-      {again ? null : <ErrorBanner error={action.error} />}
-      {again ? (
-        <ConfirmDialog
-          open
-          title={T.discovery.againTitle}
-          onClose={() => setAgain(null)}
-          onConfirm={() => void send({ name: again.name, years: again.years, force: true })}
-          busy={action.busy}
-          error={action.error}
-          confirmLabel={T.discovery.againConfirm}
-        >
-          <p>{again.date ? T.discovery.againText(formatDateTime(again.date)) : T.discovery.waitingText}</p>
-        </ConfirmDialog>
-      ) : null}
+      <ErrorBanner error={action.error} />
     </section>
   );
 }

@@ -496,9 +496,9 @@ export interface paths {
         /**
          * Search Years
          * @description Search the court for one of the department's names in the chosen years (older years included). The searches
-         *     are queued; found cases appear on the term's list as they arrive. 409 `searched_before` (with the dates) when a
-         *     year was searched before or is still waiting, unless `force`; 400 `not_a_term` when the name is not an active
-         *     rule ticked "Search the court" in the caller's offices. Audited `discovery.sweep`.
+         *     are queued; found cases appear on the term's list as they arrive. A year already searched simply runs again,
+         *     with no warning (owner, 14 Oct 2026). 400 `not_a_term` when the name is not an active rule ticked "Search the
+         *     court" in the caller's offices. Audited `discovery.sweep`.
          */
         post: operations["search_years_admin_discovery_search_post"];
         delete?: never;

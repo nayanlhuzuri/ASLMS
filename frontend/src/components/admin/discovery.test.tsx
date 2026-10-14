@@ -142,23 +142,12 @@ describe("Court search tab", () => {
     );
   });
 
-  it("a name and years are queued; a year searched before asks first and then searches again", async () => {
-    let n = 0;
+  it("a name and years are queued every time, with no searched-before question", async () => {
     const api = browserApi({
       "GET /me": makeMe(ADMIN, "dept_admin"),
       "GET /admin/discovery/terms": { items: [term()], total: 1 },
       "GET /admin/discovery/terms/t-1/cases": { items: [], total: 0 },
-      "POST /admin/discovery/search": () =>
-        ++n === 1
-          ? json(409, {
-              detail: {
-                code: "searched_before",
-                message: "already searched",
-                last_searched_at: "2026-10-12T10:00:00+05:30",
-                years: [{ reg_year: 2011, state: "searched", searched_at: "2026-10-12T10:00:00+05:30" }],
-              },
-            })
-          : json(202, { term_id: "t-1", term: "PRITAM SAIKIA", years: [2011, 2010], queued: true }),
+      "POST /admin/discovery/search": json(202, { term_id: "t-1", term: "PRITAM SAIKIA", years: [2011, 2010], queued: true }),
     });
     renderWithClient(<CourtSearch />);
     const form = await screen.findByRole("form", { name: "Search older years" });
@@ -170,14 +159,17 @@ describe("Court search tab", () => {
     await userEvent.clear(within(form).getByLabelText("Years"));
     await userEvent.type(within(form).getByLabelText("Years"), "2010-2011");
     await userEvent.click(within(form).getByRole("button", { name: "Search" }));
-    const dialog = await screen.findByRole("dialog", { name: "Search again?" });
-    expect(within(dialog).getByText(/This was already searched on 12 Oct 2026/)).toBeInTheDocument();
-    await userEvent.click(within(dialog).getByRole("button", { name: "Search again" }));
     expect(await screen.findByText("Searching the court. Results will appear here as they are found.")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    // the same name and years again: searched again straight away
+    await userEvent.type(within(form).getByLabelText("Years"), "2010-2011");
+    await userEvent.click(within(form).getByRole("button", { name: "Search" }));
+    await waitFor(() => expect(api.calls.filter((c) => c.method === "POST")).toHaveLength(2));
+    expect(screen.queryByRole("dialog")).toBeNull();
     const sent = api.calls.filter((c) => c.method === "POST").map((c) => c.body);
     expect(sent).toEqual([
       { name: "PRITAM SAIKIA", years: [2011, 2010] },
-      { name: "PRITAM SAIKIA", years: [2011, 2010], force: true },
+      { name: "PRITAM SAIKIA", years: [2011, 2010] },
     ]);
   });
 });

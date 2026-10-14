@@ -10,8 +10,8 @@ recommend-and-claim engine unchanged. Nothing here calls NAPIX directly: the run
   (decision 3), pending cases only (decision 4).
 - Automatic sweeps cover `DISCOVERY_FROM_YEAR` (2025) to the current year: a new term's first sweep at once
   (priority 43) and every active term weekly (42). Older years are searched only when a user asks for them on the
-  Court search tab (`request_years`, 42); a name and year searched before is answered with `searched_before` first
-  (the owner's already-held rule). A manual sweep (`sweep`) needs `admin.data_load`. Both are audited
+  Court search tab (`request_years`, 42), as often as they like and with no "searched before" warning (owner,
+  14 Oct 2026). A manual sweep (`sweep`) needs `admin.data_load`. Both are audited
   `discovery.sweep`; system work is not (decision 11).
 - The share of each quota window is enforced by the runner (decision 6); `summary` reports it for the Data collection
   screens only."""
@@ -79,7 +79,7 @@ class DiscoveryNotFound(LookupError):
 
 
 class DiscoveryConflict(Exception):
-    """The state refuses the action (HTTP 409): `term_inactive`, `searched_before` (with `extra`)."""
+    """The state refuses the action (HTTP 409): `term_inactive` (with `extra`)."""
 
     def __init__(self, code: str, message: str, **extra: Any) -> None:
         super().__init__(message)
@@ -634,10 +634,11 @@ def request_years(
 ) -> dict[str, Any]:
     """The owner's decision 2 of 14 Oct 2026: a user on the Court search tab asks for a name and the year or years
     to search (older years included). The name must be one of the caller's terms: an active rule ticked "Search the
-    court" in their subtree (any active term for the super admin). When a year of that name was searched before (or
-    is still waiting), the answer is 409 `searched_before` with the dates and nothing is queued, unless `force`
-    ("search again"). The rows go into the discovery lane at priority 42, within its share; no call counts are
-    returned. Audited `discovery.sweep` (scope `request`)."""
+    court" in their subtree (any active term for the super admin). The owner's decision of 14 Oct 2026: the user
+    searches as often as they like, with no "searched before" warning; a year already searched runs again and one
+    still waiting keeps its place (`force` is accepted and ignored, for older clients). The rows go into the
+    discovery lane at priority 42, within its share; no call counts are returned. Audited `discovery.sweep`
+    (scope `request`)."""
     from aslms.services.matching import normalise_term
 
     access.require(session, user, Permission.ADMIN_KEYWORDS)
@@ -659,26 +660,6 @@ def request_years(
             'add the name as a keyword or name pattern with "Search the court" ticked, then search its years',
         )
     term = ensure_term(session, value)
-    est = _est(settings)
-    earlier = []
-    for year in wanted:
-        row = queue.get_state(session, FetchKind.PARTY_SEARCH, make_ref(est, year, value))
-        if row is None:
-            continue
-        st = FetchStatus(row.status)
-        if st == FetchStatus.DONE:
-            earlier.append({"reg_year": year, "state": "searched", "searched_at": row.finished_at})
-        elif st in (FetchStatus.PENDING, FetchStatus.RUNNING):
-            earlier.append({"reg_year": year, "state": "waiting", "searched_at": None})
-    if earlier and not force:
-        last = max((e["searched_at"] for e in earlier if e["searched_at"]), default=None)
-        raise DiscoveryConflict(
-            "searched_before",
-            "this name was already searched for some of these years; search again?",
-            term=value,
-            last_searched_at=last,
-            years=earlier,
-        )
     rows = enqueue_term(session, term, wanted, DISCOVERY_RECENT, settings=settings)
     session.flush()
     write_audit(
@@ -693,11 +674,9 @@ def request_years(
             "term": value,
             "years": wanted,
             "rows_queued": rows,
-            "force": bool(force),
-            "warned": bool(earlier),
         },
     )
-    return {"term_id": term.id, "term": value, "years": wanted, "queued": rows > 0 or bool(earlier)}
+    return {"term_id": term.id, "term": value, "years": wanted, "queued": True}
 
 
 # ------------------------------------------------------------------------------------------------ the handler

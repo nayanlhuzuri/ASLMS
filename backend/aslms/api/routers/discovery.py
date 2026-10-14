@@ -1,7 +1,7 @@
 """`/admin/discovery*`: department discovery (design `department-discovery`, with the owner's decisions of 14 Oct
 2026). The Court search tab reads the caller's terms and the cases they found (`admin.keywords`, scoped to the
 caller's subtree; case summaries only, details stay behind the case visibility rule) and asks for a name's years
-(`POST /admin/discovery/search`: no call counts, a 409 `searched_before` warning that writes nothing). The Data
+(`POST /admin/discovery/search`: no call counts and no "searched before" warning). The Data
 collection screens read the share and the queue (`GET /admin/discovery`, the data-load readers) and start a manual
 sweep (`admin.data_load`). No endpoint calls NAPIX: everything is queued for the worker. Errors carry
 `{code, message}`; times are in IST."""
@@ -115,9 +115,9 @@ def search_years(
     user: User = Depends(keywords_reader),
 ) -> schemas.DiscoverySearchOut:
     """Search the court for one of the department's names in the chosen years (older years included). The searches
-    are queued; found cases appear on the term's list as they arrive. 409 `searched_before` (with the dates) when a
-    year was searched before or is still waiting, unless `force`; 400 `not_a_term` when the name is not an active
-    rule ticked "Search the court" in the caller's offices. Audited `discovery.sweep`."""
+    are queued; found cases appear on the term's list as they arrive. A year already searched simply runs again,
+    with no warning (owner, 14 Oct 2026). 400 `not_a_term` when the name is not an active rule ticked "Search the
+    court" in the caller's offices. Audited `discovery.sweep`."""
     try:
         out = discovery.request_years(
             session,

@@ -2,7 +2,7 @@
 rule endpoints carry `discover`, `discoverable` and `discovery` and refuse `not_discoverable`; the Court search tab's
 terms are scoped to the caller's subtree (another department's term is absent and its cases 404) and the super admin
 sees all; a term's cases carry `claimable` and only the caller's departments' recommendation; a user's request for a
-name and years queues searches and warns `searched_before` without writing; the Data collection block is for the data
+name and years queues searches every time, with no warning; the Data collection block is for the data
 readers only; the manual sweep needs `admin.data_load`; the pool's `found_for` keeps the department's never-owned
 finds and refuses another department without `cases.view_all`; 401 without a session."""
 
@@ -197,38 +197,29 @@ def test_a_users_request_for_years(api, world):
         assert {"2010", "2011"} <= set(rows) and rows["2010"].priority == 42
         audits = s.scalar(sa.select(sa.func.count()).where(AuditLog.action == "discovery.sweep"))
         assert audits == 1
-    # asked again while waiting: a warning that writes nothing
+    # asked again while waiting: no warning, the waiting row keeps its place (owner, 14 Oct 2026)
     r = api.post("/admin/discovery/search", json={"name": "PRITAM SAIKIA", "years": [2011]}, headers=edu)
-    assert r.status_code == 409 and r.json()["detail"]["code"] == "searched_before", r.text
-    assert r.json()["detail"]["years"] == [{"reg_year": 2011, "state": "waiting", "searched_at": None}]
+    assert r.status_code == 202, r.text
     with world.Session() as s:
+        assert len([r for r in party_rows(s, "PRITAM SAIKIA") if r.ref.split("|")[2] == "2011"]) == 1
         for row in party_rows(s, "PRITAM SAIKIA"):
             row.status = FetchStatus.DONE
             row.finished_at = sa.func.now()
         s.commit()
+    # asked again after it was searched: it simply runs again, no warning
     r = api.post("/admin/discovery/search", json={"name": "PRITAM SAIKIA", "years": [2011]}, headers=edu)
-    assert r.status_code == 409
-    detail = r.json()["detail"]
-    assert detail["years"][0]["state"] == "searched" and detail["last_searched_at"]
-    with world.Session() as s:
-        assert s.scalar(sa.select(sa.func.count()).where(AuditLog.action == "discovery.sweep")) == 1
-    r = api.post(
-        "/admin/discovery/search", json={"name": "PRITAM SAIKIA", "years": [2011], "force": True}, headers=edu
-    )
-    assert r.status_code == 202
+    assert r.status_code == 202, r.text
+    assert "searched_before" not in r.text
     with world.Session() as s:
         row = next(r for r in party_rows(s, "PRITAM SAIKIA") if r.ref.split("|")[2] == "2011")
         assert row.status == FetchStatus.PENDING
+        assert s.scalar(sa.select(sa.func.count()).where(AuditLog.action == "discovery.sweep")) == 3
         audit = s.scalars(
             sa.select(AuditLog)
             .where(AuditLog.action == "discovery.sweep")
-            .order_by(AuditLog.created_at.desc())
+            .order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
         ).first()
-        assert (
-            audit.after["scope"] == "request"
-            and audit.after["warned"] is True
-            and audit.after["force"] is True
-        )
+        assert audit.after["scope"] == "request" and audit.after["years"] == [2011]
     # another department's name, a name that is no term, bad years, no function
     r = api.post("/admin/discovery/search", json={"name": "ANIL BORA", "years": [2010]}, headers=edu)
     assert r.status_code == 400 and r.json()["detail"]["code"] == "not_a_term"
