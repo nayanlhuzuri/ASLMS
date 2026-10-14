@@ -11,6 +11,7 @@ interface Parts {
   day: number;
   hour: number;
   minute: number;
+  second: number;
 }
 
 const FORMAT = new Intl.DateTimeFormat("en-GB", {
@@ -20,13 +21,14 @@ const FORMAT = new Intl.DateTimeFormat("en-GB", {
   day: "numeric",
   hour: "2-digit",
   minute: "2-digit",
+  second: "2-digit",
   hourCycle: "h23",
 });
 
 function istParts(date: Date): Parts {
   const parts = FORMAT.formatToParts(date);
   const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
-  return { year: get("year"), month: get("month"), day: get("day"), hour: get("hour"), minute: get("minute") };
+  return { year: get("year"), month: get("month"), day: get("day"), hour: get("hour"), minute: get("minute"), second: get("second") };
 }
 
 function toDate(value: string | Date): Date | null {
@@ -53,6 +55,16 @@ export function formatDateTime(value: string | Date | null | undefined): string 
   const hh = String(p.hour).padStart(2, "0");
   const mm = String(p.minute).padStart(2, "0");
   return `${p.day} ${MONTHS[p.month - 1]} ${p.year}, ${hh}:${mm}`;
+}
+
+/** An instant in IST to the second, `14 Oct 2026, 14:34:07` (design portal-audit-health, decision 5). */
+export function formatDateTimeSeconds(value: string | Date | null | undefined): string {
+  if (!value) return "—";
+  const d = toDate(value);
+  if (!d) return String(value);
+  const p = istParts(d);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${p.day} ${MONTHS[p.month - 1]} ${p.year}, ${pad(p.hour)}:${pad(p.minute)}:${pad(p.second)}`;
 }
 
 /** The IST time of an instant, `14:34` (no date). */

@@ -26,9 +26,10 @@ import {
 import { api, ApiError } from "@/lib/api/client";
 import { labelOf, useLabels, useMe } from "@/lib/api/hooks";
 import type { OfficeDetail, OfficeKind, OfficeNode, UserLookup, UserOut } from "@/lib/api/types";
-import { can, isSuperAdmin } from "@/lib/can";
+import { can, isSuperAdmin, readsAudit } from "@/lib/can";
 import { formatDate, formatNumber } from "@/lib/format";
 import { T } from "@/lib/messages";
+import { queryString } from "@/lib/params";
 import { useAction } from "@/lib/useAction";
 
 import { DesignationInput } from "./Users";
@@ -311,6 +312,12 @@ export function OfficeDetailView({ code }: { code: string }) {
             ) : null}
           </dl>
         )}
+        {readsAudit(me.data) ? (
+          // design portal-audit-health, decision 7: audit readers only; the API re-checks
+          <p>
+            <Link href={`/audit${queryString({ office: o.code })}`}>{T.audit.byOffice}</Link>
+          </p>
+        ) : null}
         <ErrorBanner error={action.error} />
         <InUseCounts error={action.error} />
         {manage ? (

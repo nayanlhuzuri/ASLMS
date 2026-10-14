@@ -6,6 +6,7 @@ import { apiCasePath, refPath } from "../refs";
 import { api, ApiError } from "./client";
 import type {
   AlertCounts,
+  AuditActions,
   Benches,
   CaseDetail,
   CaseOwnershipView,
@@ -246,6 +247,19 @@ export function useReportCatalogue(enabled = true) {
     queryKey: ["reports", "catalogue"],
     queryFn: () => api<ReportCatalogue>("/reports"),
     staleTime: 5 * 60_000,
+    retry: (count, error) => !(error instanceof ApiError && error.status === 403) && count < 2,
+    enabled,
+  });
+}
+
+// ------------------------------------------------------------------------------------------------ portal-audit-health
+
+/** The distinct audit action codes (`GET /audit/actions`), for the Action filter; a 403 is not retried. */
+export function useAuditActions(enabled = true) {
+  return useQuery({
+    queryKey: ["audit", "actions"],
+    queryFn: () => api<AuditActions>("/audit/actions"),
+    staleTime: 10 * 60_000,
     retry: (count, error) => !(error instanceof ApiError && error.status === 403) && count < 2,
     enabled,
   });

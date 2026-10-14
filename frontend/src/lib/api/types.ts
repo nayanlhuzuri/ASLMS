@@ -185,3 +185,7 @@ export type ReportDepartment = S["ReportDepartmentOut"];
 export type Report = S["ReportOut"];
 export type ReportSection = S["ReportSectionOut"];
 export type ReportColumn = S["ReportColumnOut"];
+// portal-audit-health: the Audit log screen
+export type AuditRow = S["AuditRowOut"];
+export type AuditPage = S["AuditPageOut"];
+export type AuditActions = S["AuditActionsOut"];

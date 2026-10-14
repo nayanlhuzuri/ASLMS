@@ -270,4 +270,23 @@ None. Points for the owner to check at approval (decided here, reversible):
   user lookup for audit readers).
 
 ## Deviations
-None yet (written by the developer while building).
+Written by the developer while building (14 Oct 2026); each is the smallest reading of a point the design left open.
+1. `readsAudit(me)` also requires `audit.view` in `/me.functions` for the super admin membership, as the API's
+   `require(audit.view)` runs before the State-wide check: a super admin whose audit access was switched off sees no
+   entry and no links.
+2. A URL whose own filters fail the browser checks (a hand-typed one-character name, `to` before `from`, a malformed
+   record id) is not sent: the form shows the problem under its field and the search waits for a corrected Search.
+3. The action list (`GET /audit/actions`) is requested once the search has answered (or at once when the URL's
+   filters are not sent), so a 403 requests nothing more.
+4. The 503 `search_timeout` text is the screen's own ("The search took too long; narrow the search."), passed to the
+   `ErrorBanner`, because the shared text for that code belongs to the Reports screen ("Ask for fewer months").
+5. With "Choose dates" the period refusal (browser or API `bad_period`) shows under "To", as on the Reports screen;
+   with a quick choice it shows under "Period".
+6. "Back to the search": the "View" link records the entry's id in `sessionStorage`; the entry's Back link goes back
+   in the browser only for that entry, else to `/audit` (`document.referrer` does not change on client-side
+   navigation).
+7. The entry page treats a 422 (an id that is not a UUID) like a 404: "No audit entry with this id."
+8. An `office` code in the URL that is not an active department (a unit code from a row's office link, or an inactive
+   office) is kept and shown as its code in the department select, without a unit select; the units of a department
+   appear only once that department is chosen.
+9. "More filters" is a native `<details>` element, open when one of its filters is set or refused.

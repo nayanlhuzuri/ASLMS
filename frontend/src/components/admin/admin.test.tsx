@@ -298,3 +298,77 @@ describe("offices", () => {
     expect(screen.getByText("custody: 2")).toBeInTheDocument();
   });
 });
+
+describe("audit links (portal-audit-health, decision 7)", () => {
+  function superAdmin(functions: Permission[]) {
+    return makeMe(functions, "super_admin", {
+      memberships: [
+        {
+          id: "m-1",
+          office: { code: "GOA", name: "Government of Assam", kind: "state" },
+          department_code: null,
+          designation: null,
+          role: "super_admin",
+          is_primary: true,
+          is_active: true,
+          functions,
+        },
+      ],
+    });
+  }
+  const OFFICE = {
+    id: "o-2",
+    code: "EDU-DSE",
+    name: "Secondary Education",
+    kind: "directorate",
+    tier: "directorate",
+    path: "GOA/EDU/EDU-DSE",
+    depth: 2,
+    parent_code: "EDU",
+    is_active: true,
+    notes: null,
+    counts: { children: 0, users: 3, ownership: 0, custody: 2 },
+    created_at: "2026-10-01T00:00:00Z",
+    updated_at: "2026-10-01T00:00:00Z",
+    deactivated_at: null,
+    valid_from: "2026-10-01",
+    valid_to: null,
+  };
+
+  it("a user's page links to the entries by and about the user for an audit reader", async () => {
+    userRoutes(superAdmin(["users.view", "audit.view", "cases.view_all"]));
+    renderWithClient(<UserDetail id="u-9" />);
+    expect(await screen.findByRole("link", { name: "Entries by this user" })).toHaveAttribute("href", "/audit?user=u-9");
+    expect(screen.getByRole("link", { name: "Entries about this user" })).toHaveAttribute("href", "/audit?about_user=u-9");
+  });
+
+  it("no audit links on a user's page without readsAudit", async () => {
+    userRoutes(makeMe([...DEPT_ADMIN, "audit.view"], "dept_admin"));
+    renderWithClient(<UserDetail id="u-9" />);
+    await screen.findByRole("heading", { name: "Ravi Das" });
+    expect(screen.queryByRole("link", { name: "Entries by this user" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Entries about this user" })).toBeNull();
+  });
+
+  it("an office's page links to the entries by the office for an audit reader, not otherwise", async () => {
+    browserApi({
+      "GET /me": superAdmin(["users.view", "offices.manage", "audit.view", "cases.view_all"]),
+      "GET /reference/labels": labels(),
+      "GET /admin/offices/EDU-DSE": OFFICE,
+    });
+    const { unmount } = renderWithClient(<OfficeDetailView code="EDU-DSE" />);
+    expect(await screen.findByRole("link", { name: "Entries by this office" })).toHaveAttribute(
+      "href",
+      "/audit?office=EDU-DSE",
+    );
+    unmount();
+    browserApi({
+      "GET /me": makeMe(["users.view", "offices.manage", "audit.view"], "dept_admin"),
+      "GET /reference/labels": labels(),
+      "GET /admin/offices/EDU-DSE": OFFICE,
+    });
+    renderWithClient(<OfficeDetailView code="EDU-DSE" />);
+    await screen.findByRole("heading", { name: /Secondary Education/ });
+    expect(screen.queryByRole("link", { name: "Entries by this office" })).toBeNull();
+  });
+});

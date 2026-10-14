@@ -4,7 +4,7 @@
  * their backlog rows. Showing an entry is convenience only: the API decides every figure and action.
  */
 import type { Me, Permission } from "./api/types";
-import { can, canAny, departmentsOf, tracksDepartment } from "./can";
+import { can, canAny, departmentsOf, readsAudit, tracksDepartment } from "./can";
 
 /** What the navigation reads of `/me`: the functions, and the memberships where an entry needs them. */
 export type MeLike = Pick<Me, "functions"> & Partial<Pick<Me, "memberships">>;
@@ -70,7 +70,8 @@ export const NAV: readonly NavEntry[] = [
   { key: "alerts", label: "Alerts & calendar", href: "/alerts", functions: CASE_READERS, built: true },
   // design portal-reports, decision 2: the tabs inside come from `GET /reports`; the API decides every report
   { key: "reports", label: "Reports", href: "/reports", functions: ["reports.department", "reports.state"], built: true },
-  { key: "audit", label: "Audit log", href: "/audit", functions: ["audit.view"], built: false },
+  // design portal-audit-health, decision 2: only where the API serves the log (State-wide `audit.view`)
+  { key: "audit", label: "Audit log", href: "/audit", functions: ["audit.view"], built: true, show: readsAudit },
   { key: "data", label: "Data collection", href: "/data/load", functions: DATA_READERS, built: true },
   { key: "admin", label: "Administration", href: "/admin", functions: ADMIN_FUNCTIONS, built: true },
 ];
@@ -203,8 +204,12 @@ export const CRUMB_PATHS: Record<string, string> = {
   "/reports/data-health": "Data collection health",
 };
 
+/** The last crumb of one audit entry (`/audit/<id>`): the id is not a label. */
+export const AUDIT_ENTRY_CRUMB = "Entry";
+
 /** The breadcrumb label of a path (`CRUMB_PATHS` first, then the segment's label, else the segment itself). */
 export function crumbLabel(path: string): string {
+  if (/^\/audit\/[^/]+$/.test(path)) return AUDIT_ENTRY_CRUMB;
   const part = path.split("/").filter(Boolean).pop() ?? "";
   return CRUMB_PATHS[path] ?? CRUMBS[part] ?? decodeURIComponent(part);
 }
@@ -221,6 +226,7 @@ export const CRUMBS: Record<string, string> = {
   profile: "My profile",
   data: "Data collection",
   reports: "Reports",
+  audit: "Audit log",
   load: "Load",
   health: "Health",
   queue: "Queue and calls",

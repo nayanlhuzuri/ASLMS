@@ -7,6 +7,7 @@
  * action shows only with its function; the API decides (scope, delegation, reserved functions).
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { useState, type FormEvent } from "react";
 
 import {
@@ -37,9 +38,10 @@ import type {
   UserOut,
   UserTypeLabel,
 } from "@/lib/api/types";
-import { can, canAny } from "@/lib/can";
+import { can, canAny, readsAudit } from "@/lib/can";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { T } from "@/lib/messages";
+import { queryString } from "@/lib/params";
 import { useAction } from "@/lib/useAction";
 
 import { assignableOptions, DesignationInput, MembershipFields, type MembershipDraft } from "./Users";
@@ -148,6 +150,13 @@ function LoginCard({ user, me }: { user: UserOut; me: Me }) {
           <dd>{formatDateTime(user.last_login_at)}</dd>
         </dl>
       )}
+      {readsAudit(me) ? (
+        // design portal-audit-health, decision 7: audit readers only; the API re-checks
+        <nav className="actions" aria-label={T.audit.links}>
+          <Link href={`/audit${queryString({ user: user.id })}`}>{T.audit.byUser}</Link>
+          <Link href={`/audit${queryString({ about_user: user.id })}`}>{T.audit.aboutThisUser}</Link>
+        </nav>
+      ) : null}
       <ErrorBanner error={toggle.error} />
       <div className="actions">
         {can(me, "users.edit") && !editing ? (

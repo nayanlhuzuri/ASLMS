@@ -1,12 +1,20 @@
 import { describe, expect, it } from "vitest";
 
-import { formatDate, formatDateTime, formatNumber, formatTime, hearingBadge } from "./format";
+import { formatDate, formatDateTime, formatDateTimeSeconds, formatNumber, formatTime, hearingBadge } from "./format";
 
 describe("IST dates", () => {
   it("shows the IST day for a UTC instant near midnight", () => {
     expect(formatDate("2026-09-24T19:00:00Z")).toBe("25 Sep 2026");
     expect(formatDate("2026-09-24T18:29:00Z")).toBe("24 Sep 2026");
     expect(formatDateTime("2026-09-24T18:30:00Z")).toBe("25 Sep 2026, 00:00");
+  });
+
+  it("shows an instant to the second in IST across midnight UTC (portal-audit-health)", () => {
+    expect(formatDateTimeSeconds("2026-10-14T09:04:07Z")).toBe("14 Oct 2026, 14:34:07");
+    expect(formatDateTimeSeconds("2026-10-13T18:29:59Z")).toBe("13 Oct 2026, 23:59:59");
+    expect(formatDateTimeSeconds("2026-10-13T18:30:00Z")).toBe("14 Oct 2026, 00:00:00");
+    expect(formatDateTimeSeconds(null)).toBe("—");
+    expect(formatDateTimeSeconds("not a date")).toBe("not a date");
   });
 
   it("shows the IST time alone", () => {

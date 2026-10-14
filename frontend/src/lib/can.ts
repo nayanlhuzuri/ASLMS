@@ -49,3 +49,19 @@ export function tracksDepartment(me: Partial<Pick<Me, "memberships">> | null | u
     (m) => m.is_active !== false && !!m.department_code && (m.functions ?? []).includes("custody.track"),
   );
 }
+
+/**
+ * Whether the login reads the audit log (design portal-audit-health, decision 2; the API's audit-screens decision 2):
+ * `audit.view` held in a State-wide membership, that is an active super admin membership, or an active membership
+ * holding both `audit.view` and `cases.view_all` (the Auditor type). A department membership granted `audit.view`
+ * alone does not read it. Display only; the API decides.
+ */
+export function readsAudit(me: (Pick<Me, "functions"> & Partial<Pick<Me, "memberships">>) | null | undefined): boolean {
+  if (!me || !me.functions.includes("audit.view")) return false;
+  return (me.memberships ?? []).some((m) => {
+    if (m.is_active === false) return false;
+    if (m.role === "super_admin") return true;
+    const fns = m.functions ?? [];
+    return fns.includes("audit.view") && fns.includes("cases.view_all");
+  });
+}

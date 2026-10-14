@@ -1699,3 +1699,24 @@ Backlog row 39, design `docs/design/portal-reports.md` (approved by the owner 14
 **Left for later**: month-end snapshots and trends, scheduled e-mailed reports and a retention job for `napix_call_log` (row 70, each needing an owner rule); drill-down from an aggregate row to a case or file list. The owner's browser check follows the design's Verification section.
 
 - 2026-10-14 — portal-audit-health: approved by the owner (Audit log screen for the super admin and Auditor type: newest entries first, filters in the URL, actions grouped by plain names, entry page with before/after, audit-trail links from case, user and office pages for audit readers only; frontend only; department-scoped view, audit.searched rows and export parked as audit-followups; docs/design/portal-audit-health.md)
+
+## Portal: the Audit log screen (portal-audit-health) (2026-10-14)
+
+Backlog row 41, design `docs/design/portal-audit-health.md` (approved by the owner 14 Oct 2026). Plan §5.13. Frontend only: no migration, no table or column, no new function or setting, no backend change; `docs/schema/schema.md` is unchanged.
+
+**What was built**
+- Portal: `/audit` (search) and `/audit/[id]` (one entry) over the existing `GET /audit`, `GET /audit/actions` and `GET /audit/{id}`. The "Audit log" menu entry shows only when `readsAudit(me)` holds (super admin, or a membership with `audit.view` and `cases.view_all`).
+- The search opens on the newest 50 entries and loads older ones with More (keyset cursor). Filters use the API's own parameter names and live in the page address: person (e-mail or login id, name contains), case (`ref_no` or CNR, merged cases included), office (department then unit), action (grouped under plain headings with "All ... actions" per group, codes as stored), period (any time, today, last 7 days, last 30 days, own dates), and a "More filters" section (about the user, record type, record id). Refusals show under the field concerned.
+- The list shows time to the second in IST, action, who (name, designation, office or "System"), the case link and the record; name, office and action narrow the search. The entry page shows every detail including IP address and browser, a before/after table with changed marks, and `{length, sha256}` values as "Text not kept in the log" (note text and custody remarks are never in the log). Links: all entries for this case, by this person, for this record.
+- "Audit trail" links for audit readers only: case page header, user admin page (entries by and about the user), office page (entries by the office).
+- New code: `lib/audit.ts`, `readsAudit` in `lib/can.ts`, `formatDateTimeSeconds` in `lib/format.ts`, `components/audit/*`, `useAuditActions()`, route and crumb rules, an `audit` group in `lib/messages.ts`.
+- Tests: `lib/audit.test.ts`, `components/audit/audit.test.tsx`, additions to `case.test.tsx`, `admin.test.tsx`, `routes.test.ts`, `format.test.ts`.
+
+**Decisions and reasons**
+- The API stays the authority on who may read; the menu and links are display only. Viewing and searching write nothing (audit-screens decision 3 stands).
+- Actions are shown as stored codes grouped under plain names, not a label per code: the code is what an auditor quotes, and the list grows with every item.
+- Filters in the URL so a search can be bookmarked or sent to another permitted reader.
+
+**Deviations from the design note** (its Deviations section, nine items): a super admin without `audit.view` sees no entry or links; a URL whose filters fail the browser checks is not sent; the action list is requested after the search answers; the 503 text is the screen's own; with "Choose dates" the period refusal shows under "To"; the entry's Back link uses `sessionStorage`, not the referrer; a 422 on the entry id reads as 404; an `office` code that is not an active department is kept and shown as its code; "More filters" is a native `<details>`.
+
+**Left for later**: row 71 `audit-followups` (parked, each needs an owner rule): a department-scoped audit view, `audit.searched` rows, export of an audit search. A person picker for the Person field; row 42 API hardening. The owner's browser check follows the design's Verification section.

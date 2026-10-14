@@ -17,9 +17,10 @@ import { Badge, Button, EmptyState, ErrorBanner, Loading, Notice, Tabs } from "@
 import { api, ApiError } from "@/lib/api/client";
 import { caseKey, useCase, useMe } from "@/lib/api/hooks";
 import type { CaseDetail } from "@/lib/api/types";
-import { can } from "@/lib/can";
+import { can, readsAudit } from "@/lib/can";
 import { formatDate, formatNumber } from "@/lib/format";
 import { T } from "@/lib/messages";
+import { queryString } from "@/lib/params";
 import { apiCasePath, casePath } from "@/lib/refs";
 import { CASE_TABS } from "@/lib/routes";
 import { useAction } from "@/lib/useAction";
@@ -31,6 +32,7 @@ function statusTone(status: string) {
 }
 
 export function CaseHeader({ c }: { c: CaseDetail }) {
+  const me = useMe();
   const owner = c.ownership.primary;
   const pet = c.parties_as_printed.petitioner_summary;
   const res = c.parties_as_printed.respondent_summary;
@@ -68,6 +70,12 @@ export function CaseHeader({ c }: { c: CaseDetail }) {
           <dd className="mono">{c.ref_no}</dd>
         </div>
       </dl>
+      {readsAudit(me.data) ? (
+        // design portal-audit-health, decision 7: audit readers only; the API re-checks
+        <p>
+          <Link href={`/audit${queryString({ case: c.ref_no })}`}>{T.audit.trail}</Link>
+        </p>
+      ) : null}
     </header>
   );
 }

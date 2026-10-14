@@ -958,3 +958,38 @@ describe("the Hearings tab (portal-causelist, decision 12)", () => {
     ]);
   });
 });
+
+describe("the Audit trail link (portal-audit-health, decision 7)", () => {
+  function auditMe(role: "auditor" | "dept_admin", functions: Permission[]) {
+    return makeMe(functions, role, {
+      memberships: [
+        {
+          id: "m-1",
+          office: { code: "GOA", name: "Government of Assam", kind: "department" },
+          department_code: role === "auditor" ? null : "EDU",
+          designation: null,
+          role,
+          is_primary: true,
+          is_active: true,
+          functions,
+        },
+      ],
+    });
+  }
+
+  it("shows for an audit reader with the case's reference", async () => {
+    browserApi({ "GET /me": auditMe("auditor", ["audit.view", "cases.view_all", ...READ]), [`GET ${BASE}`]: detail() });
+    renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
+    expect(await screen.findByRole("link", { name: "Audit trail" })).toHaveAttribute(
+      "href",
+      "/audit?case=ASLMS%2FGOA%2FCASE%2F2026%2F000001",
+    );
+  });
+
+  it("does not show without readsAudit", async () => {
+    browserApi({ "GET /me": auditMe("dept_admin", ["audit.view", ...READ]), [`GET ${BASE}`]: detail() });
+    renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
+    await screen.findByRole("navigation", { name: "Case sections" });
+    expect(screen.queryByRole("link", { name: "Audit trail" })).toBeNull();
+  });
+});

@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import type { Permission, Role } from "./api/types";
-import { tracksDepartment } from "./can";
+import { readsAudit, tracksDepartment } from "./can";
 import {
   ADMIN_FUNCTIONS,
   ADMIN_TABS,
   adminTabsFor,
   alertsTabsFor,
+  AUDIT_ENTRY_CRUMB,
   CASE_TABS,
   CRUMB_PATHS,
   crumbLabel,
@@ -17,6 +18,7 @@ import {
   MAPPING_FUNCTIONS,
   MAPPING_TABS,
   mappingTabsFor,
+  NAV,
   navFor,
   PEOPLE_ADMIN_FUNCTIONS,
 } from "./routes";
@@ -170,5 +172,63 @@ describe("Reports navigation (portal-reports)", () => {
     expect(crumbLabel("/reports")).toBe("Reports");
     expect(CRUMB_PATHS["/reports/hearings-disposals"]).toBe("Hearings and disposals");
     expect(crumbLabel("/reports/pending-actions")).toBe("Pending actions");
+  });
+});
+
+describe("Audit log navigation (portal-audit-health)", () => {
+  type M = { role: Role; functions: Permission[]; is_active?: boolean; department_code?: string | null };
+  const me = (memberships: M[]) => {
+    const all = [...new Set(memberships.filter((m) => m.is_active !== false).flatMap((m) => m.functions))];
+    return {
+      functions: all,
+      memberships: memberships.map((m, i) => ({
+        id: `m-${i}`,
+        office: { code: "X", name: "X", kind: "department" },
+        department_code: m.department_code ?? null,
+        designation: null,
+        is_primary: i === 0,
+        is_active: m.is_active ?? true,
+        role: m.role,
+        functions: m.functions,
+      })),
+    } as unknown as Parameters<typeof readsAudit>[0];
+  };
+  const superAdmin = me([{ role: "super_admin", functions: ["audit.view", "cases.view_all", "users.view"] }]);
+  const auditor = me([{ role: "auditor", functions: ["audit.view", "cases.view_all"] }]);
+  const deptOnly = me([{ role: "dept_admin", functions: ["audit.view", "cases.view_scope"], department_code: "EDU" }]);
+  const split = me([
+    { role: "dept_admin", functions: ["audit.view"], department_code: "EDU" },
+    { role: "state_oversight", functions: ["cases.view_all"] },
+  ]);
+  const inactive = me([
+    { role: "auditor", functions: ["audit.view", "cases.view_all"], is_active: false },
+    { role: "dept_officer", functions: ["cases.view_scope"], department_code: "EDU" },
+  ]);
+
+  it("readsAudit: the super admin and the Auditor only", () => {
+    expect(readsAudit(superAdmin)).toBe(true);
+    expect(readsAudit(auditor)).toBe(true);
+    expect(readsAudit(deptOnly)).toBe(false);
+    expect(readsAudit(split)).toBe(false);
+    expect(readsAudit(inactive)).toBe(false);
+    expect(readsAudit(null)).toBe(false);
+  });
+
+  it("the entry is built and shows only where the API serves the log", () => {
+    const keys = (m: Parameters<typeof navFor>[0]) => navFor(m).map((e) => e.key);
+    expect(keys(superAdmin as Parameters<typeof navFor>[0])).toContain("audit");
+    expect(keys(auditor as Parameters<typeof navFor>[0])).toContain("audit");
+    expect(keys(deptOnly as Parameters<typeof navFor>[0])).not.toContain("audit");
+    expect(keys(split as Parameters<typeof navFor>[0])).not.toContain("audit");
+    const order = NAV.map((e) => e.key);
+    expect(order.indexOf("audit")).toBe(order.indexOf("reports") + 1);
+    expect(order.indexOf("data")).toBe(order.indexOf("audit") + 1);
+  });
+
+  it("names the screen and an entry in the breadcrumb", () => {
+    expect(CRUMBS.audit).toBe("Audit log");
+    expect(crumbLabel("/audit")).toBe("Audit log");
+    expect(crumbLabel("/audit/0192a3b4-5c6d-7e8f-9a0b-1c2d3e4f5a6b")).toBe(AUDIT_ENTRY_CRUMB);
+    expect(AUDIT_ENTRY_CRUMB).toBe("Entry");
   });
 });
