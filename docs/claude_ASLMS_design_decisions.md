@@ -1671,3 +1671,6 @@ Backlog row 19, design `docs/design/department-discovery.md` (approved by the ow
 - Compose verification of migration 0017 and the portal tabs (design Verification steps 2-9).
 
 - 2026-10-14 — department-discovery live check (owner-approved, at most 10 NAPIX calls; 4 used): Search by Party Name refuses a blank `reg_year` (606 INVALID_REG_YEAR), so discovery stays one call per registration year; the court matches `litigant_name` as the whole phrase. "NARAYAN KONWAR" (pending): 52 cases registered in 2025 and 103 in 2026, all contempt cases or applications in them; 16 of the 2025 cases were already held, 36 were new. Recorded in napix_integration_notes.md §7.
+
+## Owner decision of 14 Oct 2026: no re-fetch questions
+The user experience stays friendly: no "already held / already searched — fetch again?" question anywhere. A court search for a case already held opens the case and updates its details from the court; the Court search tab searches every time; data-collection re-fetches and loads over held days simply update. Limits (per-user hourly limit, budget bands, stored order PDFs not downloaded again) stay silent and automatic, with one plain line when reached. This replaces the owner's rule of 11 Oct 2026 (data-load-console: "it should alert me") and department-discovery decision 2's warning. Backlog row no-refetch-prompts, before the reports screen.
