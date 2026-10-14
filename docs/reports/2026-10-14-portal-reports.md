@@ -15,7 +15,7 @@ Merged to `main` as commit 67948c4, tag `feature/portal-reports-done`.
 - `git status` clean; design status `approved`; decisions-log entry and backlog row present.
 
 ## Review findings
-Both advisory, not fixed in this cycle (carried to row 70 follow-ups, see below):
+Both advisory, not fixed in this cycle:
 1. `ReportView.tsx` page offset (SectionTable state keyed only by section key) is not reset when different rows are shown in the same mounted view; Back to a cached report can show an empty table at offset beyond the rows. Fix: key ReportView by the query string or reset offset on rows change.
 2. `reports.ts` `reportParams` (hearings-disposals) sends a lone `from` or `to`; the API answers a FastAPI 422 instead of `bad_period`. Fix: fall back to the this-month default.
 
@@ -23,7 +23,7 @@ Both advisory, not fixed in this cycle (carried to row 70 follow-ups, see below)
 None recorded by the integrator beyond those in the design note.
 
 ## Follow-up rows
-- Row 70 `reports-followups` (snapshots, scheduled e-mail reports, call-history retention) already exists. The two advisory findings above are recorded here and in row 70's scope for the next pass.
+- Row 70 `reports-followups` (snapshots, scheduled e-mail reports, call-history retention) already exists. The two advisory findings above are recorded in this report only; no backlog row was added for them.
 
 ## Load status
 queue-status (14 Oct 2026): causelist_day done 130 / pending 431; dossier done 39592 / failed 557 / pending 137; order_pdf done 25018 / pending 222317 / failed 3; status_batch done 253.
