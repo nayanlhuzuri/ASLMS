@@ -5,7 +5,9 @@ from __future__ import annotations
 from datetime import date
 
 import httpx
+import pytest
 
+from aslms.core.errors import NapixInputError
 from aslms.integration.base import CauseListRef
 from aslms.integration.napix.client import NapixClient
 from aslms.integration.napix.hc import NapixHighCourt
@@ -77,3 +79,39 @@ def test_causelist_refs_dedupe_by_list_id() -> None:
     ]
     refs = NapixHighCourt.causelist_refs(date(2026, 9, 3), "2048", rows)
     assert [(r.causelist_id, r.list_type) for r in refs] == [("11", "Daily"), ("12", "Supplementary")]
+
+
+async def test_advocate_and_filing_searches_send_the_spec_input(
+    client: NapixClient, gateway: Gateway
+) -> None:
+    """Design `search-court-advocate-filing`: spec §6.8 and §6.6 input order, the gateway stub paths; an empty
+    year (probe P2 only) is sent as `reg_year=`."""
+    hc = NapixHighCourt(client, "GAHC01", "6")
+    async with client:
+        await hc.search_advocate("A I KATHAR", 2025)
+        await hc.search_advocate("A I KATHAR", None, pend_disp="D")
+        await hc.search_filing(111, 7451, 2026)
+    assert [(s["path"], s["plain"], s["method"]) for s in gateway.seen] == [
+        (
+            "hc-advocate-name-api/advocatename",
+            "est_code=GAHC01|pend_disp=P|advocate_name=A I KATHAR|reg_year=2025",
+            "GET",
+        ),
+        (
+            "hc-advocate-name-api/advocatename",
+            "est_code=GAHC01|pend_disp=D|advocate_name=A I KATHAR|reg_year=",
+            "GET",
+        ),
+        ("hc-filing-api/Filing", "est_code=GAHC01|case_type=111|fil_no=7451|fil_year=2026", "GET"),
+    ]
+
+
+async def test_advocate_name_with_pair_separators_is_refused_before_sending(
+    client: NapixClient, gateway: Gateway
+) -> None:
+    hc = NapixHighCourt(client, "GAHC01", "6")
+    async with client:
+        for bad in ("KATHAR|reg_year=2020", "A=B"):
+            with pytest.raises(NapixInputError):
+                await hc.search_advocate(bad, 2025)
+    assert gateway.seen == []

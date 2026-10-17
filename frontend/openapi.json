@@ -4423,6 +4423,47 @@
         "title": "CourtRefOut",
         "type": "object"
       },
+      "CourtSearchAdvocateIn": {
+        "description": "Search by Advocate Name (design `search-court-advocate-filing`, decision 6): the court matches part of a\nname and ignores the honorific (probe P3, P4); the year is required (P2: 606).",
+        "properties": {
+          "kind": {
+            "const": "advocate",
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "description": "letters, digits, spaces and . , ' & ( ) / - (never | or =, the gateway's separators)",
+            "maxLength": 99,
+            "minLength": 3,
+            "pattern": "^[A-Za-z0-9 .,'&()/-]+$",
+            "title": "Name",
+            "type": "string"
+          },
+          "pend_disp": {
+            "default": "P",
+            "enum": [
+              "P",
+              "D",
+              "both"
+            ],
+            "title": "Pend Disp",
+            "type": "string"
+          },
+          "reg_year": {
+            "maximum": 2100.0,
+            "minimum": 1950.0,
+            "title": "Reg Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "name",
+          "reg_year"
+        ],
+        "title": "CourtSearchAdvocateIn",
+        "type": "object"
+      },
       "CourtSearchCaseNumberIn": {
         "properties": {
           "case_type": {
@@ -4479,6 +4520,43 @@
           "cnr"
         ],
         "title": "CourtSearchCnrIn",
+        "type": "object"
+      },
+      "CourtSearchFilingIn": {
+        "description": "Search by Filing Number (design `search-court-advocate-filing`, decision 5).",
+        "properties": {
+          "case_type": {
+            "description": "short name (WP(C)) or the master's code",
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Case Type",
+            "type": "string"
+          },
+          "fil_no": {
+            "maximum": 9999999.0,
+            "minimum": 1.0,
+            "title": "Fil No",
+            "type": "integer"
+          },
+          "fil_year": {
+            "maximum": 2100.0,
+            "minimum": 1950.0,
+            "title": "Fil Year",
+            "type": "integer"
+          },
+          "kind": {
+            "const": "filing",
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "case_type",
+          "fil_no",
+          "fil_year"
+        ],
+        "title": "CourtSearchFilingIn",
         "type": "object"
       },
       "CourtSearchOut": {
@@ -27945,7 +28023,7 @@
     },
     "/cases/search-court": {
       "post": {
-        "description": "Search the court through NAPIX: by CNR (the dossier is fetched and stored), by case number (every row\nstored, the exact row's dossier fetched) or by party name (rows stored, dossiers on demand through\n`fetch-court`). Refused when the switch is off (503 `napix_off`), the hourly quota is below the floor (503\n`napix_budget`) or the caller used their hourly searches (429 `search_limit`). Audited.",
+        "description": "Search the court through NAPIX: by CNR (the dossier is fetched and stored), by case number or filing\nnumber (every row stored, the asked row's dossier fetched; a held case with its dossier answers locally) or\nby party name or advocate name (rows stored, dossiers on demand through `fetch-court`). Refused when the switch is off (503 `napix_off`), the hourly quota is below the floor (503\n`napix_budget`) or the caller used their hourly searches (429 `search_limit`). Audited.",
         "operationId": "search_court_cases_search_court_post",
         "requestBody": {
           "content": {
@@ -27953,8 +28031,10 @@
               "schema": {
                 "discriminator": {
                   "mapping": {
+                    "advocate": "#/components/schemas/CourtSearchAdvocateIn",
                     "case_number": "#/components/schemas/CourtSearchCaseNumberIn",
                     "cnr": "#/components/schemas/CourtSearchCnrIn",
+                    "filing": "#/components/schemas/CourtSearchFilingIn",
                     "party": "#/components/schemas/CourtSearchPartyIn"
                   },
                   "propertyName": "kind"
@@ -27967,7 +28047,13 @@
                     "$ref": "#/components/schemas/CourtSearchCaseNumberIn"
                   },
                   {
+                    "$ref": "#/components/schemas/CourtSearchFilingIn"
+                  },
+                  {
                     "$ref": "#/components/schemas/CourtSearchPartyIn"
+                  },
+                  {
+                    "$ref": "#/components/schemas/CourtSearchAdvocateIn"
                   }
                 ],
                 "title": "Body"

@@ -187,10 +187,19 @@ class NapixHighCourt:
         )
         return search_rows(res.data)
 
-    async def search_advocate(self, name: str, reg_year: int, pend_disp: str = "P") -> list[dict[str, Any]]:
+    async def search_advocate(
+        self, name: str, reg_year: int | None, pend_disp: str = "P"
+    ) -> list[dict[str, Any]]:
+        """Spec §6.8. `reg_year=None` sends an empty year: only the live probe uses it (design
+        `search-court-advocate-filing`, decision 2, probe P2); the service always passes a year."""
         res = await self._get(
             "advocate_name",
-            {"est_code": self.est_code, "pend_disp": pend_disp, "advocate_name": name, "reg_year": reg_year},
+            {
+                "est_code": self.est_code,
+                "pend_disp": pend_disp,
+                "advocate_name": name,
+                "reg_year": "" if reg_year is None else reg_year,
+            },
         )
         return search_rows(res.data)
 

@@ -1765,3 +1765,22 @@ Backlog row 73, design `docs/design/portal-next-dates.md` (approved by the owner
 **Deviations from the design note**: six, in its Deviations section: branch cut from `main` after row 26 was squash-merged; the `qualified_date` rule name; `date_passed` (409) given its own text; dashboard status words; `AlertLink` moved to its own file and the dialogs kept in one file; "n items match" wording.
 
 **Left for later**: row 74 `next-dates-followups` (first live read, hand check of the sample, backend follow-ups). The owner's browser check follows the design's Verification section.
+
+## Court search by advocate name and filing number (2026-10-18)
+Backlog row 21, design `docs/design/search-court-advocate-filing.md` (approved by the owner 17 Oct 2026), branch `feature/search-court-advocate-filing`, no migration, in review. No new table or column, so `docs/schema/schema.md` is unchanged; the new NAPIX paths are in `docs/schema/napix_coverage.md` section D and `docs/specs/napix_field_inventory.md`.
+
+**Built**
+- Live probe (owner's go-ahead, 5 of the 10 allowed NAPIX calls, switch set for that run only, every attempt in `napix_call_log`); samples `docs/specs/samples/advocate_name_2026-10-18-p1/p3/p4.json` and `filing_2026-10-18-p5.json`; `docs/napix_integration_notes.md` section 7 updated.
+- `aslms napix-check` gains the `advocate_name` and `filing` steps and `--max-calls`; every attempt is now recorded through a recorder and flushed in a `finally`, and the command refuses to start if the database cannot be reached.
+- `POST /cases/search-court` gains the kinds `advocate` and `filing` (`services/court_search.py`, `api/schemas.py`); `NapixHighCourt.search_advocate` accepts `reg_year=None` for the probe only; `case_search.items_for` builds court-search results in one query.
+- Portal: "Advocate name" and "Filing number" on the Search page's court search, with `field=advocate` read from the URL; the Search page no longer shows court-call counts.
+
+**Decisions and reasons**
+- A probe gated the build because the spec PDF had been wrong before for the party search. Results: advocate name works (rows carry `cino, pet_name, reg_no, reg_year, res_name, type_name`); `reg_year` is required (blank gives 606 `INVALID_REG_YEAR`); the honorific does not matter; the court matches part of a name (surname alone returned 325 rows including the 36 of the full name), so the hint asks for the full name. Filing number works (rows carry `cino, type_name, fil_no, fil_year, pet_name, res_name`; the held case was returned). Every key already had a home, so no migration.
+- Advocate hits are stored without dossier details and `case_advocates` is not written from them; filing works like case number (local first, then one call).
+- Users see no call counts (owner, 14 Oct 2026); the Data collection fetch keeps its three kinds.
+- napix-check logs every call it makes, applying the "every call is logged" rule to the one command that broke it.
+
+**Deviations from the design note**: listed in its Deviations section. In short: the build was split at the probe gate; filing rows carry no registration number, so a new case from one has no case number until its dossier arrives; `type_name` of a filing row fills only `case_type_text`; gateway error names 606, 607, 608 and 614 added (609 left unnamed); the napix-check options are validated before any call.
+
+**Left for later**: P6 (an unregistered held case) was not run because the dev database holds none; search by Act, Bar registration number, neutral citation and caveat are not covered; advocate search in department discovery is not planned. The owner's browser check follows the design's Verification section.

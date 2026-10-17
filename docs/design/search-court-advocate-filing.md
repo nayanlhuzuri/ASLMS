@@ -8,6 +8,12 @@ date: 2026-10-17
 approved_by: owner (nayanlhuzuri) on 2026-10-17
 ```
 
+> **Live probe, 18 Oct 2026 (run by the integrator with the owner's go-ahead; 5 NAPIX calls of the 10 allowed, every attempt in `napix_call_log`; samples `docs/specs/samples/advocate_name_2026-10-18-p1..p4.json`, `filing_2026-10-18-p5.json`). Decision-3 outcomes:**
+> - **Advocate name (`hc-advocate-name-api/advocatename`) works.** P1 "MR. P J SAIKIA", 2025, P: 36 rows, keys `cino, pet_name, reg_no, reg_year, res_name, type_name` (every key already has a home; no migration). P2 blank `reg_year`: `606 INVALID_REG_YEAR`, so the year is required (as for party name). P3 "P J SAIKIA" without the honorific: the same 36 rows, so the honorific does not matter. P4 "SAIKIA" alone: 325 rows including all 36, so the court matches **part of a name** — the hint asks users to type the full name for precise results.
+> - **Filing number (`hc-filing-api/Filing`) works.** P5 case type 111 (WP(C)), filing 6780/2025: 1 row, keys `cino, type_name, fil_no, fil_year, pet_name, res_name`, CNR GAHC010118832025 = the held case. Every key has a home (`cases.filing_no`, `filing_year`); no migration.
+> - P6 (a held case not yet registered) was not run: the dev database holds none. Build both kinds; no amendment is needed.
+
+
 ## Context
 Backlog row 21. Plan §3.1 Table 4 lists "Search by Case Number / Filing Number" (finding a specific case not yet
 in the database, on user search) and "Search by Party Name / Advocate Name / Act" (finding cases by party, advocate
@@ -436,3 +442,49 @@ None blocking. The owner should confirm:
   Oct "no call counts to users" rule;
 - decision 10: the Data collection single-case fetch keeps its three kinds for now;
 - Not covered: Search by Act (plan Table 4) gets no row unless the owner asks for one.
+
+## Deviations
+Written by the developer, 18 Oct 2026.
+- **Build split at the probe gate (decision 1).** No decrypted sample of either API exists in `docs/specs/samples/`
+  yet, so the first commits build only what does not depend on the probe: the probe tool (decision 2: the
+  `advocate_name` and `filing` steps, `--max-calls`, the recorder flushed in a `finally`, the database check, the
+  recorded count in the summary line), `search_advocate(reg_year=None)`, `KNOWN_APIS`, and `items_for` used by
+  `POST /cases/search-court` (decision 11). The two kinds (schemas, `_search_advocate`, `_search_filing`,
+  `_local_by_filing`, the portal, the coverage rows and the database tests that answer from the probe's samples)
+  wait for the probe, which only the integrator runs with the owner's go-ahead and the switch set for that run.
+- `napix-check --advocate` refuses to start without `--reg-year`: the year is a 4-digit number or the word
+  `blank` (probe P2), so an empty year is never sent by accident. `--pend` is `P` or `D`; the filing step needs
+  `--filing-type`, `--fil-no` (1 to 9,999,999) and `--fil-year` together. The checks run before any call.
+- When the database cannot be reached, napix-check prints a plain message naming only the error class (the URL may
+  carry credentials) and exits with code 2.
+- `--max-calls` counts attempts, retries included; a step already started finishes its retries, so a run can end
+  above N by at most the retries of its last step (the design's "no new step starts").
+- `items_for` selects with `cases.id IN (…)` rather than `= ANY(:ids)`; same result, one statement. A case listed
+  twice in the court's answer appears twice, as before. The Data collection router keeps `item_for` per case
+  (decision 11 names the cases router).
+
+Written by the developer after the probe, 18 Oct 2026 (the two kinds built).
+- **Filing rows carry no registration number** (P5: `fil_no`, `fil_year`, no `reg_no` / `reg_year`). A new case
+  from such a row has no `case_no_text` until its dossier arrives; nothing is composed for it. `fil_no` and
+  `fil_year` fill `cases.filing_no` / `filing_year` only where empty (coverage §D). The row's `type_name` keeps
+  its shared home `cases.case_type_text` (fill-empty), as the design's §D lists; `filing_case_type_text` and
+  `filing_no_text` stay dossier-only, because P5 could not tell whether a filing row's `type_name` is the filing
+  or the registration type (both were WP(C)).
+- **The asked row of a filing search** is matched on the row's own `fil_no` / `fil_year` (not the stored columns,
+  which a dossier may already hold with other values); the single-valid-row fallback counts distinct CNRs.
+- **Unmatched filing rows** list the same five keys as before (`UnmatchedRowOut` unchanged, decision 4), so a
+  filing row without a valid `cino` shows no filing number.
+- **Gateway error names**: `NAPIX_STATUS` gains 606 `INVALID_REG_YEAR` (seen live), 607 `INVALID_FIL_NO`, 608
+  `INVALID_FIL_YEAR` and 614 `INVALID_ADVOCATE_NAME` (spec §6.6, §6.8), so a 400 message names the field. 609 is
+  left unnamed: its name is not in the repository.
+- **Advocate rows carry no `case_type_id`** (P1, unlike the party rows); the type is resolved from `type_name` by
+  the existing path when the master has it.
+- **The Search page's advocate field**: the page has no field control, so the court search's "Advocate name"
+  pre-selection reads `field=advocate` from the URL; the same `field` (one of `cnr`, `number`, `party`,
+  `advocate`, `text`) is now passed to `GET /cases/search`, which already accepted it.
+- **Advocate hint** (decision 3, P4 part matching): "At least 3 characters of the name; the court also finds names
+  that contain it, so type the full name for precise results."
+- **Filing type label**: "Filing case type" (spec §6.6 names the filing's case type; P5 could not tell the two
+  apart, decision 3's last row).
+- `tests/db/conftest.py::router` answers the two APIs from the P1 and P5 samples; the napix-check recording test
+  that relied on the advocate path being unscripted now scripts its 628 explicitly.

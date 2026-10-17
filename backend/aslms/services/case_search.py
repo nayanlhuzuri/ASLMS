@@ -138,6 +138,27 @@ def item_for(session: Session, user: User, case: Case, *, match: str | None = No
     return _items(session, user, [(case, visible, in_pool)], match)[0]
 
 
+def items_for(
+    session: Session, user: User, cases: list[Case], *, match: str | None = None
+) -> list[dict[str, Any]]:
+    """`CaseSearchItemOut`s for many cases in hand, in the given order (design `search-court-advocate-filing`,
+    decision 11): `visible` and the pool flag for all of them in one query, then the usual summaries. An advocate
+    search can return hundreds of rows; `item_for` per row would cost one query each."""
+    if not cases:
+        return []
+    ids = list(dict.fromkeys(c.id for c in cases))
+    flags = {
+        cid: (v, p)
+        for cid, v, p in session.execute(
+            select(Case.id, visible_case_condition(session, user).label("v"), never_owned().label("p")).where(
+                Case.id.in_(ids)
+            )
+        ).all()
+    }
+    rows = [(c, *flags[c.id]) for c in cases if c.id in flags]
+    return _items(session, user, rows, match)
+
+
 # ------------------------------------------------------------------------------------------------ search / list
 
 

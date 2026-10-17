@@ -166,8 +166,8 @@ DETAILS = {
 
 
 def router(gw: Gateway):
-    """Answers every API from the samples (Search by Case Number and by Party Name included, and Overview for the
-    window probe); the dossier is the pending sample re-labelled with the asked CNR."""
+    """Answers every API from the samples (Search by Case Number, Party Name, Advocate Name and Filing Number
+    included, and Overview for the window probe); the dossier is the pending sample re-labelled with the asked CNR."""
     import base64
 
     pdf_b64 = base64.b64encode((FIXTURES / "napix_lawazima_bench2048_2025-01-06.pdf").read_bytes()).decode()
@@ -201,6 +201,10 @@ def router(gw: Gateway):
             return gw.envelope(sample("case_search_2026-09-03.json"))
         if path == "hc-party-name-api/partyname":
             return gw.envelope(sample("party_name_2026-09-03.json"))
+        if path == "hc-advocate-name-api/advocatename":  # the live probe's answer (P1, 18 Oct 2026)
+            return gw.envelope(sample("advocate_name_2026-10-18-p1.json"))
+        if path == "hc-filing-api/Filing":  # the live probe's answer (P5, 18 Oct 2026)
+            return gw.envelope(sample("filing_2026-10-18-p5.json"))
         if path == "overview/overview":  # the connectivity check and the runner's window probe
             return gw.envelope(sample("overview_2026-09-03.json"))
         if path == "hc-current-status-api/currentStatus":

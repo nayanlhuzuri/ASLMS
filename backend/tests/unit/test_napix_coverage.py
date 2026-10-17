@@ -157,3 +157,15 @@ def test_inventory_covers_the_verified_apis(data):
         "state_master",
         "bench_master",
     } <= set(inventory)
+
+
+def test_search_samples_are_grouped_under_their_api() -> None:
+    """Design `search-court-advocate-filing`, decision 2: the probe's samples join the inventory under the step
+    names `advocate_name` and `filing`, like the party and case-number samples."""
+    from aslms.cli.napix_fields import api_name
+
+    assert api_name(Path("advocate_name_2026-10-18.json")) == "advocate_name"
+    assert api_name(Path("advocate_name_2026-10-18-noyear.json")) == "advocate_name"
+    assert api_name(Path("filing_2026-10-18.json")) == "filing"
+    assert api_name(Path("party_name_2026-09-03.json")) == "party_name"
+    assert api_name(Path("case_search_2026-09-03.json")) == "case_search"

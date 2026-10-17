@@ -276,9 +276,9 @@ def search_court(
     session: Session = Depends(get_session),
     user: User = Depends(require(Permission.CASES_SEARCH_COURT)),
 ) -> schemas.CourtSearchOut:
-    """Search the court through NAPIX: by CNR (the dossier is fetched and stored), by case number (every row
-    stored, the exact row's dossier fetched) or by party name (rows stored, dossiers on demand through
-    `fetch-court`). Refused when the switch is off (503 `napix_off`), the hourly quota is below the floor (503
+    """Search the court through NAPIX: by CNR (the dossier is fetched and stored), by case number or filing
+    number (every row stored, the asked row's dossier fetched; a held case with its dossier answers locally) or
+    by party name or advocate name (rows stored, dossiers on demand through `fetch-court`). Refused when the switch is off (503 `napix_off`), the hourly quota is below the floor (503
     `napix_budget`) or the caller used their hourly searches (429 `search_limit`). Audited."""
     settings = request.app.state.settings
     actor = actor_of(request, user, session)
@@ -300,7 +300,7 @@ def search_court(
         source=result.source,
         calls=result.calls,
         created=result.created,
-        items=[case_search.item_for(session, user, c, match=body.kind) for c in result.cases],
+        items=case_search.items_for(session, user, result.cases, match=body.kind),
         unmatched=result.unmatched,
     )
 

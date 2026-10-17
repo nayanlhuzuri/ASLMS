@@ -1,0 +1,293 @@
+{
+  "establishment_name": "Principal Seat at Guwahati",
+  "casenos": {
+    "case1": {
+      "cino": "GAHC010252912025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "3787",
+      "reg_year": "2025",
+      "pet_name": "SMT TAHIRA FATMA",
+      "res_name": "MD MAJID,"
+    },
+    "case2": {
+      "cino": "GAHC010193972025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "2869",
+      "reg_year": "2025",
+      "pet_name": "SRI AMIT SAHARIA",
+      "res_name": "SMTI PRIYANKA DHANUKA"
+    },
+    "case3": {
+      "cino": "GAHC010075042025",
+      "type_name": "Test.App.",
+      "reg_no": "13",
+      "reg_year": "2025",
+      "pet_name": "RUBUL BORA",
+      "res_name": "BUBUL BORA AND 4 ORS"
+    },
+    "case4": {
+      "cino": "GAHC010194022025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "2874",
+      "reg_year": "2025",
+      "pet_name": "DWIJEN CH DAS AND 3 ORS",
+      "res_name": "PRADIP CH DAS"
+    },
+    "case5": {
+      "cino": "GAHC010271272025",
+      "type_name": "I.A.(Crl.)",
+      "reg_no": "1320",
+      "reg_year": "2025",
+      "pet_name": "JAGADISH CH DAS",
+      "res_name": "SMTI DHARITRI DAS"
+    },
+    "case6": {
+      "cino": "GAHC010006472025",
+      "type_name": "WP(C)",
+      "reg_no": "168",
+      "reg_year": "2025",
+      "pet_name": "SI /MIN RAKESH KUMAR AND 17 ORS",
+      "res_name": "THE UNION OF INDIA AND 5 ORS"
+    },
+    "case7": {
+      "cino": "GAHC010268832025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "3988",
+      "reg_year": "2025",
+      "pet_name": "MD RAMJAN ALI",
+      "res_name": "THE UNION OF INDIA AND ORS"
+    },
+    "case8": {
+      "cino": "GAHC010215562025",
+      "type_name": "CRP",
+      "reg_no": "132",
+      "reg_year": "2025",
+      "pet_name": "MANAB JIBON BEZBARUAH",
+      "res_name": "SANTANU BORGOHAIN AND 17 ORS."
+    },
+    "case9": {
+      "cino": "GAHC010279712024",
+      "type_name": "Crl.A.",
+      "reg_no": "419",
+      "reg_year": "2025",
+      "pet_name": "SRI SAMAR KALITA",
+      "res_name": "THE STATE OF ASSAM AND ORS"
+    },
+    "case10": {
+      "cino": "GAHC010178052025",
+      "type_name": "WP(C)",
+      "reg_no": "4559",
+      "reg_year": "2025",
+      "pet_name": "NARATTAM MISHRA",
+      "res_name": "THE SILCHAR MUNICIPAL CORPORATION AND 3 ORS."
+    },
+    "case11": {
+      "cino": "GAHC010210482025",
+      "type_name": "Crl.Pet.",
+      "reg_no": "1430",
+      "reg_year": "2025",
+      "pet_name": "CHITTA RANJAN CHAKRAVARTY",
+      "res_name": "TEAMAFCO PVT LTD AND ANR"
+    },
+    "case12": {
+      "cino": "GAHC010210672025",
+      "type_name": "Crl.Pet.",
+      "reg_no": "1429",
+      "reg_year": "2025",
+      "pet_name": "CHITTA RANJAN CHAKRAVARTY",
+      "res_name": "TEAMAFCO PVT LTD AND ANR"
+    },
+    "case13": {
+      "cino": "GAHC010210622025",
+      "type_name": "Crl.Pet.",
+      "reg_no": "1428",
+      "reg_year": "2025",
+      "pet_name": "CHITTA RANJAN CHAKRAVARTY",
+      "res_name": "TEAMAFCO PVT LTD AND ANR"
+    },
+    "case14": {
+      "cino": "GAHC010210612025",
+      "type_name": "Crl.Pet.",
+      "reg_no": "1427",
+      "reg_year": "2025",
+      "pet_name": "CHITTA RANJAN CHAKRAVARTY",
+      "res_name": "TEAMAFCO PVT LTD AND  ANR."
+    },
+    "case15": {
+      "cino": "GAHC010207812025",
+      "type_name": "Crl.Pet.",
+      "reg_no": "1257",
+      "reg_year": "2025",
+      "pet_name": "CHITTA RANJAN CHAKRAVARTY",
+      "res_name": "M/S DAMAYANTI TEA INDUSTRIES AND ANR"
+    },
+    "case16": {
+      "cino": "GAHC010207822025",
+      "type_name": "Crl.Pet.",
+      "reg_no": "1256",
+      "reg_year": "2025",
+      "pet_name": "CHITTA RANJAN CHAKRAVARTY",
+      "res_name": "M/S DAMAYANTI TEA INDUSTRIES AND ANR"
+    },
+    "case17": {
+      "cino": "GAHC010207782025",
+      "type_name": "Crl.Pet.",
+      "reg_no": "1225",
+      "reg_year": "2025",
+      "pet_name": "CHITTA RANJAN CHAKRAVARTY",
+      "res_name": "M/S DAMAYANTI TEA INDUSTRIES AND ANR"
+    },
+    "case18": {
+      "cino": "GAHC010024842025",
+      "type_name": "WP(C)",
+      "reg_no": "750",
+      "reg_year": "2025",
+      "pet_name": "M/S N.C.D FILLING STATION",
+      "res_name": "HDFC BANK LIMITED AND 4 ORS"
+    },
+    "case19": {
+      "cino": "GAHC010075372025",
+      "type_name": "Crl.A.",
+      "reg_no": "122",
+      "reg_year": "2025",
+      "pet_name": "TUTU MONI SAIKIA @ PAPU SAIKIA",
+      "res_name": "THE STATE OF ASSAM AND ANR,"
+    },
+    "case20": {
+      "cino": "GAHC010002822025",
+      "type_name": "Crl.A.",
+      "reg_no": "13",
+      "reg_year": "2025",
+      "pet_name": "DEBANANDA KURMI",
+      "res_name": "THE STATE OF ASSAM AND ANR"
+    },
+    "case21": {
+      "cino": "GAHC010275452025",
+      "type_name": "Crl.Pet.",
+      "reg_no": "1574",
+      "reg_year": "2025",
+      "pet_name": "ALOKESH DAS AND ANR",
+      "res_name": "THE STATE OF ASSAM"
+    },
+    "case22": {
+      "cino": "GAHC010052492025",
+      "type_name": "WP(C)",
+      "reg_no": "1593",
+      "reg_year": "2025",
+      "pet_name": "SIDDHARTHA SHANKAR SARMAH AND ANR",
+      "res_name": "DIBRUGARH UNIVERSITY AND 4 ORS."
+    },
+    "case23": {
+      "cino": "GAHC010242302025",
+      "type_name": "WP(C)",
+      "reg_no": "6192",
+      "reg_year": "2025",
+      "pet_name": "ATAUR RAHMAN AND 51 ORS",
+      "res_name": "THE STATE OF ASSAM AND 5 ORS"
+    },
+    "case24": {
+      "cino": "GAHC010117882025",
+      "type_name": "WP(C)",
+      "reg_no": "3011",
+      "reg_year": "2025",
+      "pet_name": "M K GANDHI SENIOR SECONDARY SCHOOL",
+      "res_name": "THE STATE OF ASSAM AND 2 ORS."
+    },
+    "case25": {
+      "cino": "GAHC010109682025",
+      "type_name": "WP(C)",
+      "reg_no": "2993",
+      "reg_year": "2025",
+      "pet_name": "SMT SONGITA PADI AND 10 ORS",
+      "res_name": "THE STATE OF ASSAM AND 3 ORS."
+    },
+    "case26": {
+      "cino": "GAHC010106722025",
+      "type_name": "CRP(IO)",
+      "reg_no": "238",
+      "reg_year": "2025",
+      "pet_name": "SHIVANGI GOGOI",
+      "res_name": "DR DEEPAK KUMAR GOGOI AND ANR"
+    },
+    "case27": {
+      "cino": "GAHC010098272025",
+      "type_name": "WP(C)",
+      "reg_no": "2524",
+      "reg_year": "2025",
+      "pet_name": "DR.  BABUL BORGOHAIN",
+      "res_name": "STATE BANK OF INDIA  AND ORS"
+    },
+    "case28": {
+      "cino": "GAHC010135092025",
+      "type_name": "WP(C)",
+      "reg_no": "4131",
+      "reg_year": "2025",
+      "pet_name": "UTTAR BORDOLONI SENIOR SECONDARY SCHOOL",
+      "res_name": "THE STATE OF ASSAM AND ORS"
+    },
+    "case29": {
+      "cino": "GAHC010117852025",
+      "type_name": "WP(C)",
+      "reg_no": "3757",
+      "reg_year": "2025",
+      "pet_name": "SUBANSIRI SENIOR SECONDARY SCHOOL",
+      "res_name": "THE STATE OF ASSAM AND 2 ORS."
+    },
+    "case30": {
+      "cino": "GAHC010117842025",
+      "type_name": "WP(C)",
+      "reg_no": "3756",
+      "reg_year": "2025",
+      "pet_name": "HARMOTI SENIOR SECONDARY SCHOOL",
+      "res_name": "THE STATE OF ASSAM AND 2 ORS."
+    },
+    "case31": {
+      "cino": "GAHC010117792025",
+      "type_name": "WP(C)",
+      "reg_no": "3748",
+      "reg_year": "2025",
+      "pet_name": "NABIN CHANDRA DOLEY (NCD) SENIOR SECONDARY SCHOOL",
+      "res_name": "THE STATE OF ASSAM AND 2 ORS."
+    },
+    "case32": {
+      "cino": "GAHC010117802025",
+      "type_name": "WP(C)",
+      "reg_no": "3495",
+      "reg_year": "2025",
+      "pet_name": "KAPILI SENIOR SECONDARY SCHOOL",
+      "res_name": "THE STATE OF ASSAM AND 2 ORS"
+    },
+    "case33": {
+      "cino": "GAHC010117822025",
+      "type_name": "WP(C)",
+      "reg_no": "3397",
+      "reg_year": "2025",
+      "pet_name": "RABI HAZI SENIOR SECONDARY SCHOOL",
+      "res_name": "THE STATE OF ASSAM AND 2 ORS."
+    },
+    "case34": {
+      "cino": "GAHC010117812025",
+      "type_name": "WP(C)",
+      "reg_no": "3396",
+      "reg_year": "2025",
+      "pet_name": "AIRKATA SENIOR SECONDARY SCHOOL",
+      "res_name": "THE STATE OF ASSAM AND 2 ORS."
+    },
+    "case35": {
+      "cino": "GAHC010102902025",
+      "type_name": "WP(C)",
+      "reg_no": "2630",
+      "reg_year": "2025",
+      "pet_name": "SMTI. GEETANJALI KOTOKY",
+      "res_name": "THE STATE OF ASSAM AND 3 ORS"
+    },
+    "case36": {
+      "cino": "GAHC010219762025",
+      "type_name": "Crl.Rev.P.",
+      "reg_no": "403",
+      "reg_year": "2025",
+      "pet_name": "AMIR KHAN ALIAS MD AMIR KHAN",
+      "res_name": "SAURAV KEDIA"
+    }
+  }
+}

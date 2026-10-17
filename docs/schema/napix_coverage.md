@@ -136,11 +136,12 @@ payload.
 | | `business` | `case_hearings.business_text` |
 | | `short_order_det` | `case_hearings.short_order_text` |
 | | `desgname` | `case_hearings.judge_designation` |
-| case_search, party_name | `establishment_name` | `courts.name` (confirmation only) |
+| case_search, party_name, advocate_name, filing | `establishment_name` | `courts.name` (confirmation only) |
 | | `casenos[].cino` | `cases.cnr` (the case is created or found; the dossier is fetched on first sight) |
 | | `casenos[].pet_name`, `casenos[].res_name` | `cases.petitioner_summary`, `cases.respondent_summary` |
 | | `casenos[].reg_no`, `casenos[].reg_year`, `casenos[].type_name`, `casenos[].case_type_id` | `cases.reg_no`, `cases.reg_year`, `cases.case_type_text`, `cases.case_type_id` |
 | | `casenos[].police_st_code`, `casenos[].uniform_code` | `cases.police_st_code`, `cases.uniform_code` |
+| filing | `casenos[].fil_no`, `casenos[].fil_year` | `cases.filing_no`, `cases.filing_year` (filled only where empty; the dossier is authoritative; probe P5, 18 Oct 2026) |
 | *(every response)* | | `napix_responses.payload` |
 
 ## E. Still open
@@ -159,8 +160,9 @@ payload.
 - The Subscriber Manual v1.5 adds nothing to the schema; it confirms the token URL, the one-hour token and the
   `100 calls per hour` default plan shown on the subscription screen (the live header says 1000: the plan the
   gateway applies is to be read from `X-RateLimit-Limit`, not assumed).
-- Search by Advocate, by Filing number, by Act, Advocate Bar Reg, Neutral Citation and the Caveat APIs are not
-  sampled (not in the plan's usage map); when one is added, its paths join this file first.
+- Search by Advocate Name and by Filing Number sampled on 18 Oct 2026 (design `search-court-advocate-filing`);
+  Act, Advocate Bar Reg, Neutral Citation and Caveat are not sampled (not in the plan's usage map); when one is
+  added, its paths join this file first.
 - The rate-limit window: the remaining count was 948 at 12:52 and 994 at 12:56, so the window is short (minutes),
   not daily; `RateLimiter.window_seconds` stays 60 until measured.
   *(12 Oct 2026: superseded; the window is one hour, reset at a fixed minute of the hour and detected from

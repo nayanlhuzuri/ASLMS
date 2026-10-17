@@ -32,6 +32,9 @@ import { CaseResults } from "./CaseResults";
 import { CourtSearch } from "./CourtSearch";
 import { TextSearch } from "./TextSearch";
 
+/** The local search's fields (`GET /cases/search?field=`); `auto` is the default and is not sent. */
+const SEARCH_FIELDS: readonly string[] = ["cnr", "number", "party", "advocate", "text"];
+
 export function Search({ params }: { params: Params }) {
   const me = useMe();
   const tab = params.tab === "text" && can(me.data, "documents.view") ? "text" : "cases";
@@ -61,8 +64,10 @@ function CaseSearch({ params }: { params: Params }) {
   const offset = offsetOf(params);
   const shared = toApiQuery(params, "search");
   delete shared.q; // the words go to /cases/search only (at least 3 characters)
+  // the API's `field` when a link names one (`advocate` also opens the court search on "Advocate name")
+  const field = params.field && SEARCH_FIELDS.includes(params.field) ? params.field : undefined;
   const query = words
-    ? { ...shared, q, visible_only: params.visible_only === "true" ? true : undefined, limit: PAGE, offset }
+    ? { ...shared, q, field, visible_only: params.visible_only === "true" ? true : undefined, limit: PAGE, offset }
     : { ...shared, limit: PAGE, offset };
   const path = words ? "/cases/search" : "/cases";
   const list = useQuery({
@@ -106,7 +111,9 @@ function CaseSearch({ params }: { params: Params }) {
           )}
         </>
       ) : null}
-      {courtSearch && list.data && !single ? <CourtSearch key={q} initialQuery={q} prominent={!found && words} /> : null}
+      {courtSearch && list.data && !single ? (
+        <CourtSearch key={`${q}|${field ?? ""}`} initialQuery={q} initialField={field} prominent={!found && words} />
+      ) : null}
     </section>
   );
 }

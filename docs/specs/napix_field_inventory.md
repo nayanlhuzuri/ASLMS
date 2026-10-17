@@ -11,6 +11,18 @@ repeating block (`case1`, `case2`, … or a JSON list). Every path here must hav
 | `[].actname` | str | Bengal Indigo Contracts Act | 4677 | 12 |
 | `[].national_act_code` | str | 18360100000000 | 4677 | 0 |
 
+## advocate_name
+
+| path | type | example | seen | empty |
+|---|---|---|---|---|
+| `casenos[].cino` | str | GAHC010252912025 | 403 | 0 |
+| `casenos[].pet_name` | str | SMT TAHIRA FATMA | 403 | 6 |
+| `casenos[].reg_no` | str | 3787 | 403 | 0 |
+| `casenos[].reg_year` | str | 2025 | 403 | 0 |
+| `casenos[].res_name` | str | MD MAJID, | 403 | 6 |
+| `casenos[].type_name` | str | I.A.(Civil) | 403 | 0 |
+| `establishment_name` | str | Principal Seat at Guwahati | 3 | 0 |
+
 ## bench_master
 
 | path | type | example | seen | empty |
@@ -254,6 +266,18 @@ repeating block (`case1`, `case2`, … or a JSON list). Every path here must hav
 |---|---|---|---|---|
 | `[].dist_code` | int | 57 | 40 | 0 |
 | `[].dist_name` | str | Baksa | 40 | 0 |
+
+## filing
+
+| path | type | example | seen | empty |
+|---|---|---|---|---|
+| `casenos[].cino` | str | GAHC010118832025 | 1 | 0 |
+| `casenos[].fil_no` | str | 6780 | 1 | 0 |
+| `casenos[].fil_year` | str | 2025 | 1 | 0 |
+| `casenos[].pet_name` | str | MOBZZIL HUSSAIN BARBHUIYA | 1 | 0 |
+| `casenos[].res_name` | str | THE STATE OF ASSAM AND ORS | 1 | 0 |
+| `casenos[].type_name` | str | WP(C) | 1 | 0 |
+| `establishment_name` | str | Principal Seat at Guwahati | 1 | 0 |
 
 ## overview
 

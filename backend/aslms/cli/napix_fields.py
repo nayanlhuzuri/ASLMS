@@ -68,6 +68,8 @@ KNOWN_APIS = (
     "act_master",
     "case_search",
     "party_name",
+    "advocate_name",
+    "filing",
     "overview",
     "order",
     "cnr",

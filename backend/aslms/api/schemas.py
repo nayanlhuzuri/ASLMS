@@ -1247,8 +1247,37 @@ class CourtSearchPartyIn(BaseModel):
     pend_disp: Literal["P", "D", "both"] = "P"
 
 
+class CourtSearchAdvocateIn(BaseModel):
+    """Search by Advocate Name (design `search-court-advocate-filing`, decision 6): the court matches part of a
+    name and ignores the honorific (probe P3, P4); the year is required (P2: 606)."""
+
+    kind: Literal["advocate"]
+    name: str = Field(
+        min_length=3,
+        max_length=99,
+        pattern=r"^[A-Za-z0-9 .,'&()/-]+$",
+        description="letters, digits, spaces and . , ' & ( ) / - (never | or =, the gateway's separators)",
+    )
+    reg_year: int = Field(ge=1950, le=2100)
+    pend_disp: Literal["P", "D", "both"] = "P"
+
+
+class CourtSearchFilingIn(BaseModel):
+    """Search by Filing Number (design `search-court-advocate-filing`, decision 5)."""
+
+    kind: Literal["filing"]
+    case_type: str = Field(min_length=1, max_length=60, description="short name (WP(C)) or the master's code")
+    fil_no: int = Field(ge=1, le=9_999_999)
+    fil_year: int = Field(ge=1950, le=2100)
+
+
 CourtSearchIn = Annotated[
-    CourtSearchCnrIn | CourtSearchCaseNumberIn | CourtSearchPartyIn, Field(discriminator="kind")
+    CourtSearchCnrIn
+    | CourtSearchCaseNumberIn
+    | CourtSearchFilingIn
+    | CourtSearchPartyIn
+    | CourtSearchAdvocateIn,
+    Field(discriminator="kind"),
 ]
 
 

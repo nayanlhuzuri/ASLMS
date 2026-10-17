@@ -1,0 +1,2653 @@
+{
+  "establishment_name": "Principal Seat at Guwahati",
+  "casenos": {
+    "case1": {
+      "cino": "GAHC010123492025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "1949",
+      "reg_year": "2025",
+      "pet_name": "",
+      "res_name": ""
+    },
+    "case2": {
+      "cino": "GAHC010123492025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "1949",
+      "reg_year": "2025",
+      "pet_name": "",
+      "res_name": ""
+    },
+    "case3": {
+      "cino": "GAHC010269832025",
+      "type_name": "I.A.(Crl.)",
+      "reg_no": "1360",
+      "reg_year": "2025",
+      "pet_name": "",
+      "res_name": ""
+    },
+    "case4": {
+      "cino": "GAHC010225502025",
+      "type_name": "Mat.App.",
+      "reg_no": "79",
+      "reg_year": "2025",
+      "pet_name": "XXXXXXX",
+      "res_name": "DHRUBAJYOTI CHOUDHURY"
+    },
+    "case5": {
+      "cino": "GAHC010101322025",
+      "type_name": "Mat.App.",
+      "reg_no": "33",
+      "reg_year": "2025",
+      "pet_name": "XXXXXXX",
+      "res_name": "SMT PRIYANKA GOGOI"
+    },
+    "case6": {
+      "cino": "GAHC010251812025",
+      "type_name": "MACApp.",
+      "reg_no": "568",
+      "reg_year": "2025",
+      "pet_name": "ASMA BEGUM AND ORS",
+      "res_name": "THE NEW INDIA ASSURANCE COMPANY LIMITED AND ORS"
+    },
+    "case7": {
+      "cino": "GAHC010018512025",
+      "type_name": "MACApp.",
+      "reg_no": "31",
+      "reg_year": "2025",
+      "pet_name": "HULASHI DEVI PATOWARI",
+      "res_name": "MIJENDRA B MARAK AND ORS"
+    },
+    "case8": {
+      "cino": "GAHC010224452025",
+      "type_name": "CRP(IO)",
+      "reg_no": "524",
+      "reg_year": "2025",
+      "pet_name": "SRI PARTHA PRATIM MAHANTA",
+      "res_name": "SMTI JAYMATI PATOWARY"
+    },
+    "case9": {
+      "cino": "GAHC010203212025",
+      "type_name": "MACApp.",
+      "reg_no": "444",
+      "reg_year": "2025",
+      "pet_name": "DAMINI EKKA",
+      "res_name": "KULIT EKKA AND 2 ORS."
+    },
+    "case10": {
+      "cino": "GAHC010278382025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "666",
+      "reg_year": "2025",
+      "pet_name": "LALIT CH SAIKIA AND 65 ORS",
+      "res_name": "SRI NARAYAN KONWAR AND ANR"
+    },
+    "case11": {
+      "cino": "GAHC010256142025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "620",
+      "reg_year": "2025",
+      "pet_name": "JAHURA KHATUN",
+      "res_name": "MS  KEERTHI JALLI AND ANR"
+    },
+    "case12": {
+      "cino": "GAHC010136542025",
+      "type_name": "Mat.App.",
+      "reg_no": "48",
+      "reg_year": "2025",
+      "pet_name": "XXXXXXX",
+      "res_name": "MRS SABITRI RAJBONGSHI"
+    },
+    "case13": {
+      "cino": "GAHC010068142025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "187",
+      "reg_year": "2025",
+      "pet_name": "ABBAS ALI AHMED",
+      "res_name": "MS MAMATA HOJAI, AES"
+    },
+    "case14": {
+      "cino": "GAHC010104782025",
+      "type_name": "MACApp.",
+      "reg_no": "371",
+      "reg_year": "2025",
+      "pet_name": "NEW INDIA ASSURANCE COMPANY LTD",
+      "res_name": "BOTI ALIAS GHASIA ORANG"
+    },
+    "case15": {
+      "cino": "GAHC010277712025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "4218",
+      "reg_year": "2025",
+      "pet_name": "SBI GENERAL INSURANCE COMPANY LTD",
+      "res_name": "SMTI NIRMALI KALITA ALIAS NIMAMALI DAS"
+    },
+    "case16": {
+      "cino": "GAHC010067592025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "2501",
+      "reg_year": "2025",
+      "pet_name": "CHOLAMANDALAM MS GENERAL INSURANCE COMPANY LTD",
+      "res_name": "AMINA KHATUN"
+    },
+    "case17": {
+      "cino": "GAHC010114842025",
+      "type_name": "MACApp.",
+      "reg_no": "590",
+      "reg_year": "2025",
+      "pet_name": "NEW INDIA ASSURANCE COMPANY LTD",
+      "res_name": "MD RABIJUL HOQUE LASKAR ALIAS RABIJUL ALI LASKAR ALIAS ROBIJUL"
+    },
+    "case18": {
+      "cino": "GAHC010114862025",
+      "type_name": "MACApp.",
+      "reg_no": "603",
+      "reg_year": "2025",
+      "pet_name": "NEW INDIA ASSURANCE COMPANY LTD",
+      "res_name": "MD JAINUL HOQUE LASKAR ALIAS JOYNAL HAQUE ALIAS JOYNUL UDDIN LASKAR"
+    },
+    "case19": {
+      "cino": "GAHC010114762025",
+      "type_name": "MACApp.",
+      "reg_no": "581",
+      "reg_year": "2025",
+      "pet_name": "NEW INDIA ASSURANCE COMPANY LTD",
+      "res_name": "MD. ANWAR HUSSAIN LASKAR @ ANWAR HOQUE @ ANOWAR AND 2 ORS"
+    },
+    "case20": {
+      "cino": "GAHC010114812025",
+      "type_name": "MACApp.",
+      "reg_no": "601",
+      "reg_year": "2025",
+      "pet_name": "NEW INDIA ASSURANCE COMPANY LTD",
+      "res_name": "MD GONI AMIN RAJKHA ALIAS GANI AMIN ALIAS GANI"
+    },
+    "case21": {
+      "cino": "GAHC010114892025",
+      "type_name": "MACApp.",
+      "reg_no": "600",
+      "reg_year": "2025",
+      "pet_name": "NEW INDIA ASSURANCE COMPANY LTD",
+      "res_name": "MD AZIZUR RAHMAN GAZI ALIAS AJIJUL HOQUE"
+    },
+    "case22": {
+      "cino": "GAHC010114782025",
+      "type_name": "MACApp.",
+      "reg_no": "599",
+      "reg_year": "2025",
+      "pet_name": "NEW INDIA ASSURANCE COMPANY LTD",
+      "res_name": "MD PODHUL HUSSAIN LASKAR ALIAS PUDUL HUSSAIN UDDIN ALIAS FODUL"
+    },
+    "case23": {
+      "cino": "GAHC010157112025",
+      "type_name": "MACApp.",
+      "reg_no": "570",
+      "reg_year": "2025",
+      "pet_name": "NEW INDIA ASSURANCE COMPANY LTD",
+      "res_name": "ON THE DEATH OF NABA KUMAR GOSWAMI ALIAS NABA GOSWAMI HIS LEGAL HEIRS"
+    },
+    "case24": {
+      "cino": "GAHC010200322025",
+      "type_name": "MACApp.",
+      "reg_no": "606",
+      "reg_year": "2025",
+      "pet_name": "SHRIRAM GENERAL INSURANCE CO LTD",
+      "res_name": "BULBULI CHARAH TAYE ALIAS BULBULI TAYE AND ORS"
+    },
+    "case25": {
+      "cino": "GAHC010132542025",
+      "type_name": "MACApp.",
+      "reg_no": "602",
+      "reg_year": "2025",
+      "pet_name": "ICICI LOMBARD GENERAL INSURANCE COMPANY LTD",
+      "res_name": "SMTI ANJU PRADHA"
+    },
+    "case26": {
+      "cino": "GAHC010046972025",
+      "type_name": "MFA",
+      "reg_no": "42",
+      "reg_year": "2025",
+      "pet_name": "NATIONAL INSURANCE CO. LTD",
+      "res_name": "NURJAMAL HOQUE"
+    },
+    "case27": {
+      "cino": "GAHC010146562025",
+      "type_name": "MACApp.",
+      "reg_no": "520",
+      "reg_year": "2025",
+      "pet_name": "M/S LIBERTY GENERAL INSURANCE COMPANY LTD",
+      "res_name": "SMTI SUBHA PACHOBAN"
+    },
+    "case28": {
+      "cino": "GAHC010253922025",
+      "type_name": "CRP(IO)",
+      "reg_no": "476",
+      "reg_year": "2025",
+      "pet_name": "RAHIZ UDDIN",
+      "res_name": "UNITED INDIA INSURANCE CO. LTD., BONGAIGAON DIVISION AND 2 ORS."
+    },
+    "case29": {
+      "cino": "GAHC010237982025",
+      "type_name": "Crl.Rev.P.",
+      "reg_no": "504",
+      "reg_year": "2025",
+      "pet_name": "SRI KUMAR UDAYAN BAISHYA",
+      "res_name": "SRI PRASENJIT PAUL"
+    },
+    "case30": {
+      "cino": "GAHC010187352025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "456",
+      "reg_year": "2025",
+      "pet_name": "SMTI KANCHI POKHREL",
+      "res_name": "SMTI L. SWEETY CHANGSAN, IAS"
+    },
+    "case31": {
+      "cino": "GAHC010183932025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "443",
+      "reg_year": "2025",
+      "pet_name": "SMTI KAMALA DEVI",
+      "res_name": "SMTI. L. SWEETY CHANGSAN, IAS"
+    },
+    "case32": {
+      "cino": "GAHC010169862025",
+      "type_name": "MACApp.",
+      "reg_no": "406",
+      "reg_year": "2025",
+      "pet_name": "SHRIRAM GENERAL INSURANCE CO. LTD.",
+      "res_name": "SMTI RADHA MURA AND 3 ORS"
+    },
+    "case33": {
+      "cino": "GAHC010208612024",
+      "type_name": "MACApp.",
+      "reg_no": "397",
+      "reg_year": "2025",
+      "pet_name": "",
+      "res_name": ""
+    },
+    "case34": {
+      "cino": "GAHC010093442019",
+      "type_name": "MACApp.",
+      "reg_no": "174",
+      "reg_year": "2025",
+      "pet_name": "",
+      "res_name": ""
+    },
+    "case35": {
+      "cino": "GAHC010169872025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "2905",
+      "reg_year": "2025",
+      "pet_name": "SHRIRAM GENERAL INSURANCE CO. LTD.",
+      "res_name": "SMTI RADHA MURA AND 3 OTHERS"
+    },
+    "case36": {
+      "cino": "GAHC010087912025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "1950",
+      "reg_year": "2025",
+      "pet_name": "NATIONAL INSURANCE CO. LTD.",
+      "res_name": "MD RAFIC AND ANR"
+    },
+    "case37": {
+      "cino": "GAHC010087962025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "1555",
+      "reg_year": "2025",
+      "pet_name": "NATIONAL INSURANCE CO. LTD.",
+      "res_name": "SMTI MUNMI BORA AND 3 OTHERS"
+    },
+    "case38": {
+      "cino": "GAHC010087872025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "1506",
+      "reg_year": "2025",
+      "pet_name": "NATIONAL INSURANCE CO. LTD.",
+      "res_name": "SAHED ALI BHUYAN AND ANR"
+    },
+    "case39": {
+      "cino": "GAHC010081322025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "1277",
+      "reg_year": "2025",
+      "pet_name": "NATIONAL INSURANCE CO. LTD.",
+      "res_name": "MOMINA KHATUN AND 4 ORS"
+    },
+    "case40": {
+      "cino": "GAHC010069612025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "1199",
+      "reg_year": "2025",
+      "pet_name": "SHRIRAM COMPANY INSURANCE CO. LTD.",
+      "res_name": "SMTI PARUL DEKA DUTTA AND 3 ORS"
+    },
+    "case41": {
+      "cino": "GAHC010049312025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "1043",
+      "reg_year": "2025",
+      "pet_name": "THE NEW INDIA ASSURANCE CO. LTD. AND 2 ORS",
+      "res_name": "LABANYA BORDOLOI AND 2 ORS"
+    },
+    "case42": {
+      "cino": "GAHC010064452025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "991",
+      "reg_year": "2025",
+      "pet_name": "NATIONAL INSURANCE CO. LTD.",
+      "res_name": "ANJU DEVI AND 2 OTHERS"
+    },
+    "case43": {
+      "cino": "GAHC010100202025",
+      "type_name": "MACApp.",
+      "reg_no": "226",
+      "reg_year": "2025",
+      "pet_name": "UNITED INDIA INSURANCE CO. LTD.",
+      "res_name": "MD. RAHMAT ALI @ ROHMAT ALI AND 2 ORS"
+    },
+    "case44": {
+      "cino": "GAHC010147152025",
+      "type_name": "CRP(IO)",
+      "reg_no": "451",
+      "reg_year": "2025",
+      "pet_name": "SHRIRAM GENERAL INSURANCE COMPANY LIMITED",
+      "res_name": "ASHISH KUMAR DAS @ ASHISH DAS AND 2 ORS."
+    },
+    "case45": {
+      "cino": "GAHC010014082025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "1281",
+      "reg_year": "2025",
+      "pet_name": "SHRIRAM GENERAL INSURANCE COMPANY LIMITED",
+      "res_name": "ARUP SAIKIA  AND ANR"
+    },
+    "case46": {
+      "cino": "GAHC010038792025",
+      "type_name": "MACApp.",
+      "reg_no": "107",
+      "reg_year": "2025",
+      "pet_name": "THE RELIANCE GENERAL INSURANCE COMPANY LIMITED",
+      "res_name": "KALPANA BORA"
+    },
+    "case47": {
+      "cino": "GAHC010268252024",
+      "type_name": "MACApp.",
+      "reg_no": "80",
+      "reg_year": "2025",
+      "pet_name": "THE NEW INDIA ASSURANCE CO. LTD.",
+      "res_name": "AKASH AGARWAL AND 4 ORS"
+    },
+    "case48": {
+      "cino": "GAHC010222632024",
+      "type_name": "MACApp.",
+      "reg_no": "79",
+      "reg_year": "2025",
+      "pet_name": "THE RELIANCE GENERAL INSURANCE CO. LTD.",
+      "res_name": "GITANJALI BORAH AND 3 ORS"
+    },
+    "case49": {
+      "cino": "GAHC010268222024",
+      "type_name": "MACApp.",
+      "reg_no": "78",
+      "reg_year": "2025",
+      "pet_name": "THE NEW INDIA ASSURANCE CO. LTD.",
+      "res_name": "ZIMI AGARWAL AND 4 ORS"
+    },
+    "case50": {
+      "cino": "GAHC010111292025",
+      "type_name": "MACApp.",
+      "reg_no": "239",
+      "reg_year": "2025",
+      "pet_name": "THE NEW INDIA ASSURANCE CO. LTD.",
+      "res_name": "SMTI RIPIKA KALITA AND 2 ORS"
+    },
+    "case51": {
+      "cino": "GAHC010268192024",
+      "type_name": "MACApp.",
+      "reg_no": "81",
+      "reg_year": "2025",
+      "pet_name": "THE NEW INDIA ASSURANCE CO. LTD.",
+      "res_name": "SHILPA AGARWAL AND 4 ORS"
+    },
+    "case52": {
+      "cino": "GAHC010078492024",
+      "type_name": "MACApp.",
+      "reg_no": "438",
+      "reg_year": "2025",
+      "pet_name": "SHRIRAM GENERAL INSURANCE COMPANY LTD",
+      "res_name": "JOHN HANDRICK M SANGMA AND 7 ORS    A"
+    },
+    "case53": {
+      "cino": "GAHC010062572025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "1078",
+      "reg_year": "2025",
+      "pet_name": "NATIONAL INSURANCE CO. LTD.",
+      "res_name": "NURUL ISLAM ALIAS NUBAL ISLAM AND 2 OTHERS"
+    },
+    "case54": {
+      "cino": "GAHC010147012025",
+      "type_name": "CRP(IO)",
+      "reg_no": "249",
+      "reg_year": "2025",
+      "pet_name": "SHRIRAM GENERAL INSURANCE COMPANY LIMITED",
+      "res_name": "FATEMA KHATUN AND 7 ORS"
+    },
+    "case55": {
+      "cino": "GAHC010139252025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "2098",
+      "reg_year": "2025",
+      "pet_name": "NATIONAL INSURANCE COMPANY LTD",
+      "res_name": "MRINMOY JYOTI HAZARIKA AND ORS"
+    },
+    "case56": {
+      "cino": "GAHC010117942024",
+      "type_name": "MACApp.",
+      "reg_no": "274",
+      "reg_year": "2025",
+      "pet_name": "THE RELIANCE GENERAL INSURANCE CO. LTD",
+      "res_name": "GITA RANI RAMCHIARY AND 3 ORS     B"
+    },
+    "case57": {
+      "cino": "GAHC010046812025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "1155",
+      "reg_year": "2025",
+      "pet_name": "SHRIRAM GENERAL INSURANCE CO.LTD.",
+      "res_name": "MONIRUL ISLAM"
+    },
+    "case58": {
+      "cino": "GAHC010069602025",
+      "type_name": "MACApp.",
+      "reg_no": "144",
+      "reg_year": "2025",
+      "pet_name": "SHRIRAM GENERAL INSURANCE CO. LTD.",
+      "res_name": "SMTI PARUL DEKA DUTTA AND 3 ORS"
+    },
+    "case59": {
+      "cino": "GAHC010222672024",
+      "type_name": "MACApp.",
+      "reg_no": "118",
+      "reg_year": "2025",
+      "pet_name": "THE RELIANCE GENERAL INSURANCE CO LTD",
+      "res_name": "UDIT KUMAR BORAH AND 2 ORS"
+    },
+    "case60": {
+      "cino": "GAHC010233782024",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "1065",
+      "reg_year": "2025",
+      "pet_name": "THE RELIANCE GENERAL INSURANCE CO LTD",
+      "res_name": "UDIT KUMAR BORAH AND 2 ORS"
+    },
+    "case61": {
+      "cino": "GAHC010134042024",
+      "type_name": "MACApp.",
+      "reg_no": "560",
+      "reg_year": "2025",
+      "pet_name": "THE RELIANCE GENERAL INSURANCE CO. LTD",
+      "res_name": "ANUZA SALOI AND 2 ORS     F"
+    },
+    "case62": {
+      "cino": "GAHC010081302025",
+      "type_name": "MACApp.",
+      "reg_no": "153",
+      "reg_year": "2025",
+      "pet_name": "NATIONAL INSURANCE CO. LTD.",
+      "res_name": "MOMINA KHATUN AND 4 ORS"
+    },
+    "case63": {
+      "cino": "GAHC010147192025",
+      "type_name": "CRP(IO)",
+      "reg_no": "446",
+      "reg_year": "2025",
+      "pet_name": "SHRIRAM GENERAL INSURANCE COMPANY LIMITED",
+      "res_name": "SMTI. ROMA SHILL @ ROMA SEEL AND 5 ORS"
+    },
+    "case64": {
+      "cino": "GAHC010173872025",
+      "type_name": "MACApp.",
+      "reg_no": "405",
+      "reg_year": "2025",
+      "pet_name": "ORIENTAL INSURANCE CO. LTD.",
+      "res_name": "JOY DAS @ JOY KUMAR DAS AND 5 ORS"
+    },
+    "case65": {
+      "cino": "GAHC010033292025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "93",
+      "reg_year": "2025",
+      "pet_name": "SHAHIDUL ISLAM",
+      "res_name": "SURANJANA SENAPATI"
+    },
+    "case66": {
+      "cino": "GAHC010198562025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "482",
+      "reg_year": "2025",
+      "pet_name": "HIRANYA BARMAN",
+      "res_name": "M. S. LAKSHMI PRIYA"
+    },
+    "case67": {
+      "cino": "GAHC010198572025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "479",
+      "reg_year": "2025",
+      "pet_name": "SIMANTA JYOTI BARUAH",
+      "res_name": "M. S. LAKSHMI PRIYA"
+    },
+    "case68": {
+      "cino": "GAHC010164422025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "389",
+      "reg_year": "2025",
+      "pet_name": "BISWA NATH ROY",
+      "res_name": "MS. MAMATA HOJAI, AES"
+    },
+    "case69": {
+      "cino": "GAHC010263912025",
+      "type_name": "CO",
+      "reg_no": "27",
+      "reg_year": "2025",
+      "pet_name": "JOHN HANDRICK M SANGMA AND 2 ORS",
+      "res_name": "NEW INDIA ASSURANCE CO LTD AND 5 ORS"
+    },
+    "case70": {
+      "cino": "GAHC010113672025",
+      "type_name": "MACApp.",
+      "reg_no": "242",
+      "reg_year": "2025",
+      "pet_name": "CHITRABATI DOLEY @ CHITRAWATI PEGU AND 2 ORS",
+      "res_name": "HDFC ERGO GEN. INSURANCE CO LTD AND ANR"
+    },
+    "case71": {
+      "cino": "GAHC010071182025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "1206",
+      "reg_year": "2025",
+      "pet_name": "SAFALA DEVI AND 2 ORS",
+      "res_name": "UNITED INDIA INSURANCE CO. LTD. AND 2 ORS,"
+    },
+    "case72": {
+      "cino": "GAHC010270672024",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "122",
+      "reg_year": "2025",
+      "pet_name": "BULU RABHA",
+      "res_name": "UNITED INDIA INSURANCE CO LTD AND 2 ORS"
+    },
+    "case73": {
+      "cino": "GAHC010208612024",
+      "type_name": "MACApp.",
+      "reg_no": "397",
+      "reg_year": "2025",
+      "pet_name": "GOKUL HALDAR",
+      "res_name": "PAWAN KUMAR AGARWALA AND ANR (F)"
+    },
+    "case74": {
+      "cino": "GAHC010215432023",
+      "type_name": "MACApp.",
+      "reg_no": "527",
+      "reg_year": "2025",
+      "pet_name": "BOLORAM NATH @ BALORAM NATH",
+      "res_name": "ORIENTAL INSURANCE CO. LTD. AND 2 ORS.   H"
+    },
+    "case75": {
+      "cino": "GAHC010163442025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "438",
+      "reg_year": "2025",
+      "pet_name": "MD ABUL HASEN",
+      "res_name": "SMTI SURANJANA SENAPATI, ACS"
+    },
+    "case76": {
+      "cino": "GAHC010069082025",
+      "type_name": "FAO",
+      "reg_no": "22",
+      "reg_year": "2025",
+      "pet_name": "TOFIZ UDDIN",
+      "res_name": "RATAN PAUL @ RATAN KR. PAUL AND 2 ORS"
+    },
+    "case77": {
+      "cino": "GAHC010131192025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "2518",
+      "reg_year": "2025",
+      "pet_name": "NEW INDIA ASSURANCE CO. LTD.",
+      "res_name": "SAMIKSHA RABHA AND 3 ORS."
+    },
+    "case78": {
+      "cino": "GAHC010223022025",
+      "type_name": "Crl.Rev.P.",
+      "reg_no": "416",
+      "reg_year": "2025",
+      "pet_name": "KULADIP LAHKAR",
+      "res_name": "SANGITA ROY"
+    },
+    "case79": {
+      "cino": "GAHC010223192025",
+      "type_name": "Crl.A.",
+      "reg_no": "415",
+      "reg_year": "2025",
+      "pet_name": "GAURAV KR. SINGH @ GAURAV KUMAR SINGH",
+      "res_name": "THE STATE OF ASSAM AND ANR."
+    },
+    "case80": {
+      "cino": "GAHC010114692025",
+      "type_name": "Crl.A.",
+      "reg_no": "199",
+      "reg_year": "2025",
+      "pet_name": "SIDDHARTHA BARUAH @ RAJ BARUAH",
+      "res_name": "THE STATE OF ASSAM AND ANR"
+    },
+    "case81": {
+      "cino": "GAHC010114702025",
+      "type_name": "I.A.(Crl.)",
+      "reg_no": "570",
+      "reg_year": "2025",
+      "pet_name": "SIDDHARTHA BARUAH @ RAJ BARUAH",
+      "res_name": "THE STATE OF ASSAM AND ANR"
+    },
+    "case82": {
+      "cino": "GAHC010188142025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "452",
+      "reg_year": "2025",
+      "pet_name": "SMTI ANJU DEVI",
+      "res_name": "NARAYAN KONWAR, IAS AND 4 ORS"
+    },
+    "case83": {
+      "cino": "GAHC010065032025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "184",
+      "reg_year": "2025",
+      "pet_name": "ASHOK BHOMICK",
+      "res_name": "AKSH DEEP  AND 2 ORS."
+    },
+    "case84": {
+      "cino": "GAHC010223902025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "533",
+      "reg_year": "2025",
+      "pet_name": "AMBIKA DAS AND 14 ORS.",
+      "res_name": "MD SHAH NAWAZ CHOUDHURY  (IAS) AND ANR"
+    },
+    "case85": {
+      "cino": "GAHC010233732025",
+      "type_name": "Crl.Pet.",
+      "reg_no": "1316",
+      "reg_year": "2025",
+      "pet_name": "SRI PHUKAN ADHIKARY AND ANR",
+      "res_name": "SMT NIVA BANIKYA AND 2 ORS."
+    },
+    "case86": {
+      "cino": "GAHC010073112025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "195",
+      "reg_year": "2025",
+      "pet_name": "SRI SUBHAS BHATTACHARJEE",
+      "res_name": "SHRI SHANTANU P GOTMARE AND ORS"
+    },
+    "case87": {
+      "cino": "GAHC010114112025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "289",
+      "reg_year": "2025",
+      "pet_name": "TANKESWAR NATH",
+      "res_name": "NARAYAN KONWAR, IAS AND 2 ORS."
+    },
+    "case88": {
+      "cino": "GAHC010093442019",
+      "type_name": "MACApp.",
+      "reg_no": "174",
+      "reg_year": "2025",
+      "pet_name": "NATIONAL INSURANCE COMPANY LIMITED",
+      "res_name": "SMTI. KABITA SARMAH AND 3 ORS"
+    },
+    "case89": {
+      "cino": "GAHC010059522025",
+      "type_name": "MACApp.",
+      "reg_no": "131",
+      "reg_year": "2025",
+      "pet_name": "AMAR KUMAR JHA @ AMAR JHA",
+      "res_name": "HADFC ERGO GENERAL INSURANCE CO. LTD. AND 2 ORS"
+    },
+    "case90": {
+      "cino": "GAHC010229762024",
+      "type_name": "RSA",
+      "reg_no": "18",
+      "reg_year": "2025",
+      "pet_name": "BHUPEN DAS AND 2 ORS",
+      "res_name": "ON THE DEATH OF BHUDEV DAS HIS LEGAL HEIRS NABANITA DAS AND ORS"
+    },
+    "case91": {
+      "cino": "GAHC010252912025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "3787",
+      "reg_year": "2025",
+      "pet_name": "SMT TAHIRA FATMA",
+      "res_name": "MD MAJID,"
+    },
+    "case92": {
+      "cino": "GAHC010193972025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "2869",
+      "reg_year": "2025",
+      "pet_name": "SRI AMIT SAHARIA",
+      "res_name": "SMTI PRIYANKA DHANUKA"
+    },
+    "case93": {
+      "cino": "GAHC010189662023",
+      "type_name": "MACApp.",
+      "reg_no": "196",
+      "reg_year": "2025",
+      "pet_name": "ON THE DEATH OF PANKAJ HAZARIKA HIS LEGAL HEIR SMT LAKSHMI HAZARIKA",
+      "res_name": "UNITED INDIA INSURANCE CO. LTD."
+    },
+    "case94": {
+      "cino": "GAHC010241722025",
+      "type_name": "MACApp.",
+      "reg_no": "529",
+      "reg_year": "2025",
+      "pet_name": "JELAKHA BEGUM AND 2 ORS",
+      "res_name": "HDFC ERGO GIC LTD. AND 2 ORS"
+    },
+    "case95": {
+      "cino": "GAHC010275532025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "668",
+      "reg_year": "2025",
+      "pet_name": "ABDUR RASHID",
+      "res_name": "PREETOM SAIKIA,I.A.S"
+    },
+    "case96": {
+      "cino": "GAHC010238442025",
+      "type_name": "Crl.Pet.",
+      "reg_no": "1318",
+      "reg_year": "2025",
+      "pet_name": "MADHAB KALITA AND ANR",
+      "res_name": "THE STATE OF ASSAM  AND ANR"
+    },
+    "case97": {
+      "cino": "GAHC010203152025",
+      "type_name": "WP(C)",
+      "reg_no": "5547",
+      "reg_year": "2025",
+      "pet_name": "SAHARA INDIA COMMERCIAL CORPORATION LIMITED",
+      "res_name": "BISWAJIT CHOUDHARY"
+    },
+    "case98": {
+      "cino": "GAHC010111902025",
+      "type_name": "Crl.A.",
+      "reg_no": "252",
+      "reg_year": "2025",
+      "pet_name": "RANU SONOWAL",
+      "res_name": "THE STATE OF ASSAM AND ANR."
+    },
+    "case99": {
+      "cino": "GAHC010111872025",
+      "type_name": "I.A.(Crl.)",
+      "reg_no": "752",
+      "reg_year": "2025",
+      "pet_name": "RANU SONOWAL",
+      "res_name": "THE STATE OF ASSAM AND ANR."
+    },
+    "case100": {
+      "cino": "GAHC010182152025",
+      "type_name": "WA",
+      "reg_no": "268",
+      "reg_year": "2025",
+      "pet_name": "THE DIRECTOR OF EDUCATION,",
+      "res_name": "HUSNA ARA BEGAM"
+    },
+    "case101": {
+      "cino": "GAHC010085942025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "2516",
+      "reg_year": "2025",
+      "pet_name": "THE STATE OF ASSAM,",
+      "res_name": "SABITA  DAS AND 3 ORS"
+    },
+    "case102": {
+      "cino": "GAHC010222572025",
+      "type_name": "CRP(IO)",
+      "reg_no": "430",
+      "reg_year": "2025",
+      "pet_name": "JITU GOSWAMI",
+      "res_name": "NITYA BORA AND 5 ORS."
+    },
+    "case103": {
+      "cino": "GAHC010220692025",
+      "type_name": "Crl.Pet.",
+      "reg_no": "1221",
+      "reg_year": "2025",
+      "pet_name": "MR OGEN JAMOH",
+      "res_name": "THE STATE OF NAGALAND AND ANR"
+    },
+    "case104": {
+      "cino": "GAHC010114172025",
+      "type_name": "Crl.Pet.",
+      "reg_no": "620",
+      "reg_year": "2025",
+      "pet_name": "AVINASH BHARTIA AND ANR",
+      "res_name": "THE CENTRAL BUREAU OF INVESTIGATION"
+    },
+    "case105": {
+      "cino": "GAHC010070692025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "1151",
+      "reg_year": "2025",
+      "pet_name": "M/S. GAUHATI ROLLER FLOUR MILLS LTD.",
+      "res_name": "PREMODA MEDHI"
+    },
+    "case106": {
+      "cino": "GAHC010206402025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "501",
+      "reg_year": "2025",
+      "pet_name": "UJJAL DEB",
+      "res_name": "SURANJANA SENAPATI"
+    },
+    "case107": {
+      "cino": "GAHC010130192025",
+      "type_name": "Arb.P.",
+      "reg_no": "24",
+      "reg_year": "2025",
+      "pet_name": "M/S ROYAL INFRACONSTRU LIMITED",
+      "res_name": "NORTHEAST FRONTIER RAILWAY"
+    },
+    "case108": {
+      "cino": "GAHC010161392025",
+      "type_name": "CRP(IO)",
+      "reg_no": "287",
+      "reg_year": "2025",
+      "pet_name": "SANTOSH MORE",
+      "res_name": "SOBHARAM NATH AND 3 ORS"
+    },
+    "case109": {
+      "cino": "GAHC010118562025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "303",
+      "reg_year": "2025",
+      "pet_name": "MAHMUDA BEGUM AND ANR",
+      "res_name": "NARAYAN KONWAR, IAS AND ANR"
+    },
+    "case110": {
+      "cino": "GAHC010281772025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "672",
+      "reg_year": "2025",
+      "pet_name": "SMTI. AYESHA BEGUM",
+      "res_name": "SMTI. SURANJANA SENAPATI, ACS"
+    },
+    "case111": {
+      "cino": "GAHC010144512025",
+      "type_name": "WP(C)",
+      "reg_no": "3799",
+      "reg_year": "2025",
+      "pet_name": "SMTI MINAKSHI HAZARIKA",
+      "res_name": "THE STATE OF ASSAM AND 5 ORS"
+    },
+    "case112": {
+      "cino": "GAHC010115952025",
+      "type_name": "WP(C)",
+      "reg_no": "3089",
+      "reg_year": "2025",
+      "pet_name": "SUSHIL KUMAR DUTTA",
+      "res_name": "THE STATE OF ASSAM AND 5 ORS"
+    },
+    "case113": {
+      "cino": "GAHC010270082025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "662",
+      "reg_year": "2025",
+      "pet_name": "SAIFUL ISLAM",
+      "res_name": "SRI ROHAN KUMAR JHA, IAS  AND ORS."
+    },
+    "case114": {
+      "cino": "GAHC010285502025",
+      "type_name": "Crl.Pet.",
+      "reg_no": "1627",
+      "reg_year": "2025",
+      "pet_name": "SRI MINTU GOGOI",
+      "res_name": "THE STATE OF ASSAM AND 11 ORS."
+    },
+    "case115": {
+      "cino": "GAHC010178712025",
+      "type_name": "Crl.Pet.",
+      "reg_no": "1002",
+      "reg_year": "2025",
+      "pet_name": "KAMAL CH DAS",
+      "res_name": "JITUMANI BEGUM AND AND 3 ORS"
+    },
+    "case116": {
+      "cino": "GAHC010102512025",
+      "type_name": "Crl.Pet.",
+      "reg_no": "583",
+      "reg_year": "2025",
+      "pet_name": "ALHAZ  JAHIRUDDIN  AHMED",
+      "res_name": "THE STATE OF ASSAM AND ANR"
+    },
+    "case117": {
+      "cino": "GAHC010144502025",
+      "type_name": "WP(C)",
+      "reg_no": "3839",
+      "reg_year": "2025",
+      "pet_name": "SAMBHU BANIK AND 5 ORS",
+      "res_name": "THE STATE OF ASSAM AND 4 ORS"
+    },
+    "case118": {
+      "cino": "GAHC010144492025",
+      "type_name": "WP(C)",
+      "reg_no": "3813",
+      "reg_year": "2025",
+      "pet_name": "LINA MAZUMDAR DEY AND ANR.",
+      "res_name": "THE STATE OF ASSAM AND 4 ORS."
+    },
+    "case119": {
+      "cino": "GAHC010137482025",
+      "type_name": "WP(C)",
+      "reg_no": "3632",
+      "reg_year": "2025",
+      "pet_name": "SUBHASHISH DEY AND 3 ORS",
+      "res_name": "THE STATE OF ASSAM AND 3 ORS"
+    },
+    "case120": {
+      "cino": "GAHC010229582025",
+      "type_name": "WP(C)",
+      "reg_no": "6067",
+      "reg_year": "2025",
+      "pet_name": "DR APURBA KUMAR DEKA",
+      "res_name": "THE GAUHATI UNIVERSITY AND 2 ORS"
+    },
+    "case121": {
+      "cino": "GAHC010047332025",
+      "type_name": "WP(C)",
+      "reg_no": "1498",
+      "reg_year": "2025",
+      "pet_name": "ILA BORA",
+      "res_name": "THE STATE OF ASSAM AND 2 ORS."
+    },
+    "case122": {
+      "cino": "GAHC010047342025",
+      "type_name": "WP(C)",
+      "reg_no": "1496",
+      "reg_year": "2025",
+      "pet_name": "MRIDUL DUTTA",
+      "res_name": "THE STATE OF ASSAM AND 2 ORS."
+    },
+    "case123": {
+      "cino": "GAHC010047322025",
+      "type_name": "WP(C)",
+      "reg_no": "1417",
+      "reg_year": "2025",
+      "pet_name": "BANTI CHUTIA",
+      "res_name": "THE STATE OF ASSAM AND 2 ORS."
+    },
+    "case124": {
+      "cino": "GAHC010047312025",
+      "type_name": "WP(C)",
+      "reg_no": "1322",
+      "reg_year": "2025",
+      "pet_name": "RUPAM BURAGOHAIN  AND ANR.",
+      "res_name": "THE STATE OF ASSAM AND 2 ORS."
+    },
+    "case125": {
+      "cino": "GAHC010263172025",
+      "type_name": "WP(C)",
+      "reg_no": "6724",
+      "reg_year": "2025",
+      "pet_name": "JAYANTA KUMAR BARMAN",
+      "res_name": "THE STATE OF ASSAM AND 3 ORS"
+    },
+    "case126": {
+      "cino": "GAHC010019692025",
+      "type_name": "Crl.Rev.P.",
+      "reg_no": "56",
+      "reg_year": "2025",
+      "pet_name": "SRI BHASKAR DAS",
+      "res_name": "HARKUMAR DAS AND ANR"
+    },
+    "case127": {
+      "cino": "GAHC010019662025",
+      "type_name": "Crl.Rev.P.",
+      "reg_no": "55",
+      "reg_year": "2025",
+      "pet_name": "SRI BHASKAR DAS",
+      "res_name": "MANABENDRA DAS AND ANR"
+    },
+    "case128": {
+      "cino": "GAHC010209112025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "3164",
+      "reg_year": "2025",
+      "pet_name": "ON THE DEATH OF MAJUN ALI",
+      "res_name": "MD MOJAFFAR ALI @ MASFIR"
+    },
+    "case129": {
+      "cino": "GAHC010209122025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "3163",
+      "reg_year": "2025",
+      "pet_name": "ON THE DEATH OF MAJUN ALI",
+      "res_name": "MD MOJAFFAR ALI @ MASFIR"
+    },
+    "case130": {
+      "cino": "GAHC010209102025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "3162",
+      "reg_year": "2025",
+      "pet_name": "ON THE DEATH OF MAJUN ALI",
+      "res_name": "MD MOJAFFAR ALI @ MASFIR"
+    },
+    "case131": {
+      "cino": "GAHC010018432025",
+      "type_name": "Crl.Pet.",
+      "reg_no": "98",
+      "reg_year": "2025",
+      "pet_name": "JULEKHA BEGUM",
+      "res_name": "THE STATE OF ASSAM AND ANR"
+    },
+    "case132": {
+      "cino": "GAHC010133942025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "339",
+      "reg_year": "2025",
+      "pet_name": "MOMI GOGOI",
+      "res_name": "NARAYAN KONWAR AND 3 ORS."
+    },
+    "case133": {
+      "cino": "GAHC010126522025",
+      "type_name": "MACApp.",
+      "reg_no": "262",
+      "reg_year": "2025",
+      "pet_name": "BAPI GHOSH",
+      "res_name": "BAHARUL AZAM"
+    },
+    "case134": {
+      "cino": "GAHC010040122025",
+      "type_name": "Crl.L.P.",
+      "reg_no": "10",
+      "reg_year": "2025",
+      "pet_name": "SOLITA SUTRADHAR",
+      "res_name": "SANATAN SUTRADHAR"
+    },
+    "case135": {
+      "cino": "GAHC010090372025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "1455",
+      "reg_year": "2025",
+      "pet_name": "SUSHIL RANJAN DEY",
+      "res_name": "ON THE DEATH OF SRI SURENDRA KUMAR KHEMANI"
+    },
+    "case136": {
+      "cino": "GAHC010090382025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "1454",
+      "reg_year": "2025",
+      "pet_name": "SUSHIL RANJAN DEY",
+      "res_name": "ON THE DEATH OF SRI SURENDRA KUMAR KHEMANI,"
+    },
+    "case137": {
+      "cino": "GAHC010090362025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "1453",
+      "reg_year": "2025",
+      "pet_name": "SUSHIL RANJAN DEY",
+      "res_name": "ON THE DEATH OF SRI SURENDRA KUMAR KHEMANI,"
+    },
+    "case138": {
+      "cino": "GAHC010105262025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "259",
+      "reg_year": "2025",
+      "pet_name": "NIRHANDRA THAOSEN",
+      "res_name": "SHRI GYANENDRADEV TRIPATHI IAS"
+    },
+    "case139": {
+      "cino": "GAHC010138552025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "347",
+      "reg_year": "2025",
+      "pet_name": "HASAN BAKT CHOUDHURY AND 13 ORS.",
+      "res_name": "SMTI  SURANJANA SENAPATI, ACS"
+    },
+    "case140": {
+      "cino": "GAHC010123412025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "313",
+      "reg_year": "2025",
+      "pet_name": "BHUPATI BARUAH AND 3 ORS.",
+      "res_name": "NAYANJYOTI DAS, ACS"
+    },
+    "case141": {
+      "cino": "GAHC010273652025",
+      "type_name": "MACApp.",
+      "reg_no": "567",
+      "reg_year": "2025",
+      "pet_name": "ABED ALI",
+      "res_name": "PINKY CHETRY AND 8 ORS"
+    },
+    "case142": {
+      "cino": "GAHC010092582025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "237",
+      "reg_year": "2025",
+      "pet_name": "MUSTT. AYSHA KHATUN AND 62 ORS.",
+      "res_name": "GYANENDRA DEV TRIPATHI AND 10 ORS."
+    },
+    "case143": {
+      "cino": "GAHC010217102025",
+      "type_name": "WP(C)",
+      "reg_no": "5706",
+      "reg_year": "2025",
+      "pet_name": "PALLABI DEKA",
+      "res_name": "UNION OF INDIA AND 6 ORS"
+    },
+    "case144": {
+      "cino": "GAHC010093322025",
+      "type_name": "WP(C)",
+      "reg_no": "2621",
+      "reg_year": "2025",
+      "pet_name": "RAJEN KONWAR",
+      "res_name": "UNION OF INDIA AND 5 ORS."
+    },
+    "case145": {
+      "cino": "GAHC010269622025",
+      "type_name": "WP(C)",
+      "reg_no": "7051",
+      "reg_year": "2025",
+      "pet_name": "KAMALESWAR BORDOLOI",
+      "res_name": "THE STATE OF ASSAM AND 4 ORS"
+    },
+    "case146": {
+      "cino": "GAHC010243242025",
+      "type_name": "WP(C)",
+      "reg_no": "6376",
+      "reg_year": "2025",
+      "pet_name": "DIPAMONI KOCH AND 2 ORS.",
+      "res_name": "THE STATE OF ASSAM AND 12 ORS."
+    },
+    "case147": {
+      "cino": "GAHC010134722025",
+      "type_name": "WP(C)",
+      "reg_no": "3481",
+      "reg_year": "2025",
+      "pet_name": "MANJUARA BEGUM",
+      "res_name": "SECRETARY OF ASSAM STATE ELECTION COMMISSION AND ORS"
+    },
+    "case148": {
+      "cino": "GAHC010113372025",
+      "type_name": "WP(C)",
+      "reg_no": "2851",
+      "reg_year": "2025",
+      "pet_name": "JYOTI DUTTA",
+      "res_name": "THE STATE OF ASSAM AND 9 ORS."
+    },
+    "case149": {
+      "cino": "GAHC010285662025",
+      "type_name": "Crl.Pet.",
+      "reg_no": "1626",
+      "reg_year": "2025",
+      "pet_name": "ANANTA DAS",
+      "res_name": "THE STATE OF ASSAM AND ANR"
+    },
+    "case150": {
+      "cino": "GAHC010207642025",
+      "type_name": "WP(C)",
+      "reg_no": "5580",
+      "reg_year": "2025",
+      "pet_name": "PRANAB DUTTA AND 30 ORS.",
+      "res_name": "THE STATE OF ASSAM AND 4 ORS."
+    },
+    "case151": {
+      "cino": "GAHC010100592025",
+      "type_name": "WP(C)",
+      "reg_no": "2830",
+      "reg_year": "2025",
+      "pet_name": "HAREN KHOUND",
+      "res_name": "THE STATE OF ASSAM AND ORS"
+    },
+    "case152": {
+      "cino": "GAHC010017712025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "51",
+      "reg_year": "2025",
+      "pet_name": "FANCY BAZAAR MUNICIPAL MARKET DEALERS ASSOCIATION AND 3 ORS.",
+      "res_name": "MEGHA NIDHI DAHAL"
+    },
+    "case153": {
+      "cino": "GAHC010276122024",
+      "type_name": "MACApp.",
+      "reg_no": "2",
+      "reg_year": "2025",
+      "pet_name": "NUR JAHAN BEGUM",
+      "res_name": "LIBERTY GENERAL INSURANCE COMPANY LTD."
+    },
+    "case154": {
+      "cino": "GAHC010150432025",
+      "type_name": "MACApp.",
+      "reg_no": "294",
+      "reg_year": "2025",
+      "pet_name": "NAYAN KALITA AND ANR",
+      "res_name": "RELIANCE GENERAL INSURANCE CO. LTD."
+    },
+    "case155": {
+      "cino": "GAHC010098922025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "251",
+      "reg_year": "2025",
+      "pet_name": "KHURSHED HUSSAIN",
+      "res_name": "NARAYAN KONWAR, IAS AND 4 ORS"
+    },
+    "case156": {
+      "cino": "GAHC010279092025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "676",
+      "reg_year": "2025",
+      "pet_name": "NIRMAL CHANDRA DAS",
+      "res_name": "NARAYAN KONWAR, IAS AND 2 ORS."
+    },
+    "case157": {
+      "cino": "GAHC010279102025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "675",
+      "reg_year": "2025",
+      "pet_name": "ABDUR RAHMAN MAZUMDER",
+      "res_name": "NARAYAN KONWAR, IAS AND 2 ORS."
+    },
+    "case158": {
+      "cino": "GAHC010201822025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "506",
+      "reg_year": "2025",
+      "pet_name": "AMIN SHAMSUL ALOM",
+      "res_name": "SMTI. MAMATA HOJAI, AES"
+    },
+    "case159": {
+      "cino": "GAHC010118422025",
+      "type_name": "WA",
+      "reg_no": "199",
+      "reg_year": "2025",
+      "pet_name": "M/S. ASSAM CO-OPERATIVE SPINNING MILLS EMPLOYEES UNION",
+      "res_name": "THE STATE OF ASSAM AND 5 ORS."
+    },
+    "case160": {
+      "cino": "GAHC010083042025",
+      "type_name": "W.P.(Crl.)",
+      "reg_no": "15",
+      "reg_year": "2025",
+      "pet_name": "NISANT AANAND",
+      "res_name": "THE STATE OF ASSAM AND 5 ORS."
+    },
+    "case161": {
+      "cino": "GAHC010053852025",
+      "type_name": "Crl.A.",
+      "reg_no": "93",
+      "reg_year": "2025",
+      "pet_name": "DIPU SARKAR @ DIPANKAR",
+      "res_name": "THE STATE OF ASSAM AND ANR"
+    },
+    "case162": {
+      "cino": "GAHC010053862025",
+      "type_name": "I.A.(Crl.)",
+      "reg_no": "254",
+      "reg_year": "2025",
+      "pet_name": "DIPU SARKAR @ DIPANKAR",
+      "res_name": "THE STATE OF ASSAM AND ANR"
+    },
+    "case163": {
+      "cino": "GAHC010032432025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "151",
+      "reg_year": "2025",
+      "pet_name": "GOBIN PEGU",
+      "res_name": "GYANENDRA DEV TRIPATHI, IAS AND 4 ORS."
+    },
+    "case164": {
+      "cino": "GAHC010100352024",
+      "type_name": "Review.Pet.",
+      "reg_no": "221",
+      "reg_year": "2025",
+      "pet_name": "ON THE DEATH OF PESA RANI RAVANI HER LEGAL HEIRS  AND ORS",
+      "res_name": "ON THE DEATH OF HANGSHA RABHA HIS LEGAL HEIRS  PHAGUNI RABHA AND ORS"
+    },
+    "case165": {
+      "cino": "GAHC010103562025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "2604",
+      "reg_year": "2025",
+      "pet_name": "SRI SHYAM GHOSH",
+      "res_name": "UNITED INDIA INSURANCE CO. LTD."
+    },
+    "case166": {
+      "cino": "GAHC010235252025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "548",
+      "reg_year": "2025",
+      "pet_name": "NURAL ALAM MONDAL",
+      "res_name": "SMT SURANJANA SENAPATI, ACS"
+    },
+    "case167": {
+      "cino": "GAHC010182972025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "462",
+      "reg_year": "2025",
+      "pet_name": "SMTI BHAROTI BARUAH AND 5 ORS",
+      "res_name": "NARAYAN KONWAR, IAS"
+    },
+    "case168": {
+      "cino": "GAHC010189232025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "450",
+      "reg_year": "2025",
+      "pet_name": "RAJESH YADAV",
+      "res_name": "NARAYAN KONWAR"
+    },
+    "case169": {
+      "cino": "GAHC010179612025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "425",
+      "reg_year": "2025",
+      "pet_name": "SMTI SASHIPROVA DEORI AND 3 ORS",
+      "res_name": "NARAYAN KONWAR, IAS"
+    },
+    "case170": {
+      "cino": "GAHC010177602025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "424",
+      "reg_year": "2025",
+      "pet_name": "CHANDRESWAR SAIKIA AND 6 ORS",
+      "res_name": "NARAYAN KONWAR, IAS"
+    },
+    "case171": {
+      "cino": "GAHC010148792025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "378",
+      "reg_year": "2025",
+      "pet_name": "SMTI MENAKA DUARA",
+      "res_name": "NARAYAN KONWAR, IAS AND ANR"
+    },
+    "case172": {
+      "cino": "GAHC010148402025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "377",
+      "reg_year": "2025",
+      "pet_name": "BANI KANTA MORAN AND ANR",
+      "res_name": "NARAYAN KONWAR, IAS AND ANR"
+    },
+    "case173": {
+      "cino": "GAHC010202202025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "495",
+      "reg_year": "2025",
+      "pet_name": "SMTI. BINA CHETIA PHUKAN",
+      "res_name": "NARAYAN KONWAR, IAS AND ANR"
+    },
+    "case174": {
+      "cino": "GAHC010053412025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "158",
+      "reg_year": "2025",
+      "pet_name": "DINAMANI HALOI",
+      "res_name": "AKASH DEEP AND 2 ORS."
+    },
+    "case175": {
+      "cino": "GAHC010053312025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "157",
+      "reg_year": "2025",
+      "pet_name": "DINAMANI HALOI",
+      "res_name": "AKASH DEEP AND ANR"
+    },
+    "case176": {
+      "cino": "GAHC010053292025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "164",
+      "reg_year": "2025",
+      "pet_name": "DINAMANI HALOI",
+      "res_name": "AKASH DEEP AND ANR"
+    },
+    "case177": {
+      "cino": "GAHC010075042025",
+      "type_name": "Test.App.",
+      "reg_no": "13",
+      "reg_year": "2025",
+      "pet_name": "RUBUL BORA",
+      "res_name": "BUBUL BORA AND 4 ORS"
+    },
+    "case178": {
+      "cino": "GAHC010033132025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "799",
+      "reg_year": "2025",
+      "pet_name": "NATIONAL INSURANCE CO. LTD.",
+      "res_name": "ASMAT KHANDAKAR AND ANR"
+    },
+    "case179": {
+      "cino": "GAHC010077452025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "213",
+      "reg_year": "2025",
+      "pet_name": "ZALAL UDDIN",
+      "res_name": "SURANJANA SENAPATI"
+    },
+    "case180": {
+      "cino": "GAHC010063982025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "181",
+      "reg_year": "2025",
+      "pet_name": "AFIA KHATUN",
+      "res_name": "MAMATA HOJAI"
+    },
+    "case181": {
+      "cino": "GAHC010063972025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "180",
+      "reg_year": "2025",
+      "pet_name": "MD. AMINUL HOQUE",
+      "res_name": "SURANJANA SENAPATI"
+    },
+    "case182": {
+      "cino": "GAHC010019072025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "78",
+      "reg_year": "2025",
+      "pet_name": "AMGURI NABA NIRMAN SAMITY",
+      "res_name": "SMTI ARUNA RAJORIA AND ANR"
+    },
+    "case183": {
+      "cino": "GAHC010251002025",
+      "type_name": "WP(C)",
+      "reg_no": "6529",
+      "reg_year": "2025",
+      "pet_name": "PRANJAL BORUAH AND 3 ORS",
+      "res_name": "OIL AND NATURAL GAS CORPORATION LTD"
+    },
+    "case184": {
+      "cino": "GAHC010194022025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "2874",
+      "reg_year": "2025",
+      "pet_name": "DWIJEN CH DAS AND 3 ORS",
+      "res_name": "PRADIP CH DAS"
+    },
+    "case185": {
+      "cino": "GAHC010271272025",
+      "type_name": "I.A.(Crl.)",
+      "reg_no": "1320",
+      "reg_year": "2025",
+      "pet_name": "JAGADISH CH DAS",
+      "res_name": "SMTI DHARITRI DAS"
+    },
+    "case186": {
+      "cino": "GAHC010006472025",
+      "type_name": "WP(C)",
+      "reg_no": "168",
+      "reg_year": "2025",
+      "pet_name": "SI /MIN RAKESH KUMAR AND 17 ORS",
+      "res_name": "THE UNION OF INDIA AND 5 ORS"
+    },
+    "case187": {
+      "cino": "GAHC010268832025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "3988",
+      "reg_year": "2025",
+      "pet_name": "MD RAMJAN ALI",
+      "res_name": "THE UNION OF INDIA AND ORS"
+    },
+    "case188": {
+      "cino": "GAHC010215562025",
+      "type_name": "CRP",
+      "reg_no": "132",
+      "reg_year": "2025",
+      "pet_name": "MANAB JIBON BEZBARUAH",
+      "res_name": "SANTANU BORGOHAIN AND 17 ORS."
+    },
+    "case189": {
+      "cino": "GAHC010279712024",
+      "type_name": "Crl.A.",
+      "reg_no": "419",
+      "reg_year": "2025",
+      "pet_name": "SRI SAMAR KALITA",
+      "res_name": "THE STATE OF ASSAM AND ORS"
+    },
+    "case190": {
+      "cino": "GAHC010178052025",
+      "type_name": "WP(C)",
+      "reg_no": "4559",
+      "reg_year": "2025",
+      "pet_name": "NARATTAM MISHRA",
+      "res_name": "THE SILCHAR MUNICIPAL CORPORATION AND 3 ORS."
+    },
+    "case191": {
+      "cino": "GAHC010210482025",
+      "type_name": "Crl.Pet.",
+      "reg_no": "1430",
+      "reg_year": "2025",
+      "pet_name": "CHITTA RANJAN CHAKRAVARTY",
+      "res_name": "TEAMAFCO PVT LTD AND ANR"
+    },
+    "case192": {
+      "cino": "GAHC010210672025",
+      "type_name": "Crl.Pet.",
+      "reg_no": "1429",
+      "reg_year": "2025",
+      "pet_name": "CHITTA RANJAN CHAKRAVARTY",
+      "res_name": "TEAMAFCO PVT LTD AND ANR"
+    },
+    "case193": {
+      "cino": "GAHC010210622025",
+      "type_name": "Crl.Pet.",
+      "reg_no": "1428",
+      "reg_year": "2025",
+      "pet_name": "CHITTA RANJAN CHAKRAVARTY",
+      "res_name": "TEAMAFCO PVT LTD AND ANR"
+    },
+    "case194": {
+      "cino": "GAHC010210612025",
+      "type_name": "Crl.Pet.",
+      "reg_no": "1427",
+      "reg_year": "2025",
+      "pet_name": "CHITTA RANJAN CHAKRAVARTY",
+      "res_name": "TEAMAFCO PVT LTD AND  ANR."
+    },
+    "case195": {
+      "cino": "GAHC010207812025",
+      "type_name": "Crl.Pet.",
+      "reg_no": "1257",
+      "reg_year": "2025",
+      "pet_name": "CHITTA RANJAN CHAKRAVARTY",
+      "res_name": "M/S DAMAYANTI TEA INDUSTRIES AND ANR"
+    },
+    "case196": {
+      "cino": "GAHC010207822025",
+      "type_name": "Crl.Pet.",
+      "reg_no": "1256",
+      "reg_year": "2025",
+      "pet_name": "CHITTA RANJAN CHAKRAVARTY",
+      "res_name": "M/S DAMAYANTI TEA INDUSTRIES AND ANR"
+    },
+    "case197": {
+      "cino": "GAHC010207782025",
+      "type_name": "Crl.Pet.",
+      "reg_no": "1225",
+      "reg_year": "2025",
+      "pet_name": "CHITTA RANJAN CHAKRAVARTY",
+      "res_name": "M/S DAMAYANTI TEA INDUSTRIES AND ANR"
+    },
+    "case198": {
+      "cino": "GAHC010024842025",
+      "type_name": "WP(C)",
+      "reg_no": "750",
+      "reg_year": "2025",
+      "pet_name": "M/S N.C.D FILLING STATION",
+      "res_name": "HDFC BANK LIMITED AND 4 ORS"
+    },
+    "case199": {
+      "cino": "GAHC010075372025",
+      "type_name": "Crl.A.",
+      "reg_no": "122",
+      "reg_year": "2025",
+      "pet_name": "TUTU MONI SAIKIA @ PAPU SAIKIA",
+      "res_name": "THE STATE OF ASSAM AND ANR,"
+    },
+    "case200": {
+      "cino": "GAHC010002822025",
+      "type_name": "Crl.A.",
+      "reg_no": "13",
+      "reg_year": "2025",
+      "pet_name": "DEBANANDA KURMI",
+      "res_name": "THE STATE OF ASSAM AND ANR"
+    },
+    "case201": {
+      "cino": "GAHC010275452025",
+      "type_name": "Crl.Pet.",
+      "reg_no": "1574",
+      "reg_year": "2025",
+      "pet_name": "ALOKESH DAS AND ANR",
+      "res_name": "THE STATE OF ASSAM"
+    },
+    "case202": {
+      "cino": "GAHC010052492025",
+      "type_name": "WP(C)",
+      "reg_no": "1593",
+      "reg_year": "2025",
+      "pet_name": "SIDDHARTHA SHANKAR SARMAH AND ANR",
+      "res_name": "DIBRUGARH UNIVERSITY AND 4 ORS."
+    },
+    "case203": {
+      "cino": "GAHC010242302025",
+      "type_name": "WP(C)",
+      "reg_no": "6192",
+      "reg_year": "2025",
+      "pet_name": "ATAUR RAHMAN AND 51 ORS",
+      "res_name": "THE STATE OF ASSAM AND 5 ORS"
+    },
+    "case204": {
+      "cino": "GAHC010117882025",
+      "type_name": "WP(C)",
+      "reg_no": "3011",
+      "reg_year": "2025",
+      "pet_name": "M K GANDHI SENIOR SECONDARY SCHOOL",
+      "res_name": "THE STATE OF ASSAM AND 2 ORS."
+    },
+    "case205": {
+      "cino": "GAHC010109682025",
+      "type_name": "WP(C)",
+      "reg_no": "2993",
+      "reg_year": "2025",
+      "pet_name": "SMT SONGITA PADI AND 10 ORS",
+      "res_name": "THE STATE OF ASSAM AND 3 ORS."
+    },
+    "case206": {
+      "cino": "GAHC010106722025",
+      "type_name": "CRP(IO)",
+      "reg_no": "238",
+      "reg_year": "2025",
+      "pet_name": "SHIVANGI GOGOI",
+      "res_name": "DR DEEPAK KUMAR GOGOI AND ANR"
+    },
+    "case207": {
+      "cino": "GAHC010098272025",
+      "type_name": "WP(C)",
+      "reg_no": "2524",
+      "reg_year": "2025",
+      "pet_name": "DR.  BABUL BORGOHAIN",
+      "res_name": "STATE BANK OF INDIA  AND ORS"
+    },
+    "case208": {
+      "cino": "GAHC010135092025",
+      "type_name": "WP(C)",
+      "reg_no": "4131",
+      "reg_year": "2025",
+      "pet_name": "UTTAR BORDOLONI SENIOR SECONDARY SCHOOL",
+      "res_name": "THE STATE OF ASSAM AND ORS"
+    },
+    "case209": {
+      "cino": "GAHC010117852025",
+      "type_name": "WP(C)",
+      "reg_no": "3757",
+      "reg_year": "2025",
+      "pet_name": "SUBANSIRI SENIOR SECONDARY SCHOOL",
+      "res_name": "THE STATE OF ASSAM AND 2 ORS."
+    },
+    "case210": {
+      "cino": "GAHC010117842025",
+      "type_name": "WP(C)",
+      "reg_no": "3756",
+      "reg_year": "2025",
+      "pet_name": "HARMOTI SENIOR SECONDARY SCHOOL",
+      "res_name": "THE STATE OF ASSAM AND 2 ORS."
+    },
+    "case211": {
+      "cino": "GAHC010117792025",
+      "type_name": "WP(C)",
+      "reg_no": "3748",
+      "reg_year": "2025",
+      "pet_name": "NABIN CHANDRA DOLEY (NCD) SENIOR SECONDARY SCHOOL",
+      "res_name": "THE STATE OF ASSAM AND 2 ORS."
+    },
+    "case212": {
+      "cino": "GAHC010117802025",
+      "type_name": "WP(C)",
+      "reg_no": "3495",
+      "reg_year": "2025",
+      "pet_name": "KAPILI SENIOR SECONDARY SCHOOL",
+      "res_name": "THE STATE OF ASSAM AND 2 ORS"
+    },
+    "case213": {
+      "cino": "GAHC010117822025",
+      "type_name": "WP(C)",
+      "reg_no": "3397",
+      "reg_year": "2025",
+      "pet_name": "RABI HAZI SENIOR SECONDARY SCHOOL",
+      "res_name": "THE STATE OF ASSAM AND 2 ORS."
+    },
+    "case214": {
+      "cino": "GAHC010117812025",
+      "type_name": "WP(C)",
+      "reg_no": "3396",
+      "reg_year": "2025",
+      "pet_name": "AIRKATA SENIOR SECONDARY SCHOOL",
+      "res_name": "THE STATE OF ASSAM AND 2 ORS."
+    },
+    "case215": {
+      "cino": "GAHC010102902025",
+      "type_name": "WP(C)",
+      "reg_no": "2630",
+      "reg_year": "2025",
+      "pet_name": "SMTI. GEETANJALI KOTOKY",
+      "res_name": "THE STATE OF ASSAM AND 3 ORS"
+    },
+    "case216": {
+      "cino": "GAHC010121122025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "312",
+      "reg_year": "2025",
+      "pet_name": "BILAYET HUSSAIN",
+      "res_name": "NARAYAN KONAWAR AND ANR"
+    },
+    "case217": {
+      "cino": "GAHC010137202025",
+      "type_name": "Crl.Pet.",
+      "reg_no": "727",
+      "reg_year": "2025",
+      "pet_name": "SRI SANAT KR.  MUDOI",
+      "res_name": "SMTI. SUNITA MUDOI @  MRS PREMSHILA  JAISWAL"
+    },
+    "case218": {
+      "cino": "GAHC010082952025",
+      "type_name": "CRP(IO)",
+      "reg_no": "167",
+      "reg_year": "2025",
+      "pet_name": "MD. MANSUB ALI AND ANR",
+      "res_name": "MD. BABUR ALI AND 4 ORS"
+    },
+    "case219": {
+      "cino": "GAHC010165662025",
+      "type_name": "CRP(IO)",
+      "reg_no": "302",
+      "reg_year": "2025",
+      "pet_name": "RUPTI OJAH",
+      "res_name": "GEETARTHA PATHAK"
+    },
+    "case220": {
+      "cino": "GAHC010139212025",
+      "type_name": "Crl.Pet.",
+      "reg_no": "736",
+      "reg_year": "2025",
+      "pet_name": "SRI  NIRMAL  KALITA",
+      "res_name": "THE STATE OF ASSAM"
+    },
+    "case221": {
+      "cino": "GAHC010214742025",
+      "type_name": "WP(C)",
+      "reg_no": "5836",
+      "reg_year": "2025",
+      "pet_name": "DHIREN KALITA AND 6 ORS.",
+      "res_name": "STATE OF ASSAM AND 6 ORS."
+    },
+    "case222": {
+      "cino": "GAHC010009212025",
+      "type_name": "WP(C)",
+      "reg_no": "638",
+      "reg_year": "2025",
+      "pet_name": "MILON BORO",
+      "res_name": "THE STATE OF ASSAM  AND 7 ORS"
+    },
+    "case223": {
+      "cino": "GAHC010111702025",
+      "type_name": "MFA",
+      "reg_no": "23",
+      "reg_year": "2025",
+      "pet_name": "UNITED INDIA INSURANCE CO. LTD.",
+      "res_name": "MAJIFAR ALI AND ANR"
+    },
+    "case224": {
+      "cino": "GAHC010031982025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "100",
+      "reg_year": "2025",
+      "pet_name": "M/S ASSAM TRADE AGENCY",
+      "res_name": "GYANENDRA DEV TRIPATHI AND ANR"
+    },
+    "case225": {
+      "cino": "GAHC010031992025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "98",
+      "reg_year": "2025",
+      "pet_name": "DILIP BOTHRA",
+      "res_name": "GYANENDRA DEV TRIPATHI  AND ANR"
+    },
+    "case226": {
+      "cino": "GAHC010128642025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "331",
+      "reg_year": "2025",
+      "pet_name": "MUKTI NATH SAHARIAH",
+      "res_name": "NARAYAN KONWAR, IAS AND 4 ORS"
+    },
+    "case227": {
+      "cino": "GAHC010017882025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "52",
+      "reg_year": "2025",
+      "pet_name": "MANTU CHANGMAI",
+      "res_name": "MISS MAMATA HOJAI"
+    },
+    "case228": {
+      "cino": "GAHC010259812025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "646",
+      "reg_year": "2025",
+      "pet_name": "SWAPAN KR NATH AND 9 ORS.",
+      "res_name": "NARAYAN KONWAR, IAS AND ANR"
+    },
+    "case229": {
+      "cino": "GAHC010219762025",
+      "type_name": "Crl.Rev.P.",
+      "reg_no": "403",
+      "reg_year": "2025",
+      "pet_name": "AMIR KHAN ALIAS MD AMIR KHAN",
+      "res_name": "SAURAV KEDIA"
+    },
+    "case230": {
+      "cino": "GAHC010123492025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "1949",
+      "reg_year": "2025",
+      "pet_name": "SMTI NIVA BANIKYA",
+      "res_name": "RUMI BANIK"
+    },
+    "case231": {
+      "cino": "GAHC010196702025",
+      "type_name": "Crl.Rev.P.",
+      "reg_no": "363",
+      "reg_year": "2025",
+      "pet_name": "SATISH CHANDRA NATH",
+      "res_name": "THE STATE OF ASSAM AND ANR"
+    },
+    "case232": {
+      "cino": "GAHC010008042025",
+      "type_name": "I.A.(Crl.)",
+      "reg_no": "85",
+      "reg_year": "2025",
+      "pet_name": "ROSHANARA BEGUM",
+      "res_name": "THE STATE OF ASSAM AND ANR"
+    },
+    "case233": {
+      "cino": "GAHC010028172025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "83",
+      "reg_year": "2025",
+      "pet_name": "BADRUL ISLAM AND 2 ORS.",
+      "res_name": "SURANJANA SENAPATI"
+    },
+    "case234": {
+      "cino": "GAHC010047502025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "131",
+      "reg_year": "2025",
+      "pet_name": "GANGADHAR BARMAN",
+      "res_name": "MAMATA HOJAI"
+    },
+    "case235": {
+      "cino": "GAHC010217212025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "516",
+      "reg_year": "2025",
+      "pet_name": "MINAKHI BARUAH",
+      "res_name": "NARAYAN KONWAR, IAS AND ANR"
+    },
+    "case236": {
+      "cino": "GAHC010264422025",
+      "type_name": "WP(C)",
+      "reg_no": "7486",
+      "reg_year": "2025",
+      "pet_name": "GANGADHAR BARMAN",
+      "res_name": "THE STATE OF ASSAM AND 5 ORS"
+    },
+    "case237": {
+      "cino": "GAHC010250342025",
+      "type_name": "MACApp.",
+      "reg_no": "530",
+      "reg_year": "2025",
+      "pet_name": "THE NATIONAL INSURANCE CO. LTD.",
+      "res_name": "NURJAHAN BIBI AND 9 ORS"
+    },
+    "case238": {
+      "cino": "GAHC010123012025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "1860",
+      "reg_year": "2025",
+      "pet_name": "SMT KRISHNA SAIKIA BORAH",
+      "res_name": "RANA DEV SAIKIA AND 3 ORS"
+    },
+    "case239": {
+      "cino": "GAHC010058022025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "166",
+      "reg_year": "2025",
+      "pet_name": "JAKIR HUSSAIN",
+      "res_name": "MAMATA HOJAI"
+    },
+    "case240": {
+      "cino": "GAHC010006862025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "18",
+      "reg_year": "2025",
+      "pet_name": "ABDUL GANI MONDAL AND 5 ORS",
+      "res_name": "MAMATA HOJAI"
+    },
+    "case241": {
+      "cino": "GAHC010093682025",
+      "type_name": "WP(C)",
+      "reg_no": "2403",
+      "reg_year": "2025",
+      "pet_name": "DR JYOTSNA DUTTA",
+      "res_name": "THE STATE OF ASSAM AND ORS"
+    },
+    "case242": {
+      "cino": "GAHC010005892025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "21",
+      "reg_year": "2025",
+      "pet_name": "KAMALA KANTA PHUKAN @ KAMALA PHUKAN",
+      "res_name": "NARAYAN KONWAR, IAS AND ANR"
+    },
+    "case243": {
+      "cino": "GAHC010135002025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "342",
+      "reg_year": "2025",
+      "pet_name": "KHANINDRA TALUKDAR",
+      "res_name": "DR. M.S. LAKSHMI PRIYA, IAS"
+    },
+    "case244": {
+      "cino": "GAHC010118322025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "306",
+      "reg_year": "2025",
+      "pet_name": "RAMEN PATOWARY",
+      "res_name": "MEGHA NIDHI DAHAL,IAS"
+    },
+    "case245": {
+      "cino": "GAHC010118312025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "305",
+      "reg_year": "2025",
+      "pet_name": "RAMEN PATOWARY",
+      "res_name": "MEGHA NIDHI DAHAL, IAS"
+    },
+    "case246": {
+      "cino": "GAHC010108192025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "273",
+      "reg_year": "2025",
+      "pet_name": "DILIP PATOWARY",
+      "res_name": "MEGHA NIDHI DAHAL, IAS and ANR."
+    },
+    "case247": {
+      "cino": "GAHC010018782025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "53",
+      "reg_year": "2025",
+      "pet_name": "DILIP PATOWARY",
+      "res_name": "MEGHA NIDHI DAHAL, IAS AND ANR."
+    },
+    "case248": {
+      "cino": "GAHC010160212024",
+      "type_name": "MACApp.",
+      "reg_no": "318",
+      "reg_year": "2025",
+      "pet_name": "ORIENTAL INSURANCE COMPANY LTD.",
+      "res_name": "BHADRESWARI GOUR AND  3 ORS."
+    },
+    "case249": {
+      "cino": "GAHC010237522025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "3514",
+      "reg_year": "2025",
+      "pet_name": "ORIENTAL INSURANCE COMPANY LTD",
+      "res_name": "BIREN CH DEKA AND ANR."
+    },
+    "case250": {
+      "cino": "GAHC010025652025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "82",
+      "reg_year": "2025",
+      "pet_name": "MAHESH CHANDRA KALITA",
+      "res_name": "SURANJANA SENAPATI"
+    },
+    "case251": {
+      "cino": "GAHC010199932025",
+      "type_name": "Crl.Pet.",
+      "reg_no": "1111",
+      "reg_year": "2025",
+      "pet_name": "KESHAB DAS",
+      "res_name": "SRI RAJNISH KAKOTI"
+    },
+    "case252": {
+      "cino": "GAHC010071502025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "1329",
+      "reg_year": "2025",
+      "pet_name": "MUSTAK ALI",
+      "res_name": "MANIRUDDIN ALI"
+    },
+    "case253": {
+      "cino": "GAHC010154072025",
+      "type_name": "WP(C)",
+      "reg_no": "4037",
+      "reg_year": "2025",
+      "pet_name": "DON BOSCO SOCIETY, AZARA",
+      "res_name": "THE STATE OF ASSAM AND 3 ORS"
+    },
+    "case254": {
+      "cino": "GAHC010068782025",
+      "type_name": "FAO",
+      "reg_no": "23",
+      "reg_year": "2025",
+      "pet_name": "MUSTAK ALI",
+      "res_name": "MANIRUDDIN ALI"
+    },
+    "case255": {
+      "cino": "GAHC010181282025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "432",
+      "reg_year": "2025",
+      "pet_name": "TAKAR ETE",
+      "res_name": "NARAYAN KONWAR, IAS AND 3 ORS"
+    },
+    "case256": {
+      "cino": "GAHC010260192025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "628",
+      "reg_year": "2025",
+      "pet_name": "DON BOSCO SOCIETY, AZARA",
+      "res_name": "SHRI SUMIT SATTAWAN, IAS AND 2 ORS"
+    },
+    "case257": {
+      "cino": "GAHC010091622025",
+      "type_name": "RSA",
+      "reg_no": "145",
+      "reg_year": "2025",
+      "pet_name": "MUKTA PAUL",
+      "res_name": "GAUTAM KAR AND 2 ORS."
+    },
+    "case258": {
+      "cino": "GAHC010008502025",
+      "type_name": "WP(C)",
+      "reg_no": "612",
+      "reg_year": "2025",
+      "pet_name": "DILIP KR SARKAR",
+      "res_name": "THE STATE OF ASSAM AND 2 ORS"
+    },
+    "case259": {
+      "cino": "GAHC010249342025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "3643",
+      "reg_year": "2025",
+      "pet_name": "SHRI DILIP KUMAR SARKAR",
+      "res_name": "THE STATE OF ASSAM"
+    },
+    "case260": {
+      "cino": "GAHC010270312025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "644",
+      "reg_year": "2025",
+      "pet_name": "AJIJUR RAHMAN AND ANR",
+      "res_name": "DIBAKAR NATH AND ANR"
+    },
+    "case261": {
+      "cino": "GAHC010247802025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "589",
+      "reg_year": "2025",
+      "pet_name": "TARUN GOGOI",
+      "res_name": "NARAYAN KONWAR, IAS AND ANR"
+    },
+    "case262": {
+      "cino": "GAHC010016952025",
+      "type_name": "PIL(Suo Moto)",
+      "reg_no": "1",
+      "reg_year": "2025",
+      "pet_name": "IN RE- DIMA HASAO TRAGEDY",
+      "res_name": "THE CHIEF SECRETARY TO THE GOVT. OF ASSAM AND 8 ORS."
+    },
+    "case263": {
+      "cino": "GAHC010120012025",
+      "type_name": "Crl.A.",
+      "reg_no": "212",
+      "reg_year": "2025",
+      "pet_name": "ASHOK TANTI",
+      "res_name": "THE STATE OF ASSAM"
+    },
+    "case264": {
+      "cino": "GAHC010278382024",
+      "type_name": "Crl.A.",
+      "reg_no": "25",
+      "reg_year": "2025",
+      "pet_name": "JITEN NATH",
+      "res_name": "THE STATE OF ASSAM AND ANR"
+    },
+    "case265": {
+      "cino": "GAHC010278392024",
+      "type_name": "I.A.(Crl.)",
+      "reg_no": "79",
+      "reg_year": "2025",
+      "pet_name": "JITEN NATH",
+      "res_name": "THE STATE OF ASSAM AND ANR"
+    },
+    "case266": {
+      "cino": "GAHC010060802025",
+      "type_name": "Mat.App.",
+      "reg_no": "22",
+      "reg_year": "2025",
+      "pet_name": "XXXXXXX",
+      "res_name": "SMTI DAMAYANTI BORO"
+    },
+    "case267": {
+      "cino": "GAHC010250622025",
+      "type_name": "WP(C)",
+      "reg_no": "6750",
+      "reg_year": "2025",
+      "pet_name": "SRI RABENDRA DAS",
+      "res_name": "THE STATE OF ASSAM AND 3 ORS"
+    },
+    "case268": {
+      "cino": "GAHC010215472024",
+      "type_name": "MACApp.",
+      "reg_no": "221",
+      "reg_year": "2025",
+      "pet_name": "SUCHILA BHUYAN",
+      "res_name": "ASHISH KUMAR AND ANR"
+    },
+    "case269": {
+      "cino": "GAHC010184582025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "448",
+      "reg_year": "2025",
+      "pet_name": "MRS. DIPA DEVI",
+      "res_name": "SMTI. SURANJANA SENAPATI"
+    },
+    "case270": {
+      "cino": "GAHC010269862025",
+      "type_name": "I.A.(Crl.)",
+      "reg_no": "1340",
+      "reg_year": "2025",
+      "pet_name": "SMTI ANZITA SAIKIA",
+      "res_name": "SRI ABHIJIT SAIKIA"
+    },
+    "case271": {
+      "cino": "GAHC010269842025",
+      "type_name": "I.A.(Crl.)",
+      "reg_no": "1339",
+      "reg_year": "2025",
+      "pet_name": "SMTI ANZITA SAIKIA",
+      "res_name": "SRI ABHIJIT SAIKIA"
+    },
+    "case272": {
+      "cino": "GAHC010269852025",
+      "type_name": "I.A.(Crl.)",
+      "reg_no": "1341",
+      "reg_year": "2025",
+      "pet_name": "SMTI ANZITA SAIKIA",
+      "res_name": "SRI ABHIJIT SAIKIA"
+    },
+    "case273": {
+      "cino": "GAHC010269832025",
+      "type_name": "I.A.(Crl.)",
+      "reg_no": "1360",
+      "reg_year": "2025",
+      "pet_name": "SMTI ANZITA SAIKIA",
+      "res_name": "SMTI NIRUPAMA SAIKIA"
+    },
+    "case274": {
+      "cino": "GAHC010082332025",
+      "type_name": "Mat.App.",
+      "reg_no": "30",
+      "reg_year": "2025",
+      "pet_name": "XXXXXXX",
+      "res_name": "MRS. SHILPI"
+    },
+    "case275": {
+      "cino": "GAHC010284352025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "667",
+      "reg_year": "2025",
+      "pet_name": "DEBDUT NATH",
+      "res_name": "NARAYAN KONWAR AND 3 ORS"
+    },
+    "case276": {
+      "cino": "GAHC010219432025",
+      "type_name": "MACApp.",
+      "reg_no": "516",
+      "reg_year": "2025",
+      "pet_name": "M/S LIBERTY GENERAL INSURANCE CO LTD",
+      "res_name": "USHA RANI PAUL AND 3 ORS."
+    },
+    "case277": {
+      "cino": "GAHC010234832025",
+      "type_name": "MACApp.",
+      "reg_no": "515",
+      "reg_year": "2025",
+      "pet_name": "SBI GENERAL INSURANCE COMPANY LTD",
+      "res_name": "TARULATA PATANGIA AND ANR."
+    },
+    "case278": {
+      "cino": "GAHC010234752025",
+      "type_name": "MACApp.",
+      "reg_no": "511",
+      "reg_year": "2025",
+      "pet_name": "SBI GENERAL INSURANCE COMPANY LTD",
+      "res_name": "PRABITA BORAH AND ANR."
+    },
+    "case279": {
+      "cino": "GAHC010234802025",
+      "type_name": "MACApp.",
+      "reg_no": "508",
+      "reg_year": "2025",
+      "pet_name": "SBI GENERAL INSURANCE COMPANY LTD",
+      "res_name": "RUPA SAIKIA AND ANR."
+    },
+    "case280": {
+      "cino": "GAHC010234882025",
+      "type_name": "MACApp.",
+      "reg_no": "506",
+      "reg_year": "2025",
+      "pet_name": "SBI GENERAL INSURANCE COMPANY LTD",
+      "res_name": "JINTU MONI DEVI AND ANR."
+    },
+    "case281": {
+      "cino": "GAHC010228042025",
+      "type_name": "MACApp.",
+      "reg_no": "493",
+      "reg_year": "2025",
+      "pet_name": "NATIONAL INSURANCE COMPANY LTD",
+      "res_name": "PREMLATA PANDEY AND 6 ORS."
+    },
+    "case282": {
+      "cino": "GAHC010093342025",
+      "type_name": "MACApp.",
+      "reg_no": "179",
+      "reg_year": "2025",
+      "pet_name": "ICICI LOMBARD GENERAL INSURANCE COMPANY LTD.",
+      "res_name": "NIRMALA HASDA AND 5 ORS."
+    },
+    "case283": {
+      "cino": "GAHC010034102025",
+      "type_name": "MACApp.",
+      "reg_no": "55",
+      "reg_year": "2025",
+      "pet_name": "HDFC ERGO GENERAL INSURANCE CO. LTD.",
+      "res_name": "MINU GOGOI AND ORS"
+    },
+    "case284": {
+      "cino": "GAHC010052242025",
+      "type_name": "MFA",
+      "reg_no": "12",
+      "reg_year": "2025",
+      "pet_name": "UNITED INDIA INSURANCE COMPANY LTD.",
+      "res_name": "RAJU ALI AND ANR"
+    },
+    "case285": {
+      "cino": "GAHC010046982025",
+      "type_name": "MFA",
+      "reg_no": "9",
+      "reg_year": "2025",
+      "pet_name": "UNITED INDIA INSURANCE COMPANY LTD.",
+      "res_name": "PALOBAN URANG"
+    },
+    "case286": {
+      "cino": "GAHC010263592025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "4110",
+      "reg_year": "2025",
+      "pet_name": "THE IFFCO-TOKIO GENERAL INSURANCE COMPANY LTD.",
+      "res_name": "MRS  SUKANYA BARUAH"
+    },
+    "case287": {
+      "cino": "GAHC010260412025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "4057",
+      "reg_year": "2025",
+      "pet_name": "HDFC ERGO GENERAL INSURANCE CO LTD",
+      "res_name": "SMTI SUMATI CHOUDHARY"
+    },
+    "case288": {
+      "cino": "GAHC010243662025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "3561",
+      "reg_year": "2025",
+      "pet_name": "M/S LIBERTY GENERAL INSURANCE CO LTD",
+      "res_name": "MANJU BARMAN AND 3 ORS."
+    },
+    "case289": {
+      "cino": "GAHC010232352025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "3500",
+      "reg_year": "2025",
+      "pet_name": "ICICI LOMBARD GENERAL INSURANCE COMPANY LTD",
+      "res_name": "SHARIFUL ISLAM AND 2 ORS."
+    },
+    "case290": {
+      "cino": "GAHC010192722025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "2906",
+      "reg_year": "2025",
+      "pet_name": "HDFC ERGO GENERAL INSURANCE CO LTD",
+      "res_name": "PRIYANKA BARMAN AND 3 ORS"
+    },
+    "case291": {
+      "cino": "GAHC010192772025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "2887",
+      "reg_year": "2025",
+      "pet_name": "HDFC ERGO INSURANCE CO. LTD.",
+      "res_name": "DEBASHISH SAHA AND ANR."
+    },
+    "case292": {
+      "cino": "GAHC010142192025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "2287",
+      "reg_year": "2025",
+      "pet_name": "MAGMA HDI GENERAL INSURANCE COMPANY LTD.",
+      "res_name": "MONA CHETTRI AND 4 ORS"
+    },
+    "case293": {
+      "cino": "GAHC010128222025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "2029",
+      "reg_year": "2025",
+      "pet_name": "NEW INDIA ASSURANCE COMPANY LTD",
+      "res_name": "KUMARI TANTI AND ORS"
+    },
+    "case294": {
+      "cino": "GAHC010093352025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "1514",
+      "reg_year": "2025",
+      "pet_name": "ICICI LOMBARD GENERAL INSURANCE COMPANY LTD.",
+      "res_name": "NIRMALA HASDA AND 5 OTHERS"
+    },
+    "case295": {
+      "cino": "GAHC010046992025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "707",
+      "reg_year": "2025",
+      "pet_name": "UNITED INDIA INSURANCE COMPANY LTD.",
+      "res_name": "PALOBAN URANG"
+    },
+    "case296": {
+      "cino": "GAHC010034142025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "521",
+      "reg_year": "2025",
+      "pet_name": "HDFC ERGO GENERAL INSURANCE CO LTD",
+      "res_name": "PHULESWARI RAJBONGSHI AND ORS"
+    },
+    "case297": {
+      "cino": "GAHC010034032025",
+      "type_name": "MACApp.",
+      "reg_no": "52",
+      "reg_year": "2025",
+      "pet_name": "HDFC ERGO GENERAL INSURANCE CO. LTD.",
+      "res_name": "PHULESWARI RAJBONGSHI AND ORS"
+    },
+    "case298": {
+      "cino": "GAHC010026532025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "502",
+      "reg_year": "2025",
+      "pet_name": "ICICI LOMBARD GENERAL INSURANCE COMPANY LTD",
+      "res_name": "ANAMIKA ROY CHAKRAVARTTY AND ORS"
+    },
+    "case299": {
+      "cino": "GAHC010157122025",
+      "type_name": "MACApp.",
+      "reg_no": "492",
+      "reg_year": "2025",
+      "pet_name": "CHOLAMANDALAM M/S GENERAL INSURANCE COMPANY LTD",
+      "res_name": "KSHIRADA BORA @ BORAH AND 6 ORS."
+    },
+    "case300": {
+      "cino": "GAHC010095372025",
+      "type_name": "MACApp.",
+      "reg_no": "442",
+      "reg_year": "2025",
+      "pet_name": "ICICI LOMBARD GENERAL INSURANCE COMPANY LTD.",
+      "res_name": "M. CH. TULSI AND 5 ORS"
+    },
+    "case301": {
+      "cino": "GAHC010151782025",
+      "type_name": "MACApp.",
+      "reg_no": "428",
+      "reg_year": "2025",
+      "pet_name": "ICICI LOMBARD GENERAL INSURANCE COMPANY LTD",
+      "res_name": "RAMBHA DHING AND 3 ORS."
+    },
+    "case302": {
+      "cino": "GAHC010142182025",
+      "type_name": "MACApp.",
+      "reg_no": "299",
+      "reg_year": "2025",
+      "pet_name": "MAGMA HDI GENERAL INSURANCE COMPANY LTD",
+      "res_name": "MONA CHETTRI AND 4 ORS"
+    },
+    "case303": {
+      "cino": "GAHC010192762025",
+      "type_name": "MACApp.",
+      "reg_no": "404",
+      "reg_year": "2025",
+      "pet_name": "HDFC ERGO GENERAL INSURANCE CO. LTD.",
+      "res_name": "DEBASHISH SAHA AND ANR."
+    },
+    "case304": {
+      "cino": "GAHC010239642025",
+      "type_name": "MACApp.",
+      "reg_no": "584",
+      "reg_year": "2025",
+      "pet_name": "THE IFFCO-TOKIO GENERAL INSURANCE COMPANY LTD.",
+      "res_name": "MRS SUKANYA BARUAH"
+    },
+    "case305": {
+      "cino": "GAHC010030232025",
+      "type_name": "MACApp.",
+      "reg_no": "53",
+      "reg_year": "2025",
+      "pet_name": "MAGMA HDI GENERAL INSURANCE CO. LTD.",
+      "res_name": "MOON SAIKIA AND 6 ORS"
+    },
+    "case306": {
+      "cino": "GAHC010186052025",
+      "type_name": "MACApp.",
+      "reg_no": "394",
+      "reg_year": "2025",
+      "pet_name": "UNITED INDIA INSURANCE COMPANY LTD",
+      "res_name": "NIPOLA SENGYUNG AND 5 ORS."
+    },
+    "case307": {
+      "cino": "GAHC010026862025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "501",
+      "reg_year": "2025",
+      "pet_name": "ICICI LOMBARD GENERAL INSURANCE COMPANY LTD.",
+      "res_name": "BHANU DEVI AND ORS"
+    },
+    "case308": {
+      "cino": "GAHC010219402025",
+      "type_name": "MFA",
+      "reg_no": "76",
+      "reg_year": "2025",
+      "pet_name": "HDFC ERGO GENERAL INSURANCE CO LTD",
+      "res_name": "SMTI SUMATI CHOUDHARY"
+    },
+    "case309": {
+      "cino": "GAHC010162522025",
+      "type_name": "MFA",
+      "reg_no": "45",
+      "reg_year": "2025",
+      "pet_name": "MAGMA HDI GENERAL INSURANCE COMPANY LTD",
+      "res_name": "DIP CHANDRA DOLEY @ DIP CH. DOLEY AND ANR."
+    },
+    "case310": {
+      "cino": "GAHC010157172025",
+      "type_name": "MACApp.",
+      "reg_no": "304",
+      "reg_year": "2025",
+      "pet_name": "CHOLAMANDALAM MS GENERAL INSURANCE COMPANY LTD.",
+      "res_name": "KSHIRADA BORA @ BORAH AND 6 ORS."
+    },
+    "case311": {
+      "cino": "GAHC010211192025",
+      "type_name": "MACApp.",
+      "reg_no": "440",
+      "reg_year": "2025",
+      "pet_name": "SBI GENERAL INSURANCE COMPANY LTD.",
+      "res_name": "MONIJA KHATUN AND ORS."
+    },
+    "case312": {
+      "cino": "GAHC010157632025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "2326",
+      "reg_year": "2025",
+      "pet_name": "SHRIRAM GENERAL INSURANCE COMPANY LTD",
+      "res_name": "FAIJUL HAQUE AND ANR."
+    },
+    "case313": {
+      "cino": "GAHC010029342025",
+      "type_name": "MACApp.",
+      "reg_no": "82",
+      "reg_year": "2025",
+      "pet_name": "BAJAJ ALLIANZ GENERAL INSURANCE COMPANY LTD.",
+      "res_name": "MADHUMITA CHAUDHURY AND ORS"
+    },
+    "case314": {
+      "cino": "GAHC010143812025",
+      "type_name": "MACApp.",
+      "reg_no": "286",
+      "reg_year": "2025",
+      "pet_name": "ICICI LOMBARD GENERAL INSURANCE COMPANY LTD.",
+      "res_name": "BOIJANTI BALA BORAH AND 5 ORS."
+    },
+    "case315": {
+      "cino": "GAHC010211162025",
+      "type_name": "MACApp.",
+      "reg_no": "473",
+      "reg_year": "2025",
+      "pet_name": "NATIONAL INSURANCE COMPANY LTD.",
+      "res_name": "SUNNY KUMAR AND 2 ORS."
+    },
+    "case316": {
+      "cino": "GAHC010233292025",
+      "type_name": "MACApp.",
+      "reg_no": "510",
+      "reg_year": "2025",
+      "pet_name": "MAGMA HDI GENERAL INSURANCE CO LTD",
+      "res_name": "GOPALA DEVI AND ANR."
+    },
+    "case317": {
+      "cino": "GAHC010119722025",
+      "type_name": "MFA",
+      "reg_no": "21",
+      "reg_year": "2025",
+      "pet_name": "UNITED INDIA INSURANCE COMPANY LTD.",
+      "res_name": "HASSAN ALI AND ANR."
+    },
+    "case318": {
+      "cino": "GAHC010146282025",
+      "type_name": "MACApp.",
+      "reg_no": "302",
+      "reg_year": "2025",
+      "pet_name": "ICICI LOMBARD GENERAL INSURANCE COMPANY LTD.",
+      "res_name": "ANUPAMA DEVI AND 4 ORS"
+    },
+    "case319": {
+      "cino": "GAHC010192712025",
+      "type_name": "MACApp.",
+      "reg_no": "407",
+      "reg_year": "2025",
+      "pet_name": "HDFC ERGO GENERAL INSURANCE CO. LTD.",
+      "res_name": "PRIYANKA BARMAN AND 3 ORS"
+    },
+    "case320": {
+      "cino": "GAHC010111692025",
+      "type_name": "MFA",
+      "reg_no": "27",
+      "reg_year": "2025",
+      "pet_name": "UNITED INDIA INSURANCE COMPANY LTD.",
+      "res_name": "BIMAL DEKA AND ANR"
+    },
+    "case321": {
+      "cino": "GAHC010067512025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "2062",
+      "reg_year": "2025",
+      "pet_name": "UNITED INDIA INSURANCE COMPANY LTD.",
+      "res_name": "PINKU DAS AND ANR."
+    },
+    "case322": {
+      "cino": "GAHC010214632025",
+      "type_name": "Cont.Cas(C)",
+      "reg_no": "524",
+      "reg_year": "2025",
+      "pet_name": "RUBUL RAY CHOUDHURY AND 4 ORS.",
+      "res_name": "NARAYAN KONWAR AND  3 ORS."
+    },
+    "case323": {
+      "cino": "GAHC010180002025",
+      "type_name": "WP(C)",
+      "reg_no": "4594",
+      "reg_year": "2025",
+      "pet_name": "M/S J P BORGOHAIN",
+      "res_name": "OIL AND NATURAL GAS CORPORATION"
+    },
+    "case324": {
+      "cino": "GAHC010188322025",
+      "type_name": "Crl.A.",
+      "reg_no": "334",
+      "reg_year": "2025",
+      "pet_name": "SANTANU SAIKIA @ BUL",
+      "res_name": "THE STATE OF ASSAM AND ANR."
+    },
+    "case325": {
+      "cino": "GAHC010252802025",
+      "type_name": "Crl.Rev.P.",
+      "reg_no": "506",
+      "reg_year": "2025",
+      "pet_name": "SRI MOHAN BORAH",
+      "res_name": "THE STATE OF ASSAM"
+    },
+    "case326": {
+      "cino": "GAHC010053432025",
+      "type_name": "Crl.Rev.P.",
+      "reg_no": "181",
+      "reg_year": "2025",
+      "pet_name": "SRI SANTOSH BORO",
+      "res_name": "SABITA BAISHYA BARUAH"
+    },
+    "case327": {
+      "cino": "GAHC010188602024",
+      "type_name": "MACApp.",
+      "reg_no": "141",
+      "reg_year": "2025",
+      "pet_name": "ORIENTAL INSURANCE COMPANY LTD",
+      "res_name": "ANAMIKA DAS AND 4 ORS"
+    },
+    "case328": {
+      "cino": "GAHC010204292025",
+      "type_name": "MACApp.",
+      "reg_no": "446",
+      "reg_year": "2025",
+      "pet_name": "KULIT EKKA AND ANR.",
+      "res_name": "THE LEGAL MANAGER, HDFC ERGO GENERAL INSURANCE COMPANY LTD. AND ANR."
+    },
+    "case329": {
+      "cino": "GAHC010073762025",
+      "type_name": "I.A.(Civil)",
+      "reg_no": "1184",
+      "reg_year": "2025",
+      "pet_name": "DHRUBA KUMAR SARMA",
+      "res_name": "THE STATE OF ASSAM AND 8 ORS"
+    },
+    "case330": {
+      "cino": "GAHC010108752025",
+      "type_name": "MACApp.",
+      "reg_no": "211",
+      "reg_year": "2025",
+      "pet_name": "SMTI LITU MONI BORAH DAS AND ANR",
+      "res_name": "MS HDFC ERGO GENERAL INSURANCE CO LTD( INSURER) AND 2 ORS"
+    },
+    "case331": {
+      "cino": "GAHC010252802025",
+      "type_name": "Crl.Rev.P.",
+      "reg_no": "506",
+      "reg_year": "2025",
+      "pet_name": "",
+      "res_name": ""
+    }
+  }
+}

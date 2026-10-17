@@ -7,9 +7,10 @@ a dossier the same way whether the queue or a user asked.
   the per-user limit (`NAPIX_SEARCH_PER_USER_HOUR` audit rows `case.search_court` / `case.fetch_court` in the last
   hour).
 - `search_court`: by CNR (held with a dossier → local, no call; else Search by CNR and the dossier), by case
-  number (Search by Case Number, every row stored, the exact row's dossier fetched), by party name (every row
-  stored, no dossier — the user fetches the one they need). Rows whose `cino` is not a CNR are returned as
-  `unmatched` and never stored: no fabricated identifier.
+  number (Search by Case Number, every row stored, the exact row's dossier fetched), by filing number (held with
+  a dossier → local; else Search by Filing Number and the asked row's dossier), by party name or advocate name
+  (every row stored, no dossier — the user fetches the one they need; design `search-court-advocate-filing`).
+  Rows whose `cino` is not a CNR are returned as `unmatched` and never stored: no fabricated identifier.
 - `fetch_court`: the dossier of a found case; a provisional case without a CNR is resolved through Search by
   Case Number first (the CNR comes from the court, never invented).
 Every call is audited with its outcome and the recorder's `napix_call_log` rows are flushed before the router
@@ -22,6 +23,7 @@ from __future__ import annotations
 import asyncio
 import re
 import uuid
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -67,7 +69,10 @@ def request_origin(user: User | None) -> QueueOrigin:
 
 
 MIN_PARTY_NAME = 3
+MAX_ADVOCATE_NAME = 99  # HC spec §6.8 (design search-court-advocate-filing, decision 6)
+MAX_FIL_NO = 9_999_999  # HC spec §6.6: up to 7 digits
 MIN_YEAR = 1950
+KINDS = ("cnr", "case_number", "filing", "party", "advocate")
 
 
 # ------------------------------------------------------------------------------------------------ errors
@@ -332,6 +337,9 @@ def store_search_rows(
         touched |= _fill_empty(case, "case_type_text", type_name)
         touched |= _fill_empty(case, "police_st_code", as_text(row.get("police_st_code"), 20))
         touched |= _fill_empty(case, "uniform_code", as_text(row.get("uniform_code"), 20))
+        # Search by Filing Number rows carry `fil_no` / `fil_year` (probe P5, design search-court-advocate-filing)
+        touched |= _fill_empty(case, "filing_no", as_int(row.get("fil_no")))
+        touched |= _fill_empty(case, "filing_year", as_int(row.get("fil_year")))
         ctid = as_int(row.get("case_type_id"))
         if ctid is not None and case.case_type_id is None:
             ct = session.scalar(
@@ -466,12 +474,21 @@ async def search_court(
                 _search_case_number(session, hc, court, request, force=force, origin=origin),
                 settings.napix_search_timeout_seconds,
             )
+        elif kind == "filing":
+            result = await asyncio.wait_for(
+                _search_filing(session, hc, court, request, force=force, origin=origin),
+                settings.napix_search_timeout_seconds,
+            )
         elif kind == "party":
             result = await asyncio.wait_for(
                 _search_party(session, hc, court, request), settings.napix_search_timeout_seconds
             )
+        elif kind == "advocate":
+            result = await asyncio.wait_for(
+                _search_advocate(session, hc, court, request), settings.napix_search_timeout_seconds
+            )
         else:
-            raise CourtSearchError("kind is one of cnr, case_number, party")
+            raise CourtSearchError(f"kind is one of {', '.join(KINDS)}")
     except NapixNotFound:
         return done(CourtSearchResult("court", recorder.calls - calls_before, 0, [], [], "not_found"))
     except (IntegrationError, TimeoutError) as exc:
@@ -546,31 +563,136 @@ async def _search_case_number(
     return CourtSearchResult("court", 0, report.created, report.cases, report.unmatched, "ok")
 
 
-async def _search_party(
-    session: Session, hc: NapixHighCourt, court: Court, request: dict[str, Any]
+def _check_year(value: Any, label: str = "reg_year") -> int:
+    year = as_int(value)
+    if year is None or year < MIN_YEAR or year > _now().year + 1:
+        raise CourtSearchError(f"{label} is required (1950 to the current year)")
+    return year
+
+
+async def _name_search(
+    session: Session,
+    court: Court,
+    request: dict[str, Any],
+    *,
+    method: Callable[[str, int, str], Awaitable[list[dict[str, Any]]]],
+    api: str,
+    max_len: int | None = None,
 ) -> CourtSearchResult:
+    """Party and advocate name (design search-court-advocate-filing, decision 6): the same input checks and the
+    `P` / `D` / `both` loop (628 on one flag is not an error); every row with a valid `cino` stored and scored, no
+    dossier fetched. `NapixNotFound` when no call found anything."""
     name = (request.get("name") or "").strip()
-    reg_year = as_int(request.get("reg_year"))
     pend = str(request.get("pend_disp") or "P").strip()
     if len(name) < MIN_PARTY_NAME:
         raise CourtSearchError(f"name is at least {MIN_PARTY_NAME} characters")
+    if max_len is not None and len(name) > max_len:
+        raise CourtSearchError(f"name is at most {max_len} characters")
     if not PARTY_NAME_RE.match(name):
         raise CourtSearchError("name: letters, digits, spaces and . , ' & ( ) / - only")
-    if reg_year is None or reg_year < MIN_YEAR or reg_year > _now().year + 1:
-        raise CourtSearchError("reg_year is required (1950 to the current year)")
+    reg_year = _check_year(request.get("reg_year"))
     if pend not in ("P", "D", "both"):
         raise CourtSearchError("pend_disp is P, D or both")
     rows: list[dict[str, Any]] = []
     found_any = False
     for flag in ("P", "D") if pend == "both" else (pend,):
         try:
-            rows.extend(await hc.search_party(name, reg_year, flag))
+            rows.extend(await method(name, reg_year, flag))
             found_any = True
         except NapixNotFound:
             continue
     if not found_any:
-        raise NapixNotFound("no case for that party name", api="party_name")
+        raise NapixNotFound("no case for that name", api=api)
     report = store_search_rows(session, court, rows)
+    return CourtSearchResult("court", 0, report.created, report.cases, report.unmatched, "ok")
+
+
+async def _search_party(
+    session: Session, hc: NapixHighCourt, court: Court, request: dict[str, Any]
+) -> CourtSearchResult:
+    return await _name_search(session, court, request, method=hc.search_party, api="party_name")
+
+
+async def _search_advocate(
+    session: Session, hc: NapixHighCourt, court: Court, request: dict[str, Any]
+) -> CourtSearchResult:
+    """Decision 6: like the party name, with the spec's 99-character maximum. Nothing is written to
+    `case_advocates` from a hit (the row does not say on which side the advocate appears); the case's advocates
+    arrive with its dossier."""
+    return await _name_search(
+        session, court, request, method=hc.search_advocate, api="advocate_name", max_len=MAX_ADVOCATE_NAME
+    )
+
+
+def _compact(value: str | None) -> str:
+    return re.sub(r"\s+", "", (value or "").upper())
+
+
+def _local_by_filing(session: Session, court: Court, ct: CaseType, fil_no: int, fil_year: int) -> Case | None:
+    """Decision 5: a non-merged case with a dossier whose filing number and year are the request's and whose
+    filing type is the requested type (`filing_case_type_id`, or the text compacting to the short name or an
+    alias; when the case has no filing type, its registration type id); the oldest first."""
+    names = {_compact(n) for n in [ct.short_name or "", *(ct.aliases or [])]} - {""}
+    stmt = (
+        select(Case)
+        .where(
+            Case.court_id == court.id,
+            Case.filing_no == fil_no,
+            Case.filing_year == fil_year,
+            Case.last_full_refresh_at.isnot(None),
+            Case.merged_into_case_id.is_(None),
+        )
+        .order_by(Case.created_at)
+    )
+    for case in session.scalars(stmt).all():
+        if case.filing_case_type_id == ct.id or _compact(case.filing_case_type_text) in names:
+            return case
+        if case.filing_case_type_id is None and not case.filing_case_type_text and case.case_type_id == ct.id:
+            return case
+    return None
+
+
+def _cino(row: dict[str, Any]) -> str | None:
+    cino = (as_text(row.get("cino"), 16) or "").upper()
+    return cino if CNR_RE.match(cino) else None
+
+
+async def _search_filing(
+    session: Session,
+    hc: NapixHighCourt,
+    court: Court,
+    request: dict[str, Any],
+    *,
+    force: bool = False,
+    origin: QueueOrigin = REQUEST_ORIGIN,
+) -> CourtSearchResult:
+    """Decision 5: local first, then Search by Filing Number (every row stored), then the dossier of the case asked
+    for when it has none: the row whose `fil_no` / `fil_year` are the request's, else the single valid row. `force`
+    skips the local match and re-fetches the asked case's dossier (nothing passes it today)."""
+    ct = _resolve_case_type(session, court, str(request.get("case_type", "")))
+    fil_no = as_int(request.get("fil_no"))
+    if fil_no is None or not 1 <= fil_no <= MAX_FIL_NO:
+        raise CourtSearchError(f"fil_no is 1 to {MAX_FIL_NO}")
+    fil_year = _check_year(request.get("fil_year"), "fil_year")
+    local = _local_by_filing(session, court, ct, fil_no, fil_year)
+    if local is not None and not force:
+        return CourtSearchResult("local", 0, 0, [local], [], "ok")
+    rows = await hc.search_filing(ct.case_type_code, fil_no, fil_year)
+    report = store_search_rows(session, court, rows)
+    valid = [(cino, row) for row in rows if (cino := _cino(row))]
+    asked_cnr = next(
+        (
+            cino
+            for cino, row in valid
+            if as_int(row.get("fil_no")) == fil_no and as_int(row.get("fil_year")) == fil_year
+        ),
+        None,
+    )
+    if asked_cnr is None and len({cino for cino, _ in valid}) == 1:
+        asked_cnr = valid[0][0]
+    asked = next((c for c in report.cases if asked_cnr and c.cnr == asked_cnr), None)
+    if asked is not None and asked_cnr and (force or asked.last_full_refresh_at is None):
+        await fetch_dossier(session, hc, court, asked_cnr, source=FirstSeenSource.SEARCH, origin=origin)
     return CourtSearchResult("court", 0, report.created, report.cases, report.unmatched, "ok")
 
 

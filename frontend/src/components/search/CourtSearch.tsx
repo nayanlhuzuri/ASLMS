@@ -2,9 +2,11 @@
 
 /**
  * "Search the court" (design portal-cases, decision 9; plan Figure 7, local first): with `cases.search_court`, by CNR,
- * by case type + number + year, or by party name + year + pending / disposed / both. The answer lists the cases found
- * (now stored, so the next local search finds them), the court calls used, the cases created and the party rows the
- * court returned that are not stored; a row without court details offers "Fetch details". The button is disabled
+ * by case type + number + year, by filing case type + filing number + year, or by party or advocate name + year +
+ * pending / disposed / both (design search-court-advocate-filing, decision 9). The answer lists the cases found (now
+ * stored, so the next local search finds them), the cases created and the rows the court returned that are not
+ * stored; no court-call count is shown (the 14 Oct owner rule). A row without court details offers "Fetch details".
+ * A local search run with the advocate field opens on "Advocate name" with the same words. The button is disabled
  * while a search runs and a court search is never repeated automatically.
  */
 import { useState } from "react";
@@ -19,7 +21,7 @@ import { useAction } from "@/lib/useAction";
 
 import { CaseResults } from "./CaseResults";
 
-type Kind = "cnr" | "case_number" | "party";
+type Kind = "cnr" | "case_number" | "filing" | "party" | "advocate";
 
 function FetchDetails({ item, onFetched }: { item: CaseSearchItem; onFetched: (next: CaseSearchItem) => void }) {
   const action = useAction();
@@ -40,25 +42,52 @@ function FetchDetails({ item, onFetched }: { item: CaseSearchItem; onFetched: (n
   );
 }
 
-export function CourtSearch({ initialQuery, prominent }: { initialQuery?: string; prominent?: boolean }) {
+export function CourtSearch({
+  initialQuery,
+  initialField,
+  prominent,
+}: {
+  initialQuery?: string;
+  /** The local search's `field`: `advocate` opens on "Advocate name" with the same words. */
+  initialField?: string;
+  prominent?: boolean;
+}) {
   const q = (initialQuery ?? "").trim();
   const looksCnr = /^[A-Za-z]{4}\d{12}$/.test(q);
-  const [kind, setKind] = useState<Kind>(looksCnr || !q ? "cnr" : "party");
+  const byAdvocate = !!q && !looksCnr && initialField === "advocate";
+  const [kind, setKind] = useState<Kind>(looksCnr || !q ? "cnr" : byAdvocate ? "advocate" : "party");
   const [cnr, setCnr] = useState(looksCnr ? q.toUpperCase() : "");
   const [caseType, setCaseType] = useState("");
   const [regNo, setRegNo] = useState("");
   const [regYear, setRegYear] = useState("");
-  const [party, setParty] = useState(!looksCnr ? q : "");
+  const [party, setParty] = useState(!looksCnr && !byAdvocate ? q : "");
+  const [advocate, setAdvocate] = useState(byAdvocate ? q.slice(0, 99) : "");
+  const [filNo, setFilNo] = useState("");
   const [pendDisp, setPendDisp] = useState("P");
   const [result, setResult] = useState<CourtSearchOut | null>(null);
-  const types = useCaseTypes(kind === "case_number");
+  const types = useCaseTypes(kind === "case_number" || kind === "filing");
   const action = useAction();
 
   function body(): Record<string, unknown> {
     if (kind === "cnr") return { kind, cnr: cnr.trim().toUpperCase() };
     if (kind === "case_number") return { kind, case_type: caseType, reg_no: Number(regNo), reg_year: Number(regYear) };
+    if (kind === "filing") return { kind, case_type: caseType, fil_no: Number(filNo), fil_year: Number(regYear) };
+    if (kind === "advocate") return { kind, name: advocate.trim(), reg_year: Number(regYear), pend_disp: pendDisp };
     return { kind, name: party.trim(), reg_year: Number(regYear), pend_disp: pendDisp };
   }
+
+  const typeOptions = (types.data ?? []).map((t) => ({
+    value: t.short_name ?? String(t.case_type_code),
+    label: t.short_name ? `${t.short_name}${t.full_name ? ` — ${t.full_name}` : ""}` : t.type_name,
+  }));
+  const pendDispField = (
+    <SelectField
+      label={T.search.pendDisp}
+      options={Object.entries(T.search.pendDispOptions).map(([value, label]) => ({ value, label }))}
+      value={pendDisp}
+      onChange={(e) => setPendDisp(e.target.value)}
+    />
+  );
 
   async function search() {
     if (action.busy) return;
@@ -88,7 +117,9 @@ export function CourtSearch({ initialQuery, prominent }: { initialQuery?: string
           options={[
             { value: "cnr", label: T.search.byCnr },
             { value: "case_number", label: T.search.byNumber },
+            { value: "filing", label: T.search.byFiling },
             { value: "party", label: T.search.byParty },
+            { value: "advocate", label: T.search.byAdvocate },
           ]}
           value={kind}
           onChange={(e) => setKind(e.target.value as Kind)}
@@ -110,10 +141,7 @@ export function CourtSearch({ initialQuery, prominent }: { initialQuery?: string
             <SelectField
               label={T.search.caseType}
               required
-              options={(types.data ?? []).map((t) => ({
-                value: t.short_name ?? String(t.case_type_code),
-                label: t.short_name ? `${t.short_name}${t.full_name ? ` — ${t.full_name}` : ""}` : t.type_name,
-              }))}
+              options={typeOptions}
               placeholder={T.search.anyType}
               value={caseType}
               onChange={(e) => setCaseType(e.target.value)}
@@ -122,16 +150,42 @@ export function CourtSearch({ initialQuery, prominent }: { initialQuery?: string
             <TextField label={T.search.regYear} required type="number" min={1950} max={2100} value={regYear} onChange={(e) => setRegYear(e.target.value)} />
           </div>
         ) : null}
+        {kind === "filing" ? (
+          <div className="row">
+            <SelectField
+              label={T.search.filingType}
+              required
+              options={typeOptions}
+              placeholder={T.search.anyType}
+              value={caseType}
+              onChange={(e) => setCaseType(e.target.value)}
+            />
+            <TextField label={T.search.filNo} required type="number" min={1} max={9999999} value={filNo} onChange={(e) => setFilNo(e.target.value)} />
+            <TextField label={T.search.filYear} required type="number" min={1950} max={2100} value={regYear} onChange={(e) => setRegYear(e.target.value)} />
+          </div>
+        ) : null}
         {kind === "party" ? (
           <div className="row">
             <TextField label={T.search.party} required minLength={3} maxLength={200} value={party} onChange={(e) => setParty(e.target.value)} />
             <TextField label={T.search.regYear} required type="number" min={1950} max={2100} value={regYear} onChange={(e) => setRegYear(e.target.value)} />
-            <SelectField
-              label={T.search.pendDisp}
-              options={Object.entries(T.search.pendDispOptions).map(([value, label]) => ({ value, label }))}
-              value={pendDisp}
-              onChange={(e) => setPendDisp(e.target.value)}
-            />
+            {pendDispField}
+          </div>
+        ) : null}
+        {kind === "advocate" ? (
+          <div className="stack">
+            <div className="row">
+              <TextField
+                label={T.search.advocate}
+                required
+                minLength={3}
+                maxLength={99}
+                value={advocate}
+                onChange={(e) => setAdvocate(e.target.value)}
+              />
+              <TextField label={T.search.regYear} required type="number" min={1950} max={2100} value={regYear} onChange={(e) => setRegYear(e.target.value)} />
+              {pendDispField}
+            </div>
+            <p className="muted">{T.search.advocateHint}</p>
           </div>
         ) : null}
         <div>
@@ -143,7 +197,7 @@ export function CourtSearch({ initialQuery, prominent }: { initialQuery?: string
       <ErrorBanner error={err} />
       {result ? (
         <div className="stack">
-          <Notice>{T.search.courtFound(result.items.length, result.calls, result.created)}</Notice>
+          <Notice>{T.search.courtFound(result.items.length, result.created)}</Notice>
           {result.items.length === 0 ? (
             <EmptyState>{T.search.none}</EmptyState>
           ) : (

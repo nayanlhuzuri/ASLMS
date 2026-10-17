@@ -266,11 +266,96 @@ describe("court search", () => {
         unmatched: [{ type_name: "WP(C)", reg_no: "77", reg_year: "2025", pet_name: "X", res_name: "Y" }],
       }),
     );
-    expect(await within(panel).findByText("1 case(s) found with 2 court call(s); 1 new to the portal.")).toBeInTheDocument();
+    expect(await within(panel).findByText("1 case(s) found; 1 new to the portal.")).toBeInTheDocument();
+    expect(within(panel).queryByText(/court call/)).toBeNull(); // no call counts to users (14 Oct owner rule)
     expect(within(panel).getByText(/WP\(C\) 77\/2025 — X vs Y/)).toBeInTheDocument();
     await userEvent.click(within(panel).getByRole("button", { name: "Fetch details" }));
     await waitFor(() => expect(within(panel).queryByRole("button", { name: "Fetch details" })).toBeNull());
     expect(api.calls.some((c) => c.method === "POST" && c.path === "/cases/ASLMS-GOA-CASE-2026-000005/fetch-court")).toBe(true);
+  });
+});
+
+describe("court search by advocate name and filing number (search-court-advocate-filing)", () => {
+  function court(extra: Record<string, unknown> = {}) {
+    return browserApi({
+      "GET /me": me(SEARCHER),
+      "GET /reference/case-types": TYPES,
+      "GET /cases/search": { items: [], total: 0 },
+      "POST /cases/search-court": {
+        source: "court",
+        calls: 1,
+        created: 1,
+        items: [item(5, { dossier_status: "not_fetched", match: "advocate" })],
+        unmatched: [],
+      },
+      "POST /cases/ASLMS-GOA-CASE-2026-000005/fetch-court": item(5, { match: "advocate" }),
+      ...extra,
+    });
+  }
+
+  it("the Search by choice offers the five kinds", async () => {
+    court();
+    renderWithClient(<Search params={{ q: "RAM KUMAR" }} />);
+    const panel = await screen.findByRole("region", { name: "Search the court" });
+    const select = within(panel).getByLabelText("Search by");
+    expect(within(select).getAllByRole("option").map((o) => o.textContent)).toEqual([
+      "CNR",
+      "Case type, number and year",
+      "Filing number",
+      "Party name",
+      "Advocate name",
+    ]);
+  });
+
+  it("Advocate name sends kind advocate with name, year and pending / disposed; Fetch details calls fetch-court", async () => {
+    const api = court();
+    renderWithClient(<Search params={{ q: "RAM KUMAR" }} />);
+    const panel = await screen.findByRole("region", { name: "Search the court" });
+    await userEvent.selectOptions(within(panel).getByLabelText("Search by"), "advocate");
+    expect(within(panel).getByText(/type the full name for precise results/)).toBeInTheDocument();
+    await userEvent.type(within(panel).getByLabelText("Advocate name"), "P J SAIKIA");
+    await userEvent.type(within(panel).getByLabelText("Year"), "2025");
+    await userEvent.selectOptions(within(panel).getByLabelText("Cases"), "both");
+    await userEvent.click(within(panel).getByRole("button", { name: "Search the court" }));
+    expect(await within(panel).findByText("1 case(s) found; 1 new to the portal.")).toBeInTheDocument();
+    expect(api.calls.find((c) => c.path === "/cases/search-court")!.body).toEqual({
+      kind: "advocate",
+      name: "P J SAIKIA",
+      reg_year: 2025,
+      pend_disp: "both",
+    });
+    await userEvent.click(within(panel).getByRole("button", { name: "Fetch details" }));
+    await waitFor(() => expect(within(panel).queryByRole("button", { name: "Fetch details" })).toBeNull());
+    expect(api.calls.some((c) => c.method === "POST" && c.path === "/cases/ASLMS-GOA-CASE-2026-000005/fetch-court")).toBe(true);
+  });
+
+  it("Filing number sends kind filing with the filing case type, number and year", async () => {
+    const api = court({
+      "POST /cases/search-court": { source: "court", calls: 2, created: 1, items: [item(6, { match: "filing" })], unmatched: [] },
+    });
+    renderWithClient(<Search params={{ q: "RAM KUMAR" }} />);
+    const panel = await screen.findByRole("region", { name: "Search the court" });
+    await userEvent.selectOptions(within(panel).getByLabelText("Search by"), "filing");
+    await userEvent.selectOptions(await within(panel).findByLabelText("Filing case type"), "WP(C)");
+    await userEvent.type(within(panel).getByLabelText("Filing number"), "6780");
+    await userEvent.type(within(panel).getByLabelText("Filing year"), "2025");
+    await userEvent.click(within(panel).getByRole("button", { name: "Search the court" }));
+    expect(await within(panel).findByText("1 case(s) found; 1 new to the portal.")).toBeInTheDocument();
+    expect(api.calls.find((c) => c.path === "/cases/search-court")!.body).toEqual({
+      kind: "filing",
+      case_type: "WP(C)",
+      fil_no: 6780,
+      fil_year: 2025,
+    });
+  });
+
+  it("a local search with the advocate field opens the court search on Advocate name with the same words", async () => {
+    const api = court();
+    renderWithClient(<Search params={{ q: "P J SAIKIA", field: "advocate" }} />);
+    const panel = await screen.findByRole("region", { name: "Search the court" });
+    expect(within(panel).getByLabelText("Search by")).toHaveValue("advocate");
+    expect(within(panel).getByLabelText("Advocate name")).toHaveValue("P J SAIKIA");
+    expect(api.calls.find((c) => c.path.startsWith("/cases/search?"))!.path).toContain("field=advocate");
   });
 });
 

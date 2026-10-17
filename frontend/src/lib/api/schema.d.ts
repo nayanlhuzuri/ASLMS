@@ -2244,9 +2244,9 @@ export interface paths {
         put?: never;
         /**
          * Search Court
-         * @description Search the court through NAPIX: by CNR (the dossier is fetched and stored), by case number (every row
-         *     stored, the exact row's dossier fetched) or by party name (rows stored, dossiers on demand through
-         *     `fetch-court`). Refused when the switch is off (503 `napix_off`), the hourly quota is below the floor (503
+         * @description Search the court through NAPIX: by CNR (the dossier is fetched and stored), by case number or filing
+         *     number (every row stored, the asked row's dossier fetched; a held case with its dossier answers locally) or
+         *     by party name or advocate name (rows stored, dossiers on demand through `fetch-court`). Refused when the switch is off (503 `napix_off`), the hourly quota is below the floor (503
          *     `napix_budget`) or the caller used their hourly searches (429 `search_limit`). Audited.
          */
         post: operations["search_court_cases_search_court_post"];
@@ -5084,6 +5084,31 @@ export interface components {
             /** Name */
             name: string;
         };
+        /**
+         * CourtSearchAdvocateIn
+         * @description Search by Advocate Name (design `search-court-advocate-filing`, decision 6): the court matches part of a
+         *     name and ignores the honorific (probe P3, P4); the year is required (P2: 606).
+         */
+        CourtSearchAdvocateIn: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "advocate";
+            /**
+             * Name
+             * @description letters, digits, spaces and . , ' & ( ) / - (never | or =, the gateway's separators)
+             */
+            name: string;
+            /**
+             * Pend Disp
+             * @default P
+             * @enum {string}
+             */
+            pend_disp: "P" | "D" | "both";
+            /** Reg Year */
+            reg_year: number;
+        };
         /** CourtSearchCaseNumberIn */
         CourtSearchCaseNumberIn: {
             /**
@@ -5110,6 +5135,26 @@ export interface components {
              * @enum {string}
              */
             kind: "cnr";
+        };
+        /**
+         * CourtSearchFilingIn
+         * @description Search by Filing Number (design `search-court-advocate-filing`, decision 5).
+         */
+        CourtSearchFilingIn: {
+            /**
+             * Case Type
+             * @description short name (WP(C)) or the master's code
+             */
+            case_type: string;
+            /** Fil No */
+            fil_no: number;
+            /** Fil Year */
+            fil_year: number;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "filing";
         };
         /** CourtSearchOut */
         CourtSearchOut: {
@@ -15083,7 +15128,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["CourtSearchCnrIn"] | components["schemas"]["CourtSearchCaseNumberIn"] | components["schemas"]["CourtSearchPartyIn"];
+                "application/json": components["schemas"]["CourtSearchCnrIn"] | components["schemas"]["CourtSearchCaseNumberIn"] | components["schemas"]["CourtSearchFilingIn"] | components["schemas"]["CourtSearchPartyIn"] | components["schemas"]["CourtSearchAdvocateIn"];
             };
         };
         responses: {
