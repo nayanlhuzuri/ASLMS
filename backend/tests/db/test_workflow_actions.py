@@ -2,7 +2,8 @@
 state the flags equal the outcome of the write they stand for (`notes.add_note`, `documents.upload`,
 `stages.set_stage`, each run in a savepoint that is rolled back); the two-department person gets `draft` only
 through the membership that holds the file; a pool case offers nothing to write; reading writes nothing; a
-hidden case stays 404."""
+hidden case stays 404. The `next_dates` flag (design portal-next-dates, decision 3) equals the outcome of
+`next_dates.enter` the same way."""
 
 from __future__ import annotations
 
@@ -13,9 +14,10 @@ import sqlalchemy as sa
 
 from aslms.domain.cases import Case
 from aslms.domain.events import AuditLog, Event
-from aslms.domain.reference import Role
+from aslms.domain.org import PermissionEffect
+from aslms.domain.reference import Permission, Role
 from aslms.domain.workflow import CaseNote, CaseNoteDraft
-from aslms.services import documents, notes, stages, workflow_actions
+from aslms.services import documents, next_dates, notes, stages, workflow_actions
 from aslms.services import ownership as own
 from aslms.services.documents import UploadRefused
 from aslms.services.scanner import FakeScanner
@@ -24,7 +26,9 @@ from aslms.services.visibility import NotVisibleCase
 from aslms.services.workflow_common import WorkflowError
 from tests import samplefiles as sf
 from tests.db import docs_support as ds
+from tests.db import next_dates_support as nd
 from tests.db import workflow_support as w
+from tests.db.report_support import override
 from tests.db.world import USERS, add_membership, make_case
 
 
@@ -89,6 +93,20 @@ def _stage_outcome(s, world, key, case) -> bool:
     return True
 
 
+def _next_dates_outcome(s, world, key, case) -> bool:
+    actor, user = world.actor(s, key)
+    try:
+        with s.begin_nested() as sp:
+            next_dates.enter(s, actor, user, case, next_date=nd.days(9))
+            sp.rollback()
+    except NotVisibleCase:
+        return False
+    except WorkflowError as exc:
+        assert exc.code in {"not_owned", "forbidden", "not_working_on_case"}, exc.code
+        return False
+    return True
+
+
 def _states(s, world) -> dict:
     pool = make_case(s)
     office_held = w.claimed_case(s, world, officer=None)
@@ -113,6 +131,7 @@ def test_flags_match_outcomes(wide, tmp_path):
                     "note_mode": _note_outcome(s, wide, key, case),
                     "upload": _upload_outcome(s, wide, key, case, store),
                     "set_stage": _stage_outcome(s, wide, key, case),
+                    "next_dates": _next_dates_outcome(s, wide, key, case),
                 }
                 assert flags == expected, (state, key)
                 seen.add(flags["note_mode"])
@@ -153,6 +172,7 @@ def test_flags_null_on_pool_case(wide):
                 "note_mode": None,
                 "upload": False,
                 "set_stage": False,
+                "next_dates": False,
             }, key
         s.rollback()
 
@@ -188,11 +208,11 @@ def test_flags_write_nothing(api, wide):
         r = api.get(f"/cases/{case_id}", headers=w.login(api, key))
         assert r.status_code == 200, r.text
     off1 = api.get(f"/cases/{case_id}", headers=w.login(api, "edu_off1")).json()["workflow"]
-    assert off1 == {"note_mode": "draft", "upload": True, "set_stage": True}
+    assert off1 == {"note_mode": "draft", "upload": True, "set_stage": True, "next_dates": True}
     admin = api.get(f"/cases/{case_id}", headers=w.login(api, "edu_admin")).json()["workflow"]
-    assert admin == {"note_mode": "permanent", "upload": True, "set_stage": True}
+    assert admin == {"note_mode": "permanent", "upload": True, "set_stage": True, "next_dates": True}
     reader = api.get(f"/cases/{case_id}", headers=w.login(api, "oversight")).json()["workflow"]
-    assert reader == {"note_mode": None, "upload": False, "set_stage": False}
+    assert reader == {"note_mode": None, "upload": False, "set_stage": False, "next_dates": False}
     with wide.Session() as s:
         _, off1_user = wide.actor(s, "edu_off1")
         workflow_actions.available(s, off1_user, s.get(Case, case_id))
@@ -208,3 +228,61 @@ def test_overview_hidden_case_404(api, wide):
         case_id = case.id
     assert api.get(f"/cases/{case_id}", headers=w.login(api, "health_off")).status_code == 404
     assert api.get(f"/cases/{case_id}", headers=w.login(api, "fin_off")).status_code == 404
+
+
+# ------------------------------------------------------------------------- next dates (portal-next-dates, 3)
+
+
+def _flag(s, world, key, case) -> bool:
+    _, user = world.actor(s, key)
+    return workflow_actions.available(s, user, case)["next_dates"]
+
+
+def test_next_dates_flag_true_for_owner_admin(wide):
+    with wide.Session() as s:
+        case = nd.claimed(s, wide)
+        assert _flag(s, wide, "edu_admin", case) is True
+        s.rollback()
+
+
+def test_next_dates_flag_false_on_unclaimed_case(wide):
+    with wide.Session() as s:
+        pool = make_case(s)
+        for key in ("root", "edu_admin", "edu_off1", "oversight"):
+            assert _flag(s, wide, key, pool) is False, key
+        s.rollback()
+
+
+def test_next_dates_flag_false_for_state_reader_with_function(wide):
+    with wide.Session() as s:
+        case = nd.claimed(s, wide)
+        override(s, wide, "oversight", Permission.NEXT_DATES_REVIEW, PermissionEffect.GRANT)
+        assert _flag(s, wide, "oversight", case) is False
+        s.rollback()
+
+
+def test_next_dates_flag_false_without_function(wide):
+    with wide.Session() as s:
+        case = nd.claimed(s, wide)
+        assert _flag(s, wide, "edu_admin", case) is True
+        override(s, wide, "edu_admin", Permission.NEXT_DATES_REVIEW, PermissionEffect.DENY)
+        assert _flag(s, wide, "edu_admin", case) is False
+        s.rollback()
+
+
+def test_next_dates_flag_matches_enter_outcome(wide):
+    """The flag is true exactly when `POST /cases/{ref}/next-dates` (the service it calls) succeeds, over the four
+    cases above."""
+    with wide.Session() as s:
+        owned = nd.claimed(s, wide)
+        pool = make_case(s)
+        override(s, wide, "oversight", Permission.NEXT_DATES_REVIEW, PermissionEffect.GRANT)
+        override(s, wide, "edu_off1", Permission.NEXT_DATES_REVIEW, PermissionEffect.DENY)
+        probes = [("edu_admin", owned), ("edu_admin", pool), ("oversight", owned), ("edu_off1", owned)]
+        outcomes = []
+        for key, case in probes:
+            flag = _flag(s, wide, key, case)
+            assert flag == _next_dates_outcome(s, wide, key, case), key
+            outcomes.append(flag)
+        assert outcomes == [True, False, False, False]
+        s.rollback()

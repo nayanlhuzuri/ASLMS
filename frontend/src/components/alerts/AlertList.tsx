@@ -10,10 +10,7 @@
  * department, plus the alert status, kind, severity and Unread only; with any case filter set the alerts without a case
  * drop out, and the bar says so.
  */
-import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import type { MouseEvent, ReactNode } from "react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import { FilterBar } from "@/components/filters/FilterBar";
 import { useFilters } from "@/components/inbox/common";
@@ -29,7 +26,7 @@ import {
 } from "@/components/ui";
 import { AlertActions } from "@/components/workflow/CaseAlerts";
 import { api } from "@/lib/api/client";
-import { caseKey, useAlertCounts, useLabels } from "@/lib/api/hooks";
+import { useAlertCounts, useLabels } from "@/lib/api/hooks";
 import type { AlertItem, AlertList as AlertListOut } from "@/lib/api/types";
 import { hasCaseFilter, toApiQuery } from "@/lib/filters";
 import { formatDateTime, formatNumber } from "@/lib/format";
@@ -38,64 +35,12 @@ import { offsetOf, PAGE, type Params } from "@/lib/params";
 import { casePath, refPath } from "@/lib/refs";
 import { useAction } from "@/lib/useAction";
 
+import { AlertLink, AnswerIt, markRead, useAlertRefresh } from "./AlertLink";
+
 import cs from "@/components/case/case.module.css";
 
 const STATUSES = ["", "open", "acknowledged", "done", "expired", "all"] as const;
 const SEVERITIES = ["critical", "high", "normal"] as const;
-
-/** After a read mark, acknowledge or done: the list, the counts and the bell, the dashboard, and the case's tabs. */
-export function useAlertRefresh() {
-  const queryClient = useQueryClient();
-  return async (alert?: AlertItem) => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["alerts"] }),
-      queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
-      ...(alert?.case ? [queryClient.invalidateQueries({ queryKey: caseKey(alert.case.ref_no) })] : []),
-    ]);
-  };
-}
-
-async function markRead(ids: string[] | "all") {
-  return api<{ marked: number }>("/alerts/read", {
-    method: "POST",
-    body: ids === "all" ? { all: true } : { alert_ids: ids },
-  });
-}
-
-/**
- * The subject of an alert as a link that marks the row read first, then navigates (decision 9). A failed mark never
- * blocks the navigation: reading is a convenience, never a gate.
- */
-export function AlertLink({
-  alert,
-  href,
-  className,
-  children,
-}: {
-  alert: AlertItem;
-  href: string;
-  className?: string;
-  children: ReactNode;
-}) {
-  const router = useRouter();
-  const refresh = useAlertRefresh();
-  async function follow(e: MouseEvent<HTMLAnchorElement>) {
-    if (alert.read_at || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
-    e.preventDefault();
-    try {
-      await markRead([alert.id]);
-      void refresh(alert);
-    } catch {
-      // the mark failed: go anyway
-    }
-    router.push(href);
-  }
-  return (
-    <Link href={href} className={className} onClick={follow}>
-      {children}
-    </Link>
-  );
-}
 
 /** Decision 8: the case link (only with `case_visible`), the case as text with a line, a ticket link, or nothing. */
 export function AlertSubject({ alert }: { alert: AlertItem }) {
@@ -146,6 +91,7 @@ function AlertRow({ alert }: { alert: AlertItem }) {
       {alert.body ? <p className={cs.noteBody}>{alert.body}</p> : null}
       <div className="row">
         <AlertSubject alert={alert} />
+        <AnswerIt alert={alert} />
         {alert.due_at ? <span>{T.wf.dueAt(formatDateTime(alert.due_at))}</span> : null}
       </div>
       <div className="muted">

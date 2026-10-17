@@ -1750,3 +1750,18 @@ Backlog row 26, design `docs/design/next-date-extraction.md` (approved by the ow
 
 - 2026-10-17 — portal-next-dates: approved by the owner (review list as a tab of Alerts & calendar, confirm asks once, separate Next date from orders card, department count vs own items explained, plain-words labels, workflow.next_dates flag; designed ahead in a separate worktree; docs/design/portal-next-dates.md)
 - 2026-10-17 — search-court-advocate-filing: approved by the owner with the go-ahead for a live probe of at most 10 NAPIX calls before the build; outcome rules (a key with no column pauses for a migration amendment, an unsubscribed API is dropped); advocate hits stored without details; names up to 99 characters; court-call counts removed from the Search page; Data collection fetch stays at three kinds (docs/design/search-court-advocate-filing.md)
+
+## Portal next dates (2026-10-17)
+Backlog row 73, design `docs/design/portal-next-dates.md` (approved by the owner 17 Oct 2026; deviations 1-6), branch `feature/portal-next-dates`, no migration, in review. No schema change, so `docs/schema/schema.md` is unchanged.
+
+**Built**
+- Backend (one small addition): `workflow.next_dates` on the case workflow block (`CaseWorkflowActionsOut`, `services/workflow_actions.available`): true when the case is owned and an acting membership holds `next_dates.review`, the same rule `next_dates._check_write` runs. Tests in `tests/db/test_workflow_actions.py`; `frontend/openapi.json` and `schema.d.ts` regenerated.
+- Portal: the review list at `/alerts/next-dates` (a tab of Alerts & calendar; confirm, reject with an optional replacement date, enter a date), the case page's next-date block with Enter next date and a "Next date from orders" section on Hearings, the reading column on the Orders tab, the dashboard "Recent next dates from orders" table and link to the queue; `AlertLink` for alerts of kind `next_date_review`. Code in `components/nextdates/`, `lib/nextDates.ts`; tests `nextdates.test.tsx`, `nextDates.test.ts` and additions to the case, alerts, dashboard, timeline and routes tests.
+
+**Decisions and reasons**
+- Who may act comes from the server flag, not the menu, so the screen never offers a button the API would refuse (decision 3). The dashboard has no such flag, so it shows a pending date as "Waiting for confirmation" (deviation 4).
+- Confirm asks once; plain-words labels for rules and statuses (`T.nd.rules`).
+
+**Deviations from the design note**: six, in its Deviations section: branch cut from `main` after row 26 was squash-merged; the `qualified_date` rule name; `date_passed` (409) given its own text; dashboard status words; `AlertLink` moved to its own file and the dialogs kept in one file; "n items match" wording.
+
+**Left for later**: row 74 `next-dates-followups` (first live read, hand check of the sample, backend follow-ups). The owner's browser check follows the design's Verification section.

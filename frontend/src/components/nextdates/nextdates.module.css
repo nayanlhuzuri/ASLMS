@@ -1,0 +1,33 @@
+/* Next dates from orders (design portal-next-dates): the review rows, the case page's "Waiting for you" panel. */
+
+.suggested {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.date {
+  font-weight: 600;
+}
+
+.hint {
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+}
+
+.panel {
+  border: 1px solid var(--warning);
+  background: var(--warning-bg);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+}
+
+.panel h4 {
+  margin: 0 0 var(--space-2);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

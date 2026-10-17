@@ -172,10 +172,14 @@ export function filesTabsFor(me: MeLike | null | undefined): FilesTab[] {
   return FILES_TABS.filter((tab) => (tab.show ? tab.show(me) : visible(me, tab.functions)));
 }
 
-/** The Alerts & calendar tabs (decision 1); both show to case readers. */
+/**
+ * The Alerts & calendar tabs (decision 1): the alerts and the calendar show to case readers; "Next dates to confirm"
+ * (design portal-next-dates, decision 1) with `next_dates.review`, the review API's gate.
+ */
 export const ALERTS_TABS: readonly DataTab[] = [
   { key: "list", label: "Alerts", href: "/alerts", functions: CASE_READERS },
   { key: "calendar", label: "Hearing calendar", href: "/alerts/calendar", functions: CASE_READERS },
+  { key: "next-dates", label: "Next dates to confirm", href: "/alerts/next-dates", functions: ["next_dates.review"] },
 ];
 
 export function alertsTabsFor(me: Pick<Me, "functions"> | null | undefined): DataTab[] {
@@ -196,6 +200,7 @@ export const CRUMB_PATHS: Record<string, string> = {
   "/files/sent": "Sent",
   "/alerts": "Alerts & calendar",
   "/alerts/calendar": "Hearing calendar",
+  "/alerts/next-dates": "Next dates to confirm",
   "/admin/mapping/discovery": "Court search",
   "/data/discovery": "Discovery",
   "/reports/pending-cases": "Pending cases",

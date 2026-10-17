@@ -129,7 +129,7 @@ describe("dashboard", () => {
     expect(within(block).queryByText("Pending actions")).toBeNull();
     expect(within(block).queryByText("Files by office")).toBeNull();
     expect(within(block).queryByText("Open transfers")).toBeNull();
-    expect(within(block).queryByText("Next dates to review")).toBeNull();
+    expect(within(block).queryByText("Next dates to confirm")).toBeNull();
     expect(within(block).getByText("Hearings in 7 days")).toBeInTheDocument();
   });
 
@@ -286,5 +286,46 @@ describe("dashboard", () => {
     await screen.findByText("1,28,400");
     const plain = screen.getByRole("region", { name: "Department: Education" });
     expect(within(plain).queryByRole("link", { name: "Department reports" })).toBeNull();
+  });
+
+  it("Next dates to confirm links to the review list for the department when above zero (portal-next-dates, decision 13)", async () => {
+    const att = (n: number | null, recent: DashboardDepartment["attention"]["recent_order_next_dates"] = []) =>
+      department("EDU", "Education", {
+        attention: { compliance_due_soon: 0, compliance_overdue: 0, next_dates_to_review: n, recent_order_next_dates: recent },
+      });
+    const routes = (d: DashboardDepartment) => ({
+      "GET /me": makeMe(["cases.view_scope", "next_dates.review"]),
+      "GET /dashboard": { me: false, state: false, departments: [{ code: "EDU", name: "Education" }] },
+      "GET /dashboard/department": d,
+    });
+    browserApi(
+      routes(
+        att(3, [
+          { case: CASE, next_date: "2026-10-26", source: "order_period", review_status: "pending" },
+          { case: { ...CASE, id: "c2", case_no_text: "WA/55/2026" }, next_date: "2026-11-20", source: "order_specific", review_status: "not_needed" },
+        ]),
+      ),
+    );
+    const { unmount } = renderWithClient(<Dashboard />);
+    let block = await screen.findByRole("region", { name: "Department: Education" });
+    expect(within(block).getByRole("link", { name: "Next dates to confirm" })).toHaveAttribute("href", "/alerts/next-dates?owner=EDU");
+    const table = within(block).getByRole("table", { name: "Recent order next dates" });
+    expect(within(table).getByRole("columnheader", { name: "Where it came from" })).toBeInTheDocument();
+    expect(within(table).getByRole("columnheader", { name: "Status" })).toBeInTheDocument();
+    expect(within(table).getByText("Counted from the order")).toBeInTheDocument();
+    expect(within(table).getByText("Waiting for confirmation")).toBeInTheDocument();
+    expect(within(table).getByText("Date in the order")).toBeInTheDocument();
+    expect(within(table).getByText("In use")).toBeInTheDocument();
+    unmount();
+    browserApi(routes(att(0)));
+    const second = renderWithClient(<Dashboard />);
+    block = await screen.findByRole("region", { name: "Department: Education" });
+    expect(within(block).getByText("Next dates to confirm")).toBeInTheDocument();
+    expect(within(block).queryByRole("link", { name: "Next dates to confirm" })).toBeNull();
+    second.unmount();
+    browserApi(routes(att(null)));
+    renderWithClient(<Dashboard />);
+    block = await screen.findByRole("region", { name: "Department: Education" });
+    expect(within(block).queryByText("Next dates to confirm")).toBeNull();
   });
 });

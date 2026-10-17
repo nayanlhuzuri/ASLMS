@@ -27,6 +27,7 @@ import type {
 import { can, canAny, canIn } from "@/lib/can";
 import { formatDate, formatDateTime, formatNumber } from "@/lib/format";
 import { T } from "@/lib/messages";
+import { sourceLabel, statusLabel } from "@/lib/nextDates";
 import { CASE_READERS, navFor } from "@/lib/routes";
 
 import s from "./dashboard.module.css";
@@ -185,7 +186,12 @@ export function DepartmentBlock({ data }: { data: DashboardDepartment }) {
           <ul className={s.attention}>
             {att.next_dates_to_review !== null ? (
               <li>
-                <span>{T.dash.nextDatesReview}</span>
+                {/* design portal-next-dates, decision 13: a link, not a gate; the list shows the reader's own items */}
+                {att.next_dates_to_review > 0 ? (
+                  <Link href={`/alerts/next-dates?owner=${encodeURIComponent(code)}`}>{T.dash.nextDatesReview}</Link>
+                ) : (
+                  <span>{T.dash.nextDatesReview}</span>
+                )}
                 <strong>{n(att.next_dates_to_review)}</strong>
               </li>
             ) : null}
@@ -210,6 +216,8 @@ export function DepartmentBlock({ data }: { data: DashboardDepartment }) {
                 <tr>
                   <th scope="col">{T.dash.case}</th>
                   <th scope="col">{T.dash.date}</th>
+                  <th scope="col">{T.nd.colSource}</th>
+                  <th scope="col">{T.nd.colStatus}</th>
                 </tr>
               </thead>
               <tbody>
@@ -219,6 +227,8 @@ export function DepartmentBlock({ data }: { data: DashboardDepartment }) {
                       <CaseRef value={o.case} />
                     </td>
                     <td>{formatDate(o.next_date)}</td>
+                    <td>{sourceLabel(o.source)}</td>
+                    <td>{statusLabel(o.review_status)}</td>
                   </tr>
                 ))}
               </tbody>

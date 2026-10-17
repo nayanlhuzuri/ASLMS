@@ -32,7 +32,8 @@ export type ListKey =
   | "sent"
   | "alerts"
   | "search"
-  | "documents";
+  | "documents"
+  | "next_dates";
 
 /** Every URL key of the shared fields. */
 export const FILTER_KEYS = [
@@ -98,6 +99,8 @@ export const LIST_FILTERS: Record<ListKey, ListFilters> = {
   alerts: { fields: [...ALL_CASE, "owner"], fixed: [] },
   search: { fields: [...ALL_CASE, "owner"], fixed: ["tab"], legacy: { status: "case_status", office: "owner" } },
   documents: { fields: ["q"], fixed: ["tab"] },
+  // design portal-next-dates, decision 4: the review list's own control is "Show" (`kind`)
+  next_dates: { fields: [...ALL_CASE, "owner"], fixed: ["kind"] },
 };
 
 export const LISTED_PRESETS = ["today", "tomorrow", "d7", "d30"] as const;

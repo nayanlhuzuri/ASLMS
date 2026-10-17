@@ -4,12 +4,14 @@
  * The Hearings tab (design portal-cases, decision 10): the hearings (business date, purpose, bench, next date,
  * business text, short order) and, below, the cause-list appearances (date, list type, bench, court, item, section,
  * connected, counsel codes, remarks), each linking to that day's cause list for its bench (design portal-causelist,
- * decision 12).
+ * decision 12). Between them, "Next dates": every next date of the case with the one used for the calendar (design
+ * portal-next-dates, decision 10).
  */
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
 
+import { NextDatesSection } from "@/components/nextdates/CaseNextDate";
 import { EmptyState, ErrorBanner, Loading, Pagination, Table } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { caseKey } from "@/lib/api/hooks";
@@ -80,6 +82,7 @@ export function Hearings({ caseRef }: { caseRef: string }) {
           )
         ) : null}
       </section>
+      <NextDatesSection caseRef={caseRef} />
       <section className="stack" aria-label={T.case.listings}>
         <h2>{T.case.listings}</h2>
         {listings.isPending ? <Loading /> : null}

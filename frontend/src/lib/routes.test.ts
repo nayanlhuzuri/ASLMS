@@ -135,6 +135,15 @@ describe("Files and Alerts & calendar navigation (portal-files-alerts)", () => {
     expect(alertsTabsFor({ functions: ["users.view"] })).toEqual([]);
   });
 
+  it("the Next dates to confirm tab shows only with next_dates.review (portal-next-dates, decision 1)", () => {
+    const both = alertsTabsFor({ functions: ["cases.view_scope", "next_dates.review"] });
+    expect(keys(both)).toEqual(["list", "calendar", "next-dates"]);
+    expect(both[2]!.label).toBe("Next dates to confirm");
+    expect(both[2]!.href).toBe("/alerts/next-dates");
+    expect(keys(alertsTabsFor({ functions: ["cases.view_scope"] }))).not.toContain("next-dates");
+    expect(crumbLabel("/alerts/next-dates")).toBe("Next dates to confirm");
+  });
+
   it("CRUMB_PATHS names the screens by path, while the segments keep their meaning", () => {
     expect(crumbLabel("/files/offices")).toBe("My offices");
     expect(crumbLabel("/admin/offices")).toBe("Offices");

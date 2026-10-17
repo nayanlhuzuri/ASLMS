@@ -4,12 +4,14 @@
  * The Overview tab (design portal-cases, decision 10; Annexure B cards): Next hearing, Parties and advocates,
  * Proceedings, Custody (with Send file and Recall by the card's `can_send` / `can_recall`, design portal-workflow,
  * decisions 5-7), Stage (Set stage by `workflow.set_stage`, decision 9), Latest order and Ownership, with a muted
- * "You see this case as: …" line from `access_basis`.
+ * "You see this case as: …" line from `access_basis`. "Next date from orders" follows "Next hearing" and the Latest
+ * order card carries the order's reading (design portal-next-dates, decision 8).
  */
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 
+import { NextDateBlock } from "@/components/nextdates/CaseNextDate";
 import { Badge, Button, ErrorBanner, Loading, Notice } from "@/components/ui";
 import { CustodyActions } from "@/components/workflow/CustodyDialogs";
 import { CustodyFacts } from "@/components/workflow/CustodyTab";
@@ -20,6 +22,7 @@ import type { CaseDetail, HearingList, ListingList, OrderList } from "@/lib/api/
 import { can } from "@/lib/can";
 import { formatDate, hearingBadge } from "@/lib/format";
 import { T } from "@/lib/messages";
+import { readingLabel } from "@/lib/nextDates";
 import { apiCasePath, casePath } from "@/lib/refs";
 
 import s from "./case.module.css";
@@ -63,6 +66,14 @@ function NextHearing({ caseRef, c }: { caseRef: string; c: CaseDetail }) {
           {T.inbox.listing(formatDate(last.list_date), last.court_no, last.sr_no)} · {T.case.source}: {last.source}
         </div>
       ) : null}
+    </Card>
+  );
+}
+
+function NextDateCard({ caseRef, c }: { caseRef: string; c: CaseDetail }) {
+  return (
+    <Card title={T.nd.card}>
+      <NextDateBlock caseRef={caseRef} c={c} />
     </Card>
   );
 }
@@ -182,6 +193,7 @@ function LatestOrder({ caseRef }: { caseRef: string }) {
     queryFn: () => api<OrderList>(`${apiCasePath(caseRef)}/orders`, { query: { limit: 1 } }),
   });
   const o = list.data?.items[0];
+  const reading = o ? readingLabel(o) : null;
   return (
     <Card title={T.case.latestOrder}>
       {list.isPending ? <Loading /> : null}
@@ -199,6 +211,12 @@ function LatestOrder({ caseRef }: { caseRef: string }) {
           ) : null}
         </div>
       ) : null}
+      {reading ? (
+        <div>
+          {reading.date ? T.nd.foundInOrder(reading.date) : `${T.nd.readCol}: ${reading.words}`}
+          {reading.date && o?.next_date_status === "period" ? <span className="muted"> · {reading.words}</span> : null}
+        </div>
+      ) : null}
     </Card>
   );
 }
@@ -212,6 +230,7 @@ export function Overview({ caseRef }: { caseRef: string }) {
     <div className="stack">
       <div className={s.cards}>
         <NextHearing caseRef={caseRef} c={c} />
+        <NextDateCard caseRef={caseRef} c={c} />
         <PartiesCard caseRef={caseRef} c={c} />
         <Proceedings caseRef={caseRef} />
         <Custody caseRef={caseRef} c={c} />

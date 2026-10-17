@@ -4734,9 +4734,12 @@ export interface components {
          * CaseWorkflowActionsOut
          * @description Design portal-workflow, decision 20a: what the caller may do, from the checks the writes run. `note_mode`
          *     is `draft` when the caller's acting membership holds the file, `permanent` when they may write a note
-         *     otherwise, `null` when they may not write one.
+         *     otherwise, `null` when they may not write one. `next_dates` (design portal-next-dates, decision 3): the caller
+         *     may confirm, reject and enter next dates on the case.
          */
         CaseWorkflowActionsOut: {
+            /** Next Dates */
+            next_dates: boolean;
             /** Note Mode */
             note_mode: ("draft" | "permanent") | null;
             /** Set Stage */

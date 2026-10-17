@@ -968,11 +968,13 @@ class CaseCountsOut(BaseModel):
 class CaseWorkflowActionsOut(BaseModel):
     """Design portal-workflow, decision 20a: what the caller may do, from the checks the writes run. `note_mode`
     is `draft` when the caller's acting membership holds the file, `permanent` when they may write a note
-    otherwise, `null` when they may not write one."""
+    otherwise, `null` when they may not write one. `next_dates` (design portal-next-dates, decision 3): the caller
+    may confirm, reject and enter next dates on the case."""
 
     note_mode: Literal["draft", "permanent"] | None
     upload: bool
     set_stage: bool
+    next_dates: bool
 
 
 # ------------------------------------------------------------------------------------------------ next dates

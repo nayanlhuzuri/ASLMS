@@ -278,3 +278,43 @@ describe("the filter bar on Alerts (portal-filters)", () => {
     expect(screen.getByText("Status: Pending")).toBeInTheDocument();
   });
 });
+
+describe("next dates (portal-next-dates, decisions 1 and 14)", () => {
+  it("a visible next_date_review alert has Answer it to the review list for its case; others do not", async () => {
+    browserApi(
+      routes([
+        alert({ id: "a-1", kind: "next_date_review", kind_label: "Next date to confirm", title: "Confirm the next date" }),
+        alert({ id: "a-2", kind: "next_date_review", kind_label: "Next date to confirm", title: "Hidden case", case_visible: false }),
+        alert({ id: "a-3", title: "Hearing in three days" }),
+      ]),
+    );
+    renderWithClient(<AlertList params={{}} />);
+    await screen.findByText("Confirm the next date");
+    const links = screen.getAllByRole("link", { name: "Answer it" });
+    expect(links).toHaveLength(1);
+    expect(links[0]).toHaveAttribute("href", "/alerts/next-dates?q=c1");
+    // following it marks the alert read first, then navigates
+    await userEvent.click(links[0]!);
+    await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/alerts/next-dates?q=c1"));
+  });
+
+  it("the frame has the Next dates to confirm tab with next_dates.review", async () => {
+    browserApi({ "GET /me": makeMe(["cases.view_scope", "next_dates.review"]) });
+    const { unmount } = renderWithClient(
+      <AlertsFrame>
+        <p>body</p>
+      </AlertsFrame>,
+    );
+    const tabs = await screen.findByRole("navigation", { name: "Alerts and calendar sections" });
+    expect(within(tabs).getByRole("link", { name: "Next dates to confirm" })).toHaveAttribute("href", "/alerts/next-dates");
+    unmount();
+    browserApi({ "GET /me": makeMe(["cases.view_scope"]) });
+    renderWithClient(
+      <AlertsFrame>
+        <p>body</p>
+      </AlertsFrame>,
+    );
+    const only = await screen.findByRole("navigation", { name: "Alerts and calendar sections" });
+    expect(within(only).queryByRole("link", { name: "Next dates to confirm" })).toBeNull();
+  });
+});

@@ -3352,8 +3352,12 @@
         "type": "object"
       },
       "CaseWorkflowActionsOut": {
-        "description": "Design portal-workflow, decision 20a: what the caller may do, from the checks the writes run. `note_mode`\nis `draft` when the caller's acting membership holds the file, `permanent` when they may write a note\notherwise, `null` when they may not write one.",
+        "description": "Design portal-workflow, decision 20a: what the caller may do, from the checks the writes run. `note_mode`\nis `draft` when the caller's acting membership holds the file, `permanent` when they may write a note\notherwise, `null` when they may not write one. `next_dates` (design portal-next-dates, decision 3): the caller\nmay confirm, reject and enter next dates on the case.",
         "properties": {
+          "next_dates": {
+            "title": "Next Dates",
+            "type": "boolean"
+          },
           "note_mode": {
             "anyOf": [
               {
@@ -3381,7 +3385,8 @@
         "required": [
           "note_mode",
           "upload",
-          "set_stage"
+          "set_stage",
+          "next_dates"
         ],
         "title": "CaseWorkflowActionsOut",
         "type": "object"

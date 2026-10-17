@@ -310,3 +310,21 @@ Frontend (Vitest, `fakeApi`):
 
 ## Open questions
 None.
+
+## Deviations
+Recorded by the developer while building (17 Oct 2026); none changes the plan or an API.
+1. **Base branch.** Row 26 was squash-merged into `main` (`fa6e5fd`) before this item started, so the branch was cut
+   from `main` (`586d723`) instead of `feature/next-date-extraction` at `3c488d4`.
+2. **The point-2 rule is named `qualified_date`** on `main`; its hint ("The order says not before this date — please
+   check the exact day") is in `T.nd.rules` as decision 12 foresaw.
+3. **`date_passed`.** `POST /next-dates/{id}/confirm` also answers 409 `date_passed` (a suggested date that has
+   already passed); `NEXT_DATE_ERRORS` gives it a text ("This date has already passed, so it can no longer be
+   confirmed. Enter the next date instead.") instead of the server's message.
+4. **Status words on the dashboard.** The "Recent next dates from orders" table shows a pending date as "Waiting for
+   confirmation" (the reader-without-action wording) because the dashboard has no server flag saying who may act
+   (decision 2); the Hearings tab's section uses `workflow.next_dates` for the same choice.
+5. **`AlertLink` moved.** The read-then-follow link, `useAlertRefresh` and `markRead` moved from `AlertList.tsx` to
+   `components/alerts/AlertLink.tsx` with the new `AnswerIt`, so the case Alerts tab can use them without an import
+   cycle. The three dialogs live in one file, `components/nextdates/Dialogs.tsx`; the case-page pieces in
+   `components/nextdates/CaseNextDate.tsx` (`NextDateBlock`, `NextDatesSection`).
+6. **The "n items" total** reads "n items match", the filter bar's existing wording.

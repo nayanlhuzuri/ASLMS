@@ -74,4 +74,33 @@ describe("timeline lines", () => {
     expect(timelineDetail("status_changed", { status: "odd" })).toBeNull();
     expect(timelineDetail("claimed", "text")).toBeNull();
   });
+
+  it("the next-date lines read payload keys only and never print a note (portal-next-dates, decision 15)", () => {
+    const extracted = {
+      order_no: "4",
+      order_date: "2026-10-12",
+      next_date: "2026-10-26",
+      review: true,
+      status: "period",
+      rule: "list_after_period",
+    };
+    expect(timelineDetail("next_date_extracted", extracted)).toBe("Order 4 of 12 Oct 2026 · 26 Oct 2026 · to be confirmed");
+    expect(timelineDetail("next_date_extracted", { ...extracted, next_date: "2026-11-15", review: false })).toBe(
+      "Order 4 of 12 Oct 2026 · 15 Nov 2026",
+    );
+    expect(timelineDetail("next_date_extracted", { order_no: "5", order_date: "2026-10-13", next_date: null, review: true })).toBe(
+      "Order 5 of 13 Oct 2026 · no date read",
+    );
+    expect(timelineDetail("next_date_reviewed", { action: "confirm", next_date: "2026-10-26", office_code: "EDU" })).toBe(
+      "Confirmed · 26 Oct 2026 · EDU",
+    );
+    expect(timelineDetail("next_date_reviewed", { action: "reject", next_date: "2026-10-26", office_code: "EDU" })).toBe(
+      "Not accepted · 26 Oct 2026 · EDU",
+    );
+    const entered = { next_date: "2026-11-02", office_code: "EDU", ref_no: "ASLMS-EDU-NXT-2026-000001", note: "a private remark" };
+    expect(timelineDetail("next_date_entered", entered)).toBe("2 Nov 2026 · EDU · ASLMS-EDU-NXT-2026-000001");
+    for (const type of ["next_date_extracted", "next_date_reviewed", "next_date_entered"]) {
+      expect(timelineDetail(type, { ...entered, review: true }) ?? "").not.toContain("private");
+    }
+  });
 });

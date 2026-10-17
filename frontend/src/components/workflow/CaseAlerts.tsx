@@ -4,11 +4,13 @@
  * The case's Alerts tab (design portal-workflow, decision 15; plan §5.5) and the Acknowledge / Done actions (shared
  * with row 55's alerts screen). The list is `GET /cases/{ref}/alerts` (open and acknowledged by default, or all);
  * the actions show only where the API's `can_act` is true and by status. A reader who does not work on the case gets
- * an empty list from the API and the tab says why. There is no count badge (the overview carries none).
+ * an empty list from the API and the tab says why. There is no count badge (the overview carries none). A
+ * `next_date_review` alert has "Answer it" to the review list (design portal-next-dates, decision 14).
  */
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { AnswerIt } from "@/components/alerts/AlertLink";
 import {
   Button,
   CharCounter,
@@ -147,6 +149,7 @@ export function CaseAlerts({ caseRef }: { caseRef: string }) {
                   {a.acknowledged_by && a.acknowledged_at ? (
                     <div className="muted">{T.wf.acknowledgedBy(a.acknowledged_by.full_name, formatDateTime(a.acknowledged_at))}</div>
                   ) : null}
+                  <AnswerIt alert={a} />
                   <AlertActions alert={a} onChanged={refresh} />
                 </li>
               ))}

@@ -189,3 +189,11 @@ export type ReportColumn = S["ReportColumnOut"];
 export type AuditRow = S["AuditRowOut"];
 export type AuditPage = S["AuditPageOut"];
 export type AuditActions = S["AuditActionsOut"];
+
+// next dates from orders (design portal-next-dates)
+export type NextDate = S["NextDateOut"];
+export type CaseNextDate = S["CaseNextDateOut"];
+export type CaseNextDateList = S["CaseNextDateListOut"];
+export type NextDateReviewItem = S["NextDateReviewItemOut"];
+export type NextDateReviewList = S["NextDateReviewListOut"];
+export type NextDateRejectOut = S["NextDateRejectOut"];

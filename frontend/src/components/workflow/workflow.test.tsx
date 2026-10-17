@@ -48,7 +48,7 @@ function detail(extra: Partial<CaseDetail> = {}): CaseDetail {
     ref_no: "ASLMS/GOA/CASE/2026/000001",
     access_basis: ["owner"],
     counts: { documents: 0, hearings: 0, links: 0, listings: 0, my_drafts: 0, notes: 0, orders: 0, timeline: 0 },
-    workflow: { note_mode: "permanent", upload: true, set_stage: true },
+    workflow: { note_mode: "permanent", upload: true, set_stage: true, next_dates: false },
     custody: card(),
     stage: null,
     ownership: {
@@ -198,7 +198,7 @@ describe("Send file and Recall", () => {
   it("offers no stage without workflow.set_stage", async () => {
     browserApi({ "GET /workflow/codes": CODES, "GET /custody/recipients": DEPTS });
     renderWithClient(
-      <CustodyActions caseRef={REF} detail={detail({ workflow: { note_mode: "draft", upload: true, set_stage: false } })} card={card()} />,
+      <CustodyActions caseRef={REF} detail={detail({ workflow: { note_mode: "draft", upload: true, set_stage: false, next_dates: false } })} card={card()} />,
     );
     await userEvent.click(screen.getByRole("button", { name: "Send file" }));
     const dialog = screen.getByRole("dialog", { name: "Send the file" });
@@ -379,7 +379,7 @@ describe("the custody tab", () => {
   }
 
   it("lists the legs, hides a remark the API does not send, and shows the stage gaps", async () => {
-    browserApi(routes(detail({ workflow: { note_mode: null, upload: false, set_stage: false } })));
+    browserApi(routes(detail({ workflow: { note_mode: null, upload: false, set_stage: false, next_dates: false } })));
     renderWithClient(<CustodyTab caseRef={REF} />);
     const table = await screen.findByRole("table", { name: "Movement record" });
     const rows = within(table).getAllByRole("row");
@@ -500,7 +500,7 @@ function noteRoutes(d: CaseDetail, notes: Note[], extra: Record<string, unknown>
 describe("writing notes", () => {
   it("the composer says draft from note_mode, offers no files and sends links only", async () => {
     const api = browserApi(
-      noteRoutes(detail({ workflow: { note_mode: "draft", upload: true, set_stage: true } }), [], {
+      noteRoutes(detail({ workflow: { note_mode: "draft", upload: true, set_stage: true, next_dates: false } }), [], {
         [`POST ${BASE}/notes`]: json(201, draft({ documents: [] })),
       }),
     );
@@ -591,7 +591,7 @@ describe("writing notes", () => {
   });
 
   it("no composer without note_mode", async () => {
-    browserApi(noteRoutes(detail({ workflow: { note_mode: null, upload: false, set_stage: false } }), [note(1)]));
+    browserApi(noteRoutes(detail({ workflow: { note_mode: null, upload: false, set_stage: false, next_dates: false } }), [note(1)]));
     renderWithClient(<Notes caseRef={REF} />);
     await screen.findByText("body 1");
     expect(screen.queryByRole("form", { name: "Write a note" })).toBeNull();
@@ -602,7 +602,7 @@ describe("writing notes", () => {
 describe("the drafts panel", () => {
   function draftRoutes(extra: Record<string, unknown> = {}) {
     return noteRoutes(
-      detail({ workflow: { note_mode: "draft", upload: true, set_stage: false }, counts: { ...detail().counts, my_drafts: 1 } }),
+      detail({ workflow: { note_mode: "draft", upload: true, set_stage: false, next_dates: false }, counts: { ...detail().counts, my_drafts: 1 } }),
       [],
       { [`GET ${BASE}/notes/drafts`]: { items: [draft()] }, ...extra },
     );
@@ -662,7 +662,7 @@ describe("uploads and document actions", () => {
   }
 
   it("the panel shows only with workflow.upload and says what reaches the Case Assistant", async () => {
-    browserApi(docRoutes(detail({ workflow: { note_mode: null, upload: false, set_stage: false } })));
+    browserApi(docRoutes(detail({ workflow: { note_mode: null, upload: false, set_stage: false, next_dates: false } })));
     const { unmount } = renderWithClient(<Documents caseRef={REF} />);
     await screen.findByText("No documents.");
     expect(screen.queryByRole("form", { name: "Upload a document" })).toBeNull();
@@ -731,7 +731,7 @@ describe("uploads and document actions", () => {
 
   it("Change visibility and Archive only on rows with can_manage; archive needs a reason; already_ingested in words", async () => {
     const api = browserApi(
-      docRoutes(detail({ workflow: { note_mode: null, upload: false, set_stage: false } }), [
+      docRoutes(detail({ workflow: { note_mode: null, upload: false, set_stage: false, next_dates: false } }), [
         docItem("d-1", { can_manage: true }),
         docItem("d-2"),
       ], {

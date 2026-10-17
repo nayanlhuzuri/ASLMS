@@ -45,7 +45,7 @@ function detail(extra: Partial<CaseDetail> = {}): CaseDetail {
       sub_category: "Transfer",
     },
     counts: { documents: 2, hearings: 7, links: 1, listings: 3, my_drafts: 0, notes: 4, orders: 5, timeline: 12 },
-    workflow: { note_mode: null, upload: false, set_stage: false },
+    workflow: { note_mode: null, upload: false, set_stage: false, next_dates: false },
     court: { est_code: "GAHC01", name: "Principal Seat at Guwahati" },
     court_transfers: [{ from_court_text: "Court 1", to_court_text: "Court 3", transfer_date: "2026-03-01" }],
     custody: {
@@ -319,7 +319,7 @@ describe("the overview and the ownership card", () => {
     const stage = await screen.findByRole("region", { name: "Stage" });
     expect(within(stage).queryByRole("button", { name: "Set stage" })).toBeNull();
     unmount();
-    browserApi(overviewRoutes(detail({ workflow: { note_mode: "permanent", upload: true, set_stage: true } }), ownership(actions())));
+    browserApi(overviewRoutes(detail({ workflow: { note_mode: "permanent", upload: true, set_stage: true, next_dates: false } }), ownership(actions())));
     renderWithClient(<Overview caseRef={REF} />);
     const withFlag = await screen.findByRole("region", { name: "Stage" });
     expect(within(withFlag).getByRole("button", { name: "Set stage" })).toBeInTheDocument();
@@ -991,5 +991,238 @@ describe("the Audit trail link (portal-audit-health, decision 7)", () => {
     renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
     await screen.findByRole("navigation", { name: "Case sections" });
     expect(screen.queryByRole("link", { name: "Audit trail" })).toBeNull();
+  });
+});
+
+describe("next dates from orders on the case page (portal-next-dates, decisions 8, 10, 11)", () => {
+  const ORDER = { id: "o-4", order_no: "4", order_date: "2026-10-12", document_id: "d-4", phrase: "List on 20.11.2026.", rule: "list_on_date" };
+  function nd(extra: Partial<NonNullable<CaseDetail["next_date_from_orders"]>> = {}) {
+    return {
+      id: "nd-1",
+      ref_no: null,
+      next_date: "2026-11-20",
+      source: "order_specific",
+      confidence: 0.95,
+      needs_review: false,
+      review_status: "not_needed",
+      order: ORDER,
+      note: null,
+      reviewed_by: null,
+      reviewed_at: null,
+      created_by: null,
+      created_at: "2026-10-12T10:00:00Z",
+      ...extra,
+    };
+  }
+  const REVIEW_ITEM = {
+    kind: "confirm",
+    id: "nd-2",
+    case: { id: "c-1", ref_no: "ASLMS/GOA/CASE/2026/000001", cnr: "ASHC010012342026", case_no_text: "WP(C)/1234/2026" },
+    order: { id: "o-5", order_no: "5", order_date: "2026-10-14", document_id: null },
+    phrase: "List after two weeks.",
+    rule: "list_after_period",
+    next_date: "2026-10-28",
+    act_by: "2026-10-22",
+    alert_ref_no: null,
+    departments: ["EDU"],
+  };
+
+  async function card(c: CaseDetail, extra: Record<string, unknown> = {}) {
+    const api = browserApi({ ...overviewRoutes(c, ownership(actions())), ...extra });
+    const view = renderWithClient(<Overview caseRef={REF} />);
+    const region = await screen.findByRole("region", { name: "Next date from orders" });
+    return { api, region, ...view };
+  }
+
+  it("shows a fixed, a confirmed and an entered date, and says when there is none", async () => {
+    let r = await card(detail({ next_date_from_orders: nd() }));
+    expect(within(r.region).getByText("20 Nov 2026")).toBeInTheDocument();
+    expect(within(r.region).getByText("Fixed in the order of 12 Oct 2026")).toBeInTheDocument();
+    expect(within(r.region).getByText("What the order says")).toBeInTheDocument();
+    expect(within(r.region).getByText("“List on 20.11.2026.”")).toBeInTheDocument();
+    expect(within(r.region).getByRole("link", { name: "All next dates" })).toHaveAttribute("href", `${BASE}/hearings#next-dates`);
+    r.unmount();
+    r = await card(
+      detail({
+        next_date_from_orders: nd({
+          source: "order_period",
+          review_status: "confirmed",
+          reviewed_by: { name: "Edu Admin" },
+          reviewed_at: "2026-10-14T05:00:00Z",
+        }),
+      }),
+    );
+    expect(within(r.region).getByText("Counted from the order of 12 Oct 2026 · confirmed by Edu Admin on 14 Oct 2026")).toBeInTheDocument();
+    r.unmount();
+    r = await card(
+      detail({
+        next_date_from_orders: nd({
+          source: "manual",
+          ref_no: "ASLMS-EDU-NXT-2026-000001",
+          order: null,
+          note: "Fixed by the court orally",
+          created_by: { name: "Officer One" },
+          created_at: "2026-10-15T05:00:00Z",
+        }),
+      }),
+    );
+    expect(within(r.region).getByText("Entered by Officer One on 15 Oct 2026")).toBeInTheDocument();
+    expect(within(r.region).getByText(/Fixed by the court orally/)).toBeInTheDocument();
+    r.unmount();
+    r = await card(detail({ next_date_from_orders: null }));
+    expect(within(r.region).getByText("No next date from the orders yet.")).toBeInTheDocument();
+  });
+
+  it("Waiting for you asks the queue for this case only when it has items; Enter next date only by the flag", async () => {
+    let r = await card(detail({ next_dates_to_review: 0 }));
+    expect(r.api.calls.some((c) => c.path.startsWith("/next-dates/review"))).toBe(false);
+    expect(within(r.region).queryByRole("group", { name: "Waiting for you" })).toBeNull();
+    expect(within(r.region).queryByRole("button", { name: "Enter next date" })).toBeNull();
+    r.unmount();
+    r = await card(
+      detail({ next_dates_to_review: 1, workflow: { note_mode: "permanent", upload: true, set_stage: true, next_dates: true } }),
+      { "GET /next-dates/review": { items: [REVIEW_ITEM], total: 1 } },
+    );
+    const panel = await within(r.region).findByRole("group", { name: "Waiting for you" });
+    await within(panel).findByRole("button", { name: "Confirm next date of WP(C)/1234/2026" });
+    const call = r.api.calls.find((c) => c.path.startsWith("/next-dates/review"))!;
+    expect(new URLSearchParams(call.path.split("?")[1]).get("q")).toBe("c-1");
+    expect(within(panel).queryByRole("columnheader", { name: "Case" })).toBeNull();
+    expect(within(r.region).getByRole("button", { name: "Enter next date" })).toBeInTheDocument();
+  });
+
+  it("Enter next date from the case page posts no order", async () => {
+    const { api, region } = await card(
+      detail({ workflow: { note_mode: "permanent", upload: true, set_stage: true, next_dates: true } }),
+      { [`POST ${BASE}/next-dates`]: json(201, nd({ source: "manual", next_date: "2026-12-01" })) },
+    );
+    await userEvent.click(within(region).getByRole("button", { name: "Enter next date" }));
+    const dialog = screen.getByRole("dialog");
+    const day = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+    await userEvent.type(within(dialog).getByLabelText("Next date"), day);
+    await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(api.calls.some((c) => c.method === "POST")).toBe(true));
+    expect(api.calls.find((c) => c.method === "POST")!.body).toEqual({ next_date: day });
+    expect(await within(region).findByText("Saved. 1 Dec 2026 is the next date of WP(C)/1234/2026.")).toBeInTheDocument();
+  });
+
+  it("the Latest order card carries the order's reading", async () => {
+    const order = {
+      id: "o-4",
+      order_no: "4",
+      order_date: "2026-10-12",
+      kind: "interim",
+      order_judge_name: null,
+      download_status: "stored",
+      document_id: "d-4",
+      order_details: null,
+      is_reportable: null,
+      date_judgement_pronounced: null,
+      date_judgement_reserved: null,
+      next_date_status: "specific",
+      next_date_found: "2026-11-20",
+      next_date_rule: "list_on_date",
+      next_date_phrase: "List on 20.11.2026.",
+    };
+    browserApi({ ...overviewRoutes(detail(), ownership(actions())), [`GET ${BASE}/orders`]: { items: [order], total: 1 } });
+    renderWithClient(<Overview caseRef={REF} />);
+    const latest = await screen.findByRole("region", { name: "Latest order" });
+    expect(await within(latest).findByText("Next date found in the order: 20 Nov 2026")).toBeInTheDocument();
+  });
+
+  it("the Orders tab reads each order in plain words, never the rule code", async () => {
+    const base = {
+      kind: "interim",
+      order_judge_name: null,
+      download_status: "pending",
+      document_id: null,
+      order_details: null,
+      is_reportable: null,
+      date_judgement_pronounced: null,
+      date_judgement_reserved: null,
+      next_date_found: null,
+      next_date_rule: null,
+      next_date_phrase: null,
+    };
+    const statuses: [string, Record<string, unknown>][] = [
+      ["specific", { next_date_found: "2026-11-20", next_date_rule: "list_on_date", next_date_phrase: "List on 20.11.2026." }],
+      ["period", { next_date_found: "2026-10-26", next_date_rule: "list_after_period", next_date_phrase: "List after two weeks." }],
+      ["unclear", { next_date_rule: "conflicting_dates", next_date_phrase: "List with WP(C)/9/2026." }],
+      ["none", {}],
+      ["no_text", {}],
+      ["pending", {}],
+    ];
+    browserApi({
+      "GET /me": me(["cases.view_scope"]),
+      [`GET ${BASE}/orders`]: {
+        items: statuses.map(([status, extra], i) => ({
+          ...base,
+          id: `o-${i}`,
+          order_no: String(i + 1),
+          order_date: "2026-10-12",
+          next_date_status: status,
+          ...extra,
+        })),
+        total: statuses.length,
+      },
+    });
+    renderWithClient(<Orders caseRef={REF} />);
+    expect(await screen.findByRole("columnheader", { name: "Next date read" })).toBeInTheDocument();
+    expect(screen.getByText("20 Nov 2026")).toBeInTheDocument();
+    expect(screen.getByText("Date in the order")).toBeInTheDocument();
+    expect(screen.getByText("26 Oct 2026")).toBeInTheDocument();
+    expect(screen.getByText("counted from the order")).toBeInTheDocument();
+    expect(screen.getByText("No clear date")).toBeInTheDocument();
+    expect(screen.getByText("No next date given")).toBeInTheDocument();
+    expect(screen.getByText("Could not be read (scanned copy)")).toBeInTheDocument();
+    expect(screen.getByText("Not read yet")).toBeInTheDocument();
+    expect(screen.getAllByText("What the order says")).toHaveLength(3);
+    expect(screen.getByText("“List after two weeks.”")).toBeInTheDocument();
+    const text = document.body.textContent ?? "";
+    expect(text).not.toMatch(/list_on_date|list_after_period|conflicting_dates/);
+  });
+
+  it("the Hearings tab lists every next date with the one used for the calendar and the NXT reference", async () => {
+    browserApi({
+      "GET /me": me(),
+      [`GET ${BASE}`]: detail(),
+      [`GET ${BASE}/hearings`]: { items: [], total: 0 },
+      [`GET ${BASE}/listings`]: { items: [], total: 0 },
+      [`GET ${BASE}/next-dates`]: {
+        items: [
+          {
+            ...nd({
+              id: "nd-9",
+              source: "manual",
+              ref_no: "ASLMS-EDU-NXT-2026-000001",
+              order: null,
+              next_date: "2026-12-01",
+              note: "Fixed orally",
+              created_by: { name: "Officer One" },
+              created_at: "2026-10-15T05:00:00Z",
+            }),
+            effective: true,
+          },
+          { ...nd({ id: "nd-8", source: "order_period", review_status: "superseded" }), effective: false },
+          { ...nd({ id: "nd-7", source: "order_period", review_status: "pending" }), effective: false },
+        ],
+        total: 3,
+      },
+    });
+    renderWithClient(<Hearings caseRef={REF} />);
+    const section = await screen.findByRole("region", { name: "Next dates" });
+    expect(section).toHaveAttribute("id", "next-dates");
+    const table = await within(section).findByRole("table", { name: "Next dates" });
+    const rows = within(table).getAllByRole("row").slice(1);
+    expect(rows).toHaveLength(3);
+    expect(within(rows[0]!).getByText("Used for the calendar")).toBeInTheDocument();
+    expect(within(rows[0]!).getByText("ASLMS-EDU-NXT-2026-000001")).toHaveClass("mono");
+    expect(within(rows[0]!).getByText("Entered by hand")).toBeInTheDocument();
+    expect(within(rows[0]!).getByText("Officer One, 15 Oct 2026")).toBeInTheDocument();
+    expect(within(rows[0]!).getByText("Fixed orally")).toBeInTheDocument();
+    expect(within(rows[1]!).queryByText("Used for the calendar")).toBeNull();
+    expect(within(rows[1]!).getByText("Replaced by a later date")).toBeInTheDocument();
+    // a reader without the action (workflow.next_dates false) sees the neutral wording
+    expect(within(rows[2]!).getByText("Waiting for confirmation")).toBeInTheDocument();
   });
 });

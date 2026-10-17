@@ -1,7 +1,8 @@
 /**
  * A one-line detail for the common timeline event types (design portal-cases, decision 13; the workflow types of
  * portal-workflow, decision 19), read from known payload keys. Any other type shows the API's label only; the payload
- * is never printed as raw JSON. The `custody_moved` payload never carries the remark, and no line reads one.
+ * is never printed as raw JSON. The `custody_moved` payload never carries the remark, and no line reads one; nor does
+ * any next-date line read a note (design portal-next-dates, decision 15).
  */
 import { formatDate } from "./format";
 
@@ -85,6 +86,17 @@ const DETAIL: Record<string, (p: Payload, l: TimelineLabels) => string | null> =
   note_added: (p, l) => join([label(l.kinds, p.kind), str(p.ref_no), p.finalised === true ? "from a draft" : null]),
   document_uploaded: (p) => join([str(p.doc_type)?.replace(/_/g, " ") ?? null, str(p.office_code)]),
   alert_raised: (p, l) => label(l.alertKinds, p.kind),
+  // design portal-next-dates, decision 15: payload keys only, never the note
+  next_date_extracted: (p) => {
+    const order = str(p.order_no) ? `Order ${str(p.order_no)}${date(p.order_date) ? ` of ${date(p.order_date)}` : ""}` : null;
+    const next = date(p.next_date);
+    return join([order, next ?? "no date read", p.review === true && next ? "to be confirmed" : null]);
+  },
+  next_date_reviewed: (p) => {
+    const action = p.action === "confirm" ? "Confirmed" : p.action === "reject" ? "Not accepted" : null;
+    return join([action, date(p.next_date), str(p.office_code)]);
+  },
+  next_date_entered: (p) => join([date(p.next_date), str(p.office_code), str(p.ref_no)]),
 };
 
 export function timelineDetail(type: string, payload: unknown, labels: TimelineLabels = {}): string | null {

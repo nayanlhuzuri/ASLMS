@@ -4,7 +4,9 @@
  * The Orders tab (design portal-cases, decisions 10 and 15): number, date, kind, judge and the file's state; View
  * (inline, `documents.view`) opens the API's file in a new tab through the relay, which keeps the API's nosniff and
  * sandbox headers; Download (`documents.download`) saves it. An order not stored says "not yet published" or "fetch
- * pending". Order files are PDFs: View follows `INLINE_PDF` (design portal-cases-followups, decision 10).
+ * pending". Order files are PDFs: View follows `INLINE_PDF` (design portal-cases-followups, decision 10). "Next date
+ * read" gives the order's own reading in plain words, with the court's sentence (design portal-next-dates, decision
+ * 11); never the review state or the rule code.
  */
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -17,6 +19,7 @@ import { can } from "@/lib/can";
 import { canViewInline, pdfDownloadOnly } from "@/lib/documents";
 import { formatDate } from "@/lib/format";
 import { T } from "@/lib/messages";
+import { readingLabel } from "@/lib/nextDates";
 import { apiCasePath } from "@/lib/refs";
 import { PAGE } from "@/lib/params";
 
@@ -31,6 +34,24 @@ export function documentUrl(documentId: string, disposition: "inline" | "attachm
 }
 
 const ORDER_MIME = "application/pdf";
+
+/** Decision 11: the reading of one order (the date in bold, its words, the court's sentence under "What the order says"). */
+export function OrderReading({ order }: { order: { next_date_status?: string | null; next_date_found?: string | null; next_date_phrase?: string | null } }) {
+  const reading = readingLabel(order);
+  if (!reading) return <span className="muted">—</span>;
+  return (
+    <div>
+      {reading.date ? <strong>{reading.date}</strong> : null}
+      {reading.date ? <div className="muted">{reading.words}</div> : <span>{reading.words}</span>}
+      {order.next_date_phrase ? (
+        <details>
+          <summary>{T.nd.says}</summary>
+          <p>{T.nd.quoted(order.next_date_phrase)}</p>
+        </details>
+      ) : null}
+    </div>
+  );
+}
 
 export function fileState(status: string): string {
   if (status === "stored") return "";
@@ -64,6 +85,7 @@ export function Orders({ caseRef }: { caseRef: string }) {
                   <th scope="col">{T.case.kind}</th>
                   <th scope="col">{T.case.judge}</th>
                   <th scope="col">{T.case.fileStatus}</th>
+                  <th scope="col">{T.nd.readCol}</th>
                 </tr>
               </thead>
               <tbody>
@@ -93,6 +115,9 @@ export function Orders({ caseRef }: { caseRef: string }) {
                       ) : (
                         <span className="muted">{fileState(o.download_status)}</span>
                       )}
+                    </td>
+                    <td>
+                      <OrderReading order={o} />
                     </td>
                   </tr>
                 ))}

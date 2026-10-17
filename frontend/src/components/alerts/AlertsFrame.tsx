@@ -1,8 +1,9 @@
 "use client";
 
 /**
- * "Alerts & calendar" (design portal-files-alerts, decisions 1 and 13; plan §5.5): two tabs of one frame, the alert
- * list (`/alerts`) and the hearing calendar (`/alerts/calendar`). The "Alerts" tab is current only on `/alerts`
+ * "Alerts & calendar" (design portal-files-alerts, decisions 1 and 13; plan §5.5): tabs of one frame, the alert
+ * list (`/alerts`), the hearing calendar (`/alerts/calendar`) and, with `next_dates.review`, "Next dates to confirm"
+ * (`/alerts/next-dates`, design portal-next-dates, decision 1). The "Alerts" tab is current only on `/alerts`
  * itself. A login with no readable tab sees the neutral not-found text.
  */
 import { usePathname } from "next/navigation";

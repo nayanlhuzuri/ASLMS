@@ -7,6 +7,8 @@ functions alone whether the caller holds the file, works on the case or may set 
   file (`custody.holder_membership_id`), else `"permanent"` — the choice `notes.add_note` makes.
 - `upload`: a membership with a working basis holding `documents.upload` (the rule of `documents.upload`).
 - `set_stage`: the case is owned and a membership with a working basis holds `stages.set`.
+- `next_dates`: the case is owned and a membership with a working basis holds `next_dates.review` — the rule
+  `next_dates._check_write` runs before every confirm, reject and enter (design `portal-next-dates`, decision 3).
 
 Reading only: no lock, no write, no audit row."""
 
@@ -36,4 +38,7 @@ def available(session: Session, user: User | Member, case: Case) -> dict[str, An
             note_mode = "draft" if holds else "permanent"
     upload = acting_member_for_case(session, user, case, Permission.DOCUMENTS_UPLOAD) is not None
     set_stage = owned and acting_member_for_case(session, user, case, Permission.STAGES_SET) is not None
-    return {"note_mode": note_mode, "upload": upload, "set_stage": set_stage}
+    next_dates = (
+        owned and acting_member_for_case(session, user, case, Permission.NEXT_DATES_REVIEW) is not None
+    )
+    return {"note_mode": note_mode, "upload": upload, "set_stage": set_stage, "next_dates": next_dates}
