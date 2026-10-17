@@ -148,6 +148,8 @@ OWNERSHIP_EVENTS = (
     EventType.OWNERSHIP_RELEASED,
     EventType.CUSTODY_MOVED,
     EventType.STAGE_SET,
+    EventType.NEXT_DATE_REVIEWED,  # design next-date-extraction, decision 14: shown to every reader of the case
+    EventType.NEXT_DATE_ENTERED,
 )
 # shown to the department named in the payload (`office_code`, `from_office_code`, `to_office_code`) and to
 # State-wide readers; `alert_raised` (design alerts-notifications, decision 15) carries the office addressed
@@ -376,6 +378,19 @@ def overview(session: Session, user: User, case: Case) -> dict[str, Any]:
         "merged_into_ref_no": merged_into.ref_no if merged_into else None,
         "counts": _counts(session, user, case),
         "workflow": workflow_actions.available(session, user, case),
+        **_next_date_block(session, user, case),
+    }
+
+
+def _next_date_block(session: Session, user: User, case: Case) -> dict[str, Any]:
+    """Design next-date-extraction, decision 18: the next date from orders (decision 9's row with its order and
+    phrase) and the case's review items the caller may act on."""
+    from aslms.services import next_dates
+
+    row = next_dates.effective_for_case(session, case)
+    return {
+        "next_date_from_orders": next_dates.next_date_out(session, row) if row is not None else None,
+        "next_dates_to_review": next_dates.to_review_for_case(session, user, case),
     }
 
 
@@ -444,6 +459,10 @@ def orders(session: Session, user: User, case: Case, *, limit=None, offset=None)
                 "document_id": o.document_id,
                 "text_status": _value(d.text_status) if d else None,
                 "page_count": d.page_count if d else None,
+                "next_date_status": _value(o.next_date_status),
+                "next_date_found": o.next_date_found,
+                "next_date_rule": o.next_date_rule,
+                "next_date_phrase": o.next_date_phrase,
             }
             for o, d in rows
         ],

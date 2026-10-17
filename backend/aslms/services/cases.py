@@ -720,6 +720,7 @@ def apply_dossier(session: Session, case: Case, data: dict[str, Any]) -> ApplyRe
     session.flush()
     refresh_search_vector(session, [case.id])
     _attach_watchlist_and_score(session, case)
+    _match_next_dates(session, case)
     return ApplyReport(case.id, case.cnr, changed=new or bool(counts), snapshot_new=new, counts=counts)
 
 
@@ -752,6 +753,17 @@ def _attach_watchlist_and_score(session: Session, case: Case) -> None:
     matching.score_cases(session, [case.id], origin=matching.origin_for_dossier(case))
 
 
+def _match_next_dates(session: Session, case: Case) -> None:
+    """The court's next date for the case may have changed: pending next dates read from its orders that it now
+    matches become firm (design `next-date-extraction`, the owner's second decision of 17 Oct 2026, point 2). Never
+    raises: a failure is recorded and the reader run matches again."""
+    if case.next_hearing_date is None:
+        return
+    from aslms.services import next_dates
+
+    next_dates.match_after_court_change(session, [case.id])
+
+
 STATUS_WATCH = (
     "next_hearing_date",
     "last_hearing_date",
@@ -777,6 +789,8 @@ def apply_status(session: Session, case: Case, block: dict[str, Any]) -> ApplyRe
     if changes:
         case.dossier_stale = True
     session.flush()
+    if "next_hearing_date" in changes:
+        _match_next_dates(session, case)
     return ApplyReport(case.id, case.cnr, changed=bool(changes), snapshot_new=new, status_changes=changes)
 
 

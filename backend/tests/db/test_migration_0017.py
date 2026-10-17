@@ -17,7 +17,7 @@ from aslms.db.base import Base
 from aslms.domain.ops import FetchKind, FetchLane
 from aslms.services import queue
 from aslms.services.seed import seed_all
-from tests.db.conftest import alembic_config, wipe, wipe_if_migrated
+from tests.db.conftest import alembic_config, head_revision, wipe, wipe_if_migrated
 
 
 def _tables(engine) -> set[str]:
@@ -87,7 +87,9 @@ def test_0017_upgrade_and_downgrade(db_url, engine):
         with pytest.raises(RuntimeError, match="party_search"):
             command.downgrade(cfg, "0016")
         with engine.connect() as conn:
-            assert conn.execute(sa.text("select version_num from alembic_version")).scalar() == "0017"
+            assert (
+                conn.execute(sa.text("select version_num from alembic_version")).scalar() == head_revision()
+            )
         with engine.begin() as conn:
             conn.execute(sa.text("update fetch_queue set status = 'done' where kind = 'party_search'"))
         command.downgrade(cfg, "0016")

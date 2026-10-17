@@ -11,7 +11,10 @@ each writes a `job_runs` row with its counters; nothing here calls NAPIX. `sourc
 sends due court orders and court filings to SourceTrace (design sourcetrace-connector, decisions 14-15): while
 the connector is `disabled` or `not_implemented` it returns at once, sends nothing and writes no `job_runs` row.
 `dedupe-sweep` (03:00 IST) runs the duplicate rules over every case (design data-load-console, decision 16) and
-writes a `job_runs` row with `{merged, needs_review, court_linked}`; it makes no NAPIX call.
+writes a `job_runs` row with `{merged, needs_review, court_linked}`; it makes no NAPIX call. `next-dates-read` (every 5
+minutes, two minutes after `extract-text`) reads the next-date direction of newly stored orders by rule, in batches
+of `NEXT_DATE_BATCH`, and writes a `job_runs` row `next_dates_read` (design next-date-extraction); no NAPIX or
+SourceTrace call.
 Run: `celery -A aslms.jobs.celery_app worker -B --concurrency 1` (the Compose `scheduler` service)."""
 
 from __future__ import annotations
@@ -31,6 +34,7 @@ from aslms.services import (
     alerts,
     case_dedupe,
     matching,
+    next_dates,
     notifications,
     schedules,
     sourcetrace_ingest,
@@ -58,6 +62,7 @@ app.conf.update(
         },
         "rescore-dirty": {"task": "aslms.rescore_if_dirty", "schedule": crontab(minute="*/15")},
         "extract-text": {"task": "aslms.extract_pending_text", "schedule": crontab(minute="*/5")},
+        "next-dates-read": {"task": "aslms.next_dates_read", "schedule": crontab(minute="2-59/5")},
         "alerts-scan-events": {"task": "aslms.alerts_scan_events", "schedule": crontab(minute="*/5")},
         "alerts-sweep-dates": {"task": "aslms.alerts_sweep_dates", "schedule": crontab(minute=10)},
         "notifications-send": {"task": "aslms.notifications_send", "schedule": crontab(minute="*/2")},
@@ -133,6 +138,14 @@ def extract_pending_text() -> dict:
         run.status = JobStatus.PARTIAL if counters.get("failed") else JobStatus.SUCCEEDED
         run.finished_at = datetime.now(UTC)
         return counters
+
+
+@app.task(name="aslms.next_dates_read")
+def next_dates_read() -> dict:
+    """Next dates read from stored orders (design next-date-extraction, "Jobs"): one `job_runs` row, `partial` when an
+    order failed (recorded in `source_failures`, kind `next_date_read`)."""
+    with session_scope() as s:
+        return next_dates.run_job(s, cfg=next_dates.NextDateConfig.from_settings(settings))
 
 
 @app.task(name="aslms.extract_document_text")

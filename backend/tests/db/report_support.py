@@ -6,7 +6,7 @@ counter for the "writes nothing" checks."""
 from __future__ import annotations
 
 import uuid
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
@@ -158,7 +158,16 @@ def next_date(
     needs_review: bool = True,
 ) -> NextDate:
     nd = NextDate(
-        case_id=case.id, next_date=on, source=source, needs_review=needs_review, review_status=review
+        case_id=case.id,
+        next_date=on,
+        source=source,
+        needs_review=needs_review,
+        review_status=review,
+        # the CHECKs of next-date-extraction (migration 0018): a manual row has its NXT ref, a decided row its time
+        ref_no=f"ASLMS/EDU/NXT/2026/{uuid.uuid4().int % 1_000_000:06d}"
+        if source == NextDateSource.MANUAL
+        else None,
+        reviewed_at=datetime.now(UTC) if review in (ReviewStatus.CONFIRMED, ReviewStatus.REJECTED) else None,
     )
     s.add(nd)
     s.flush()

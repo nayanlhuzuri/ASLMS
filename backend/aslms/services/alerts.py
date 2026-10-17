@@ -14,6 +14,9 @@ reading side with the visibility rule applied in SQL.
   the sweep raises one `workflow_due:<leg id>` alert per current leg due within `REQUEST_DUE_SOON_DAYS`
   (`high`) or overdue (`critical`) to the holder and the owning department's `custody.track` holders, closed
   `done` when the leg changes. The request alerts are retired.
+- Next dates (design `next-date-extraction`, decision 13): a `next_date_extracted` event that is a review item raises
+  one `next_date_review:<order_id>` alert for a claimed case with a recent order (`high` when the date is within the
+  hearing look-ahead); the review actions close it, the sweep expires it once the order has no queue item.
 - `raise_alert` is idempotent through `alerts.dedupe_key` (a number is allocated only for a new key); a
   higher severity notifies the recipients again. Every new alert emits one scoped `alert_raised` event.
 - `acknowledge` / `mark_done` need `alerts.acknowledge` and a recipient or working relation; each writes an
@@ -102,6 +105,7 @@ HANDLED_EVENTS = OWNERSHIP_EVENTS | {
     EventType.RECOMMENDATION_MADE,
     EventType.DOCUMENT_UPLOADED,
     EventType.CUSTODY_MOVED,
+    EventType.NEXT_DATE_EXTRACTED,  # design next-date-extraction, decision 13: review items only
 }
 RECEIVED_REASONS = frozenset({"sent", "reassigned_on_exit"})
 TAKEN_REASONS = frozenset({"recalled", "allotted", "taken_over", "transferred"})
@@ -122,6 +126,7 @@ class AlertConfig:
     compliance_expire_days: int = 30
     compliance_window_days: int = 7
     request_due_soon_days: int = 2
+    next_date_unclear_days: int = 30  # design next-date-extraction: how long an unclear order asks for a date
 
     @classmethod
     def from_settings(cls, s: Settings) -> AlertConfig:
@@ -134,7 +139,15 @@ class AlertConfig:
             info_expire_days=s.alert_info_expire_days,
             compliance_expire_days=s.alert_compliance_expire_days,
             request_due_soon_days=s.request_due_soon_days,
+            next_date_unclear_days=s.next_date_unclear_days,
         )
+
+    def next_dates(self):
+        from dataclasses import replace
+
+        from aslms.services.next_dates import NextDateConfig
+
+        return replace(NextDateConfig.from_settings(), unclear_days=self.next_date_unclear_days)
 
 
 class AlertError(ValueError):
@@ -614,6 +627,19 @@ def _handle_event(
         )
     elif kind_of_event == EventType.CUSTODY_MOVED:
         _workflow_event(session, resolver, ev, case, p, today=today, cfg=cfg, now=now, counters=counters)
+    elif kind_of_event == EventType.NEXT_DATE_EXTRACTED:
+        _next_date_event(
+            session,
+            defaults,
+            ev,
+            case,
+            p,
+            today=today,
+            cfg=cfg,
+            now=now,
+            counters=counters,
+            recipients=case_recipients(),
+        )
     else:
         counters["skipped_other"] += 1
 
@@ -726,6 +752,70 @@ def _workflow_event(
         counters["skipped_other"] += 1
 
 
+def _next_date_event(
+    session: Session,
+    defaults: dict[AlertKind, Severity],
+    ev: Event,
+    case: Case,
+    p: dict[str, Any],
+    *,
+    today: date,
+    cfg: AlertConfig,
+    now: datetime,
+    counters: dict[str, Any],
+    recipients: Callable[[], list[User]],
+) -> None:
+    """Design next-date-extraction, decision 13: a `next_date_extracted` event that is a review item (a date to
+    confirm or an order to enter a date for) raises one `next_date_review:<order_id>` alert for a claimed case whose
+    order is recent; `high` when the date is within the hearing look-ahead."""
+    from aslms.domain.alerts import NextDate, NextDateSource
+    from aslms.services import next_dates
+
+    if not p.get("review"):
+        counters["skipped_other"] += 1
+        return
+    order_date = _date(p.get("order_date"))
+    if not rules.is_recent(order_date, today, cfg.event_max_age_days):
+        counters["skipped_old"] += 1
+        return
+    office = owning_office(session, case)
+    if office is None:
+        counters["skipped_unowned"] += 1
+        return
+    order_id = _uuid(p.get("order_id"))
+    if order_id is None or not next_dates.order_has_item(
+        session, order_id, today=today, cfg=cfg.next_dates()
+    ):
+        counters["skipped_other"] += 1
+        return
+    order = session.get(Order, order_id)
+    row = session.get(NextDate, _uuid(p.get("next_date_id"))) if p.get("next_date_id") else None
+    hearing = row.next_date if row is not None else None
+    soon = hearing is not None and today <= hearing <= today + timedelta(days=cfg.hearing_lookahead_days)
+    raise_alert(
+        session,
+        case=case,
+        kind=AlertKind.NEXT_DATE_REVIEW,
+        key=next_dates.review_alert_key(order_id),
+        office=office,
+        severity=Severity.HIGH if soon else defaults.get(AlertKind.NEXT_DATE_REVIEW, Severity.NORMAL),
+        due_at=rules.hearing_due_at(hearing, cfg.sitting_time) if hearing is not None else None,
+        data={
+            "order_id": order_id,
+            "document_id": order.document_id if order is not None else None,
+            "next_date_id": row.id if row is not None else None,
+            "hearing_date": hearing,
+            "source": NextDateSource(row.source).value if row is not None else None,
+            "order_no": p.get("order_no"),
+            "order_date": order_date,
+        },
+        source_event_id=ev.id,
+        recipients=recipients,
+        now=now,
+        counters=counters,
+    )
+
+
 def _ownership_office(session: Session, kind: EventType, p: dict[str, Any]) -> Office | None:
     """The office an ownership alert is addressed to (decision 13)."""
     from aslms.services.offices import find_office
@@ -768,6 +858,7 @@ def sweep_dates(
         "closed_recommendation": 0,
         "closed_workflow": 0,
         "closed_compliance": 0,
+        "closed_next_date": 0,
     }
     run = _start_run(session, JOB_DATES, now, counters)
     resolver = Resolver(session)
@@ -943,6 +1034,19 @@ def sweep_dates(
             )
             close_alert(session, a, AlertStatus.DONE, reason, now=now)
             counters["closed_recommendation"] += 1
+
+    # next dates to review whose order has no queue item left (design next-date-extraction, decision 13)
+    from aslms.services import next_dates
+
+    nd_cfg = cfg.next_dates()
+    for a in _open_alerts(session, AlertKind.NEXT_DATE_REVIEW):
+        order_id = _uuid((a.data or {}).get("order_id"))
+        if order_id is None or not next_dates.order_has_item(session, order_id, today=today, cfg=nd_cfg):
+            if next_dates.matched_by_court(session, (a.data or {}).get("next_date_id")):
+                close_alert(session, a, AlertStatus.DONE, "matched", now=now)  # the court's date agreed
+            else:
+                close_alert(session, a, AlertStatus.EXPIRED, "no_review_item", now=now)
+            counters["closed_next_date"] += 1
 
     # informational alerts past their age (decision 15)
     aged = session.scalars(

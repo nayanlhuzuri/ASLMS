@@ -115,6 +115,7 @@ class AlertKind(enum.StrEnum):
     WORKFLOW = (
         "workflow"  # file received, file recalled, due / overdue (design custody-workflow, decision 23)
     )
+    NEXT_DATE_REVIEW = "next_date_review"  # a next date to confirm or enter (design next-date-extraction)
 
 
 class EventType(enum.StrEnum):
@@ -152,6 +153,8 @@ class EventType(enum.StrEnum):
     ACCESS_CHANGED = "access_changed"
     CASE_TAKEN_OVER = "case_taken_over"
     CASE_MERGED = "case_merged"  # a provisional row merged into the row holding its CNR (data-load-console)
+    NEXT_DATE_REVIEWED = "next_date_reviewed"  # confirm / reject of a read next date (next-date-extraction)
+    NEXT_DATE_ENTERED = "next_date_entered"  # a manual next date (`NXT`) entered (next-date-extraction)
 
 
 class Permission(enum.StrEnum):

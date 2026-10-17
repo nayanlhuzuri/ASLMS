@@ -1,7 +1,9 @@
 """The hearing calendar (design `alerts-notifications`, decisions 6 and 20). A case's hearing dates are the
 union of `cases.next_hearing_date`, its listings in cause lists (`causelist_entries` → `causelists.list_date`)
-and its latest `next_dates` row of source `manual`, `order_specific` or `order_period` whose review status is
-`not_needed` or `confirmed`. `hearing_rows` is shared by the date sweep (owned cases) and
+and its next date from orders: the latest `next_dates` row (by `created_at`, then `id`) of source `manual`,
+`order_specific` or `order_period` among `not_needed`, `pending` and `confirmed`, used only when it is not `pending`
+(design `next-date-extraction`, decision 9: a newer order's date awaiting review stops an older one from alerting;
+a rejected or closed row falls back to the earlier one). `hearing_rows` is shared by the date sweep (owned cases) and
 `calendar_for_user` (the caller's working cases, or one department's owned cases for a State-wide reader);
 one row per (case, date), the cause-list listing preferred because it names the court and the item."""
 
@@ -30,7 +32,7 @@ MAX_RANGE_DAYS = 62
 DEFAULT_RANGE_DAYS = 7
 SOURCE_RANK = {"causelist": 0, "next_date": 1, "current_status": 2}
 NEXT_DATE_SOURCES = (NextDateSource.MANUAL, NextDateSource.ORDER_SPECIFIC, NextDateSource.ORDER_PERIOD)
-NEXT_DATE_REVIEW = (ReviewStatus.NOT_NEEDED, ReviewStatus.CONFIRMED)
+NEXT_DATE_OPEN = (ReviewStatus.NOT_NEEDED, ReviewStatus.PENDING, ReviewStatus.CONFIRMED)
 
 
 class CalendarError(ValueError):
@@ -102,8 +104,8 @@ def hearing_rows(
             )
         )
     latest = (
-        select(NextDate.case_id, NextDate.next_date)
-        .where(NextDate.source.in_(NEXT_DATE_SOURCES), NextDate.review_status.in_(NEXT_DATE_REVIEW))
+        select(NextDate.case_id, NextDate.next_date, NextDate.review_status)
+        .where(NextDate.source.in_(NEXT_DATE_SOURCES), NextDate.review_status.in_(NEXT_DATE_OPEN))
         .ext(distinct_on(NextDate.case_id))
         .order_by(NextDate.case_id, NextDate.created_at.desc(), NextDate.id.desc())
         .subquery()
@@ -111,7 +113,12 @@ def hearing_rows(
     for case_id, d in session.execute(
         select(latest.c.case_id, latest.c.next_date)
         .join(Case, Case.id == latest.c.case_id)
-        .where(latest.c.next_date.between(from_, to), live, case_condition)
+        .where(
+            latest.c.next_date.between(from_, to),
+            latest.c.review_status != ReviewStatus.PENDING,
+            live,
+            case_condition,
+        )
     ).all():
         keep(HearingRow(case_id, d, "next_date"))
     return sorted(found.values(), key=lambda r: (r.date, str(r.case_id)))

@@ -37,7 +37,7 @@ from aslms.domain.ownership import (
 )
 from aslms.domain.reference import AlertKind, Permission, Role
 from aslms.domain.workflow import CaseNoteDraft, Custody, PendingAction
-from aslms.services import access, alerts, calendar, custody, inbox, visibility
+from aslms.services import access, alerts, calendar, custody, inbox, next_dates, visibility
 from aslms.services.access import Forbidden, Member
 from aslms.services.offices import find_office
 from aslms.services.reporting_common import (
@@ -445,23 +445,16 @@ def department_block(
     )
     to_review = None
     if review:
-        to_review = int(
-            session.scalar(
-                select(func.count())
-                .select_from(NextDate)
-                .where(
-                    NextDate.needs_review.is_(True),
-                    NextDate.review_status == ReviewStatus.PENDING,
-                    primary_owned_condition(department, NextDate.case_id),
-                )
-            )
-            or 0
+        # design next-date-extraction, decision 18: both kinds of queue item of the department's claimed cases
+        to_review = next_dates.queue_count(
+            session, department, today=today, cfg=next_dates.NextDateConfig.from_settings()
         )
     recent = session.execute(
         select(NextDate, Case)
         .join(Case, Case.id == NextDate.case_id)
         .where(
             NextDate.source.in_(ORDER_SOURCES),
+            NextDate.review_status.not_in(list(next_dates.CLOSED_REVIEW)),
             NextDate.created_at >= now - timedelta(days=RECENT_ORDER_DAYS),
             primary_owned_condition(department, NextDate.case_id),
             visibility.visible_case_condition(session, user),

@@ -93,7 +93,10 @@ PERMISSION_LABELS: dict[P, tuple[str, str]] = {
     P.DOCUMENTS_VIEW: ("View documents", "Open documents, subject to their visibility"),
     P.DOCUMENTS_DOWNLOAD: ("Download documents", "Download documents, subject to their visibility"),
     P.ALERTS_ACKNOWLEDGE: ("Acknowledge alerts", "Acknowledge and close alerts"),
-    P.NEXT_DATES_REVIEW: ("Review next dates", "Confirm or reject extracted next dates"),
+    P.NEXT_DATES_REVIEW: (
+        "Review next dates",
+        "Confirm or reject next dates read from orders, and enter next dates by hand",
+    ),
     P.REPORTS_DEPARTMENT: ("Department reports", "Reports for the user's department"),
     P.REPORTS_STATE: ("State reports", "Reports across all departments"),
     P.DASHBOARD_STATE: ("State dashboard", "State-level dashboards"),

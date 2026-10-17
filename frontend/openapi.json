@@ -1999,6 +1999,21 @@
             ],
             "title": "Merged Into Ref No"
           },
+          "next_date_from_orders": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NextDateOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "next_dates_to_review": {
+            "default": 0,
+            "title": "Next Dates To Review",
+            "type": "integer"
+          },
           "objections": {
             "items": {
               "$ref": "#/components/schemas/ObjectionOut"
@@ -2313,6 +2328,148 @@
           "sr_no"
         ],
         "title": "CaseLastListingOut",
+        "type": "object"
+      },
+      "CaseNextDateListOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CaseNextDateOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "CaseNextDateListOut",
+        "type": "object"
+      },
+      "CaseNextDateOut": {
+        "properties": {
+          "confidence": {
+            "title": "Confidence",
+            "type": "number"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NextDatePersonOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "effective": {
+            "title": "Effective",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "needs_review": {
+            "title": "Needs Review",
+            "type": "boolean"
+          },
+          "next_date": {
+            "format": "date",
+            "title": "Next Date",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "order": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NextDateOrderOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ref_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref No"
+          },
+          "review_status": {
+            "title": "Review Status",
+            "type": "string"
+          },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed At"
+          },
+          "reviewed_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NextDatePersonOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "ref_no",
+          "next_date",
+          "source",
+          "confidence",
+          "needs_review",
+          "review_status",
+          "order",
+          "note",
+          "reviewed_by",
+          "reviewed_at",
+          "created_by",
+          "created_at",
+          "effective"
+        ],
+        "title": "CaseNextDateOut",
         "type": "object"
       },
       "CaseOwnershipCompactOut": {
@@ -11740,6 +11897,509 @@
         "title": "NapixWindowOut",
         "type": "object"
       },
+      "NextDateCaseOut": {
+        "properties": {
+          "case_no_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Case No Text"
+          },
+          "cnr": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cnr"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "ref_no": {
+            "title": "Ref No",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "ref_no",
+          "cnr",
+          "case_no_text"
+        ],
+        "title": "NextDateCaseOut",
+        "type": "object"
+      },
+      "NextDateConfirmIn": {
+        "additionalProperties": false,
+        "properties": {},
+        "title": "NextDateConfirmIn",
+        "type": "object"
+      },
+      "NextDateEnterIn": {
+        "additionalProperties": false,
+        "properties": {
+          "next_date": {
+            "format": "date",
+            "title": "Next Date",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "shown to everyone who can see the case: no internal remarks",
+            "title": "Note"
+          },
+          "order": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "an order of the case the date answers",
+            "title": "Order"
+          }
+        },
+        "required": [
+          "next_date"
+        ],
+        "title": "NextDateEnterIn",
+        "type": "object"
+      },
+      "NextDateOrderOut": {
+        "properties": {
+          "document_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Id"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "order_date": {
+            "format": "date",
+            "title": "Order Date",
+            "type": "string"
+          },
+          "order_no": {
+            "title": "Order No",
+            "type": "string"
+          },
+          "phrase": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phrase"
+          },
+          "rule": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule"
+          }
+        },
+        "required": [
+          "id",
+          "order_no",
+          "order_date",
+          "document_id"
+        ],
+        "title": "NextDateOrderOut",
+        "type": "object"
+      },
+      "NextDateOut": {
+        "description": "A next date (design `next-date-extraction`): read from an order, entered by hand (`NXT`), or from the court's\ncurrent status. The note is shown to every reader of the case.",
+        "properties": {
+          "confidence": {
+            "title": "Confidence",
+            "type": "number"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NextDatePersonOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "needs_review": {
+            "title": "Needs Review",
+            "type": "boolean"
+          },
+          "next_date": {
+            "format": "date",
+            "title": "Next Date",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "order": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NextDateOrderOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ref_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref No"
+          },
+          "review_status": {
+            "title": "Review Status",
+            "type": "string"
+          },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed At"
+          },
+          "reviewed_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NextDatePersonOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "ref_no",
+          "next_date",
+          "source",
+          "confidence",
+          "needs_review",
+          "review_status",
+          "order",
+          "note",
+          "reviewed_by",
+          "reviewed_at",
+          "created_by",
+          "created_at"
+        ],
+        "title": "NextDateOut",
+        "type": "object"
+      },
+      "NextDatePersonOut": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "NextDatePersonOut",
+        "type": "object"
+      },
+      "NextDateRejectIn": {
+        "additionalProperties": false,
+        "properties": {
+          "next_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the correct date, entered as a manual next date (NXT)",
+            "title": "Next Date"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "title": "NextDateRejectIn",
+        "type": "object"
+      },
+      "NextDateRejectOut": {
+        "properties": {
+          "entered": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NextDateOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rejected": {
+            "$ref": "#/components/schemas/NextDateOut"
+          }
+        },
+        "required": [
+          "rejected",
+          "entered"
+        ],
+        "title": "NextDateRejectOut",
+        "type": "object"
+      },
+      "NextDateReviewItemOut": {
+        "properties": {
+          "act_by": {
+            "format": "date",
+            "title": "Act By",
+            "type": "string"
+          },
+          "alert_ref_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alert Ref No"
+          },
+          "case": {
+            "$ref": "#/components/schemas/NextDateCaseOut"
+          },
+          "departments": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Departments",
+            "type": "array"
+          },
+          "id": {
+            "description": "the next date id for `confirm`, the order id for `enter`",
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "confirm",
+              "enter"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "next_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Date"
+          },
+          "order": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NextDateReviewOrderOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "phrase": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phrase"
+          },
+          "rule": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "case",
+          "order",
+          "phrase",
+          "rule",
+          "next_date",
+          "act_by",
+          "alert_ref_no",
+          "departments"
+        ],
+        "title": "NextDateReviewItemOut",
+        "type": "object"
+      },
+      "NextDateReviewListOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/NextDateReviewItemOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "NextDateReviewListOut",
+        "type": "object"
+      },
+      "NextDateReviewOrderOut": {
+        "properties": {
+          "document_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Id"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "order_date": {
+            "format": "date",
+            "title": "Order Date",
+            "type": "string"
+          },
+          "order_no": {
+            "title": "Order No",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "order_no",
+          "order_date",
+          "document_id"
+        ],
+        "title": "NextDateReviewOrderOut",
+        "type": "object"
+      },
       "NoteAttachmentOut": {
         "properties": {
           "doc_type": {
@@ -12633,6 +13293,51 @@
           "kind": {
             "title": "Kind",
             "type": "string"
+          },
+          "next_date_found": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Date Found"
+          },
+          "next_date_phrase": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Date Phrase"
+          },
+          "next_date_rule": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Date Rule"
+          },
+          "next_date_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Date Status"
           },
           "order_date": {
             "format": "date",
@@ -28443,6 +29148,210 @@
         ]
       }
     },
+    "/cases/{ref}/next-dates": {
+      "get": {
+        "description": "Every next date of the case (court status, orders, manual), newest first; `effective` marks the next date\nfrom orders that drives the calendar.",
+        "operationId": "case_next_dates_cases__ref__next_dates_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseNextDateListOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Case Next Dates",
+        "tags": [
+          "next-dates"
+        ]
+      },
+      "post": {
+        "description": "Enter the next date of a claimed case you work on (today up to about 18 months ahead). The note is shown to\neveryone who can see the case.",
+        "operationId": "enter_cases__ref__next_dates_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NextDateEnterIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NextDateOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Enter",
+        "tags": [
+          "next-dates"
+        ]
+      }
+    },
     "/cases/{ref}/notes": {
       "get": {
         "description": "The notes trail by `seq_no`, each note passed through the note visibility rule; drafts never listed.",
@@ -33070,6 +33979,528 @@
         "summary": "Confirm Profile",
         "tags": [
           "auth"
+        ]
+      }
+    },
+    "/next-dates/review": {
+      "get": {
+        "description": "Next dates to confirm and orders to enter a date for, on claimed cases where one of your memberships holding\n`next_dates.review` works on the case; sorted by the date to act by, then the case.",
+        "operationId": "review_queue_next_dates_review_get",
+        "parameters": [
+          {
+            "description": "confirm or enter",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "confirm or enter",
+              "title": "Kind"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Words as the Search box (at least 3 characters): a CNR, a case number (`WP(C) 4326/2025`), a `ref_no`, or words matched as prefixes over parties, advocates, counsel codes and numbers",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Words as the Search box (at least 3 characters): a CNR, a case number (`WP(C) 4326/2025`), a `ref_no`, or words matched as prefixes over parties, advocates, counsel codes and numbers",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "The department holding the active primary ownership (a department code)",
+            "in": "query",
+            "name": "owner",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The department holding the active primary ownership (a department code)",
+              "title": "Owner"
+            }
+          },
+          {
+            "description": "A cause-list entry of the case dated on or after this day (IST)",
+            "in": "query",
+            "name": "listed_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A cause-list entry of the case dated on or after this day (IST)",
+              "title": "Listed From"
+            }
+          },
+          {
+            "description": "A cause-list entry of the case dated on or before this day",
+            "in": "query",
+            "name": "listed_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A cause-list entry of the case dated on or before this day",
+              "title": "Listed To"
+            }
+          },
+          {
+            "description": "That same entry's court number, as printed",
+            "in": "query",
+            "name": "court_no",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "That same entry's court number, as printed",
+              "title": "Court No"
+            }
+          },
+          {
+            "description": "That same entry's bench (judge names) contains this text (case and spacing ignored)",
+            "in": "query",
+            "name": "bench",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "That same entry's bench (judge names) contains this text (case and spacing ignored)",
+              "title": "Bench"
+            }
+          },
+          {
+            "description": "Next hearing date on or after this day",
+            "in": "query",
+            "name": "next_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Next hearing date on or after this day",
+              "title": "Next From"
+            }
+          },
+          {
+            "description": "Next hearing date on or before this day",
+            "in": "query",
+            "name": "next_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Next hearing date on or before this day",
+              "title": "Next To"
+            }
+          },
+          {
+            "description": "The case type: the master's short name or an alias, or the case's type text",
+            "in": "query",
+            "name": "case_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The case type: the master's short name or an alias, or the case's type text",
+              "title": "Case Type"
+            }
+          },
+          {
+            "description": "Registration year (1900-2100)",
+            "in": "query",
+            "name": "year",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Registration year (1900-2100)",
+              "title": "Year"
+            }
+          },
+          {
+            "description": "pending, disposed or unknown",
+            "in": "query",
+            "name": "case_status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "pending, disposed or unknown",
+              "title": "Case Status"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NextDateReviewListOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Review Queue",
+        "tags": [
+          "next-dates"
+        ]
+      }
+    },
+    "/next-dates/{id}/confirm": {
+      "post": {
+        "description": "Confirm a next date read from an order: it then feeds the calendar and the hearing alerts.",
+        "operationId": "confirm_next_dates__id__confirm_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/NextDateConfirmIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NextDateOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Confirm",
+        "tags": [
+          "next-dates"
+        ]
+      }
+    },
+    "/next-dates/{id}/reject": {
+      "post": {
+        "description": "Reject a next date read from an order, optionally giving the correct date (entered as a manual date).",
+        "operationId": "reject_next_dates__id__reject_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NextDateRejectIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NextDateRejectOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Reject",
+        "tags": [
+          "next-dates"
         ]
       }
     },

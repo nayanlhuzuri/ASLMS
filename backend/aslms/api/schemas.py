@@ -975,6 +975,106 @@ class CaseWorkflowActionsOut(BaseModel):
     set_stage: bool
 
 
+# ------------------------------------------------------------------------------------------------ next dates
+
+
+class NextDateOrderOut(BaseModel):
+    id: uuid.UUID
+    order_no: str
+    order_date: date
+    document_id: uuid.UUID | None
+    phrase: str | None = None
+    rule: str | None = None
+
+
+class NextDatePersonOut(BaseModel):
+    name: str | None
+
+
+class NextDateOut(BaseModel):
+    """A next date (design `next-date-extraction`): read from an order, entered by hand (`NXT`), or from the court's
+    current status. The note is shown to every reader of the case."""
+
+    id: uuid.UUID
+    ref_no: str | None
+    next_date: date
+    source: str
+    confidence: float
+    needs_review: bool
+    review_status: str
+    order: NextDateOrderOut | None
+    note: str | None
+    reviewed_by: NextDatePersonOut | None
+    reviewed_at: datetime | None
+    created_by: NextDatePersonOut | None
+    created_at: datetime
+
+
+class CaseNextDateOut(NextDateOut):
+    effective: bool
+
+
+class CaseNextDateListOut(BaseModel):
+    items: list[CaseNextDateOut]
+    total: int
+
+
+class NextDateReviewOrderOut(BaseModel):
+    id: uuid.UUID
+    order_no: str
+    order_date: date
+    document_id: uuid.UUID | None
+
+
+class NextDateCaseOut(BaseModel):
+    id: uuid.UUID
+    ref_no: str
+    cnr: str | None
+    case_no_text: str | None
+
+
+class NextDateReviewItemOut(BaseModel):
+    kind: Literal["confirm", "enter"]
+    id: uuid.UUID = Field(description="the next date id for `confirm`, the order id for `enter`")
+    case: NextDateCaseOut
+    order: NextDateReviewOrderOut | None
+    phrase: str | None
+    rule: str | None
+    next_date: date | None
+    act_by: date
+    alert_ref_no: str | None
+    departments: list[str]
+
+
+class NextDateReviewListOut(BaseModel):
+    items: list[NextDateReviewItemOut]
+    total: int
+
+
+class NextDateConfirmIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class NextDateRejectIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    note: str | None = Field(None, max_length=300)
+    next_date: date | None = Field(None, description="the correct date, entered as a manual next date (NXT)")
+
+
+class NextDateRejectOut(BaseModel):
+    rejected: NextDateOut
+    entered: NextDateOut | None
+
+
+class NextDateEnterIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    next_date: date
+    note: str | None = Field(
+        None, max_length=300, description="shown to everyone who can see the case: no internal remarks"
+    )
+    order: uuid.UUID | None = Field(None, description="an order of the case the date answers")
+
+
 class CaseDetailOut(BaseModel):
     id: uuid.UUID
     ref_no: str
@@ -1003,6 +1103,8 @@ class CaseDetailOut(BaseModel):
     merged_into_ref_no: str | None
     counts: CaseCountsOut
     workflow: CaseWorkflowActionsOut
+    next_date_from_orders: NextDateOut | None = None
+    next_dates_to_review: int = 0
 
 
 class HearingOut(BaseModel):
@@ -1038,6 +1140,10 @@ class OrderOut(BaseModel):
     document_id: uuid.UUID | None
     text_status: str | None = None
     page_count: int | None = None
+    next_date_status: str | None = None
+    next_date_found: date | None = None
+    next_date_rule: str | None = None
+    next_date_phrase: str | None = None
 
 
 class OrderListOut(BaseModel):

@@ -53,13 +53,32 @@ class ReviewStatus(enum.StrEnum):
     PENDING = "pending"
     CONFIRMED = "confirmed"
     REJECTED = "rejected"
+    SUPERSEDED = "superseded"  # next-date-extraction: a newer order or a manual date closed the row
+    EXPIRED = "expired"  # next-date-extraction: the date passed while pending
 
 
 class NextDate(TimestampMixin, OptionalRefNoMixin, CreatedByMixin, Base):
+    """A next date of a case (design `next-date-extraction`): `current_status` rows from the tracking refresh,
+    `order_specific` / `order_period` readings of the case's current order, `manual` dates entered by a reviewer
+    (`NXT` ref on the acting office). `superseded` and `expired` are system closures of pending rows;
+    `superseded` also closes the open rows of older orders when the current order gives no usable date. Never
+    deleted; changed only by review."""
+
     __tablename__ = "next_dates"
     __table_class__ = TableClass.TRANSACTION
     __table_args__ = (
         UniqueConstraint("case_id", "next_date", "source", "order_id", postgresql_nulls_not_distinct=True),
+        CheckConstraint("(source = 'manual') = (ref_no IS NOT NULL)", name="manual_ref"),
+        CheckConstraint("review_status <> 'pending' OR needs_review", name="pending_review"),
+        CheckConstraint(
+            "review_status NOT IN ('confirmed', 'rejected') OR reviewed_at IS NOT NULL", name="reviewed"
+        ),
+        Index(
+            "ix_next_dates_pending",
+            "case_id",
+            "next_date",
+            postgresql_where=text("review_status = 'pending'"),
+        ),
     )
     id: Mapped[uuid.UUID] = uuid_pk()
     case_id: Mapped[uuid.UUID] = uuid_fk("cases.id")

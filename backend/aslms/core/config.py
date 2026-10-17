@@ -147,6 +147,15 @@ class Settings(BaseSettings):
     # automatic sweeps cover registration years from this one to the current year; older years only on request
     discovery_from_year: int = Field(2025, ge=1950)
 
+    # --- next dates from orders (design next-date-extraction, decision 20) ------------------
+    next_date_batch: int = Field(500, ge=1, le=5000)  # orders read per 5-minute `next-dates-read` run
+    next_date_unclear_days: int = Field(
+        30, ge=7, le=120
+    )  # an unclear current order asks for a date this long
+    next_date_max_ahead_days: int = Field(
+        548, ge=90, le=1095
+    )  # a read or entered date at most this far ahead
+
     @model_validator(mode="after")
     def _reserves_ordered(self) -> Settings:
         """Decision 4: searches stop first, then the daily cycle, then the load."""

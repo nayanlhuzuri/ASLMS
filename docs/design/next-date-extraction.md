@@ -8,6 +8,21 @@ date: 2026-10-16
 approved_by: owner (nayanlhuzuri) on 2026-10-17
 ```
 
+> **Owner's decision of 17 Oct 2026 (second), after the review stopped the cycle again — option B, which takes precedence over the first decision block and the note where they differ:**
+> 1. **Firm only when two sources agree.** A date read from an order is `not_needed` (feeds the calendar and alerts) **only when it equals the court's own date for the case**: the case's `cases.next_hearing_date` (NAPIX `date_next_list`) or a cause-list listing of the case (`causelist_entries` joined to `causelists.list_date`) on that date. Every other reading — a plain listing date that does not match, a date after `after / on or after / from / onwards / not before / commencing / or any date thereafter / or on any subsequent date`, a returnable date, a period — is a suggestion that a person confirms (`pending`). The text rules decide only which date to suggest and whether the reading is unclear; they no longer make anything firm on their own.
+> 2. **A suggestion becomes firm automatically when a matching court date arrives later**: when the dossier or Current Status sets `cases.next_hearing_date`, or a cause-list entry for the case is stored, equal to a pending suggestion's date, that row is closed as matched (system closure, `not_needed`-equivalent effect on the calendar, its review alert closed done) — no person needed. A match is checked when the reading is made and whenever the court's date for the case changes.
+> 3. **Periods** stay counted from the order date and confirmed by a person, unless point 2 matches them. Add the period wordings found in the review: "adjourned by N weeks/days", numbers in words up to at least thirty with bracketed digits ("after 30 (thirty) days", "after 3 (three weeks)"), "on the expiry of N weeks", "on completion of N weeks from today", "list the matter N weeks".
+> 4. Small points: confirm refuses a pending row whose date has already passed (409); unit tests for every example in the two reviews (including "is slated / likely to be listed on", "the connected case stands fixed on", negations, a counsel's prayer, the split after "No."); with point 1 these may read as suggestions rather than firm, which is acceptable.
+
+
+> **Owner's decision of 17 Oct 2026, after the review stopped the cycle (two blocking findings), replacing the note where it differs:**
+> 1. **Periods stay as designed:** "list the matter after two weeks" (and every other period) is counted from the order date and always goes to the user for confirmation (`order_period`, pending); it never drives the calendar or alerts until confirmed.
+> 2. **A date after `after`, `on or after`, `from`, `onwards`, `not before`, `week commencing` / `commencing`** (e.g. "List the matter after 15.12.2026", "List on or after 20.11.2026", "from 20.11.2026 onwards", "in the week commencing 16.11.2026", "after the vacation, i.e. after 02.01.2027") is **not** a listing date: it is read as a suggested date that **needs confirmation** (`order_specific`, confidence 0.800, review pending), like the returnable date, never `not_needed`.
+> 3. **Another matter's date, or two different dates, in the same direction** (e.g. "... since the connected appeal before the Division Bench is fixed on 20.11.2026", "as the writ appeal against the same order is fixed on 20.11.2026") reads **unclear** (enter item), whichever verb is nearest; the reported-date exclusion applies to the whole sentence, not only the verb next to the date. A period in the same sentence still wins over a reported date ("List after 3 weeks since ... fixed on 20.11.2026" is period +21 days, pending).
+> 4. **Only plain directions are firm** (`list_on_date`, 1.000, not_needed): a listing verb followed by `on`/`for` and one date with no qualifier from point 2 and no other date in the sentence ("List on 15.11.2026", "List the matter on 15.11.2026 for hearing", "Fix 20.11.2026 for hearing", "Put up on 20.11.2026", "Next date: 20.11.2026"). A clear direction the patterns miss reads `unclear` (an enter item), never `none`.
+> 5. Unit tests for every example above. Fix also the review's easy advisories in the same round: configured NEXT_DATE_UNCLEAR_DAYS everywhere (no default config); an enter item counts as answered by a manual row with `order_id` = that order even after a reread; visibility before the date and order checks (404 before 400). The remaining advisories (two orders sharing the latest order_date, a newer order without a stored document, case locks held for the whole batch) go to a follow-up row.
+
+
 ## Context
 Backlog row 26, split out of `alerts-notifications` by its decision 3: "Next dates read from stored order text by
 rule (specific dates as `order_specific`; period phrases counted from the order date and flagged for review), the
@@ -431,3 +446,201 @@ Database (`tests/db/test_next_dates_read.py`, `test_next_dates_review.py`, `test
 None. Owner checks at approval: decision 1 (portal screens as a new row `portal-next-dates`), decision 2 (rule-counted
 period hints, always reviewed, as recorded on 26 Sep), decision 5 (no rows for old orders or past dates), decision 7
 (the 30-day window for *enter* items).
+
+## Deviations
+Recorded by the developer while building (smallest reasonable choices where the note was silent):
+1. **The 500,000-character cap keeps the end of the text.** Decision 3 caps the text but does not say which part.
+   Combined PDFs in the dev database run past 500,000 characters (one of 663 pages) and their direction closes the
+   text; reading the first 500,000 lost it. The reader keeps the last 500,000 characters.
+2. **Listing verbs and directions, small additions found on the dev orders.** `re-post on|to` counts like `posted
+   on|to` ("Re-post on 15.07.2026"); "list accordingly" is a direction (an `unclear` item when no date follows). A
+   list / fix / post verb that reports a date rather than directs one is not a candidate: after `is`, `are`, `was`,
+   `were`, `been`, `already`, `now`, `scheduled`, `tentatively`, `presently`, `currently` (up to two words between:
+   "which is fixed on", "has been listed on", "is scheduled to be listed on", "is now posted on"), and a gerund
+   after "of" ("the next date of listing … is on"); "this Court is fixing the matter on" still directs. A `;`
+   between the verb and the date separates clauses ("list after 2 weeks; file the affidavit by <date>"). `returnable
+   in N weeks` is read like `returnable within N weeks`, and "after a period of N weeks" like "after N weeks". On
+   6,000 dev orders with text: 64.8% `specific`, 18.9% `period`, 9.8% `unclear`, 6.5% `none` (design expected
+   55–60% ± 5 and 17–21%).
+3. **Several period sentences in one order:** the last one in the text is used (the direction closes an order);
+   always reviewed anyway.
+4. **`next_date_read_at` is the database clock** (`now()`), the same clock as `created_at` of a manual row that the
+   *enter* rule compares it with.
+5. **A *confirm* item also needs its date to be today or later** (a pending row whose date passed is expired by the
+   next reader run in any case); the queue, the dashboard count, the case count and the alert closure use the one
+   queue query.
+6. **Reject's note stays on the rejected row;** the replacement manual row carries no note.
+7. **Alert closures:** the review actions close the case's `next_date_review` alerts whose order has no queue item
+   left, `done` with reason `confirmed`, `rejected` or `entered`; the hourly sweep closes the rest `expired` with
+   reason `no_review_item`. The alert `data` also carries `order_no` and `order_date` (for the title and body).
+   `AlertConfig` gains `next_date_unclear_days` (from `NEXT_DATE_UNCLEAR_DAYS`).
+8. **`aslms next-dates read --dry-run`** reads pending orders only (it cannot be combined with `--reread`) and prints
+   counts by status and rule plus how many rows it would write and items it would raise.
+9. **Two existing test fixtures** wrote `next_dates` rows the new CHECKs refuse (a manual row without its `NXT` ref,
+   a confirmed row without `reviewed_at`); they now write valid rows. `test_migration_0017` expects the head
+   revision after its refused downgrade (it now passes through 0018).
+10. **Not every list / fix / come-up word before a date is a listing direction** (review finding). Decision 3
+    promises that `list_on_date` is the court's own written date, but "file a list of documents by <date>", "the
+    time fixed for filing … ends on <date>" and "come up with a fresh representation by <date>" read as
+    `list_on_date` and outranked the real direction. A listing verb and its date are no candidate when: the word
+    is the noun "list" (followed by "of", or after `a`, `an`, `the`, a possessive, `such`, `any`, `said`, `same`,
+    `cause`, `daily`, `weekly`, `supplementary`, `additional`, `fresh`, `revised`, `separate`, `detailed`,
+    `complete`, `full`; "this list matter" still directs); it is "come up with" (not a direction either); the
+    date follows `by`, `within`, `till`, `until` or `before` (a deadline, "on or before" included), or `ends`,
+    `expires`, `expiry` or `lapses` stands between; or a `fix` verb follows `time`, `period`, `deadline`, `limit`
+    or `limitation` (up to two words between) or is "fixed for filing / submitting / submission / depositing /
+    deposit / paying / payment / complying / compliance / furnishing". "cause list on" is no direction. On all
+    31,172 dev orders with text 7 readings change and no other: 4 wrong `list_on_date` dates from "shall fix a
+    date for giving a personal hearing … on or before <date>" now read the order's returnable date (reviewed),
+    "the next date fixed for filing the amended plaint is <date>" becomes `unclear` (its "List accordingly"), and
+    2 "come up with" sentences go from `unclear` to `none`. `RULES_VERSION` stays 1: no reading has been stored
+    yet (no order in the dev database carries a rules version).
+11. **A newer order without a usable date closes the dates of older orders** (review finding). Decision 8 supersedes
+    only when the newer order gives a row, so a disposal ("the writ petition is disposed of", read `none`), an
+    `unclear` or `no_text` order, or a date already past left an older order's date driving the calendar and
+    `hearing_due` alerts, and an older pending row confirmable (the plan's "alerts generated from the most recent
+    order"; the approved "items leave the list when a newer order arrives"). When the case's current order is read
+    without a usable date, `supersede_older` marks `superseded` every open (`not_needed`, `pending`, `confirmed`)
+    order or manual row linked to an order with an earlier `order_date`, and every manual row without an order
+    created before this order's date (00:00 IST). A confirmed row keeps its reviewer and review time (the
+    confirmation stays on the timeline and in the audit log). Rows of orders of the same date and manual answers to
+    this order stay; Current Status and the cause lists still feed the calendar; the hourly sweep closes the
+    `hearing_due` alerts (`date_changed`) and the review alerts (`no_review_item`) that lose their date. When the
+    newer order does give a row, decision 9's fallback after a rejection is unchanged. `superseded` is therefore no
+    longer only a closure of pending rows (`schema.md`, Group 7, updated).
+12. **The owner's decision of 17 Oct 2026, as built** (smallest choices where it was silent):
+    - *Rule name.* A date after `after`, `on or after`, `from`, `not before`, `commencing` (or followed by `onwards`,
+      `or thereafter`) is rule `qualified_date` (`specific`, `order_specific`, 0.800, pending); `orders.next_date_rule`
+      is a varchar, so no migration (`schema.md` Group 6 and 7 updated).
+    - *What is plain.* A date is firm only when the words just before it are `on`, `on the`, `for`, `to`, `on
+      <weekday>, i.e.`, only the matter listed ("list this matter again 13.02.2026"), or nothing ("Fix 20.11.2026 for
+      hearing", "adjourned to 06.04.2026", "Next date: 20.11.2026"). Any other word before the date ("tomorrow, i.e.",
+      "on Monday," with `or thereafter`, "in the week commencing") makes it `qualified_date`, so the list of
+      qualifiers is open, not closed. `put up` and `next date:` are listing verbs; `fix <date>` and `put up` are
+      directions, so a "Put up after the vacation" reads `unclear`, not `none`.
+    - *Each date belongs to the nearest listing verb before it* (point 3, "whichever verb is nearest"); a date the
+      sentence reports for another matter — after `is` / `are` / `been` / ... as before, or a participle right after
+      another proceeding ("the connected appeal fixed on", "the writ petition listed on"; not after "matter" or
+      "case", and never "listed again") — makes every date of that sentence unusable. With a period in the sentence
+      the period is read (pending); with a direction of its own the sentence reads `unclear` `conflicting_dates`;
+      when the only direction is the reporting verb itself ("This matter is to be listed on <date>") it reads
+      `unclear` `no_countable_date`, never `none`. "shall now be listed on" is not a report.
+    - *"No other date in the sentence"* (point 4) counts only dates after the order date: the order's own date in its
+      heading, an affidavit or an earlier hearing date do not make a listing date unclear; a later deadline ("file by
+      20.10.2026 and list on 30.10.2026") does (`conflicting_dates`, as the owner wrote).
+    - *Page headers* of the court's PDFs ("Page No.# 2/2") are removed before reading: they fell between "on" and
+      the date.
+    - *Measured* on the 25,300 distinct order texts of the dev database against the rules before this round: 58.6% →
+      59.0% `list_on_date`; 66 readings (0.3%) move from `list_on_date` to `qualified_date` (every one "after
+      <date>", "week commencing", "tomorrow, i.e." or similar), 57 to `conflicting_dates` (another matter's date, or
+      a deadline in the sentence), 3 to `no_countable_date` ("in the cause list on", "1st week of December"); 40
+      directions move from `none` to `unclear` ("List next week", "Put up before the Bench ..."); 24 "Put up on
+      <date>" and 16 page-header cases gain their written date. `RULES_VERSION` stays 1: no reading is stored yet
+      (all 280,089 dev orders are `pending`).
+13. **The review's easy advisories:** `NextDateConfig` has no defaults any more; every caller passes the configured
+    one or takes `NextDateConfig.from_settings()` (the API passes it to confirm, reject and enter and to their alert
+    closures; the case overview's count and the alert sweep read the settings). An *enter* item counts as answered by
+    a manual row linked to the order (`order_id`) whatever its time, so a `--reread` does not ask again, and the
+    reader raises no review item for such an order. Confirm, reject and enter check the function and the case's
+    visibility (404) before any field (400). The rest (two orders of one `order_date`, a newer order without a stored
+    document, case locks held for the whole batch) are for a follow-up row.
+14. **The second review of 17 Oct 2026 (three blocking findings), as built.** The user's instruction for this round:
+    "if something is mentioned like list the matter after two weeks, you calculate it based on the order date and
+    ask the user for a confirmation".
+    - *The words between the verb and the date count.* A date is firm only when, between its listing verb and the
+      date, stand only the matter listed and how: a closed word list (`this`, `the`, `matter(s)`, `case(s)`,
+      `again`, `before the Division Bench`, `Lawazima Court`, `for hearing / admission / motion / consideration /
+      orders / final disposal`, `in the admission column`, `along with`, `under the same heading`, `positively`, ...)
+      and case numbers ("along with WP(C) 1234/2026", "AB/1353/2026"), then `on`, `on the`, `for`, `on <weekday>,
+      i.e.` or nothing. Any other word makes it a date to confirm (`qualified_date`, pending). Another act or actor
+      between them (`liberty`, `leave`, a modal, `to <verb>` other than `to be`, a party, `counsel`, `interim`,
+      `stay`, `extended`, `file`, `appear`, `mention`, `submit`, `comply`, `deposit`, `pay`) makes the date no
+      candidate at all; so does a period that the date does not spell out ("list after 2 weeks, and the respondents
+      to file their reply on <date>" is the period, +14 days, pending). A period spelled out by the date ("after 2
+      weeks, i.e. on <date>", "after 2 weeks, on <date>", "after 3 weeks fixing <date>") gives the written date as
+      a date to confirm; "after" anything else ("after receipt of the records on <date>") also gives a date to
+      confirm.
+    - *A period anywhere in the order means no firm date.* When an order also lists after a period in another
+      sentence ("List after 2 weeks. Let the connected case also be listed on <date>"), the written date is still the
+      one suggested (the design's "the specific rule wins over a period"), but as `qualified_date`, pending, even
+      when it equals the counted date. This replaces the checklist's firm reading of that case.
+    - *`to` is not plain.* "to" is gone from the plain words before a date (the verbs that take it, `adjourned to`,
+      `stands over to`, `posted to`, end with it); `up to`, `upto` and `prior to` join the deadline words (no
+      candidate); `subsequent to` is a date to confirm.
+    - *More reported forms (point 3).* A participle (`listed`, `fixed`, `posted`) right after a case number ("WA
+      5/2026 listed for", "WP(C) 1234/2026 listed on", "5 of 2026 fixed on") or after `connected / other / another /
+      analogous / tagged / companion / related / leading / main case(s) / matter(s)` reports another matter's date;
+      so do `stands` / `stood` right before it (not after "matter" or "case": "the matter stands posted on" still
+      directs) and `which` up to two words before it ("which stands fixed on"). `come up`, `adjourned`, `stand(s)
+      over`, `taken up`, `placed` and `re-notify` report after `has / have / had (been)`, `was / were` or `which ...`
+      ("which will come up on", "has been adjourned to"); "this case is adjourned to <date>" still directs.
+    - *Measured* on the 25,343 distinct order texts of the dev database against the rules of deviation 12: 14,645
+      `list_on_date` (57.8%, was 59.0%); 293 move from `list_on_date` to `qualified_date` (99 because the order also
+      lists after a period elsewhere, often an earlier order in the same PDF or the counsel's prayer; the rest
+      "tomorrow, i.e.", "next Monday i.e.", "before the Lok Adalat", "as prayed for", "after 2 weeks, i.e. on" and
+      similar), 4 to `no_countable_date` ("the affidavit filed by the petitioner on <date>", "as prayed for by the
+      parties on <date>"), 1 to `none` ("fixing the date of appearance on"); 5 move from `qualified_date` to
+      `list_on_date` ("listed again 21st of May, 2026"), 1 conflict becomes `list_on_date` (a superannuation date
+      no longer counted) and 1 becomes `no_countable_date`. `RULES_VERSION` stays 1: no reading is stored yet.
+15. **The third review of 17 Oct 2026 (one blocking finding), as built.** The `stands` / `stood` form of deviation 14
+    was not built: the pattern held a literal backspace character where a word boundary was meant, so "The connected
+    appeal stands fixed on <date>" read as a firm date of this case. The character is now the word boundary, and a
+    unit test fails on any control character in the rules source. As built, with tests: "The connected appeal stands
+    fixed on <date>", "WA 5/2026 stands fixed on <date>" and "The connected writ appeal stood fixed on <date>" read
+    `none` (a report of another matter with no direction for this case, as "The connected appeal is fixed on <date>"
+    already did; nothing reaches the calendar); "List this matter along with WA 5/2026 that stands fixed on <date>"
+    reads `unclear` (`conflicting_dates`, an enter item); "The matter stands posted on <date>" and "This case stands
+    fixed on <date>" still direct. The owner's reminder for this round is unchanged and already built (decision
+    point 1, tests in `test_periods_are_counted_from_the_order_date`, now also "List the matter after two weeks."):
+    a period is counted from the order date and always goes to a person to confirm, never to alerts first.
+    - *Measured* on the 25,391 distinct order texts of the dev database against the rules of deviation 14: exactly
+      one reading moves, `list_on_date` to `no_countable_date` ("the matter hesitantly stands posted to <date>": an
+      adverb between "matter" and "stands" hides the exception, so this case's own date goes to a person to enter;
+      the cautious side, left as is). `list_on_date` stays 14,650 (57.7%). `RULES_VERSION` stays 1: no order has
+      been read yet (all 284,629 orders are `pending`).
+16. **The owner's second decision of 17 Oct 2026 (option B), as built** (smallest choices where it was silent):
+    - *Who decides firm.* The rules no longer make anything firm: every dated `Reading` has `needs_review = true`
+      (`list_on_date` still names a plain direction, confidence 1.000). `next_dates.read_order` writes the row
+      `not_needed` (with `needs_review = false`) only when the date equals `cases.next_hearing_date` or the case has a
+      `causelist_entries` row on a list of that `list_date`; otherwise `pending`. This holds for every reading with a
+      date (plain, qualified, returnable, period): a period counted to the court's own date needs no click either.
+    - *A later match* (point 2) is a system closure to `not_needed` with `needs_review` left true, no reviewer and no
+      review time — no new enum value and no migration, and `needs_review = true` with `reviewed_at` NULL on a
+      `not_needed` order row is how "made firm by the court's date" is told apart. Only order rows dated today or
+      later are matched (a past pending row still expires). No event is written for the match (the court's own
+      `next_date_changed` / listing is on the timeline already); the review alert of the order is closed `done`,
+      reason `matched`, when its order has no queue item left, and the hourly sweep closes such an alert `done` /
+      `matched` too (instead of `expired` / `no_review_item`) when it finds it first.
+    - *When the match is checked.* At reading time; at the start of every reader run (`read_pending`, every five
+      minutes, all cases, before the batch takes any case lock; counter `matched`); and inline, inside a savepoint,
+      after `cases.apply_dossier`, after `cases.apply_status` when `next_hearing_date` changed, and after
+      `causelists.apply_entries` for the cases the list touched (`next_dates.match_after_court_change`). A failure
+      there is recorded in `source_failures` (kind `next_date_match`) and never fails the court data; the next
+      reader run matches again. The inline match takes no case lock of its own (the dossier and status paths
+      already hold the case row; the update re-checks `pending` under READ COMMITTED, so a review in between wins).
+      Cases merged by the dedupe sweep are matched by the next reader run.
+    - *Period wordings* (point 3): `adjourned by N ...`, `on / upon / after (the) expiry / completion / lapse of N
+      ...`, the bare "list the matter N weeks (hence)", numbers in words up to ninety-nine ("twenty one",
+      "thirty-five") alone or with digits in brackets either way round ("30 (thirty) days", "fourteen (14) days"),
+      and the unit inside the bracket ("3 (three weeks)"). The two spellings must still agree.
+    - *Small points* (point 4): confirm answers 409 `date_passed` for a pending row whose date is before today (reject
+      is still allowed); "or any (other / subsequent / later) date (thereafter)" and "or on any subsequent date" count
+      as "on or after" (`qualified_date`). The review examples now read: "is slated / likely / expected / due to be
+      listed on" and "likely to come up on" report another matter's date (with no direction of this case → `unclear`
+      `no_countable_date`, an enter item; inside a direction → `conflicting_dates`); "the connected / other ...
+      case(s) / matter(s) stands / stood fixed on" reports too (`none` alone); a negation up to two words before the
+      verb ("shall not be listed on", "need not be listed on") is no listing date; a prayer verb before the verb in
+      the same sentence ("prays", "seeks", "requests", "submits that", "urges that", "contends that"; not "as prayed
+      for", not the noun "at the request of") with no grant word ("allowed", "granted", "accepted", "considered",
+      "accordingly") between them reports the counsel's date; the sentence no longer splits after "No." / "Nos."
+      ("along with WP(C) No. 1234/2026 on <date>" keeps its date). `RULES_VERSION` stays 1: no order of the dev
+      database has been read yet (all 294,224 orders are `pending`).
+    - *Dry run.* `aslms next-dates read --dry-run` also prints `would_be_firm` (rows it would write that the court's
+      date already confirms).
+    - *Measured* (read-only dry run on the dev database, 17 Oct 2026, 32,091 pending order rows with text): 18,759
+      `list_on_date` (58.5%), 709 `qualified_date`, 954 `returnable_date`, 6,318 `period` (19.7%; 6,008
+      `list_after_period`), 3,260 `unclear` (85 `conflicting_dates`), 2,091 `none`. Of the 2,778 rows a first run
+      would write (current orders, dates from today on), 2,089 (75%) equal the court's own date and are firm at once;
+      689 go to a person to confirm (before the claim filter of the queue), and 504 orders would ask for a date.
+    - *Not changed:* the confirm endpoint's OpenAPI description (so `schema.d.ts` needs no regeneration); a 409
+      `date_passed` is a new error code of the existing 409 response.

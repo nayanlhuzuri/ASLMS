@@ -226,6 +226,7 @@ def test_hearing_from_cause_list_and_manual_next_date(world):
                 next_date=d(2),
                 source=NextDateSource.MANUAL,
                 review_status=ReviewStatus.NOT_NEEDED,
+                ref_no="ASLMS/EDU/NXT/2026/000001",  # a manual row carries its NXT ref (migration 0018)
             )
         )
         pending_review = make_case(s)

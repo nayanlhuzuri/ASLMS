@@ -117,6 +117,7 @@ ALERT_KIND_LABELS = {
     AlertKind.NEW_DOCUMENT: "New document",
     AlertKind.ADMIN_TICKET: "Admin ticket",
     AlertKind.WORKFLOW: "Workflow",
+    AlertKind.NEXT_DATE_REVIEW: "Next date to review",  # design next-date-extraction
 }
 TRACKING_CARD_EVENTS = {
     EventType.CASE_CREATED,
@@ -132,6 +133,8 @@ TRACKING_CARD_EVENTS = {
     EventType.CUSTODY_MOVED,
     EventType.STAGE_SET,
     EventType.CASE_TAKEN_OVER,
+    EventType.NEXT_DATE_REVIEWED,  # design next-date-extraction
+    EventType.NEXT_DATE_ENTERED,
 }
 
 

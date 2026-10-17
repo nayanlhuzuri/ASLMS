@@ -379,6 +379,30 @@ def acting_member_for_case(
     return ranked[0][2] if ranked else None
 
 
+def member_working_condition(session: Session, member: Member) -> ColumnElement[bool] | None:
+    """The OR of one membership's working bases (owner, allotted, custody, counsel) over `cases`; None when it has
+    none (a State-wide membership has only `state`, which is sight, not work)."""
+    conds = [c for name, c in member_bases(session, member) if name in WORKING_BASES]
+    if not conds:
+        return None
+    return conds[0] if len(conds) == 1 else or_(*conds)
+
+
+def working_condition_for(
+    session: Session, user: User | Member, permission: Permission
+) -> ColumnElement[bool]:
+    """Design `next-date-extraction`, decision 10: the cases on which a membership holding `permission` has a
+    working basis (the rule of `acting_member_for_case` as a list filter); `false()` when there is none."""
+    conds = [
+        c
+        for m in access.members(session, user)
+        if m.holds(permission) and (c := member_working_condition(session, m)) is not None
+    ]
+    if not conds:
+        return false()
+    return conds[0] if len(conds) == 1 else or_(*conds)
+
+
 def state_wide(session: Session, user: User | Member) -> bool:
     """A State-wide reader: a membership of the super admin or holding `cases.view_all` (oversight, central
     operator, auditor). Sees every case and every document, private ones included."""

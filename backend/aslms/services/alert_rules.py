@@ -28,7 +28,12 @@ INFO_KINDS = frozenset(
         AlertKind.NEW_DOCUMENT,
     }
 )
-CASE_KINDS = INFO_KINDS | {AlertKind.HEARING_DUE, AlertKind.COMPLIANCE_DUE, AlertKind.WORKFLOW}
+CASE_KINDS = INFO_KINDS | {
+    AlertKind.HEARING_DUE,
+    AlertKind.COMPLIANCE_DUE,
+    AlertKind.WORKFLOW,
+    AlertKind.NEXT_DATE_REVIEW,
+}
 # workflow alerts that are informational (design custody-workflow, decision 23 a, b): expire with the others
 WORKFLOW_INFO_EVENTS = frozenset({"file_received", "file_recalled"})
 
@@ -261,6 +266,8 @@ def render_alert(kind: AlertKind | str, case: Any, data: dict[str, Any]) -> tupl
             body = ""
     elif kind == AlertKind.WORKFLOW:
         title, body = render_workflow(d, label)
+    elif kind == AlertKind.NEXT_DATE_REVIEW:
+        title, body = render_next_date_review(d, label)
     elif kind == AlertKind.NEW_DOCUMENT:
         title = f"New {d.get('doc_type_label') or d.get('doc_type') or 'document'} uploaded: {label}"
         body = f"A document of type {d.get('doc_type_label') or d.get('doc_type') or 'unknown'} was uploaded by {d.get('office_code') or 'an office'}."
@@ -268,6 +275,23 @@ def render_alert(kind: AlertKind | str, case: Any, data: dict[str, Any]) -> tupl
         title = f"{kind.value}: {label}"
         body = ""
     return _title(title), body
+
+
+def render_next_date_review(d: dict[str, Any], label: str) -> tuple[str, str]:
+    """A `next_date_review` alert (design next-date-extraction, decision 13): the date to confirm with the order it
+    was read from, or the order that gives no date; never a phrase of the order or a note."""
+    if d.get("hearing_date"):
+        how = "counted from" if d.get("source") == "order_period" else "read from"
+        title = f"Next date to confirm, {_d(d.get('hearing_date'))}: {label}"
+        body = (
+            f"Next date to confirm: {_d(d.get('hearing_date'))} {how} the order of {_d(d.get('order_date'))}."
+        )
+    else:
+        title = f"Enter the next date: {label}"
+        body = (
+            f"Enter the next date: the order of {_d(d.get('order_date'))} gives no date that could be read."
+        )
+    return title, body
 
 
 def _holder(d: dict[str, Any], prefix: str = "holder") -> str:

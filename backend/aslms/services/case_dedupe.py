@@ -240,7 +240,11 @@ def portal_records(session: Session, case: Case) -> list[str]:
         ("documents", select(Document.id).where(Document.case_id == case.id)),
         (
             "next_dates",
-            select(NextDate.id).where(NextDate.case_id == case.id, NextDate.source == NextDateSource.MANUAL),
+            # design next-date-extraction, decision 19: a manual date or a person's review
+            select(NextDate.id).where(
+                NextDate.case_id == case.id,
+                or_(NextDate.source == NextDateSource.MANUAL, NextDate.reviewed_by_user_id.is_not(None)),
+            ),
         ),
         ("ownership_transfers", select(OwnershipTransfer.id).where(OwnershipTransfer.case_id == case.id)),
         (

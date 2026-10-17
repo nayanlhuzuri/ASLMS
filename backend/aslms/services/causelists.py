@@ -224,6 +224,10 @@ def apply_entries(
     if touched:
         refresh_search_vector(session, touched)
         matching.score_cases(session, touched, origin=RecommendationOrigin.CAUSE_LIST)
+        # a listing of the case on a date its order suggested makes that date firm (next-date-extraction)
+        from aslms.services import next_dates
+
+        next_dates.match_after_court_change(session, touched)
 
 
 def _entry_row(

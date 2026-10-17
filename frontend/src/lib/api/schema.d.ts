@@ -2541,6 +2541,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/cases/{ref}/next-dates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Case Next Dates
+         * @description Every next date of the case (court status, orders, manual), newest first; `effective` marks the next date
+         *     from orders that drives the calendar.
+         */
+        get: operations["case_next_dates_cases__ref__next_dates_get"];
+        put?: never;
+        /**
+         * Enter
+         * @description Enter the next date of a claimed case you work on (today up to about 18 months ahead). The note is shown to
+         *     everyone who can see the case.
+         */
+        post: operations["enter_cases__ref__next_dates_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/cases/{ref}/notes": {
         parameters: {
             query?: never;
@@ -3414,6 +3440,67 @@ export interface paths {
          *     (mandatory, an Indian 10-digit number).
          */
         post: operations["confirm_profile_me_profile_confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/next-dates/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Review Queue
+         * @description Next dates to confirm and orders to enter a date for, on claimed cases where one of your memberships holding
+         *     `next_dates.review` works on the case; sorted by the date to act by, then the case.
+         */
+        get: operations["review_queue_next_dates_review_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/next-dates/{id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm
+         * @description Confirm a next date read from an order: it then feeds the calendar and the hearing alerts.
+         */
+        post: operations["confirm_next_dates__id__confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/next-dates/{id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject
+         * @description Reject a next date read from an order, optionally giving the correct date (entered as a manual date).
+         */
+        post: operations["reject_next_dates__id__reject_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4310,6 +4397,12 @@ export interface components {
             lower_courts: components["schemas"]["LowerCourtOut"][];
             /** Merged Into Ref No */
             merged_into_ref_no: string | null;
+            next_date_from_orders?: components["schemas"]["NextDateOut"] | null;
+            /**
+             * Next Dates To Review
+             * @default 0
+             */
+            next_dates_to_review: number;
             /** Objections */
             objections: components["schemas"]["ObjectionOut"][];
             ownership: components["schemas"]["CaseOwnershipCompactOut"];
@@ -4375,6 +4468,50 @@ export interface components {
             list_type: string;
             /** Sr No */
             sr_no: number;
+        };
+        /** CaseNextDateListOut */
+        CaseNextDateListOut: {
+            /** Items */
+            items: components["schemas"]["CaseNextDateOut"][];
+            /** Total */
+            total: number;
+        };
+        /** CaseNextDateOut */
+        CaseNextDateOut: {
+            /** Confidence */
+            confidence: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            created_by: components["schemas"]["NextDatePersonOut"] | null;
+            /** Effective */
+            effective: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Needs Review */
+            needs_review: boolean;
+            /**
+             * Next Date
+             * Format: date
+             */
+            next_date: string;
+            /** Note */
+            note: string | null;
+            order: components["schemas"]["NextDateOrderOut"] | null;
+            /** Ref No */
+            ref_no: string | null;
+            /** Review Status */
+            review_status: string;
+            /** Reviewed At */
+            reviewed_at: string | null;
+            reviewed_by: components["schemas"]["NextDatePersonOut"] | null;
+            /** Source */
+            source: string;
         };
         /** CaseOwnershipCompactOut */
         CaseOwnershipCompactOut: {
@@ -7358,6 +7495,175 @@ export interface components {
             /** Window Seconds */
             window_seconds: number;
         };
+        /** NextDateCaseOut */
+        NextDateCaseOut: {
+            /** Case No Text */
+            case_no_text: string | null;
+            /** Cnr */
+            cnr: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Ref No */
+            ref_no: string;
+        };
+        /** NextDateConfirmIn */
+        NextDateConfirmIn: Record<string, never>;
+        /** NextDateEnterIn */
+        NextDateEnterIn: {
+            /**
+             * Next Date
+             * Format: date
+             */
+            next_date: string;
+            /**
+             * Note
+             * @description shown to everyone who can see the case: no internal remarks
+             */
+            note?: string | null;
+            /**
+             * Order
+             * @description an order of the case the date answers
+             */
+            order?: string | null;
+        };
+        /** NextDateOrderOut */
+        NextDateOrderOut: {
+            /** Document Id */
+            document_id: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Order Date
+             * Format: date
+             */
+            order_date: string;
+            /** Order No */
+            order_no: string;
+            /** Phrase */
+            phrase?: string | null;
+            /** Rule */
+            rule?: string | null;
+        };
+        /**
+         * NextDateOut
+         * @description A next date (design `next-date-extraction`): read from an order, entered by hand (`NXT`), or from the court's
+         *     current status. The note is shown to every reader of the case.
+         */
+        NextDateOut: {
+            /** Confidence */
+            confidence: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            created_by: components["schemas"]["NextDatePersonOut"] | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Needs Review */
+            needs_review: boolean;
+            /**
+             * Next Date
+             * Format: date
+             */
+            next_date: string;
+            /** Note */
+            note: string | null;
+            order: components["schemas"]["NextDateOrderOut"] | null;
+            /** Ref No */
+            ref_no: string | null;
+            /** Review Status */
+            review_status: string;
+            /** Reviewed At */
+            reviewed_at: string | null;
+            reviewed_by: components["schemas"]["NextDatePersonOut"] | null;
+            /** Source */
+            source: string;
+        };
+        /** NextDatePersonOut */
+        NextDatePersonOut: {
+            /** Name */
+            name: string | null;
+        };
+        /** NextDateRejectIn */
+        NextDateRejectIn: {
+            /**
+             * Next Date
+             * @description the correct date, entered as a manual next date (NXT)
+             */
+            next_date?: string | null;
+            /** Note */
+            note?: string | null;
+        };
+        /** NextDateRejectOut */
+        NextDateRejectOut: {
+            entered: components["schemas"]["NextDateOut"] | null;
+            rejected: components["schemas"]["NextDateOut"];
+        };
+        /** NextDateReviewItemOut */
+        NextDateReviewItemOut: {
+            /**
+             * Act By
+             * Format: date
+             */
+            act_by: string;
+            /** Alert Ref No */
+            alert_ref_no: string | null;
+            case: components["schemas"]["NextDateCaseOut"];
+            /** Departments */
+            departments: string[];
+            /**
+             * Id
+             * Format: uuid
+             * @description the next date id for `confirm`, the order id for `enter`
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "confirm" | "enter";
+            /** Next Date */
+            next_date: string | null;
+            order: components["schemas"]["NextDateReviewOrderOut"] | null;
+            /** Phrase */
+            phrase: string | null;
+            /** Rule */
+            rule: string | null;
+        };
+        /** NextDateReviewListOut */
+        NextDateReviewListOut: {
+            /** Items */
+            items: components["schemas"]["NextDateReviewItemOut"][];
+            /** Total */
+            total: number;
+        };
+        /** NextDateReviewOrderOut */
+        NextDateReviewOrderOut: {
+            /** Document Id */
+            document_id: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Order Date
+             * Format: date
+             */
+            order_date: string;
+            /** Order No */
+            order_no: string;
+        };
         /** NoteAttachmentOut */
         NoteAttachmentOut: {
             /** Doc Type */
@@ -7665,6 +7971,14 @@ export interface components {
             is_reportable: boolean | null;
             /** Kind */
             kind: string;
+            /** Next Date Found */
+            next_date_found?: string | null;
+            /** Next Date Phrase */
+            next_date_phrase?: string | null;
+            /** Next Date Rule */
+            next_date_rule?: string | null;
+            /** Next Date Status */
+            next_date_status?: string | null;
             /**
              * Order Date
              * Format: date
@@ -15480,6 +15794,147 @@ export interface operations {
             };
         };
     };
+    case_next_dates_cases__ref__next_dates_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaseNextDateListOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    enter_cases__ref__next_dates_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NextDateEnterIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NextDateOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_notes_cases__ref__notes_get: {
         parameters: {
             query?: {
@@ -17551,6 +18006,240 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProfileOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    review_queue_next_dates_review_get: {
+        parameters: {
+            query?: {
+                /** @description confirm or enter */
+                kind?: string | null;
+                limit?: number;
+                offset?: number;
+                /** @description Words as the Search box (at least 3 characters): a CNR, a case number (`WP(C) 4326/2025`), a `ref_no`, or words matched as prefixes over parties, advocates, counsel codes and numbers */
+                q?: string | null;
+                /** @description The department holding the active primary ownership (a department code) */
+                owner?: string | null;
+                /** @description A cause-list entry of the case dated on or after this day (IST) */
+                listed_from?: string | null;
+                /** @description A cause-list entry of the case dated on or before this day */
+                listed_to?: string | null;
+                /** @description That same entry's court number, as printed */
+                court_no?: string | null;
+                /** @description That same entry's bench (judge names) contains this text (case and spacing ignored) */
+                bench?: string | null;
+                /** @description Next hearing date on or after this day */
+                next_from?: string | null;
+                /** @description Next hearing date on or before this day */
+                next_to?: string | null;
+                /** @description The case type: the master's short name or an alias, or the case's type text */
+                case_type?: string | null;
+                /** @description Registration year (1900-2100) */
+                year?: number | null;
+                /** @description pending, disposed or unknown */
+                case_status?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NextDateReviewListOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_next_dates__id__confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["NextDateConfirmIn"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NextDateOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_next_dates__id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NextDateRejectIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NextDateRejectOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
                 };
             };
             /** @description Validation Error */

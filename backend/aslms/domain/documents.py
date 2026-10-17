@@ -15,6 +15,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    SmallInteger,
     String,
     Text,
     UniqueConstraint,
@@ -202,12 +203,38 @@ class DownloadStatus(enum.StrEnum):
     NOT_AVAILABLE = "not_available"
 
 
+class OrderNextDateStatus(enum.StrEnum):
+    """The reading of an order's next-date direction (design `next-date-extraction`, decision 4)."""
+
+    PENDING = "pending"
+    SPECIFIC = "specific"
+    PERIOD = "period"
+    UNCLEAR = "unclear"
+    NONE = "none"
+    NO_TEXT = "no_text"
+
+
 class Order(TimestampMixin, Base):
-    """interimorder[] / finalorder[] of the dossier; the PDF from Show Order."""
+    """interimorder[] / finalorder[] of the dossier; the PDF from Show Order. The `next_date_*` columns hold the
+    reading of the order's stored text (written only by `services/next_dates.py`)."""
 
     __tablename__ = "orders"
     __table_class__ = TableClass.TRANSACTION
-    __table_args__ = (UniqueConstraint("case_id", "order_no", "order_date"),)
+    __table_args__ = (
+        UniqueConstraint("case_id", "order_no", "order_date"),
+        CheckConstraint(
+            "(next_date_status IN ('specific', 'period')) = (next_date_found IS NOT NULL)",
+            name="next_date_found",
+        ),
+        CheckConstraint(
+            "(next_date_status = 'pending') = (next_date_read_at IS NULL)", name="next_date_read"
+        ),
+        Index(
+            "ix_orders_next_date_pending",
+            "created_at",
+            postgresql_where=text("next_date_status = 'pending'"),
+        ),
+    )
     id: Mapped[uuid.UUID] = uuid_pk()
     case_id: Mapped[uuid.UUID] = uuid_fk("cases.id")
     order_no: Mapped[str] = mapped_column(String(20), nullable=False)
@@ -225,3 +252,11 @@ class Order(TimestampMixin, Base):
     download_attempts: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
     last_error: Mapped[str | None] = mapped_column(Text)
     raw: Mapped[dict | None] = mapped_column(JSONB)
+    next_date_status: Mapped[OrderNextDateStatus] = mapped_column(
+        pg_enum(OrderNextDateStatus, "order_next_date_status"), nullable=False, server_default="pending"
+    )
+    next_date_found: Mapped[date | None] = mapped_column(Date)
+    next_date_rule: Mapped[str | None] = mapped_column(String(40))
+    next_date_phrase: Mapped[str | None] = mapped_column(String(400))
+    next_date_rules_version: Mapped[int | None] = mapped_column(SmallInteger)
+    next_date_read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
