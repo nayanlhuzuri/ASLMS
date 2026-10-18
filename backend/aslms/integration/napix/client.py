@@ -28,6 +28,7 @@ from aslms.core.config import Settings, get_settings
 from aslms.core.errors import (
     IntegrationError,
     NapixAuthError,
+    NapixEmptyResponse,
     NapixGatewayError,
     NapixInputError,
     NapixNotFound,
@@ -308,11 +309,15 @@ class NapixClient:
         self, api_path: str, params: Mapping[str, Any] | None = None, method: str = "GET"
     ) -> NapixResult:
         """`api_path` like `hc-cnr-api/CNR`; `params` in the notes' documented order (empty for no-input APIs).
-        Retries `NapixUnavailable` with exponential back-off; refreshes the token once on 401."""
+        Retries `NapixUnavailable` with exponential back-off; refreshes the token once on 401. An empty or unreadable
+        HTTP 200 body (`NapixEmptyResponse`) is re-raised at once: retrying seconds later spends the allowance on the
+        same fault (design `safety-fixes`, decision 5); the queue's ladder backs off instead."""
         last: Exception | None = None
         for attempt in range(self.max_attempts):
             try:
                 return await self._attempt(api_path, dict(params or {}), method, refresh_token=True)
+            except NapixEmptyResponse:
+                raise
             except NapixUnavailable as e:
                 last = e
                 if attempt + 1 < self.max_attempts:
@@ -412,7 +417,9 @@ class NapixClient:
             )  # PHP print_r: "Array ( [status_code] => 626 [status] => INVALID_TOKEN )"
             if m:
                 self._raise_for_status(int(m.group(1)), result, text[:300])
-            raise NapixProtocolError(f"NAPIX non-JSON response: {text[:200]}", api=result.api)
+            # empty, or neither JSON, a PDF nor a print_r status: the gateway's intermittent fault (safety-fixes, 5)
+            what = "empty response" if not text.strip() else f"non-JSON response: {text[:200]}"
+            raise NapixEmptyResponse(f"NAPIX {what}", api=result.api)
         self.parse_body(body, result)
 
     def parse_body(self, body: Any, result: NapixResult) -> None:

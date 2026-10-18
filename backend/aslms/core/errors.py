@@ -32,6 +32,12 @@ class NapixUnavailable(IntegrationError):
     """629 UNEXPECTED_ERROR, HTTP 429 / 5xx, time-outs, connection errors. Retried with back-off."""
 
 
+class NapixEmptyResponse(NapixUnavailable):
+    """HTTP 200 with an empty body, or a body that is neither JSON, a PDF nor a PHP `print_r` status (hc-cnr-api, in
+    runs of minutes to hours; design `safety-fixes`, decision 5). Not retried inside the call: the next call fails
+    too in most cases half a second later, so the queue backs off instead."""
+
+
 class NapixAuthError(IntegrationError):
     """626 INVALID_TOKEN, 627 INVALID_DEPT_ID, a second 401: the key or credentials are wrong. Not retried;
     the operator must act."""

@@ -38,6 +38,9 @@ class NapixRecorder:
         self.lane: str | None = None
         self.user_id = user_id
         self._tags: list[tuple[str | None, uuid.UUID | None]] = []
+        # the `napix_responses.id` of each response written by the last flush, by (api, params_sha256) (design
+        # safety-fixes, decision 13: a capped advocate search queues the background storing of these responses)
+        self.response_ids: dict[tuple[str, str], uuid.UUID] = {}
 
     def on_call(self, result: NapixResult) -> None:
         self.pending.append(result)
@@ -48,6 +51,7 @@ class NapixRecorder:
 
     def flush(self, session: Session) -> int:
         n = 0
+        self.response_ids = {}
         tags = self._tags + [(None, None)] * (len(self.pending) - len(self._tags))
         for r, (lane, user_id) in zip(self.pending, tags, strict=False):
             session.execute(
@@ -78,21 +82,23 @@ class NapixRecorder:
                 },
             )
             if r.ok and r.data is not None and r.pdf is None:
-                store_response(session, r, self.job_run_id)
+                self.response_ids[(r.api, r.params_sha256)] = store_response(session, r, self.job_run_id)
             n += 1
         self.pending.clear()
         self._tags.clear()
         return n
 
 
-def store_response(session: Session, r: NapixResult, job_run_id: uuid.UUID | None = None) -> str:
+def store_response(session: Session, r: NapixResult, job_run_id: uuid.UUID | None = None) -> uuid.UUID:
+    """Insert the response, or bump `last_seen_at` of the same payload; the row's id either way."""
     sha = payload_sha256(r.data)
-    session.execute(
+    return session.execute(
         text(
             """
             INSERT INTO napix_responses (api, params_sha256, params, payload_sha256, payload, token_verified, job_run_id)
             VALUES (:api, :ps, CAST(:params AS jsonb), :sha, CAST(:payload AS jsonb), :tv, :job)
             ON CONFLICT (api, params_sha256, payload_sha256) DO UPDATE SET last_seen_at = now()
+            RETURNING id
             """
         ),
         {
@@ -104,5 +110,4 @@ def store_response(session: Session, r: NapixResult, job_run_id: uuid.UUID | Non
             "tv": r.token_verified,
             "job": job_run_id,
         },
-    )
-    return sha
+    ).scalar_one()

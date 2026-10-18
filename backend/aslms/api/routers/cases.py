@@ -9,6 +9,7 @@ and `/cases/search-court` are declared before `/cases/{ref}`."""
 from __future__ import annotations
 
 import asyncio
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -32,6 +33,8 @@ from aslms.services.court_search import (
 )
 from aslms.services.napix_store import NapixRecorder
 from aslms.services.visibility import NotVisibleCase
+
+log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/cases", tags=["cases"])
 
@@ -278,7 +281,9 @@ def search_court(
 ) -> schemas.CourtSearchOut:
     """Search the court through NAPIX: by CNR (the dossier is fetched and stored), by case number or filing
     number (every row stored, the asked row's dossier fetched; a held case with its dossier answers locally) or
-    by party name or advocate name (rows stored, dossiers on demand through `fetch-court`). Refused when the switch is off (503 `napix_off`), the hourly quota is below the floor (503
+    by party name or advocate name (rows stored, dossiers on demand through `fetch-court`; an advocate search stores
+    the first `NAPIX_ADVOCATE_STORE_NOW` new cases now and the rest in the background, or none beyond them when the
+    court found more than `NAPIX_ADVOCATE_STORE_MAX`: `court_cases`, `queued`, `not_stored`). Refused when the switch is off (503 `napix_off`), the hourly quota is below the floor (503
     `napix_budget`) or the caller used their hourly searches (429 `search_limit`). Audited."""
     settings = request.app.state.settings
     actor = actor_of(request, user, session)
@@ -296,13 +301,38 @@ def search_court(
     except COURT_HANDLED as exc:
         session.commit()  # the call log and the audit row survive the error
         raise _court_http(exc) from exc
-    return schemas.CourtSearchOut(
+    out = schemas.CourtSearchOut(
         source=result.source,
         calls=result.calls,
         created=result.created,
         items=case_search.items_for(session, user, result.cases, match=body.kind),
         unmatched=result.unmatched,
+        court_cases=result.court_cases,
+        queued=result.queued,
+        not_stored=result.not_stored,
     )
+    if result.queued:
+        session.commit()  # the queue rows exist before the task looks for them
+        dispatch_store_rows(settings)
+    return out
+
+
+STORE_ROWS_TASK = "aslms.store_search_rows"
+
+
+def dispatch_store_rows(settings) -> bool:
+    """Best effort after the commit (design safety-fixes, decision 13): the 2-minute beat stores the rows when the
+    broker is down."""
+    if not settings.redis_url:
+        return False
+    try:
+        from aslms.jobs.celery_app import app as celery_app
+
+        celery_app.send_task(STORE_ROWS_TASK, retry=False)
+        return True
+    except Exception as exc:  # noqa: BLE001
+        log.warning("could not dispatch %s: %s", STORE_ROWS_TASK, exc)
+        return False
 
 
 @router.post(

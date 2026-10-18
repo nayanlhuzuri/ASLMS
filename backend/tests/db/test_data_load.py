@@ -519,9 +519,8 @@ def test_cli_data_load_is_audited(world, monkeypatch):
         assert sorted(days) == [f"2025-03-0{n}" for n in range(1, 8)]
         assert {lane for lane, _ in days.values()} == {FetchLane.LOAD}
         assert days["2025-03-07"][1] == 44  # lists_first: days rank first
-        (second,) = [a for a in s.scalars(sa.select(AuditLog).where(AuditLog.action == "data_load.started"))][
-            1:
-        ]
+        started = sa.select(AuditLog).where(AuditLog.action == "data_load.started")
+        (second,) = list(s.scalars(started.order_by(AuditLog.created_at, AuditLog.id)))[1:]
         assert second.after["held"] == "skip" and second.after["queued"] == 2
 
 

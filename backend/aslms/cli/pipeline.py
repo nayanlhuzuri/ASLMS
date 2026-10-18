@@ -1,4 +1,5 @@
-"""Pipeline commands: `load`, `queue-run`, `queue-status`, `sync-masters`, `refetch-date`, `refetch-case`."""
+"""Pipeline commands: `load`, `queue-run`, `queue-status`, `queue-retry-failed`, `sync-masters`, `refetch-date`,
+`refetch-case`."""
 
 from __future__ import annotations
 
@@ -97,6 +98,25 @@ def queue_status() -> None:
     rprint(table)
 
 
+def queue_retry_failed(
+    kind: str = typer.Option(..., "--kind", help="the queue kind: dossier, status_batch, order_pdf, …"),
+    lane: str | None = typer.Option(None, "--lane", help="only this lane: request, daily, discovery or load"),
+) -> None:
+    """Every `failed` row of one kind (of one lane when given) back to `pending` with zero attempts; one audited
+    `napix.queue_retry_failed` row with the count (design `safety-fixes`, decision 11)."""
+    from aslms.services import napix_admin
+
+    try:
+        fk = FetchKind(kind)
+        fl = FetchLane(lane) if lane else None
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    with session_scope() as s:
+        actor, member = _cli_actor(s)
+        n = napix_admin.retry_failed(s, actor, member, fk, fl)
+    rprint(f"retried {n} failed {fk.value} row(s)" + (f" in lane {fl.value}" if fl else ""))
+
+
 def sync_masters_cmd() -> None:
     """Fetch the five NAPIX masters now (about five calls)."""
     from aslms.services.masters import sync_masters
@@ -174,12 +194,18 @@ def refetch_case(
 def worker_wait(report, idle_seconds: int, now: datetime | None = None) -> tuple[float | None, str | None]:
     """How long the worker sleeps after a pass, and the line it prints (design `napix-window`, decision 4): until
     `resume_at` (at least 5 s) when the bands stopped the pass, capped by the idle time when only the load lane was
-    blocked; the idle time when nothing ran; no sleep otherwise. UTC-aware throughout, printed in IST."""
+    blocked; the idle time when nothing ran; no sleep otherwise. A pass stopped on a run of gateway faults prints the
+    fault line (design `safety-fixes`, decision 8). UTC-aware throughout, printed in IST."""
     from aslms.services.audit_search import to_ist
 
     now = now or datetime.now(UTC)
     if report.resume_at is not None:
         wait = max(5.0, (report.resume_at - now).total_seconds())
+        if getattr(report, "fault_pause", False):
+            return wait, (
+                f"gateway fault: pausing until about {to_ist(report.resume_at):%H:%M:%S} IST ({int(wait)} s); "
+                "the failed rows wait on the retry ladder"
+            )
         if report.load_only:
             wait = min(wait, float(idle_seconds))
         window = report.window

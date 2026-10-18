@@ -5,7 +5,9 @@
  * by case type + number + year, by filing case type + filing number + year, or by party or advocate name + year +
  * pending / disposed / both (design search-court-advocate-filing, decision 9). The answer lists the cases found (now
  * stored, so the next local search finds them), the cases created and the rows the court returned that are not
- * stored; no court-call count is shown (the 14 Oct owner rule). A row without court details offers "Fetch details".
+ * stored; no court-call count is shown (the 14 Oct owner rule). A capped advocate search says how many more cases are
+ * being added in the background, or that the court found too many and more of the name is needed (design
+ * safety-fixes, decision 14). A row without court details offers "Fetch details".
  * A local search run with the advocate field opens on "Advocate name" with the same words. The button is disabled
  * while a search runs and a court search is never repeated automatically.
  */
@@ -198,6 +200,8 @@ export function CourtSearch({
       {result ? (
         <div className="stack">
           <Notice>{T.search.courtFound(result.items.length, result.created)}</Notice>
+          {result.queued ? <Notice>{T.search.courtQueued(result.queued)}</Notice> : null}
+          {result.not_stored ? <Notice>{T.search.courtNotStored(result.court_cases ?? 0, result.created)}</Notice> : null}
           {result.items.length === 0 ? (
             <EmptyState>{T.search.none}</EmptyState>
           ) : (

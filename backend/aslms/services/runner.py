@@ -11,6 +11,11 @@ waiting, the pass first makes one **probe** (an Overview call, lane and user NUL
 per pass. When the bands block, the pass stops with `resume_at`: the expected reset plus the margin in a `current`
 window, else the latest reading plus the probe interval; the worker sleeps until then.
 
+A gateway fault pauses the pass (design `safety-fixes`, decision 8): after `NAPIX_FAULT_STREAK` items in a row failed
+with `NapixUnavailable` (any cause, the empty HTTP 200 included) the pass stops with `fault_pause` and `resume_at` =
+now + `NAPIX_FAULT_PAUSE_SECONDS`; a done or skipped item resets the count. Failed rows wait on the queue's ladder.
+`search_rows` rows make no NAPIX call and are never claimed here (`queue.LOCAL_KINDS`).
+
 One `job_runs` row per invocation (counters include `probes`); every NAPIX attempt is logged with the lane of its item
 and the person who asked for it (`requested_by`), and every response kept by the recorder. Work an item spawns
 inherits its lane, `list_date` and person (`QueueOrigin`). Survives restarts: a row is only `done` when its
@@ -31,7 +36,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from aslms.core.config import Settings, get_settings
-from aslms.core.errors import IntegrationError, NapixInputError, NapixNotFound
+from aslms.core.errors import IntegrationError, NapixInputError, NapixNotFound, NapixUnavailable
 from aslms.domain.cases import Case, FirstSeenSource
 from aslms.domain.courts import Court
 from aslms.domain.ops import FetchKind, FetchLane, FetchQueueItem, JobRun, JobStatus
@@ -69,6 +74,8 @@ class RunReport:
     probes: int = 0
     load_only: bool = False  # only the load lane was blocked: daily and request rows may still arrive
     window: napix_window.WindowState | None = None
+    # design safety-fixes, decision 8: the pass stopped on a run of gateway faults; `resume_at` says when to go on
+    fault_pause: bool = False
 
 
 class QueueRunner:
@@ -96,6 +103,8 @@ class QueueRunner:
         self.discovery_used = (
             0  # discovery-lane calls in the current window (log + this pass since the last read)
         )
+        self.fault_streak = self.settings.napix_fault_streak
+        self.fault_pause_seconds = self.settings.napix_fault_pause_seconds
 
     # ------------------------------------------------------------------ lifecycle
     def start_job(self, job: str) -> uuid.UUID:
@@ -222,6 +231,7 @@ class QueueRunner:
                 s.commit()
             report.window = self.seed_remaining()
             read_at = 0  # items processed when the window was last read
+            faults = 0  # items in a row that failed with NapixUnavailable (decision 8)
             while max_items is None or report.processed < max_items:
                 if (
                     self.recorder.last_remaining is None
@@ -275,11 +285,22 @@ class QueueRunner:
                     s.commit()
                 report.processed += 1
                 calls_before = self.recorder.calls
-                await self._process(
+                error = await self._process(
                     item_id, kind, ref, report, lane=lane, list_date=list_date, requested_by=requested_by
                 )
                 if lane == FetchLane.DISCOVERY:
                     self.discovery_used += self.recorder.calls - calls_before
+                if error is None:
+                    faults = 0
+                elif isinstance(error, NapixUnavailable):
+                    faults += 1
+                    if faults >= self.fault_streak:
+                        report.fault_pause = True
+                        report.resume_at = datetime.now(UTC) + timedelta(seconds=self.fault_pause_seconds)
+                        report.stopped_reason = (
+                            f"gateway fault: {faults} failures in a row; pausing {self.fault_pause_seconds} s"
+                        )
+                        break
         except BudgetExhausted as exc:
             report.stopped_reason = str(exc)
         except Exception:  # noqa: BLE001
@@ -302,8 +323,10 @@ class QueueRunner:
         lane: FetchLane = FetchLane.DAILY,
         list_date: date | None = None,
         requested_by: uuid.UUID | None = None,
-    ) -> None:
+    ) -> Exception | None:
+        """One item; returns the exception that failed it (None when it ended done or skipped)."""
         calls_before = self.recorder.calls
+        error: Exception | None = None
         self.recorder.lane = lane.value
         self.recorder.user_id = requested_by
         with self.session_factory() as s:
@@ -329,12 +352,8 @@ class QueueRunner:
             except Exception as exc:  # noqa: BLE001 — recorded on the row and retried later
                 s.rollback()
                 item = s.get(FetchQueueItem, item_id)
-                queue.fail(
-                    s,
-                    item,
-                    f"{exc.__class__.__name__}: {exc}",
-                    retry_in=timedelta(minutes=10) if isinstance(exc, IntegrationError) else None,
-                )
+                queue.fail(s, item, f"{exc.__class__.__name__}: {exc}", family=type(exc).__name__)
+                error = exc
                 report.failed += 1
                 outcome = f"failed: {exc.__class__.__name__}: {str(exc)[:200]}"
                 log.warning("queue item failed", kind=kind.value, ref=ref, error=str(exc)[:300])
@@ -353,12 +372,16 @@ class QueueRunner:
             outcome=outcome[:120],
             calls=self.recorder.calls - calls_before,
         )
+        return error
 
     # ------------------------------------------------------------------ handlers
     async def dispatch(
         self, s: Session, kind: FetchKind, ref: str, origin: QueueOrigin | None = None
     ) -> tuple[dict[str, Any] | None, bool]:
         origin = origin or QueueOrigin()
+        if kind in queue.LOCAL_KINDS:
+            # decision 13: stored by the Celery task `aslms.store_search_rows`, never by the NAPIX runner
+            raise RuntimeError(f"queue kind {kind.value} is not run by the queue runner")
         if kind == FetchKind.MASTERS:
             return await self._masters(s), False
         if kind == FetchKind.CAUSELIST_DAY:

@@ -26,12 +26,11 @@ from typing import Any
 
 import structlog
 from sqlalchemy import func, or_, select, text
-from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session, sessionmaker
 
 from aslms.domain.cases import Case, CaseAdvocate, CaseLink, CaseParty, FirstSeenSource
 from aslms.domain.causelists import Causelist, CauselistEntry
-from aslms.domain.ops import JobRun, JobStatus, SourceFailure
+from aslms.domain.ops import JobRun, JobStatus
 from aslms.domain.org import Office
 from aslms.domain.ownership import (
     CaseOfficeScore,
@@ -50,6 +49,7 @@ from aslms.domain.ownership import (
 )
 from aslms.domain.reference import EventType, OfficeKind
 from aslms.services import scoring_settings as ss
+from aslms.services import source_failures
 from aslms.services.audit import Actor, snapshot
 from aslms.services.cases import emit_event, normalise_name
 
@@ -654,17 +654,8 @@ def origin_for_dossier(case: Case) -> RecommendationOrigin:
 
 
 def record_failure(session: Session, kind: str, ref: str, error: str) -> None:
-    stmt = pg_insert(SourceFailure).values(kind=kind, ref=ref[:300], error=error[:2000])
-    stmt = stmt.on_conflict_do_update(
-        index_elements=["kind", "ref"],
-        set_={
-            "error": stmt.excluded.error,
-            "last_seen": func.now(),
-            "attempts": SourceFailure.attempts + 1,
-            "resolved_at": None,
-        },
-    )
-    session.execute(stmt)
+    """The shared `source_failures` upsert (design safety-fixes, decision 10)."""
+    source_failures.record(session, kind, ref, error)
 
 
 def score_cases(

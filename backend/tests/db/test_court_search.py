@@ -33,13 +33,17 @@ PARTY_CNRS = {"GAHC010257252024", "GAHC010277142024", "GAHC010271682024"}
 @pytest.fixture()
 def api(world, napix, monkeypatch):
     """The app with the scripted NAPIX client injected and the switch reported as configured (the setting
-    itself is never written: the property is patched for the test)."""
+    itself is never written: the property is patched for the test). The advocate cap stores up to 100 new cases in
+    the request here, so these tests see every row of the 36-row sample stored; the cap itself is tested in
+    `test_safety_fixes_search.py` (design safety-fixes, decision 12)."""
     gw, client, hc = napix
     monkeypatch.setattr(Settings, "napix_configured", property(lambda self: True))
     settings = Settings(
         _env_file=None,
         aslms_jwt_secret="test-secret-of-at-least-thirty-two-characters",
         aslms_access_token_minutes=5,
+        napix_advocate_store_now=100,
+        redis_url=None,
     )
     app = create_app(settings, world.Session)
     app.state.napix_factory = lambda: (client, hc)
@@ -656,6 +660,9 @@ def test_advocate_search_stores_rows_without_dossiers(api, world, types):
         "results": 36,
         "created": 36,
         "outcome": "ok",
+        "court_cases": 36,
+        "queued": 0,
+        "not_stored": 0,
     }
 
 

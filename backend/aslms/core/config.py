@@ -22,7 +22,9 @@ class Settings(BaseSettings):
     # --- database / queue (used from migration 0001 onwards) --------------------------
     database_url_sync: str = "postgresql+psycopg://aslms:aslms@localhost:5433/aslms"
     aslms_migrate_url: str | None = None
-    aslms_app_password: SecretStr | None = None  # set by migration 0001 on the aslms_app role
+    aslms_app_password: SecretStr | None = (
+        None  # set on the aslms_app role by `aslms db-roles` (safety-fixes)
+    )
     aslms_readonly_password: SecretStr | None = None
     redis_url: str | None = None
     storage_dir: str = "data/store"  # document store root (a volume in Compose)
@@ -68,6 +70,14 @@ class Settings(BaseSettings):
     napix_search_timeout_seconds: float = 60.0
     # the data-health connectivity check (design audit-screens, decision 10): one Overview call at most this often
     napix_health_check_min_seconds: int = Field(60, ge=10, le=3600)
+    # the runner pauses after this many items in a row failed with NapixUnavailable, for this many seconds (design
+    # safety-fixes, decision 8)
+    napix_fault_streak: int = Field(5, ge=3, le=50)
+    napix_fault_pause_seconds: int = Field(300, ge=60, le=3600)
+    # an advocate court search stores this many new cases in the request; when the court's distinct cases number at
+    # most STORE_MAX the rest are stored in the background, otherwise not at all (design safety-fixes, decision 12)
+    napix_advocate_store_now: int = Field(25, ge=1, le=100)
+    napix_advocate_store_max: int = Field(300, ge=25, le=2000)
 
     # --- authentication and the first super admin ------------------------------------------
     aslms_jwt_secret: SecretStr | None = None  # required to issue tokens; the API refuses to start without it
@@ -163,6 +173,16 @@ class Settings(BaseSettings):
             raise ValueError(
                 "NAPIX_SEARCH_FLOOR <= NAPIX_LIVE_RESERVE <= NAPIX_RATE_RESERVE must hold "
                 f"({self.napix_search_floor}, {self.napix_live_reserve}, {self.napix_rate_reserve})"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _advocate_store_ordered(self) -> Settings:
+        """NAPIX_ADVOCATE_STORE_NOW <= NAPIX_ADVOCATE_STORE_MAX (design safety-fixes, decision 12)."""
+        if self.napix_advocate_store_now > self.napix_advocate_store_max:
+            raise ValueError(
+                "NAPIX_ADVOCATE_STORE_NOW <= NAPIX_ADVOCATE_STORE_MAX must hold "
+                f"({self.napix_advocate_store_now}, {self.napix_advocate_store_max})"
             )
         return self
 

@@ -1,4 +1,4 @@
-"""`aslms` command line: NAPIX checks and probes, `seed`, `db-check`, the load pipeline (`load`, `queue-run`, `queue-status`, `sync-masters`, `refetch-date`, `refetch-case`), the matching engine (`rescore`, `codes unmapped`), the `cases` group (`reindex-search`, `show`), the `documents` group (`extract`, `scan-check`), the `alerts` group (`run`, `send`, `digest`, `status`, `test-mail`), the `sourcetrace` group (`status`, `run`, `retry`, `check`), the `reports` group (`run`, `dashboard`), the `audit` group (`search`), `data-health`, the `data-load` group (`status`, `coverage`, `start`, `pause`, `resume`, `order`, `dedupe`), the `discovery` group (`status`, `terms`, `sweep`), the `next-dates` group (`read`, `status`, `sample`), and the `users`, `access` and `offices` administration groups."""
+"""`aslms` command line: NAPIX checks and probes, `seed`, `db-check`, `db-roles`, the load pipeline (`load`, `queue-run`, `queue-status`, `queue-retry-failed`, `sync-masters`, `refetch-date`, `refetch-case`), the matching engine (`rescore`, `codes unmapped`), the `cases` group (`reindex-search`, `show`), the `documents` group (`extract`, `scan-check`), the `alerts` group (`run`, `send`, `digest`, `status`, `test-mail`), the `sourcetrace` group (`status`, `run`, `retry`, `check`), the `reports` group (`run`, `dashboard`), the `audit` group (`search`), `data-health`, the `data-load` group (`status`, `coverage`, `start`, `pause`, `resume`, `order`, `dedupe`), the `discovery` group (`status`, `terms`, `sweep`), the `next-dates` group (`read`, `status`, `sample`), and the `users`, `access` and `offices` administration groups."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from aslms.cli.alerts import alerts_app
 from aslms.cli.audit import audit_app, data_health_cmd
 from aslms.cli.cases import cases_app
 from aslms.cli.data_load import data_load_app
-from aslms.cli.db import db_check, seed
+from aslms.cli.db import db_check, db_roles, seed
 from aslms.cli.discovery import discovery_app
 from aslms.cli.documents import documents_app
 from aslms.cli.matching import codes_app, rescore
@@ -25,6 +25,7 @@ from aslms.cli.offices import offices_app
 from aslms.cli.pipeline import (
     daily_cycle,
     load,
+    queue_retry_failed,
     queue_run,
     queue_status,
     queue_worker,
@@ -43,9 +44,11 @@ app.command(name="napix-fields")(napix_fields)
 app.command(name="napix-probe-rate")(napix_probe_rate)
 app.command(name="seed")(seed)
 app.command(name="db-check")(db_check)
+app.command(name="db-roles")(db_roles)
 app.command(name="load")(load)
 app.command(name="queue-run")(queue_run)
 app.command(name="queue-status")(queue_status)
+app.command(name="queue-retry-failed")(queue_retry_failed)
 app.command(name="sync-masters")(sync_masters_cmd)
 app.command(name="refetch-date")(refetch_date)
 app.command(name="refetch-case")(refetch_case)

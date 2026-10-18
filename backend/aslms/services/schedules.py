@@ -4,7 +4,9 @@
 - 06:30 cause-list days: yesterday, today and tomorrow (the court publishes the next day's list the evening
         before, and corrects today's during the morning)
 - 20:00 Current Status for every non-disposed case, in blocks of 500
-- Sunday 02:00 a dossier re-fetch for every pending case, and a retry of order PDFs still not available
+- Sunday 02:00 a dossier re-fetch for every pending case and a first fetch for every case never fully fetched,
+        whatever its status (by CNR, or by `<est_code>|<case number>` without one; design `safety-fixes`, decision
+        9), and a retry of order PDFs still not available
 """
 
 from __future__ import annotations

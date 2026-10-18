@@ -4,7 +4,8 @@ refresh of every non-disposed case is a handful of `status_batch` queue rows (`<
 `NAPIX_STATUS_BATCH`
 non-disposed CNRs in CNR order on that day). A change in a tracked field updates the case, writes a
 `next_dates` row and an event, and queues a dossier re-fetch. The weekly sweep queues a dossier re-fetch for
-every pending case regardless."""
+every pending case regardless, and a first fetch for every case never fully fetched whatever its status (design
+`safety-fixes`, decision 9)."""
 
 from __future__ import annotations
 
@@ -17,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from aslms.domain.alerts import NextDate, NextDateSource, ReviewStatus
 from aslms.domain.cases import Case, CaseStatus
+from aslms.domain.courts import Court
 from aslms.domain.ops import FetchKind
 from aslms.domain.reference import EventType
 from aslms.integration.napix.hc import NapixHighCourt
@@ -57,10 +59,33 @@ def enqueue_status_batches(session: Session, run_date: date | None = None) -> in
     return n
 
 
+def never_fetched_refs(session: Session) -> list[str]:
+    """Dossier refs of the non-merged cases never fully fetched (`last_full_refresh_at IS NULL`), whatever their
+    status: the CNR when there is one, else `<est_code>|<case number as printed>` (resolved by the runner through
+    Search by Case Number; no identifier is made up); cases with neither are left out (decision 9)."""
+    rows = session.execute(
+        select(Case.cnr, Court.est_code, Case.case_no_text)
+        .join(Court, Court.id == Case.court_id)
+        .where(Case.last_full_refresh_at.is_(None), Case.merged_into_case_id.is_(None))
+        .order_by(Case.created_at)
+    ).all()
+    refs: list[str] = []
+    for cnr, est, case_no in rows:
+        if cnr:
+            refs.append(cnr)
+        elif case_no and case_no.strip():
+            refs.append(f"{est}|{case_no.strip()}")
+    return refs
+
+
 def enqueue_weekly_dossier_sweep(session: Session) -> int:
+    """The non-disposed CNRs plus every case never fully fetched (decision 9), priority 50, lane daily, `requeue`
+    (failed and skipped rows are revived with zero attempts). Returns the count queued."""
     n = 0
-    for cnr in non_disposed_cnrs(session):
-        if queue.enqueue(session, FetchKind.DOSSIER, cnr, queue.PRIORITY["dossier_refetch"], requeue=True):
+    refs = dict.fromkeys(non_disposed_cnrs(session))
+    refs.update(dict.fromkeys(never_fetched_refs(session)))
+    for ref in refs:
+        if queue.enqueue(session, FetchKind.DOSSIER, ref, queue.PRIORITY["dossier_refetch"], requeue=True):
             n += 1
     return n
 

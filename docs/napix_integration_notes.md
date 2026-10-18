@@ -59,6 +59,7 @@ Status legend: ✅ verified live · ⚠️ from the spec, not yet verified live
 | JSON `{"status": "<Base64>"}` | Encrypted error/status message from the backend. Decrypt it like `response_str`. |
 | JSON `{"httpCode":"404","httpMessage":"Not Found","moreInformation":"No resources match requested URI"}` | NAPIX gateway: wrong URL path (or API not subscribed). Request never reached eCourts. |
 | HTTP 401 | Access token missing or expired. |
+| HTTP 200 with an empty body (hc-cnr-api, in runs of minutes to hours; 9,668 times between 18 Sep and 18 Oct 2026; the next call fails too in 89 % of cases, a median 0.57 s later) | Gateway fault. Treat as unavailable (`NapixEmptyResponse`), do not retry immediately, back off at the queue (retry ladder 10 min, 1 h, 6 h, 24 h, 72 h; the worker pauses after a run of such failures). Evidence: `napix_call_log` (design `safety-fixes`). |
 
 eCourts status codes (spec): 600 INVALID_CNR, 601 INVALID_DATE, 602 INVALID_ORDER_NO, 603 INVALID_EST_CODE, 616 INVALID_CAUSELIST_DATE, 626 INVALID_TOKEN, 627 INVALID_DEPT_ID, 628 RECORD_NOT_FOUND (valid call, no data — not an error for the caller), 629 UNEXPECTED_ERROR (retry with backoff), 632 INVALID_VERSION.
 

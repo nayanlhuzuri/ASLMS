@@ -8,6 +8,14 @@ older than the stale limit is re-queued). Kinds and the meaning of `ref`:
                    (resolved through Search by Case Number first)
 - `status_batch`   ref `<YYYY-MM-DD>:<n>` (the n-th batch of up to 500 non-disposed CNRs for that day)
 - `order_pdf`      ref `<CNR>|<order_no>|<YYYY-MM-DD>`
+- `party_search`   ref `<est_code>|P|<reg_year>|<term>` (department discovery)
+- `search_rows`    ref `<napix_responses.id>`: the background storing of a capped advocate search's rows; no NAPIX
+                   call, claimed only by the Celery task `aslms.store_search_rows` (`LOCAL_KINDS`; design
+                   `safety-fixes`, decision 13)
+
+A failed attempt goes back to `pending` on the ladder `RETRY_LADDER` (10 min, 1 h, 6 h, 24 h, 72 h) and the row is
+`failed` after the sixth failed attempt; a `failed` row is mirrored into `source_failures` as `fetch_<kind>` and that
+failure resolved when the row later ends `done` or `skipped` (design `safety-fixes`, decisions 6 and 10).
 
 Every row carries a lane (design `data-load-console`, decision 1): `request` (a person asked), `daily` (the daily
 cycle) or `load` (the backdated load), in that order of precedence; a row asked by two lanes keeps the higher one
@@ -30,6 +38,7 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from aslms.domain.ops import FetchKind, FetchLane, FetchQueueItem, FetchStatus
+from aslms.services import source_failures
 
 PRIORITY = {
     "masters": 10,
@@ -41,7 +50,17 @@ PRIORITY = {
     "dossier_refetch": 50,
     "order_pdf": 80,
 }
-MAX_ATTEMPTS = 5
+# design safety-fixes, decision 6: after the n-th failed attempt the row waits RETRY_LADDER[n-1]; failed after the 6th
+RETRY_LADDER = (
+    timedelta(minutes=10),
+    timedelta(hours=1),
+    timedelta(hours=6),
+    timedelta(hours=24),
+    timedelta(hours=72),
+)
+MAX_ATTEMPTS = len(RETRY_LADDER) + 1
+# kinds that make no NAPIX call: claimed only when named (the Celery task), never by the runner's unnamed claim
+LOCAL_KINDS = frozenset({FetchKind.SEARCH_ROWS})
 STALE_RUNNING = timedelta(minutes=30)
 
 
@@ -63,6 +82,8 @@ def enqueue(
     `requested_by` (decision 10 of `napix-window`): an inserted, revived or re-queued row takes the caller's value
     (NULL for system callers); a pending row keeps its first person (`COALESCE`), as does a running request row. Only
     the request lane carries a person: a person with another lane raises `ValueError` before any SQL.
+    `not_before` (design `safety-fixes`, decision 7): a pending row keeps its own, except that a `request`-lane call
+    on a pending row waiting in the future gives it the caller's (NULL = now); attempts and the ladder are kept.
     Returns True when the row is pending after the call."""
     if requested_by is not None and FetchLane(lane) != FetchLane.REQUEST:
         raise ValueError("only a request-lane row carries the person who asked for it")
@@ -87,7 +108,11 @@ def enqueue(
                         OR (fetch_queue.status = 'running' AND fetch_queue.lane = 'request')
                     THEN COALESCE(fetch_queue.requested_by, EXCLUDED.requested_by)
                     ELSE fetch_queue.requested_by END,
-                not_before = CASE WHEN fetch_queue.status = 'pending' THEN fetch_queue.not_before ELSE EXCLUDED.not_before END,
+                not_before = CASE
+                    WHEN fetch_queue.status = 'pending' AND :request_lane AND fetch_queue.not_before > now()
+                    THEN EXCLUDED.not_before
+                    WHEN fetch_queue.status = 'pending' THEN fetch_queue.not_before
+                    ELSE EXCLUDED.not_before END,
                 status = CASE
                     WHEN fetch_queue.status IN ('failed', 'skipped') THEN 'pending'::fetch_queue_status
                     WHEN fetch_queue.status = 'done' AND :requeue THEN 'pending'::fetch_queue_status
@@ -107,6 +132,7 @@ def enqueue(
             "lane": FetchLane(lane).value,
             "list_date": list_date,
             "requested_by": requested_by,
+            "request_lane": FetchLane(lane) == FetchLane.REQUEST,
         },
     ).scalar_one()
     return row == "pending"
@@ -118,7 +144,12 @@ PAUSE_CLAUSE = (
 
 
 def _filters(kinds: list[FetchKind] | None, lanes: list[FetchLane] | None) -> tuple[str, dict[str, Any]]:
-    kind_filter = "AND kind = ANY(CAST(:kinds AS fetch_kind[]))" if kinds else ""
+    # without named kinds the local kinds are left out (design safety-fixes, decision 13): the runner never takes them
+    kind_filter = (
+        "AND kind = ANY(CAST(:kinds AS fetch_kind[]))"
+        if kinds
+        else "AND NOT (kind = ANY(CAST(:local AS fetch_kind[])))"
+    )
     lane_filter = "AND lane = ANY(CAST(:lanes AS fetch_lane[]))" if lanes else ""
     where = (
         "status = 'pending' AND (not_before IS NULL OR not_before <= now()) "
@@ -126,6 +157,7 @@ def _filters(kinds: list[FetchKind] | None, lanes: list[FetchLane] | None) -> tu
     )
     params = {
         "kinds": [k.value for k in kinds] if kinds else None,
+        "local": sorted(k.value for k in LOCAL_KINDS),
         "lanes": [FetchLane(x).value for x in lanes] if lanes else None,
     }
     return where, params
@@ -165,29 +197,47 @@ def claim(
     ).first()
     if row is None:
         return None
-    return session.get(FetchQueueItem, row[0])
+    return session.get(FetchQueueItem, row[0], populate_existing=True)  # the row as just updated
+
+
+def failure_kind(kind: FetchKind | str) -> str:
+    """The `source_failures.kind` of a queue kind: `fetch_<kind>` (design safety-fixes, decision 10)."""
+    return f"fetch_{FetchKind(kind).value}"
 
 
 def complete(
     session: Session, item: FetchQueueItem, result: dict[str, Any] | None = None, *, skipped: bool = False
 ) -> None:
+    """`done` (or `skipped`); an open `fetch_<kind>` failure of the same ref is resolved."""
     item.status = FetchStatus.SKIPPED if skipped else FetchStatus.DONE
     item.finished_at = datetime.now(UTC)
     item.result = result
     item.last_error = None
     session.flush()
+    source_failures.resolve(session, failure_kind(item.kind), item.ref)
 
 
-def fail(session: Session, item: FetchQueueItem, error: str, *, retry_in: timedelta | None = None) -> None:
-    """Back to pending with a delay while attempts remain; failed after MAX_ATTEMPTS."""
+def retry_delay(attempts: int) -> timedelta | None:
+    """The wait after the `attempts`-th failed attempt, or None when the row is to be `failed`."""
+    if attempts >= MAX_ATTEMPTS:
+        return None
+    return RETRY_LADDER[max(1, attempts) - 1]
+
+
+def fail(session: Session, item: FetchQueueItem, error: str, *, family: str | None = None) -> None:
+    """Back to pending on the ladder while attempts remain; `failed` after MAX_ATTEMPTS, mirrored into
+    `source_failures` (`family` = the exception's class name)."""
     item.last_error = error[:2000]
     item.finished_at = datetime.now(UTC)
-    if item.attempts >= MAX_ATTEMPTS:
+    delay = retry_delay(item.attempts)
+    if delay is None:
         item.status = FetchStatus.FAILED
+        session.flush()
+        source_failures.record(session, failure_kind(item.kind), item.ref, error, family)
     else:
         item.status = FetchStatus.PENDING
-        item.not_before = datetime.now(UTC) + (retry_in or timedelta(minutes=5 * item.attempts))
-    session.flush()
+        item.not_before = datetime.now(UTC) + delay
+        session.flush()
 
 
 def requeue_stale(session: Session) -> int:

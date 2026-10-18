@@ -67,6 +67,13 @@ def search_rows(data: Any) -> list[dict[str, Any]]:
     return nested_list(data)
 
 
+def advocate_rows(payload: Any) -> list[dict[str, Any]]:
+    """The rows of a Search by Advocate Name response, in the court's order (`casenos`, verified live: probe P4).
+    Pure: shared by `search_advocate` and the background storing of a capped search's rows (design `safety-fixes`,
+    decision 13), which reads the payload kept in `napix_responses`."""
+    return search_rows(payload)
+
+
 class NapixHighCourt:
     """`CourtSource` for one High Court establishment (Gauhati HC Principal Seat = GAHC01)."""
 
@@ -201,7 +208,7 @@ class NapixHighCourt:
                 "reg_year": "" if reg_year is None else reg_year,
             },
         )
-        return search_rows(res.data)
+        return advocate_rows(res.data)
 
     async def search_filing(self, case_type: int, fil_no: int, fil_year: int) -> list[dict[str, Any]]:
         res = await self._get(

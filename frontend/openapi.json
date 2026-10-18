@@ -4565,6 +4565,11 @@
             "title": "Calls",
             "type": "integer"
           },
+          "court_cases": {
+            "default": 0,
+            "title": "Court Cases",
+            "type": "integer"
+          },
           "created": {
             "title": "Created",
             "type": "integer"
@@ -4575,6 +4580,16 @@
             },
             "title": "Items",
             "type": "array"
+          },
+          "not_stored": {
+            "default": 0,
+            "title": "Not Stored",
+            "type": "integer"
+          },
+          "queued": {
+            "default": 0,
+            "title": "Queued",
+            "type": "integer"
           },
           "source": {
             "title": "Source",
@@ -8939,7 +8954,8 @@
           "dossier",
           "status_batch",
           "order_pdf",
-          "party_search"
+          "party_search",
+          "search_rows"
         ],
         "title": "FetchKind",
         "type": "string"
@@ -15523,7 +15539,8 @@
               "dossier",
               "status_batch",
               "order_pdf",
-              "party_search"
+              "party_search",
+              "search_rows"
             ],
             "title": "Kind",
             "type": "string"
@@ -28023,7 +28040,7 @@
     },
     "/cases/search-court": {
       "post": {
-        "description": "Search the court through NAPIX: by CNR (the dossier is fetched and stored), by case number or filing\nnumber (every row stored, the asked row's dossier fetched; a held case with its dossier answers locally) or\nby party name or advocate name (rows stored, dossiers on demand through `fetch-court`). Refused when the switch is off (503 `napix_off`), the hourly quota is below the floor (503\n`napix_budget`) or the caller used their hourly searches (429 `search_limit`). Audited.",
+        "description": "Search the court through NAPIX: by CNR (the dossier is fetched and stored), by case number or filing\nnumber (every row stored, the asked row's dossier fetched; a held case with its dossier answers locally) or\nby party name or advocate name (rows stored, dossiers on demand through `fetch-court`; an advocate search stores\nthe first `NAPIX_ADVOCATE_STORE_NOW` new cases now and the rest in the background, or none beyond them when the\ncourt found more than `NAPIX_ADVOCATE_STORE_MAX`: `court_cases`, `queued`, `not_stored`). Refused when the switch is off (503 `napix_off`), the hourly quota is below the floor (503\n`napix_budget`) or the caller used their hourly searches (429 `search_limit`). Audited.",
         "operationId": "search_court_cases_search_court_post",
         "requestBody": {
           "content": {

@@ -14,7 +14,9 @@ the connector is `disabled` or `not_implemented` it returns at once, sends nothi
 writes a `job_runs` row with `{merged, needs_review, court_linked}`; it makes no NAPIX call. `next-dates-read` (every 5
 minutes, two minutes after `extract-text`) reads the next-date direction of newly stored orders by rule, in batches
 of `NEXT_DATE_BATCH`, and writes a `job_runs` row `next_dates_read` (design next-date-extraction); no NAPIX or
-SourceTrace call.
+SourceTrace call. `store-search-rows` (every 2 minutes, also dispatched by the API after a capped advocate search)
+stores the remaining rows of those searches from the responses kept in `napix_responses` (queue kind `search_rows`,
+design safety-fixes, decision 13); no NAPIX call.
 Run: `celery -A aslms.jobs.celery_app worker -B --concurrency 1` (the Compose `scheduler` service)."""
 
 from __future__ import annotations
@@ -69,6 +71,8 @@ app.conf.update(
         "digests-build": {"task": "aslms.digests_build", "schedule": crontab(hour=8, minute=0)},
         "sourcetrace-ingest": {"task": "aslms.sourcetrace_ingest", "schedule": crontab(minute="*/5")},
         "dedupe-sweep": {"task": "aslms.dedupe_sweep", "schedule": crontab(hour=3, minute=0)},
+        # the background storing of capped advocate searches (design safety-fixes, decision 13); no NAPIX call
+        "store-search-rows": {"task": "aslms.store_search_rows", "schedule": crontab(minute="*/2")},
         # department discovery (design department-discovery, decision 5): only enqueues; the worker fetches
         "discovery-weekly": {
             "task": "aslms.enqueue_discovery",
@@ -154,6 +158,15 @@ def extract_document_text(document_id: str) -> dict:
     store = LocalStore(settings.storage_dir)
     with session_scope() as s:
         return text_extract.extract_pending(s, store, batch=1, document_id=uuid.UUID(document_id))
+
+
+@app.task(name="aslms.store_search_rows")
+def store_search_rows() -> dict:
+    """Claims `search_rows` queue rows (at most 50 per run, one transaction each) and stores the advocate-search rows
+    of each kept response that are not held yet; failures go on the queue's retry ladder."""
+    from aslms.services import court_search
+
+    return court_search.run_store_search_rows(get_sessionmaker(), limit=50)
 
 
 @app.task(name="aslms.dedupe_sweep")

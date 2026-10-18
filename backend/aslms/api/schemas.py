@@ -1295,6 +1295,11 @@ class CourtSearchOut(BaseModel):
     created: int
     items: list[CaseSearchItemOut]
     unmatched: list[UnmatchedRowOut]
+    # an advocate search (design safety-fixes, decision 14): distinct CNRs the court returned, new cases being added
+    # in the background, new cases beyond the cap that were not stored; 0 for the other kinds
+    court_cases: int = 0
+    queued: int = 0
+    not_stored: int = 0
 
 
 class ErrorOut(BaseModel):
@@ -2752,7 +2757,9 @@ class RefetchOrderIn(BaseModel):
 
 
 class RetryFailedIn(BaseModel):
-    kind: Literal["masters", "causelist_day", "dossier", "status_batch", "order_pdf", "party_search"]
+    kind: Literal[
+        "masters", "causelist_day", "dossier", "status_batch", "order_pdf", "party_search", "search_rows"
+    ]
     lane: Literal["request", "daily", "discovery", "load"] | None = None
 
 

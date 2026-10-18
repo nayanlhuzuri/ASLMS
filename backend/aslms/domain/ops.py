@@ -161,6 +161,8 @@ class FetchKind(enum.StrEnum):
     STATUS_BATCH = "status_batch"
     ORDER_PDF = "order_pdf"
     PARTY_SEARCH = "party_search"  # design department-discovery, decision 3 (migration 0017)
+    # the background storing of an advocate search's rows; no NAPIX call (design safety-fixes, migration 0019)
+    SEARCH_ROWS = "search_rows"
 
 
 class FetchStatus(enum.StrEnum):

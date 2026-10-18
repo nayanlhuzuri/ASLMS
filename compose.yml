@@ -2,6 +2,9 @@
 # Services: postgres, redis, clamav (scans every upload), init (migrate + seed), api, worker (the NAPIX
 # load-and-refresh queue), scheduler (Celery beat and the text-extraction sweep), web (the Next.js portal at
 # http://localhost:3000; design portal-shell). Variables come from .env (copy .env.example).
+# Database roles (DB_STANDARD §8, design safety-fixes): `init` alone connects as POSTGRES_USER (migrations, seed and
+# `aslms db-roles`, which sets the aslms_app / aslms_readonly passwords from .env on every run); the api, worker and
+# scheduler connect as aslms_app with ASLMS_APP_PASSWORD (required: Compose refuses to start without it).
 
 services:
   postgres:
@@ -45,6 +48,8 @@ services:
     restart: unless-stopped
 
   init:
+    # migrations, seed and the role passwords, as the cluster owner; ASLMS_APP_PASSWORD and ASLMS_READONLY_PASSWORD
+    # reach `aslms db-roles` through the env file
     build: ./backend
     env_file:
       - path: .env
@@ -56,7 +61,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: sh -c "alembic upgrade head && aslms seed"
+    command: sh -c "alembic upgrade head && aslms seed && aslms db-roles"
     restart: "no"
 
   api:
@@ -67,7 +72,7 @@ services:
       - path: .env
         required: false
     environment:
-      DATABASE_URL_SYNC: postgresql+psycopg://${POSTGRES_USER:-aslms}:${POSTGRES_PASSWORD:-aslms}@postgres:5432/${POSTGRES_DB:-aslms}
+      DATABASE_URL_SYNC: postgresql+psycopg://aslms_app:${ASLMS_APP_PASSWORD:?set ASLMS_APP_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-aslms}
       REDIS_URL: redis://redis:6379/0
       STORAGE_DIR: /data/store
       CLAMAV_HOST: clamav
@@ -102,7 +107,7 @@ services:
       - path: .env
         required: false
     environment:
-      DATABASE_URL_SYNC: postgresql+psycopg://${POSTGRES_USER:-aslms}:${POSTGRES_PASSWORD:-aslms}@postgres:5432/${POSTGRES_DB:-aslms}
+      DATABASE_URL_SYNC: postgresql+psycopg://aslms_app:${ASLMS_APP_PASSWORD:?set ASLMS_APP_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-aslms}
       REDIS_URL: redis://redis:6379/0
       STORAGE_DIR: /data/store
       CAUSELIST_DIR: /data/causelists
@@ -129,7 +134,7 @@ services:
       - path: .env
         required: false
     environment:
-      DATABASE_URL_SYNC: postgresql+psycopg://${POSTGRES_USER:-aslms}:${POSTGRES_PASSWORD:-aslms}@postgres:5432/${POSTGRES_DB:-aslms}
+      DATABASE_URL_SYNC: postgresql+psycopg://aslms_app:${ASLMS_APP_PASSWORD:?set ASLMS_APP_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-aslms}
       REDIS_URL: redis://redis:6379/0
       STORAGE_DIR: /data/store
     volumes:

@@ -427,3 +427,55 @@ describe("the filter bar on Search (portal-filters)", () => {
     expect(api.calls.some((c) => c.path.startsWith("/documents/search"))).toBe(false);
   });
 });
+
+describe("court search caps (safety-fixes, decision 14)", () => {
+  async function runAdvocate(answer: Record<string, unknown>) {
+    browserApi({
+      "GET /me": me(SEARCHER),
+      "GET /reference/case-types": TYPES,
+      "GET /cases/search": { items: [], total: 0 },
+      "POST /cases/search-court": answer,
+    });
+    renderWithClient(<Search params={{ q: "SAIKIA" }} />);
+    const panel = await screen.findByRole("region", { name: "Search the court" });
+    await userEvent.selectOptions(within(panel).getByLabelText("Search by"), "advocate");
+    await userEvent.type(within(panel).getByLabelText("Advocate name"), "SAIKIA");
+    await userEvent.type(within(panel).getByLabelText("Year"), "2025");
+    await userEvent.click(within(panel).getByRole("button", { name: "Search the court" }));
+    return panel;
+  }
+
+  it("court search shows the queued and not-stored notices", async () => {
+    const queued = await runAdvocate({
+      source: "court",
+      calls: 1,
+      created: 25,
+      items: [item(5, { match: "advocate" })],
+      unmatched: [],
+      court_cases: 30,
+      queued: 5,
+      not_stored: 0,
+    });
+    expect(await within(queued).findByText("5 more cases are being added; search the portal again in a minute.")).toBeInTheDocument();
+    expect(within(queued).queryByText(/Type more of the name/)).toBeNull();
+  });
+
+  it("an over-cap advocate search asks for more of the name", async () => {
+    const capped = await runAdvocate({
+      source: "court",
+      calls: 1,
+      created: 25,
+      items: [item(5, { match: "advocate" })],
+      unmatched: [],
+      court_cases: 325,
+      queued: 0,
+      not_stored: 300,
+    });
+    expect(
+      await within(capped).findByText(
+        "The court found 325 cases for this name; only the first 25 new ones were added. Type more of the name (initials and surname) to narrow it.",
+      ),
+    ).toBeInTheDocument();
+    expect(within(capped).queryByText(/more cases are being added/)).toBeNull();
+  });
+});

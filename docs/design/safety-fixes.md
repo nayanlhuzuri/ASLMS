@@ -408,3 +408,24 @@ None. The four new defaults are proposals the owner may change at approval:
 - `NAPIX_FAULT_STREAK` 5 and `NAPIX_FAULT_PAUSE_SECONDS` 300;
 - `NAPIX_ADVOCATE_STORE_NOW` 25 and `NAPIX_ADVOCATE_STORE_MAX` 300;
 - the ladder 10 min / 1 h / 6 h / 24 h / 72 h, which is the audit's.
+
+## Deviations
+Recorded by the developer while building (18 Oct 2026). None changes a business rule or an API field.
+1. **Audit numbers.** `court_cases`, `queued` and `not_stored` join the `case.search_court` audit `after` only for an
+   advocate search that answered `ok`; the other kinds' audit rows are unchanged (the response fields default to 0
+   for every kind, as designed).
+2. **The API-flow test** uses an engine whose every connection runs `SET ROLE aslms_app` (session level) rather than
+   `SET LOCAL ROLE` inside one connection: the app commits per request, and `SET LOCAL` ends at the first commit. The
+   sign-in code is read from the test `RecordingMailer`; the console mailer logs only the masked recipient and the
+   subject, so the code cannot be read from it.
+3. **`queue.claim` re-reads the claimed row** (`populate_existing`), so a second claim in the same session sees the
+   updated `attempts`; the ladder depends on it.
+4. **`search_rows` rows are enqueued with `requeue=True`**: a repeated search whose response is identical keeps the
+   same `napix_responses` id, and the done row must run again. They are queued only for the responses that carry at
+   least one of the remaining new CNRs. A row whose response id no longer exists ends `skipped`.
+5. **`aslms db-roles`** applies the same refusals to `ASLMS_READONLY_PASSWORD` when it is set (exit 1).
+6. **`hc.advocate_rows`** is the existing `search_rows` extractor (`casenos`, else a flat numbered list), so
+   `search_advocate` behaves exactly as before.
+7. **The grants test** expects DELETE on `CASCADE_TABLES` and `DRAFT_TABLES` except the append-only
+   `sourcetrace_ingestions`, which keeps SELECT / INSERT only (docs/schema/schema.md).
+8. **The portal** labels the new queue kind "Advocate search rows" in the Data collection kind names.

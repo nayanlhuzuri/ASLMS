@@ -258,6 +258,26 @@ As built by `alerts-notifications` (migration 0007, 6 Oct 2026): `alerts` gains 
 > requested years), 43 (a new term's first sweep), 49 (order PDFs of found cases). The load's pause does not apply
 > to them. `napix_call_log.lane` carries `discovery` for their calls.
 
+> (safety-fixes, migration 0019) `fetch_kind` gains `search_rows` (ref `<napix_responses.id>`): the background
+> storing of an advocate search's rows beyond the first `NAPIX_ADVOCATE_STORE_NOW`, lane `request`, priority 30,
+> `requested_by` the person. It makes no NAPIX call. Its rows are claimed only by the Celery task
+> `aslms.store_search_rows`, never by the queue runner (`queue.LOCAL_KINDS`). Every kind is retried on the ladder
+> 10 min, 1 h, 6 h, 24 h, 72 h after its first five failures and becomes `failed` after the sixth
+> (`queue.RETRY_LADDER`, `MAX_ATTEMPTS = 6`). A `request`-lane enqueue on a pending row brings its `not_before`
+> forward. `fetch_queue` stays class `derived`, with RESTRICT keys and no DELETE.
+
+> `source_failures` (derived; unique (kind, ref); `created_at`, `updated_at` with the `set_updated_at` trigger; no
+> FK) gains the kinds `fetch_<fetch_kind>` (`fetch_dossier`, `fetch_order_pdf`, `fetch_causelist_day`,
+> `fetch_status_batch`, `fetch_masters`, `fetch_party_search`, `fetch_search_rows`), ref = the queue row's ref. One
+> is written when a queue row becomes `failed` (`error`, `error_family`, `attempts + 1`, `last_seen`; `resolved_at`
+> cleared) and resolved (`resolved_at = now()`) when that row later ends `done` or `skipped`. Written only through
+> `services/source_failures.py`.
+
+> Roles (DB_STANDARD §8, as built from safety-fixes): the Compose `api`, `worker` and `scheduler` connect as
+> `aslms_app`. `init` connects as `POSTGRES_USER` and runs `alembic upgrade head`, `aslms seed` and `aslms db-roles`.
+> The last sets the `aslms_app` (required) and `aslms_readonly` (optional) passwords from `.env` on every run.
+> Migrations still run as the cluster superuser, not `aslms_owner` (row 16).
+
 ## Phase 2 and 3 tables
 | Table | Columns (key ones) | Notes |
 |---|---|---|

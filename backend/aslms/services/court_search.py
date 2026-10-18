@@ -29,18 +29,18 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 
-from aslms.core.config import Settings
+from aslms.core.config import Settings, get_settings
 from aslms.core.errors import IntegrationError, NapixInputError, NapixNotFound, NapixProtocolError
 from aslms.domain.cases import Case, FirstSeenSource
 from aslms.domain.courts import CaseType, Court
 from aslms.domain.events import AuditLog
-from aslms.domain.ops import FetchLane
+from aslms.domain.ops import FetchKind, FetchLane, FetchQueueItem, NapixResponse
 from aslms.domain.org import User
 from aslms.domain.ownership import RecommendationOrigin
-from aslms.integration.napix.hc import NapixHighCourt
-from aslms.services import case_dedupe, matching, napix_window
+from aslms.integration.napix.hc import NapixHighCourt, advocate_rows
+from aslms.services import case_dedupe, matching, napix_window, queue
 from aslms.services.audit import Actor, write_audit
 from aslms.services.cases import (
     ROOT_OFFICE,
@@ -144,6 +144,11 @@ class CourtSearchResult:
     cases: list[Case]
     unmatched: list[dict[str, Any]]
     outcome: str
+    # an advocate search (design safety-fixes, decision 14): distinct CNRs the court returned, new cases being added
+    # in the background, new cases beyond the cap that were not stored; 0 for the other kinds
+    court_cases: int = 0
+    queued: int = 0
+    not_stored: int = 0
 
 
 def _now() -> datetime:
@@ -451,6 +456,8 @@ async def search_court(
         audit.update(
             calls=result.calls, results=len(result.cases), created=result.created, outcome=result.outcome
         )
+        if kind == "advocate" and result.outcome == "ok":  # design safety-fixes, decision 14
+            audit.update(court_cases=result.court_cases, queued=result.queued, not_stored=result.not_stored)
         _finish(
             session,
             actor,
@@ -485,7 +492,10 @@ async def search_court(
             )
         elif kind == "advocate":
             result = await asyncio.wait_for(
-                _search_advocate(session, hc, court, request), settings.napix_search_timeout_seconds
+                _search_advocate(
+                    session, hc, court, request, recorder=recorder, settings=settings, user=user
+                ),
+                settings.napix_search_timeout_seconds,
             )
         else:
             raise CourtSearchError(f"kind is one of {', '.join(KINDS)}")
@@ -570,18 +580,17 @@ def _check_year(value: Any, label: str = "reg_year") -> int:
     return year
 
 
-async def _name_search(
-    session: Session,
-    court: Court,
+async def _name_calls(
     request: dict[str, Any],
     *,
     method: Callable[[str, int, str], Awaitable[list[dict[str, Any]]]],
     api: str,
     max_len: int | None = None,
-) -> CourtSearchResult:
+    hc: NapixHighCourt | None = None,
+) -> list[tuple[dict[str, Any], tuple[str, str] | None]]:
     """Party and advocate name (design search-court-advocate-filing, decision 6): the same input checks and the
-    `P` / `D` / `both` loop (628 on one flag is not an error); every row with a valid `cino` stored and scored, no
-    dossier fetched. `NapixNotFound` when no call found anything."""
+    `P` / `D` / `both` loop (628 on one flag is not an error). Each row comes with the (api, params_sha256) of the
+    response that carried it (from `hc.last`, when `hc` is given). `NapixNotFound` when no call found anything."""
     name = (request.get("name") or "").strip()
     pend = str(request.get("pend_disp") or "P").strip()
     if len(name) < MIN_PARTY_NAME:
@@ -593,35 +602,160 @@ async def _name_search(
     reg_year = _check_year(request.get("reg_year"))
     if pend not in ("P", "D", "both"):
         raise CourtSearchError("pend_disp is P, D or both")
-    rows: list[dict[str, Any]] = []
+    rows: list[tuple[dict[str, Any], tuple[str, str] | None]] = []
     found_any = False
     for flag in ("P", "D") if pend == "both" else (pend,):
         try:
-            rows.extend(await method(name, reg_year, flag))
-            found_any = True
+            got = await method(name, reg_year, flag)
         except NapixNotFound:
             continue
+        found_any = True
+        last = hc.last if hc is not None else None
+        key = (last.api, last.params_sha256) if last is not None else None
+        rows.extend((row, key) for row in got)
     if not found_any:
         raise NapixNotFound("no case for that name", api=api)
-    report = store_search_rows(session, court, rows)
-    return CourtSearchResult("court", 0, report.created, report.cases, report.unmatched, "ok")
+    return rows
 
 
 async def _search_party(
     session: Session, hc: NapixHighCourt, court: Court, request: dict[str, Any]
 ) -> CourtSearchResult:
-    return await _name_search(session, court, request, method=hc.search_party, api="party_name")
+    """Every row with a valid `cino` stored and scored, no dossier fetched: the court matches party names exactly
+    (probe P4), so the rows stay few (design safety-fixes, decision 12)."""
+    rows = await _name_calls(request, method=hc.search_party, api="party_name")
+    report = store_search_rows(session, court, [row for row, _ in rows])
+    return CourtSearchResult("court", 0, report.created, report.cases, report.unmatched, "ok")
+
+
+def held_cnrs(session: Session, cnrs: list[str]) -> set[str]:
+    """The CNRs among `cnrs` that a case row holds already, in one query."""
+    if not cnrs:
+        return set()
+    return set(session.scalars(select(Case.cnr).where(Case.cnr.in_(cnrs))).all())
 
 
 async def _search_advocate(
-    session: Session, hc: NapixHighCourt, court: Court, request: dict[str, Any]
+    session: Session,
+    hc: NapixHighCourt,
+    court: Court,
+    request: dict[str, Any],
+    *,
+    recorder: NapixRecorder | None = None,
+    settings: Settings | None = None,
+    user: User | None = None,
 ) -> CourtSearchResult:
-    """Decision 6: like the party name, with the spec's 99-character maximum. Nothing is written to
-    `case_advocates` from a hit (the row does not say on which side the advocate appears); the case's advocates
-    arrive with its dossier."""
-    return await _name_search(
-        session, court, request, method=hc.search_advocate, api="advocate_name", max_len=MAX_ADVOCATE_NAME
+    """Decision 6 of search-court-advocate-filing: like the party name, with the spec's 99-character maximum.
+    Nothing is written to `case_advocates` from a hit (the row does not say on which side the advocate appears);
+    the case's advocates arrive with its dossier.
+
+    The court matches part of a name, so the rows stored are capped (design safety-fixes, decisions 12-14): the
+    distinct valid CNRs in court order (P before D); the held ones found in one query; the first
+    `NAPIX_ADVOCATE_STORE_NOW` new ones stored now. When all the distinct CNRs number at most
+    `NAPIX_ADVOCATE_STORE_MAX`, the remaining new ones are stored in the background (one `search_rows` queue row per
+    response that carries them, lane `request`, priority 30, `requested_by` the person); otherwise nothing more is
+    stored (`not_stored`) and every response stays verbatim in `napix_responses`. The answer lists the held cases
+    among the first STORE_MAX CNRs plus the ones stored now."""
+    cfg = settings or get_settings()
+    store_now, store_max = cfg.napix_advocate_store_now, cfg.napix_advocate_store_max
+    rows = await _name_calls(
+        request, method=hc.search_advocate, api="advocate_name", max_len=MAX_ADVOCATE_NAME, hc=hc
     )
+    order: list[str] = []  # distinct valid CNRs, court order
+    keys_of: dict[str, set[tuple[str, str]]] = {}
+    for row, key in rows:
+        cino = _cino(row)
+        if cino is None:
+            continue
+        if cino not in keys_of:
+            order.append(cino)
+            keys_of[cino] = set()
+        if key is not None:
+            keys_of[cino].add(key)
+    held = held_cnrs(session, order)
+    new = [c for c in order if c not in held]
+    now_new = set(new[:store_now])
+    rest = new[store_now:]
+    court_cases = len(order)
+    listed = {c for c in order[:store_max] if c in held} | now_new
+    to_store = [row for row, _ in rows if (cino := _cino(row)) is None or cino in listed]
+    report = store_search_rows(session, court, to_store)
+    queued = not_stored = 0
+    if rest and court_cases <= store_max and recorder is not None:
+        recorder.flush(session)  # writes the call log and the responses, and names the responses' ids
+        keys = sorted({k for c in rest for k in keys_of[c]})
+        ids = list(dict.fromkeys(recorder.response_ids[k] for k in keys if k in recorder.response_ids))
+        for rid in ids:
+            queue.enqueue(
+                session,
+                FetchKind.SEARCH_ROWS,
+                str(rid),
+                queue.PRIORITY["request"],
+                requeue=True,
+                lane=FetchLane.REQUEST,
+                requested_by=napix_window.user_id_of(user),
+            )
+        queued = len(rest) if ids else 0
+        not_stored = 0 if ids else len(rest)
+    elif rest:
+        not_stored = len(rest)
+    return CourtSearchResult(
+        "court",
+        0,
+        report.created,
+        report.cases,
+        report.unmatched,
+        "ok",
+        court_cases=court_cases,
+        queued=queued,
+        not_stored=not_stored,
+    )
+
+
+# ------------------------------------------------------------------------------------------------ background storing
+
+
+def store_response_rows(session: Session, response_id: uuid.UUID | str) -> dict[str, int] | None:
+    """The handler of a `search_rows` queue row (design safety-fixes, decision 13): reads the stored advocate-search
+    payload with the same extractor as `NapixHighCourt.search_advocate` and stores every valid row whose CNR is not
+    held yet (source `search`, origin `search`). Idempotent; makes no NAPIX call. None when the response is unknown."""
+    resp = session.get(NapixResponse, uuid.UUID(str(response_id)))
+    if resp is None:
+        return None
+    est = (resp.params or {}).get("est_code") or get_settings().napix_est_code
+    court = court_for(session, est)
+    rows = advocate_rows(resp.payload)
+    valid = [(cino, row) for row in rows if (cino := _cino(row))]
+    held = held_cnrs(session, list(dict.fromkeys(c for c, _ in valid)))
+    fresh = [row for cino, row in valid if cino not in held]
+    report = store_search_rows(session, court, fresh) if fresh else StoreReport()
+    return {"stored": report.created, "held": len(held), "unmatched": len(rows) - len(valid)}
+
+
+def run_store_search_rows(session_factory: sessionmaker[Session], *, limit: int = 50) -> dict[str, int]:
+    """The `aslms.store_search_rows` task: claims `search_rows` rows until none are left (at most `limit`), one
+    transaction per row; a failure goes on the queue's ladder and, when final, into `source_failures`."""
+    counts = {"done": 0, "skipped": 0, "failed": 0}
+    for _ in range(limit):
+        with session_factory() as s:
+            item = queue.claim(s, [FetchKind.SEARCH_ROWS])
+            if item is None:
+                s.commit()
+                break
+            item_id, ref = item.id, item.ref
+            s.commit()
+            try:
+                out = store_response_rows(s, ref)
+                item = s.get(FetchQueueItem, item_id)
+                queue.complete(s, item, out or {"error": "response not found"}, skipped=out is None)
+                counts["skipped" if out is None else "done"] += 1
+            except Exception as exc:  # noqa: BLE001 — recorded on the row and retried on the ladder
+                s.rollback()
+                item = s.get(FetchQueueItem, item_id)
+                queue.fail(s, item, f"{exc.__class__.__name__}: {exc}", family=type(exc).__name__)
+                counts["failed"] += 1
+            s.commit()
+    return counts
 
 
 def _compact(value: str | None) -> str:

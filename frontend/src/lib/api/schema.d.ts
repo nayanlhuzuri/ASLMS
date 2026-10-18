@@ -2246,7 +2246,9 @@ export interface paths {
          * Search Court
          * @description Search the court through NAPIX: by CNR (the dossier is fetched and stored), by case number or filing
          *     number (every row stored, the asked row's dossier fetched; a held case with its dossier answers locally) or
-         *     by party name or advocate name (rows stored, dossiers on demand through `fetch-court`). Refused when the switch is off (503 `napix_off`), the hourly quota is below the floor (503
+         *     by party name or advocate name (rows stored, dossiers on demand through `fetch-court`; an advocate search stores
+         *     the first `NAPIX_ADVOCATE_STORE_NOW` new cases now and the rest in the background, or none beyond them when the
+         *     court found more than `NAPIX_ADVOCATE_STORE_MAX`: `court_cases`, `queued`, `not_stored`). Refused when the switch is off (503 `napix_off`), the hourly quota is below the floor (503
          *     `napix_budget`) or the caller used their hourly searches (429 `search_limit`). Audited.
          */
         post: operations["search_court_cases_search_court_post"];
@@ -5160,10 +5162,25 @@ export interface components {
         CourtSearchOut: {
             /** Calls */
             calls: number;
+            /**
+             * Court Cases
+             * @default 0
+             */
+            court_cases: number;
             /** Created */
             created: number;
             /** Items */
             items: components["schemas"]["CaseSearchItemOut"][];
+            /**
+             * Not Stored
+             * @default 0
+             */
+            not_stored: number;
+            /**
+             * Queued
+             * @default 0
+             */
+            queued: number;
             /** Source */
             source: string;
             /** Unmatched */
@@ -6556,7 +6573,7 @@ export interface components {
          * FetchKind
          * @enum {string}
          */
-        FetchKind: "masters" | "causelist_day" | "dossier" | "status_batch" | "order_pdf" | "party_search";
+        FetchKind: "masters" | "causelist_day" | "dossier" | "status_batch" | "order_pdf" | "party_search" | "search_rows";
         /**
          * FetchLane
          * @description Who asked for a queue row (design `data-load-console`, decision 1), in order of precedence: a person's
@@ -8706,7 +8723,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "masters" | "causelist_day" | "dossier" | "status_batch" | "order_pdf" | "party_search";
+            kind: "masters" | "causelist_day" | "dossier" | "status_batch" | "order_pdf" | "party_search" | "search_rows";
             /** Lane */
             lane?: ("request" | "daily" | "discovery" | "load") | null;
         };

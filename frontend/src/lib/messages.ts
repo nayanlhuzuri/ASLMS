@@ -783,6 +783,10 @@ export const T = {
     pendDispOptions: { P: "Pending", D: "Disposed", both: "Both" } as Record<string, string>,
     courtGo: "Search the court",
     courtFound: (n: number, created: number) => `${n} case(s) found; ${created} new to the portal.`,
+    // design safety-fixes, decision 14: a capped advocate search
+    courtQueued: (n: number) => `${n} more cases are being added; search the portal again in a minute.`,
+    courtNotStored: (found: number, added: number) =>
+      `The court found ${found} cases for this name; only the first ${added} new ones were added. Type more of the name (initials and surname) to narrow it.`,
     unmatched: "Rows the court returned that are not stored",
     fetchDetails: "Fetch details",
     fetched: "Details fetched.",
@@ -1377,6 +1381,7 @@ export const T = {
       status_batch: "Status batches",
       order_pdf: "Order PDFs",
       party_search: "Party-name searches",
+      search_rows: "Advocate search rows",
     } as Record<string, string>,
     workLeft: "Work left",
     pending: "Pending",
