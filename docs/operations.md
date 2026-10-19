@@ -116,6 +116,10 @@ Every container's logs are rotated (`json-file`, 20 MB × 5). The backend image 
   and `docker compose up -d`.
 - **NAPIX credentials and mail secrets:** change them in `.env`, then `docker compose up -d`.
 
+**Upgrading a machine that ran an older layout (before the backend ran as uid 10001):** the document folders under `./data` were created by root and the application cannot write them (order PDFs fail with `PermissionError`). Run once:
+`docker compose run --rm --no-deps -u root --entrypoint sh worker -c "chmod -R a+rwX /data/store /data/causelists /data/storage"`
+(on Windows `chown` to 10001 is refused, so use `chmod`; on Linux prefer `chown -R 10001:10001` on the same folders).
+
 ## 6. Upgrading (decision 12)
 
 `docker compose up` no longer migrates an existing database. When a build needs a newer schema, `init` exits with
