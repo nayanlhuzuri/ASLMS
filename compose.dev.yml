@@ -18,3 +18,8 @@ services:
       TRUST_PROXY_HEADERS: "false"
   proxy:
     profiles: ["proxy"]
+  ops-exporter:
+    environment:
+      # the HTTPS proxy does not run in development (it starts only with --profile proxy), so the portal probe
+      # through it would raise PortalDown for ever; a blank URL is not probed. web and api are still probed.
+      OPS_PROBE_PORTAL_URL: ""
