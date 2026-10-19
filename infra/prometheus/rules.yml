@@ -1,0 +1,165 @@
+# ASLMS alert rules (design deployment-checklist, Part B, decision 25). Tested by `promtool test rules
+# rules.test.yml` (docs/operations.md section 17 gives the command). Alertmanager mails them to OPS_ALERT_EMAIL
+# through the SMTP_* relay; without a relay they are visible in Grafana and Alertmanager only. What to do for each
+# alert: docs/operations.md, section 17.
+groups:
+  - name: aslms-services
+    rules:
+      - alert: ServiceDown
+        # a scrape target, or the database behind the postgres exporter, is down
+        expr: up == 0 or pg_up == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.job }} ({{ $labels.instance }}) has been down for 5 minutes"
+          runbook: "docs/operations.md section 17, ServiceDown"
+
+      - alert: PortalDown
+        expr: aslms_probe_up{target="portal"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "the portal does not answer through the proxy (https, /api/health) for 5 minutes"
+          runbook: "docs/operations.md section 17, PortalDown"
+
+      - alert: RedisDown
+        expr: redis_up == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis does not answer the exporter for 5 minutes (NAPIX token and Celery messages)"
+          runbook: "docs/operations.md section 17, RedisDown"
+
+      - alert: ClamAVDown
+        expr: aslms_clamav_up == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "clamd does not answer for 5 minutes: uploads are refused (503 scanner_unavailable)"
+          runbook: "docs/operations.md section 17, ClamAVDown"
+
+      - alert: ClamAVSignaturesOld
+        expr: time() - aslms_clamav_signature_timestamp > 3 * 86400
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "ClamAV signatures are older than 3 days"
+          runbook: "docs/operations.md section 17, ClamAVSignaturesOld"
+
+      - alert: PostgresConnectionsHigh
+        expr: sum(pg_stat_activity_count) / max(pg_settings_max_connections) > 0.8
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PostgreSQL connections are over 80 % of max_connections"
+          runbook: "docs/operations.md section 17, PostgresConnectionsHigh"
+
+      - alert: CertExpiring
+        expr: aslms_tls_cert_expiry_timestamp - time() < 21 * 86400
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "the portal's TLS certificate expires in under 21 days"
+          runbook: "docs/operations.md section 17, CertExpiring"
+
+      - alert: DiskLow
+        expr: (aslms_disk_free_bytes / aslms_disk_total_bytes < 0.15) or aslms_disk_free_bytes < 10e9
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.path }} has under 15 % or under 10 GB free"
+          runbook: "docs/operations.md section 17, DiskLow"
+
+  - name: aslms-work
+    rules:
+      - alert: WorkerStalled
+        # the queue worker starts a `queue-run` pass at least every hour, even while it waits for the NAPIX window
+        expr: (time() - aslms_worker_last_pass_timestamp > 7200) and on() (max(aslms_queue_oldest_pending_seconds) > 0)
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "no queue worker pass for 2 hours while the queue has runnable rows"
+          runbook: "docs/operations.md section 17, WorkerStalled"
+
+      - alert: JobStuck
+        expr: aslms_job_running_oldest_seconds > 6 * 3600
+        labels:
+          severity: warning
+        annotations:
+          summary: "job {{ $labels.job }} has been running for more than 6 hours"
+          runbook: "docs/operations.md section 17, JobStuck"
+
+      - alert: JobLate
+        expr: time() - aslms_job_last_success_timestamp{job=~"notifications_send|alerts_events"} > 30 * 60
+        for: 5m
+        labels:
+          severity: warning
+          late_after: 30m
+        annotations:
+          summary: "job {{ $labels.job }} has not succeeded for 30 minutes"
+          runbook: "docs/operations.md section 17, JobLate"
+
+      - alert: JobLate
+        expr: time() - aslms_job_last_success_timestamp{job=~"extract_text|next_dates_read"} > 3600
+        for: 5m
+        labels:
+          severity: warning
+          late_after: 1h
+        annotations:
+          summary: "job {{ $labels.job }} has not succeeded for 1 hour"
+          runbook: "docs/operations.md section 17, JobLate"
+
+      - alert: JobLate
+        expr: time() - aslms_job_last_success_timestamp{job=~"dedupe-sweep|digests"} > 26 * 3600
+        for: 5m
+        labels:
+          severity: warning
+          late_after: 26h
+        annotations:
+          summary: "job {{ $labels.job }} has not succeeded for 26 hours"
+          runbook: "docs/operations.md section 17, JobLate"
+
+      - alert: BackupMissing
+        expr: time() - aslms_backup_last_success_timestamp > 13 * 3600
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "no successful backup for 13 hours"
+          runbook: "docs/operations.md section 17, BackupMissing"
+
+      - alert: RestoreCheckMissing
+        expr: time() - aslms_restore_check_last_success_timestamp > 8 * 86400
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "no successful restore check for 8 days"
+          runbook: "docs/operations.md section 17, RestoreCheckMissing"
+
+      - alert: NapixErrorsHigh
+        expr: aslms_napix_calls_last_hour{outcome="failed"} > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "more than 100 failed NAPIX calls in the last hour"
+          runbook: "docs/operations.md section 17, NapixErrorsHigh"
+
+      - alert: MailFailing
+        expr: delta(aslms_notifications{status="failed"}[1h]) > 10 or aslms_mail_oldest_queued_seconds > 1800
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "e-mail is failing: more than 10 failed notifications in an hour, or the oldest queued is over 30 minutes old"
+          runbook: "docs/operations.md section 17, MailFailing"

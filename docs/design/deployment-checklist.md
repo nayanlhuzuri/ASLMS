@@ -841,3 +841,88 @@ and changed later in `.env`. They are listed for the owner to confirm at approva
   then starts fresh and each entry fires at its next due time, which is what the crontab schedule already does.
 - **Documents left to the scribe:** the decisions log entry (including the change of behaviour "`up` no longer
   migrates an existing database"), `CLAUDE.md` "Current focus" and the backlog rows 16, 24, 33, 43, 44, 80 and 82.
+
+### Deviations made while building Part B (developer, 19 Oct 2026)
+- **Where the design is:** the build task named `docs/design/deployment-monitoring.md`, which does not exist. Part B
+  is decided here (decisions 22-28, approved 18 Oct 2026), and backlog row 77 links this note, so it was built from
+  this note.
+- **Two more gauges:** `aslms_disk_total_bytes{path}` (DiskLow's "under 15 %" needs the size) and
+  `aslms_mail_oldest_queued_seconds` (MailFailing's "oldest pending over 30 minutes"). `aslms_notifications{status}`
+  counts e-mail notifications only, because in-app rows are not mail.
+- **Gauge meanings chosen:** `aslms_queue_oldest_pending_seconds{lane}` is the age of the oldest *runnable* pending
+  row (not waiting on `not_before`), 0 when there is none, as on the data-health screen; WorkerStalled uses it for
+  "the queue has runnable rows". `aslms_job_last_success_timestamp{job}` counts `succeeded` and `partial` runs and
+  has a series only for jobs that have succeeded; `aslms_job_running{job}` is 0 for every job of
+  `job_repair.ALL_SETS` without rows. The backup gauges take the later of the status file and the `job_runs`
+  success, because a failed restore check overwrites `restore-check.json`. `aslms_napix_window_remaining` is NaN
+  while the window timing is unknown. `aslms_napix_switch_on` is the exporter's `NAPIX_ENABLED`, which Compose passes
+  from the same shell value as the worker's; the exporter gets no NAPIX credential and never calls NAPIX.
+- **Exporter settings:** `OPS_METRICS_CACHE_SECONDS` (60), `OPS_METRICS_STATEMENT_TIMEOUT_SECONDS` (10),
+  `OPS_PROBE_PORTAL_URL` / `OPS_PROBE_WEB_URL` / `OPS_PROBE_API_URL` (blank skips a probe), `OPS_PROBE_TIMEOUT_SECONDS`
+  and `OPS_DISK_PATHS`. Each database reading runs in a `READ ONLY` transaction. The portal probe sends the portal's
+  host name as SNI and `Host` (the proxy refuses other names) and does not verify the chain, because the internal CA
+  is not in the container; the certificate's expiry is read from the same handshake. `aslms ops metrics --once`
+  prints one reading. `ClamdScanner.version()` sends clamd's `zVERSION`.
+- **The ops exporter's networks:** `default` and `edge`, not `portal`, so it never takes an address in the subnet
+  whose `WEB_IP` the api trusts.
+- **API metrics:** `API_METRICS_PORT` defaults to 0 (no listener) for host runs and tests; Compose sets 9100. A
+  request no route served (a 404, the upload guard's 413) is counted as route `unmatched`: FastAPI 0.142 keeps
+  included routers lazy, and matching a template outside routing would need its private API. The counter is
+  `aslms_api_requests_total{method,route,status}` and the histogram `aslms_api_request_duration_seconds`.
+- **Alert rules:** ServiceDown also fires on `pg_up == 0` (the database behind a running exporter). JobLate is three
+  rules with a `late_after` label (`30m`, `1h`, `26h`), because `promtool check` refuses duplicate rules with the same
+  labels. `for` durations: 5 minutes for most, 10 for PostgresConnectionsHigh, 15 for ClamAVSignaturesOld and DiskLow,
+  1 hour for CertExpiring, none for JobStuck. Severity `critical` for ServiceDown, PortalDown, RedisDown, ClamAVDown,
+  WorkerStalled and BackupMissing; `warning` for the rest.
+- **Alertmanager:** no image renders environment variables, so `infra/alertmanager/entrypoint.sh` renders the template
+  into a tmpfs and writes the SMTP password to a mode-600 file read through `smtp_auth_password_file`; without
+  `SMTP_HOST` or `OPS_ALERT_EMAIL` the e-mail receiver is left out. Critical alerts repeat hourly, warnings every
+  4 hours; JobLate and WorkerStalled are inhibited while ServiceDown fires.
+- **Flower is not scraped:** its `/metrics` sits behind the basic auth, whose password Prometheus' configuration cannot
+  read from `.env`. The "Redis and Celery" dashboard takes the Celery queue length from the redis exporter's check of
+  the `celery` key, and the jobs from the ops exporter.
+- **Host-profile targets** (`node-exporter`, `cadvisor`) are found through Docker's DNS, so without the profile there
+  is no target and no ServiceDown (Prometheus logs a failed lookup every 5 minutes).
+- **Preflight:** `ASLMS_READONLY_PASSWORD` is now required (the exporters connect with it). `GRAFANA_ADMIN_PASSWORD`
+  and each `FLOWER_BASIC_AUTH` password follow the password rules except the URL-safe one (they go into no URL), and
+  `admin` and `flower` join the known defaults. A missing `OPS_ALERT_EMAIL` or `SMTP_HOST` is always a warning.
+  `init` and `migrate` receive the three variables and `COMPOSE_PROFILES` explicitly.
+- **Required even without the profile:** Compose interpolates every service, profiles included, so
+  `ASLMS_READONLY_PASSWORD`, `GRAFANA_ADMIN_PASSWORD` and `FLOWER_BASIC_AUTH` must be in every `.env`, the
+  developer's too (docs/operations.md section 16). The Part A test that no password has a default now allows the
+  empty default of the optional `SMTP_PASSWORD`, which Alertmanager receives.
+- **Dashboards** are written for this project from the exporters' metric names; the "PostgreSQL" board is a trimmed
+  set of panels, not an import of the community dashboard.
+- **Images:** `prom/prometheus:v3.7.2`, `prom/alertmanager:v0.29.0`, `grafana/grafana:12.2.1`, `mher/flower:2.0.1`,
+  `quay.io/prometheuscommunity/postgres-exporter:v0.18.1`, `oliver006/redis_exporter:v1.78.0`,
+  `prom/node-exporter:v1.10.2`, `gcr.io/cadvisor/cadvisor:v0.52.1`, each checked to exist on its registry.
+- **Checked by the developer** in a scratch Compose project (its own volumes, no `.env`, profile `monitoring`, without
+  api, web, proxy and clamav): `init` migrated a fresh database to 0020; the prometheus, grafana, alertmanager,
+  ops, postgres and redis targets were up; the ops exporter read every database gauge as `aslms_readonly` with no
+  scrape error; Grafana refused anonymous access and listed the three dashboards; Flower refused anonymous access and
+  listed the scheduler's worker and beat tasks; ServiceDown (api), PortalDown and ClamAVDown went pending for the
+  services left out. `promtool check config` and `promtool test rules` pass in `prom/prometheus:v3.7.2`.
+- **Not done by the developer:** migration 0020 is not applied to the dev database, and the full Part B
+  verification (the mail of a test alert, the dev stack) is the integrator's; the dev `.env` first needs the three new
+  values. Documents left to the scribe: the decisions log entry, `CLAUDE.md` "Current focus" and backlog row 77.
+- **Tester's gaps (developer, 19 Oct 2026):**
+  - **Database URL defaults use `127.0.0.1`:** the default test URL, the settings default and `.env.example` now use
+    `127.0.0.1`, not `localhost`. `compose.dev.yml` publishes postgres on `127.0.0.1` only. On Windows, `localhost`
+    resolves to `::1` first, so each new connection waited about 5 to 20 seconds before it fell back to IPv4. That
+    is why the tester saw the database tests crawl and a direct connection hang. After the change, the full suite
+    ran alone on a quiet Postgres: `1471 passed, 109 warnings in 1636.14s (0:27:16)`. That run includes
+    `test_migrations.py`, `test_migration_0020.py` and `test_ops_metrics.py`.
+  - **`docs/design/deployment-monitoring.md`** is now a pointer to this note's Part B, for tooling that looks up
+    `docs/design/<slug>.md`. This note stays the authority.
+  - **Stack check, again in a scratch project:** project `-p aslms-moncheck`, a clean worktree with no `.env`,
+    generated secrets, `ASLMS_SUBNET=172.29.77.0/24` (the default subnet overlaps the dev stack's), and the services
+    postgres, redis, init, api, clamav and the monitoring profile. All seven Prometheus targets were up: prometheus,
+    alertmanager, grafana, api `:9100`, ops `:9108`, postgres and redis. Also: `pg_up` and `redis_up` were 1;
+    the ops exporter served 195 `aslms_*` series with `aslms_scrape_errors` 0; Grafana answered 401 to anonymous
+    requests and listed the three dashboards; Flower answered 401 without credentials and 200 with them. Only
+    PortalDown was pending, because proxy and web were not started. `promtool check rules infra/prometheus/rules.yml`
+    found 17 rules, and `promtool test rules infra/prometheus/rules.test.yml` passed, both in `prom/prometheus:v3.7.2`.
+    In the dev checkout, `docker compose --profile monitoring config -q` passes only once `.env` has
+    `GRAFANA_ADMIN_PASSWORD` and `FLOWER_BASIC_AUTH`. The dev `.env` lacks both, and the owner must add them; with
+    placeholder values in the shell the command passes. The scratch project and its volumes were removed. The dev
+    stack was not touched, and 0020 is still not applied to the dev database.

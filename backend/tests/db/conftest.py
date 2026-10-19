@@ -23,7 +23,7 @@ from tests.unit.conftest import KEY, Gateway
 
 BACKEND = Path(__file__).resolve().parents[2]
 TEST_URL = os.environ.get(
-    "ASLMS_TEST_DATABASE_URL", "postgresql+psycopg://aslms:aslms@localhost:5433/aslms_test"
+    "ASLMS_TEST_DATABASE_URL", "postgresql+psycopg://aslms:aslms@127.0.0.1:5433/aslms_test"
 )
 
 

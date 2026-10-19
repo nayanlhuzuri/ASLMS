@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     timezone: str = "Asia/Kolkata"
 
     # --- database / queue (used from migration 0001 onwards) --------------------------
-    database_url_sync: str = "postgresql+psycopg://aslms:aslms@localhost:5433/aslms"
+    database_url_sync: str = "postgresql+psycopg://aslms:aslms@127.0.0.1:5433/aslms"
     aslms_migrate_url: str | None = None
     aslms_app_password: SecretStr | None = (
         None  # set on the aslms_app role by `aslms db-roles` (safety-fixes)
@@ -182,6 +182,26 @@ class Settings(BaseSettings):
     backup_keep_weekly: int = Field(8, ge=0, le=520)
     backup_keep_monthly: int = Field(12, ge=0, le=240)
     backup_keep_premigrate: int = Field(5, ge=1, le=100)
+
+    # --- monitoring (design deployment-checklist, Part B, decisions 22-25) ----------------------------
+    # read by preflight: the Grafana admin and Flower passwords (Compose passes them to those services), the active
+    # Compose profiles (prod refuses a stack without `monitoring`) and the address Alertmanager mails
+    grafana_admin_password: SecretStr | None = None
+    flower_basic_auth: SecretStr | None = None  # user:password[,user:password]
+    compose_profiles: str = ""
+    ops_alert_email: str | None = None
+    # the API's request metrics (decision 24): served by the API lifespan on this port inside the Compose network
+    # only (Compose sets 9100); 0, the default for host runs and tests, opens no listener (the counting still runs)
+    api_metrics_port: int = Field(0, ge=0, le=65535)
+    # the operations exporter (`aslms ops metrics`, decision 23): readings cached this long, each database read
+    # under this statement timeout; the probes and the disk paths it reports (a blank probe URL is not probed)
+    ops_metrics_cache_seconds: int = Field(60, ge=5, le=600)
+    ops_metrics_statement_timeout_seconds: int = Field(10, ge=1, le=60)
+    ops_probe_portal_url: str = "https://proxy/api/health"
+    ops_probe_web_url: str = "http://web:3000/api/health"
+    ops_probe_api_url: str = "http://api:8000/health"
+    ops_probe_timeout_seconds: float = Field(5.0, gt=0, le=30)
+    ops_disk_paths: str = "/data,/backups"
 
     @model_validator(mode="after")
     def _reserves_ordered(self) -> Settings:

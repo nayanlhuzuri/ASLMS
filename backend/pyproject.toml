@@ -25,6 +25,7 @@ dependencies = [
   "python-multipart>=0.0.9",
   "email-validator>=2.1",
   "xlsxwriter>=3.2",
+  "prometheus-client>=0.20",
 ]
 
 [project.optional-dependencies]

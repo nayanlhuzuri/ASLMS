@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from aslms import __version__
+from aslms.api import metrics as api_metrics
 from aslms.api.routers import access as access_router
 from aslms.api.routers import alerts as alerts_router
 from aslms.api.routers import audit as audit_router
@@ -46,6 +47,8 @@ def create_app(settings: Settings | None = None, session_factory=None) -> FastAP
         jwt_secret(settings)  # fail fast without a signing secret
         # design deployment-checklist, decision 5: never serve as a database superuser in production
         refuse_superuser(settings.database_url_sync, is_prod=settings.is_prod)
+        # Part B, decision 24: request metrics on the internal port (Compose: 9100; 0 opens nothing)
+        api_metrics.start_server(settings.api_metrics_port)
         yield
 
     # decision 4: the API documentation only in development; app.openapi() still works for the snapshot tool
@@ -83,6 +86,8 @@ def create_app(settings: Settings | None = None, session_factory=None) -> FastAP
     app.include_router(data_load_router.router)
     app.include_router(discovery_router.router)
     app.include_router(next_dates_router.router)
+
+    api_metrics.install(app)  # last, so it is the outermost middleware
 
     @app.get("/health", tags=["ops"])
     def health() -> dict[str, str]:

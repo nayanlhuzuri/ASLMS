@@ -1,7 +1,8 @@
 """`aslms ops`: deployment and operations commands (design deployment-checklist, Part A).
 
 `preflight`, `db-guard`, `role-passwords`, `migrate`, `backup`, `backup-scheduler`, `backup-status`, `restore-check`,
-`restore`, `repair-jobs`, `load-report`, `sample-cnrs` and `make-cert`. None calls NAPIX; none prints a secret."""
+`restore`, `repair-jobs`, `load-report`, `sample-cnrs`, `make-cert` and, from Part B, `metrics` (the operations
+exporter). None calls NAPIX; none prints a secret."""
 
 from __future__ import annotations
 
@@ -298,3 +299,27 @@ def make_cert_cmd(
         "Install ca.crt once on each pilot PC (Trusted Root Certification Authorities), then move ca.key off this "
         "host to safe storage: it can sign certificates every pilot PC trusts."
     )
+
+
+# ------------------------------------------------------------------------------------------------ monitoring
+
+
+@ops_app.command("metrics")
+def metrics_cmd(
+    port: int = typer.Option(9108, "--port", help="the port Prometheus scrapes"),
+    addr: str = typer.Option("0.0.0.0", "--addr", help="the address to listen on"),
+    once: bool = typer.Option(False, "--once", help="print one reading and exit"),
+) -> None:
+    """The operations exporter (Part B, decision 23): queue, jobs, worker liveness, NAPIX window, mail, backups,
+    disk, ClamAV signatures, portal probe and certificate expiry, as Prometheus gauges. Read-only: run it as
+    aslms_readonly (the Compose `ops-exporter` service). Readings are cached for OPS_METRICS_CACHE_SECONDS."""
+    from aslms.db.session import get_sessionmaker
+    from aslms.services import ops_metrics
+
+    settings = get_settings()
+    if once:
+        collector = ops_metrics.OpsCollector(settings, get_sessionmaker(settings.database_url_sync))
+        typer.echo(ops_metrics.render(collector), nl=False)
+        return
+    rprint(f"ops metrics on {addr}:{port} (cache {settings.ops_metrics_cache_seconds} s)")
+    ops_metrics.serve(settings, port, addr)

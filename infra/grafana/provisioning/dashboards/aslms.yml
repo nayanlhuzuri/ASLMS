@@ -1,0 +1,13 @@
+# Dashboards provisioned from infra/grafana/dashboards (decision 26); edits in the UI are not saved back.
+apiVersion: 1
+providers:
+  - name: aslms
+    orgId: 1
+    folder: ASLMS
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    updateIntervalSeconds: 60
+    options:
+      path: /etc/grafana/dashboards
+      foldersFromFilesStructure: false

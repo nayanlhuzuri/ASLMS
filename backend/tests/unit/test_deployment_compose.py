@@ -8,8 +8,24 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parents[3]
-REQUIRED = ("POSTGRES_PASSWORD", "ASLMS_APP_PASSWORD", "REDIS_PASSWORD", "PORTAL_BASE_URL")
+REQUIRED = (
+    "POSTGRES_PASSWORD",
+    "ASLMS_APP_PASSWORD",
+    "REDIS_PASSWORD",
+    "PORTAL_BASE_URL",
+    # Part B (row 77)
+    "ASLMS_READONLY_PASSWORD",
+    "GRAFANA_ADMIN_PASSWORD",
+    "FLOWER_BASIC_AUTH",
+)
 OPS_SERVICES = {"init", "migrate", "backup"}
+# Part B (decision 22): the monitoring screens, on the host's loopback only
+MONITORING_PORTS = {
+    "grafana": "127.0.0.1:3001:3000",
+    "prometheus": "127.0.0.1:9090:9090",
+    "alertmanager": "127.0.0.1:9093:9093",
+    "flower": "127.0.0.1:5555:5555",
+}
 
 
 def _text(name: str = "compose.yml") -> str:
@@ -32,11 +48,15 @@ def _env(service: dict) -> dict:
 
 
 def test_compose_publishes_only_the_proxy():
+    """Only the proxy is reachable from the network; Part B's monitoring screens bind 127.0.0.1 only."""
     services = _services()
     published = {name for name, svc in services.items() if svc.get("ports")}
-    assert published == {"proxy"}
+    assert published == {"proxy"} | set(MONITORING_PORTS)
     ports = services["proxy"]["ports"]
     assert any(p.endswith(":443") for p in ports) and any(p.endswith(":80") for p in ports)
+    for name, port in MONITORING_PORTS.items():
+        assert services[name]["ports"] == [port], name
+        assert all(str(p).startswith("127.0.0.1:") for p in services[name]["ports"]), name
 
 
 def test_compose_dev_override_binds_loopback_only():
@@ -55,7 +75,8 @@ def test_compose_required_secrets_have_no_default():
         refs = re.findall(r"\$\{" + name + r"([^}]*)\}", text)
         assert refs, f"{name} is used"
         assert all(r.startswith(":?") for r in refs), f"{name} must use ${{{name}:?...}} everywhere"
-    assert not re.search(r"PASSWORD[A-Z_]*:-", text), "no password has a default"
+    # no password has a default; an empty one (the optional SMTP relay password) is no default
+    assert not re.search(r"PASSWORD[A-Z_]*:-[^}]", text), "no password has a default"
     assert ":-aslms}@" not in text
 
 
@@ -99,7 +120,9 @@ def test_compose_owner_url_only_in_ops_services():
             assert not owner_pw, f"{name} must not receive the cluster superuser's password"
         url = env.get("DATABASE_URL_SYNC")
         if url:
-            assert url.startswith("postgresql+psycopg://aslms_app:"), name
+            # the operations exporter reads as aslms_readonly (Part B, decision 23); the rest serve as aslms_app
+            role = "aslms_readonly" if name == "ops-exporter" else "aslms_app"
+            assert url.startswith(f"postgresql+psycopg://{role}:"), name
     # the services that read .env get the owner's values blanked
     for name in ("api", "worker", "scheduler"):
         env = _env(_services()[name])
@@ -115,8 +138,20 @@ def test_compose_logging_and_hardening():
         if image:
             tag = image.rsplit(":", 1)[1] if ":" in image else "latest"
             assert tag not in {"latest", "stable"} and re.search(r"\d", tag), f"{name}: pin {image}"
-    for name in ("api", "worker", "scheduler", "web", "backup", "migrate"):
+    for name in ("api", "worker", "scheduler", "web", "backup", "migrate", *MONITORED_HARDENED):
         assert _services()[name]["cap_drop"] == ["ALL"], name
+
+
+MONITORED_HARDENED = (
+    "prometheus",
+    "alertmanager",
+    "grafana",
+    "flower",
+    "postgres-exporter",
+    "redis-exporter",
+    "ops-exporter",
+    "node-exporter",
+)
 
 
 def test_dockerfiles_pin_their_base_images_and_backend_is_unprivileged():

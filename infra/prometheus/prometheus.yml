@@ -1,0 +1,64 @@
+# Prometheus for the ASLMS pilot (design deployment-checklist, Part B, decisions 22-25). Compose profile `monitoring`.
+# Every target is on the Compose `default` network; nothing here is reachable from the office network (Prometheus
+# itself is published on 127.0.0.1:9090 only). Retention (30 days) is a command-line flag in compose.yml.
+global:
+  scrape_interval: 30s
+  scrape_timeout: 20s
+  evaluation_interval: 30s
+
+rule_files:
+  - /etc/prometheus/rules.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: alertmanager
+    static_configs:
+      - targets: ["alertmanager:9093"]
+
+  - job_name: grafana
+    static_configs:
+      - targets: ["grafana:3000"]
+
+  # the API's request metrics, on its internal port (decision 24)
+  - job_name: api
+    static_configs:
+      - targets: ["api:9100"]
+
+  # the ASLMS operations exporter (`aslms ops metrics`, decision 23); it caches its readings for 60 s
+  - job_name: ops
+    scrape_interval: 60s
+    scrape_timeout: 50s
+    static_configs:
+      - targets: ["ops-exporter:9108"]
+
+  - job_name: postgres
+    static_configs:
+      - targets: ["postgres-exporter:9187"]
+
+  - job_name: redis
+    static_configs:
+      - targets: ["redis-exporter:9121"]
+
+  # profile `monitoring-host` only (decision 28): found through Docker's DNS, so without the profile there is no
+  # target (and no ServiceDown); Prometheus then logs a failed DNS lookup every 5 minutes, which is harmless
+  - job_name: node
+    dns_sd_configs:
+      - names: ["node-exporter"]
+        type: A
+        port: 9100
+        refresh_interval: 5m
+
+  - job_name: cadvisor
+    dns_sd_configs:
+      - names: ["cadvisor"]
+        type: A
+        port: 8080
+        refresh_interval: 5m

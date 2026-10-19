@@ -10,6 +10,12 @@
 # jobs), web (the Next.js portal), proxy (nginx with TLS, body limits and per-address throttling), backup (dumps,
 # store mirror, weekly restore check) and, in profile `ops`, migrate (the explicit upgrade with a backup first).
 #
+# Monitoring (Part B, profile `monitoring`; the pilot's .env sets COMPOSE_PROFILES=monitoring): prometheus,
+# alertmanager, grafana, flower, postgres-exporter, redis-exporter and ops-exporter. Their screens are published on
+# 127.0.0.1 only (Grafana 3001, Prometheus 9090, Alertmanager 9093, Flower 5555): open them on the host or through an
+# SSH tunnel, never through the proxy. Profile `monitoring-host` adds node-exporter and cadvisor on a Linux VM.
+# ASLMS_READONLY_PASSWORD, GRAFANA_ADMIN_PASSWORD and FLOWER_BASIC_AUTH are required.
+#
 # Migrations: `init` migrates only a fresh, empty database. An upgrade is explicit: build, `docker compose stop api
 # worker scheduler web`, `docker compose --profile ops run --rm migrate`, then `docker compose up -d`.
 # Database roles (DB_STANDARD §8): init, migrate and backup alone connect as POSTGRES_USER; api, worker and
@@ -151,6 +157,11 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}@redis:6379/0
       PORTAL_BASE_URL: ${PORTAL_BASE_URL:?set PORTAL_BASE_URL in .env}
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      # read by preflight (Part B): the read-only role (db-roles sets it), the monitoring logins and the profiles
+      ASLMS_READONLY_PASSWORD: ${ASLMS_READONLY_PASSWORD:?set ASLMS_READONLY_PASSWORD in .env}
+      GRAFANA_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in .env}
+      FLOWER_BASIC_AUTH: ${FLOWER_BASIC_AUTH:?set FLOWER_BASIC_AUTH in .env}
+      COMPOSE_PROFILES: ${COMPOSE_PROFILES:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -172,6 +183,8 @@ services:
       STORAGE_DIR: /data/store
       CLAMAV_HOST: clamav
       CLAMAV_PORT: "3310"
+      # request metrics for Prometheus on the internal port (Part B, decision 24); not published, not proxied
+      API_METRICS_PORT: "9100"
       # the owner's credentials never reach an application process (row 82)
       POSTGRES_PASSWORD: ""
       ASLMS_MIGRATE_URL: ""
@@ -367,6 +380,11 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}@redis:6379/0
       PORTAL_BASE_URL: ${PORTAL_BASE_URL:?set PORTAL_BASE_URL in .env}
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      # read by preflight (Part B): the read-only role (db-roles sets it), the monitoring logins and the profiles
+      ASLMS_READONLY_PASSWORD: ${ASLMS_READONLY_PASSWORD:?set ASLMS_READONLY_PASSWORD in .env}
+      GRAFANA_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in .env}
+      FLOWER_BASIC_AUTH: ${FLOWER_BASIC_AUTH:?set FLOWER_BASIC_AUTH in .env}
+      COMPOSE_PROFILES: ${COMPOSE_PROFILES:-}
       STORAGE_DIR: /data/store
       BACKUP_DIR: /backups
     volumes:
@@ -380,6 +398,225 @@ services:
     <<: *hardening
     logging: *logging
 
+  # ---------------------------------------------------------------------------------------------- monitoring (Part B)
+
+  prometheus:
+    # scrapes the api's request metrics, the exporters, Grafana and Alertmanager; evaluates infra/prometheus/rules.yml
+    # (tested by `promtool test rules`, docs/operations.md section 17); keeps 30 days
+    image: prom/prometheus:v3.7.2
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-30d}
+      - --web.listen-address=:9090
+      - --web.external-url=http://127.0.0.1:9090
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/prometheus/rules.yml:/etc/prometheus/rules.yml:ro
+      - prometheus_v3:/prometheus
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:9090/-/ready || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    <<: *hardening
+    logging: *logging
+
+  alertmanager:
+    # mails the alerts to OPS_ALERT_EMAIL through the SMTP_* relay; without SMTP_HOST or OPS_ALERT_EMAIL they are only
+    # shown here and in Grafana. The entrypoint renders the configuration into a tmpfs; the SMTP password goes into a
+    # mode-600 file there, never into a file on disk.
+    image: prom/alertmanager:v0.29.0
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "/etc/alertmanager/entrypoint.sh"]
+    environment:
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_STARTTLS: ${SMTP_STARTTLS:-true}
+      OPS_ALERT_EMAIL: ${OPS_ALERT_EMAIL:-}
+    tmpfs:
+      - /tmp
+    ports:
+      - "127.0.0.1:9093:9093"
+    volumes:
+      - ./infra/alertmanager:/etc/alertmanager:ro
+      - alertmanager_v3:/alertmanager
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:9093/-/ready || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    <<: *hardening
+    logging: *logging
+
+  grafana:
+    # dashboards provisioned from infra/grafana (ASLMS overview, PostgreSQL, Redis and Celery); Prometheus is the only
+    # data source, never the database. Sign in as admin with GRAFANA_ADMIN_PASSWORD (applied when the volume is
+    # first created; rotation in docs/operations.md section 5).
+    image: grafana/grafana:12.2.1
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in .env}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_USERS_ALLOW_ORG_CREATE: "false"
+      GF_SERVER_ROOT_URL: http://127.0.0.1:3001
+      GF_SECURITY_COOKIE_SAMESITE: strict
+      GF_SECURITY_DISABLE_GRAVATAR: "true"
+      GF_SNAPSHOTS_EXTERNAL_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+    ports:
+      - "127.0.0.1:3001:3000"
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/etc/grafana/dashboards:ro
+      - grafana_v3:/var/lib/grafana
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    <<: *hardening
+    logging: *logging
+
+  flower:
+    # the Celery side (beat's tasks run by the scheduler); basic auth from FLOWER_BASIC_AUTH (user:password). The queue
+    # worker is not a Celery worker: its liveness is the ops exporter's aslms_worker_last_pass_timestamp.
+    image: mher/flower:2.0.1
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    environment:
+      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}@redis:6379/0
+      FLOWER_BASIC_AUTH: ${FLOWER_BASIC_AUTH:?set FLOWER_BASIC_AUTH in .env}
+      FLOWER_PORT: "5555"
+      FLOWER_PURGE_OFFLINE_WORKERS: "3600"
+    ports:
+      - "127.0.0.1:5555:5555"
+    depends_on:
+      redis:
+        condition: service_healthy
+    <<: *hardening
+    logging: *logging
+
+  postgres-exporter:
+    # the database statistics as aslms_readonly, a member of pg_monitor (migration 0020, decision 27)
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.18.1
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_URI: postgres:5432/${POSTGRES_DB:-aslms}?sslmode=disable
+      DATA_SOURCE_USER: aslms_readonly
+      DATA_SOURCE_PASS: ${ASLMS_READONLY_PASSWORD:?set ASLMS_READONLY_PASSWORD in .env}
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    <<: *hardening
+    logging: *logging
+
+  redis-exporter:
+    # Redis memory, clients and the Celery queue length (the `celery` list in db 0)
+    image: oliver006/redis_exporter:v1.78.0
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    environment:
+      REDIS_ADDR: redis://redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}
+      REDIS_EXPORTER_CHECK_SINGLE_KEYS: db0=celery
+    depends_on:
+      redis:
+        condition: service_healthy
+    <<: *hardening
+    logging: *logging
+
+  ops-exporter:
+    # `aslms ops metrics` (decision 23): queue, jobs, worker liveness, NAPIX window, mail, SourceTrace, backups (the
+    # status files, read-only), disk, ClamAV signatures, the portal probe through the proxy and the certificate's
+    # expiry. Read-only, as aslms_readonly; no env_file, so no NAPIX, mail or JWT secret enters it. It joins `edge`
+    # to probe the proxy and web, and `default` for postgres, clamav and the api.
+    build: ./backend
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    environment:
+      DATABASE_URL_SYNC: postgresql+psycopg://aslms_readonly:${ASLMS_READONLY_PASSWORD:?set ASLMS_READONLY_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-aslms}
+      PORTAL_BASE_URL: ${PORTAL_BASE_URL:?set PORTAL_BASE_URL in .env}
+      BACKUP_DIR: /backups
+      OPS_DISK_PATHS: /data,/backups
+      CLAMAV_HOST: clamav
+      CLAMAV_PORT: "3310"
+      # the master switch as the worker sees it, for aslms_napix_switch_on; this process never calls NAPIX
+      NAPIX_ENABLED: ${NAPIX_ENABLED:-false}
+      NAPIX_RATE_WINDOW_SECONDS: ${NAPIX_RATE_WINDOW_SECONDS:-3600}
+      NAPIX_WINDOW_MARGIN_SECONDS: ${NAPIX_WINDOW_MARGIN_SECONDS:-60}
+      NAPIX_WINDOW_PROBE_SECONDS: ${NAPIX_WINDOW_PROBE_SECONDS:-180}
+      NAPIX_WINDOW_RESET_JUMP: ${NAPIX_WINDOW_RESET_JUMP:-50}
+    volumes:
+      - ./data:/data:ro
+      - ${BACKUP_DIR:-./backups}:/backups:ro
+    networks:
+      - default
+      - edge
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    command: aslms ops metrics --port 9108
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9108/metrics', timeout=50)"]
+      interval: 60s
+      timeout: 55s
+      retries: 3
+      start_period: 30s
+    <<: *hardening
+    logging: *logging
+
+  node-exporter:
+    # profile `monitoring-host` (decision 28): host metrics on a Linux VM at the SDC; not on Docker Desktop, where it
+    # would describe Docker's VM
+    image: prom/node-exporter:v1.10.2
+    profiles: ["monitoring-host"]
+    restart: unless-stopped
+    command:
+      - --path.rootfs=/host
+    pid: host
+    volumes:
+      - /:/host:ro,rslave
+    <<: *hardening
+    logging: *logging
+
+  cadvisor:
+    # profile `monitoring-host`: per-container CPU, memory and I/O on a Linux VM. It reads the Docker socket and
+    # needs privileged mode, so it is optional and never used on Docker Desktop.
+    image: gcr.io/cadvisor/cadvisor:v0.52.1
+    profiles: ["monitoring-host"]
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    security_opt:
+      - no-new-privileges:true
+    logging: *logging
+
 networks:
   # postgres, redis, clamav and the backend services
   default: {}
@@ -388,9 +625,12 @@ networks:
     ipam:
       config:
         - subnet: ${ASLMS_SUBNET:-172.28.0.0/24}
-  # proxy <-> web only
+  # proxy <-> web only (and the ops exporter's probes of both)
   edge: {}
 
 volumes:
   pgdata_v3:
   clamdb_v3:
+  prometheus_v3:
+  alertmanager_v3:
+  grafana_v3:

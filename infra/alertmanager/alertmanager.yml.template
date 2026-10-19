@@ -1,0 +1,41 @@
+# Alertmanager for the ASLMS pilot (design deployment-checklist, Part B, decision 25). Rendered at start by
+# entrypoint.sh into /tmp/alertmanager.yml (a tmpfs) from the SMTP_* settings and OPS_ALERT_EMAIL; the SMTP password
+# goes into /tmp/smtp_password (mode 600), never into this file or the rendered one. Without SMTP_HOST or
+# OPS_ALERT_EMAIL the block between the BEGIN and END lines is removed and every alert goes to `none`: visible in
+# Alertmanager (127.0.0.1:9093) and Grafana only.
+global:
+  resolve_timeout: 5m
+# BEGIN email
+  smtp_smarthost: '__SMTP_HOST__:__SMTP_PORT__'
+  smtp_from: '__SMTP_FROM__'
+  smtp_auth_username: '__SMTP_USER__'
+  smtp_auth_password_file: /tmp/smtp_password
+  smtp_require_tls: __SMTP_REQUIRE_TLS__
+# END email
+
+route:
+  receiver: __RECEIVER__
+  group_by: [alertname]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - matchers: ['severity="critical"']
+      receiver: __RECEIVER__
+      repeat_interval: 1h
+
+inhibit_rules:
+  # a service that is down explains its late jobs and stale readings
+  - source_matchers: ['alertname="ServiceDown"']
+    target_matchers: ['alertname=~"JobLate|WorkerStalled"']
+
+receivers:
+  - name: none
+# BEGIN email
+  - name: ops-email
+    email_configs:
+      - to: '__OPS_ALERT_EMAIL__'
+        send_resolved: true
+        headers:
+          Subject: '[ASLMS] {{ .Status | toUpper }} {{ .CommonLabels.alertname }}'
+# END email

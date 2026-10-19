@@ -75,6 +75,27 @@ class ClamdScanner:
             raise ScannerUnavailable(f"clamd at {self.host}:{self.port} closed the connection")
         return _parse_reply(reply)
 
+    def version(self) -> str:
+        """clamd's `zVERSION` answer, `ClamAV 1.5.4/27795/Sun Oct 18 08:26:03 2026` (engine / signature version /
+        signature date), for the operations exporter (design deployment-checklist, decision 23)."""
+        try:
+            with socket.create_connection((self.host, self.port), timeout=self.timeout) as sock:
+                sock.sendall(b"zVERSION\0")
+                reply = b""
+                while not reply.endswith(b"\0"):
+                    part = sock.recv(4096)
+                    if not part:
+                        break
+                    reply += part
+                    if len(reply) > 4096:
+                        break
+        except (OSError, TimeoutError) as exc:
+            raise ScannerUnavailable(f"clamd at {self.host}:{self.port}: {exc}") from exc
+        text = reply.rstrip(b"\0\n").decode("utf-8", "replace").strip()
+        if not text:
+            raise ScannerUnavailable(f"clamd at {self.host}:{self.port} closed the connection")
+        return text
+
 
 @dataclass
 class FakeScanner:

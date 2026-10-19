@@ -2,7 +2,7 @@
 
 How to install, run, upgrade, back up and restore the ASLMS pilot. Written for the design
 [deployment-checklist](design/deployment-checklist.md) (Part A, backlog row 16). DB_STANDARD §11 step 7 names this
-file. Monitoring (Part B, row 77) and PgBouncer (Part C, row 78) add their own sections when they are built.
+file. Monitoring (Part B, row 77) is section 17; PgBouncer (Part C, row 78) adds its own section when it is built.
 
 Never write the NAPIX master switch into a file. The owner sets it in the shell for the run that needs it
 (`docs/napix_integration_notes.md`). Never print or paste a secret from `.env`.
@@ -24,6 +24,14 @@ One Docker Compose stack on one host. The same files serve the owner's machine a
 | `postgres` | `postgres:16.15` | the database | none |
 | `redis` | `redis:7.4.10-alpine` | the NAPIX token and Celery messages; password, memory only | none |
 | `clamav` | `clamav/clamav:1.5.4` | virus scan of every upload | none |
+| `prometheus` | `prom/prometheus:v3.7.2` | profile `monitoring`: scrapes, keeps 30 days, evaluates the alert rules | `127.0.0.1:9090` |
+| `alertmanager` | `prom/alertmanager:v0.29.0` | profile `monitoring`: mails the alerts to `OPS_ALERT_EMAIL` | `127.0.0.1:9093` |
+| `grafana` | `grafana/grafana:12.2.1` | profile `monitoring`: the dashboards; Prometheus is its only data source | `127.0.0.1:3001` |
+| `flower` | `mher/flower:2.0.1` | profile `monitoring`: the Celery tasks of the scheduler | `127.0.0.1:5555` |
+| `postgres-exporter` | `quay.io/prometheuscommunity/postgres-exporter:v0.18.1` | profile `monitoring`: database statistics, as `aslms_readonly` | none |
+| `redis-exporter` | `oliver006/redis_exporter:v1.78.0` | profile `monitoring`: Redis and the Celery queue length | none |
+| `ops-exporter` | built from `backend/` | profile `monitoring`: `aslms ops metrics`, the ASLMS operations gauges, as `aslms_readonly` | none |
+| `node-exporter`, `cadvisor` | `prom/node-exporter:v1.10.2`, `gcr.io/cadvisor/cadvisor:v0.52.1` | profile `monitoring-host`: host and container metrics on a Linux VM | none |
 
 Networks:
 - `default`: postgres, redis, clamav and the backend services.
@@ -34,6 +42,8 @@ Volumes:
 - `pgdata_v3`: the database. On Docker Desktop it lives inside the Docker VM disk, which a Docker reset erases. The
   backups therefore go to a host folder.
 - `clamdb_v3`: ClamAV signatures.
+- `prometheus_v3`, `alertmanager_v3`, `grafana_v3`: monitoring history, silences and Grafana's own settings. Losing
+  them loses no ASLMS data.
 - Bind mounts: `./data` (the document store `data/store` and the cause-list PDFs), `BACKUP_DIR` (default
   `./backups`) and `infra/proxy/certs`.
 
@@ -63,7 +73,9 @@ Every container's logs are rotated (`json-file`, 20 MB × 5). The backend image 
    - `COMPOSE_FILE=compose.yml`. The development override must not be used on the pilot;
    - generate each secret separately with `openssl rand -hex 32` (or
      `python -c "import secrets;print(secrets.token_hex(32))"`): `POSTGRES_PASSWORD`, `ASLMS_APP_PASSWORD`,
-     `ASLMS_READONLY_PASSWORD`, `REDIS_PASSWORD`, `ASLMS_JWT_SECRET`. Every value must be different;
+     `ASLMS_READONLY_PASSWORD`, `REDIS_PASSWORD`, `ASLMS_JWT_SECRET`, `GRAFANA_ADMIN_PASSWORD` and the password of
+     `FLOWER_BASIC_AUTH` (`ops:<password>`). Every value must be different;
+   - `COMPOSE_PROFILES=monitoring` and `OPS_ALERT_EMAIL` (section 17);
    - `PORTAL_BASE_URL=https://<host name or fixed address on the office network>`;
    - the mail service (section 13), `ASLMS_SUPERADMIN_EMAIL` and `ASLMS_SUPERADMIN_PASSWORD`;
    - the NAPIX credentials (never the switch);
@@ -95,7 +107,7 @@ Every container's logs are rotated (`json-file`, 20 MB × 5). The backend image 
 | `aslms` (`POSTGRES_USER`) | `init`, `migrate`, `backup` only | the cluster superuser: migrations, seed, role passwords, dumps |
 | `aslms_owner` | owns the schema objects (migration 0001) | DDL |
 | `aslms_app` | `api`, `worker`, `scheduler` | DB_STANDARD §8 grants; no delete of legal records |
-| `aslms_readonly` | reports and, from Part B, monitoring | SELECT |
+| `aslms_readonly` | the postgres exporter and the ops exporter (Part B) | SELECT, and member of `pg_monitor` for the statistics views (migration 0020) |
 
 - In production (`APP_ENV=prod`), the api, the worker and the scheduler refuse to start if their connection is a
   superuser (decision 5). Their `POSTGRES_PASSWORD` and `ASLMS_MIGRATE_URL` are blanked by Compose.
@@ -115,6 +127,9 @@ Every container's logs are rotated (`json-file`, 20 MB × 5). The backend image 
   `docker compose exec postgres psql -U aslms -d aslms -c "ALTER ROLE aslms PASSWORD '<new>'"`. Then change `.env`
   and `docker compose up -d`.
 - **NAPIX credentials and mail secrets:** change them in `.env`, then `docker compose up -d`.
+- **`GRAFANA_ADMIN_PASSWORD`:** Grafana applies it only when its volume is first created. Change it in `.env`, then
+  `docker compose exec grafana grafana cli admin reset-admin-password '<new>'`.
+- **`FLOWER_BASIC_AUTH`:** change it in `.env`, then `docker compose up -d flower`.
 
 **Upgrading a machine that ran an older layout (before the backend ran as uid 10001):** the document folders under `./data` were created by root and the application cannot write them (order PDFs fail with `PermissionError`). Run once:
 `docker compose run --rm --no-deps -u root --entrypoint sh worker -c "chmod -R a+rwX /data/store /data/causelists /data/storage"`
@@ -243,7 +258,8 @@ backlog row 27) or Mailtrap's sending service with a verified domain. Test with
 
 ## 14. Routine checks
 
-- **Daily:** the data-health screen (queue, jobs, mail, the last `backup` job); `aslms ops backup-status`.
+- **Daily:** the Grafana "ASLMS overview" dashboard and any firing alert (section 17); the data-health screen
+  (queue, jobs, mail, the last `backup` job); `aslms ops backup-status`.
 - **Weekly:** the restore check passed (`status/restore-check.json`); disk space of the host and of `BACKUP_DIR`;
   the off-machine copy.
 - **Monthly:** certificate expiry
@@ -267,18 +283,106 @@ backlog row 27) or Mailtrap's sending service with a verified domain. Test with
 
 ## 16. Development
 
-A developer's `.env` keeps `APP_ENV=dev`, `COMPOSE_PATH_SEPARATOR=:` and
-`COMPOSE_PATH_SEPARATOR=:` and `COMPOSE_FILE=compose.yml:compose.dev.yml` (Docker on Windows separates the files with `;` unless `COMPOSE_PATH_SEPARATOR=:` is set). The override publishes postgres (`127.0.0.1:5433`), api
+A developer's `.env` keeps `APP_ENV=dev`, `COMPOSE_PATH_SEPARATOR=:` and `COMPOSE_FILE=compose.yml:compose.dev.yml` (Docker on Windows separates the files with `;` unless `COMPOSE_PATH_SEPARATOR=:` is set). The override publishes postgres (`127.0.0.1:5433`), api
 (`127.0.0.1:8000`, with `/docs`) and web (`http://localhost:3000`) on loopback only. The proxy starts only with
 `--profile proxy`. Redis is never published: run host-side commands that need it through
 `docker compose exec api …`. The database tests use `ASLMS_TEST_DATABASE_URL`, by default
-`postgresql+psycopg://aslms:aslms@localhost:5433/aslms_test`. After the cluster password changes, set that variable
-in the shell that runs `pytest`.
+`postgresql+psycopg://aslms:aslms@127.0.0.1:5433/aslms_test`. Use `127.0.0.1`, not `localhost`: on Windows
+`localhost` resolves to `::1` first, nothing listens there, and every new connection waits seconds before falling
+back to IPv4, which makes the database tests crawl. After the cluster password changes, set that variable
+in the shell that runs `pytest`. Compose checks the variables of every service, profiles included, so a developer's
+`.env` also needs `ASLMS_READONLY_PASSWORD`, `GRAFANA_ADMIN_PASSWORD` and `FLOWER_BASIC_AUTH`, even with
+`COMPOSE_PROFILES` blank (preflight only warns in development).
 
 ## 17. Monitoring
 
-Filled by Part B (row 77): Prometheus, Alertmanager, Grafana and Flower on `127.0.0.1` only, the alert rules and what
-to do for each.
+Design deployment-checklist, Part B (row 77, decisions 22-28). The plan (§8.2) wants system monitoring from the pilot
+stage, so the pilot's `.env` sets `COMPOSE_PROFILES=monitoring`, and with `APP_ENV=prod` preflight refuses a stack
+without it.
+
+**What runs.** `prometheus`, `alertmanager`, `grafana`, `flower`, `postgres-exporter`, `redis-exporter` and
+`ops-exporter` (section 1). Prometheus scrapes every 30 seconds (the ops exporter every 60) and keeps
+`PROMETHEUS_RETENTION` (30 days). The screens are published on the host's loopback only and are never served through
+the proxy:
+
+| Screen | Address | Sign-in |
+|---|---|---|
+| Grafana | `http://127.0.0.1:3001` | `admin` / `GRAFANA_ADMIN_PASSWORD` |
+| Prometheus | `http://127.0.0.1:9090` | none (loopback only) |
+| Alertmanager | `http://127.0.0.1:9093` | none (loopback only) |
+| Flower | `http://127.0.0.1:5555` | `FLOWER_BASIC_AUTH` |
+
+At the SDC, open them through an SSH tunnel, for example
+`ssh -L 3001:127.0.0.1:3001 -L 9090:127.0.0.1:9090 -L 9093:127.0.0.1:9093 -L 5555:127.0.0.1:5555 <user>@<vm>`.
+
+**Where the figures come from.**
+- `ops-exporter` runs `aslms ops metrics --port 9108` as `aslms_readonly`: the queue by lane, kind and status and its
+  oldest runnable row; each job's last success, running rows and the oldest running row; the queue worker's last pass
+  (its liveness: the worker is not a Celery worker, so Flower does not see it); NAPIX calls in the last hour, the
+  detected window's remaining calls and the master switch as the worker sees it; open source failures; e-mail
+  notifications and the oldest queued; SourceTrace documents; the last backup and restore check (from
+  `BACKUP_DIR/status`, read-only); free disk space of `/data` and `/backups`; ClamAV's state and signature date; the
+  portal probe through the proxy, `web` and `api`; the certificate's expiry. Every database read runs read-only under a
+  10-second statement timeout, and readings are cached for 60 seconds. No label carries case data.
+  `docker compose exec ops-exporter aslms ops metrics --once` prints one reading.
+- The api serves request counts and durations by route template on port 9100 inside the Compose network.
+- `postgres-exporter` (as `aslms_readonly`, a member of `pg_monitor`) and `redis-exporter`.
+- Grafana's only data source is Prometheus. It never queries the database: `aslms_readonly` can read every table.
+
+**Dashboards** (folder ASLMS, provisioned from `infra/grafana/dashboards`; edits in the UI are not kept):
+"ASLMS overview", "PostgreSQL", "Redis and Celery". Change a dashboard by editing its JSON file.
+
+**Alert rules** are in `infra/prometheus/rules.yml`, with unit tests in `rules.test.yml`. After any change run:
+
+```
+docker run --rm -v "$PWD/infra/prometheus:/p:ro" --entrypoint promtool prom/prometheus:v3.7.2 test rules /p/rules.test.yml
+docker compose restart prometheus
+```
+
+Alertmanager mails the alerts to `OPS_ALERT_EMAIL` through the `SMTP_*` relay of section 13 (`SMTP_HOST`,
+`SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, `SMTP_STARTTLS`). Without `SMTP_HOST` or `OPS_ALERT_EMAIL`
+the alerts are shown in Grafana and Alertmanager only, and preflight warns. Critical alerts repeat every hour,
+warnings every 4 hours. To silence an alert during planned work, use Alertmanager's "New silence".
+
+**What to do for each alert.**
+- **ServiceDown** (a scrape target, or the database behind the postgres exporter, down for 5 minutes):
+  `docker compose ps`, then `docker compose logs <service>`; `docker compose up -d` restarts it. If `postgres` is
+  down, nothing works: check disk space and `docker compose logs postgres` first.
+- **PortalDown** (the portal does not answer through the proxy): check `proxy`, `web` and `api` with
+  `docker compose ps`; `docker compose logs proxy` names a missing certificate (section 15).
+- **RedisDown** (Redis does not answer for 5 minutes): `docker compose logs redis`, then `docker compose up -d redis`. A restart loses nothing durable.
+- **ClamAVDown** (uploads answer 503): section 12; `docker compose logs clamav`. After a restart the signature load
+  takes minutes.
+- **ClamAVSignaturesOld** (older than 3 days): `freshclam` cannot reach its source. Check the egress rule, the mirror,
+  or import the offline signatures (section 12).
+- **PostgresConnectionsHigh** (over 80 % of `max_connections`): look for a stuck client in
+  `docker compose exec postgres psql -U aslms -d aslms -c "select usename, state, count(*) from pg_stat_activity group by 1, 2"`;
+  raise `PG_MAX_CONNECTIONS` only after finding the cause.
+- **CertExpiring** (under 21 days): renew the certificate (section 3, step 3) and `docker compose restart proxy`.
+- **DiskLow** (under 15 % or 10 GB free on `/data` or `/backups`): section 15, "Disk full". Never delete the store
+  mirror or the order store.
+- **WorkerStalled** (no queue worker pass for 2 hours while rows are runnable): `docker compose logs worker`, then
+  `docker compose restart worker` (its interrupted rows are repaired at start, section 11).
+- **JobStuck** (a job `running` for more than 6 hours): `aslms ops repair-jobs --dry-run`, then section 11.
+- **JobLate** (a scheduled job has not succeeded in time: notifications and the alert scan 30 minutes, text extraction
+  and the next-dates reader 1 hour, the dedupe sweep and digests 26 hours): `docker compose logs scheduler`; Flower
+  shows the failing task; the data-health screen shows the job's last error.
+- **BackupMissing** (no successful backup for 13 hours): `docker compose logs backup`,
+  `docker compose exec backup aslms ops backup-status`; run `docker compose exec backup aslms ops backup` by hand
+  once the cause is fixed (section 7).
+- **RestoreCheckMissing** (none for 8 days): `docker compose exec backup aslms ops restore-check` (section 10).
+- **NapixErrorsHigh** (more than 100 failed NAPIX calls in an hour): the data-health screen's NAPIX block and
+  `/admin/napix/calls` show the error family. Pause the load (section 11) if the gateway is failing; never change the
+  switch from a file.
+- **MailFailing** (more than 10 failed e-mails in an hour, or the oldest queued over 30 minutes): sign-in codes may not
+  arrive. `docker compose exec api aslms alerts test-mail --to <address>` and section 13.
+
+**Test the alert path** (Verification, Part B): with mail configured, `docker compose stop clamav`; within about
+10 minutes ClamAVDown fires and the e-mail arrives; then `docker compose up -d clamav`.
+
+**Optional host metrics** (decision 28). On a Linux VM at the SDC, `COMPOSE_PROFILES=monitoring,monitoring-host` adds
+`node-exporter` and `cadvisor` (cadvisor reads the Docker socket and runs privileged). They are not used on Docker
+Desktop, where they would describe Docker's VM; there, disk space comes from the ops exporter.
 
 ## Pilot go-live checklist
 
@@ -289,6 +393,8 @@ to do for each.
 - [ ] Throttling checked (30 quick sign-ins give 429 `throttled`).
 - [ ] EICAR refused through the proxy.
 - [ ] First backup and restore check passed; the restore drill time recorded.
+- [ ] Monitoring up (`COMPOSE_PROFILES=monitoring`): every Prometheus target up, `promtool test rules` passes, the
+      Grafana overview shows live figures, a ClamAVDown test alert reached `OPS_ALERT_EMAIL` (section 17).
 - [ ] Load counts and the sample check in the decisions log (`aslms ops load-report --format md`,
       `aslms ops sample-cnrs --seed <n> --format md`).
 - [ ] The government mail relay live-checked with a real sign-in (row 27).

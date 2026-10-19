@@ -1827,3 +1827,25 @@ Backlog row 16 (rows 77 and 78 are Parts B and C, built later), design `docs/des
 **Left for later**: monitoring (row 77) and PgBouncer (row 78); migrations still run as the cluster superuser (row 80); the owner-run checks, the load counts and the sample-of-20 result are row 85; EICAR live test is row 24.
 
 - 2026-10-19 — deployment-checklist dev cut-over on the owner's machine: new .env values (COMPOSE_PATH_SEPARATOR, COMPOSE_FILE with the dev override, REDIS_PASSWORD, PORTAL_BASE_URL); stack up with only 127.0.0.1 ports for postgres, api and web, Redis internal with a password; init found the database at head (0019) and set both role passwords; services connect as aslms_app; portal smoke passed; first backup 18:48 (352 MB dump and manifest; store copy running). Found: the root-owned document store refused writes from uid 10001 (fixed with chmod; runbook and row 86 item 9).
+
+## Deployment monitoring, Part B (2026-10-19)
+Backlog row 77 (split from row 16), design `docs/design/deployment-checklist.md` Part B, decisions 22-28 (approved by the owner 18 Oct 2026; `docs/design/deployment-monitoring.md` is a pointer to it), branch `feature/deployment-monitoring`, in review. One migration: 0020. Runbook: `docs/operations.md`.
+
+**Built**
+- Compose profile `monitoring`: Prometheus, Alertmanager, Grafana, Flower, the postgres and redis exporters and the ASLMS operations exporter; interfaces on 127.0.0.1 only. Profile `monitoring-host` adds node-exporter and cadvisor for a Linux VM.
+- `aslms ops metrics` (`services/ops_metrics.py`, read-only, as `aslms_readonly`, each reading in a READ ONLY transaction): queue, jobs, worker liveness, NAPIX window, mail, backups, disk, ClamAV signatures, portal probe and certificate expiry. `--once` prints one reading.
+- API request metrics (`api/metrics.py`) on internal port 9100: `aslms_api_requests_total{method,route,status}` and `aslms_api_request_duration_seconds`, by route template.
+- Alert rules (17, `infra/prometheus/rules.yml`) tested with `promtool test rules infra/prometheus/rules.test.yml`; Alertmanager mails them through the SMTP settings; three provisioned dashboards (overview, PostgreSQL, Redis and Celery).
+- Migration 0020: `GRANT pg_monitor TO aslms_readonly` (downgrade `REVOKE`). Preflight now requires `ASLMS_READONLY_PASSWORD`, `GRAFANA_ADMIN_PASSWORD` and `FLOWER_BASIC_AUTH`. Tests: `test_ops_metrics_unit`, `test_ops_metrics`, `test_api_metrics`, `test_compose_monitoring`, `test_migration_0020`, `test_preflight`.
+
+**Decisions and reasons**
+- Grafana has no SQL data source; only the exporters read the database, and as the read-only role.
+- Database URL defaults use `127.0.0.1`, not `localhost`: on Windows `localhost` tried `::1` first and each connection waited 5 to 20 seconds, which made the tester's database tests crawl.
+- Alertmanager renders its configuration in an entrypoint script, with the SMTP password in a mode-600 file, because no image renders environment variables.
+- Flower is not scraped (its metrics sit behind basic auth); the Celery queue length comes from the redis exporter.
+
+**Deviations from the design note**: listed in its "Deviations made while building Part B". In short: two more gauges (disk total, oldest queued mail); an unmatched route is counted as `unmatched`; JobLate is three rules with a `late_after` label; ServiceDown also fires on `pg_up == 0`; the ops exporter sits on `default` and `edge`, not `portal`; the three new secrets are required even without the profile.
+
+**Verified**: full suite `1471 passed` in 27 minutes on a quiet Postgres; `promtool check` and `promtool test rules` pass; in a scratch Compose project all seven Prometheus targets were up, Grafana and Flower refused anonymous access.
+
+**Left for later**: migration 0020 is not applied to the dev database and the dev `.env` lacks the three new values (row 87, with the test-alert e-mail check); PgBouncer (row 78); the owner-run deployment checks (row 85); row 86 items.

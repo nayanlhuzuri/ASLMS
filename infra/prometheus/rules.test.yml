@@ -1,0 +1,370 @@
+# Unit tests of rules.yml (design deployment-checklist, Part B, decision 25). Run in the Prometheus image:
+#   docker run --rm -v "$PWD/infra/prometheus:/p:ro" --entrypoint promtool prom/prometheus:v3.7.2 test rules /p/rules.test.yml
+# In a test, time() is the evaluation time in seconds from 0, so a "last success" timestamp of -50000 is 50000 s
+# plus the evaluation time old.
+rule_files:
+  - rules.yml
+
+evaluation_interval: 1m
+
+tests:
+  # ---------------------------------------------------------------------------------------------- services
+  - interval: 1m
+    input_series:
+      - series: 'up{job="api", instance="api:9100"}'
+        values: "0x10"
+      - series: 'up{job="ops", instance="ops-exporter:9108"}'
+        values: "1x10"
+      - series: 'pg_up{job="postgres", instance="postgres-exporter:9187"}'
+        values: "0x10"
+      - series: 'up{job="postgres", instance="postgres-exporter:9187"}'
+        values: "1x10"
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: ServiceDown
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: ServiceDown
+        exp_alerts:
+          - exp_labels: { severity: critical, job: api, instance: "api:9100" }
+            exp_annotations:
+              summary: "api (api:9100) has been down for 5 minutes"
+              runbook: "docs/operations.md section 17, ServiceDown"
+          - exp_labels: { severity: critical, job: postgres, instance: "postgres-exporter:9187" }
+            exp_annotations:
+              summary: "postgres (postgres-exporter:9187) has been down for 5 minutes"
+              runbook: "docs/operations.md section 17, ServiceDown"
+
+  - interval: 1m
+    input_series:
+      - series: 'aslms_probe_up{target="portal"}'
+        values: "0x10"
+      - series: 'aslms_probe_up{target="web"}'
+        values: "1x10"
+      - series: "redis_up"
+        values: "0x10"
+      - series: "aslms_clamav_up"
+        values: "0x10"
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: PortalDown
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: PortalDown
+        exp_alerts:
+          - exp_labels: { severity: critical, target: portal }
+            exp_annotations:
+              summary: "the portal does not answer through the proxy (https, /api/health) for 5 minutes"
+              runbook: "docs/operations.md section 17, PortalDown"
+      - eval_time: 6m
+        alertname: RedisDown
+        exp_alerts:
+          - exp_labels: { severity: critical }
+            exp_annotations:
+              summary: "Redis does not answer the exporter for 5 minutes (NAPIX token and Celery messages)"
+              runbook: "docs/operations.md section 17, RedisDown"
+      - eval_time: 4m
+        alertname: ClamAVDown
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: ClamAVDown
+        exp_alerts:
+          - exp_labels: { severity: critical }
+            exp_annotations:
+              summary: "clamd does not answer for 5 minutes: uploads are refused (503 scanner_unavailable)"
+              runbook: "docs/operations.md section 17, ClamAVDown"
+
+  - interval: 1m
+    input_series:
+      - series: "aslms_clamav_signature_timestamp"
+        values: "-300000x30"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: ClamAVSignaturesOld
+        exp_alerts:
+          - exp_labels: { severity: warning }
+            exp_annotations:
+              summary: "ClamAV signatures are older than 3 days"
+              runbook: "docs/operations.md section 17, ClamAVSignaturesOld"
+
+  - interval: 1m
+    input_series:
+      - series: "aslms_clamav_signature_timestamp"
+        values: "0x30"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: ClamAVSignaturesOld
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'pg_stat_activity_count{datname="aslms", state="active"}'
+        values: "50x15"
+      - series: 'pg_stat_activity_count{datname="aslms", state="idle"}'
+        values: "35x15"
+      - series: "pg_settings_max_connections"
+        values: "100x15"
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: PostgresConnectionsHigh
+        exp_alerts:
+          - exp_labels: { severity: warning }
+            exp_annotations:
+              summary: "PostgreSQL connections are over 80 % of max_connections"
+              runbook: "docs/operations.md section 17, PostgresConnectionsHigh"
+
+  - interval: 1m
+    input_series:
+      - series: 'pg_stat_activity_count{datname="aslms", state="active"}'
+        values: "70x15"
+      - series: "pg_settings_max_connections"
+        values: "100x15"
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: PostgresConnectionsHigh
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: "aslms_tls_cert_expiry_timestamp"
+        values: "864000x80"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: CertExpiring
+        exp_alerts: []
+      - eval_time: 70m
+        alertname: CertExpiring
+        exp_alerts:
+          - exp_labels: { severity: warning }
+            exp_annotations:
+              summary: "the portal's TLS certificate expires in under 21 days"
+              runbook: "docs/operations.md section 17, CertExpiring"
+
+  - interval: 1m
+    input_series:
+      - series: "aslms_tls_cert_expiry_timestamp"
+        values: "2592000x80"
+    alert_rule_test:
+      - eval_time: 70m
+        alertname: CertExpiring
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'aslms_disk_free_bytes{path="/data"}'
+        values: "5e9x20"
+      - series: 'aslms_disk_total_bytes{path="/data"}'
+        values: "100e9x20"
+      - series: 'aslms_disk_free_bytes{path="/backups"}'
+        values: "50e9x20"
+      - series: 'aslms_disk_total_bytes{path="/backups"}'
+        values: "500e9x20"
+      - series: 'aslms_disk_free_bytes{path="/ok"}'
+        values: "400e9x20"
+      - series: 'aslms_disk_total_bytes{path="/ok"}'
+        values: "500e9x20"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: DiskLow
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: DiskLow
+        exp_alerts:
+          - exp_labels: { severity: warning, path: /data }
+            exp_annotations:
+              summary: "/data has under 15 % or under 10 GB free"
+              runbook: "docs/operations.md section 17, DiskLow"
+          - exp_labels: { severity: warning, path: /backups }
+            exp_annotations:
+              summary: "/backups has under 15 % or under 10 GB free"
+              runbook: "docs/operations.md section 17, DiskLow"
+
+  # ---------------------------------------------------------------------------------------------- work
+  - interval: 1m
+    input_series:
+      - series: "aslms_worker_last_pass_timestamp"
+        values: "-10000x10"
+      - series: 'aslms_queue_oldest_pending_seconds{lane="load"}'
+        values: "3600x10"
+      - series: 'aslms_queue_oldest_pending_seconds{lane="daily"}'
+        values: "0x10"
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: WorkerStalled
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: WorkerStalled
+        exp_alerts:
+          - exp_labels: { severity: critical }
+            exp_annotations:
+              summary: "no queue worker pass for 2 hours while the queue has runnable rows"
+              runbook: "docs/operations.md section 17, WorkerStalled"
+
+  - interval: 1m
+    input_series:
+      # an old pass but nothing runnable: the worker has nothing to do
+      - series: "aslms_worker_last_pass_timestamp"
+        values: "-10000x10"
+      - series: 'aslms_queue_oldest_pending_seconds{lane="load"}'
+        values: "0x10"
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: WorkerStalled
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      # a recent pass with work waiting
+      - series: "aslms_worker_last_pass_timestamp"
+        values: "0x10"
+      - series: 'aslms_queue_oldest_pending_seconds{lane="load"}'
+        values: "3600x10"
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: WorkerStalled
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'aslms_job_running_oldest_seconds{job="extract_text"}'
+        values: "30000x5"
+      - series: 'aslms_job_running_oldest_seconds{job="digests"}'
+        values: "10x5"
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: JobStuck
+        exp_alerts:
+          - exp_labels: { severity: warning, job: extract_text }
+            exp_annotations:
+              summary: "job extract_text has been running for more than 6 hours"
+              runbook: "docs/operations.md section 17, JobStuck"
+
+  - interval: 1m
+    input_series:
+      - series: 'aslms_job_last_success_timestamp{job="notifications_send"}'
+        values: "-2000x10"
+      - series: 'aslms_job_last_success_timestamp{job="alerts_events"}'
+        values: "0x10"
+      - series: 'aslms_job_last_success_timestamp{job="extract_text"}'
+        values: "-2000x10"
+      - series: 'aslms_job_last_success_timestamp{job="next_dates_read"}'
+        values: "-4000x10"
+      - series: 'aslms_job_last_success_timestamp{job="digests"}'
+        values: "-2000x10"
+      - series: 'aslms_job_last_success_timestamp{job="dedupe-sweep"}'
+        values: "-100000x10"
+      - series: 'aslms_job_last_success_timestamp{job="queue-run"}'
+        values: "-1000000x10"
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: JobLate
+        exp_alerts:
+          - exp_labels: { severity: warning, late_after: 30m, job: notifications_send }
+            exp_annotations:
+              summary: "job notifications_send has not succeeded for 30 minutes"
+              runbook: "docs/operations.md section 17, JobLate"
+          - exp_labels: { severity: warning, late_after: 1h, job: next_dates_read }
+            exp_annotations:
+              summary: "job next_dates_read has not succeeded for 1 hour"
+              runbook: "docs/operations.md section 17, JobLate"
+          - exp_labels: { severity: warning, late_after: 26h, job: dedupe-sweep }
+            exp_annotations:
+              summary: "job dedupe-sweep has not succeeded for 26 hours"
+              runbook: "docs/operations.md section 17, JobLate"
+
+  - interval: 1m
+    input_series:
+      - series: "aslms_backup_last_success_timestamp"
+        values: "-50000x10"
+      - series: "aslms_restore_check_last_success_timestamp"
+        values: "-700000x10"
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: BackupMissing
+        exp_alerts:
+          - exp_labels: { severity: critical }
+            exp_annotations:
+              summary: "no successful backup for 13 hours"
+              runbook: "docs/operations.md section 17, BackupMissing"
+      - eval_time: 6m
+        alertname: RestoreCheckMissing
+        exp_alerts:
+          - exp_labels: { severity: warning }
+            exp_annotations:
+              summary: "no successful restore check for 8 days"
+              runbook: "docs/operations.md section 17, RestoreCheckMissing"
+
+  - interval: 1m
+    input_series:
+      - series: "aslms_backup_last_success_timestamp"
+        values: "0x10"
+      - series: "aslms_restore_check_last_success_timestamp"
+        values: "-600000x10"
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: BackupMissing
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: RestoreCheckMissing
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'aslms_napix_calls_last_hour{outcome="failed"}'
+        values: "150x10"
+      - series: 'aslms_napix_calls_last_hour{outcome="ok"}'
+        values: "900x10"
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: NapixErrorsHigh
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: NapixErrorsHigh
+        exp_alerts:
+          - exp_labels: { severity: warning, outcome: failed }
+            exp_annotations:
+              summary: "more than 100 failed NAPIX calls in the last hour"
+              runbook: "docs/operations.md section 17, NapixErrorsHigh"
+
+  - interval: 1m
+    input_series:
+      - series: 'aslms_notifications{status="failed"}'
+        values: "0+1x40"
+      - series: 'aslms_notifications{status="sent"}'
+        values: "0+5x40"
+      - series: "aslms_mail_oldest_queued_seconds"
+        values: "0x40"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: MailFailing
+        exp_alerts:
+          - exp_labels: { severity: warning, status: failed }
+            exp_annotations:
+              summary: "e-mail is failing: more than 10 failed notifications in an hour, or the oldest queued is over 30 minutes old"
+              runbook: "docs/operations.md section 17, MailFailing"
+
+  - interval: 1m
+    input_series:
+      - series: 'aslms_notifications{status="failed"}'
+        values: "3x40"
+      - series: "aslms_mail_oldest_queued_seconds"
+        values: "2000x40"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: MailFailing
+        exp_alerts:
+          - exp_labels: { severity: warning }
+            exp_annotations:
+              summary: "e-mail is failing: more than 10 failed notifications in an hour, or the oldest queued is over 30 minutes old"
+              runbook: "docs/operations.md section 17, MailFailing"
+
+  - interval: 1m
+    input_series:
+      - series: 'aslms_notifications{status="failed"}'
+        values: "3x40"
+      - series: "aslms_mail_oldest_queued_seconds"
+        values: "60x40"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: MailFailing
+        exp_alerts: []

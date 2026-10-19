@@ -53,7 +53,11 @@ written from this document plus the approved addendum. **As built (1 Oct 2026):*
   `case_stages`, `admin_ticket_documents`, `membership_documents` (the last two added by `user-memberships`),
   `case_note_attachments` (added by `custody-workflow`, migration 0009).
 - **Roles.** `aslms_owner` (migrations), `aslms_app` (API, workers, CLI: SELECT/INSERT/UPDATE; INSERT only on the
-  append-only tables; DELETE only on the cascade list; no DDL), `aslms_readonly` (SELECT).
+  append-only tables; DELETE only on the cascade list; no DDL), `aslms_readonly` (SELECT on every table; member
+  of the predefined role `pg_monitor` for the statistics views read by the Prometheus postgres exporter, migration
+  0020, design deployment-checklist decision 27; no write and no DDL). The cluster superuser (`POSTGRES_USER`) is
+  used only by `init`, `migrate` and `backup`; the application never connects as it (design deployment-checklist
+  decision 5).
 - Data received from NAPIX is kept verbatim in a `raw jsonb` column beside the parsed columns; scope checks use
   `offices.path` prefix matching, in SQL only.
 - Case visibility is one rule (`services/visibility.py::visibility_bases`, design `cases-api`): the bases
@@ -279,6 +283,8 @@ As built by `alerts-notifications` (migration 0007, 6 Oct 2026): `alerts` gains 
 > Migrations still run as the cluster superuser, not `aslms_owner` (row 80).
 >
 > As built from deployment-checklist Part A (19 Oct 2026): no table, column or migration. `init` now runs `aslms ops preflight && aslms ops db-guard && aslms db-roles && aslms seed`; migrations are an explicit `migrate` step (`aslms ops migrate`, which takes a pre-migration backup and exits 2 while `aslms_app` is connected). `job_runs.job` gains the free-text values `backup` and `restore_check`; new audit actions `system.migrated` and `system.restored`. `aslms_readonly` is unchanged until row 77 adds `pg_monitor` by migration.
+>
+> As built from deployment-checklist Part B (row 77, `deployment-monitoring`): migration 0020 runs `GRANT pg_monitor TO aslms_readonly` (downgrade: `REVOKE`); no table, column or reference code. The Prometheus postgres exporter and the ASLMS operations exporter (`aslms ops metrics`) connect as `aslms_readonly`; Grafana has no SQL data source.
 
 ## Phase 2 and 3 tables
 | Table | Columns (key ones) | Notes |

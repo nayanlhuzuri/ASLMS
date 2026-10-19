@@ -1,0 +1,16 @@
+# The only Grafana data source (design deployment-checklist, Part B, decision 22). No SQL data source: aslms_readonly
+# can read every table, password hashes included, so Grafana never queries the database.
+apiVersion: 1
+deleteDatasources:
+  - name: Prometheus
+    orgId: 1
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: 30s

@@ -8,13 +8,14 @@ waiting for its API documentation). Owner: SeMT Assam / AMTRON.
 
 ## Stack
 
-Python 3.12 (FastAPI, SQLAlchemy, Alembic, Celery), PostgreSQL 16, Redis, ClamAV, Next.js (`frontend/`), nginx, and
-Docker Compose for the whole stack.
+Python 3.12 (FastAPI, SQLAlchemy, Alembic, Celery), PostgreSQL 16, Redis, ClamAV, Next.js (`frontend/`), nginx,
+Prometheus, Alertmanager, Grafana and Flower (Compose profile `monitoring`), and Docker Compose for the whole stack.
 
 ## Development quick start
 
 1. Copy `.env.example` to `.env`. Keep `APP_ENV=dev`, `COMPOSE_PATH_SEPARATOR=:` and `COMPOSE_FILE=compose.yml:compose.dev.yml` (on Windows Docker separates the files with `;` unless `COMPOSE_PATH_SEPARATOR=:` is set). Generate the
-   required secrets (`POSTGRES_PASSWORD`, `ASLMS_APP_PASSWORD`, `REDIS_PASSWORD`, `ASLMS_JWT_SECRET`) with
+   required secrets (`POSTGRES_PASSWORD`, `ASLMS_APP_PASSWORD`, `ASLMS_READONLY_PASSWORD`, `REDIS_PASSWORD`,
+   `ASLMS_JWT_SECRET`, `GRAFANA_ADMIN_PASSWORD`, and `FLOWER_BASIC_AUTH` as `user:password`) with
    `openssl rand -hex 32`, and set `PORTAL_BASE_URL=http://localhost:3000` and a mail service (the Mailtrap sandbox
    is fine in development).
 2. `docker compose up -d`. The portal is at http://localhost:3000, the API at http://127.0.0.1:8000 (`/docs`), and
@@ -28,8 +29,9 @@ The NAPIX master switch stays off in every file. The owner sets it in the shell 
 
 Run it with `APP_ENV=prod`, `COMPOSE_FILE=compose.yml` and a certificate in `infra/proxy/certs`. Only the nginx
 proxy is reachable (443, and 80 which redirects). Installation, upgrades (the explicit `migrate` step), backups,
-the restore check, the disaster restore, secret rotation, ClamAV modes and the go-live checklist are in
-**[docs/operations.md](docs/operations.md)**.
+the restore check, the disaster restore, secret rotation, ClamAV modes, monitoring (`COMPOSE_PROFILES=monitoring`:
+Grafana, Prometheus, Alertmanager and Flower on the host's loopback, the alert rules and what to do for each) and the
+go-live checklist are in **[docs/operations.md](docs/operations.md)**.
 
 ## Main commands
 
@@ -43,6 +45,7 @@ the restore check, the disaster restore, secret rotation, ClamAV modes and the g
 | `aslms ops make-cert --host <name> --ip <address>` | an internal CA and the proxy's certificate |
 | `aslms data-load status` | the backdated NAPIX load |
 | `aslms data-health` | queue, jobs, mail and NAPIX health |
+| `aslms ops metrics --once` | one reading of the operations exporter (the Compose `ops-exporter` serves it on 9108) |
 
 Inside Compose, run them as `docker compose exec api aslms …` (or `exec backup` for the backup commands).
 
