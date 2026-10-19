@@ -166,6 +166,23 @@ class Settings(BaseSettings):
         548, ge=90, le=1095
     )  # a read or entered date at most this far ahead
 
+    # --- deployment (design deployment-checklist, decisions 3 and 13) ------------------------
+    # read by `aslms ops preflight` only: the cluster superuser, the Redis password and the portal's cookie flag;
+    # the api, worker and scheduler get POSTGRES_PASSWORD blanked by Compose
+    postgres_user: str = "aslms"
+    postgres_password: SecretStr | None = None
+    redis_password: SecretStr | None = None
+    cookie_secure: bool = True
+    # the backup service (`aslms ops backup-scheduler`): dumps, roles and the store mirror under BACKUP_DIR at minute 30
+    # of every BACKUP_INTERVAL_HOURS hours (IST); retention prunes dump sets only, never the store mirror
+    backup_dir: str = "backups"
+    backup_interval_hours: int = Field(6, ge=1, le=24)
+    backup_keep_recent_hours: int = Field(48, ge=1, le=24 * 30)
+    backup_keep_daily: int = Field(14, ge=0, le=366)
+    backup_keep_weekly: int = Field(8, ge=0, le=520)
+    backup_keep_monthly: int = Field(12, ge=0, le=240)
+    backup_keep_premigrate: int = Field(5, ge=1, le=100)
+
     @model_validator(mode="after")
     def _reserves_ordered(self) -> Settings:
         """Decision 4: searches stop first, then the daily cycle, then the load."""

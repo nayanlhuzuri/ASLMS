@@ -22,11 +22,13 @@ Run: `celery -A aslms.jobs.celery_app worker -B --concurrency 1` (the Compose `s
 from __future__ import annotations
 
 import logging
+import os
 import uuid
 from datetime import UTC, date, datetime
 
 from celery import Celery
 from celery.schedules import crontab
+from celery.signals import worker_ready
 
 from aslms.core.config import get_settings
 from aslms.db.session import get_sessionmaker, session_scope
@@ -80,6 +82,24 @@ app.conf.update(
         },
     },
 )
+
+
+PROCESS_STARTED_AT = datetime.now(UTC)
+
+
+@worker_ready.connect
+def on_worker_ready(**_kwargs) -> None:
+    """Design deployment-checklist, decisions 5 and 18: in production the scheduler refuses a superuser connection; then
+    its own `job_runs` rows left `running` from before this start are marked failed (`interrupted`)."""
+    from aslms.services.db_guard import refuse_superuser
+    from aslms.services.job_repair import SCHEDULER_JOBS, repair_at_start
+
+    try:
+        refuse_superuser(settings.database_url_sync, is_prod=settings.is_prod)
+    except SystemExit:
+        # Celery's signal dispatch would swallow or delay the exit; the refusal is already logged
+        os._exit(1)
+    repair_at_start(get_sessionmaker(), SCHEDULER_JOBS, PROCESS_STARTED_AT, "scheduler")
 
 
 @app.task(name="aslms.enqueue_masters")

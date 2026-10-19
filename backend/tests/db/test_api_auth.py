@@ -214,7 +214,10 @@ def test_lock_after_ten_failures_and_open_after_the_window(api, monkeypatch):
     assert sign_in(api, EDU_OFF, PW)["next_step"] == "ready"
 
 
-def test_mail_failure_and_unconfigured_mail(world):
+def test_mail_failure_and_unconfigured_mail(world, monkeypatch):
+    # the test database is reached as its superuser, which a prod app refuses at start (design deployment-checklist,
+    # decision 5; tested in tests/unit/test_ops_unit.py); this test is about mail only
+    monkeypatch.setattr("aslms.api.main.refuse_superuser", lambda url, is_prod: None)
     api = make(world)
     try:
         api.app.state.mailer = RecordingMailer(fail_with=MailError("mailtrap api answered 500: token=***"))

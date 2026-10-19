@@ -32,6 +32,7 @@ def test_web_service_has_no_env_file():
         "COOKIE_SECURE",
         "ASLMS_REFRESH_TOKEN_DAYS",
         "RELAY_TIMEOUT_SECONDS",
+        "TRUST_PROXY_HEADERS",
     }
     assert not any(n.startswith(("NAPIX_", "MAILTRAP_", "SMTP_")) or "SECRET" in n for n in names)
 
@@ -57,3 +58,12 @@ def test_web_depends_on_healthy_api():
     assert compose["services"]["web"]["depends_on"]["api"]["condition"] == "service_healthy"
     assert "healthcheck" in compose["services"]["api"]
     assert "healthcheck" in compose["services"]["web"]
+
+
+def test_web_is_on_portal_and_edge_and_proxy_only_on_edge():
+    """Design deployment-checklist, decisions 7 and 8: the proxy reaches web only; web trusts its X-Forwarded-For."""
+    compose = _compose()
+    web = compose["services"]["web"]
+    assert set(web["networks"]) == {"portal", "edge"}
+    assert web["environment"]["TRUST_PROXY_HEADERS"] == "true"
+    assert compose["services"]["proxy"]["networks"] == ["edge"]

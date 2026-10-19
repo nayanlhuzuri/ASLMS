@@ -15,10 +15,12 @@ beforeEach(() => {
 
 afterEach(() => {
   delete process.env.RELAY_TIMEOUT_SECONDS;
+  delete process.env.TRUST_PROXY_HEADERS;
 });
 
 describe("relay", () => {
   it("adds Authorization and the device token from the cookies, never the browser's", async () => {
+    process.env.TRUST_PROXY_HEADERS = "true";
     const api = fakeApi();
     api.on("GET", "/me", () => jsonResponse(200, { ok: true }));
     const r = await relay(
@@ -43,7 +45,8 @@ describe("relay", () => {
     expect(call.headers.get("x-other")).toBeNull();
     expect(call.headers.get("user-agent")).toBe("UA/1");
     expect(call.headers.get("accept")).toBe("application/json");
-    expect(call.headers.get("x-forwarded-for")).toBe("203.0.113.9");
+    // behind the proxy: the rightmost entry, the one the trusted hop wrote (deployment-checklist, decision 8)
+    expect(call.headers.get("x-forwarded-for")).toBe("10.0.0.1");
   });
 
   it("does not forward a device token the browser sends without the cookie", async () => {

@@ -34,6 +34,7 @@ from aslms.api.security import jwt_secret
 from aslms.core.config import Settings, get_settings
 from aslms.core.logging import configure_logging
 from aslms.db.session import get_sessionmaker
+from aslms.services.db_guard import refuse_superuser
 
 
 def create_app(settings: Settings | None = None, session_factory=None) -> FastAPI:
@@ -43,9 +44,20 @@ def create_app(settings: Settings | None = None, session_factory=None) -> FastAP
     async def lifespan(app: FastAPI):
         configure_logging()
         jwt_secret(settings)  # fail fast without a signing secret
+        # design deployment-checklist, decision 5: never serve as a database superuser in production
+        refuse_superuser(settings.database_url_sync, is_prod=settings.is_prod)
         yield
 
-    app = FastAPI(title="ASLMS — Legal Case Monitoring Portal", version=__version__, lifespan=lifespan)
+    # decision 4: the API documentation only in development; app.openapi() still works for the snapshot tool
+    docs = settings.app_env == "dev"
+    app = FastAPI(
+        title="ASLMS — Legal Case Monitoring Portal",
+        version=__version__,
+        lifespan=lifespan,
+        docs_url="/docs" if docs else None,
+        redoc_url="/redoc" if docs else None,
+        openapi_url="/openapi.json" if docs else None,
+    )
     app.state.settings = settings
     app.state.session_factory = session_factory or get_sessionmaker(settings.database_url_sync)
     app.include_router(auth_router.router)

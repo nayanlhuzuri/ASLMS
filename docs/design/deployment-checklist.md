@@ -801,3 +801,43 @@ and changed later in `.env`. They are listed for the owner to confirm at approva
 - **`docker compose up` no longer applies migrations to an existing database** (decision 12). This changes the
   "one command migrates and seeds" note at the top of `compose.yml` and the 1 Oct Compose decision; the decisions
   log records it when the item is built.
+
+### Deviations made while building Part A (developer, 19 Oct 2026)
+- **Role passwords:** row 76 built `aslms db-roles`, so Part A extends that step and adds no second one (decision 12
+  allows this). `init` runs `aslms ops preflight && aslms ops db-guard && aslms db-roles && aslms seed`.
+  `aslms ops role-passwords` calls the same function. The `ALTER ROLE` now runs under
+  `SET LOCAL log_statement = 'none'`.
+- **Preflight reads four more settings:** `POSTGRES_USER`, `POSTGRES_PASSWORD`, `REDIS_PASSWORD` and `COOKIE_SECURE`
+  are `Settings` fields, so preflight can check them. The design said Compose alone reads them. Compose passes them
+  to `init` and `migrate` explicitly.
+- **URL-safe passwords:** preflight also refuses a database or Redis password with a character other than letters,
+  digits, `_` and `-`, because Compose puts the passwords into URLs unencoded. This is the rule `aslms db-roles`
+  already applies (safety-fixes).
+- **The read-only password:** preflight also checks `ASLMS_READONLY_PASSWORD` when it is set, with the same rules,
+  and requires it to differ from the others. Part B makes it required.
+- **The owner's credentials are blanked in the application services:** `api`, `worker` and `scheduler` read `.env`
+  through `env_file`. Compose therefore sets their `POSTGRES_PASSWORD` and `ASLMS_MIGRATE_URL` to empty strings, so
+  the owner's credentials never reach them (row 82).
+- **Image tags:** `nginx:1.28-alpine` is pinned at the minor version, so it takes nginx's security patches; that is
+  the `nginx:1.<n>-alpine` form of decision 21. The other images, and the two Dockerfile base images
+  (`python:3.12.15-slim`, `node:22.23.3-alpine`), are pinned at the exact version found on the dev machine.
+- **The proxy in development:** `compose.dev.yml` puts `proxy` in profile `proxy`, because development has no
+  certificate. Without this, the proxy would restart in a loop on every `docker compose up -d`.
+- **`COMPOSE_PATH_SEPARATOR=:`** is in `.env.example` next to `COMPOSE_FILE`. On Windows, Compose otherwise splits
+  `COMPOSE_FILE` on `;`.
+- **ClamAV mirror mode:** the operator sets the `PrivateMirror` line in `infra/clamav/freshclam.conf`, copied from
+  the example. There is no `${CLAMAV_MIRROR}` variable, because freshclam does not expand variables.
+- **Small additions:**
+  - The proxy has a loopback-only `/nginx-health` on its port-80 default server, for its health check.
+  - `redis` has a health check, and `worker` and `scheduler` wait for it to be healthy.
+  - `backup` mounts the store read-only. `aslms ops restore` runs through the `migrate` service, which mounts the
+    store read-write.
+  - `ops migrate` exits 2 while `aslms_app` is connected.
+  - A backup whose store mirror finds a mismatched file is recorded as `partial`.
+  - The restore check runs `pg_restore --no-owner` into the scratch database.
+  - The internal CA uses EC P-256 keys.
+- **Beat's schedule file is in `/tmp`** (review fix): the image runs as uid 10001 and `/app` is root-owned, so the
+  scheduler runs `worker -B -s /tmp/celerybeat-schedule`. The file is lost when the container is recreated; beat
+  then starts fresh and each entry fires at its next due time, which is what the crontab schedule already does.
+- **Documents left to the scribe:** the decisions log entry (including the change of behaviour "`up` no longer
+  migrates an existing database"), `CLAUDE.md` "Current focus" and the backlog rows 16, 24, 33, 43, 44, 80 and 82.

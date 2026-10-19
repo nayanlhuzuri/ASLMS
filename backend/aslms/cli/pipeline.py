@@ -234,9 +234,18 @@ def queue_worker(
     import time
 
     from aslms.services.audit_search import to_ist
+    from aslms.services.db_guard import refuse_superuser
+    from aslms.services.job_repair import WORKER_JOBS, repair_at_start
 
     settings = get_settings()
+    started = datetime.now(UTC)
+    # design deployment-checklist, decisions 5 and 18: never as a superuser in production; this worker's own
+    # `running` rows from before this start were interrupted
+    refuse_superuser(settings.database_url_sync, is_prod=settings.is_prod)
     factory = get_sessionmaker()
+    repaired = repair_at_start(factory, WORKER_JOBS, started, "queue-worker")
+    if repaired:
+        rprint(f"[yellow]{repaired} interrupted queue-run row(s) marked failed[/yellow]")
     rprint(f"queue worker started (NAPIX {'on' if settings.napix_configured else 'off'})")
     while True:
         try:

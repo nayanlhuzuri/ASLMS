@@ -1,0 +1,133 @@
+# The ASLMS reverse proxy (design deployment-checklist, decisions 7-10). Rendered at start by the nginx image
+# (envsubst of the PROXY_* variables only; NGINX_ENVSUBST_FILTER); the snippets in /etc/nginx/aslms/ are written by
+# 15-aslms-limits.sh from PORTAL_BASE_URL, UPLOAD_MAX_BYTES, ATTACHMENTS_MAX_FILES and RELAY_TIMEOUT_SECONDS.
+
+server_tokens off;
+client_max_body_size 1m;
+
+# per-address throttling (decision 10): sign-in, code, resend and reset; the rest of the API; connections
+limit_req_zone $binary_remote_addr zone=session:10m rate=${PROXY_SESSION_RATE};
+limit_req_zone $binary_remote_addr zone=api:10m rate=${PROXY_API_RATE};
+limit_conn_zone $binary_remote_addr zone=perip:10m;
+limit_req_status 429;
+limit_conn_status 429;
+
+# a load balancer in front (PROXY_TRUSTED_UPSTREAM) reports the client's address; otherwise nothing
+include /etc/nginx/aslms/real_ip.conf;
+
+upstream portal_web {
+    server web:3000;
+    keepalive 16;
+}
+
+# port 80: the named host is redirected to https; anything else is closed. /nginx-health is the container's own
+# health check (loopback only).
+server {
+    listen 80 default_server;
+    server_name _;
+    location = /nginx-health {
+        access_log off;
+        allow 127.0.0.1;
+        deny all;
+        default_type text/plain;
+        return 200 "ok\n";
+    }
+    location / {
+        return 444;
+    }
+}
+
+server {
+    listen 80;
+    include /etc/nginx/aslms/server_name.conf;
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+# port 443 with any Host other than the portal's: closed without an answer
+server {
+    listen 443 ssl default_server;
+    server_name _;
+    ssl_certificate /etc/nginx/certs/fullchain.pem;
+    ssl_certificate_key /etc/nginx/certs/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    return 444;
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    include /etc/nginx/aslms/server_name.conf;
+
+    ssl_certificate /etc/nginx/certs/fullchain.pem;
+    ssl_certificate_key /etc/nginx/certs/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:TLS:10m;
+    ssl_session_timeout 1d;
+    ssl_session_tickets off;
+
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    limit_conn perip ${PROXY_CONN_PER_IP};
+
+    # the trusted hop (decision 8): the header is overwritten with the connecting address, never appended to
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-Host $host;
+    include /etc/nginx/aslms/timeouts.conf;
+
+    # answers the portal understands (decision 10 and documents-uploads decision 4)
+    error_page 413 = @too_large;
+    error_page 429 = @throttled;
+    location @too_large {
+        default_type application/json;
+        add_header Strict-Transport-Security "max-age=31536000" always;
+        return 413 '{"detail":{"code":"too_large","message":"The request is larger than the limit."}}';
+    }
+    location @throttled {
+        default_type application/json;
+        add_header Strict-Transport-Security "max-age=31536000" always;
+        add_header Retry-After 60 always;
+        return 429 '{"detail":{"code":"throttled","message":"Too many requests from this address. Wait a minute and try again.","retry_after":60}}';
+    }
+
+    # sign-in, code, resend and password reset
+    location /api/session/ {
+        limit_req zone=session burst=${PROXY_SESSION_BURST} nodelay;
+        proxy_pass http://portal_web;
+    }
+
+    # uploads (decision 9): the API's own limits; the body is streamed, never spooled to the proxy's disk unscanned
+    location = /api/backend/admin/tickets/head-change {
+        limit_req zone=api burst=${PROXY_API_BURST} nodelay;
+        include /etc/nginx/aslms/limit-notes.conf;
+        proxy_request_buffering off;
+        proxy_pass http://portal_web;
+    }
+    location ~ ^/api/backend/.+/documents$ {
+        limit_req zone=api burst=${PROXY_API_BURST} nodelay;
+        include /etc/nginx/aslms/limit-upload.conf;
+        proxy_request_buffering off;
+        proxy_pass http://portal_web;
+    }
+    location ~ ^/api/backend/cases/[^/]+/notes$ {
+        limit_req zone=api burst=${PROXY_API_BURST} nodelay;
+        include /etc/nginx/aslms/limit-notes.conf;
+        proxy_request_buffering off;
+        proxy_pass http://portal_web;
+    }
+
+    location /api/backend/ {
+        limit_req zone=api burst=${PROXY_API_BURST} nodelay;
+        proxy_pass http://portal_web;
+    }
+
+    location / {
+        proxy_pass http://portal_web;
+    }
+}

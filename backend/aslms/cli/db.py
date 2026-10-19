@@ -59,7 +59,8 @@ def validate_role_password(value: str | None) -> str | None:
 
 
 def _set_password(url: str, role: str, password: str) -> None:
-    """`ALTER ROLE <role> LOGIN PASSWORD <literal>` as the owner; the literal is quoted by psycopg, never by hand."""
+    """`ALTER ROLE <role> LOGIN PASSWORD <literal>` as the owner, under `SET LOCAL log_statement = 'none'`; the literal is
+    quoted by psycopg, never by hand."""
     from psycopg import sql
     from sqlalchemy import create_engine
     from sqlalchemy.pool import NullPool
@@ -69,6 +70,8 @@ def _set_password(url: str, role: str, password: str) -> None:
         raw = engine.raw_connection()
         try:
             with raw.cursor() as cur:
+                # the statement never reaches the server log (design deployment-checklist, decision 12)
+                cur.execute("SET LOCAL log_statement = 'none'")
                 cur.execute(
                     sql.SQL("ALTER ROLE {} LOGIN PASSWORD {}").format(
                         sql.Identifier(role), sql.Literal(password)

@@ -17,6 +17,8 @@ const ERRORS: Record<string, (extra: Record<string, unknown>) => string> = {
   locked: (x) => `Too many attempts. Try again in ${wait(x.retry_after)}.`,
   too_many_codes: (x) => `A code was sent recently. You can ask for another in ${wait(x.retry_after)}.`,
   too_many: (x) => `Too many requests. Try again in ${wait(x.retry_after)}.`,
+  // the proxy's per-address limit (design deployment-checklist, decision 10)
+  throttled: () => "Too many requests from this address. Wait a minute and try again.",
   mail_failed: () => "The code could not be e-mailed. Mail is unavailable; contact the administrator.",
   mail_not_configured: () => "Mail is not set up on the server, so no code can be sent. Contact the administrator.",
   otp_invalid: (x) =>
@@ -1275,6 +1277,7 @@ export const T = {
       scoring_settings: "Scoring settings",
       sourcetrace: "SourceTrace",
       stage: "Stage",
+      system: "System",
       ticket: "Ticket",
       transfer: "Transfer",
       user: "User",

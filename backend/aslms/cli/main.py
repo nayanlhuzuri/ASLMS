@@ -1,4 +1,4 @@
-"""`aslms` command line: NAPIX checks and probes, `seed`, `db-check`, `db-roles`, the load pipeline (`load`, `queue-run`, `queue-status`, `queue-retry-failed`, `sync-masters`, `refetch-date`, `refetch-case`), the matching engine (`rescore`, `codes unmapped`), the `cases` group (`reindex-search`, `show`), the `documents` group (`extract`, `scan-check`), the `alerts` group (`run`, `send`, `digest`, `status`, `test-mail`), the `sourcetrace` group (`status`, `run`, `retry`, `check`), the `reports` group (`run`, `dashboard`), the `audit` group (`search`), `data-health`, the `data-load` group (`status`, `coverage`, `start`, `pause`, `resume`, `order`, `dedupe`), the `discovery` group (`status`, `terms`, `sweep`), the `next-dates` group (`read`, `status`, `sample`), and the `users`, `access` and `offices` administration groups."""
+"""`aslms` command line: NAPIX checks and probes, `seed`, `db-check`, `db-roles`, the load pipeline (`load`, `queue-run`, `queue-status`, `queue-retry-failed`, `sync-masters`, `refetch-date`, `refetch-case`), the matching engine (`rescore`, `codes unmapped`), the `cases` group (`reindex-search`, `show`), the `documents` group (`extract`, `scan-check`), the `alerts` group (`run`, `send`, `digest`, `status`, `test-mail`), the `sourcetrace` group (`status`, `run`, `retry`, `check`), the `reports` group (`run`, `dashboard`), the `audit` group (`search`), `data-health`, the `data-load` group (`status`, `coverage`, `start`, `pause`, `resume`, `order`, `dedupe`), the `discovery` group (`status`, `terms`, `sweep`), the `next-dates` group (`read`, `status`, `sample`), the `ops` group (`preflight`, `db-guard`, `role-passwords`, `migrate`, `backup`, `backup-scheduler`, `backup-status`, `restore-check`, `restore`, `repair-jobs`, `load-report`, `sample-cnrs`, `make-cert`), and the `users`, `access` and `offices` administration groups."""
 
 from __future__ import annotations
 
@@ -22,6 +22,7 @@ from aslms.cli.napix_fields import napix_fields
 from aslms.cli.napix_probe import napix_probe_rate
 from aslms.cli.next_dates import next_dates_app
 from aslms.cli.offices import offices_app
+from aslms.cli.ops import ops_app
 from aslms.cli.pipeline import (
     daily_cycle,
     load,
@@ -69,6 +70,7 @@ app.add_typer(audit_app, name="audit")
 app.add_typer(data_load_app, name="data-load")
 app.add_typer(discovery_app, name="discovery")
 app.add_typer(next_dates_app, name="next-dates")
+app.add_typer(ops_app, name="ops")
 
 
 @app.callback()

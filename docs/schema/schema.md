@@ -276,7 +276,9 @@ As built by `alerts-notifications` (migration 0007, 6 Oct 2026): `alerts` gains 
 > Roles (DB_STANDARD §8, as built from safety-fixes): the Compose `api`, `worker` and `scheduler` connect as
 > `aslms_app`. `init` connects as `POSTGRES_USER` and runs `alembic upgrade head`, `aslms seed` and `aslms db-roles`.
 > The last sets the `aslms_app` (required) and `aslms_readonly` (optional) passwords from `.env` on every run.
-> Migrations still run as the cluster superuser, not `aslms_owner` (row 16).
+> Migrations still run as the cluster superuser, not `aslms_owner` (row 80).
+>
+> As built from deployment-checklist Part A (19 Oct 2026): no table, column or migration. `init` now runs `aslms ops preflight && aslms ops db-guard && aslms db-roles && aslms seed`; migrations are an explicit `migrate` step (`aslms ops migrate`, which takes a pre-migration backup and exits 2 while `aslms_app` is connected). `job_runs.job` gains the free-text values `backup` and `restore_check`; new audit actions `system.migrated` and `system.restored`. `aslms_readonly` is unchanged until row 77 adds `pg_monitor` by migration.
 
 ## Phase 2 and 3 tables
 | Table | Columns (key ones) | Notes |

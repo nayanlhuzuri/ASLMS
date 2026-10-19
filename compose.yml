@@ -1,21 +1,79 @@
-# ASLMS v2 — one command brings the stack up: `docker compose up -d` (migrates and seeds, then the services).
-# Services: postgres, redis, clamav (scans every upload), init (migrate + seed), api, worker (the NAPIX
-# load-and-refresh queue), scheduler (Celery beat and the text-extraction sweep), web (the Next.js portal at
-# http://localhost:3000; design portal-shell). Variables come from .env (copy .env.example).
-# Database roles (DB_STANDARD §8, design safety-fixes): `init` alone connects as POSTGRES_USER (migrations, seed and
-# `aslms db-roles`, which sets the aslms_app / aslms_readonly passwords from .env on every run); the api, worker and
-# scheduler connect as aslms_app with ASLMS_APP_PASSWORD (required: Compose refuses to start without it).
+# ASLMS v2: `docker compose up -d` brings the stack up (design deployment-checklist). Variables come from .env (copy
+# .env.example); POSTGRES_PASSWORD, ASLMS_APP_PASSWORD, REDIS_PASSWORD and PORTAL_BASE_URL are required and have no
+# default. The runbook is docs/operations.md.
+#
+# Only the `proxy` publishes ports (443, and 80 which only redirects). For development, `.env` sets
+# COMPOSE_FILE=compose.yml:compose.dev.yml, which publishes postgres, api and web on 127.0.0.1 only.
+#
+# Services: postgres, redis (password, memory only), clamav (scans every upload), init (preflight, the migration
+# guard, role passwords, seed), api, worker (the NAPIX load-and-refresh queue), scheduler (Celery beat and its
+# jobs), web (the Next.js portal), proxy (nginx with TLS, body limits and per-address throttling), backup (dumps,
+# store mirror, weekly restore check) and, in profile `ops`, migrate (the explicit upgrade with a backup first).
+#
+# Migrations: `init` migrates only a fresh, empty database. An upgrade is explicit: build, `docker compose stop api
+# worker scheduler web`, `docker compose --profile ops run --rm migrate`, then `docker compose up -d`.
+# Database roles (DB_STANDARD §8): init, migrate and backup alone connect as POSTGRES_USER; api, worker and
+# scheduler connect as aslms_app, and their POSTGRES_PASSWORD and ASLMS_MIGRATE_URL are blanked.
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+
+x-hardening: &hardening
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
 
 services:
   postgres:
-    image: postgres:16
+    image: postgres:16.15
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-aslms}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aslms}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: ${POSTGRES_DB:-aslms}
-    ports:
-      - "${POSTGRES_HOST_PORT:-5433}:5432"
+    # sized for 8 GB given to Docker and SSD storage (decision 15); shared_buffers ~25 % of Docker's memory and
+    # effective_cache_size 50-75 %. archive_mode stays off (backups are dumps, decision 13).
+    command:
+      - postgres
+      - -c
+      - shared_buffers=${PG_SHARED_BUFFERS:-1GB}
+      - -c
+      - effective_cache_size=${PG_EFFECTIVE_CACHE_SIZE:-4GB}
+      - -c
+      - work_mem=${PG_WORK_MEM:-16MB}
+      - -c
+      - maintenance_work_mem=${PG_MAINTENANCE_WORK_MEM:-256MB}
+      - -c
+      - max_connections=${PG_MAX_CONNECTIONS:-100}
+      - -c
+      - min_wal_size=1GB
+      - -c
+      - max_wal_size=4GB
+      - -c
+      - checkpoint_timeout=15min
+      - -c
+      - checkpoint_completion_target=0.9
+      - -c
+      - wal_compression=on
+      - -c
+      - random_page_cost=1.1
+      - -c
+      - effective_io_concurrency=200
+      - -c
+      - track_io_timing=on
+      - -c
+      - log_min_duration_statement=2000
+      - -c
+      - log_lock_waits=on
+      - -c
+      - log_temp_files=10MB
+      - -c
+      - idle_in_transaction_session_timeout=15min
+    shm_size: 1gb
     volumes:
       - pgdata_v3:/var/lib/postgresql/data
     healthcheck:
@@ -23,20 +81,48 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
+    security_opt:
+      - no-new-privileges:true
+    logging: *logging
 
   redis:
-    image: redis:7-alpine
+    # holds the shared NAPIX token and the Celery messages only; password-protected, never published, nothing on
+    # disk (decision 6): a restart loses nothing durable (the token is fetched again, beat repeats its jobs, the
+    # work list is fetch_queue in Postgres)
+    image: redis:7.4.10-alpine
     restart: unless-stopped
-    ports:
-      - "6379:6379"
-    volumes:
-      - redisdata_v3:/data
+    command:
+      - redis-server
+      - --requirepass
+      - ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}
+      - --save
+      - ""
+      - --appendonly
+      - "no"
+      - --protected-mode
+      - "yes"
+      - --maxmemory
+      - 256mb
+      - --maxmemory-policy
+      - noeviction
+    environment:
+      # the health check authenticates through the environment, never the process list
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    security_opt:
+      - no-new-privileges:true
+    logging: *logging
 
   clamav:
-    # the virus scanner behind uploads (design documents-uploads): clamd on 3310 inside the Compose network
-    # only; freshclam keeps the signatures in the named volume. The first start downloads the signatures
-    # (minutes); until the healthcheck passes, uploads answer 503 scanner_unavailable. There is no off switch.
-    image: clamav/clamav:stable
+    # the virus scanner behind uploads (design documents-uploads): clamd on 3310 inside the Compose network only.
+    # Signatures: freshclam over the internet by default; compose.clamav-mirror.yml or compose.clamav-offline.yml
+    # in COMPOSE_FILE for a closed network (decision 17). The first start downloads the signatures (minutes);
+    # until the healthcheck passes, uploads answer 503 scanner_unavailable. There is no off switch.
+    image: clamav/clamav:1.5.4
     volumes:
       - clamdb_v3:/var/lib/clamav
     healthcheck:
@@ -46,41 +132,51 @@ services:
       retries: 20
       start_period: 300s
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    logging: *logging
 
   init:
-    # migrations, seed and the role passwords, as the cluster owner; ASLMS_APP_PASSWORD and ASLMS_READONLY_PASSWORD
-    # reach `aslms db-roles` through the env file
+    # preflight (refuses weak or missing settings when APP_ENV=prod), the migration guard (migrates only a fresh
+    # database; exits 3 when an upgrade is needed), the role passwords and the seed, as the cluster owner
     build: ./backend
     env_file:
       - path: .env
         required: false
     environment:
-      DATABASE_URL_SYNC: postgresql+psycopg://${POSTGRES_USER:-aslms}:${POSTGRES_PASSWORD:-aslms}@postgres:5432/${POSTGRES_DB:-aslms}
-      ASLMS_MIGRATE_URL: postgresql+psycopg://${POSTGRES_USER:-aslms}:${POSTGRES_PASSWORD:-aslms}@postgres:5432/${POSTGRES_DB:-aslms}
-      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL_SYNC: postgresql+psycopg://${POSTGRES_USER:-aslms}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-aslms}
+      ASLMS_MIGRATE_URL: postgresql+psycopg://${POSTGRES_USER:-aslms}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-aslms}
+      POSTGRES_USER: ${POSTGRES_USER:-aslms}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      REDIS_URL: redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}@redis:6379/0
+      PORTAL_BASE_URL: ${PORTAL_BASE_URL:?set PORTAL_BASE_URL in .env}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
     depends_on:
       postgres:
         condition: service_healthy
-    command: sh -c "alembic upgrade head && aslms seed && aslms db-roles"
+    command: sh -c "aslms ops preflight && aslms ops db-guard && aslms db-roles && aslms seed"
     restart: "no"
+    <<: *hardening
+    logging: *logging
 
   api:
-    # the HTTP API (login, users, access, cases, documents). Needs ASLMS_JWT_SECRET in .env. Uploads go to
-    # clamav before the store; the api does not wait for clamav to be healthy (503 until it is).
+    # the HTTP API. Needs ASLMS_JWT_SECRET in .env. Uploads go to clamav before the store; the api does not wait for
+    # clamav to be healthy (503 until it is). Reached only by `web` (no published port).
     build: ./backend
     env_file:
       - path: .env
         required: false
     environment:
       DATABASE_URL_SYNC: postgresql+psycopg://aslms_app:${ASLMS_APP_PASSWORD:?set ASLMS_APP_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-aslms}
-      REDIS_URL: redis://redis:6379/0
+      REDIS_URL: redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}@redis:6379/0
       STORAGE_DIR: /data/store
       CLAMAV_HOST: clamav
       CLAMAV_PORT: "3310"
+      # the owner's credentials never reach an application process (row 82)
+      POSTGRES_PASSWORD: ""
+      ASLMS_MIGRATE_URL: ""
     volumes:
       - ./data:/data
-    ports:
-      - "${API_HOST_PORT:-8000}:8000"
     depends_on:
       init:
         condition: service_completed_successfully
@@ -90,7 +186,7 @@ services:
       - default
       - portal
     # X-Forwarded-For is trusted only from the web container (design portal-shell, decision 7): audit rows then
-    # carry the browser's address. Calls through the published port (CLI, tests) are not trusted.
+    # carry the browser's address, which the proxy writes and web forwards (decision 8).
     command: uvicorn aslms.api.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips ${WEB_IP:-172.28.0.10}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4)"]
@@ -99,18 +195,22 @@ services:
       retries: 12
       start_period: 20s
     restart: unless-stopped
+    <<: *hardening
+    logging: *logging
 
   worker:
-    # the load-and-refresh pipeline: pulls fetch_queue rows, calls NAPIX (only when NAPIX_ENABLED=true in .env)
+    # the load-and-refresh pipeline: pulls fetch_queue rows, calls NAPIX only while the master switch is on
     build: ./backend
     env_file:
       - path: .env
         required: false
     environment:
       DATABASE_URL_SYNC: postgresql+psycopg://aslms_app:${ASLMS_APP_PASSWORD:?set ASLMS_APP_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-aslms}
-      REDIS_URL: redis://redis:6379/0
+      REDIS_URL: redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}@redis:6379/0
       STORAGE_DIR: /data/store
       CAUSELIST_DIR: /data/causelists
+      POSTGRES_PASSWORD: ""
+      ASLMS_MIGRATE_URL: ""
       # the master switch stays off unless the shell that runs `docker compose up` sets it for that run
       NAPIX_ENABLED: ${NAPIX_ENABLED:-false}
     volumes:
@@ -119,9 +219,11 @@ services:
       init:
         condition: service_completed_successfully
       redis:
-        condition: service_started
+        condition: service_healthy
     command: aslms queue-worker
     restart: unless-stopped
+    <<: *hardening
+    logging: *logging
 
   scheduler:
     # Celery beat (06:00 masters, 06:30/18:30 lists, 20:00 status, Sunday 02:00 sweep, 03:00 dedupe sweep) enqueues; the worker fetches.
@@ -135,33 +237,41 @@ services:
         required: false
     environment:
       DATABASE_URL_SYNC: postgresql+psycopg://aslms_app:${ASLMS_APP_PASSWORD:?set ASLMS_APP_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-aslms}
-      REDIS_URL: redis://redis:6379/0
+      REDIS_URL: redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}@redis:6379/0
       STORAGE_DIR: /data/store
+      POSTGRES_PASSWORD: ""
+      ASLMS_MIGRATE_URL: ""
     volumes:
       - ./data:/data
     depends_on:
       init:
         condition: service_completed_successfully
       redis:
-        condition: service_started
-    command: celery -A aslms.jobs.celery_app worker -B --concurrency 1 -l info
+        condition: service_healthy
+    # The image runs as uid 10001 and /app is root-owned, so beat keeps its schedule file in /tmp (lost on recreate,
+    # which only means each crontab entry next fires at its next due time).
+    command: celery -A aslms.jobs.celery_app worker -B -s /tmp/celerybeat-schedule --concurrency 1 -l info
     restart: unless-stopped
+    <<: *hardening
+    logging: *logging
 
   web:
     # the portal (design portal-shell): a backend-for-frontend that keeps the tokens in httpOnly cookies and relays
-    # the browser's calls to the api. No env_file: no secret (JWT, NAPIX, mail) ever enters this container.
+    # the browser's calls to the api. No env_file: no secret (JWT, NAPIX, mail) ever enters this container. One
+    # process only (the refresh single-flight assumes it): never scaled, no replicas (decision 11). Reached only
+    # through the proxy, so it trusts the proxy's X-Forwarded-For (rightmost entry, decision 8).
     build: ./frontend
     environment:
       API_BASE_URL: http://api:8000
-      PORTAL_BASE_URL: ${PORTAL_BASE_URL:-http://localhost:3000}
+      PORTAL_BASE_URL: ${PORTAL_BASE_URL:?set PORTAL_BASE_URL in .env}
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
       ASLMS_REFRESH_TOKEN_DAYS: ${ASLMS_REFRESH_TOKEN_DAYS:-14}
       RELAY_TIMEOUT_SECONDS: ${RELAY_TIMEOUT_SECONDS:-120}
-    ports:
-      - "${WEB_HOST_PORT:-3000}:3000"
+      TRUST_PROXY_HEADERS: "true"
     networks:
       portal:
         ipv4_address: ${WEB_IP:-172.28.0.10}
+      edge: {}
     depends_on:
       api:
         condition: service_healthy
@@ -172,15 +282,115 @@ services:
       retries: 10
       start_period: 20s
     restart: unless-stopped
+    <<: *hardening
+    logging: *logging
+
+  proxy:
+    # nginx with TLS in front of web (decisions 7-10): the only published ports; port 80 only redirects; any Host
+    # other than PORTAL_BASE_URL's is refused (444). Overwrites X-Forwarded-For with the client's address, limits
+    # request bodies to the API's own limits, throttles per address (429 `throttled`). It joins only the `edge`
+    # network, so it cannot reach the api, postgres or redis. The certificate and key are
+    # infra/proxy/certs/fullchain.pem and privkey.pem (`aslms ops make-cert`, or a NIC / SDC certificate).
+    image: nginx:1.28-alpine
+    restart: unless-stopped
+    ports:
+      - "${PROXY_BIND:-0.0.0.0}:${PROXY_HTTPS_PORT:-443}:443"
+      - "${PROXY_BIND:-0.0.0.0}:${PROXY_HTTP_PORT:-80}:80"
+    environment:
+      PORTAL_BASE_URL: ${PORTAL_BASE_URL:?set PORTAL_BASE_URL in .env}
+      UPLOAD_MAX_BYTES: ${UPLOAD_MAX_BYTES:-20971520}
+      ATTACHMENTS_MAX_FILES: ${ATTACHMENTS_MAX_FILES:-5}
+      RELAY_TIMEOUT_SECONDS: ${RELAY_TIMEOUT_SECONDS:-120}
+      PROXY_TRUSTED_UPSTREAM: ${PROXY_TRUSTED_UPSTREAM:-}
+      PROXY_SESSION_RATE: ${PROXY_SESSION_RATE:-20r/m}
+      PROXY_SESSION_BURST: ${PROXY_SESSION_BURST:-20}
+      PROXY_API_RATE: ${PROXY_API_RATE:-30r/s}
+      PROXY_API_BURST: ${PROXY_API_BURST:-100}
+      PROXY_CONN_PER_IP: ${PROXY_CONN_PER_IP:-50}
+      NGINX_ENVSUBST_FILTER: "^PROXY_"
+    volumes:
+      - ./infra/proxy/aslms.conf.template:/etc/nginx/templates/aslms.conf.template:ro
+      - ./infra/proxy/15-aslms-limits.sh:/docker-entrypoint.d/15-aslms-limits.sh:ro
+      - ./infra/proxy/certs:/etc/nginx/certs:ro
+    networks:
+      - edge
+    depends_on:
+      web:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/nginx-health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    security_opt:
+      - no-new-privileges:true
+    logging: *logging
+
+  backup:
+    # dumps of the database and the roles, an add-only mirror of the document store, retention, every
+    # BACKUP_INTERVAL_HOURS hours at minute 30 IST, and the restore check on Sunday 04:30 IST (decisions 13, 14).
+    # BACKUP_DIR (host path, default ./backups) belongs on a second physical disk; copy it off the machine weekly.
+    build: ./backend
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL_SYNC: postgresql+psycopg://${POSTGRES_USER:-aslms}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-aslms}
+      ASLMS_MIGRATE_URL: postgresql+psycopg://${POSTGRES_USER:-aslms}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-aslms}
+      STORAGE_DIR: /data/store
+      BACKUP_DIR: /backups
+    volumes:
+      - ./data:/data:ro
+      - ${BACKUP_DIR:-./backups}:/backups
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    command: aslms ops backup-scheduler
+    restart: unless-stopped
+    <<: *hardening
+    logging: *logging
+
+  migrate:
+    # profile `ops`: never started by `up`. The explicit upgrade: preflight, refuse while aslms_app is connected,
+    # a `pre-migrate` backup checked with pg_restore --list, `alembic upgrade head`, seed, audit `system.migrated`.
+    # Also the service for `aslms ops restore` (it mounts the store read-write).
+    build: ./backend
+    profiles: ["ops"]
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL_SYNC: postgresql+psycopg://${POSTGRES_USER:-aslms}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-aslms}
+      ASLMS_MIGRATE_URL: postgresql+psycopg://${POSTGRES_USER:-aslms}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-aslms}
+      POSTGRES_USER: ${POSTGRES_USER:-aslms}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      REDIS_URL: redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}@redis:6379/0
+      PORTAL_BASE_URL: ${PORTAL_BASE_URL:?set PORTAL_BASE_URL in .env}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      STORAGE_DIR: /data/store
+      BACKUP_DIR: /backups
+    volumes:
+      - ./data:/data
+      - ${BACKUP_DIR:-./backups}:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: sh -c "aslms ops preflight --component migrate && aslms ops migrate"
+    restart: "no"
+    <<: *hardening
+    logging: *logging
 
 networks:
+  # postgres, redis, clamav and the backend services
+  default: {}
   # web <-> api, with a fixed subnet so the api can trust X-Forwarded-For from the web container's address only
   portal:
     ipam:
       config:
         - subnet: ${ASLMS_SUBNET:-172.28.0.0/24}
+  # proxy <-> web only
+  edge: {}
 
 volumes:
   pgdata_v3:
-  redisdata_v3:
   clamdb_v3:

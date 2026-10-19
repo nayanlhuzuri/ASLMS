@@ -1,0 +1,8 @@
+# ClamAV signatures from an internal HTTP mirror (design deployment-checklist, decision 17). Add the file to
+# COMPOSE_FILE (e.g. compose.yml:compose.clamav-mirror.yml), copy infra/clamav/freshclam.conf.example to
+# infra/clamav/freshclam.conf and set its PrivateMirror line to the internal mirror, which `cvdupdate` (the ClamAV
+# project's tool) fills on a machine with internet access.
+services:
+  clamav:
+    volumes:
+      - ./infra/clamav/freshclam.conf:/etc/clamav/freshclam.conf:ro

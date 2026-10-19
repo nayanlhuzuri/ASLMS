@@ -1806,3 +1806,22 @@ Backlog row 76 (audit items Top 1 and Top 4 of `docs/audits/2026-10-18-independe
 **Deviations from the design note**: eight, in its Deviations section: audit numbers only on an `ok` advocate search; the API-flow test sets the role per connection (session level) because the app commits per request; `queue.claim` re-reads the claimed row; `search_rows` enqueued with `requeue=True` and skipped when the response is gone; `db-roles` also refuses a bad readonly password; `hc.advocate_rows` is the existing extractor; the grants test excludes DELETE on append-only `sourcetrace_ingestions`; the queue kind label in the portal.
 
 **Left for later**: migrations still run as the cluster superuser, not `aslms_owner` (rows 16 and 80); the token endpoint's intermittent 401s (row 79); `job_runs` stuck in `running` (row 80); row 75 items 2 and 3 remain. Integrator, after merge and with `ASLMS_APP_PASSWORD` set in `.env`: `aslms queue-retry-failed --kind dossier` and `--kind status_batch` once.
+
+## Deployment checklist, Part A: a closed-network pilot that is safe to run and recover (2026-10-19)
+Backlog row 16 (rows 77 and 78 are Parts B and C, built later), design `docs/design/deployment-checklist.md` (approved by the owner 18 Oct 2026), branch `feature/deployment-checklist`, in review. No table, column or migration. Runbook: `docs/operations.md`.
+
+**Built**
+- Compose: only `proxy` publishes ports (443, and 80 redirecting); `postgres`, `redis`, `api`, `web` and `clamav` publish none. `compose.dev.yml` publishes loopback ports for development and puts `proxy` in profile `proxy`; `compose.clamav-mirror.yml` and `compose.clamav-offline.yml` cover ClamAV without internet. nginx proxy config under `infra/proxy/` (limits, health check), pinned images, hardened services, a Redis password and health check, a `backup` service, an explicit `migrate` service.
+- `aslms ops` commands (`cli/ops.py`): `preflight` (names failing settings, never prints values; refuses weak or default secrets, and in `APP_ENV=prod` the unsafe settings), `db-guard`, `role-passwords`, `migrate`, `backup`, `backup-scheduler`, `backup-status`, `restore-check`, `restore`, `repair-jobs`, `load-report`, `sample-cnrs`, `make-cert` (internal CA, EC P-256). Services: `preflight`, `db_guard`, `backups`, `job_repair`, `load_report`, `certs`.
+- Backups every `BACKUP_INTERVAL_HOURS` (default 6) at minute 30 IST, with retention settings `BACKUP_KEEP_*` (pruning dump sets only, never the store mirror); a weekly restore check Sunday 04:30 IST into a scratch database.
+- Portal: client address taken from the trusted proxy hop only, a throttled-sign-in message, pinned base image (rows 43 and 44 items). Tests: `test_deployment_ops`, `test_backups_unit`, `test_ops_unit`, `test_preflight`, `test_deployment_compose`, `test_proxy_config`, and frontend `api.test.ts`.
+
+**Decisions and reasons**
+- One Compose stack on one host serves the owner's machine and a State Data Centre VM unchanged.
+- `docker compose up` no longer applies migrations to an existing database; upgrades are an explicit, backed-up `migrate` step. This changes the old note in `compose.yml` and the 1 Oct Compose decision.
+- `init` runs `aslms ops preflight && aslms ops db-guard && aslms db-roles && aslms seed`, so a bad secret stops every service. A live check found the dev `.env` still carrying the default `ASLMS_READONLY_PASSWORD`; preflight refused it as designed and the owner was asked to replace it.
+- The owner's credentials never reach `api`, `worker` and `scheduler` (row 82): Compose blanks `POSTGRES_PASSWORD` and `ASLMS_MIGRATE_URL` for them.
+
+**Deviations from the design note**: listed in its "Deviations made while building Part A". In short: `db-roles` extended rather than a second step; preflight reads four more settings and also checks `ASLMS_READONLY_PASSWORD` and URL-safe passwords; image tags pinned (nginx at the minor version); `COMPOSE_PATH_SEPARATOR=:` in `.env.example`; ClamAV mirror set in `freshclam.conf`; beat's schedule file in `/tmp` because the image runs as an unprivileged user (review fix).
+
+**Left for later**: monitoring (row 77) and PgBouncer (row 78); migrations still run as the cluster superuser (row 80); the owner-run checks, the load counts and the sample-of-20 result are row 85; EICAR live test is row 24.

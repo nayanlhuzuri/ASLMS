@@ -13,6 +13,11 @@ cause-list-directory/
 case_documents/
 order_documents/
 
+# --- deployment (design deployment-checklist): backups and the proxy's certificate and keys ---------
+backups/
+infra/proxy/certs/
+infra/clamav/freshclam.conf
+
 # --- decrypted NAPIX responses written by `aslms napix-check` (review locally; commit deliberately) ---
 docs/specs/napix/hc/samples/
 

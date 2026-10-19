@@ -1,0 +1,8 @@
+# ClamAV with no signature download at all (design deployment-checklist, decision 17). Add the file to COMPOSE_FILE
+# (e.g. compose.yml:compose.clamav-offline.yml). Signatures are imported by hand from a `cvdupdate` folder:
+# `sh infra/clamav/import-signatures.sh <folder>` copies main.cvd, daily.cvd and bytecode.cvd into the clamdb_v3
+# volume and restarts clamav. Uploads answer 503 scanner_unavailable until signatures are present.
+services:
+  clamav:
+    environment:
+      CLAMAV_NO_FRESHCLAMD: "true"

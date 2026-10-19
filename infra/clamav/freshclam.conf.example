@@ -1,0 +1,14 @@
+# freshclam configuration for the mirror mode (design deployment-checklist, decision 17).
+# Copy to infra/clamav/freshclam.conf and replace the PrivateMirror address with the internal mirror that
+# `cvdupdate` fills (it serves main.cvd, daily.cvd and bytecode.cvd over HTTP). Used with compose.clamav-mirror.yml.
+DatabaseDirectory /var/lib/clamav
+UpdateLogFile /dev/stdout
+LogTime yes
+DatabaseOwner clamav
+# the internal mirror, e.g. http://clamav-mirror.example.internal/clamav (no public database server is contacted)
+PrivateMirror http://clamav-mirror.example.internal/clamav
+ScriptedUpdates no
+Checks 12
+ConnectTimeout 30
+ReceiveTimeout 60
+NotifyClamd /etc/clamav/clamd.conf

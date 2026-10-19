@@ -30,12 +30,20 @@ export interface ApiAnswer {
   headers: Headers;
 }
 
-/** The browser's address as the Next.js server reports it (the first `X-Forwarded-For` entry). */
+/**
+ * The browser's address (design deployment-checklist, decision 8). Only behind the proxy (`TRUST_PROXY_HEADERS=true`)
+ * is `X-Forwarded-For` read, and then its rightmost entry: the one the trusted hop wrote. A browser can put anything
+ * in the leftmost entries. Without the proxy no address is forwarded and the API records web's own.
+ */
 export function clientAddress(request: Request): string | null {
-  const forwarded = request.headers.get("x-forwarded-for");
-  const first = forwarded?.split(",")[0]?.trim() || request.headers.get("x-real-ip")?.trim() || "";
-  if (!first) return null;
-  return first.startsWith("::ffff:") ? first.slice(7) : first;
+  if (!serverConfig().trustProxyHeaders) return null;
+  const entries = (request.headers.get("x-forwarded-for") ?? "")
+    .split(",")
+    .map((e) => e.trim())
+    .filter(Boolean);
+  const last = entries[entries.length - 1];
+  if (!last) return null;
+  return last.startsWith("::ffff:") ? last.slice(7) : last;
 }
 
 export function clientContext(request: Request): ClientContext {
