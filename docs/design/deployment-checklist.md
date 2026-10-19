@@ -926,3 +926,64 @@ and changed later in `.env`. They are listed for the owner to confirm at approva
     `GRAFANA_ADMIN_PASSWORD` and `FLOWER_BASIC_AUTH`. The dev `.env` lacks both, and the owner must add them; with
     placeholder values in the shell the command passes. The scratch project and its volumes were removed. The dev
     stack was not touched, and 0020 is still not applied to the dev database.
+
+### Deviations made while building Part C (developer, 20 Oct 2026)
+- **Where the design is:** the build task named `docs/design/deployment-pgbouncer.md`, which did not exist. Part C is
+  decided here (decision 29, approved 18 Oct 2026), and backlog row 78 links this note, so it was built from this
+  note. `docs/design/deployment-pgbouncer.md` is now a pointer to this Part C, as for Part B.
+- **`auth_type = hba`, every line SCRAM-SHA-256,** instead of a plain `auth_type = scram-sha-256`. The HBA file lets
+  `aslms_app` reach only the application database and `aslms_readonly` only the `pgbouncer` console. With the plain
+  setting, any user in the user list could also log in to the database through the pool. The method is SCRAM on
+  every line, as decided.
+- **The exporter's login:** the design did not say how `pgbouncer-exporter` signs in to PgBouncer's console. It uses
+  `aslms_readonly` with `ASLMS_READONLY_PASSWORD` as a `stats_users` entry (SHOW only). That password already goes to
+  the other two exporters, so `.env` needs no new secret and preflight is unchanged. `admin_users` is empty, so
+  `PAUSE`, `RELOAD` and `SHUTDOWN` are refused on the console. The user list therefore holds two users,
+  `aslms_app` and `aslms_readonly`, and not `aslms_app` alone.
+- **"Clients wait more than 5 minutes"** is the alert `PgBouncerClientsWaiting`: application clients have been queued
+  (`pgbouncer_pools_client_waiting_connections > 0`, the console excluded) for 5 minutes in a row (`for: 5m`),
+  severity `warning`. A single client cannot wait 5 minutes, because PgBouncer's `query_wait_timeout` (default
+  120 s) refuses it first, so the literal reading could never fire. `ServiceDown` also fires on `pgbouncer_up == 0`
+  (PgBouncer down behind a running exporter), like `pg_up == 0` for Postgres.
+- **Image and settings:** `alpine:3.23.3` with `apk add 'pgbouncer>=1.21'`, which installed PgBouncer 1.25.1, and a
+  user created with uid 10001 (Alpine's package creates no user). The exporter is
+  `quay.io/prometheuscommunity/pgbouncer-exporter:v0.12.1`, checked to exist on its registry. The three settings can
+  be changed in `.env` (`PGBOUNCER_MAX_CLIENT_CONN`, `PGBOUNCER_DEFAULT_POOL_SIZE`,
+  `PGBOUNCER_MAX_PREPARED_STATEMENTS`). Their defaults are the design's values. The entrypoint refuses a value that
+  is not a whole number. It also sets `ignore_startup_parameters = extra_float_digits`, because the exporter's
+  driver sends that parameter, and it turns off the Unix socket. The configuration and the mode-600 user list are
+  written to a tmpfs at `/tmp`, so they never reach a disk.
+- **Start order:** `pgbouncer` starts after `init` has finished, so a changed `aslms_app` password is already in the
+  database when PgBouncer logs in with it. `api`, `worker` and `scheduler` wait until `pgbouncer` is healthy.
+- **The session-feature scan** also refuses `SET ROLE`, `SET SESSION AUTHORIZATION`, `pg_advisory_unlock*`,
+  `UNLISTEN`, temporary tables, `set_config(..., false)` and cursors `WITH HOLD`, besides the three features the
+  design named. A self-test checks the scanner against flagged and allowed samples.
+- **Messages:** the session refusals of `ops migrate` and `ops restore` now name `pgbouncer` in their "stop ..."
+  hint. The runbook stops it in sections 6 and 10, and its new section 18 describes PgBouncer.
+- **Checked by the developer** in a scratch Compose project (`-p aslms-pgbcheck`). It ran from a copy of the tree with
+  no `.env` and with generated secrets. It had postgres, redis, init, pgbouncer, api, worker, scheduler, the
+  pgbouncer exporter and prometheus, and ClamAV was replaced by a placeholder. Results:
+  - `init` migrated a fresh database to 0020, and every service turned healthy through PgBouncer.
+  - Inside `api`, with the application's own engine: `SET LOCAL statement_timeout` held inside its transaction and
+    never leaked over 20 rounds, and a 1-second timeout cancelled `pg_sleep(3)`. The data-health snapshot ran. Two
+    transactions on `case_dedupe.lock_number` were serialised (`pg_advisory_xact_lock`). Eight threads × 30
+    transactions passed psycopg's prepare threshold without errors. `current_user` was `aslms_app`.
+  - `SHOW POOLS`, as `aslms_readonly` from `api`'s psql, listed `aslms_app` with `pool_mode` transaction.
+    `pg_stat_activity` showed every `aslms_app` session coming from PgBouncer's address. Prometheus had
+    `up{job="pgbouncer"} = 1` and the pool gauges.
+  - With api, worker and scheduler stopped but PgBouncer running, `ops migrate` refused with "8 aslms_app session(s)
+    are connected". With PgBouncer also stopped, it ran (0020 -> 0020, `system.migrated`), and `up -d` brought
+    everything back.
+  - `aslms_readonly` was refused on the database ("no authentication method"), and `aslms_app` and the owner were
+    refused on the console. `PAUSE` from the stats user was refused ("admin access needed"). The PgBouncer log
+    printed no password.
+  - `promtool check config` passes, `promtool check rules` finds 18 rules and `promtool test rules` passes, all in
+    `prom/prometheus:v3.7.2`.
+
+  The scratch project, its volumes and its images were removed. The dev stack was not touched.
+- **Not done by the developer:** the Part C verification on the dev stack: the API smoke with a signed-in user
+  (sign-in, case list, claim, a note, an upload), the report and audit screens, and a court-number dedupe through
+  the worker. That verification belongs to the integrator. On the dev stack, `docker compose up -d --build`
+  builds and starts `pgbouncer` and recreates the three services with the new URL; no migration is needed.
+  Documents left to the scribe: the decisions log entry, `CLAUDE.md`
+  "Current focus" and backlog row 78.

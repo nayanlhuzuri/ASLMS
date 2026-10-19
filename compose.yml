@@ -5,21 +5,24 @@
 # Only the `proxy` publishes ports (443, and 80 which only redirects). For development, `.env` sets
 # COMPOSE_FILE=compose.yml:compose.dev.yml, which publishes postgres, api and web on 127.0.0.1 only.
 #
-# Services: postgres, redis (password, memory only), clamav (scans every upload), init (preflight, the migration
-# guard, role passwords, seed), api, worker (the NAPIX load-and-refresh queue), scheduler (Celery beat and its
-# jobs), web (the Next.js portal), proxy (nginx with TLS, body limits and per-address throttling), backup (dumps,
-# store mirror, weekly restore check) and, in profile `ops`, migrate (the explicit upgrade with a backup first).
+# Services: postgres, pgbouncer (transaction pooling for api, worker and scheduler), redis (password, memory only),
+# clamav (scans every upload), init (preflight, the migration guard, role passwords, seed), api, worker (the NAPIX
+# load-and-refresh queue), scheduler (Celery beat and its jobs), web (the Next.js portal), proxy (nginx with TLS,
+# body limits and per-address throttling), backup (dumps, store mirror, weekly restore check) and, in profile `ops`,
+# migrate (the explicit upgrade with a backup first).
 #
 # Monitoring (Part B, profile `monitoring`; the pilot's .env sets COMPOSE_PROFILES=monitoring): prometheus,
-# alertmanager, grafana, flower, postgres-exporter, redis-exporter and ops-exporter. Their screens are published on
-# 127.0.0.1 only (Grafana 3001, Prometheus 9090, Alertmanager 9093, Flower 5555): open them on the host or through an
-# SSH tunnel, never through the proxy. Profile `monitoring-host` adds node-exporter and cadvisor on a Linux VM.
+# alertmanager, grafana, flower, postgres-exporter, redis-exporter, pgbouncer-exporter and ops-exporter. Their
+# screens are published on 127.0.0.1 only (Grafana 3001, Prometheus 9090, Alertmanager 9093, Flower 5555): open them
+# on the host or through an SSH tunnel, never through the proxy. Profile `monitoring-host` adds node-exporter and cadvisor on a Linux VM.
 # ASLMS_READONLY_PASSWORD, GRAFANA_ADMIN_PASSWORD and FLOWER_BASIC_AUTH are required.
 #
 # Migrations: `init` migrates only a fresh, empty database. An upgrade is explicit: build, `docker compose stop api
-# worker scheduler web`, `docker compose --profile ops run --rm migrate`, then `docker compose up -d`.
+# worker scheduler web pgbouncer`, `docker compose --profile ops run --rm migrate`, then `docker compose up -d`.
 # Database roles (DB_STANDARD §8): init, migrate and backup alone connect as POSTGRES_USER; api, worker and
 # scheduler connect as aslms_app, and their POSTGRES_PASSWORD and ASLMS_MIGRATE_URL are blanked.
+# PgBouncer (Part C, decision 29): api, worker and scheduler reach Postgres through pgbouncer:6432 (transaction
+# mode); init, migrate, backup and the exporters connect to postgres:5432 directly.
 
 x-logging: &logging
   driver: json-file
@@ -123,6 +126,38 @@ services:
       - no-new-privileges:true
     logging: *logging
 
+  pgbouncer:
+    # connection pooling for api, worker and scheduler (design deployment-checklist, Part C, decision 29): PgBouncer
+    # 1.21+ from infra/pgbouncer, transaction mode, prepared statements tracked (max_prepared_statements, for
+    # psycopg 3), on 6432 inside the Compose network only. The entrypoint writes pgbouncer.ini, the HBA file and a
+    # mode-600 userlist.txt into the tmpfs at start: aslms_app may reach the database, aslms_readonly only the
+    # `pgbouncer` console (SHOW, for the exporter); nobody is an admin. It starts after init, so a changed role
+    # password is in the database before PgBouncer logs in with it. Stop it with the application services before
+    # `migrate` or `ops restore`: its server connections are aslms_app sessions.
+    build: ./infra/pgbouncer
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-aslms}
+      ASLMS_APP_PASSWORD: ${ASLMS_APP_PASSWORD:?set ASLMS_APP_PASSWORD in .env}
+      ASLMS_READONLY_PASSWORD: ${ASLMS_READONLY_PASSWORD:?set ASLMS_READONLY_PASSWORD in .env}
+      PGBOUNCER_MAX_CLIENT_CONN: ${PGBOUNCER_MAX_CLIENT_CONN:-200}
+      PGBOUNCER_DEFAULT_POOL_SIZE: ${PGBOUNCER_DEFAULT_POOL_SIZE:-20}
+      PGBOUNCER_MAX_PREPARED_STATEMENTS: ${PGBOUNCER_MAX_PREPARED_STATEMENTS:-200}
+    tmpfs:
+      - /tmp
+    depends_on:
+      postgres:
+        condition: service_healthy
+      init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "nc", "-z", "127.0.0.1", "6432"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    <<: *hardening
+    logging: *logging
+
   clamav:
     # the virus scanner behind uploads (design documents-uploads): clamd on 3310 inside the Compose network only.
     # Signatures: freshclam over the internet by default; compose.clamav-mirror.yml or compose.clamav-offline.yml
@@ -178,7 +213,7 @@ services:
       - path: .env
         required: false
     environment:
-      DATABASE_URL_SYNC: postgresql+psycopg://aslms_app:${ASLMS_APP_PASSWORD:?set ASLMS_APP_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-aslms}
+      DATABASE_URL_SYNC: postgresql+psycopg://aslms_app:${ASLMS_APP_PASSWORD:?set ASLMS_APP_PASSWORD in .env}@pgbouncer:6432/${POSTGRES_DB:-aslms}
       REDIS_URL: redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}@redis:6379/0
       STORAGE_DIR: /data/store
       CLAMAV_HOST: clamav
@@ -193,6 +228,8 @@ services:
     depends_on:
       init:
         condition: service_completed_successfully
+      pgbouncer:
+        condition: service_healthy
       clamav:
         condition: service_started
     networks:
@@ -218,7 +255,7 @@ services:
       - path: .env
         required: false
     environment:
-      DATABASE_URL_SYNC: postgresql+psycopg://aslms_app:${ASLMS_APP_PASSWORD:?set ASLMS_APP_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-aslms}
+      DATABASE_URL_SYNC: postgresql+psycopg://aslms_app:${ASLMS_APP_PASSWORD:?set ASLMS_APP_PASSWORD in .env}@pgbouncer:6432/${POSTGRES_DB:-aslms}
       REDIS_URL: redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}@redis:6379/0
       STORAGE_DIR: /data/store
       CAUSELIST_DIR: /data/causelists
@@ -231,6 +268,8 @@ services:
     depends_on:
       init:
         condition: service_completed_successfully
+      pgbouncer:
+        condition: service_healthy
       redis:
         condition: service_healthy
     command: aslms queue-worker
@@ -249,7 +288,7 @@ services:
       - path: .env
         required: false
     environment:
-      DATABASE_URL_SYNC: postgresql+psycopg://aslms_app:${ASLMS_APP_PASSWORD:?set ASLMS_APP_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-aslms}
+      DATABASE_URL_SYNC: postgresql+psycopg://aslms_app:${ASLMS_APP_PASSWORD:?set ASLMS_APP_PASSWORD in .env}@pgbouncer:6432/${POSTGRES_DB:-aslms}
       REDIS_URL: redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}@redis:6379/0
       STORAGE_DIR: /data/store
       POSTGRES_PASSWORD: ""
@@ -259,6 +298,8 @@ services:
     depends_on:
       init:
         condition: service_completed_successfully
+      pgbouncer:
+        condition: service_healthy
       redis:
         condition: service_healthy
     # The image runs as uid 10001 and /app is root-owned, so beat keeps its schedule file in /tmp (lost on recreate,
@@ -540,6 +581,20 @@ services:
       REDIS_EXPORTER_CHECK_SINGLE_KEYS: db0=celery
     depends_on:
       redis:
+        condition: service_healthy
+    <<: *hardening
+    logging: *logging
+
+  pgbouncer-exporter:
+    # PgBouncer's pools (clients waiting, server connections) from its `pgbouncer` console, as aslms_readonly, a stats
+    # user there (SHOW only); PgBouncerClientsWaiting fires when clients wait for a server connection for 5 minutes
+    image: quay.io/prometheuscommunity/pgbouncer-exporter:v0.12.1
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    environment:
+      PGBOUNCER_EXPORTER_CONNECTION_STRING: postgres://aslms_readonly:${ASLMS_READONLY_PASSWORD:?set ASLMS_READONLY_PASSWORD in .env}@pgbouncer:6432/pgbouncer?sslmode=disable
+    depends_on:
+      pgbouncer:
         condition: service_healthy
     <<: *hardening
     logging: *logging

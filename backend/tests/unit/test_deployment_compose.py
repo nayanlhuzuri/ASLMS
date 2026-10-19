@@ -138,7 +138,7 @@ def test_compose_logging_and_hardening():
         if image:
             tag = image.rsplit(":", 1)[1] if ":" in image else "latest"
             assert tag not in {"latest", "stable"} and re.search(r"\d", tag), f"{name}: pin {image}"
-    for name in ("api", "worker", "scheduler", "web", "backup", "migrate", *MONITORED_HARDENED):
+    for name in ("api", "worker", "scheduler", "web", "backup", "migrate", "pgbouncer", *MONITORED_HARDENED):
         assert _services()[name]["cap_drop"] == ["ALL"], name
 
 
@@ -149,6 +149,7 @@ MONITORED_HARDENED = (
     "flower",
     "postgres-exporter",
     "redis-exporter",
+    "pgbouncer-exporter",
     "ops-exporter",
     "node-exporter",
 )
@@ -157,7 +158,8 @@ MONITORED_HARDENED = (
 def test_dockerfiles_pin_their_base_images_and_backend_is_unprivileged():
     backend = (ROOT / "backend" / "Dockerfile").read_text("utf-8")
     frontend = (ROOT / "frontend" / "Dockerfile").read_text("utf-8")
-    for text in (backend, frontend):
+    pgbouncer = (ROOT / "infra" / "pgbouncer" / "Dockerfile").read_text("utf-8")
+    for text in (backend, frontend, pgbouncer):
         for image in re.findall(r"^FROM\s+(\S+)", text, re.M):
             assert re.search(r":\d+\.\d+\.\d+", image), image
     assert "USER 10001" in backend

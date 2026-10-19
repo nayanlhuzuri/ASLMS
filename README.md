@@ -8,7 +8,7 @@ waiting for its API documentation). Owner: SeMT Assam / AMTRON.
 
 ## Stack
 
-Python 3.12 (FastAPI, SQLAlchemy, Alembic, Celery), PostgreSQL 16, Redis, ClamAV, Next.js (`frontend/`), nginx,
+Python 3.12 (FastAPI, SQLAlchemy, Alembic, Celery), PostgreSQL 16 with PgBouncer, Redis, ClamAV, Next.js (`frontend/`), nginx,
 Prometheus, Alertmanager, Grafana and Flower (Compose profile `monitoring`), and Docker Compose for the whole stack.
 
 ## Development quick start

@@ -670,7 +670,7 @@ def restore(
     count = sessions() if sessions else db_guard.count_app_sessions(url)
     if count:
         raise RestoreRefused(
-            f"{count} aslms_app session(s) are connected; stop api, worker and scheduler first"
+            f"{count} aslms_app session(s) are connected; stop api, worker, scheduler and pgbouncer first"
         )
     dump_path, roles_path = Path(dump_file), Path(roles_file)
     for p in (dump_path, roles_path):

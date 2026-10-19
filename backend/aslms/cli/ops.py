@@ -104,7 +104,7 @@ def migrate_cmd(
     if sessions and not force:
         rprint(
             f"[red]migrate: {sessions} aslms_app session(s) are connected. Run: docker compose stop api worker "
-            "scheduler web (or pass --force)[/red]"
+            "scheduler web pgbouncer (or pass --force)[/red]"
         )
         raise typer.Exit(2)
     before = db_guard.current_revision(url)

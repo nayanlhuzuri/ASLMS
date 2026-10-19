@@ -47,6 +47,11 @@ scrape_configs:
     static_configs:
       - targets: ["redis-exporter:9121"]
 
+  # PgBouncer's pools (Part C, decision 29), read from its `pgbouncer` console as a stats user
+  - job_name: pgbouncer
+    static_configs:
+      - targets: ["pgbouncer-exporter:9127"]
+
   # profile `monitoring-host` only (decision 28): found through Docker's DNS, so without the profile there is no
   # target (and no ServiceDown); Prometheus then logs a failed DNS lookup every 5 minutes, which is harmless
   - job_name: node

@@ -2,7 +2,7 @@
 
 How to install, run, upgrade, back up and restore the ASLMS pilot. Written for the design
 [deployment-checklist](design/deployment-checklist.md) (Part A, backlog row 16). DB_STANDARD §11 step 7 names this
-file. Monitoring (Part B, row 77) is section 17; PgBouncer (Part C, row 78) adds its own section when it is built.
+file. Monitoring (Part B, row 77) is section 17; PgBouncer (Part C, row 78) is section 18.
 
 Never write the NAPIX master switch into a file. The owner sets it in the shell for the run that needs it
 (`docs/napix_integration_notes.md`). Never print or paste a secret from `.env`.
@@ -22,6 +22,7 @@ One Docker Compose stack on one host. The same files serve the owner's machine a
 | `backup` | built from `backend/` | dumps, the store mirror, retention, the weekly restore check | none |
 | `migrate` | built from `backend/` | profile `ops`: the explicit upgrade (and `aslms ops restore`) | none |
 | `postgres` | `postgres:16.15` | the database | none |
+| `pgbouncer` | built from `infra/pgbouncer/` (Alpine 3.23.3, PgBouncer 1.21+) | connection pooling in transaction mode for `api`, `worker` and `scheduler` (section 18) | none |
 | `redis` | `redis:7.4.10-alpine` | the NAPIX token and Celery messages; password, memory only | none |
 | `clamav` | `clamav/clamav:1.5.4` | virus scan of every upload | none |
 | `prometheus` | `prom/prometheus:v3.7.2` | profile `monitoring`: scrapes, keeps 30 days, evaluates the alert rules | `127.0.0.1:9090` |
@@ -30,11 +31,12 @@ One Docker Compose stack on one host. The same files serve the owner's machine a
 | `flower` | `mher/flower:2.0.1` | profile `monitoring`: the Celery tasks of the scheduler | `127.0.0.1:5555` |
 | `postgres-exporter` | `quay.io/prometheuscommunity/postgres-exporter:v0.18.1` | profile `monitoring`: database statistics, as `aslms_readonly` | none |
 | `redis-exporter` | `oliver006/redis_exporter:v1.78.0` | profile `monitoring`: Redis and the Celery queue length | none |
+| `pgbouncer-exporter` | `quay.io/prometheuscommunity/pgbouncer-exporter:v0.12.1` | profile `monitoring`: PgBouncer's pools, from its console as `aslms_readonly` | none |
 | `ops-exporter` | built from `backend/` | profile `monitoring`: `aslms ops metrics`, the ASLMS operations gauges, as `aslms_readonly` | none |
 | `node-exporter`, `cadvisor` | `prom/node-exporter:v1.10.2`, `gcr.io/cadvisor/cadvisor:v0.52.1` | profile `monitoring-host`: host and container metrics on a Linux VM | none |
 
 Networks:
-- `default`: postgres, redis, clamav and the backend services.
+- `default`: postgres, pgbouncer, redis, clamav and the backend services.
 - `portal`: api and web. It has a fixed subnet, and the api trusts `X-Forwarded-For` only from `WEB_IP`.
 - `edge`: web and proxy. The proxy cannot reach api, postgres or redis.
 
@@ -106,12 +108,14 @@ Every container's logs are rotated (`json-file`, 20 MB × 5). The backend image 
 |---|---|---|
 | `aslms` (`POSTGRES_USER`) | `init`, `migrate`, `backup` only | the cluster superuser: migrations, seed, role passwords, dumps |
 | `aslms_owner` | owns the schema objects (migration 0001) | DDL |
-| `aslms_app` | `api`, `worker`, `scheduler` | DB_STANDARD §8 grants; no delete of legal records |
-| `aslms_readonly` | the postgres exporter and the ops exporter (Part B) | SELECT, and member of `pg_monitor` for the statistics views (migration 0020) |
+| `aslms_app` | `api`, `worker`, `scheduler`, through `pgbouncer` | DB_STANDARD §8 grants; no delete of legal records |
+| `aslms_readonly` | the postgres exporter and the ops exporter (Part B); the pgbouncer exporter on PgBouncer's console (Part C) | SELECT, and member of `pg_monitor` for the statistics views (migration 0020) |
 
 - In production (`APP_ENV=prod`), the api, the worker and the scheduler refuse to start if their connection is a
   superuser (decision 5). Their `POSTGRES_PASSWORD` and `ASLMS_MIGRATE_URL` are blanked by Compose.
-- `DATABASE_URL_SYNC` is the application's URL. Compose builds it for each service from the passwords.
+- `DATABASE_URL_SYNC` is the application's URL. Compose builds it for each service from the passwords. For `api`,
+  `worker` and `scheduler` it points at `pgbouncer:6432`; `init`, `migrate`, `backup` and the exporters connect to
+  `postgres:5432` directly (section 18).
   `ASLMS_MIGRATE_URL` is the owner's URL, for the host-run `alembic` and `aslms db-roles` in development.
 - `aslms db-roles` (also `aslms ops role-passwords`) sets the `aslms_app` and `aslms_readonly` passwords from `.env`
   at every `init` run, so a changed password reaches the database at the next start.
@@ -120,7 +124,8 @@ Every container's logs are rotated (`json-file`, 20 MB × 5). The backend image 
 
 - **`ASLMS_JWT_SECRET`:** change it in `.env`, then `docker compose up -d`. Everyone is signed out.
 - **`ASLMS_APP_PASSWORD` / `ASLMS_READONLY_PASSWORD`:** change it in `.env`, then `docker compose up -d`. `init`
-  applies it before the application services restart.
+  applies it before the application services restart. `pgbouncer` is recreated with the new value after `init`
+  (its user list is written at start).
 - **`REDIS_PASSWORD`:** change it in `.env`, then `docker compose up -d`. Redis restarts empty, which is safe: the
   token is fetched again and beat repeats its jobs.
 - **`POSTGRES_PASSWORD`:** it applies only when a cluster is first created. First run, in psql:
@@ -141,7 +146,8 @@ Every container's logs are rotated (`json-file`, 20 MB × 5). The backend image 
 code 3 and the message "The database is at X; this build needs Y". Nothing else starts. The procedure:
 
 1. `git pull` (or copy the new release), then `docker compose build`.
-2. `docker compose stop api worker scheduler web`.
+2. `docker compose stop api worker scheduler web pgbouncer`. PgBouncer keeps its own `aslms_app` server connections
+   open after the clients stop, so it is stopped too.
 3. `docker compose --profile ops run --rm migrate`. It runs preflight and refuses while an `aslms_app` session is
    connected. It writes a `pre-migrate` backup and checks it with `pg_restore --list`, then runs
    `alembic upgrade head` and seed, and writes the audit row `system.migrated`.
@@ -208,7 +214,7 @@ writes a `job_runs` row and `status/restore-check.json`. Free disk of about twic
 
 1. Install as in section 3 with the same `.env` (or the same secrets), but do not start the stack. Run
    `docker compose up -d postgres` only.
-2. Make sure no application service runs: `docker compose stop api worker scheduler web backup`.
+2. Make sure no application service runs: `docker compose stop api worker scheduler web pgbouncer backup`.
 3. Restore:
 
    ```
@@ -300,8 +306,8 @@ Design deployment-checklist, Part B (row 77, decisions 22-28). The plan (§8.2) 
 stage, so the pilot's `.env` sets `COMPOSE_PROFILES=monitoring`, and with `APP_ENV=prod` preflight refuses a stack
 without it.
 
-**What runs.** `prometheus`, `alertmanager`, `grafana`, `flower`, `postgres-exporter`, `redis-exporter` and
-`ops-exporter` (section 1). Prometheus scrapes every 30 seconds (the ops exporter every 60) and keeps
+**What runs.** `prometheus`, `alertmanager`, `grafana`, `flower`, `postgres-exporter`, `redis-exporter`,
+`pgbouncer-exporter` (Part C) and `ops-exporter` (section 1). Prometheus scrapes every 30 seconds (the ops exporter every 60) and keeps
 `PROMETHEUS_RETENTION` (30 days). The screens are published on the host's loopback only and are never served through
 the proxy:
 
@@ -327,6 +333,8 @@ At the SDC, open them through an SSH tunnel, for example
   `docker compose exec ops-exporter aslms ops metrics --once` prints one reading.
 - The api serves request counts and durations by route template on port 9100 inside the Compose network.
 - `postgres-exporter` (as `aslms_readonly`, a member of `pg_monitor`) and `redis-exporter`.
+- `pgbouncer-exporter` reads `SHOW POOLS`, `SHOW STATS` and the like from PgBouncer's `pgbouncer` console as
+  `aslms_readonly`, a stats user there (section 18).
 - Grafana's only data source is Prometheus. It never queries the database: `aslms_readonly` can read every table.
 
 **Dashboards** (folder ASLMS, provisioned from `infra/grafana/dashboards`; edits in the UI are not kept):
@@ -345,7 +353,8 @@ the alerts are shown in Grafana and Alertmanager only, and preflight warns. Crit
 warnings every 4 hours. To silence an alert during planned work, use Alertmanager's "New silence".
 
 **What to do for each alert.**
-- **ServiceDown** (a scrape target, or the database behind the postgres exporter, down for 5 minutes):
+- **ServiceDown** (a scrape target, the database behind the postgres exporter, or PgBouncer behind its exporter,
+  down for 5 minutes):
   `docker compose ps`, then `docker compose logs <service>`; `docker compose up -d` restarts it. If `postgres` is
   down, nothing works: check disk space and `docker compose logs postgres` first.
 - **PortalDown** (the portal does not answer through the proxy): check `proxy`, `web` and `api` with
@@ -358,6 +367,10 @@ warnings every 4 hours. To silence an alert during planned work, use Alertmanage
 - **PostgresConnectionsHigh** (over 80 % of `max_connections`): look for a stuck client in
   `docker compose exec postgres psql -U aslms -d aslms -c "select usename, state, count(*) from pg_stat_activity group by 1, 2"`;
   raise `PG_MAX_CONNECTIONS` only after finding the cause.
+- **PgBouncerClientsWaiting** (application clients queued for a PgBouncer server connection for 5 minutes): the pool
+  is exhausted or Postgres is slow. Section 18: `SHOW POOLS` shows `cl_waiting` and `sv_active`; look for long
+  transactions in `pg_stat_activity` (a slow report or a stuck worker). Raise `PGBOUNCER_DEFAULT_POOL_SIZE` (and keep
+  it well under `PG_MAX_CONNECTIONS`) only after finding the cause, then `docker compose up -d pgbouncer`.
 - **CertExpiring** (under 21 days): renew the certificate (section 3, step 3) and `docker compose restart proxy`.
 - **DiskLow** (under 15 % or 10 GB free on `/data` or `/backups`): section 15, "Disk full". Never delete the store
   mirror or the order store.
@@ -384,6 +397,50 @@ warnings every 4 hours. To silence an alert during planned work, use Alertmanage
 `node-exporter` and `cadvisor` (cadvisor reads the Docker socket and runs privileged). They are not used on Docker
 Desktop, where they would describe Docker's VM; there, disk space comes from the ops exporter.
 
+## 18. PgBouncer
+
+Design deployment-checklist, Part C (row 78, decision 29). `api`, `worker` and `scheduler` reach Postgres through
+`pgbouncer:6432` inside the Compose network; the port is never published, not even in development.
+
+**Settings** (written by `infra/pgbouncer/entrypoint.sh` at start into the container's tmpfs):
+- `pool_mode = transaction`: a server connection serves a client for one transaction only;
+- `max_client_conn = 200`, `default_pool_size = 20` (`PGBOUNCER_MAX_CLIENT_CONN`, `PGBOUNCER_DEFAULT_POOL_SIZE` in
+  `.env`; keep the pool well under `PG_MAX_CONNECTIONS`, which also serves `init`, `backup` and the exporters);
+- `max_prepared_statements = 200` (`PGBOUNCER_MAX_PREPARED_STATEMENTS`): psycopg 3 prepares statements at the
+  protocol level, and PgBouncer 1.21+ tracks them per server connection;
+- `server_reset_query` empty; `auth_type = hba` with SCRAM-SHA-256 on every line. `aslms_app` may reach the
+  database; `aslms_readonly` only the `pgbouncer` console, as a stats user (`SHOW` only). Nobody is an admin user, so
+  `PAUSE`, `RELOAD` and `SHUTDOWN` are refused on the console. The user list holds the two passwords from `.env`,
+  mode 600, in the tmpfs.
+
+**Who connects directly** to `postgres:5432`: `init`, `migrate` and `backup` (DDL, `pg_dump`, role passwords, the
+session checks) and the postgres and ops exporters (a view that does not depend on the pool). Host-run `pytest`,
+`alembic` and `psql` in development also go to `127.0.0.1:5433` directly.
+
+**What the application may not do.** Transaction pooling hands each transaction to any server connection. The code
+uses only transaction-scoped features: `SET LOCAL statement_timeout` (reports, dashboards, the audit search, the data
+health screen) and `pg_advisory_xact_lock` (the court-number dedupe). A session `SET`, `SET ROLE`, a session
+advisory lock, `LISTEN`, a temporary table, `set_config(..., false)` or a cursor `WITH HOLD` would leak to the next
+client or be lost; `backend/tests/unit/test_pgbouncer.py` scans `backend/aslms` and fails on any of them.
+
+**Upgrades and restores.** PgBouncer keeps `aslms_app` server connections open for a while after its clients stop,
+and `migrate` and `ops restore` refuse while any `aslms_app` session is connected. Stop it with the application
+services (sections 6 and 10). `docker compose up -d` starts it again after `init`.
+
+**Checks.**
+
+```
+# the pools (cl_active, cl_waiting, sv_active, sv_idle, maxwait), as the stats user; psql asks for ASLMS_READONLY_PASSWORD
+docker compose exec api psql -h pgbouncer -p 6432 -U aslms_readonly pgbouncer -c "SHOW POOLS"
+# the application's server connections come from pgbouncer
+docker compose exec postgres psql -U aslms -d aslms -c "select usename, client_addr, state from pg_stat_activity where usename = 'aslms_app'"
+```
+
+`docker compose logs pgbouncer` shows refused logins and pool errors.
+
+**Deferring PgBouncer** (owner check 7): to run without it, the three services' `DATABASE_URL_SYNC` would point at
+`postgres:5432` again. That is a recorded deviation in the design, never a quiet edit of `compose.yml`.
+
 ## Pilot go-live checklist
 
 - [ ] Rows 76, 16, 77 and 78 merged.
@@ -393,6 +450,8 @@ Desktop, where they would describe Docker's VM; there, disk space comes from the
 - [ ] Throttling checked (30 quick sign-ins give 429 `throttled`).
 - [ ] EICAR refused through the proxy.
 - [ ] First backup and restore check passed; the restore drill time recorded.
+- [ ] PgBouncer in the path (section 18): `SHOW POOLS` lists `aslms_app` traffic, and the application's sessions in
+      `pg_stat_activity` come from `pgbouncer`.
 - [ ] Monitoring up (`COMPOSE_PROFILES=monitoring`): every Prometheus target up, `promtool test rules` passes, the
       Grafana overview shows live figures, a ClamAVDown test alert reached `OPS_ALERT_EMAIL` (section 17).
 - [ ] Load counts and the sample check in the decisions log (`aslms ops load-report --format md`,

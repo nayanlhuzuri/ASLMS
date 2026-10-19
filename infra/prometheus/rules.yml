@@ -6,8 +6,8 @@ groups:
   - name: aslms-services
     rules:
       - alert: ServiceDown
-        # a scrape target, or the database behind the postgres exporter, is down
-        expr: up == 0 or pg_up == 0
+        # a scrape target, or the database behind the postgres exporter, or PgBouncer behind its exporter, is down
+        expr: up == 0 or pg_up == 0 or pgbouncer_up == 0
         for: 5m
         labels:
           severity: critical
@@ -59,6 +59,17 @@ groups:
         annotations:
           summary: "PostgreSQL connections are over 80 % of max_connections"
           runbook: "docs/operations.md section 17, PostgresConnectionsHigh"
+
+      - alert: PgBouncerClientsWaiting
+        # Part C (decision 29): application clients have been queued for a server connection for 5 minutes, so the
+        # pool (PGBOUNCER_DEFAULT_POOL_SIZE) is exhausted or Postgres is slow; the admin console is not counted
+        expr: pgbouncer_pools_client_waiting_connections{database!="pgbouncer"} > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.user }} clients have waited for a PgBouncer server connection for 5 minutes"
+          runbook: "docs/operations.md section 17, PgBouncerClientsWaiting"
 
       - alert: CertExpiring
         expr: aslms_tls_cert_expiry_timestamp - time() < 21 * 86400

@@ -1849,3 +1849,21 @@ Backlog row 77 (split from row 16), design `docs/design/deployment-checklist.md`
 **Verified**: full suite `1471 passed` in 27 minutes on a quiet Postgres; `promtool check` and `promtool test rules` pass; in a scratch Compose project all seven Prometheus targets were up, Grafana and Flower refused anonymous access.
 
 **Left for later**: migration 0020 is not applied to the dev database and the dev `.env` lacks the three new values (row 87, with the test-alert e-mail check); PgBouncer (row 78); the owner-run deployment checks (row 85); row 86 items.
+
+## Deployment PgBouncer, Part C (2026-10-20)
+Backlog row 78 (split from row 16), design `docs/design/deployment-checklist.md` Part C, decision 29 (approved by the owner 18 Oct 2026; `docs/design/deployment-pgbouncer.md` is a pointer to it), branch `feature/deployment-pgbouncer`, in review. No migration. Runbook: `docs/operations.md` section 18.
+
+**Built**
+- `infra/pgbouncer` (Dockerfile and entrypoint): Alpine with PgBouncer 1.25.1 (`>= 1.21`), uid 10001. The entrypoint writes `pgbouncer.ini`, an HBA file and a mode-600 `userlist.txt` into a tmpfs. `pool_mode = transaction`, `max_client_conn 200`, `default_pool_size 20`, `max_prepared_statements 200`, empty `server_reset_query`. The three values are `PGBOUNCER_MAX_CLIENT_CONN`, `PGBOUNCER_DEFAULT_POOL_SIZE` and `PGBOUNCER_MAX_PREPARED_STATEMENTS` in `.env.example`.
+- Compose: service `pgbouncer` on 6432, internal only, started after `init`. `DATABASE_URL_SYNC` of `api`, `worker` and `scheduler` points at `pgbouncer:6432`; `init`, `migrate`, `backup` and the exporters stay direct to Postgres. `aslms ops migrate` and `restore` stop `pgbouncer`, and their refusal hints name it.
+- Monitoring: `pgbouncer-exporter` (v0.12.1) with its Prometheus scrape job, alert `PgBouncerClientsWaiting`, and `pgbouncer_up == 0` added to `ServiceDown`, with promtool tests.
+- Tests: `test_pgbouncer` (including the source scan `test_no_session_level_postgres_features` refusing session-level Postgres features in `backend/aslms`, and `test_compose_pgbouncer_urls`), plus changes to `test_compose_monitoring` and `test_deployment_compose`.
+
+**Decisions and reasons**
+- Transaction mode with prepared statements tracked, so the pool stays small; session-level features (advisory session locks, `LISTEN`, `SET` outside a transaction and the like) are therefore refused by a source test rather than found in production.
+- Migrations, backups and restores bypass the pool because they need session state and the owner's role.
+
+**Deviations from the design note**: listed in its "Deviations made while building Part C". In short: the build task named a note that did not exist, so the pointer file was created; `auth_type = hba` with SCRAM on every line, so `aslms_app` reaches only the application database and `aslms_readonly` only the console; the exporter signs in as `aslms_readonly` (a `stats_users` entry, no new secret, `admin_users` empty); the "clients wait 5 minutes" alert is queued clients for `for: 5m` because `query_wait_timeout` would refuse a client first; `ignore_startup_parameters = extra_float_digits` and no Unix socket.
+
+**Left for later**: the owner-run checks on the real stack (row 89); migration 0020 and the dev `.env` additions of row 87 still apply; the owner-run deployment checks (row 85); row 86 and 88 items before the pilot.
+

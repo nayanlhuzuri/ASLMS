@@ -19,6 +19,7 @@ MONITORING = {
     "flower",
     "postgres-exporter",
     "redis-exporter",
+    "pgbouncer-exporter",
     "ops-exporter",
 }
 HOST = {"node-exporter", "cadvisor"}
@@ -38,6 +39,8 @@ ALERTS = {
     "CertExpiring",
     "PostgresConnectionsHigh",
     "RedisDown",
+    # Part C (row 78, decision 29)
+    "PgBouncerClientsWaiting",
 }
 
 
@@ -158,6 +161,7 @@ def test_prometheus_scrapes_every_exporter():
         "ops-exporter:9108",
         "postgres-exporter:9187",
         "redis-exporter:9121",
+        "pgbouncer-exporter:9127",
         "alertmanager:9093",
         "grafana:3000",
     } <= targets

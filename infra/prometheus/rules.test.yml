@@ -124,6 +124,54 @@ tests:
         alertname: PostgresConnectionsHigh
         exp_alerts: []
 
+  # PgBouncer (Part C, decision 29): its exporter's pgbouncer_up counts for ServiceDown; clients queued for 5 minutes
+  - interval: 1m
+    input_series:
+      - series: 'pgbouncer_up{job="pgbouncer", instance="pgbouncer-exporter:9127"}'
+        values: "0x10"
+      - series: 'up{job="pgbouncer", instance="pgbouncer-exporter:9127"}'
+        values: "1x10"
+      - series: 'pgbouncer_pools_client_waiting_connections{job="pgbouncer", instance="pgbouncer-exporter:9127", database="aslms", user="aslms_app"}'
+        values: "3x10"
+      - series: 'pgbouncer_pools_client_waiting_connections{job="pgbouncer", instance="pgbouncer-exporter:9127", database="pgbouncer", user="pgbouncer"}'
+        values: "2x10"
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: ServiceDown
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: ServiceDown
+        exp_alerts:
+          - exp_labels: { severity: critical, job: pgbouncer, instance: "pgbouncer-exporter:9127" }
+            exp_annotations:
+              summary: "pgbouncer (pgbouncer-exporter:9127) has been down for 5 minutes"
+              runbook: "docs/operations.md section 17, ServiceDown"
+      - eval_time: 4m
+        alertname: PgBouncerClientsWaiting
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: PgBouncerClientsWaiting
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: pgbouncer
+              instance: "pgbouncer-exporter:9127"
+              database: aslms
+              user: aslms_app
+            exp_annotations:
+              summary: "aslms_app clients have waited for a PgBouncer server connection for 5 minutes"
+              runbook: "docs/operations.md section 17, PgBouncerClientsWaiting"
+
+  # a moment of waiting is not an alert: the queue empties within the 5 minutes
+  - interval: 1m
+    input_series:
+      - series: 'pgbouncer_pools_client_waiting_connections{job="pgbouncer", instance="pgbouncer-exporter:9127", database="aslms", user="aslms_app"}'
+        values: "4 4 0 4 4 0 4 4 0 4 4"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: PgBouncerClientsWaiting
+        exp_alerts: []
+
   - interval: 1m
     input_series:
       - series: "aslms_tls_cert_expiry_timestamp"
