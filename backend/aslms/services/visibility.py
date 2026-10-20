@@ -9,8 +9,8 @@ ownership predicates come from `recommend-and-claim`, decisions 15, 16, 23).
   the membership sits below the department.
 - `owned_case_filter(session, user)`: the same predicate as a filter on `cases.id`.
 - `visibility_bases(session, user)`: every basis on which the caller may see a case, each a name and a boolean
-  condition over `cases` (correlated `EXISTS` subqueries): `state`, `owner`, `recommended`, `pool`, `allotted`,
-  `custody`, `counsel` (`request` removed by `custody-workflow`; the personal custody basis follows the holder
+  condition over `cases` (correlated `EXISTS` subqueries): `state`, `owner`, `recommended`, `transfer_in`
+  (sight only, design `portal-ui-redesign` A5), `pool`, `allotted`, `custody`, `counsel` (`request` removed by `custody-workflow`; the personal custody basis follows the holder
   membership). `visible_case_condition` ORs them (a filter for lists, a selected column for
   search); `access_basis` evaluates them for one case; `can_view_case` / `require_visible` decide the detail.
   Nothing is filtered in the portal; nothing is filtered after the query.
@@ -63,8 +63,10 @@ from aslms.domain.ownership import (
     CounselCode,
     OwnershipRole,
     OwnershipStatus,
+    OwnershipTransfer,
     Recommendation,
     RecommendationStatus,
+    TransferStatus,
 )
 from aslms.domain.reference import AlertKind, Permission, Role
 from aslms.domain.workflow import CaseNote, Custody
@@ -261,6 +263,18 @@ def member_bases(session: Session, member: Member) -> list[Basis]:
                     Recommendation.case_id == Case.id,
                     Recommendation.office_id == dept.id,
                     Recommendation.status == RecommendationStatus.RECOMMENDED,
+                ),
+            )
+        )
+        # design portal-ui-redesign, A5 (owner's answer to question 1): sight only while a transfer to the
+        # department is requested; never a working basis, lost on decline or withdraw
+        bases.append(
+            (
+                "transfer_in",
+                exists().where(
+                    OwnershipTransfer.case_id == Case.id,
+                    OwnershipTransfer.to_office_id == dept.id,
+                    OwnershipTransfer.status == TransferStatus.REQUESTED,
                 ),
             )
         )

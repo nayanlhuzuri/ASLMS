@@ -1,9 +1,9 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AdminFrame } from "@/components/admin/AdminFrame";
 import { MappingFrame } from "@/components/admin/mapping/MappingFrame";
@@ -519,5 +519,96 @@ describe("header, brand, drawer and bottom bar (portal-ui-redesign, decisions 18
     const title = within(header).getByRole("heading", { level: 1, name: "Files" });
     expect(crumbs.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(within(crumbs).getByText("My offices", { selector: "[aria-current=page]" })).toBeInTheDocument();
+  });
+
+  it("the drawer state resets when the window grows past 820 px (review of round 1)", async () => {
+    const listeners: ((e: { matches: boolean }) => void)[] = [];
+    let wide = false;
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({
+        matches: query.includes("min-width") ? wide : false,
+        media: query,
+        addEventListener: (_: string, cb: (e: { matches: boolean }) => void) => listeners.push(cb),
+        removeEventListener: vi.fn(),
+      })),
+    );
+    try {
+      shellApi();
+      renderWithClient(
+        <PortalShell>
+          <p>page body</p>
+        </PortalShell>,
+      );
+      const open = await screen.findByRole("button", { name: "Open menu" });
+      await userEvent.click(open);
+      expect(screen.getByRole("dialog", { name: "Main navigation" })).toBeInTheDocument();
+      expect(document.body.style.overflow).toBe("hidden");
+      wide = true;
+      act(() => listeners.forEach((cb) => cb({ matches: true })));
+      expect(open).toHaveAttribute("aria-expanded", "false");
+      expect(screen.queryByRole("dialog", { name: "Main navigation" })).toBeNull();
+      expect(document.body.style.overflow).toBe("");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
+describe("navigation counts (portal-ui-redesign, decision 4; round 2)", () => {
+  const CLAIMER: Permission[] = ["cases.view_scope", "cases.claim", "cases.transfer_decide"];
+  const claimer = () =>
+    makeMe(CLAIMER, "dept_admin", {
+      memberships: [
+        {
+          id: "m-1",
+          office: { code: "EDU", name: "Education", kind: "department" },
+          department_code: "EDU",
+          designation: null,
+          role: "dept_admin",
+          is_primary: true,
+          is_active: true,
+          functions: CLAIMER,
+        },
+        {
+          id: "m-2",
+          office: { code: "HEALTH", name: "Health", kind: "department" },
+          department_code: "HEALTH",
+          designation: null,
+          role: "dept_admin",
+          is_primary: false,
+          is_active: true,
+          functions: CLAIMER,
+        },
+      ],
+    });
+
+  it("Case inbox and Files show their counts from /inbox/mine/counts; Case claim the sum over the departments", async () => {
+    const block = (code: string, high: number, medium: number, transfers: number | null) => ({
+      office_code: code,
+      recommended_high: high,
+      recommended_medium: medium,
+      claimed_active: 0,
+      claimed_disposed: 0,
+      transfers_in_open: transfers,
+      pool_with_hearing_7d: 0,
+      whole_department: true,
+    });
+    browserApi({
+      "GET /reference/labels": labels(),
+      "GET /alerts/counts": { unread: 0, open: { critical: 0, high: 0, normal: 0 } },
+      "GET /inbox/mine/counts": { working: 5, files: 2, claimed: 7, disposed: 1 },
+      "GET /inbox/counts": { departments: [block("EDU", 2, 1, 1), block("HEALTH", 0, 4, null)] },
+    });
+    renderWithClient(<Sidebar me={claimer()} />);
+    expect(await screen.findByRole("link", { name: "Case inbox, 5" })).toHaveAttribute("href", "/inbox");
+    expect(await screen.findByRole("link", { name: "Files, 2" })).toHaveAttribute("href", "/files");
+    expect(await screen.findByRole("link", { name: "Case claim, 8" })).toHaveAttribute("href", "/claim");
+  });
+
+  it("Case claim is not shown without a claim or transfer function", () => {
+    browserApi({ "GET /reference/labels": labels() });
+    renderWithClient(<Sidebar me={makeMe(OFFICER)} />);
+    expect(screen.queryByRole("link", { name: /Case claim/ })).toBeNull();
   });
 });

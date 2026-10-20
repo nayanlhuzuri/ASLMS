@@ -1,11 +1,11 @@
-import { act, renderHook, screen } from "@testing-library/react";
+import { act, fireEvent, renderHook, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithClient } from "@/test/render";
 
-import { Dialog, Kpi } from "./index";
+import { ConfirmDialog, Dialog, Kpi, Modal, SidePanel } from "./index";
 import { useCountUp, usePrefersReducedMotion, usePresence } from "./motion";
 
 /** Answers the reduced-motion media query as given. */
@@ -123,5 +123,75 @@ describe("with motion", () => {
       vi.advanceTimersByTime(220);
     });
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+});
+
+describe("a closing overlay is inert (review of round 1, fixed in round 2)", () => {
+  it("a confirm dialog easing out drops a second submit, so an append-only write is sent once", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    stubMotion(false);
+    const confirm = vi.fn();
+    function Harness() {
+      const [open, setOpen] = useState(true);
+      return (
+        <ConfirmDialog
+          open={open}
+          title="Add note"
+          onClose={() => setOpen(false)}
+          onConfirm={() => {
+            confirm();
+            setOpen(false);
+          }}
+        >
+          <p>body</p>
+        </ConfirmDialog>
+      );
+    }
+    renderWithClient(<Harness />);
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const submit = screen.getByRole("button", { name: "Confirm" });
+    const form = submit.closest("form")!;
+    await user.click(submit);
+    expect(confirm).toHaveBeenCalledTimes(1);
+    // still on screen for the exit animation, but inert and without pointer events
+    const overlay = document.querySelector("[data-closing='true']")!;
+    expect(overlay).not.toBeNull();
+    expect(overlay).toHaveAttribute("inert");
+    fireEvent.submit(form);
+    expect(confirm).toHaveBeenCalledTimes(1);
+    act(() => {
+      vi.advanceTimersByTime(220);
+    });
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it.each(["modal", "panel"] as const)("a %s easing out is inert and its overlay click does nothing", async (kind) => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    stubMotion(false);
+    const closed = vi.fn();
+    function Harness() {
+      const [open, setOpen] = useState(true);
+      const close = () => {
+        closed();
+        setOpen(false);
+      };
+      return kind === "modal" ? (
+        <Modal open={open} title="Case" onClose={close}>
+          <p>body</p>
+        </Modal>
+      ) : (
+        <SidePanel open={open} title="File" onClose={close}>
+          <p>body</p>
+        </SidePanel>
+      );
+    }
+    renderWithClient(<Harness />);
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await user.keyboard("{Escape}");
+    expect(closed).toHaveBeenCalledTimes(1);
+    const overlay = document.querySelector("[data-closing='true']") as HTMLElement;
+    expect(overlay).toHaveAttribute("inert");
+    fireEvent.click(overlay);
+    expect(closed).toHaveBeenCalledTimes(1);
   });
 });

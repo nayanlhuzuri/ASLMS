@@ -1,8 +1,10 @@
-import { InboxFrame } from "@/components/inbox/InboxFrame";
+import { Redirect } from "@/components/inbox/Redirects";
 import { plainParams } from "@/lib/params";
+import { OLD_INBOX_REDIRECTS } from "@/lib/routes";
 
 type SP = Promise<Record<string, string | string[] | undefined>>;
 
+/** Decision 10.4 of portal-ui-redesign: the old address, redirected on the client with its query string. */
 export default async function Page({ searchParams }: { searchParams: SP }) {
-  return <InboxFrame tab="recommended" params={plainParams(await searchParams)} />;
+  return <Redirect to={OLD_INBOX_REDIRECTS["/inbox/recommended"]!} params={plainParams(await searchParams)} />;
 }

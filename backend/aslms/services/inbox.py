@@ -49,6 +49,7 @@ from aslms.services.visibility import (
     claimed_conditions,
     codes_condition,
     is_department,
+    whole_department,
 )
 from aslms.services.visibility import never_owned as visibility_never_owned
 
@@ -347,7 +348,16 @@ def claimed_stmt(
     unit: Office | None = None,
     officer_user_id: uuid.UUID | None = None,
     filters: CaseFilters | None = None,
+    unallotted: bool = False,
+    stage: str | None = None,
+    holder: str | None = None,
+    action: str | None = None,
 ) -> Select:
+    """The Claimed rows; `unallotted` keeps rows with no officer, `stage` the case's latest stage (or `none`),
+    `holder` where the file is (`department` / `elsewhere`), `action` the file's due date (`overdue` /
+    `due_week`) (design `portal-ui-redesign`, A3)."""
+    from aslms.services import my_cases
+
     stmt = (
         select(CaseOwnership, Case)
         .join(Case, Case.id == CaseOwnership.case_id)
@@ -360,6 +370,15 @@ def claimed_stmt(
         stmt = stmt.where(CaseOwnership.unit_office_id.in_(units))
     if officer_user_id is not None:
         stmt = stmt.where(CaseOwnership.officer_user_id == officer_user_id)
+    if unallotted:
+        stmt = stmt.where(CaseOwnership.officer_user_id.is_(None))
+    for extra in (
+        my_cases.stage_condition(stage),
+        my_cases.holder_condition(holder, department),
+        my_cases.action_condition(action),
+    ):
+        if extra is not None:
+            stmt = stmt.where(extra)
     return _filtered(stmt, session, filters)
 
 
@@ -380,12 +399,20 @@ def claimed(
     unit: str | None = None,
     officer_user_id: uuid.UUID | None = None,
     filters: CaseFilters | None = None,
+    unallotted: bool | None = None,
+    stage: str | None = None,
+    holder: str | None = None,
+    action: str | None = None,
     limit: int | None = None,
     offset: int | None = None,
 ) -> Page:
+    from aslms.services import my_cases
+
     access.require(session, user, Permission.CASES_VIEW_SCOPE)
     dept, view_all = target_department(session, user, office, own_permission=None)
     state = _case_state(case_state)
+    if unallotted and officer_user_id is not None:
+        raise InboxError("unallotted and officer_user_id cannot be combined")
     role_v = OwnershipRole(role) if role else None
     unit_office = None
     if unit:
@@ -403,6 +430,10 @@ def claimed(
         unit=unit_office,
         officer_user_id=officer_user_id,
         filters=_no_owner(filters),
+        unallotted=bool(unallotted),
+        stage=stage,
+        holder=holder,
+        action=action,
     )
     total = _count(session, stmt)
     rows = session.execute(
@@ -412,11 +443,18 @@ def claimed(
     ).all()
     cases = [c for _, c in rows]
     summ = summaries(session, cases)
-    items = [ownership_item(session, r, summ[c.id]) for r, c in rows]
+    briefs = my_cases.case_briefs(session, user, [c.id for c in cases])
+    items = [ownership_item(session, r, summ[c.id], briefs.get(c.id)) for r, c in rows]
     return Page(items, total)
 
 
-def ownership_item(session: Session, row: CaseOwnership, case: CaseSummary | None = None) -> dict[str, Any]:
+def ownership_item(
+    session: Session,
+    row: CaseOwnership,
+    case: CaseSummary | None = None,
+    brief: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """One ownership row; `brief` (from `my_cases.case_briefs`) adds the case's stage and file holder."""
     if case is None:
         case = summaries(session, [session.get(Case, row.case_id)])[row.case_id]
     unit = session.get(Office, row.unit_office_id) if row.unit_office_id else None
@@ -433,6 +471,8 @@ def ownership_item(session: Session, row: CaseOwnership, case: CaseSummary | Non
         "allotted_at": row.allotted_at,
         "released_at": row.released_at,
         "release_reason": row.release_reason,
+        "stage": (brief or {}).get("stage"),
+        "custody": (brief or {}).get("custody"),
     }
 
 
@@ -690,9 +730,12 @@ def _counts_for(session: Session, user: User, dept: Office | None, *, today: dat
         "claimed_disposed": None,
         "transfers_in_open": None,
         "pool_with_hearing_7d": None,
+        "whole_department": False,
     }
     view_all = access.has(session, user, Permission.CASES_VIEW_ALL)
     mine = access.member_in_department(session, user, dept) if dept is not None else None
+    if dept is not None:
+        out["whole_department"] = bool(view_all or (mine is not None and whole_department(session, mine)))
     if dept is not None:
         if view_all or (mine is not None and mine.holds(Permission.CASES_CLAIM)):
             out["recommended_high"] = _count(session, recommended_stmt(dept, band=ScoreBand.HIGH))

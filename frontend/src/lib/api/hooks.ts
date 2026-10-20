@@ -19,6 +19,7 @@ import type {
   DraftList,
   InboxCountsList,
   Me,
+  MyCaseCounts,
   OfficeOut,
   RecipientList,
   ReferenceLabels,
@@ -92,12 +93,27 @@ export function useBenches(enabled = true) {
 
 export const INBOX_KEY = ["inbox"] as const;
 
-/** The inbox counters, one block per department (`GET /inbox/counts`, or one department with `office`). */
-export function useInboxCounts(office?: string | null, enabled = true) {
+/** The inbox counters, one block per department (`GET /inbox/counts`, or one department with `office`). `poll`: re-read
+ * every two minutes (the navigation's Case claim count, design portal-ui-redesign, decision 4). */
+export function useInboxCounts(office?: string | null, enabled = true, poll = false) {
   return useQuery({
     queryKey: [...INBOX_KEY, "counts", office ?? null],
     queryFn: () => api<InboxCountsList>("/inbox/counts", { query: { office: office ?? undefined } }),
     enabled,
+    refetchInterval: poll ? NAV_POLL_MS : undefined,
+  });
+}
+
+const NAV_POLL_MS = 2 * 60 * 1000;
+
+/** The caller's own-case totals (`GET /inbox/mine/counts`, design portal-ui-redesign, A2): the Case inbox tabs and
+ * the navigation's Case inbox and Files counts, re-read on window focus and every two minutes. */
+export function useMyCounts(enabled = true) {
+  return useQuery({
+    queryKey: [...INBOX_KEY, "mine", "counts"],
+    queryFn: () => api<MyCaseCounts>("/inbox/mine/counts"),
+    enabled,
+    refetchInterval: NAV_POLL_MS,
   });
 }
 

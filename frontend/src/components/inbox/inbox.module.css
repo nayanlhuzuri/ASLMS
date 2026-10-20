@@ -1,0 +1,47 @@
+/* The Case inbox and Case claim rows (design portal-ui-redesign, decisions 5, 6 and 15): the case number over the
+   parties, the badges after their text, the count line and the quick chips; spacing from the scale only. */
+
+.caseCell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.parties {
+  color: var(--text-2);
+  font-size: var(--t-sm);
+}
+
+.next,
+.action {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.chevron {
+  color: var(--text-3);
+  vertical-align: middle;
+}
+
+.count {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--t-sm);
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+}

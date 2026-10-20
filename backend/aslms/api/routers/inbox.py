@@ -16,7 +16,7 @@ from aslms.api import schemas
 from aslms.api.deps import current_user, get_session
 from aslms.api.filters import inbox_filter_query, with_legacy
 from aslms.domain.org import User
-from aslms.services import inbox
+from aslms.services import inbox, my_cases
 from aslms.services.access import Forbidden
 from aslms.services.case_filters import CaseFilters
 from aslms.services.inbox import InboxError, OfficeRequired
@@ -65,6 +65,14 @@ def claimed(
     role: str | None = None,
     unit: str | None = None,
     officer_user_id: uuid.UUID | None = None,
+    unallotted: bool | None = Query(None, description="true keeps rows with no officer"),
+    stage: str | None = Query(None, description="The case's current stage (a ref_case_stage code), or none"),
+    holder: str | None = Query(
+        None, description="department: the file is held in the department; elsewhere: outside it"
+    ),
+    action: str | None = Query(
+        None, description="overdue: the file's due date has passed; due_week: due within 7 days"
+    ),
     filters: CaseFilters = Depends(inbox_filter_query),
     limit: int = inbox.DEFAULT_LIMIT,
     offset: int = 0,
@@ -73,7 +81,8 @@ def claimed(
 ) -> schemas.OwnershipListOut:
     """The department's active ownership rows the caller may see: the whole department for holders of
     `cases.claim` or `cases.allot`, otherwise the cases allotted to the caller or to a unit in their subtree.
-    `case_state` splits Active (`pending` / `unknown`) from Disposed."""
+    `case_state` splits Active (`pending` / `unknown`) from Disposed. Each item carries the case's stage and
+    where its file is."""
     try:
         page = inbox.claimed(
             session,
@@ -83,6 +92,10 @@ def claimed(
             role=role,
             unit=unit,
             officer_user_id=officer_user_id,
+            unallotted=unallotted,
+            stage=stage,
+            holder=holder,
+            action=action,
             filters=filters,
             limit=limit,
             offset=offset,
@@ -90,6 +103,41 @@ def claimed(
     except (Forbidden, ValueError) as exc:
         raise _http(exc) from exc
     return schemas.OwnershipListOut(items=page.items, total=page.total)
+
+
+@router.get("/mine", response_model=schemas.MyCaseListOut)
+def mine(
+    view: str = Query(..., description="working, files, claimed or disposed"),
+    stage: str | None = Query(None, description="The case's current stage (a ref_case_stage code), or none"),
+    action: str | None = Query(None, description="On the caller's file: overdue or due_week"),
+    filters: CaseFilters = Depends(inbox_filter_query),
+    limit: int = inbox.DEFAULT_LIMIT,
+    offset: int = 0,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> schemas.MyCaseListOut:
+    """The caller's own cases (design portal-ui-redesign, A1): `working` (allotted to me or my file, active),
+    `files` (every file I hold), `claimed` (active cases I claimed or whose transfer I accepted), `disposed`
+    (disposed cases of the three sets). Visibility applies; nothing is written."""
+    try:
+        page = my_cases.mine(
+            session, user, view=view, filters=filters, stage=stage, action=action, limit=limit, offset=offset
+        )
+    except (Forbidden, ValueError) as exc:
+        raise _http(exc) from exc
+    return schemas.MyCaseListOut(items=page.items, total=page.total)
+
+
+@router.get("/mine/counts", response_model=schemas.MyCaseCountsOut)
+def mine_counts(
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> schemas.MyCaseCountsOut:
+    """The unfiltered totals of the four views of `/inbox/mine`."""
+    try:
+        return schemas.MyCaseCountsOut(**my_cases.mine_counts(session, user))
+    except (Forbidden, ValueError) as exc:
+        raise _http(exc) from exc
 
 
 @router.get("/pool", response_model=schemas.PoolListOut)

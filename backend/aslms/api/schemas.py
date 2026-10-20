@@ -532,6 +532,39 @@ class RecommendationListOut(BaseModel):
     total: int
 
 
+class StageBriefOut(BaseModel):
+    """The case's current stage (its latest `case_stages` row)."""
+
+    stage: str
+    label: str
+    phase: str | None
+
+
+class CustodyHolderBriefOut(BaseModel):
+    full_name: str
+    designation: str | None = None
+
+
+class CustodyBriefOut(BaseModel):
+    """Where the file is, for a list row (design portal-ui-redesign, A1): no remark (custody-workflow decision 25
+    keeps it on the case's custody card). `with_me` is relative to the caller."""
+
+    holder_office: OfficeRefOut | None
+    holder_user: CustodyHolderBriefOut | None
+    with_me: bool
+    pending_action: str
+    pending_action_label: str
+    since: datetime
+    due_date: date | None
+    overdue: bool
+    overdue_days: int
+
+
+class AllotmentOut(BaseModel):
+    unit: OfficeRefOut | None
+    officer: UserRefOut | None
+
+
 class OwnershipOut(BaseModel):
     id: uuid.UUID
     case: CaseSummaryOut
@@ -544,6 +577,33 @@ class OwnershipOut(BaseModel):
     allotted_at: datetime | None
     released_at: datetime | None
     release_reason: str | None
+    # design portal-ui-redesign, A3: on the Claimed list's items (null elsewhere)
+    stage: StageBriefOut | None = None
+    custody: CustodyBriefOut | None = None
+
+
+class MyCaseOut(BaseModel):
+    """One row of the caller's own cases (design portal-ui-redesign, A1). `reasons`: which of `allotted`,
+    `file` and `claimed` put the row here."""
+
+    case: CaseSummaryOut
+    owner_code: str | None
+    stage: StageBriefOut | None
+    custody: CustodyBriefOut | None
+    allotment: AllotmentOut | None
+    reasons: list[str]
+
+
+class MyCaseListOut(BaseModel):
+    items: list[MyCaseOut]
+    total: int
+
+
+class MyCaseCountsOut(BaseModel):
+    working: int
+    files: int
+    claimed: int
+    disposed: int
 
 
 class OwnershipListOut(BaseModel):
@@ -593,6 +653,9 @@ class InboxCountsOut(BaseModel):
     claimed_disposed: int | None
     transfers_in_open: int | None
     pool_with_hearing_7d: int | None
+    # design portal-ui-redesign, A4: the caller reads this department whole (cases.claim or cases.allot in their
+    # membership there, or cases.view_all)
+    whole_department: bool = False
 
 
 class InboxCountsListOut(BaseModel):

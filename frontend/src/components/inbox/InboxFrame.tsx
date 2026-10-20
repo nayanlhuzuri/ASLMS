@@ -1,169 +1,84 @@
 "use client";
 
 /**
- * The department case inbox (design portal-cases, decisions 4-8; plan §5.4; Annexure B "Case inbox"). It is read for
- * one department at a time (`?department=CODE`, sent to the API as `office`). The selector lists the departments of
- * `/inbox/counts`; a holder of `cases.view_all` may also pick any active department and then reads it as the API
- * allows (no action buttons unless the login also works there). A tab whose count is `null` in that department's
- * block is not shown (the API's rule, not the portal's).
+ * The Case inbox = the user's own work (design portal-ui-redesign, decisions 5 and 9; plan §5.4 rearranged): Working
+ * on, Files with me, Claimed by me and Disposed, with counts from `/inbox/mine/counts`, and Department cases for the
+ * readers the server reads whole (`whole_department` on `/inbox/counts` for the selected department). Recommended,
+ * the Unclaimed pool and Transfers live in Case claim (`/claim/*`); the old URLs redirect (`Redirects.tsx`).
  */
-import { useRouter } from "next/navigation";
-import { useEffect, type ReactNode } from "react";
+import type { ReactNode } from "react";
 
-import { EmptyState, ErrorBanner, Loading, Notice, PageHeader, SelectField, Tabs } from "@/components/ui";
-import { useDepartments, useInboxCounts, useMe } from "@/lib/api/hooks";
-import type { InboxCounts, Me } from "@/lib/api/types";
-import { can, departmentsOf } from "@/lib/can";
-import { formatNumber } from "@/lib/format";
+import { EmptyState, ErrorBanner, Loading, PageHeader, Tabs } from "@/components/ui";
+import { useMyCounts } from "@/lib/api/hooks";
+import { can } from "@/lib/can";
 import { T } from "@/lib/messages";
 import { queryString, type Params } from "@/lib/params";
 import { INBOX_TABS, type InboxTab } from "@/lib/routes";
 
-import { Claimed } from "./Claimed";
-import { Pool } from "./Pool";
-import { Recommended } from "./Recommended";
-import { Transfers } from "./Transfers";
+import { DepartmentCases } from "./DepartmentCases";
+import { MyCases } from "./MyCases";
+import { DepartmentSelect, useInboxSelection } from "./selection";
 
-/** The tabs a counts block allows, in order. */
-export function tabsFor(block: InboxCounts | null | undefined): InboxTab[] {
-  if (!block) return [];
-  const out: InboxTab[] = [];
-  if (block.recommended_high !== null || block.recommended_medium !== null) out.push("recommended");
-  if (block.claimed_active !== null) out.push("claimed");
-  if (block.pool_with_hearing_7d !== null) out.push("pool");
-  if (block.transfers_in_open !== null) out.push("transfers");
-  return out;
-}
-
-function badge(tab: InboxTab, block: InboxCounts): number | null {
-  if (tab === "recommended") return (block.recommended_high ?? 0) + (block.recommended_medium ?? 0);
-  if (tab === "claimed") return block.claimed_active;
-  if (tab === "transfers") return block.transfers_in_open;
-  return null; // the pool: the API counts only pool cases with a hearing in 7 days
-}
-
-interface Selection {
-  me: Me | undefined;
-  department: string | null;
-  block: InboxCounts | null | undefined;
-  options: { code: string; label: string }[];
-  isPending: boolean;
-  error: unknown;
-  refetch: () => void;
-}
-
-/** The selected department and its counts block. */
-export function useInboxSelection(requested: string | undefined): Selection {
-  const me = useMe();
-  const own = useInboxCounts(null, !!me.data);
-  const viewAll = can(me.data, "cases.view_all");
-  const all = useDepartments(viewAll);
-  const blocks = own.data?.departments ?? [];
-  const ownCodes = blocks.map((b) => b.office_code).filter((c): c is string => !!c);
-  const wanted = requested ? requested.trim().toUpperCase() : null;
-  const department = wanted ?? ownCodes[0] ?? null;
-  const inOwn = !!department && ownCodes.includes(department);
-  const other = useInboxCounts(department, !!department && !inOwn && own.isSuccess);
-  const block = inOwn
-    ? blocks.find((b) => b.office_code === department)
-    : department
-      ? other.data?.departments[0]
-      : blocks[0];
-  const names = new Map((all.data?.departments ?? []).map((d) => [d.code, d.name]));
-  const codes = viewAll ? [...new Set([...ownCodes, ...(all.data?.departments ?? []).map((d) => d.code)])] : ownCodes;
-  const options = codes.map((code) => ({ code, label: names.get(code) ? `${code} — ${names.get(code)}` : code }));
-  return {
-    me: me.data,
-    department,
-    block,
-    options,
-    isPending: me.isPending || own.isPending || (!!department && !inOwn && other.isPending),
-    error: me.error ?? own.error ?? (inOwn ? null : other.error),
-    refetch: () => {
-      void own.refetch();
-      if (!inOwn) void other.refetch();
-    },
-  };
-}
-
-function tabHref(tab: InboxTab, department: string | null): string {
+export function tabHref(tab: InboxTab, department?: string | null): string {
   const base = INBOX_TABS.find((t) => t.key === tab)!.href;
-  return base + queryString({ department: department ?? undefined });
+  return tab === "department" ? base + queryString({ department: department ?? undefined }) : base;
 }
 
 export function InboxFrame({ tab, params, children }: { tab: InboxTab; params: Params; children?: ReactNode }) {
-  const router = useRouter();
-  const sel = useInboxSelection(params.department);
-  if (sel.isPending) return <Loading />;
-  const tabs = tabsFor(sel.block);
-  const mine = departmentsOf(sel.me);
-  const readOnly = !!sel.department && !mine.includes(sel.department);
-  const showSelector = sel.options.length > 1 || (sel.options.length === 1 && sel.department !== sel.options[0]!.code);
+  const counts = useMyCounts();
+  const sel = useInboxSelection(tab === "department" ? params.department : undefined);
+  if (counts.isPending || sel.isPending) return <Loading />;
+  // Department cases: shown by the server's whole-department rule for the selected department (or any of one's own)
+  // and for State-wide readers, who may pick any department (question 4)
+  const whole = can(sel.me, "cases.view_all") || sel.blocks.some((b) => b.whole_department);
+  const tabs = INBOX_TABS.filter((t) => t.key !== "department" || whole);
+  const count = (key: InboxTab): number | null => {
+    if (key === "department") return null;
+    return counts.data?.[key] ?? null;
+  };
   return (
     <div className="stack">
-      <PageHeader title={T.inbox.title} />
-      <Notice>{T.inbox.notice}</Notice>
-      <ErrorBanner error={sel.error} onRetry={sel.refetch} />
-      {showSelector ? (
-        <div style={{ maxWidth: 360 }}>
-          <SelectField
-            label={T.inbox.department}
-            options={sel.options.map((o) => ({ value: o.code, label: o.label }))}
-            placeholder={sel.department ? undefined : T.inbox.chooseDepartment}
-            value={sel.department ?? ""}
-            onChange={(e) => router.push(tabHref(tab, e.target.value || null))}
-          />
-        </div>
-      ) : null}
-      {readOnly ? <p className="muted">{T.inbox.readOnly}</p> : null}
-      {sel.block && tabs.length > 0 ? (
-        <Tabs
-          label={T.inbox.tabs}
-          items={tabs.map((t) => {
-            const n = badge(t, sel.block!);
-            const label = INBOX_TABS.find((x) => x.key === t)!.label;
-            return { href: tabHref(t, sel.department), label: n === null ? label : `${label} (${formatNumber(n)})`, active: t === tab };
-          })}
-        />
-      ) : null}
-      {!sel.block ? null : tabs.includes(tab) ? (
-        children ?? <InboxTabBody tab={tab} params={params} department={sel.department} />
-      ) : sel.department || tab === "pool" ? (
-        <EmptyState>{T.notFoundText}</EmptyState>
-      ) : (
-        <EmptyState>{T.inbox.noDepartmentInbox}</EmptyState>
-      )}
+      <PageHeader title={T.inbox.myTitle} subtitle={T.inbox.mySubtitle} />
+      <ErrorBanner error={counts.error ?? sel.error} onRetry={() => (counts.refetch(), sel.refetch())} />
+      <Tabs
+        label={T.inbox.myTabs}
+        items={tabs.map((t) => ({ href: tabHref(t.key, params.department), label: t.label, active: t.key === tab, count: count(t.key) }))}
+      />
+      {children ?? <InboxBody tab={tab} params={params} whole={whole} counts={counts.data} sel={sel} />}
     </div>
   );
 }
 
-function InboxTabBody({ tab, params, department }: { tab: InboxTab; params: Params; department: string | null }) {
-  switch (tab) {
-    case "recommended":
-      return department ? <Recommended params={params} department={department} /> : null;
-    case "claimed":
-      return department ? <Claimed params={params} department={department} /> : null;
-    case "pool":
-      return <Pool params={params} department={department} />;
-    case "transfers":
-      return department ? <Transfers params={params} department={department} /> : null;
+function InboxBody({
+  tab,
+  params,
+  whole,
+  counts,
+  sel,
+}: {
+  tab: InboxTab;
+  params: Params;
+  whole: boolean;
+  counts: ReturnType<typeof useMyCounts>["data"];
+  sel: ReturnType<typeof useInboxSelection>;
+}) {
+  if (tab !== "department") return <MyCases view={tab} params={params} counts={counts} />;
+  // without `?department`, the first of one's own departments read whole
+  const block =
+    params.department || sel.block?.whole_department ? sel.block : (sel.blocks.find((b) => b.whole_department) ?? sel.block);
+  const department = params.department ? sel.department : (block?.office_code ?? sel.department);
+  if (!whole || !department || !block?.whole_department) {
+    return (
+      <>
+        <DepartmentSelect sel={sel} hrefFor={(code) => tabHref("department", code)} />
+        <EmptyState>{department ? T.notFoundText : T.inbox.noDepartmentInbox}</EmptyState>
+      </>
+    );
   }
-}
-
-/** `/inbox`: the first tab the login may read (keeping `?department`). */
-export function InboxIndex({ params }: { params: Params }) {
-  const router = useRouter();
-  const sel = useInboxSelection(params.department);
-  const first = tabsFor(sel.block)[0];
-  useEffect(() => {
-    if (first) router.replace(tabHref(first, params.department ? sel.department : null));
-  }, [first, router, params.department, sel.department]);
-  if (sel.isPending || first) return <Loading />;
   return (
-    <div className="stack">
-      <PageHeader title={T.inbox.title} />
-      <ErrorBanner error={sel.error} onRetry={sel.refetch} />
-      <EmptyState>{T.inbox.noDepartmentInbox}</EmptyState>
-    </div>
+    <>
+      <DepartmentSelect sel={{ ...sel, department }} hrefFor={(code) => tabHref("department", code)} />
+      <DepartmentCases key={department} params={params} department={department} block={block} />
+    </>
   );
 }

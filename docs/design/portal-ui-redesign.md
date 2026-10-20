@@ -1095,3 +1095,48 @@ Choices made where the note is silent, each the smallest reasonable option:
    ("HTTP" in the queue table, "vs" in the parties line) moved into `messages.ts`.
 10. **Case numbers** in `CaseLink` carry the global `cno` class (semibold, tabular figures); a bare `ref_no` stays
     monospace (decision 10.1). The one test that asserted `mono` on a case number now asserts `cno`.
+
+### Round 2, row 102 `portal-ui-inbox-claim` (developer, 20 Oct 2026)
+Choices made where the note is silent, each the smallest reasonable option:
+
+1. **No separate note.** Backlog row 102 links this note; there is no `docs/design/portal-ui-inbox-claim.md`. Round 2
+   was built from decisions 2 (round 2), 4-7, 9, 10.4-10.6 and 28, A1-A5 (A5 approved: question 1), "Backend (round
+   2)", "Portal (round 2)" and "Tests, round 2".
+2. **Claimed by me also counts the transfer the person accepted when a watcher row was promoted.** On accept, an
+   existing watcher row of the receiving department becomes the primary and keeps its own actor snapshot. So C is
+   the active primary rows of the caller's departments whose `actor_user_id` is the caller, OR whose accepted
+   transfer (`ownership_transfers`, same case and receiving office) the caller decided.
+3. **Row order "then case"** is the case number text, then the id, after the next hearing (nulls last) and the
+   custody due date (nulls last). `files` keeps `/custody/held?scope=me`'s order exactly (due date, since, case id).
+4. **`action` needs a due date and a pending action.** `overdue` (due date before today, IST) and `due_week` (today to
+   today + 7) match only a custody row with a due date and a pending action other than `none`, on `/inbox/mine` (the
+   caller's own file) and `/inbox/claimed` (any holder). The row brief's `overdue` follows the same rule, so a file
+   left on an ownership leg with no action is never shown as overdue in the lists.
+5. **Department cases' default department.** Without `?department`, the tab reads the first of the caller's own
+   departments that the server reads whole; a State-wide reader without one chooses a department first.
+6. **Quick chips.** "Hearing this week" is `next=n7` (today to today + 6, IST), "Action overdue" `action=overdue`,
+   "Listed this week" on Recommended `listed=d7`, Strong / Possible `band=high|medium`. Recommended has no separate
+   Court chip: Court stays under "More filters" with the other portal-filters fields. Department cases' Next hearing
+   offers Any date / This week (`n7`) / Next 30 days (`n30`) / Choose dates (a range).
+7. **Transfers to us: the status default.** No `status` in the URL means `requested` for To us and any status for From
+   us; the select's "Any" writes `status=all`. Withdraw for an outgoing transfer is in the modal's footer (by
+   `actions.withdraw_transfer`), through the same inline step with Back and Confirm.
+8. **The transfer modal has no "Why this is suggested" box** unless the receiving department also holds a
+   recommendation for the case (a transfer is not a suggestion); the tabs then take the full width.
+9. **A 404 transfer row** (the caller cannot open the case): the footer still offers Decline and Accept transfer when
+   the row is requested and the membership in the selected department holds `cases.transfer_decide`; the API decides
+   the call, as everywhere.
+10. **The success notice stays on Case claim** (above the tabs, with "Open case page"), not carried to another page.
+11. **The Case column** shows the case number; the case type is part of the printed number (the list summary has no
+    separate case type field).
+12. **Department cases rows carry no Allot button.** The old Claimed tab's row Allot is gone with the tab; Allot stays
+    on the case page's ownership actions (round 3 puts it in the "More actions" menu).
+13. **Kit and filter-bar additions.** `FilterBar` gained per-list `more`, `hidden` and `nextChoices` (in
+    `LIST_FILTERS`) and own controls with `first` (drawn after Words); `buttonClass()` draws a link as a button (the
+    order toolbar's Print and Download); `CaseLink` gained `newTab` (the modal's Linked cases).
+14. **"Your action"** on the own-work rows shows the pending action only when the file is with the caller.
+15. **The Case claim count** in the navigation is read only when Case claim shows for the login; every count is
+    re-read every two minutes and on window focus.
+16. **Round-1 review fixes.** A closing overlay carries `inert` and `pointer-events: none`, its overlay click is
+    ignored, and `ConfirmDialog` drops a submit that arrives while closed or busy. The drawer closes when the
+    `(min-width: 820px)` query starts to match, which also releases the scroll lock and the focus trap.

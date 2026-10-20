@@ -193,7 +193,16 @@ export interface CaseRefLike {
  * semibold with tabular figures; a bare `ref_no` stays monospace (decision 10.1). A case the caller cannot open
  * (`visible: false`) is plain text, never a link, because opening it answers 404.
  */
-export function CaseLink({ value, visible = true }: { value: CaseRefLike | null | undefined; visible?: boolean }) {
+export function CaseLink({
+  value,
+  visible = true,
+  newTab = false,
+}: {
+  value: CaseRefLike | null | undefined;
+  visible?: boolean;
+  /** Opens the case page in a new tab (the claim modal's Linked cases, design portal-ui-redesign, decision 7). */
+  newTab?: boolean;
+}) {
   if (!value) return <span>—</span>;
   const text = value.case_no_text || value.ref_no;
   const className = value.case_no_text ? "cno" : "mono";
@@ -205,7 +214,13 @@ export function CaseLink({ value, visible = true }: { value: CaseRefLike | null 
     );
   }
   return (
-    <Link href={casePath(value.ref_no)} className={className} title={value.cnr ?? undefined}>
+    <Link
+      href={casePath(value.ref_no)}
+      className={className}
+      title={value.cnr ?? undefined}
+      target={newTab ? "_blank" : undefined}
+      rel={newTab ? "noopener noreferrer" : undefined}
+    >
       {text}
     </Link>
   );

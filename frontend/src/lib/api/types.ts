@@ -106,6 +106,12 @@ export type PoolCase = S["PoolCaseOut"];
 export type PoolList = S["PoolListOut"];
 export type InboxCounts = S["InboxCountsOut"];
 export type InboxCountsList = S["InboxCountsListOut"];
+// portal-ui-redesign, round 2: the caller's own cases (A1, A2) and the row facts
+export type MyCase = S["MyCaseOut"];
+export type MyCaseList = S["MyCaseListOut"];
+export type MyCaseCounts = S["MyCaseCountsOut"];
+export type StageBrief = S["StageBriefOut"];
+export type CustodyBrief = S["CustodyBriefOut"];
 export type CaseOwnershipView = S["CaseOwnershipViewOut"];
 export type OwnershipActions = S["OwnershipActionsOut"];
 export type RecipientList = S["RecipientListOut"];

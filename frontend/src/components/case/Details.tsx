@@ -107,3 +107,17 @@ export function Details({ caseRef }: { caseRef: string }) {
     </div>
   );
 }
+
+/** The identity and classification fields only (design portal-ui-redesign, decision 7: the claim modal's "Case
+ * details" tab). */
+export function IdentityDetails({ caseRef }: { caseRef: string }) {
+  const query = useCase(caseRef);
+  if (!query.data) return null;
+  const c = query.data;
+  return (
+    <div className="stack">
+      <Block title={T.case.identity} data={{ ...c.identity, court: c.court?.name ?? null, est_code: c.court?.est_code ?? null }} />
+      <Block title={T.case.classification} data={c.classification} />
+    </div>
+  );
+}

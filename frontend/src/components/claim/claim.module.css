@@ -1,0 +1,215 @@
+/* Case claim and the case details modal (design portal-ui-redesign, decisions 6 and 7): the header facts, the tabs
+   beside the "Why this is suggested" box (below it on phones), the footer's inline step sliding up, and the
+   collapsible order rows with the PDF shown inline. Spacing from the scale only. */
+
+.origin {
+  margin: 0 0 var(--s1);
+  color: var(--text-3);
+  font-size: var(--t-sm);
+}
+
+.parties {
+  margin: 0 0 var(--s3);
+  color: var(--text-2);
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--s4);
+  margin: 0;
+  padding: var(--s3) 0 var(--s4);
+}
+
+.facts dt {
+  color: var(--text-3);
+  font-size: var(--t-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.facts dd {
+  margin: var(--s1) 0 0;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: var(--s5);
+  align-items: start;
+}
+
+.single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.tablist {
+  display: flex;
+  gap: var(--s1);
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: var(--s4);
+}
+
+.tab {
+  padding: var(--s3) var(--s4);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--text-2);
+  font: inherit;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tab[aria-selected="true"] {
+  border-bottom-color: var(--accent);
+  color: var(--accent);
+}
+
+.tab:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px var(--accent-ring);
+}
+
+.why {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+}
+
+.why h3 {
+  margin: 0;
+  font-size: var(--t-md);
+  font-weight: 600;
+}
+
+.why ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.why li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+
+.why p {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--t-sm);
+}
+
+.contribution {
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  width: 100%;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  width: 100%;
+  animation: slide-up var(--med) var(--ease);
+}
+
+.step h3 {
+  margin: 0;
+  font-size: var(--t-md);
+  font-weight: 600;
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+.orders {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.orderHead {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-width: 0;
+}
+
+.orderDate {
+  flex: none;
+  width: var(--lead-w);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.orderToolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin: var(--s2) 0 var(--s3);
+}
+
+.frame {
+  width: 100%;
+  height: 60vh;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+
+.links {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (max-width: 1099px) {
+  .facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 819px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .step {
+    animation: none;
+  }
+}

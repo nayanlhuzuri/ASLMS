@@ -12,16 +12,16 @@
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useRef, useState, type ReactNode, type RefObject } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 
 import { cx, ErrorBanner, Loading, Menu, useOverlay } from "@/components/ui";
 import { session } from "@/lib/api/client";
-import { labelOf, useAlertCounts, useLabels, useMe } from "@/lib/api/hooks";
+import { labelOf, useAlertCounts, useInboxCounts, useLabels, useMe, useMyCounts } from "@/lib/api/hooks";
 import type { Me } from "@/lib/api/types";
-import { canAny } from "@/lib/can";
+import { can, canAny } from "@/lib/can";
 import { formatNumber } from "@/lib/format";
 import { T } from "@/lib/messages";
-import { bottomBarFor, CASE_READERS, navGroupsFor, type NavCount } from "@/lib/routes";
+import { bottomBarFor, CASE_READERS, navFor, navGroupsFor, type NavCount } from "@/lib/routes";
 
 import { Brand } from "./Brand";
 import { BellIcon, MenuIcon, MoreIcon, NAV_ICONS, SearchIcon } from "./icons";
@@ -44,7 +44,39 @@ function isActive(pathname: string, href: string): boolean {
  */
 function useNavCounts(me: Me): Partial<Record<NavCount, number>> {
   const alerts = useAlertCounts(canAny(me, CASE_READERS));
-  return { alerts: alerts.data?.unread };
+  // Case inbox and Files: `/inbox/mine/counts` (A2); Case claim: the sum over the login's departments of the strong
+  // and possible recommendations and the open transfers in (`/inbox/counts`)
+  const mine = useMyCounts(can(me, "cases.view_scope"));
+  const showsClaim = navFor(me).some((e) => e.key === "claim");
+  const inbox = useInboxCounts(null, showsClaim && can(me, "cases.view_scope"), true);
+  const blocks = inbox.data?.departments ?? [];
+  const claim = inbox.data
+    ? blocks.reduce((n, b) => n + (b.recommended_high ?? 0) + (b.recommended_medium ?? 0) + (b.transfers_in_open ?? 0), 0)
+    : undefined;
+  return { alerts: alerts.data?.unread, inbox: mine.data?.working, files: mine.data?.files, claim };
+}
+
+/** Below this width the sidebar is a drawer (decision 18). */
+const DRAWER_QUERY = "(min-width: 820px)";
+
+/**
+ * Review of round 1: when the window grows past 820 px while the drawer is open, the drawer state resets, so the
+ * scroll lock and the focus trap do not stay behind on the laptop layout.
+ */
+function useCloseOnWide(open: boolean, close: () => void) {
+  useEffect(() => {
+    if (!open || typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const mql = window.matchMedia(DRAWER_QUERY);
+    if (mql.matches) {
+      close();
+      return;
+    }
+    const onChange = (e: MediaQueryListEvent) => {
+      if (e.matches) close();
+    };
+    mql.addEventListener?.("change", onChange);
+    return () => mql.removeEventListener?.("change", onChange);
+  }, [open, close]);
 }
 
 export function Sidebar({
@@ -264,7 +296,9 @@ export function PortalShell({ children }: { children: ReactNode }) {
   const me = useMe();
   const [drawer, setDrawer] = useState(false);
   const drawerRef = useRef<HTMLElement>(null);
-  useOverlay(drawerRef, drawer, () => setDrawer(false));
+  const closeDrawer = useCallback(() => setDrawer(false), []);
+  useOverlay(drawerRef, drawer, closeDrawer);
+  useCloseOnWide(drawer, closeDrawer);
   if (me.isPending) return <Loading />;
   if (me.error || !me.data) {
     return (

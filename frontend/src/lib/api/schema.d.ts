@@ -3216,7 +3216,8 @@ export interface paths {
          * Claimed
          * @description The department's active ownership rows the caller may see: the whole department for holders of
          *     `cases.claim` or `cases.allot`, otherwise the cases allotted to the caller or to a unit in their subtree.
-         *     `case_state` splits Active (`pending` / `unknown`) from Disposed.
+         *     `case_state` splits Active (`pending` / `unknown`) from Disposed. Each item carries the case's stage and
+         *     where its file is.
          */
         get: operations["claimed_inbox_claimed_get"];
         put?: never;
@@ -3240,6 +3241,48 @@ export interface paths {
          *     count is null when the caller lacks that tab's function in that department.
          */
         get: operations["counts_inbox_counts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/inbox/mine": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Mine
+         * @description The caller's own cases (design portal-ui-redesign, A1): `working` (allotted to me or my file, active),
+         *     `files` (every file I hold), `claimed` (active cases I claimed or whose transfer I accepted), `disposed`
+         *     (disposed cases of the three sets). Visibility applies; nothing is written.
+         */
+        get: operations["mine_inbox_mine_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/inbox/mine/counts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Mine Counts
+         * @description The unfiltered totals of the four views of `/inbox/mine`.
+         */
+        get: operations["mine_counts_inbox_mine_counts_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4022,6 +4065,11 @@ export interface components {
             officer_user_id?: string | null;
             /** Unit Code */
             unit_code?: string | null;
+        };
+        /** AllotmentOut */
+        AllotmentOut: {
+            officer: components["schemas"]["UserRefOut"] | null;
+            unit: components["schemas"]["OfficeRefOut"] | null;
         };
         /**
          * AllowanceOut
@@ -5222,6 +5270,32 @@ export interface components {
             months: components["schemas"]["MonthCoverageOut"][];
         };
         /**
+         * CustodyBriefOut
+         * @description Where the file is, for a list row (design portal-ui-redesign, A1): no remark (custody-workflow decision 25
+         *     keeps it on the case's custody card). `with_me` is relative to the caller.
+         */
+        CustodyBriefOut: {
+            /** Due Date */
+            due_date: string | null;
+            holder_office: components["schemas"]["OfficeRefOut"] | null;
+            holder_user: components["schemas"]["CustodyHolderBriefOut"] | null;
+            /** Overdue */
+            overdue: boolean;
+            /** Overdue Days */
+            overdue_days: number;
+            /** Pending Action */
+            pending_action: string;
+            /** Pending Action Label */
+            pending_action_label: string;
+            /**
+             * Since
+             * Format: date-time
+             */
+            since: string;
+            /** With Me */
+            with_me: boolean;
+        };
+        /**
          * CustodyCardOut
          * @description Design custody-workflow, decision 25: the remark only for a working basis or a State-wide reader.
          */
@@ -5262,6 +5336,13 @@ export interface components {
             legs: components["schemas"]["CustodyLegOut"][];
             /** Total */
             total: number;
+        };
+        /** CustodyHolderBriefOut */
+        CustodyHolderBriefOut: {
+            /** Designation */
+            designation?: string | null;
+            /** Full Name */
+            full_name: string;
         };
         /** CustodyHolderOut */
         CustodyHolderOut: {
@@ -6799,6 +6880,11 @@ export interface components {
             recommended_medium: number | null;
             /** Transfers In Open */
             transfers_in_open: number | null;
+            /**
+             * Whole Department
+             * @default false
+             */
+            whole_department: boolean;
         };
         /** JobRunOut */
         JobRunOut: {
@@ -7407,6 +7493,39 @@ export interface components {
             month: string;
             orders: components["schemas"]["OrderTotalsOut"];
             work_left: components["schemas"]["KindCountsOut"];
+        };
+        /** MyCaseCountsOut */
+        MyCaseCountsOut: {
+            /** Claimed */
+            claimed: number;
+            /** Disposed */
+            disposed: number;
+            /** Files */
+            files: number;
+            /** Working */
+            working: number;
+        };
+        /** MyCaseListOut */
+        MyCaseListOut: {
+            /** Items */
+            items: components["schemas"]["MyCaseOut"][];
+            /** Total */
+            total: number;
+        };
+        /**
+         * MyCaseOut
+         * @description One row of the caller's own cases (design portal-ui-redesign, A1). `reasons`: which of `allotted`,
+         *     `file` and `claimed` put the row here.
+         */
+        MyCaseOut: {
+            allotment: components["schemas"]["AllotmentOut"] | null;
+            case: components["schemas"]["CaseSummaryOut"];
+            custody: components["schemas"]["CustodyBriefOut"] | null;
+            /** Owner Code */
+            owner_code: string | null;
+            /** Reasons */
+            reasons: string[];
+            stage: components["schemas"]["StageBriefOut"] | null;
         };
         /** NamePatternIn */
         NamePatternIn: {
@@ -8219,6 +8338,7 @@ export interface components {
              * Format: date-time
              */
             claimed_at: string;
+            custody?: components["schemas"]["CustodyBriefOut"] | null;
             /**
              * Id
              * Format: uuid
@@ -8233,6 +8353,7 @@ export interface components {
             released_at: string | null;
             /** Role */
             role: string;
+            stage?: components["schemas"]["StageBriefOut"] | null;
             /** Status */
             status: string;
             unit: components["schemas"]["OfficeRefOut"] | null;
@@ -9028,6 +9149,18 @@ export interface components {
             /** Stage */
             stage: string;
         };
+        /**
+         * StageBriefOut
+         * @description The case's current stage (its latest `case_stages` row).
+         */
+        StageBriefOut: {
+            /** Label */
+            label: string;
+            /** Phase */
+            phase: string | null;
+            /** Stage */
+            stage: string;
+        };
         /** StageCodeOut */
         StageCodeOut: {
             /** Code */
@@ -9153,6 +9286,7 @@ export interface components {
              * Format: date-time
              */
             claimed_at: string;
+            custody?: components["schemas"]["CustodyBriefOut"] | null;
             /**
              * Id
              * Format: uuid
@@ -9167,6 +9301,7 @@ export interface components {
             released_at: string | null;
             /** Role */
             role: string;
+            stage?: components["schemas"]["StageBriefOut"] | null;
             /** Status */
             status: string;
             taken_from: components["schemas"]["UserRefOut"] | null;
@@ -17620,6 +17755,14 @@ export interface operations {
                 role?: string | null;
                 unit?: string | null;
                 officer_user_id?: string | null;
+                /** @description true keeps rows with no officer */
+                unallotted?: boolean | null;
+                /** @description The case's current stage (a ref_case_stage code), or none */
+                stage?: string | null;
+                /** @description department: the file is held in the department; elsewhere: outside it */
+                holder?: string | null;
+                /** @description overdue: the file's due date has passed; due_week: due within 7 days */
+                action?: string | null;
                 limit?: number;
                 offset?: number;
                 /** @description Words as the Search box (at least 3 characters): a CNR, a case number (`WP(C) 4326/2025`), a `ref_no`, or words matched as prefixes over parties, advocates, counsel codes and numbers */
@@ -17696,6 +17839,84 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mine_inbox_mine_get: {
+        parameters: {
+            query: {
+                /** @description working, files, claimed or disposed */
+                view: string;
+                /** @description The case's current stage (a ref_case_stage code), or none */
+                stage?: string | null;
+                /** @description On the caller's file: overdue or due_week */
+                action?: string | null;
+                limit?: number;
+                offset?: number;
+                /** @description Words as the Search box (at least 3 characters): a CNR, a case number (`WP(C) 4326/2025`), a `ref_no`, or words matched as prefixes over parties, advocates, counsel codes and numbers */
+                q?: string | null;
+                /** @description A cause-list entry of the case dated on or after this day (IST) */
+                listed_from?: string | null;
+                /** @description A cause-list entry of the case dated on or before this day */
+                listed_to?: string | null;
+                /** @description That same entry's court number, as printed */
+                court_no?: string | null;
+                /** @description That same entry's bench (judge names) contains this text (case and spacing ignored) */
+                bench?: string | null;
+                /** @description Next hearing date on or after this day */
+                next_from?: string | null;
+                /** @description Next hearing date on or before this day */
+                next_to?: string | null;
+                /** @description The case type: the master's short name or an alias, or the case's type text */
+                case_type?: string | null;
+                /** @description Registration year (1900-2100) */
+                year?: number | null;
+                /** @description pending, disposed or unknown */
+                case_status?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyCaseListOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mine_counts_inbox_mine_counts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyCaseCountsOut"];
                 };
             };
         };

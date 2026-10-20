@@ -316,3 +316,6 @@ AI and knowledge-base tables (ai_jobs, research_*, document_chunks, chunk_embedd
 order_directions, order_citations, issues, case_briefs, judgments_external, legal_instruments and
 versions/sections), `assignments` (replaced by `recommendations` + `case_ownership`), `match_feedback`,
 `court_outcomes`, `listing_reconciliations` (renamed), and the pgvector extension.
+
+## As-built note: portal-ui-inbox-claim (row 102, 20 Oct 2026)
+No migration and no table or column change. The visibility basis `transfer_in` is computed in `services/visibility.py` from `ownership_transfers` (status `requested`, receiving office): sight only, lost on decline or withdraw. `GET /inbox/mine` reads `case_ownerships`, `case_custody` and `ownership_transfers` read-only.

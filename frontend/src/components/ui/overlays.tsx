@@ -4,7 +4,9 @@
  * Overlays of the UI kit (design portal-ui-redesign, decisions 13, 16, 17 and 20): the dialog (with the confirm
  * dialog on it), the large modal, the side panel and the dropdown menu. `Dialog`, `Modal` and `SidePanel` share one
  * behaviour: focus moves in and is trapped, Escape closes, the focus returns on close, `aria-modal`, the page does not
- * scroll behind, and they ease in and out (instantly under reduced motion). Phones get them full screen.
+ * scroll behind, and they ease in and out (instantly under reduced motion). Phones get them full screen. While one
+ * eases out after closing it is inert (`inert`, no pointer events), so a second click cannot submit twice (review of
+ * round 1, fixed in round 2).
  */
 import Link from "next/link";
 import {
@@ -135,7 +137,7 @@ export function Dialog({
   useOverlay(ref, open, onClose);
   if (!mounted) return null;
   return (
-    <div className={cx(s.overlay, s.center, closing && s.closing)}>
+    <div className={cx(s.overlay, s.center, closing && s.closing)} inert={closing || undefined} data-closing={closing || undefined}>
       <div
         ref={ref}
         className={cx(s.dialog, wide && s.wide, closing && s.closing)}
@@ -186,6 +188,9 @@ export function ConfirmDialog({
         className="stack"
         onSubmit={(e) => {
           e.preventDefault();
+          // review of round 1: a closing dialog is inert, and a submit that still arrives (Enter) is dropped, so an
+          // append-only write such as a note is never sent twice
+          if (!open || busy) return;
           onConfirm();
         }}
       >
@@ -230,7 +235,12 @@ export function Modal({
   useOverlay(ref, open, onClose);
   if (!mounted) return null;
   return (
-    <div className={cx(s.overlay, s.center, closing && s.closing)} onClick={(e) => e.target === e.currentTarget && onClose()}>
+    <div
+      className={cx(s.overlay, s.center, closing && s.closing)}
+      inert={closing || undefined}
+      data-closing={closing || undefined}
+      onClick={(e) => !closing && e.target === e.currentTarget && onClose()}
+    >
       <div
         ref={ref}
         className={cx(s.modal, closing && s.closing)}
@@ -273,7 +283,12 @@ export function SidePanel({
   useOverlay(ref, open, onClose);
   if (!mounted) return null;
   return (
-    <div className={cx(s.overlay, closing && s.closing)} onClick={(e) => e.target === e.currentTarget && onClose()}>
+    <div
+      className={cx(s.overlay, closing && s.closing)}
+      inert={closing || undefined}
+      data-closing={closing || undefined}
+      onClick={(e) => !closing && e.target === e.currentTarget && onClose()}
+    >
       <div
         ref={ref}
         className={cx(s.panel, closing && s.closing)}

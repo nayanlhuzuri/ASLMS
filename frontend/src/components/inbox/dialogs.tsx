@@ -23,7 +23,7 @@ import { T } from "@/lib/messages";
 import { apiCasePath } from "@/lib/refs";
 import { useAction } from "@/lib/useAction";
 
-const MAX_REASON = 500;
+export const MAX_REASON = 500;
 const KEEP = "__keep__";
 const CLEAR = "__clear__";
 
@@ -58,11 +58,11 @@ function casePathOf(caseRef: string, tail: string): string {
   return `${apiCasePath(caseRef)}/${tail}`;
 }
 
-function departmentOptions(codes: { code: string; name: string }[], exclude: (string | null | undefined)[] = []): Option[] {
+export function departmentOptions(codes: { code: string; name: string }[], exclude: (string | null | undefined)[] = []): Option[] {
   return codes.filter((d) => !exclude.includes(d.code)).map((d) => ({ value: d.code, label: `${d.code} — ${d.name}` }));
 }
 
-function officerOptions(items: Recipient[] | undefined): Option[] {
+export function officerOptions(items: Recipient[] | undefined): Option[] {
   const seen = new Set<string>();
   const out: Option[] = [];
   for (const p of items ?? []) {

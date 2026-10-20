@@ -19,6 +19,7 @@
 
 .overlay.closing {
   animation: fade-out var(--med) var(--ease) forwards;
+  pointer-events: none;
 }
 
 @keyframes fade-in {

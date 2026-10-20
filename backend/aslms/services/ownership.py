@@ -50,7 +50,7 @@ from aslms.services.cases import emit_event
 from aslms.services.custody import move_custody
 from aslms.services.offices import find_office
 from aslms.services.refno import allocate_ref_no
-from aslms.services.visibility import in_subtree, is_department, never_owned
+from aslms.services.visibility import in_subtree, is_department, never_owned, whole_department
 
 
 class OwnershipError(ValueError):
@@ -1221,15 +1221,23 @@ def case_ownership_view(session: Session, actor_user: User, case: Case) -> dict:
         m.holds(Permission.CASES_CLAIM) and m.department is not None
         for m in access.members(session, actor_user)
     )
-    if not (view_all or mine or pool):
-        raise NotVisible("no such case")
-    if not view_all:
-        recs = [r for r in recs if r.office_id in dept_ids]
     open_transfer = session.scalar(
         select(OwnershipTransfer).where(
             OwnershipTransfer.case_id == case.id, OwnershipTransfer.status == TransferStatus.REQUESTED
         )
     )
+    # design portal-ui-redesign, A5: the receiving department's whole-department memberships read the case
+    # while a transfer to it is requested (sight only, like a recommendation)
+    transfer_in = open_transfer is not None and any(
+        m.department is not None
+        and m.department.id == open_transfer.to_office_id
+        and whole_department(session, m)
+        for m in access.members(session, actor_user)
+    )
+    if not (view_all or mine or pool or transfer_in):
+        raise NotVisible("no such case")
+    if not view_all:
+        recs = [r for r in recs if r.office_id in dept_ids]
     return {
         "primary": next((r for r in rows if r.role == OwnershipRole.PRIMARY), None),
         "watchers": [r for r in rows if r.role == OwnershipRole.WATCHER],

@@ -33,7 +33,9 @@ export type ListKey =
   | "alerts"
   | "search"
   | "documents"
-  | "next_dates";
+  | "next_dates"
+  | "mine"
+  | "department";
 
 /** Every URL key of the shared fields. */
 export const FILTER_KEYS = [
@@ -81,6 +83,17 @@ export interface ListFilters {
   fixed: readonly string[];
   /** Old URL names read once as the new ones (decision 13). */
   legacy?: Readonly<Record<string, string>>;
+  /** The fields under "More filters" (default `MORE_FIELDS`; design portal-ui-redesign, decision 5). */
+  more?: readonly SharedField[];
+  /** Fields applied and shown as chips but not drawn in the form (a quick chip sets them). */
+  hidden?: readonly SharedField[];
+  /** The next-hearing choices (default `NEXT_PRESETS` with "A date" and "Between dates"). */
+  nextChoices?: readonly string[];
+}
+
+/** The fields under "More filters" of a list. */
+export function moreFieldsOf(list: ListKey): readonly SharedField[] {
+  return LIST_FILTERS[list].more ?? MORE_FIELDS;
 }
 
 /** Decision 11: which shared fields each list shows. */
@@ -101,6 +114,21 @@ export const LIST_FILTERS: Record<ListKey, ListFilters> = {
   documents: { fields: ["q"], fixed: ["tab"] },
   // design portal-next-dates, decision 4: the review list's own control is "Show" (`kind`)
   next_dates: { fields: [...ALL_CASE, "owner"], fixed: ["kind"] },
+  // design portal-ui-redesign, decision 5: the Case inbox views (quick chips for the next hearing and the action,
+  // Stage, then words, case type, year and court under "More filters")
+  mine: {
+    fields: ["q", "next", "case_type", "year", "court_no"],
+    fixed: [],
+    more: ["q", "case_type", "year", "court_no"],
+    hidden: ["next"],
+  },
+  // Department cases: Search, Unit, Officer, Stage, Next hearing; More: case type, year, court, file holder, action
+  department: {
+    fields: ["q", "next", "case_type", "year", "court_no"],
+    fixed: ["department", "case_state"],
+    more: ["case_type", "year", "court_no"],
+    nextChoices: ["", "n7", "n30", "range"],
+  },
 };
 
 export const LISTED_PRESETS = ["today", "tomorrow", "d7", "d30"] as const;

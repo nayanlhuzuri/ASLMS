@@ -757,6 +757,36 @@
         "title": "AllotIn",
         "type": "object"
       },
+      "AllotmentOut": {
+        "properties": {
+          "officer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRefOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OfficeRefOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "unit",
+          "officer"
+        ],
+        "title": "AllotmentOut",
+        "type": "object"
+      },
       "AllowanceOut": {
         "description": "The detected quota window (design `napix-window`, decision 6); `used` counts from the observed reset.",
         "properties": {
@@ -4714,6 +4744,81 @@
         "title": "CoverageOut",
         "type": "object"
       },
+      "CustodyBriefOut": {
+        "description": "Where the file is, for a list row (design portal-ui-redesign, A1): no remark (custody-workflow decision 25\nkeeps it on the case's custody card). `with_me` is relative to the caller.",
+        "properties": {
+          "due_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Date"
+          },
+          "holder_office": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OfficeRefOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "holder_user": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CustodyHolderBriefOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "overdue": {
+            "title": "Overdue",
+            "type": "boolean"
+          },
+          "overdue_days": {
+            "title": "Overdue Days",
+            "type": "integer"
+          },
+          "pending_action": {
+            "title": "Pending Action",
+            "type": "string"
+          },
+          "pending_action_label": {
+            "title": "Pending Action Label",
+            "type": "string"
+          },
+          "since": {
+            "format": "date-time",
+            "title": "Since",
+            "type": "string"
+          },
+          "with_me": {
+            "title": "With Me",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "holder_office",
+          "holder_user",
+          "with_me",
+          "pending_action",
+          "pending_action_label",
+          "since",
+          "due_date",
+          "overdue",
+          "overdue_days"
+        ],
+        "title": "CustodyBriefOut",
+        "type": "object"
+      },
       "CustodyCardOut": {
         "description": "Design custody-workflow, decision 25: the remark only for a working basis or a State-wide reader.",
         "properties": {
@@ -4871,6 +4976,30 @@
           "total"
         ],
         "title": "CustodyHistoryOut",
+        "type": "object"
+      },
+      "CustodyHolderBriefOut": {
+        "properties": {
+          "designation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Designation"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "full_name"
+        ],
+        "title": "CustodyHolderBriefOut",
         "type": "object"
       },
       "CustodyHolderOut": {
@@ -9709,6 +9838,11 @@
               }
             ],
             "title": "Transfers In Open"
+          },
+          "whole_department": {
+            "default": false,
+            "title": "Whole Department",
+            "type": "boolean"
           }
         },
         "required": [
@@ -11482,6 +11616,121 @@
           "details_pct"
         ],
         "title": "MonthCoverageOut",
+        "type": "object"
+      },
+      "MyCaseCountsOut": {
+        "properties": {
+          "claimed": {
+            "title": "Claimed",
+            "type": "integer"
+          },
+          "disposed": {
+            "title": "Disposed",
+            "type": "integer"
+          },
+          "files": {
+            "title": "Files",
+            "type": "integer"
+          },
+          "working": {
+            "title": "Working",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "working",
+          "files",
+          "claimed",
+          "disposed"
+        ],
+        "title": "MyCaseCountsOut",
+        "type": "object"
+      },
+      "MyCaseListOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MyCaseOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "MyCaseListOut",
+        "type": "object"
+      },
+      "MyCaseOut": {
+        "description": "One row of the caller's own cases (design portal-ui-redesign, A1). `reasons`: which of `allotted`,\n`file` and `claimed` put the row here.",
+        "properties": {
+          "allotment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AllotmentOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "case": {
+            "$ref": "#/components/schemas/CaseSummaryOut"
+          },
+          "custody": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CustodyBriefOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owner_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Code"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StageBriefOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "case",
+          "owner_code",
+          "stage",
+          "custody",
+          "allotment",
+          "reasons"
+        ],
+        "title": "MyCaseOut",
         "type": "object"
       },
       "NamePatternIn": {
@@ -13932,6 +14181,16 @@
             "title": "Claimed At",
             "type": "string"
           },
+          "custody": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CustodyBriefOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -13984,6 +14243,16 @@
           "role": {
             "title": "Role",
             "type": "string"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StageBriefOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "status": {
             "title": "Status",
@@ -16449,6 +16718,37 @@
         "title": "StageBlockOut",
         "type": "object"
       },
+      "StageBriefOut": {
+        "description": "The case's current stage (its latest `case_stages` row).",
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "phase": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phase"
+          },
+          "stage": {
+            "title": "Stage",
+            "type": "string"
+          }
+        },
+        "required": [
+          "stage",
+          "label",
+          "phase"
+        ],
+        "title": "StageBriefOut",
+        "type": "object"
+      },
       "StageCodeOut": {
         "properties": {
           "code": {
@@ -16858,6 +17158,16 @@
             "title": "Claimed At",
             "type": "string"
           },
+          "custody": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CustodyBriefOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -16910,6 +17220,16 @@
           "role": {
             "title": "Role",
             "type": "string"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StageBriefOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "status": {
             "title": "Status",
@@ -32523,7 +32843,7 @@
     },
     "/inbox/claimed": {
       "get": {
-        "description": "The department's active ownership rows the caller may see: the whole department for holders of\n`cases.claim` or `cases.allot`, otherwise the cases allotted to the caller or to a unit in their subtree.\n`case_state` splits Active (`pending` / `unknown`) from Disposed.",
+        "description": "The department's active ownership rows the caller may see: the whole department for holders of\n`cases.claim` or `cases.allot`, otherwise the cases allotted to the caller or to a unit in their subtree.\n`case_state` splits Active (`pending` / `unknown`) from Disposed. Each item carries the case's stage and\nwhere its file is.",
         "operationId": "claimed_inbox_claimed_get",
         "parameters": [
           {
@@ -32599,6 +32919,78 @@
                 }
               ],
               "title": "Officer User Id"
+            }
+          },
+          {
+            "description": "true keeps rows with no officer",
+            "in": "query",
+            "name": "unallotted",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "true keeps rows with no officer",
+              "title": "Unallotted"
+            }
+          },
+          {
+            "description": "The case's current stage (a ref_case_stage code), or none",
+            "in": "query",
+            "name": "stage",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The case's current stage (a ref_case_stage code), or none",
+              "title": "Stage"
+            }
+          },
+          {
+            "description": "department: the file is held in the department; elsewhere: outside it",
+            "in": "query",
+            "name": "holder",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "department: the file is held in the department; elsewhere: outside it",
+              "title": "Holder"
+            }
+          },
+          {
+            "description": "overdue: the file's due date has passed; due_week: due within 7 days",
+            "in": "query",
+            "name": "action",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "overdue: the file's due date has passed; due_week: due within 7 days",
+              "title": "Action"
             }
           },
           {
@@ -32889,6 +33281,323 @@
           }
         ],
         "summary": "Counts",
+        "tags": [
+          "inbox"
+        ]
+      }
+    },
+    "/inbox/mine": {
+      "get": {
+        "description": "The caller's own cases (design portal-ui-redesign, A1): `working` (allotted to me or my file, active),\n`files` (every file I hold), `claimed` (active cases I claimed or whose transfer I accepted), `disposed`\n(disposed cases of the three sets). Visibility applies; nothing is written.",
+        "operationId": "mine_inbox_mine_get",
+        "parameters": [
+          {
+            "description": "working, files, claimed or disposed",
+            "in": "query",
+            "name": "view",
+            "required": true,
+            "schema": {
+              "description": "working, files, claimed or disposed",
+              "title": "View",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The case's current stage (a ref_case_stage code), or none",
+            "in": "query",
+            "name": "stage",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The case's current stage (a ref_case_stage code), or none",
+              "title": "Stage"
+            }
+          },
+          {
+            "description": "On the caller's file: overdue or due_week",
+            "in": "query",
+            "name": "action",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "On the caller's file: overdue or due_week",
+              "title": "Action"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Words as the Search box (at least 3 characters): a CNR, a case number (`WP(C) 4326/2025`), a `ref_no`, or words matched as prefixes over parties, advocates, counsel codes and numbers",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Words as the Search box (at least 3 characters): a CNR, a case number (`WP(C) 4326/2025`), a `ref_no`, or words matched as prefixes over parties, advocates, counsel codes and numbers",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "A cause-list entry of the case dated on or after this day (IST)",
+            "in": "query",
+            "name": "listed_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A cause-list entry of the case dated on or after this day (IST)",
+              "title": "Listed From"
+            }
+          },
+          {
+            "description": "A cause-list entry of the case dated on or before this day",
+            "in": "query",
+            "name": "listed_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A cause-list entry of the case dated on or before this day",
+              "title": "Listed To"
+            }
+          },
+          {
+            "description": "That same entry's court number, as printed",
+            "in": "query",
+            "name": "court_no",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "That same entry's court number, as printed",
+              "title": "Court No"
+            }
+          },
+          {
+            "description": "That same entry's bench (judge names) contains this text (case and spacing ignored)",
+            "in": "query",
+            "name": "bench",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "That same entry's bench (judge names) contains this text (case and spacing ignored)",
+              "title": "Bench"
+            }
+          },
+          {
+            "description": "Next hearing date on or after this day",
+            "in": "query",
+            "name": "next_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Next hearing date on or after this day",
+              "title": "Next From"
+            }
+          },
+          {
+            "description": "Next hearing date on or before this day",
+            "in": "query",
+            "name": "next_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Next hearing date on or before this day",
+              "title": "Next To"
+            }
+          },
+          {
+            "description": "The case type: the master's short name or an alias, or the case's type text",
+            "in": "query",
+            "name": "case_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The case type: the master's short name or an alias, or the case's type text",
+              "title": "Case Type"
+            }
+          },
+          {
+            "description": "Registration year (1900-2100)",
+            "in": "query",
+            "name": "year",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Registration year (1900-2100)",
+              "title": "Year"
+            }
+          },
+          {
+            "description": "pending, disposed or unknown",
+            "in": "query",
+            "name": "case_status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "pending, disposed or unknown",
+              "title": "Case Status"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyCaseListOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Mine",
+        "tags": [
+          "inbox"
+        ]
+      }
+    },
+    "/inbox/mine/counts": {
+      "get": {
+        "description": "The unfiltered totals of the four views of `/inbox/mine`.",
+        "operationId": "mine_counts_inbox_mine_counts_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyCaseCountsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Mine Counts",
         "tags": [
           "inbox"
         ]

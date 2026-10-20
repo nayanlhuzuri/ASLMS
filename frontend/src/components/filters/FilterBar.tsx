@@ -9,7 +9,7 @@
  * total. Filters live in the query string (`useFilters`, which also resets the page offset); the API checks every value
  * again and its message shows if one still comes back.
  */
-import { useId, useState, type ReactNode } from "react";
+import { Fragment, useId, useState, type ReactNode } from "react";
 
 import { useFilters } from "@/components/inbox/common";
 import { Button, CheckField, SelectField, TextField, type Option } from "@/components/ui";
@@ -23,7 +23,7 @@ import {
   legacyParams,
   LIST_FILTERS,
   LISTED_PRESETS,
-  MORE_FIELDS,
+  moreFieldsOf,
   NEXT_PRESETS,
   validate,
   type Chip,
@@ -38,11 +38,12 @@ import { DateRangeField, type DateValue } from "./DateRangeField";
 import { FilterChips } from "./FilterChips";
 import s from "./filters.module.css";
 
-/** A list's own control, drawn in the same form (decision 9). `more` puts it under "More filters". */
+/** A list's own control, drawn in the same form (decision 9). `more` puts it under "More filters"; `first` draws it
+ * right after Words, before the date fields (Department cases' Unit, Officer and Stage). */
 export type OwnControl =
-  | { key: string; kind: "select"; label: string; options: Option[]; placeholder?: string; more?: boolean }
-  | { key: string; kind: "check"; label: string; more?: boolean }
-  | { key: string; kind: "text" | "number" | "date"; label: string; more?: boolean; step?: string };
+  | { key: string; kind: "select"; label: string; options: Option[]; placeholder?: string; more?: boolean; first?: boolean }
+  | { key: string; kind: "check"; label: string; more?: boolean; first?: boolean }
+  | { key: string; kind: "text" | "number" | "date"; label: string; more?: boolean; step?: string; first?: boolean };
 
 export interface FilterBarProps {
   list: ListKey;
@@ -60,9 +61,15 @@ export interface FilterBarProps {
   note?: ReactNode;
 }
 
-function presetOptions(kind: "listed" | "next"): Option[] {
+function presetOptions(kind: "listed" | "next", list: ListKey): Option[] {
   const labels = kind === "listed" ? T.filters.listedPresets : T.filters.nextPresets;
   const presets: readonly string[] = kind === "listed" ? LISTED_PRESETS : NEXT_PRESETS;
+  const choices = kind === "next" ? LIST_FILTERS[list].nextChoices : undefined;
+  if (choices) {
+    // design portal-ui-redesign, decision 5: Department cases' Next hearing (Any date, This week, Next 30 days,
+    // Choose dates)
+    return choices.map((value) => ({ value, label: T.inbox.departmentNext[value] ?? labels[value] ?? value }));
+  }
   return ["", ...presets, "date", "range"].map((value) => ({ value, label: labels[value] ?? value }));
 }
 
@@ -81,6 +88,21 @@ const FIELD_LABELS: Record<SharedField, string> = {
 };
 
 const CHIP_LABELS: Record<SharedField, string> = { ...FIELD_LABELS, ...T.filters.chipNames };
+
+/** The order the shared fields are drawn in, on the first row and under "More filters". */
+const FIELD_ORDER: SharedField[] = [
+  "q",
+  "listed",
+  "next",
+  "case_type",
+  "year",
+  "case_status",
+  "court_no",
+  "bench",
+  "owner",
+  "scored_for",
+  "other_office",
+];
 
 function ownChips(params: Params, own: OwnControl[]): Chip[] {
   const out: Chip[] = [];
@@ -109,7 +131,8 @@ export function FilterBar(props: FilterBarProps) {
   const [userOpen, setUserOpen] = useState(false);
   const cfg = LIST_FILTERS[list];
   const p = legacyParams(params, list);
-  const moreShared = cfg.fields.filter((f) => MORE_FIELDS.includes(f));
+  const hidden = cfg.hidden ?? [];
+  const moreShared = cfg.fields.filter((f) => moreFieldsOf(list).includes(f) && !hidden.includes(f));
   const moreOwn = own.filter((c) => c.more);
   const moreSet =
     moreShared.some((f) => FIELD_KEYS[f].some((k) => !!p[k])) || moreOwn.some((c) => !!params[c.key]);
@@ -172,6 +195,11 @@ function FilterForm({
 }: FilterBarProps & { open: boolean; hasMore: boolean; onToggle: () => void; onApply: (updates: Params) => void }) {
   const cfg = LIST_FILTERS[list];
   const fields = new Set(cfg.fields);
+  const more = new Set(moreFieldsOf(list));
+  const hidden = new Set(cfg.hidden ?? []);
+  /** Where a shared field is drawn: the first row, "More filters", or nowhere (hidden). */
+  const inRow = (f: SharedField) => fields.has(f) && !more.has(f) && !hidden.has(f);
+  const inMore = (f: SharedField) => fields.has(f) && more.has(f) && !hidden.has(f);
   const p = legacyParams(params, list);
   const moreId = useId();
   const datalistId = useId();
@@ -279,7 +307,7 @@ function FilterForm({
       <DateRangeField
         key={kind}
         label={FIELD_LABELS[kind]}
-        presets={presetOptions(kind)}
+        presets={presetOptions(kind, list)}
         value={dates[kind]}
         onChange={(next) => setDates((d) => ({ ...d, [kind]: next }))}
         errors={{ from: errors[`${kind}_from`], to: errors[`${kind}_to`] }}
@@ -303,6 +331,97 @@ function FilterForm({
     .filter((t) => t.short_name)
     .map((t) => ({ value: t.short_name!, label: `${t.short_name}${t.full_name ? ` — ${t.full_name}` : ""}` }));
 
+  /** One shared field's control, wherever it is drawn. */
+  const sharedField = (f: SharedField): ReactNode => {
+    switch (f) {
+      case "q":
+        return (
+          <TextField
+            key="q"
+            label={wordsLabel ?? T.filters.words}
+            value={form.q ?? ""}
+            error={errors.q}
+            onChange={(e) => set("q", e.target.value)}
+            style={{ minWidth: 280 }}
+          />
+        );
+      case "listed":
+      case "next":
+        return dateField(f);
+      case "case_type":
+        return (
+          <SelectField
+            key="case_type"
+            label={T.filters.caseType}
+            placeholder={T.filters.anyCaseType}
+            options={withCurrent(types, form.case_type)}
+            value={form.case_type ?? ""}
+            onChange={(e) => set("case_type", e.target.value)}
+          />
+        );
+      case "year":
+        return (
+          <TextField
+            key="year"
+            label={T.filters.year}
+            inputMode="numeric"
+            value={form.year ?? ""}
+            error={errors.year}
+            onChange={(e) => set("year", e.target.value)}
+            style={{ maxWidth: 120 }}
+          />
+        );
+      case "case_status":
+        return (
+          <SelectField
+            key="case_status"
+            label={T.filters.status}
+            placeholder={T.filters.anyStatus}
+            options={CASE_STATUSES.map((v) => ({ value: v, label: T.filters.statuses[v] ?? v }))}
+            value={form.case_status ?? ""}
+            onChange={(e) => set("case_status", e.target.value)}
+          />
+        );
+      case "court_no":
+        return (
+          <SelectField
+            key="court_no"
+            label={T.filters.court}
+            placeholder={T.filters.anyCourt}
+            options={withCurrent(courts, form.court_no)}
+            value={form.court_no ?? ""}
+            onChange={(e) => set("court_no", e.target.value)}
+          />
+        );
+      case "bench":
+        return (
+          <Fragment key="bench">
+            <TextField
+              label={T.filters.bench}
+              hint={T.filters.benchHint}
+              list={datalistId}
+              value={form.bench ?? ""}
+              error={errors.bench}
+              onChange={(e) => set("bench", e.target.value)}
+              style={{ minWidth: 320 }}
+            />
+            <datalist id={datalistId}>
+              {(benches.data?.benches ?? []).map((b) => (
+                <option key={b.text} value={b.text} />
+              ))}
+            </datalist>
+          </Fragment>
+        );
+      case "owner":
+      case "scored_for":
+      case "other_office":
+        return departmentField(f);
+    }
+  };
+
+  const rowShared = FIELD_ORDER.filter(inRow);
+  const moreSharedFields = FIELD_ORDER.filter(inMore);
+
   return (
     <form
       role="search"
@@ -315,79 +434,14 @@ function FilterForm({
     >
       <div className="stack">
         <div className={s.row}>
-          {fields.has("q") ? (
-            <TextField
-              label={wordsLabel ?? T.filters.words}
-              value={form.q ?? ""}
-              error={errors.q}
-              onChange={(e) => set("q", e.target.value)}
-              style={{ minWidth: 280 }}
-            />
-          ) : null}
-          {dateField("listed")}
-          {dateField("next")}
-          {fields.has("case_type") ? (
-            <SelectField
-              label={T.filters.caseType}
-              placeholder={T.filters.anyCaseType}
-              options={withCurrent(types, form.case_type)}
-              value={form.case_type ?? ""}
-              onChange={(e) => set("case_type", e.target.value)}
-            />
-          ) : null}
-          {own.filter((c) => !c.more).map(ownControl)}
+          {rowShared.filter((f) => f === "q").map(sharedField)}
+          {own.filter((c) => !c.more && c.first).map(ownControl)}
+          {rowShared.filter((f) => f !== "q").map(sharedField)}
+          {own.filter((c) => !c.more && !c.first).map(ownControl)}
         </div>
         {open && hasMore ? (
           <div className={s.more} id={moreId}>
-            {fields.has("year") ? (
-              <TextField
-                label={T.filters.year}
-                inputMode="numeric"
-                value={form.year ?? ""}
-                error={errors.year}
-                onChange={(e) => set("year", e.target.value)}
-                style={{ maxWidth: 120 }}
-              />
-            ) : null}
-            {fields.has("case_status") ? (
-              <SelectField
-                label={T.filters.status}
-                placeholder={T.filters.anyStatus}
-                options={CASE_STATUSES.map((v) => ({ value: v, label: T.filters.statuses[v] ?? v }))}
-                value={form.case_status ?? ""}
-                onChange={(e) => set("case_status", e.target.value)}
-              />
-            ) : null}
-            {fields.has("court_no") ? (
-              <SelectField
-                label={T.filters.court}
-                placeholder={T.filters.anyCourt}
-                options={withCurrent(courts, form.court_no)}
-                value={form.court_no ?? ""}
-                onChange={(e) => set("court_no", e.target.value)}
-              />
-            ) : null}
-            {fields.has("bench") ? (
-              <>
-                <TextField
-                  label={T.filters.bench}
-                  hint={T.filters.benchHint}
-                  list={datalistId}
-                  value={form.bench ?? ""}
-                  error={errors.bench}
-                  onChange={(e) => set("bench", e.target.value)}
-                  style={{ minWidth: 320 }}
-                />
-                <datalist id={datalistId}>
-                  {(benches.data?.benches ?? []).map((b) => (
-                    <option key={b.text} value={b.text} />
-                  ))}
-                </datalist>
-              </>
-            ) : null}
-            {departmentField("owner")}
-            {departmentField("scored_for")}
-            {departmentField("other_office")}
+            {moreSharedFields.map(sharedField)}
             {own.filter((c) => c.more).map(ownControl)}
           </div>
         ) : null}

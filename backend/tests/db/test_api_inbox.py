@@ -907,3 +907,77 @@ def test_dashboard_counts_unchanged_by_filters_module(api, world):
     assert api.get("/inbox/claimed?year=1999", headers=admin).json()["total"] == 0
     assert api.get("/inbox/counts?year=1999", headers=admin).json()["departments"][0] == counts
     assert api.get("/dashboard", headers=admin).status_code == 200
+
+
+# ------------------------------------------------------------------------------------------------ portal-ui-redesign
+
+
+def test_claimed_filters_unallotted_stage_holder_action(api, world):
+    """Design portal-ui-redesign, A3: the new `/inbox/claimed` filters narrow, and items carry stage and custody."""
+    from aslms.domain.workflow import Custody, PendingAction
+    from aslms.services import stages
+    from aslms.services.workflow_common import today_ist
+    from tests.db import workflow_support as w
+
+    with world.Session() as s:
+        a = w.claimed_case(s, world, officer="edu_off1")
+        b = w.claimed_case(s, world, officer=None)
+        c = w.claimed_case(s, world, officer="edu_off2")
+        w.send(s, world, "edu_off2", c, "health_off")  # the file leaves the department
+        actor, admin = world.actor(s, "edu_admin")
+        stages.set_stage(s, actor, admin, a, stage="affidavit_filed")
+        held_a = s.get(Custody, a.id)
+        held_a.due_date, held_a.pending_action = today_ist() - timedelta(days=2), PendingAction.EXAMINE
+        s.get(Custody, c.id).due_date = today_ist() + timedelta(days=5)
+        s.commit()
+        a_id, b_id, c_id = str(a.id), str(b.id), str(c.id)
+        off1 = str(world.users["edu_off1"].id)
+    admin = login(api, "edu_admin")
+
+    def got(query):
+        r = api.get(f"/inbox/claimed?{query}", headers=admin)
+        assert r.status_code == 200, r.text
+        return sorted(ids(r.json()))
+
+    assert got("") == sorted([a_id, b_id, c_id])
+    assert got("unallotted=true") == [b_id]
+    assert got("stage=affidavit_filed") == [a_id]
+    assert got("stage=none") == sorted([b_id, c_id])
+    assert got("holder=elsewhere") == [c_id]
+    assert got("holder=department") == sorted([a_id, b_id])
+    assert got("action=overdue") == [a_id]
+    assert got("action=due_week") == [c_id]
+    assert got("unallotted=true&stage=none") == [b_id]
+    for bad in (
+        f"unallotted=true&officer_user_id={off1}",
+        "stage=nonsense",
+        "holder=somewhere",
+        "action=later",
+    ):
+        assert api.get(f"/inbox/claimed?{bad}", headers=admin).status_code == 400, bad
+    items = {str(i["case"]["id"]): i for i in api.get("/inbox/claimed", headers=admin).json()["items"]}
+    assert items[a_id]["stage"]["stage"] == "affidavit_filed" and items[a_id]["stage"]["phase"]
+    assert items[a_id]["custody"]["holder_user"]["full_name"] == "Edu Off1"
+    assert items[a_id]["custody"]["overdue"] is True and items[a_id]["custody"]["with_me"] is False
+    assert items[c_id]["custody"]["holder_office"]["code"] == "HEALTH"
+    assert items[b_id]["stage"] is None
+    # the officer reads only their own allotment, with the file "with me"
+    mine_items = api.get("/inbox/claimed", headers=login(api, "edu_off1")).json()["items"]
+    assert [str(i["case"]["id"]) for i in mine_items] == [a_id]
+    assert mine_items[0]["custody"]["with_me"] is True
+
+
+def test_counts_whole_department_flag(api, world):
+    """Design portal-ui-redesign, A4: `whole_department` per department block."""
+
+    def flag(key, query=""):
+        r = api.get(f"/inbox/counts{query}", headers=login(api, key))
+        assert r.status_code == 200, r.text
+        return [d["whole_department"] for d in r.json()["departments"]]
+
+    assert flag("edu_admin") == [True]
+    assert flag("edu_head") == [True]
+    assert flag("edu_off1") == [False]
+    assert flag("dse_user") == [False]
+    assert flag("oversight", "?office=EDU") == [True]
+    assert flag("oversight", "?office=HEALTH") == [True]

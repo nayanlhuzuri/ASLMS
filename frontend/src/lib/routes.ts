@@ -13,8 +13,9 @@ export type MeLike = Pick<Me, "functions"> & Partial<Pick<Me, "memberships">>;
 
 export type NavGroupKey = "work" | "oversight" | "settings";
 
-/** The server figure shown in an entry's pill (decision 4); only counts the API serves today are named here. */
-export type NavCount = "alerts";
+/** The server figure shown in an entry's pill (decision 4): Case inbox (`working`) and Files (`files`) from
+ * `/inbox/mine/counts`, Case claim from `/inbox/counts`, Alerts (`unread`) from `/alerts/counts`. */
+export type NavCount = "alerts" | "inbox" | "claim" | "files";
 
 export interface NavEntry {
   key: string;
@@ -78,13 +79,31 @@ export const CLAIM_FUNCTIONS: readonly Permission[] = [
 
 export const NAV: readonly NavEntry[] = [
   { key: "dashboard", label: T.nav.dashboard, href: "/", group: "work", functions: [], built: true },
-  { key: "inbox", label: T.nav.inbox, href: "/inbox", group: "work", functions: CASE_READERS, built: true, show: showsInbox },
-  // design portal-ui-redesign, decision 6: Case claim is built in round 2 (row 102)
-  { key: "claim", label: T.nav.claim, href: "/claim", group: "work", functions: CLAIM_FUNCTIONS, built: false, show: showsInbox },
+  {
+    key: "inbox",
+    label: T.nav.inbox,
+    href: "/inbox",
+    group: "work",
+    functions: CASE_READERS,
+    built: true,
+    show: showsInbox,
+    count: "inbox",
+  },
+  // design portal-ui-redesign, decision 6: Case claim, built in round 2 (row 102)
+  {
+    key: "claim",
+    label: T.nav.claim,
+    href: "/claim",
+    group: "work",
+    functions: CLAIM_FUNCTIONS,
+    built: true,
+    show: showsInbox,
+    count: "claim",
+  },
   // design portal-causelist, decision 11: the published lists are court-public, read by every reader of cases
   { key: "causelist", label: T.nav.causelist, href: "/causelist", group: "work", functions: CASE_READERS, built: true },
   // design portal-files-alerts, decision 2: anyone may be sent a file, so Files shows with `cases.view_scope`
-  { key: "files", label: T.nav.files, href: "/files", group: "work", functions: ["cases.view_scope"], built: true },
+  { key: "files", label: T.nav.files, href: "/files", group: "work", functions: ["cases.view_scope"], built: true, count: "files" },
   // design portal-ui-redesign, decision 8: My calendar is built in round 3 (row 103)
   { key: "calendar", label: T.nav.calendar, href: "/calendar", group: "work", functions: CASE_READERS, built: false },
   { key: "alerts", label: T.nav.alerts, href: "/alerts", group: "work", functions: CASE_READERS, built: true, count: "alerts" },
@@ -263,15 +282,39 @@ export function crumbLabel(path: string): string {
 /** The breadcrumb label of a path segment. */
 export const CRUMBS: Record<string, string> = T.crumbs;
 
-/** The inbox tabs (design portal-cases, decisions 4-6), in order; which show comes from `/inbox/counts`. */
+/**
+ * The Case inbox tabs (design portal-ui-redesign, decision 5): the user's own work, each its own route; Department
+ * cases only where `/inbox/counts` says `whole_department` for the selected department.
+ */
 export const INBOX_TABS = [
-  { key: "recommended", label: T.tabs.inbox.recommended, href: "/inbox/recommended" },
-  { key: "claimed", label: T.tabs.inbox.claimed, href: "/inbox/claimed" },
-  { key: "pool", label: T.tabs.inbox.pool, href: "/inbox/pool" },
-  { key: "transfers", label: T.tabs.inbox.transfers, href: "/inbox/transfers" },
+  { key: "working", label: T.tabs.inbox.working, href: "/inbox/working" },
+  { key: "files", label: T.tabs.inbox.files, href: "/inbox/files" },
+  { key: "claimed", label: T.tabs.inbox.claimed, href: "/inbox/claimed-by-me" },
+  { key: "disposed", label: T.tabs.inbox.disposed, href: "/inbox/disposed" },
+  { key: "department", label: T.tabs.inbox.department, href: "/inbox/department" },
 ] as const;
 
 export type InboxTab = (typeof INBOX_TABS)[number]["key"];
+export type MyView = Exclude<InboxTab, "department">;
+
+/** Case claim (decision 6): the suggestions to decide on; which tabs show comes from `/inbox/counts`. */
+export const CLAIM_TABS = [
+  { key: "recommended", label: T.tabs.claim.recommended, href: "/claim/recommended" },
+  { key: "pool", label: T.tabs.claim.pool, href: "/claim/pool" },
+  { key: "transfers", label: T.tabs.claim.transfers, href: "/claim/transfers" },
+] as const;
+
+export type ClaimTab = (typeof CLAIM_TABS)[number]["key"];
+
+/**
+ * Decision 10.4: the old inbox URLs and where they now live (a client redirect keeping the query string).
+ * `/inbox/claimed` goes to Department cases when the API says `whole_department`, else to Working on.
+ */
+export const OLD_INBOX_REDIRECTS: Record<string, string> = {
+  "/inbox/recommended": "/claim/recommended",
+  "/inbox/pool": "/claim/pool",
+  "/inbox/transfers": "/claim/transfers",
+};
 
 /**
  * The case page tabs (design portal-cases, decision 10), each its own route under `/cases/[ref]`; "Custody and stage"

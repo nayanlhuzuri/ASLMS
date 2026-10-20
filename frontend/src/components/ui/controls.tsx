@@ -29,6 +29,11 @@ export function cx(...names: (string | false | null | undefined)[]): string {
 /** The class every 36 px control carries (tests read it; the stylesheet sets `height: var(--control-h)`). */
 export const controlClass = s.control!;
 
+/** A link drawn as a button (a toolbar's Print and Download, which open or save a file). */
+export function buttonClass(variant: "primary" | "secondary" | "ghost" = "secondary", size: "md" | "sm" = "md"): string {
+  return cx(s.button, size === "sm" ? s.sm : s.control, s[variant]);
+}
+
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: "primary" | "secondary" | "ghost" | "danger" | "link";
   size?: "md" | "sm";

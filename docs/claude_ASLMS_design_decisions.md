@@ -1962,3 +1962,24 @@ Backlog row 101 `portal-ui-foundation`, branch `feature/portal-ui-foundation`; d
 - No separate design note for the row; round 1 was built from the redesign note.
 
 **Left for later**: rounds 2 to 5 (rows 102 to 105: inbox and claim, case page and calendar, dashboard and work lists, oversight and settings, sign-in pages, removal of deprecated token aliases, the responsive sweep). The official emblem is still to be supplied by the owner.
+
+## Portal UI redesign, round 2: Case inbox, Case claim and the case details modal (2026-10-20)
+Backlog row 102 `portal-ui-inbox-claim`, branch `feature/portal-ui-inbox-claim`; design `docs/design/portal-ui-redesign.md` (approved; no separate note for the row). No migration; `docs/schema/schema.md` gets one as-built note (no table or column change).
+
+**Built**
+- Backend, read-only: `services/my_cases.py` (new) behind `GET /inbox/mine` and `GET /inbox/mine/counts` (Working on, Files with me, Claimed by me, Disposed); `GET /inbox/claimed` gained the filters unallotted, stage, holder and action, with stage and custody on its items; `whole_department` on `/inbox/counts`; `services/inbox.py`, `ownership.py` and `api/schemas.py` adjusted to match.
+- Sight basis `transfer_in` in `services/visibility.py` (`member_bases`): while a transfer to a department is `requested`, the receiving department's admin, and an officer holding claim or allot, can read the case. Sight only, never a write (owner approved question 1 of the design).
+- Portal: Case inbox (`MyCases`, `DepartmentCases` with the full filter bar, More filters and removable chips) and Case claim (Recommended, Unclaimed pool, Transfers to us) with the large case details modal (tabs, "Why this is suggested", ownership actions in the fixed footer, collapsible orders with the PDF inline, Print, Download). Old inbox URLs redirect (`Redirects.tsx`). Navigation counts come from `/inbox/mine/counts`, re-read every two minutes and on window focus. The old `Claimed`, `Pool`, `Recommended` and `Transfers` tab components are replaced.
+- From the round-1 review: a closing Dialog, Modal or SidePanel is inert (`inert`, pointer-events none) and ignores clicks, `ConfirmDialog` drops a submit while closed or busy, so an append-only write such as a note cannot be sent twice; the drawer closes when the viewport grows past 820 px.
+- Tests: `test_my_cases.py`, `test_visibility_transfer_in.py` (receiving admin reads while requested; an officer without claim or allot does not; sight lost on decline or withdraw; no write through the basis), additions to `test_api_inbox.py`; frontend `inbox.test.tsx` rewritten, `shell.test.tsx`, `motion.test.tsx`, `claimFixtures.ts`.
+
+**Decisions and reasons** (full list in the design note's "Deviations", round 2, items 1 to 16)
+- Claimed by me also counts a transfer the person accepted when a watcher row was promoted to primary, so accepted transfers are not lost from the person's list.
+- `overdue` and `due_week` match only a custody row with a due date and a pending action other than none, so a file on an ownership leg with no action is never shown as overdue.
+- Department cases opens on the caller's first whole-read department; a State-wide reader without one chooses first.
+- Transfers to us defaults to status `requested`; From us shows any status.
+- The transfer modal shows "Why this is suggested" only if the receiving department also holds a recommendation (a transfer is not a suggestion).
+- Department cases rows carry no Allot button; Allot stays on the case page (round 3 moves it to "More actions").
+- The success notice stays on Case claim, with "Open case page".
+
+**Left for later**: rounds 3 to 5 (rows 103 to 105: case page and calendar, dashboard and work lists, oversight and settings, responsive sweep); round-1 and round-2 review advisories in row 106 and the rows beyond it.
