@@ -39,16 +39,29 @@
       "Bash(python backend/tools/export_openapi.py*)",
       "Bash(backend/.venv/Scripts/python backend/tools/export_openapi.py*)",
       "Bash(backend/.venv/Scripts/python backend/tools/portal_smoke.py*)",
-      "Bash(docker compose up -d --wait --no-deps web*)"
+      "Bash(docker compose up -d --wait --no-deps web*)",
+      "Bash(git push origin main)",
+      "Bash(git push origin refs/tags/feature/*)",
+      "Bash(gh run list*)",
+      "Bash(gh run view*)"
     ],
     "deny": [
       "Read(./.env)",
       "Read(./.env.local)",
       "Read(./.env.prod)",
-      "Read(./.env.production)"
+      "Read(./.env.production)",
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git push --force-with-lease*)",
+      "Bash(git push --mirror*)"
     ],
     "ask": [
-      "Bash(git push*)",
+      "Bash(git push origin +*)",
+      "Bash(git push origin feature/*)",
+      "Bash(git push origin :*)",
+      "Bash(git push --tags*)",
+      "Bash(git push --all*)",
+      "Bash(git push --delete*)",
       "Bash(git reset --hard*)",
       "Bash(git clean*)",
       "Bash(docker compose down*)",

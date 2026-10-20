@@ -2,7 +2,7 @@
 import { NextRequest } from "next/server";
 import { describe, expect, it } from "vitest";
 
-import { contentSecurityPolicy, proxy } from "./proxy";
+import { config, contentSecurityPolicy, proxy } from "./proxy";
 
 describe("page gate and security headers", () => {
   it("sends a page request without the refresh cookie to sign-in with next", () => {
@@ -12,6 +12,13 @@ describe("page gate and security headers", () => {
       "http://localhost:3000/login?next=%2Fadmin%2Ftickets%2FTKT-EDU-2026-0001%3Fx%3D1",
     );
     expect(r.headers.get("content-security-policy")).toContain("frame-ancestors 'none'");
+  });
+
+  it("leaves the emblem files under /brand/ out of the gate, so the sign-in page can show them", () => {
+    const gated = new RegExp(`^${config.matcher[0]?.source ?? ""}$`);
+    expect(gated.test("/brand/assam-emblem-lockup.png")).toBe(false);
+    expect(gated.test("/admin/tickets")).toBe(true);
+    expect(gated.test("/branding-notes")).toBe(true);
   });
 
   it("lets the sign-in pages through and sets the headers", () => {

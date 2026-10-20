@@ -1140,3 +1140,6 @@ Choices made where the note is silent, each the smallest reasonable option:
 16. **Round-1 review fixes.** A closing overlay carries `inert` and `pointer-events: none`, its overlay click is
     ignored, and `ConfirmDialog` drops a submit that arrives while closed or busy. The drawer closes when the
     `(min-width: 820px)` query starts to match, which also releases the scroll lock and the focus trap.
+
+### Emblem (20 Oct 2026, on `main` between rounds 2 and 3)
+- The official file the owner supplied is installed (decision 21): the lion capital cut from it is in the header, and the whole emblem is on the sign-in and first-sign-in pages, ahead of round 5. `/brand/` is outside the page gate, and the `web` image copies `public/`. Round 5 keeps `BrandLockup` when it redesigns the public pages.

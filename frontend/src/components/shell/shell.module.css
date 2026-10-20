@@ -45,6 +45,13 @@
   width: auto;
 }
 
+.lockupImage {
+  display: block;
+  height: 96px;
+  width: auto;
+  margin: 0 auto var(--s3);
+}
+
 .brandText {
   display: flex;
   flex-direction: column;

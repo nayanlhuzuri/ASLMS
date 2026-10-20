@@ -388,9 +388,8 @@ describe("header, brand, drawer and bottom bar (portal-ui-redesign, decisions 18
       "GET /alerts/counts": { unread: 2, open: { critical: 0, high: 0, normal: 2 } },
     });
 
-  it("the emblem slot is a marked placeholder hidden from screen readers while BRAND.emblem is null", () => {
-    expect(BRAND.emblem).toBeNull();
-    renderWithClient(<Brand />);
+  it("the emblem slot is a marked placeholder hidden from screen readers while no emblem is set", () => {
+    renderWithClient(<Brand brand={{ emblem: null }} />);
     const slot = screen.getByText("Emblem");
     expect(slot).toHaveAttribute("title", "Place for the official Government of Assam emblem");
     expect(slot).toHaveAttribute("aria-hidden", "true");
@@ -408,10 +407,19 @@ describe("header, brand, drawer and bottom bar (portal-ui-redesign, decisions 18
     expect(screen.queryByText("Emblem")).toBeNull();
   });
 
-  it("nothing under public/brand/ is committed by the build team", () => {
+  it("the configured emblem files are the official ones the owner supplied, present under public/brand/", () => {
     const dir = join(process.cwd(), "public", "brand");
     const files = existsSync(dir) ? readdirSync(dir).filter((f) => f !== ".gitkeep") : [];
-    expect(files).toEqual([]);
+    expect(files.sort()).toEqual(["assam-emblem-lockup.png", "assam-emblem-mark.png"]);
+    expect(BRAND.emblem?.src).toBe("/brand/assam-emblem-mark.png");
+    expect(BRAND.lockup?.src).toBe("/brand/assam-emblem-lockup.png");
+  });
+
+  it("the header shows the official emblem by default", () => {
+    renderWithClient(<Brand />);
+    const img = screen.getByRole("img", { name: "Emblem of the Government of Assam" });
+    expect(img).toHaveAttribute("src", "/brand/assam-emblem-mark.png");
+    expect(img).toHaveAttribute("height", "40");
   });
 
   it("the header shows the brand, the search box, the bell and the avatar menu; no breadcrumb", async () => {

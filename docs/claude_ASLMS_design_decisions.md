@@ -1983,3 +1983,16 @@ Backlog row 102 `portal-ui-inbox-claim`, branch `feature/portal-ui-inbox-claim`;
 - The success notice stays on Case claim, with "Open case page".
 
 **Left for later**: rounds 3 to 5 (rows 103 to 105: case page and calendar, dashboard and work lists, oversight and settings, responsive sweep); round-1 and round-2 review advisories in row 106 and the rows beyond it.
+
+## 2026-10-20 — Government of Assam emblem installed; push permissions applied (on `main`, outside a cycle)
+
+**What changed**
+- The owner supplied the official Government of Assam emblem (350 × 365 PNG, 20 Oct 2026). It is kept unaltered as `frontend/public/brand/assam-emblem-lockup.png`. The lion capital is cut from the same file with no other change, as `assam-emblem-mark.png`, for the 40 px header slot. `frontend/src/lib/brand.ts` names both. The header and drawer show the mark. The sign-in and first-sign-in pages show the full emblem above the portal name (`BrandLockup`), ahead of their round-5 redesign. Nothing is drawn or traced (design portal-ui-redesign, decision 21).
+- Two fixes were needed for the files to be served at all: the page gate in `frontend/src/proxy.ts` leaves `/brand/` out of the matcher, because the sign-in page must show the emblem before anyone signs in, and the `web` image now copies `public/` (`frontend/Dockerfile`). Until now the image had no `public/` folder, because nothing was in it.
+- `.claude/settings.json` gets the entries of design github-and-ci, decision 10 (deviation 1), which the owner approved on 20 Oct 2026:
+  - `allow`: `git push origin main`, `git push origin refs/tags/feature/*`, `gh run list*`, `gh run view*`;
+  - `deny`: `--force`, `-f`, `--force-with-lease` and `--mirror` pushes.
+- **Deviation:** Claude Code checks `ask` before `allow`, so the broad `ask` entry `git push*` would have overridden the two push allows. It is replaced by narrower `ask` entries: `--delete`, `--all`, `--tags`, `origin :…`, `origin +…` and `origin feature/*`. Any other push is unlisted and is still prompted in the default permission mode. The guard hook still refuses the force forms.
+- Tests: `shell.test.tsx`: the header shows the official mark by default, both files are present under `public/brand/`, and the placeholder is still shown when no emblem is set. `proxy.test.ts`: `/brand/` files are outside the gate. Vitest has 710 tests, lint and typecheck are clean, and portal_smoke passed against the rebuilt `web`.
+
+**Left for later**: an SVG or a larger PNG (at least 800 px high) would sharpen the header mark on high-density screens; the owner may supply one, and only the files and the sizes in `brand.ts` change.
