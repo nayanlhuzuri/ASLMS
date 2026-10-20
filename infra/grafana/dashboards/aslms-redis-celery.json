@@ -697,7 +697,7 @@
     },
     {
       "type": "stat",
-      "title": "Since the last queue worker pass",
+      "title": "worker last activity",
       "id": 14,
       "datasource": {
         "type": "prometheus",
@@ -742,7 +742,7 @@
             "uid": "prometheus"
           },
           "refId": "A",
-          "expr": "time() - aslms_worker_last_pass_timestamp",
+          "expr": "time() - aslms_worker_alive_timestamp",
           "legendFormat": "worker",
           "instant": true,
           "range": false

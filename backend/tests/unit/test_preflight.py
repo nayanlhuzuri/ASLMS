@@ -4,10 +4,11 @@ and never prints a value."""
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
 from typer.testing import CliRunner
 
 from aslms.cli.main import app
-from aslms.core.config import Settings
+from aslms.core.config import Settings, get_settings
 from aslms.services import preflight
 
 PG = "pg-0123456789abcdef0123"
@@ -215,3 +216,106 @@ def test_preflight_never_prints_a_monitoring_secret(monkeypatch):
     assert res.exit_code == 1
     assert "GRAFANA_ADMIN_PASSWORD" in res.output and "FLOWER_BASIC_AUTH" in res.output
     assert "grafana-weak" not in res.output and "flower-weak" not in res.output
+
+
+# ------------------------------------------------------------------------------------------------ pre-pilot-hardening
+
+
+@pytest.mark.parametrize("value", ["production", "Prod", "", "staging", "PROD", " prod"])
+def test_unknown_app_env_is_refused_by_settings(value):
+    """Decision 2: exactly dev, test or prod, so a misspelling cannot switch the prod checks off."""
+    with pytest.raises(ValidationError) as exc:
+        Settings(_env_file=None, app_env=value)
+    assert any(err["loc"] == ("app_env",) for err in exc.value.errors())
+
+
+@pytest.mark.parametrize("value", ["dev", "test", "prod"])
+def test_known_app_env_loads(value):
+    assert Settings(_env_file=None, app_env=value).app_env == value
+
+
+def test_preflight_cli_names_app_env_and_exits_1(monkeypatch):
+    def broken():
+        return Settings(_env_file=None, app_env="production", aslms_app_password="app-secret-value-0123")
+
+    monkeypatch.setattr("aslms.cli.ops.get_settings", broken)
+    res = CliRunner().invoke(app, ["ops", "preflight"])
+    assert res.exit_code == 1
+    assert "APP_ENV: must be dev, test or prod" in res.output
+    assert "production" not in res.output and "app-secret-value-0123" not in res.output
+
+
+@pytest.fixture
+def fresh_settings():
+    """Clears the `get_settings` cache around a test that loads the settings from the environment."""
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
+
+
+@pytest.mark.parametrize(
+    "argv", [["ops", "preflight"], ["ops", "preflight", "--component", "backup"], ["ops", "store-check"]]
+)
+def test_unknown_app_env_through_the_real_entry_point(monkeypatch, fresh_settings, argv):
+    """Review finding: nothing patched. The root callback loads the settings before the command runs, so the
+    clean line must come from there; no traceback and no value is printed."""
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("ASLMS_APP_PASSWORD", "app-secret-value-0123")
+    res = CliRunner().invoke(app, argv)
+    assert res.exit_code == 1
+    assert "preflight fatal: APP_ENV: must be dev, test or prod" in res.output
+    assert "production" not in res.output and "app-secret-value-0123" not in res.output
+    assert "Traceback" not in res.output and "literal_error" not in res.output
+    assert res.exception is None or isinstance(res.exception, SystemExit)
+
+
+def test_preflight_cli_reraises_other_settings_errors(monkeypatch):
+    def broken():
+        return Settings(_env_file=None, napix_rate_limit_per_min="not a number")
+
+    monkeypatch.setattr("aslms.cli.ops.get_settings", broken)
+    res = CliRunner().invoke(app, ["ops", "preflight"])
+    assert res.exit_code != 0
+    assert isinstance(res.exception, ValidationError)
+    assert "APP_ENV" not in res.output
+
+
+def test_libpq_floor_is_fatal_at_every_app_env():
+    """Decision 6: a libpq older than 17 stops the start whatever APP_ENV says."""
+    finding = preflight.libpq_floor(160004)
+    assert finding is not None and finding.level == preflight.FATAL and finding.variable == "libpq"
+    assert "160004" in finding.message and "17" in finding.message
+    for is_prod in (False, True):
+        with pytest.raises(preflight.PreflightFailed):
+            preflight.raise_on_errors([finding], is_prod)
+    assert preflight.libpq_floor(170000) is None
+    assert preflight.libpq_floor(180004) is None
+    assert preflight.libpq_floor() is None  # this environment
+
+
+def test_preflight_check_reports_an_old_libpq(monkeypatch):
+    import psycopg
+
+    monkeypatch.setattr(psycopg.pq, "version", lambda: 160004)
+    dev = preflight.check(good(app_env="dev"))
+    assert [(f.level, f.variable) for f in dev] == [(preflight.FATAL, "libpq")]
+    assert preflight.errors(dev) == dev
+    monkeypatch.setattr("aslms.cli.ops.get_settings", lambda: good(app_env="dev"))
+    res = CliRunner().invoke(app, ["ops", "preflight"])
+    assert res.exit_code == 1
+    assert "preflight fatal: libpq:" in res.output
+
+
+def test_errors_stay_prod_only_and_fatal_does_not():
+    error = preflight.Finding(preflight.ERROR, "COOKIE_SECURE", "is false")
+    fatal = preflight.Finding(preflight.FATAL, "libpq", "is old")
+    preflight.raise_on_errors([error], False)
+    with pytest.raises(preflight.PreflightFailed) as exc:
+        preflight.raise_on_errors([error], True)
+    assert exc.value.findings == [error]
+    with pytest.raises(preflight.PreflightFailed) as exc:
+        preflight.raise_on_errors([error, fatal], False)
+    assert exc.value.findings == [fatal]
+    with pytest.raises(preflight.PreflightFailed) as exc:
+        preflight.raise_on_errors([error, fatal], True)
+    assert exc.value.findings == [error, fatal]

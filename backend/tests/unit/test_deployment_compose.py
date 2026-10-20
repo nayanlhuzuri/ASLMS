@@ -99,8 +99,12 @@ def test_compose_redis_password_and_no_persistence():
 def test_compose_init_guards_instead_of_migrating():
     services = _services()
     init = services["init"]["command"]
-    for part in ("ops preflight", "ops db-guard", "seed", "db-roles"):
+    for part in ("ops preflight", "ops store-check", "ops db-guard", "seed", "db-roles"):
         assert part in init
+    # pre-pilot-hardening, decision 3: the store check right after preflight, before the guard
+    assert init.index("ops preflight") < init.index("ops store-check") < init.index("ops db-guard")
+    assert "./data:/data" in services["init"]["volumes"]
+    assert _env(services["init"])["STORAGE_DIR"] == "/data/store"
     assert "alembic upgrade" not in init
     migrate = services["migrate"]
     assert migrate["profiles"] == ["ops"]

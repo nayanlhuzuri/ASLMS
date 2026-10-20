@@ -70,3 +70,65 @@ def test_db_roles_database_failure_exits_1_without_leaking(monkeypatch):
     res = run(monkeypatch, FakeSettings(GOOD))
     assert res.exit_code == 1
     assert GOOD not in res.output
+
+
+def test_set_password_sends_a_verifier_not_the_text(monkeypatch):
+    """Design pre-pilot-hardening, decision 5: the role password is sent as a client-side SCRAM-SHA-256 verifier, with
+    the algorithm named, after SET LOCAL log_statement = 'none'."""
+    import sqlalchemy
+
+    executed: list[object] = []
+    asked: list[tuple[bytes, bytes, bytes]] = []
+    events: list[str] = []
+
+    class FakePgConn:
+        def encrypt_password(self, password, user, algorithm=None):
+            asked.append((password, user, algorithm))
+            return b"SCRAM-SHA-256$4096:fake"
+
+    class FakeCursor:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def execute(self, statement):
+            executed.append(statement)
+
+    class FakeRaw:
+        driver_connection = type("Driver", (), {"pgconn": FakePgConn()})()
+
+        def cursor(self):
+            return FakeCursor()
+
+        def commit(self):
+            events.append("commit")
+
+        def close(self):
+            events.append("close")
+
+    class FakeEngine:
+        def raw_connection(self):
+            return FakeRaw()
+
+        def dispose(self):
+            events.append("dispose")
+
+    monkeypatch.setattr(sqlalchemy, "create_engine", lambda *a, **k: FakeEngine())
+    dbmod._set_password("postgresql+psycopg://owner@localhost/x", "aslms_app", GOOD)
+    assert asked == [(GOOD.encode(), b"aslms_app", b"scram-sha-256")]
+    assert executed[0] == "SET LOCAL log_statement = 'none'"
+    statement = executed[1].as_string(None)
+    assert statement == "ALTER ROLE \"aslms_app\" LOGIN PASSWORD 'SCRAM-SHA-256$4096:fake'"
+    assert GOOD not in statement
+    assert events == ["commit", "close", "dispose"]
+
+
+def test_role_password_statement_quotes_the_verifier():
+    class PgConn:
+        def encrypt_password(self, password, user, algorithm=None):
+            return b"SCRAM-SHA-256$4096:it's"
+
+    statement = dbmod.role_password_statement(PgConn(), "aslms_readonly", GOOD).as_string(None)
+    assert statement == "ALTER ROLE \"aslms_readonly\" LOGIN PASSWORD 'SCRAM-SHA-256$4096:it''s'"

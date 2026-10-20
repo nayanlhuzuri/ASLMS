@@ -4,8 +4,9 @@ One read-only process in the backend image, connected as `aslms_readonly`, that 
 a gauge, computed at most once per `OPS_METRICS_CACHE_SECONDS` (60) and served from the cache in between:
 - the database, in one `READ ONLY` transaction under `SET LOCAL statement_timeout` (`OPS_METRICS_STATEMENT_TIMEOUT_
   SECONDS`, 10): the queue by lane, kind and status and the oldest runnable row per lane; each job's last success,
-  running rows and the oldest running row; the worker's last pass (the latest `queue-run` start: the queue worker's
-  liveness, which Flower cannot see); NAPIX calls of the last hour, the detected window's remaining calls
+  running rows and the oldest running row; the worker's last pass (the latest `queue-run` start) and its liveness
+  (the later of that and the latest row it claimed, `search_rows` excepted: design pre-pilot-hardening, decision 4;
+  Flower cannot see it); NAPIX calls of the last hour, the detected window's remaining calls
   (`services/napix_window.py`) and the master switch as this process sees it; open source failures by kind
   (`data_health.failures`), e-mail notifications by status and the oldest queued (`data_health.mail`), SourceTrace
   documents by status (`sourcetrace_ingest.status`);
@@ -62,7 +63,11 @@ HELP: dict[str, str] = {
     "aslms_job_last_success_timestamp": "start of the latest succeeded or partial job_runs row per job (unix time)",
     "aslms_job_running": "job_runs rows still running per job",
     "aslms_job_running_oldest_seconds": "age of the oldest running job_runs row per job (0: none)",
-    "aslms_worker_last_pass_timestamp": "start of the latest queue-run pass, the queue worker's liveness (0: never)",
+    "aslms_worker_last_pass_timestamp": "start of the latest queue-run pass (0: never)",
+    "aslms_worker_alive_timestamp": (
+        "the queue worker's liveness: the later of the latest queue-run pass start and the latest row it claimed "
+        "(0: never)"
+    ),
     "aslms_napix_calls_last_hour": "NAPIX calls in the last hour by outcome (ok, failed)",
     "aslms_napix_window_remaining": "calls left in the detected NAPIX window (NaN: not known)",
     "aslms_napix_switch_on": "1 when NAPIX_ENABLED is true in this process",
@@ -110,7 +115,7 @@ def collect_database(
 ) -> tuple[list[Sample], dict[str, datetime]]:
     """Every database gauge in one read-only transaction under the statement timeout. Returns the samples and each
     job's last success (the backup gauges fall back to it)."""
-    from aslms.services import data_health, napix_window, sourcetrace_ingest
+    from aslms.services import data_health, napix_window, queue, sourcetrace_ingest
     from aslms.services.job_repair import ALL_SETS
     from aslms.services.reporting_common import with_timeout
 
@@ -180,6 +185,13 @@ def collect_database(
         out.append(Sample("aslms_job_running", {"job": job}, 0))
         out.append(Sample("aslms_job_running_oldest_seconds", {"job": job}, 0))
     out.append(Sample("aslms_worker_last_pass_timestamp", {}, _ts(last_pass)))
+    # design pre-pilot-hardening, decision 4: a long pass claims rows for hours, so liveness is the later of the pass
+    # start and the latest claim; search_rows (LOCAL_KINDS) are claimed by the scheduler and do not count
+    last_claim = session.execute(
+        select(func.max(q.started_at)).where(q.kind.not_in(queue.LOCAL_KINDS))
+    ).scalar()
+    alive = max((t for t in (last_pass, last_claim) if t is not None), default=None)
+    out.append(Sample("aslms_worker_alive_timestamp", {}, _ts(alive)))
 
     # NAPIX: the last hour, the detected window, the switch
     ok_n, failed_n = session.execute(

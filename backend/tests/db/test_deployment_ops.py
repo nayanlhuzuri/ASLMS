@@ -1,13 +1,20 @@
 """Design deployment-checklist, Part A, against the test database: the start-up repair of `job_runs` (decision 18),
 the load counts and the CNR sample (decision 19), the superuser check (decision 5) and the audit row of an explicit
-migration (decision 12)."""
+migration (decision 12); design pre-pilot-hardening: a dump longer than the idle timeout (decision 1) and role
+passwords stored as SCRAM verifiers (decision 5)."""
 
 from __future__ import annotations
 
+import secrets
+import time
 from datetime import UTC, date, datetime, timedelta
+from pathlib import Path
 
+import pytest
 import sqlalchemy as sa
+from sqlalchemy.engine import make_url
 
+from aslms.cli import db as cli_db
 from aslms.domain.cases import CaseParty, CaseStatus, PartyRole
 from aslms.domain.events import AuditLog
 from aslms.domain.ops import (
@@ -20,8 +27,9 @@ from aslms.domain.ops import (
     NapixCallLog,
     SourceFailure,
 )
-from aslms.services import db_guard, load_report
+from aslms.services import backups, db_guard, load_report
 from aslms.services.job_repair import SCHEDULER_JOBS, WORKER_JOBS, repair_interrupted
+from tests.db.conftest import head_revision
 from tests.db.world import add_listing, make_case
 
 START = datetime(2026, 10, 19, 6, 0, tzinfo=UTC)
@@ -191,3 +199,88 @@ def test_audit_system_migrated_row(session):
     assert got.actor_user_id is None and got.actor_name == "ops"
     assert got.before == {"revision": "0018"}
     assert got.after == {"revision": "0019", "backup": "20261019-0630-pre-migrate"}
+
+
+# ------------------------------------------------------------------------------------------------ pre-pilot-hardening
+
+
+def _with_options(url: str, options: str) -> str:
+    return make_url(url).update_query_dict({"options": options}).render_as_string(hide_password=False)
+
+
+def test_dump_survives_a_pg_dump_longer_than_the_idle_timeout(migrated, tmp_path, monkeypatch):
+    """Decision 1: the exporting transaction sits idle while pg_dump runs; it turns off its own idle timeout, so a
+    dump longer than idle_in_transaction_session_timeout no longer has its snapshot session killed."""
+    url = _with_options(migrated, "-c idle_in_transaction_session_timeout=1000")
+    # the server does enforce the 1 s timeout on this URL: an idle transaction without the fix is ended
+    control = sa.create_engine(url, poolclass=sa.pool.NullPool)
+    try:
+        with pytest.raises(sa.exc.DBAPIError):
+            with control.connect() as conn, conn.begin():
+                conn.execute(sa.text("SELECT 1"))
+                time.sleep(2)
+                conn.execute(sa.text("SELECT 1"))
+    finally:
+        control.dispose()
+
+    calls: list[str] = []
+
+    def fake_tool(args, target, *, database=None, what):
+        calls.append(what)
+        if args[0] == "pg_dump" and "-f" in args:
+            time.sleep(2)  # longer than the 1 s timeout
+            Path(args[args.index("-f") + 1]).write_bytes(b"PGDMP fake dump")
+        elif args[0] == "pg_dumpall":
+            Path(args[args.index("-f") + 1]).write_text("-- roles", encoding="utf-8")
+        elif args[:2] == ["pg_dump", "--version"]:
+            return "pg_dump (PostgreSQL) 16.15"
+        return ""
+
+    monkeypatch.setattr(backups, "_tool", fake_tool)
+    manifest = backups.dump(url, tmp_path, tag="idle-check")
+    assert calls == ["pg_dump", "pg_dumpall", "pg_dump --version", "pg_restore --list"]
+    assert manifest.dump_bytes == len(b"PGDMP fake dump")
+    assert manifest.revision == head_revision()
+    assert (tmp_path / "db" / f"aslms-{manifest.name}.dump").exists()
+
+
+def test_role_password_is_stored_as_scram_and_logs_in(migrated, engine):
+    """Decision 5: the password is sent as a client-side SCRAM-SHA-256 verifier; the role logs in with it."""
+    role = f"aslms_pwcheck_{secrets.token_hex(4)}"
+    password = f"pw-{secrets.token_hex(12)}"
+    database = make_url(migrated).database
+    with engine.begin() as conn:
+        conn.execute(sa.text(f'CREATE ROLE "{role}" LOGIN'))
+        conn.execute(sa.text(f'GRANT CONNECT ON DATABASE "{database}" TO "{role}"'))
+    try:
+        cli_db._set_password(migrated, role, password)
+        with engine.connect() as conn:
+            stored = conn.execute(
+                sa.text("SELECT rolpassword FROM pg_authid WHERE rolname = :r"), {"r": role}
+            ).scalar()
+        assert stored.startswith("SCRAM-SHA-256$")
+        as_role = make_url(migrated).set(username=role, password=password)
+        ok = sa.create_engine(as_role, poolclass=sa.pool.NullPool)
+        try:
+            with ok.connect() as conn:
+                assert conn.execute(sa.text("SELECT current_user")).scalar() == role
+        finally:
+            ok.dispose()
+        wrong = sa.create_engine(as_role.set(password=password + "x"), poolclass=sa.pool.NullPool)
+        try:
+            with pytest.raises(sa.exc.OperationalError):
+                with wrong.connect():
+                    pass
+        finally:
+            wrong.dispose()
+        raw = engine.raw_connection()
+        try:
+            pgconn = raw.driver_connection
+            statement = cli_db.role_password_statement(pgconn.pgconn, role, password).as_string(pgconn)
+        finally:
+            raw.close()
+        assert password not in statement and "SCRAM-SHA-256$" in statement
+    finally:
+        with engine.begin() as conn:
+            conn.execute(sa.text(f'REVOKE CONNECT ON DATABASE "{database}" FROM "{role}"'))
+            conn.execute(sa.text(f'DROP ROLE IF EXISTS "{role}"'))

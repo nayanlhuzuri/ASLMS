@@ -219,6 +219,9 @@ def dump(
     try:
         # the counts, the revision and pg_dump share one snapshot (pg_dump --snapshot while this transaction is open)
         with engine.connect().execution_options(isolation_level="REPEATABLE READ") as conn, conn.begin():
+            # design pre-pilot-hardening, decision 1: this session sits idle in transaction while pg_dump runs, so it
+            # turns off the server's idle_in_transaction_session_timeout for this transaction only
+            conn.execute(text("SET LOCAL idle_in_transaction_session_timeout = 0"))
             snapshot = conn.execute(text("SELECT pg_export_snapshot()")).scalar()
             revision = _revision(conn)
             counts = _counts(conn)

@@ -58,10 +58,23 @@ def validate_role_password(value: str | None) -> str | None:
     return None
 
 
-def _set_password(url: str, role: str, password: str) -> None:
-    """`ALTER ROLE <role> LOGIN PASSWORD <literal>` as the owner, under `SET LOCAL log_statement = 'none'`; the literal is
-    quoted by psycopg, never by hand."""
+def role_password_statement(pgconn, role: str, password: str):
+    """`ALTER ROLE <role> LOGIN PASSWORD '<SCRAM-SHA-256$...>'` (design pre-pilot-hardening, decision 5): a
+    SCRAM-SHA-256 verifier computed on the client by libpq (`PQencryptPasswordConn`, the function psql's
+    password command uses); the plain text never leaves the process. The algorithm is named, never taken from the server's
+    `password_encryption`. The literal is quoted by psycopg, never by hand."""
     from psycopg import sql
+
+    verifier = pgconn.encrypt_password(password.encode(), role.encode(), b"scram-sha-256")
+    if isinstance(verifier, bytes):
+        verifier = verifier.decode("ascii")
+    return sql.SQL("ALTER ROLE {} LOGIN PASSWORD {}").format(sql.Identifier(role), sql.Literal(verifier))
+
+
+def _set_password(url: str, role: str, password: str) -> None:
+    """Sets the role's password as the owner: a SCRAM-SHA-256 verifier computed on the client (the plain text never
+    leaves the process), sent under `SET LOCAL log_statement = 'none'` (defence in depth: the verifier is still
+    sensitive offline)."""
     from sqlalchemy import create_engine
     from sqlalchemy.pool import NullPool
 
@@ -69,14 +82,11 @@ def _set_password(url: str, role: str, password: str) -> None:
     try:
         raw = engine.raw_connection()
         try:
+            pgconn = raw.driver_connection.pgconn
             with raw.cursor() as cur:
                 # the statement never reaches the server log (design deployment-checklist, decision 12)
                 cur.execute("SET LOCAL log_statement = 'none'")
-                cur.execute(
-                    sql.SQL("ALTER ROLE {} LOGIN PASSWORD {}").format(
-                        sql.Identifier(role), sql.Literal(password)
-                    )
-                )
+                cur.execute(role_password_statement(pgconn, role, password))
             raw.commit()
         finally:
             raw.close()
@@ -88,7 +98,8 @@ def db_roles() -> None:
     """Set the `aslms_app` password (required) and the `aslms_readonly` password (when set) from the environment, as
     the database owner (`ASLMS_MIGRATE_URL`, else `DATABASE_URL_SYNC`). Idempotent; run by the Compose `init` step on
     every start, so a rotated password reaches the database. Refuses (exit 1) an empty, short, badly formed or
-    default `ASLMS_APP_PASSWORD`. The values are never printed or logged; no audit row (a deployment step)."""
+    default `ASLMS_APP_PASSWORD`. Each password is sent as a SCRAM-SHA-256 verifier computed on the client; the plain
+    text never leaves the process. The values are never printed or logged; no audit row (a deployment step)."""
     from aslms.core.config import get_settings
 
     settings = get_settings()
@@ -112,6 +123,6 @@ def db_roles() -> None:
             rprint("[green]aslms_readonly password set[/green]")
         else:
             rprint("[yellow]ASLMS_READONLY_PASSWORD is blank: aslms_readonly left as it is[/yellow]")
-    except Exception as exc:  # noqa: BLE001 — the message never carries the password (psycopg sends it as data)
+    except Exception as exc:  # noqa: BLE001 — the message names only the exception class, never a password
         rprint(f"[red]db-roles: could not set the role password ({exc.__class__.__name__})[/red]")
         raise typer.Exit(1) from None

@@ -128,7 +128,7 @@ services:
 
   pgbouncer:
     # connection pooling for api, worker and scheduler (design deployment-checklist, Part C, decision 29): PgBouncer
-    # 1.21+ from infra/pgbouncer, transaction mode, prepared statements tracked (max_prepared_statements, for
+    # 1.22+ (pinned exactly) from infra/pgbouncer, transaction mode, prepared statements tracked (max_prepared_statements, for
     # psycopg 3), on 6432 inside the Compose network only. The entrypoint writes pgbouncer.ini, the HBA file and a
     # mode-600 userlist.txt into the tmpfs at start: aslms_app may reach the database, aslms_readonly only the
     # `pgbouncer` console (SHOW, for the exporter); nobody is an admin. It starts after init, so a changed role
@@ -150,11 +150,15 @@ services:
         condition: service_healthy
       init:
         condition: service_completed_successfully
+    # the healthcheck logs in through the pool as aslms_app and runs SELECT 1 (design pre-pilot-hardening, decision
+    # 8): "healthy" means the application can log in. The script reads the password from the container's
+    # environment; nothing is interpolated here.
     healthcheck:
-      test: ["CMD", "nc", "-z", "127.0.0.1", "6432"]
+      test: ["CMD", "/bin/sh", "/usr/local/bin/pgbouncer-healthcheck.sh"]
       interval: 5s
       timeout: 5s
       retries: 20
+      start_period: 10s
     <<: *hardening
     logging: *logging
 
@@ -178,8 +182,10 @@ services:
     logging: *logging
 
   init:
-    # preflight (refuses weak or missing settings when APP_ENV=prod), the migration guard (migrates only a fresh
-    # database; exits 3 when an upgrade is needed), the role passwords and the seed, as the cluster owner
+    # preflight (refuses weak or missing settings when APP_ENV=prod; an unknown APP_ENV or a libpq older than 17 at
+    # every APP_ENV), the document-store check (the store and its folders writable by uid 10001; design
+    # pre-pilot-hardening, decision 3), the migration guard (migrates only a fresh database; exits 3 when an upgrade
+    # is needed), the role passwords (sent as SCRAM verifiers) and the seed, as the cluster owner
     build: ./backend
     env_file:
       - path: .env
@@ -197,10 +203,13 @@ services:
       GRAFANA_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in .env}
       FLOWER_BASIC_AUTH: ${FLOWER_BASIC_AUTH:?set FLOWER_BASIC_AUTH in .env}
       COMPOSE_PROFILES: ${COMPOSE_PROFILES:-}
+      STORAGE_DIR: /data/store
+    volumes:
+      - ./data:/data
     depends_on:
       postgres:
         condition: service_healthy
-    command: sh -c "aslms ops preflight && aslms ops db-guard && aslms db-roles && aslms seed"
+    command: sh -c "aslms ops preflight && aslms ops store-check && aslms ops db-guard && aslms db-roles && aslms seed"
     restart: "no"
     <<: *hardening
     logging: *logging

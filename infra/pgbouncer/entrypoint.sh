@@ -79,7 +79,7 @@ stats_users = aslms_readonly
 pool_mode = transaction
 max_client_conn = $MAX_CLIENT_CONN
 default_pool_size = $DEFAULT_POOL_SIZE
-; psycopg 3 prepares statements at the protocol level; PgBouncer 1.21+ tracks them per server connection
+; psycopg 3 prepares statements at the protocol level; PgBouncer 1.22+ tracks them per server connection
 max_prepared_statements = $MAX_PREPARED_STATEMENTS
 server_reset_query =
 

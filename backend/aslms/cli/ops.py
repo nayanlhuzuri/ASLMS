@@ -1,7 +1,7 @@
 """`aslms ops`: deployment and operations commands (design deployment-checklist, Part A).
 
-`preflight`, `db-guard`, `role-passwords`, `migrate`, `backup`, `backup-scheduler`, `backup-status`, `restore-check`,
-`restore`, `repair-jobs`, `load-report`, `sample-cnrs`, `make-cert` and, from Part B, `metrics` (the operations
+`preflight`, `store-check` (design pre-pilot-hardening), `db-guard`, `role-passwords`, `migrate`, `backup`,
+`backup-scheduler`, `backup-status`, `restore-check`, `restore`, `repair-jobs`, `load-report`, `sample-cnrs`, `make-cert` and, from Part B, `metrics` (the operations
 exporter). None calls NAPIX; none prints a secret."""
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from pathlib import Path
 import typer
 from rich import print as rprint
 
-from aslms.core.config import get_settings
+from aslms.core.config import APP_ENV_FATAL, get_settings, is_app_env_error
 
 ops_app = typer.Typer(
     no_args_is_help=True, help="Deployment and operations: preflight, migrations, backups, checks"
@@ -37,10 +37,19 @@ def preflight_cmd(
     component: str = typer.Option("init", "--component", help="init | migrate | backup"),
 ) -> None:
     """Check the settings (decision 3). With APP_ENV=prod an error stops the start (exit 1); otherwise every finding
-    is a warning. Names the variables, never their values."""
+    is a warning. A fatal finding (an unknown APP_ENV, a libpq older than 17) stops the start at every APP_ENV
+    (design pre-pilot-hardening, decisions 2 and 6). Names the variables, never their values."""
+    from pydantic import ValidationError
+
     from aslms.services import preflight
 
-    settings = get_settings()
+    try:
+        settings = get_settings()
+    except ValidationError as exc:
+        if is_app_env_error(exc):
+            rprint(f"[red]{APP_ENV_FATAL}[/red]")
+            raise typer.Exit(1) from None
+        raise
     findings = preflight.check(settings, component)
     if settings.aslms_superadmin_password and settings.aslms_superadmin_password.get_secret_value():
         try:
@@ -53,7 +62,7 @@ def preflight_cmd(
         except Exception:  # noqa: BLE001 — a fresh or unreachable database: the warning does not apply yet
             pass
     for f in findings:
-        colour = "red" if f.level == preflight.ERROR else "yellow"
+        colour = "red" if f.level in (preflight.FATAL, preflight.ERROR) else "yellow"
         rprint(f"[{colour}]preflight {f.line()}[/{colour}]")
     try:
         preflight.raise_on_errors(findings, settings.is_prod)
@@ -61,6 +70,26 @@ def preflight_cmd(
         rprint(f"[red]preflight refused the start: {exc}[/red]")
         raise typer.Exit(1) from None
     rprint(f"[green]preflight passed (APP_ENV={settings.app_env}, {len(findings)} warning(s))[/green]")
+
+
+@ops_app.command("store-check")
+def store_check_cmd() -> None:
+    """Check that this process (uid 10001 in the image) can write the document store, STORAGE_DIR, and every
+    first-level folder in it (design pre-pilot-hardening, decision 3). Creates a missing store. Exit 1 at every
+    APP_ENV when a folder is not writable, with the two remedies."""
+    from aslms.services import store_check
+
+    result = store_check.check(get_settings().storage_dir)
+    if result.ok:
+        rprint(f"[green]store-check: {result.root} writable ({result.folders_checked} folders)[/green]")
+        return
+    rprint(
+        f"[red]store-check: {len(result.failed)} folder(s) of {result.root} are not writable by this process; "
+        f"the first is {result.failed[0]}[/red]"
+    )
+    for line in store_check.remedy_lines():
+        typer.echo(line)
+    raise typer.Exit(1)
 
 
 # ------------------------------------------------------------------------------------------------ migrations

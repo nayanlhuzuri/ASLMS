@@ -1869,3 +1869,28 @@ Backlog row 78 (split from row 16), design `docs/design/deployment-checklist.md`
 
 
 - 2026-10-20 — pre-pilot-hardening: approved by the owner (backup dump exempt from the idle timeout, APP_ENV limited to dev/test/prod, store-check in init, worker liveness from the latest claimed row, role passwords as SCRAM verifiers, libpq 17+ floor, PgBouncer pinned with a login healthcheck, statement-based session-feature scan; docs/design/pre-pilot-hardening.md)
+
+## Pre-pilot hardening (2026-10-20)
+Backlog row 94 (rows 81, 90, 91, 92 and 93 in full; row 86 items 1, 5 and 9; row 88 item 1), design `docs/design/pre-pilot-hardening.md` (approved by the owner 20 Oct 2026), branch `feature/pre-pilot-hardening`, in review. No migration, table, endpoint, permission or audit action. Runbook: `docs/operations.md` sections 3, 4, 6, 17 and 18.
+
+**Built**
+- Backups: `backups.dump()` runs `SET LOCAL idle_in_transaction_session_timeout = 0` first in its REPEATABLE READ transaction, so a `pg_dump` longer than the server's 15-minute idle limit no longer has its snapshot session killed; every other session keeps the limit.
+- `APP_ENV` is `Literal["dev", "test", "prod"]`: `production`, `Prod` or empty stop every process when the settings load. `aslms ops preflight` prints `preflight fatal: APP_ENV: must be dev, test or prod` and exits 1. Preflight has a third level, `fatal`, that stops the start at every `APP_ENV`.
+- `aslms ops store-check` (`services/store_check.py`), run by `init` right after preflight with `./data:/data` mounted: creates a missing `/data/store`, makes a real write probe in the store and each first-level folder, and on failure exits 1 with the Linux `chown` and the Docker Desktop `chmod` remedies and a pointer to `docs/operations.md` section 6.
+- Worker liveness: gauge `aslms_worker_alive_timestamp` = the later of the latest `queue-run` pass start and the latest `fetch_queue` claim (not `search_rows`, which the scheduler claims). `WorkerStalled` and the two dashboard panels ("worker last activity") use it; `aslms_worker_last_pass_timestamp` stays.
+- `aslms db-roles` sends a client-side SCRAM-SHA-256 verifier (`pgconn.encrypt_password(..., b"scram-sha-256")`, built by `role_password_statement`), still under `SET LOCAL log_statement = 'none'`; the plain text never leaves the process.
+- Preflight finding `libpq_floor()`: libpq older than 17 is fatal (PgBouncer transaction pooling with protocol-level prepared statements); a unit test asserts the floor in the test environment.
+- PgBouncer pinned to `pgbouncer=1.25.1-r0` with `postgresql16-client=16.15-r0`; the healthcheck `infra/pgbouncer/healthcheck.sh` logs in through the pool as `aslms_app` and runs `SELECT 1` (password only as `PGPASSWORD` from the container's environment), with `start_period: 10s`.
+- The session-feature scan in `test_pgbouncer.py` reads SQL statements: every string constant except docstrings (f-strings joined with `{}`), split on `;`, comments and `(` stripped, flagged on a session `SET` (including `SET TIME ZONE` and indented `SET` in triple-quoted SQL), `RESET`, `DISCARD`, SQL `PREPARE` / `DEALLOCATE`, `LISTEN` / `UNLISTEN`; any case in a direct `text()` / `.execute()` / `.exec_driver_sql()` / `sql.SQL()` argument, upper case elsewhere. Advisory session locks, temporary tables, `set_config(..., false)` and `WITH HOLD` stay line-based. The package passes.
+
+**Decisions and reasons**
+- Refusing an unknown `APP_ENV` at load, not only in preflight: a process started by hand would otherwise read `production` as "not prod" and skip `refuse_superuser`.
+- The idle timeout is lifted for the exporting transaction only (`SET LOCAL`), not by role or server setting, so the guard stays for the application, `init` and `migrate`.
+- Liveness from the claim time that `queue.claim` already writes: no heartbeat column, no migration, no change to the worker.
+- SCRAM computed by libpq (the reference implementation) with the algorithm named, so a server `password_encryption = md5` cannot weaken it.
+
+**Deviations from the design note**: listed in its "Deviations". In short: `init` also gets `STORAGE_DIR: /data/store`; the unknown-`APP_ENV` line says `preflight fatal:` as in the Services section; store-check re-raises an `OSError` that is not a permission error; a comment in the generated `pgbouncer.ini` says 1.22+.
+
+**Verified**: full suite `1509 passed, 2 skipped` (20 minutes); `promtool check rules` and `promtool test rules` pass; the dump test fails without the `SET LOCAL` (the server ends the idle session) and passes with it; `apk policy` on `alpine:3.23.3` lists `pgbouncer 1.25.1-r0` and `postgresql16-client 16.15-r0`.
+
+**Left for later**: the integrator's Compose verification (image build with the pins, the healthy login healthcheck, store-check on the dev store, the SCRAM verifiers in `pg_authid`, the alive gauge during the load); the other items of rows 86 and 88; row 80 (migrations as `aslms_owner`); the owner-run checks (rows 85, 87, 89).

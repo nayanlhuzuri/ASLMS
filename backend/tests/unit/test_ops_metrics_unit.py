@@ -199,3 +199,10 @@ def test_every_gauge_has_help():
     text = om.render(collector)
     assert "# HELP aslms_probe_up 1 when the target's health page answers 2xx" in text
     assert "# TYPE aslms_probe_up gauge" in text
+
+
+def test_worker_alive_gauge_has_help():
+    """Design pre-pilot-hardening, decision 4: liveness is its own gauge; the last pass is no longer called it."""
+    assert "liveness" in om.HELP["aslms_worker_alive_timestamp"]
+    assert "claimed" in om.HELP["aslms_worker_alive_timestamp"]
+    assert "liveness" not in om.HELP["aslms_worker_last_pass_timestamp"]

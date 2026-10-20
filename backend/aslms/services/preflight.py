@@ -17,6 +17,10 @@ With `APP_ENV=prod` every rule below is an error; with `dev` or `test` each is a
 Without `OPS_ALERT_EMAIL` or `SMTP_HOST` the monitoring alerts are shown in Grafana and Alertmanager only: always a
 warning (decision 25). A super admin password still set after the super admin exists is always a warning (`superadmin_password_left`).
 
+Two rules are fatal at every `APP_ENV` (design pre-pilot-hardening, decisions 2 and 6): an `APP_ENV` other than `dev`,
+`test` or `prod` (refused when the settings load; `aslms ops preflight` reports it by name), and a libpq older than 17
+(`libpq_floor`: PgBouncer transaction pooling with protocol-level prepared statements needs it; a build defect).
+
 A finding names the variable and the rule; it never carries a value."""
 
 from __future__ import annotations
@@ -26,8 +30,10 @@ from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse
 
+FATAL = "fatal"
 ERROR = "error"
 WARNING = "warning"
+LIBPQ_MIN = 170000
 JWT_MIN = 32
 PASSWORD_MIN = 16
 KNOWN_DEFAULTS = frozenset(
@@ -39,7 +45,7 @@ URL_SAFE_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
 @dataclass(frozen=True)
 class Finding:
-    level: str  # error | warning
+    level: str  # fatal | error | warning
     variable: str
     message: str
 
@@ -172,7 +178,7 @@ def _mail_rule(settings: Any) -> tuple[str, str] | None:
 
 def check(settings: Any, component: str = "init") -> list[Finding]:
     """Every rule of decision 3. `component` names the caller (`init`, `migrate`, `backup`); every component checks the
-    same rules. Errors only when `APP_ENV=prod`; warnings otherwise."""
+    same rules. Errors only when `APP_ENV=prod`; warnings otherwise; the libpq floor is fatal everywhere."""
     del component  # one rule set for every component
     level = ERROR if getattr(settings, "app_env", "dev") == "prod" else WARNING
     raw: list[tuple[str, str]] = []
@@ -197,7 +203,28 @@ def check(settings: Any, component: str = "init") -> list[Finding]:
     warning = alert_mail_warning(settings)
     if warning:
         findings.append(warning)
+    floor = libpq_floor()
+    if floor:
+        findings.append(floor)
     return findings
+
+
+def libpq_floor(version: int | None = None) -> Finding | None:
+    """Decision 6: a fatal finding when libpq is older than 17. psycopg closes prepared statements with the protocol
+    message `Close` (tracked by PgBouncer) only on libpq 17+; older ones send SQL `DEALLOCATE`, which PgBouncer does not
+    track in transaction mode. Fatal at every `APP_ENV`: `api`, `worker` and `scheduler` always go through PgBouncer."""
+    if version is None:
+        import psycopg
+
+        version = psycopg.pq.version()
+    if version >= LIBPQ_MIN:
+        return None
+    return Finding(
+        FATAL,
+        "libpq",
+        f"version {version} is older than 17; PgBouncer transaction pooling with prepared statements needs libpq "
+        "17 or later — rebuild the image",
+    )
 
 
 def superadmin_password_left(session: Any, settings: Any) -> Finding | None:
@@ -215,11 +242,13 @@ def superadmin_password_left(session: Any, settings: Any) -> Finding | None:
 
 
 def errors(findings: list[Finding]) -> list[Finding]:
-    return [f for f in findings if f.level == ERROR]
+    """The findings that can stop the start: fatal ones and errors."""
+    return [f for f in findings if f.level in (FATAL, ERROR)]
 
 
 def raise_on_errors(findings: list[Finding], is_prod: bool) -> None:
-    """Raises `PreflightFailed` with the error findings; outside prod there are none (every rule is a warning)."""
-    bad = errors(findings) if is_prod else []
+    """Raises `PreflightFailed` with every fatal finding (at every `APP_ENV`) and, when `is_prod`, the errors too
+    (outside prod the rules are warnings)."""
+    bad = [f for f in findings if f.level == FATAL or (is_prod and f.level == ERROR)]
     if bad:
         raise PreflightFailed(bad)

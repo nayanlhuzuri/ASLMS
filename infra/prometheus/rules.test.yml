@@ -230,7 +230,8 @@ tests:
   # ---------------------------------------------------------------------------------------------- work
   - interval: 1m
     input_series:
-      - series: "aslms_worker_last_pass_timestamp"
+      # no activity for hours with work waiting
+      - series: "aslms_worker_alive_timestamp"
         values: "-10000x10"
       - series: 'aslms_queue_oldest_pending_seconds{lane="load"}'
         values: "3600x10"
@@ -245,13 +246,13 @@ tests:
         exp_alerts:
           - exp_labels: { severity: critical }
             exp_annotations:
-              summary: "no queue worker pass for 2 hours while the queue has runnable rows"
+              summary: "no queue worker activity for 2 hours while the queue has runnable rows"
               runbook: "docs/operations.md section 17, WorkerStalled"
 
   - interval: 1m
     input_series:
-      # an old pass but nothing runnable: the worker has nothing to do
-      - series: "aslms_worker_last_pass_timestamp"
+      # old activity but nothing runnable: the worker has nothing to do
+      - series: "aslms_worker_alive_timestamp"
         values: "-10000x10"
       - series: 'aslms_queue_oldest_pending_seconds{lane="load"}'
         values: "0x10"
@@ -262,8 +263,23 @@ tests:
 
   - interval: 1m
     input_series:
-      # a recent pass with work waiting
+      # a long load pass (pre-pilot-hardening, decision 4): the pass started hours ago, but the worker claimed a row
+      # recently, so it is alive
       - series: "aslms_worker_last_pass_timestamp"
+        values: "-10000x10"
+      - series: "aslms_worker_alive_timestamp"
+        values: "0+60x10"
+      - series: 'aslms_queue_oldest_pending_seconds{lane="load"}'
+        values: "3600x10"
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: WorkerStalled
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      # recent activity with work waiting
+      - series: "aslms_worker_alive_timestamp"
         values: "0x10"
       - series: 'aslms_queue_oldest_pending_seconds{lane="load"}'
         values: "3600x10"

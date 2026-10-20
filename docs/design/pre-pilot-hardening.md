@@ -411,3 +411,33 @@ The integrator, on the dev Compose stack (`NAPIX_ENABLED` untouched):
 
 ## Open questions
 None.
+
+## Deviations
+Made while building (developer, 20 Oct 2026); none changes a business rule, a table or an API field.
+
+1. **`init` gets `STORAGE_DIR: /data/store`** in its environment as well as the `./data:/data` mount. The design names
+   only the mount, but without the variable `init` reads the settings default `data/store` (relative to `/app`) and
+   would check the wrong folder. `api`, `worker` and `scheduler` already set it the same way.
+2. **The preflight message for an unknown `APP_ENV` is `preflight fatal: APP_ENV: must be dev, test or prod`**, as in
+   the Services section; decision 2's text says `preflight error:`. The tests check only
+   `APP_ENV: must be dev, test or prod` and exit 1.
+3. **`store_check.check` reports `PermissionError` (and `EACCES`, `EPERM`, `EROFS`) as an unwritable folder; any other
+   `OSError` (a full disk, for example) is raised**, so `init` still exits non-zero with the real cause instead of the
+   chown remedy. `failed` holds full paths, so the message names the folder (for example `/data/store/zz`).
+4. **`infra/pgbouncer/entrypoint.sh`**: the comment in the generated `pgbouncer.ini` now says 1.22+ like the Dockerfile
+   and `compose.yml` (comment only).
+5. **Runbook section 3, step 2** also says that `APP_ENV` must be exactly `prod` (anything else stops every service),
+   next to the `.env.example` comment of the design.
+6. **Tests beyond the list**: `test_preflight_cli_reraises_other_settings_errors`, `test_preflight_check_reports_an_old_libpq`,
+   `test_other_os_errors_are_not_hidden`, `test_symlinks_are_not_followed` (skipped where symbolic links are not
+   available), `test_cli_store_check_passes_on_a_writable_store`, `test_role_password_statement_quotes_the_verifier`,
+   `test_worker_alive_without_a_pass_reads_the_claim_or_zero`, a `promtool` case for a long pass with recent claims,
+   and scanner samples for `/* */` comments, `sql.SQL("reset all")`, `exec_driver_sql("listen x")` and
+   `func.pg_advisory_lock(42)`. The dump test first proves that the server enforces the 1-second timeout on its URL.
+7. **The unknown-`APP_ENV` line also comes from the root `aslms` callback** (review fix). The callback configures
+   logging, which loads the settings before any command runs, so `aslms ops preflight` never reached its own handler.
+   The callback now catches the same `ValidationError` and prints the same line, `preflight fatal: APP_ENV: must be
+   dev, test or prod`, with exit 1, for every `aslms` command (so `init`, `migrate` and `backup` stop the same way);
+   any other settings error is still raised. The check is shared as `config.is_app_env_error` and the line as
+   `config.APP_ENV_FATAL`. `test_unknown_app_env_through_the_real_entry_point` sets `APP_ENV=production` in the
+   environment, clears the `get_settings` cache and invokes the main app with nothing patched.

@@ -6,6 +6,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 import typer
+from pydantic import ValidationError
 from rich import print as rprint
 
 from aslms import __version__
@@ -37,6 +38,7 @@ from aslms.cli.pipeline import (
 from aslms.cli.reports import reports_app
 from aslms.cli.sourcetrace import sourcetrace_app
 from aslms.cli.users import access_app, users_app
+from aslms.core.config import APP_ENV_FATAL, is_app_env_error
 from aslms.core.logging import configure_logging
 
 app = typer.Typer(no_args_is_help=True, help="ASLMS v2 backend commands")
@@ -75,7 +77,15 @@ app.add_typer(ops_app, name="ops")
 
 @app.callback()
 def _init() -> None:
-    configure_logging()
+    # the settings load here first, before any command, so an unknown APP_ENV is reported here with the same line
+    # as `aslms ops preflight` (design pre-pilot-hardening, decision 2), never as a traceback echoing the value
+    try:
+        configure_logging()
+    except ValidationError as exc:
+        if is_app_env_error(exc):
+            rprint(f"[red]{APP_ENV_FATAL}[/red]")
+            raise typer.Exit(1) from None
+        raise
 
 
 def parse_cli_date(s: str | None) -> date | None:

@@ -92,13 +92,15 @@ groups:
   - name: aslms-work
     rules:
       - alert: WorkerStalled
-        # the queue worker starts a `queue-run` pass at least every hour, even while it waits for the NAPIX window
-        expr: (time() - aslms_worker_last_pass_timestamp > 7200) and on() (max(aslms_queue_oldest_pending_seconds) > 0)
+        # liveness is the later of the latest `queue-run` pass start and the latest row the worker claimed (design
+        # pre-pilot-hardening, decision 4): a long load pass claims rows for hours, and a pass starts at least every
+        # hour even while the worker waits for the NAPIX window
+        expr: (time() - aslms_worker_alive_timestamp > 7200) and on() (max(aslms_queue_oldest_pending_seconds) > 0)
         for: 5m
         labels:
           severity: critical
         annotations:
-          summary: "no queue worker pass for 2 hours while the queue has runnable rows"
+          summary: "no queue worker activity for 2 hours while the queue has runnable rows"
           runbook: "docs/operations.md section 17, WorkerStalled"
 
       - alert: JobStuck

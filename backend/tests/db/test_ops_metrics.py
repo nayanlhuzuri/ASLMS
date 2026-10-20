@@ -7,6 +7,7 @@ from __future__ import annotations
 from contextlib import nullcontext
 from datetime import UTC, datetime, timedelta
 
+import pytest
 import sqlalchemy as sa
 from prometheus_client.parser import text_string_to_metric_families
 
@@ -23,6 +24,7 @@ from aslms.domain.ops import (
 )
 from aslms.services import ops_metrics
 from aslms.services.seed import seed_all
+from tests.db.conftest import wipe
 from tests.db.world import make_case
 
 SETTINGS = Settings(_env_file=None, app_env="test", redis_url=None)
@@ -33,6 +35,7 @@ DB_GAUGES = {
     "aslms_job_running",
     "aslms_job_running_oldest_seconds",
     "aslms_worker_last_pass_timestamp",
+    "aslms_worker_alive_timestamp",
     "aslms_napix_calls_last_hour",
     "aslms_napix_window_remaining",
     "aslms_napix_switch_on",
@@ -115,3 +118,69 @@ def test_ops_metrics_exposes_gauges(session):
     for s in samples:
         for value in s.labels.values():
             assert case.cnr not in value and case.case_no_text not in value, (s.name, s.labels)
+
+
+# ------------------------------------------------------------------------------------------------ pre-pilot-hardening
+
+
+def _worker_gauges(session, rows, now):
+    wipe(session)
+    session.add_all(rows)
+    session.flush()
+    session.execute(sa.text("SET LOCAL ROLE aslms_readonly"))
+    samples, _ = ops_metrics.collect_database(session, SETTINGS, now)
+    by_name = {s.name: s.value for s in samples if not s.labels}
+    return by_name["aslms_worker_last_pass_timestamp"], by_name["aslms_worker_alive_timestamp"]
+
+
+def _claimed(kind: FetchKind, ref: str, at: datetime) -> FetchQueueItem:
+    return FetchQueueItem(
+        kind=kind,
+        ref=ref,
+        status=FetchStatus.RUNNING,
+        lane=FetchLane.LOAD,
+        priority=50,
+        attempts=1,
+        started_at=at,
+    )
+
+
+def test_worker_alive_is_the_later_of_pass_start_and_claim(session):
+    """Decision 4: a long load pass started hours ago, but the worker claimed a row a minute ago: it is alive."""
+    now = datetime.now(UTC)
+    pass_at = now - timedelta(hours=3)
+    claim_at = now - timedelta(minutes=1)
+    last_pass, alive = _worker_gauges(
+        session,
+        [
+            JobRun(job="queue-run", started_at=pass_at),
+            _claimed(FetchKind.CAUSELIST_DAY, "2026-10-19", claim_at),
+        ],
+        now,
+    )
+    assert last_pass == pytest.approx(pass_at.timestamp(), abs=1)
+    assert alive == pytest.approx(claim_at.timestamp(), abs=1)
+
+
+def test_search_rows_claims_do_not_count_as_worker_activity(session):
+    """The scheduler claims search_rows (queue.LOCAL_KINDS): a live scheduler must not hide a dead worker."""
+    now = datetime.now(UTC)
+    pass_at = now - timedelta(hours=3)
+    last_pass, alive = _worker_gauges(
+        session,
+        [
+            JobRun(job="queue-run", started_at=pass_at),
+            _claimed(FetchKind.SEARCH_ROWS, "search-1", now - timedelta(minutes=1)),
+        ],
+        now,
+    )
+    assert alive == pytest.approx(pass_at.timestamp(), abs=1) == last_pass
+
+
+def test_worker_alive_without_a_pass_reads_the_claim_or_zero(session):
+    now = datetime.now(UTC)
+    claim_at = now - timedelta(minutes=5)
+    assert _worker_gauges(session, [_claimed(FetchKind.CAUSELIST_DAY, "2026-10-19", claim_at)], now) == (
+        0.0,
+        pytest.approx(claim_at.timestamp(), abs=1),
+    )

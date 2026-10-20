@@ -22,7 +22,7 @@ One Docker Compose stack on one host. The same files serve the owner's machine a
 | `backup` | built from `backend/` | dumps, the store mirror, retention, the weekly restore check | none |
 | `migrate` | built from `backend/` | profile `ops`: the explicit upgrade (and `aslms ops restore`) | none |
 | `postgres` | `postgres:16.15` | the database | none |
-| `pgbouncer` | built from `infra/pgbouncer/` (Alpine 3.23.3, PgBouncer 1.21+) | connection pooling in transaction mode for `api`, `worker` and `scheduler` (section 18) | none |
+| `pgbouncer` | built from `infra/pgbouncer/` (Alpine 3.23.3, PgBouncer 1.25.1 pinned; 1.22+ required) | connection pooling in transaction mode for `api`, `worker` and `scheduler` (section 18) | none |
 | `redis` | `redis:7.4.10-alpine` | the NAPIX token and Celery messages; password, memory only | none |
 | `clamav` | `clamav/clamav:1.5.4` | virus scan of every upload | none |
 | `prometheus` | `prom/prometheus:v3.7.2` | profile `monitoring`: scrapes, keeps 30 days, evaluates the alert rules | `127.0.0.1:9090` |
@@ -71,7 +71,8 @@ Every container's logs are rotated (`json-file`, 20 MB × 5). The backend image 
 1. Install Docker (Docker Desktop on Windows, Docker Engine with the compose plugin on Linux) and clone the
    repository.
 2. Copy `.env.example` to `.env` and fill it in:
-   - `APP_ENV=prod`;
+   - `APP_ENV=prod`, exactly, in lower case: only `dev`, `test` and `prod` are accepted, and any other value
+     (`production`, `Prod`) stops every service;
    - `COMPOSE_FILE=compose.yml`. The development override must not be used on the pilot;
    - generate each secret separately with `openssl rand -hex 32` (or
      `python -c "import secrets;print(secrets.token_hex(32))"`): `POSTGRES_PASSWORD`, `ASLMS_APP_PASSWORD`,
@@ -118,7 +119,11 @@ Every container's logs are rotated (`json-file`, 20 MB × 5). The backend image 
   `postgres:5432` directly (section 18).
   `ASLMS_MIGRATE_URL` is the owner's URL, for the host-run `alembic` and `aslms db-roles` in development.
 - `aslms db-roles` (also `aslms ops role-passwords`) sets the `aslms_app` and `aslms_readonly` passwords from `.env`
-  at every `init` run, so a changed password reaches the database at the next start.
+  at every `init` run, so a changed password reaches the database at the next start. Each password is sent as a
+  SCRAM-SHA-256 verifier computed in the process (libpq's `PQencryptPasswordConn`, the algorithm named), so the plain
+  text never reaches the server, its logs or `pg_stat_activity` (design pre-pilot-hardening, decision 5). Check:
+  `docker compose exec postgres psql -U aslms -d aslms -Atc "select rolname, left(rolpassword, 14) from pg_authid
+  where rolname in ('aslms_app','aslms_readonly')"` shows `SCRAM-SHA-256$` for both.
 
 ## 5. Secret rotation
 
@@ -136,10 +141,6 @@ Every container's logs are rotated (`json-file`, 20 MB × 5). The backend image 
   `docker compose exec grafana grafana cli admin reset-admin-password '<new>'`.
 - **`FLOWER_BASIC_AUTH`:** change it in `.env`, then `docker compose up -d flower`.
 
-**Upgrading a machine that ran an older layout (before the backend ran as uid 10001):** the document folders under `./data` were created by root and the application cannot write them (order PDFs fail with `PermissionError`). Run once:
-`docker compose run --rm --no-deps -u root --entrypoint sh worker -c "chmod -R a+rwX /data/store /data/causelists /data/storage"`
-(on Windows `chown` to 10001 is refused, so use `chmod`; on Linux prefer `chown -R 10001:10001` on the same folders).
-
 ## 6. Upgrading (decision 12)
 
 `docker compose up` no longer migrates an existing database. When a build needs a newer schema, `init` exits with
@@ -155,6 +156,18 @@ code 3 and the message "The database is at X; this build needs Y". Nothing else 
 
 If `init` exits with code 4 ("The database is newer than this build"), the code is older than the database: deploy
 the matching build, never downgrade by hand.
+
+**The document store must be writable by uid 10001** (design pre-pilot-hardening, decision 3). `init` runs
+`aslms ops store-check` right after preflight: it creates `/data/store` when missing and writes and removes a probe
+file in the store and in every first-level folder. On success the log shows `store-check: /data/store writable
+(N folders)`. A store created before the backend ran as uid 10001 is owned by root, and order PDFs would fail with
+`PermissionError`; the check then stops the start (exit 1 at every `APP_ENV`), names how many folders failed and the
+first one, and prints the remedy. Run it once, then `docker compose up -d`:
+- on a Linux host: `sudo chown -R 10001:10001 ./data/store`;
+- on Docker Desktop for Windows, where `chown` is refused on bind mounts:
+  `docker compose run --rm --no-deps -u root --entrypoint sh worker -c "chmod -R a+rwX /data/store"`.
+
+Only `/data/store` is written by the application; the cause-list folder is only read.
 
 ## 7. Backups (decision 13)
 
@@ -374,7 +387,9 @@ warnings every 4 hours. To silence an alert during planned work, use Alertmanage
 - **CertExpiring** (under 21 days): renew the certificate (section 3, step 3) and `docker compose restart proxy`.
 - **DiskLow** (under 15 % or 10 GB free on `/data` or `/backups`): section 15, "Disk full". Never delete the store
   mirror or the order store.
-- **WorkerStalled** (no queue worker pass for 2 hours while rows are runnable): `docker compose logs worker`, then
+- **WorkerStalled** (no queue worker activity, a pass start or a claimed row, for 2 hours while rows are runnable;
+  `aslms_worker_alive_timestamp`, so a long load pass that keeps claiming rows does not fire it): `docker compose
+  logs worker`, then
   `docker compose restart worker` (its interrupted rows are repaired at start, section 11).
 - **JobStuck** (a job `running` for more than 6 hours): `aslms ops repair-jobs --dry-run`, then section 11.
 - **JobLate** (a scheduled job has not succeeded in time: notifications and the alert scan 30 minutes, text extraction
@@ -407,11 +422,27 @@ Design deployment-checklist, Part C (row 78, decision 29). `api`, `worker` and `
 - `max_client_conn = 200`, `default_pool_size = 20` (`PGBOUNCER_MAX_CLIENT_CONN`, `PGBOUNCER_DEFAULT_POOL_SIZE` in
   `.env`; keep the pool well under `PG_MAX_CONNECTIONS`, which also serves `init`, `backup` and the exporters);
 - `max_prepared_statements = 200` (`PGBOUNCER_MAX_PREPARED_STATEMENTS`): psycopg 3 prepares statements at the
-  protocol level, and PgBouncer 1.21+ tracks them per server connection;
+  protocol level, and PgBouncer 1.22+ (psycopg's documented minimum) tracks them per server connection;
 - `server_reset_query` empty; `auth_type = hba` with SCRAM-SHA-256 on every line. `aslms_app` may reach the
   database; `aslms_readonly` only the `pgbouncer` console, as a stats user (`SHOW` only). Nobody is an admin user, so
   `PAUSE`, `RELOAD` and `SHUTDOWN` are refused on the console. The user list holds the two passwords from `.env`,
   mode 600, in the tmpfs.
+
+**Versions** (design pre-pilot-hardening, decisions 6 and 7):
+- PgBouncer is pinned exactly in `infra/pgbouncer/Dockerfile` (`pgbouncer=1.25.1-r0` on Alpine 3.23.3, with
+  `postgresql16-client=16.15-r0` for the healthcheck). When Alpine republishes the package the build fails: change
+  the pin on purpose, to a version 1.22 or later. The pilot gets built images through `docker save` / `docker load`
+  (section 8), so a built image does not depend on the mirror.
+- libpq 17 or later: psycopg closes prepared statements with the protocol message `Close`, which PgBouncer tracks,
+  only on libpq 17+ (older ones send SQL `DEALLOCATE`, which it does not). Preflight stops the start at every
+  `APP_ENV` when libpq is older (`preflight fatal: libpq: ...`: rebuild the image). Check:
+  `docker compose exec api python -c "import psycopg; print(psycopg.pq.version())"` (180006 or higher today).
+
+**Healthcheck** (decision 8): `infra/pgbouncer/healthcheck.sh` logs in through the pool as `aslms_app` and runs
+`SELECT 1`, so "healthy" means the application can log in; a wrong `ASLMS_APP_PASSWORD` or an unreachable Postgres
+turns it unhealthy, and `api`, `worker` and `scheduler` do not start. The password reaches psql only as `PGPASSWORD`
+inside the container. `docker inspect --format '{{json .State.Health.Log}}' aslms-pgbouncer-1` shows psql's output
+(`1`, or its error line, such as "password authentication failed for user aslms_app").
 
 **Who connects directly** to `postgres:5432`: `init`, `migrate` and `backup` (DDL, `pg_dump`, role passwords, the
 session checks) and the postgres and ops exporters (a view that does not depend on the pool). Host-run `pytest`,
@@ -421,7 +452,9 @@ session checks) and the postgres and ops exporters (a view that does not depend 
 uses only transaction-scoped features: `SET LOCAL statement_timeout` (reports, dashboards, the audit search, the data
 health screen) and `pg_advisory_xact_lock` (the court-number dedupe). A session `SET`, `SET ROLE`, a session
 advisory lock, `LISTEN`, a temporary table, `set_config(..., false)` or a cursor `WITH HOLD` would leak to the next
-client or be lost; `backend/tests/unit/test_pgbouncer.py` scans `backend/aslms` and fails on any of them.
+client or be lost, and so would `RESET`, `DISCARD` or SQL-level `PREPARE` / `DEALLOCATE`;
+`backend/tests/unit/test_pgbouncer.py` scans `backend/aslms` (every SQL statement start in every string, and the
+unambiguous patterns in every line) and fails on any of them.
 
 **Upgrades and restores.** PgBouncer keeps `aslms_app` server connections open for a while after its clients stop,
 and `migrate` and `ops restore` refuse while any `aslms_app` session is connected. Stop it with the application

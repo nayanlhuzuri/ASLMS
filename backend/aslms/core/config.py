@@ -4,8 +4,9 @@ Variable names match `.env.example` and `docs/napix_integration_notes.md` §1 (c
 from __future__ import annotations
 
 from functools import lru_cache
+from typing import Literal
 
-from pydantic import AliasChoices, Field, SecretStr, model_validator
+from pydantic import AliasChoices, Field, SecretStr, ValidationError, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,7 +16,8 @@ class Settings(BaseSettings):
     )
 
     # --- runtime --------------------------------------------------------------------
-    app_env: str = Field("dev", description="dev | test | prod")
+    # design pre-pilot-hardening, decision 2: exactly dev, test or prod; anything else stops every process at load
+    app_env: Literal["dev", "test", "prod"] = Field("dev", description="dev | test | prod")
     log_level: str = "INFO"
     timezone: str = "Asia/Kolkata"
 
@@ -253,3 +255,12 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+APP_ENV_FATAL = "preflight fatal: APP_ENV: must be dev, test or prod"
+
+
+def is_app_env_error(exc: ValidationError) -> bool:
+    """True when the settings failed because `APP_ENV` is not dev, test or prod (design pre-pilot-hardening,
+    decision 2), so a command can print `APP_ENV_FATAL` instead of a traceback that echoes the value."""
+    return any(tuple(err.get("loc") or ())[:1] == ("app_env",) for err in exc.errors())
