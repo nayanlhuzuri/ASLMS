@@ -1867,3 +1867,5 @@ Backlog row 78 (split from row 16), design `docs/design/deployment-checklist.md`
 
 **Left for later**: the owner-run checks on the real stack (row 89); migration 0020 and the dev `.env` additions of row 87 still apply; the owner-run deployment checks (row 85); row 86 and 88 items before the pilot.
 
+
+- 2026-10-20 — pre-pilot-hardening: approved by the owner (backup dump exempt from the idle timeout, APP_ENV limited to dev/test/prod, store-check in init, worker liveness from the latest claimed row, role passwords as SCRAM verifiers, libpq 17+ floor, PgBouncer pinned with a login healthcheck, statement-based session-feature scan; docs/design/pre-pilot-hardening.md)
