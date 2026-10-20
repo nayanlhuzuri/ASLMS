@@ -22,7 +22,7 @@ import {
   TextField,
 } from "@/components/ui";
 import { api, ApiError } from "@/lib/api/client";
-import { useDocumentTypes } from "@/lib/api/hooks";
+import { useCaseTitle, useDocumentTypes } from "@/lib/api/hooks";
 import type { DocumentItem } from "@/lib/api/types";
 import { formatDate } from "@/lib/format";
 import { T, UPLOAD_ERRORS } from "@/lib/messages";
@@ -236,8 +236,9 @@ export function UploadDialog({
   onUploaded: (doc: DocumentItem) => void | Promise<void>;
   intro?: string;
 }) {
+  const caseTitle = useCaseTitle(caseRef);
   return (
-    <Dialog open={open} title={T.wf.upload} onClose={onClose}>
+    <Dialog open={open} title={T.wf.upload} subtitle={caseTitle} onClose={onClose}>
       {intro ? <p className="muted">{intro}</p> : null}
       <UploadForm
         caseRef={caseRef}

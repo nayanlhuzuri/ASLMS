@@ -220,26 +220,28 @@ describe("the alert list (portal-files-alerts, decisions 7-9)", () => {
 });
 
 describe("the Alerts frame (decisions 1, 13)", () => {
-  it("has Alerts and Hearing calendar tabs; Alerts is current only on /alerts", async () => {
-    browserApi({ "GET /me": makeMe(["cases.view_scope"]) });
+  it("Alerts has two tabs, Alerts and Next dates to confirm, and no calendar (portal-ui-redesign, decision 8)", async () => {
+    browserApi({ "GET /me": makeMe(["cases.view_scope", "next_dates.review"]) });
     const { unmount } = renderWithClient(
       <AlertsFrame>
         <p>body</p>
       </AlertsFrame>,
     );
-    const tabs = await screen.findByRole("navigation", { name: "Alerts and calendar sections" });
+    expect(await screen.findByRole("heading", { name: "Alerts", level: 1 })).toBeInTheDocument();
+    const tabs = await screen.findByRole("navigation", { name: "Alerts sections" });
+    expect(within(tabs).getAllByRole("link").map((a) => a.textContent)).toEqual(["Alerts", "Next dates to confirm"]);
     expect(within(tabs).getByRole("link", { name: "Alerts" })).toHaveAttribute("aria-current", "page");
-    expect(within(tabs).getByRole("link", { name: "Hearing calendar" })).not.toHaveAttribute("aria-current");
+    expect(within(tabs).queryByRole("link", { name: /calendar/i })).toBeNull();
     unmount();
-    resetNav("/alerts/calendar");
+    resetNav("/alerts/next-dates");
     renderWithClient(
       <AlertsFrame>
         <p>body</p>
       </AlertsFrame>,
     );
-    const tabs2 = await screen.findByRole("navigation", { name: "Alerts and calendar sections" });
+    const tabs2 = await screen.findByRole("navigation", { name: "Alerts sections" });
     expect(within(tabs2).getByRole("link", { name: "Alerts" })).not.toHaveAttribute("aria-current");
-    expect(within(tabs2).getByRole("link", { name: "Hearing calendar" })).toHaveAttribute("aria-current", "page");
+    expect(within(tabs2).getByRole("link", { name: "Next dates to confirm" })).toHaveAttribute("aria-current", "page");
   });
 
   it("a login without case functions sees the neutral not-found text", async () => {
@@ -306,7 +308,7 @@ describe("next dates (portal-next-dates, decisions 1 and 14)", () => {
         <p>body</p>
       </AlertsFrame>,
     );
-    const tabs = await screen.findByRole("navigation", { name: "Alerts and calendar sections" });
+    const tabs = await screen.findByRole("navigation", { name: "Alerts sections" });
     expect(within(tabs).getByRole("link", { name: "Next dates to confirm" })).toHaveAttribute("href", "/alerts/next-dates");
     unmount();
     browserApi({ "GET /me": makeMe(["cases.view_scope"]) });
@@ -315,7 +317,7 @@ describe("next dates (portal-next-dates, decisions 1 and 14)", () => {
         <p>body</p>
       </AlertsFrame>,
     );
-    const only = await screen.findByRole("navigation", { name: "Alerts and calendar sections" });
+    const only = await screen.findByRole("navigation", { name: "Alerts sections" });
     expect(within(only).queryByRole("link", { name: "Next dates to confirm" })).toBeNull();
   });
 });

@@ -10,6 +10,7 @@ import { useState } from "react";
 
 import { Button, CharCounter, ConfirmDialog, RadioGroup, TextArea } from "@/components/ui";
 import { api } from "@/lib/api/client";
+import { useCaseTitle } from "@/lib/api/hooks";
 import type { DocumentItem } from "@/lib/api/types";
 import { T } from "@/lib/messages";
 import { useAction } from "@/lib/useAction";
@@ -21,6 +22,7 @@ const REASON_MAX = 500;
 
 export function DocumentActions({ caseRef, doc }: { caseRef: string; doc: DocumentItem }) {
   const refresh = useWorkflowRefresh(caseRef);
+  const caseTitle = useCaseTitle(caseRef);
   const action = useAction();
   const [open, setOpen] = useState<"visibility" | "archive" | null>(null);
   const [visibility, setVisibility] = useState("");
@@ -62,6 +64,7 @@ export function DocumentActions({ caseRef, doc }: { caseRef: string; doc: Docume
         {T.wf.archive}
       </Button>
       <ConfirmDialog
+        subtitle={caseTitle}
         open={open === "visibility"}
         title={T.wf.visibilityTitle}
         onClose={close}
@@ -80,6 +83,7 @@ export function DocumentActions({ caseRef, doc }: { caseRef: string; doc: Docume
         />
       </ConfirmDialog>
       <ConfirmDialog
+        subtitle={caseTitle}
         open={open === "archive"}
         title={T.wf.archiveTitle}
         onClose={close}

@@ -152,7 +152,7 @@ describe("Send file and Recall", () => {
     expect(screen.queryByRole("button", { name: /Send file|Recall/ })).toBeNull();
   });
 
-  it("the send dialog lists departments, then people with q; sendable actions only; stage only with the flag; posts the move", async () => {
+  it("Send file walks three steps: who, what, remark; Continue refuses a missing field; Back keeps values; the body is unchanged", async () => {
     const api = browserApi({
       "GET /workflow/codes": CODES,
       "GET /custody/recipients": (call: { url: string }) => (call.url.includes("department=HEALTH") ? HEALTH_PEOPLE : DEPTS),
@@ -163,20 +163,41 @@ describe("Send file and Recall", () => {
     );
     await userEvent.click(screen.getByRole("button", { name: "Send file" }));
     const dialog = screen.getByRole("dialog", { name: "Send the file" });
+    // step 1: who receives it (the stepper says where we are)
+    expect(within(dialog).getByText("Step 1 of 3 · Who receives it")).toBeInTheDocument();
     await waitFor(() => expect(within(dialog).getByRole("option", { name: "HEALTH — Health" })).toBeInTheDocument());
-    expect(within(dialog).getByText("Your 2 draft notes become permanent notes of the case when you send.")).toBeInTheDocument();
-    // pending actions: the sendable ones only, nothing pre-selected
+    await userEvent.click(within(dialog).getByRole("button", { name: "Continue" }));
+    expect(within(dialog).getByText("Required.")).toBeInTheDocument();
+    expect(within(dialog).getByText("Step 1 of 3 · Who receives it")).toBeInTheDocument();
+    await userEvent.selectOptions(within(dialog).getByLabelText("Department"), "HEALTH");
+    await waitFor(() => expect(within(dialog).getByRole("radio", { name: /Health Off/ })).toBeInTheDocument());
+    await userEvent.type(within(dialog).getByLabelText("Search by name or designation"), "dir");
+    await waitFor(() => expect(api.calls.some((c) => c.url.includes("department=HEALTH") && c.url.includes("q=dir"))).toBe(true));
+    // the people are cards with their initials
+    expect(within(dialog).getAllByText("HO").length).toBeGreaterThan(0);
+    await userEvent.click(within(dialog).getByRole("button", { name: "Continue" }));
+    expect(within(dialog).getByText("Choose the person who receives the file.")).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole("radio", { name: /Health Off/ }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Continue" }));
+    // step 2: what they should do — the sendable actions only, nothing pre-selected; the stage with the flag
+    expect(within(dialog).getByText("Step 2 of 3 · What they should do")).toBeInTheDocument();
     const action = within(dialog).getByLabelText("Pending action") as HTMLSelectElement;
+    await waitFor(() => expect(within(action).getByRole("option", { name: "Parawise comments" })).toBeInTheDocument());
     expect(action.value).toBe("");
     expect(within(action).queryByRole("option", { name: "None" })).toBeNull();
     expect(within(dialog).getByLabelText("Stage (optional)")).toBeInTheDocument();
-    await userEvent.selectOptions(within(dialog).getByLabelText("Department"), "HEALTH");
-    await waitFor(() => expect(within(dialog).getByLabelText("Officer")).toBeInTheDocument());
-    await userEvent.type(within(dialog).getByLabelText("Search by name or designation"), "dir");
-    await waitFor(() => expect(api.calls.some((c) => c.url.includes("department=HEALTH") && c.url.includes("q=dir"))).toBe(true));
-    await userEvent.selectOptions(within(dialog).getByLabelText("Officer"), "m-h1");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Continue" }));
+    expect(within(dialog).getByText("Required.")).toBeInTheDocument();
     await userEvent.selectOptions(action, "parawise_comments");
-    // a remark is required
+    // Back keeps what was entered
+    await userEvent.click(within(dialog).getByRole("button", { name: "Back" }));
+    expect(within(dialog).getByRole("radio", { name: /Health Off/ })).toBeChecked();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Continue" }));
+    expect((within(dialog).getByLabelText("Pending action") as HTMLSelectElement).value).toBe("parawise_comments");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Continue" }));
+    // step 3: the remark is required; the drafts notice and the summary line
+    expect(within(dialog).getByText("Step 3 of 3 · Remark and confirm")).toBeInTheDocument();
+    expect(within(dialog).getByText("Your 2 draft notes become permanent notes of the case when you send.")).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole("button", { name: "Send file" }));
     expect(within(dialog).getByText("Give a remark of 3 to 2,000 characters.")).toBeInTheDocument();
     expect(api.calls.some((c) => c.method === "POST")).toBe(false);
@@ -196,23 +217,35 @@ describe("Send file and Recall", () => {
   });
 
   it("offers no stage without workflow.set_stage", async () => {
-    browserApi({ "GET /workflow/codes": CODES, "GET /custody/recipients": DEPTS });
+    browserApi({
+      "GET /workflow/codes": CODES,
+      "GET /custody/recipients": (call: { url: string }) => (call.url.includes("department=HEALTH") ? HEALTH_PEOPLE : DEPTS),
+    });
     renderWithClient(
       <CustodyActions caseRef={REF} detail={detail({ workflow: { note_mode: "draft", upload: true, set_stage: false, next_dates: false } })} card={card()} />,
     );
     await userEvent.click(screen.getByRole("button", { name: "Send file" }));
     const dialog = screen.getByRole("dialog", { name: "Send the file" });
+    await chooseHealthOff(dialog);
     await waitFor(() => expect(within(dialog).getByRole("option", { name: "Examine" })).toBeInTheDocument());
     expect(within(dialog).queryByLabelText("Stage (optional)")).toBeNull();
+    await userEvent.selectOptions(within(dialog).getByLabelText("Pending action"), "examine");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Continue" }));
     expect(within(dialog).queryByText(/draft notes? become/)).toBeNull();
   });
 
-  async function fillAndSend(dialog: HTMLElement) {
+  async function chooseHealthOff(dialog: HTMLElement) {
     await waitFor(() => expect(within(dialog).getByRole("option", { name: "HEALTH — Health" })).toBeInTheDocument());
     await userEvent.selectOptions(within(dialog).getByLabelText("Department"), "HEALTH");
-    await waitFor(() => expect(within(dialog).getByLabelText("Officer")).toBeInTheDocument());
-    await userEvent.selectOptions(within(dialog).getByLabelText("Officer"), "m-h1");
+    await waitFor(() => expect(within(dialog).getByRole("radio", { name: /Health Off/ })).toBeInTheDocument());
+    await userEvent.click(within(dialog).getByRole("radio", { name: /Health Off/ }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Continue" }));
+  }
+
+  async function fillAndSend(dialog: HTMLElement) {
+    await chooseHealthOff(dialog);
     await userEvent.selectOptions(within(dialog).getByLabelText("Pending action"), "examine");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Continue" }));
     await userEvent.type(within(dialog).getByLabelText("Remark"), "over to you");
     await userEvent.click(within(dialog).getByRole("button", { name: "Send file" }));
   }

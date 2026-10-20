@@ -1555,6 +1555,29 @@ class CalendarOut(BaseModel):
     items: list[CalendarItemOut]
 
 
+class MyCalendarItemOut(BaseModel):
+    """One of the caller's dates (design `portal-ui-redesign`, A6): a hearing of their case, a due date of a file
+    they hold, or a next date waiting for their confirmation; the fields of the other kinds are null."""
+
+    date: date
+    kind: Literal["hearing", "action_due", "confirm"]
+    case: AlertCaseOut
+    critical: bool
+    court_no: str | None = None
+    item_no: str | None = None
+    purpose: str | None = None
+    source: str | None = None
+    this_week: bool | None = None
+    pending_action: str | None = None
+    pending_action_label: str | None = None
+    overdue: bool | None = None
+    next_date_id: uuid.UUID | None = None
+
+
+class MyCalendarOut(BaseModel):
+    items: list[MyCalendarItemOut]
+
+
 class InAppPrefOut(BaseModel):
     enabled: bool
 

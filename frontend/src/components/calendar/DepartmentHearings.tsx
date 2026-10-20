@@ -1,6 +1,8 @@
 "use client";
 
 /**
+ * The Department hearings view of My calendar (design portal-ui-redesign, decision 8: today's hearing calendar of
+ * `GET /calendar`, unchanged, for whole-department members and State-wide readers at `/calendar?view=department`).
  * The hearing calendar (design portal-files-alerts, decisions 10 and 11; portal-workflow decision 17; plan §5.5
  * "Calendar of upcoming hearings for the user's cases, with critical (within 48 hours) and this-week highlights").
  * Two views in the query string: "Next 7 days" (the API's default range, the agenda only) and a month
@@ -11,7 +13,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import { useFilters } from "@/components/inbox/common";
-import { Badge, Button, CaseLink, EmptyState, ErrorBanner, Loading, SelectField } from "@/components/ui";
+import { Badge, Button, CaseLink, Chip, EmptyState, ErrorBanner, Loading, SelectField } from "@/components/ui";
 import { api, ApiError } from "@/lib/api/client";
 import { useDepartments, useMe } from "@/lib/api/hooks";
 import type { CalendarItem, CalendarList } from "@/lib/api/types";
@@ -22,7 +24,7 @@ import { monthGrid, monthOf, monthRange, parseMonth, shiftMonth, todayIst } from
 
 import cs from "@/components/case/case.module.css";
 
-import s from "./alerts.module.css";
+import s from "./hearings.module.css";
 
 const DAY = new Intl.DateTimeFormat("en-IN", { timeZone: "UTC", day: "numeric", month: "long" });
 const DAY_FULL = new Intl.DateTimeFormat("en-IN", { timeZone: "UTC", weekday: "long", day: "numeric", month: "long", year: "numeric" });
@@ -142,7 +144,7 @@ export function Agenda({ items }: { items: CalendarItem[] }) {
   );
 }
 
-export function Calendar({ params }: { params: Params }) {
+export function DepartmentHearings({ params }: { params: Params }) {
   const me = useMe();
   const setFilters = useFilters(params);
   const stateWide = can(me.data, "cases.view_all");
@@ -165,16 +167,13 @@ export function Calendar({ params }: { params: Params }) {
   return (
     <div className="stack">
       <div className="row" role="group" aria-label={T.cal.views}>
-        <Button variant={month ? "secondary" : "primary"} aria-pressed={!month} onClick={() => setFilters({ month: undefined })}>
+        {/* round 3: the period choice is a pair of chips, so the page keeps one primary button (decision 16) */}
+        <Chip on={!month} onClick={() => setFilters({ month: undefined })}>
           {T.cal.next7}
-        </Button>
-        <Button
-          variant={month === monthOf(today) ? "primary" : "secondary"}
-          aria-pressed={month === monthOf(today)}
-          onClick={() => setFilters({ month: monthOf(today) })}
-        >
+        </Chip>
+        <Chip on={month === monthOf(today)} onClick={() => setFilters({ month: monthOf(today) })}>
           {T.cal.thisMonth}
-        </Button>
+        </Chip>
         {month ? (
           <>
             <Button variant="secondary" onClick={() => setFilters({ month: shiftMonth(month, -1) })}>

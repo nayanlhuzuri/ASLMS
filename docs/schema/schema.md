@@ -319,3 +319,6 @@ versions/sections), `assignments` (replaced by `recommendations` + `case_ownersh
 
 ## As-built note: portal-ui-inbox-claim (row 102, 20 Oct 2026)
 No migration and no table or column change. The visibility basis `transfer_in` is computed in `services/visibility.py` from `ownership_transfers` (status `requested`, receiving office): sight only, lost on decline or withdraw. `GET /inbox/mine` reads `case_ownerships`, `case_custody` and `ownership_transfers` read-only.
+
+## As-built note: portal-ui-case-calendar (row 103, 20 Oct 2026)
+No migration and no table or column change. `GET /me/calendar` (`services/calendar.py`, `my_calendar`) is read-only: it reads hearings from the case listings, custody rows (`action_due`: pending action other than `none` with a due date) and the next-date review queue (kind `confirm`), each ANDed with the server visibility rule. It writes nothing and is not audited.

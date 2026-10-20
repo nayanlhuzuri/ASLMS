@@ -37,17 +37,18 @@ beforeEach(() => {
 });
 
 describe("navigation by functions", () => {
-  it("Work lists Cause list, Files, Alerts & calendar and Search in order for a case reader (portal-ui-redesign)", () => {
+  it("Work lists Cause list, Files, My calendar, Alerts and Search in order for a case reader (portal-ui-redesign)", () => {
     browserApi({ "GET /reference/labels": labels() });
     renderWithClient(<Sidebar me={makeMe(OFFICER)} />);
     const nav = screen.getByRole("navigation", { name: "Main navigation" });
     const names = within(nav)
       .getAllByRole("link")
       .map((a) => a.textContent);
-    expect(names).toEqual(["Dashboard", "Case inbox", "Cause list", "Files", "Alerts & calendar", "Search"]);
+    expect(names).toEqual(["Dashboard", "Case inbox", "Cause list", "Files", "My calendar", "Alerts", "Search"]);
     expect(within(nav).getByRole("link", { name: "Cause list" })).toHaveAttribute("href", "/causelist");
     expect(within(nav).getByRole("link", { name: "Files" })).toHaveAttribute("href", "/files");
-    expect(within(nav).getByRole("link", { name: "Alerts & calendar" })).toHaveAttribute("href", "/alerts");
+    expect(within(nav).getByRole("link", { name: "My calendar" })).toHaveAttribute("href", "/calendar");
+    expect(within(nav).getByRole("link", { name: "Alerts" })).toHaveAttribute("href", "/alerts");
   });
 
   it("Reports and Audit log sit under Oversight, Data collection and Administration under Settings", () => {
@@ -84,7 +85,7 @@ describe("navigation by functions", () => {
       "GET /alerts/counts": { unread: 3, open: { critical: 0, high: 1, normal: 2 } },
     });
     renderWithClient(<Sidebar me={makeMe(OFFICER)} />);
-    const link = await screen.findByRole("link", { name: "Alerts & calendar, 3" });
+    const link = await screen.findByRole("link", { name: "Alerts, 3" });
     expect(link).toHaveAttribute("href", "/alerts");
     expect(within(link).getByText("3")).toHaveAttribute("aria-hidden", "true");
   });
@@ -290,7 +291,8 @@ describe("header and sidebar foot", () => {
     for (const [path, last] of [
       ["/files/offices", "My offices"],
       ["/files/mine", "With me"],
-      ["/alerts", "Alerts & calendar"],
+      ["/alerts", "Alerts"],
+      ["/calendar", "My calendar"],
       ["/alerts/calendar", "Hearing calendar"],
       ["/cases/EDU-2026-0001/alerts", "Alerts"],
       ["/admin/offices", "Offices"],

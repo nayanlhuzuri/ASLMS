@@ -150,7 +150,8 @@ describe("a closing overlay is inert (review of round 1, fixed in round 2)", () 
     renderWithClient(<Harness />);
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     const submit = screen.getByRole("button", { name: "Confirm" });
-    const form = submit.closest("form")!;
+    // the footer button submits its form through the `form` attribute (the Action dialog template, round 3)
+    const form = (submit as HTMLButtonElement).form!;
     await user.click(submit);
     expect(confirm).toHaveBeenCalledTimes(1);
     // still on screen for the exit animation, but inert and without pointer events

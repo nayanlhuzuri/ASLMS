@@ -11,7 +11,7 @@ import { useState } from "react";
 
 import { Badge, Button, ConfirmDialog, ErrorBanner, Loading, Notice } from "@/components/ui";
 import { api } from "@/lib/api/client";
-import { useDrafts, useWorkflowCodes } from "@/lib/api/hooks";
+import { useCaseTitle, useDrafts, useWorkflowCodes } from "@/lib/api/hooks";
 import type { Draft, DocumentItem } from "@/lib/api/types";
 import { formatDateTime } from "@/lib/format";
 import { T } from "@/lib/messages";
@@ -25,6 +25,7 @@ import { UploadDialog } from "./Upload";
 
 function DraftItem({ caseRef, draft, kindLabel }: { caseRef: string; draft: Draft; kindLabel: string }) {
   const refresh = useWorkflowRefresh(caseRef);
+  const caseTitle = useCaseTitle(caseRef);
   const remove = useAction();
   const attach = useAction();
   const [editing, setEditing] = useState(false);
@@ -102,6 +103,7 @@ function DraftItem({ caseRef, draft, kindLabel }: { caseRef: string; draft: Draf
         </>
       )}
       <ConfirmDialog
+        subtitle={caseTitle}
         open={confirming}
         title={T.wf.deleteTitle}
         onClose={() => {

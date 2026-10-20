@@ -11618,6 +11618,156 @@
         "title": "MonthCoverageOut",
         "type": "object"
       },
+      "MyCalendarItemOut": {
+        "description": "One of the caller's dates (design `portal-ui-redesign`, A6): a hearing of their case, a due date of a file\nthey hold, or a next date waiting for their confirmation; the fields of the other kinds are null.",
+        "properties": {
+          "case": {
+            "$ref": "#/components/schemas/AlertCaseOut"
+          },
+          "court_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Court No"
+          },
+          "critical": {
+            "title": "Critical",
+            "type": "boolean"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "item_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Item No"
+          },
+          "kind": {
+            "enum": [
+              "hearing",
+              "action_due",
+              "confirm"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "next_date_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Date Id"
+          },
+          "overdue": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overdue"
+          },
+          "pending_action": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pending Action"
+          },
+          "pending_action_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pending Action Label"
+          },
+          "purpose": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purpose"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "this_week": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "This Week"
+          }
+        },
+        "required": [
+          "date",
+          "kind",
+          "case",
+          "critical"
+        ],
+        "title": "MyCalendarItemOut",
+        "type": "object"
+      },
+      "MyCalendarOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MyCalendarItemOut"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "MyCalendarOut",
+        "type": "object"
+      },
       "MyCaseCountsOut": {
         "properties": {
           "claimed": {
@@ -34544,6 +34694,79 @@
         "summary": "Me",
         "tags": [
           "auth"
+        ]
+      }
+    },
+    "/me/calendar": {
+      "get": {
+        "description": "My calendar (design `portal-ui-redesign`, A6): hearings of my cases, due dates of the files I hold, and the\nnext dates waiting for my confirmation, from `from` to `to` (IST dates, at most 62 days; default the current\nmonth's grid, Monday to Sunday). Ordered by date, kind, then case. Reading writes nothing.",
+        "operationId": "my_calendar_me_calendar_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyCalendarOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "My Calendar",
+        "tags": [
+          "alerts"
         ]
       }
     },

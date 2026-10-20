@@ -178,6 +178,17 @@ export function formatMonthYear(value: string | Date | null | undefined, locale?
   return `${MONTHS_LONG[p.month - 1]} ${p.year}`;
 }
 
+/** A day with its weekday, `Tuesday, 21 October` (My calendar's agenda heading and day names). */
+export function formatDayLong(value: string | Date | null | undefined, locale?: LocaleArg): string {
+  if (!value) return "—";
+  const d = toDate(value);
+  if (!d) return String(value);
+  const intl = intlOf(locale);
+  if (intl) return intlDate(d, intl, { weekday: "long", day: "numeric", month: "long" });
+  const p = istParts(d);
+  return `${formatWeekday(d)}, ${p.day} ${MONTHS_LONG[p.month - 1]}`;
+}
+
 /** The IST calendar day of an instant as `YYYY-MM-DD`. */
 export function istDay(now: Date = new Date()): string {
   const p = istParts(now);

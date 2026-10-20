@@ -253,10 +253,13 @@ export function Kpi({
  */
 export function Collapsible({
   summary,
+  after,
   defaultOpen = false,
   children,
 }: {
   summary: ReactNode;
+  /** Always shown under the summary button, outside it (a row's own facts, which may hold their own controls). */
+  after?: ReactNode;
   defaultOpen?: boolean;
   children: ReactNode;
 }) {
@@ -280,6 +283,7 @@ export function Collapsible({
         </svg>
         <span>{summary}</span>
       </button>
+      {after ? <div className={s.after}>{after}</div> : null}
       <div id={bodyId} className={s.body} inert={!open} aria-hidden={!open}>
         <div className={s.bodyInner}>{opened ? children : null}</div>
       </div>

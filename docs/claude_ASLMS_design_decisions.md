@@ -2007,3 +2007,23 @@ Backlog row 102 `portal-ui-inbox-claim`, branch `feature/portal-ui-inbox-claim`;
 - Existing file names, such as `Legal_Case_Monitoring_Portal_Plan.docx`, and earlier entries of this log are not changed.
 - Every password field now has a show / hide button. `TextField` with `type="password"` adds an eye button that toggles, with `aria-pressed` and the label "Show password" / "Hide password". This covers the sign-in, reset, first-sign-in and administrator forms. Tests are in `ui.test.tsx`.
 - A new sign-in page template is being chosen with the owner from mockups. It will be built separately.
+
+## Portal UI redesign, round 3: the case page, action dialogs and My calendar (2026-10-20)
+Backlog row 103 `portal-ui-case-calendar`, branch `feature/portal-ui-case-calendar`; design `docs/design/portal-ui-redesign.md` (approved; no separate note for the row, the developer's choices are in its "Round 3, row 103" section). No migration; `docs/schema/schema.md` gets one as-built note (no table or column change).
+
+**Built**
+- Backend, read-only: `GET /me/calendar` (`services/calendar.py` `my_calendar`, route in `api/routers/alerts.py`, `MyCalendarOut` in `api/schemas.py`): hearings of my cases, my action due dates and next dates to confirm, each with a `critical` flag, in date, kind, case order. `frontend/openapi.json` regenerated.
+- Portal case page: summary header (next hearing, file holder, stage, owner, one primary action), tabs Overview, Hearings, Orders, Documents, Notes, Timeline, More; Overview with latest order and recent activity, secondary facts folded; Orders rows show the judge and "Next date read"; Timeline rows lead with the date chip.
+- Workflow dialogs on the Action dialog template (the kit's `Dialog`, 560 px or 720 px `wide`, Cancel or Back left and one primary right in a fixed footer, case number as subtitle); Send file as a 3-step dialog with people as radio cards; Add note in a 720 px dialog.
+- My calendar (month grid, legend filter, day agenda, dots on phones) and Alerts as its own menu entry; the old hearings calendar kept as the Department hearings view; `/alerts/calendar` redirects keeping its query string.
+- Tests: `backend/tests/db/test_my_calendar.py` (three kinds for an officer, colleague's and unseen cases absent, overdue or near-due is critical, no confirm items without next-dates review, range limits, default range covers the month grid, ordering, reading writes nothing, 403 without a view function, merged-away case not listed); frontend `calendar.test.tsx`, `departmentHearings.test.tsx`, and updates to `case.test.tsx`, `workflow.test.tsx`, `alerts.test.tsx`, `shell.test.tsx`, `routes.test.ts`, `tokens.test.ts`.
+
+**Decisions and reasons** (full list in the design note, "Round 3, row 103", items 1 to 15)
+- With only one of `from` / `to` given, the other is the grid edge of that month; more than 62 days or `to` before `from` answers 422 `bad_range`.
+- Action due dates are limited to custody rows the caller holds and the visibility rule; confirm items are the review queue's, so they need an active primary owner and a proposed date from today on.
+- The header names the court and item of the next hearing only when the latest listing is on the next hearing day, so it never shows an earlier day as the next one.
+- Claim and Accept transfer move to More actions when another action is primary; Decline and Withdraw stay on the Ownership card, so the page keeps one primary action.
+- Every `Dialog` is now 560 px, administration dialogs included until round 5 restyles them.
+- The calendar's legend is screen state, not in the URL; switching views drops `month`, `day` and `department`.
+
+**Left for later**: rounds 4 and 5 (rows 104 and 105: dashboard and work lists, oversight and settings, sign-in pages, removal of deprecated token aliases, responsive sweep).

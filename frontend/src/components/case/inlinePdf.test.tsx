@@ -3,6 +3,7 @@
  * hint "Opens as a download"; images keep View. The module value is mocked for this file only.
  */
 import { screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Permission } from "@/lib/api/types";
@@ -30,7 +31,7 @@ const READ: Permission[] = ["cases.view_scope", "documents.view", "documents.dow
 beforeEach(() => resetNav(BASE));
 
 describe("INLINE_PDF false", () => {
-  it("orders: no View, Download with the hint", async () => {
+  it("orders: the expanded row offers Open in a new tab and Download PDF, no inline frame (portal-ui-redesign, decision 7)", async () => {
     browserApi({
       "GET /me": makeMe(READ),
       [`GET ${BASE}/orders`]: {
@@ -41,9 +42,11 @@ describe("INLINE_PDF false", () => {
       },
     });
     renderWithClient(<Orders caseRef={REF} />);
-    expect(await screen.findByRole("link", { name: "Download" })).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "View" })).toBeNull();
-    expect(screen.getByText("Opens as a download")).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole("button", { name: /interim/ }));
+    expect(screen.getByRole("link", { name: "Open in a new tab" })).toHaveAttribute("href", `/api/backend${BASE}/orders/o-1/file?disposition=inline`);
+    expect(screen.getByRole("link", { name: "Download PDF" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Print" })).toBeNull();
+    expect(document.querySelector("iframe")).toBeNull();
   });
 
   it("documents: a PDF downloads with the hint, an image keeps View", async () => {

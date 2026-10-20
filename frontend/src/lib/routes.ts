@@ -104,8 +104,8 @@ export const NAV: readonly NavEntry[] = [
   { key: "causelist", label: T.nav.causelist, href: "/causelist", group: "work", functions: CASE_READERS, built: true },
   // design portal-files-alerts, decision 2: anyone may be sent a file, so Files shows with `cases.view_scope`
   { key: "files", label: T.nav.files, href: "/files", group: "work", functions: ["cases.view_scope"], built: true, count: "files" },
-  // design portal-ui-redesign, decision 8: My calendar is built in round 3 (row 103)
-  { key: "calendar", label: T.nav.calendar, href: "/calendar", group: "work", functions: CASE_READERS, built: false },
+  // design portal-ui-redesign, decision 8: My calendar (round 3, row 103); Alerts is its own entry
+  { key: "calendar", label: T.nav.calendar, href: "/calendar", group: "work", functions: CASE_READERS, built: true },
   { key: "alerts", label: T.nav.alerts, href: "/alerts", group: "work", functions: CASE_READERS, built: true, count: "alerts" },
   { key: "search", label: T.nav.search, href: "/search", group: "work", functions: CASE_READERS, built: true },
   // design portal-reports, decision 2: the tabs inside come from `GET /reports`; the API decides every report
@@ -249,12 +249,12 @@ export function filesTabsFor(me: MeLike | null | undefined): FilesTab[] {
 }
 
 /**
- * The Alerts & calendar tabs (decision 1): the alerts and the calendar show to case readers; "Next dates to confirm"
- * (design portal-next-dates, decision 1) with `next_dates.review`, the review API's gate.
+ * The Alerts tabs (design portal-ui-redesign, decision 8: the calendar moved to My calendar): the alerts show to case
+ * readers; "Next dates to confirm" (design portal-next-dates, decision 1) with `next_dates.review`, the review API's
+ * gate. `/alerts/calendar` is a redirect to `/calendar`.
  */
 export const ALERTS_TABS: readonly DataTab[] = [
   { key: "list", label: T.tabs.alerts.list, href: "/alerts", functions: CASE_READERS },
-  { key: "calendar", label: T.tabs.alerts.calendar, href: "/alerts/calendar", functions: CASE_READERS },
   { key: "next-dates", label: T.tabs.alerts.nextDates, href: "/alerts/next-dates", functions: ["next_dates.review"] },
 ];
 
@@ -318,18 +318,20 @@ export const OLD_INBOX_REDIRECTS: Record<string, string> = {
 
 /**
  * The case page tabs (design portal-cases, decision 10), each its own route under `/cases/[ref]`; "Custody and stage"
- * and "Alerts" come with portal-workflow (decision 2). The Alerts tab has no count (the overview carries none).
+ * and "Alerts" come with portal-workflow (decision 2). Design portal-ui-redesign, decision 10.9: six tabs, and Parties,
+ * Linked cases, Custody and stage, Alerts and Details under "More" (`more: true`); the routes are unchanged. The
+ * Alerts tab has no count (the overview carries none).
  */
 export const CASE_TABS = [
-  { key: "", label: T.tabs.case.overview, count: null },
-  { key: "custody", label: T.tabs.case.custody, count: null },
-  { key: "hearings", label: T.tabs.case.hearings, count: "hearings" },
-  { key: "orders", label: T.tabs.case.orders, count: "orders" },
-  { key: "parties", label: T.tabs.case.parties, count: null },
-  { key: "documents", label: T.tabs.case.documents, count: "documents" },
-  { key: "links", label: T.tabs.case.links, count: "links" },
-  { key: "notes", label: T.tabs.case.notes, count: "notes" },
-  { key: "alerts", label: T.tabs.case.alerts, count: null },
-  { key: "timeline", label: T.tabs.case.timeline, count: "timeline" },
-  { key: "details", label: T.tabs.case.details, count: null },
+  { key: "", label: T.tabs.case.overview, count: null, more: false },
+  { key: "hearings", label: T.tabs.case.hearings, count: "hearings", more: false },
+  { key: "orders", label: T.tabs.case.orders, count: "orders", more: false },
+  { key: "documents", label: T.tabs.case.documents, count: "documents", more: false },
+  { key: "notes", label: T.tabs.case.notes, count: "notes", more: false },
+  { key: "timeline", label: T.tabs.case.timeline, count: "timeline", more: false },
+  { key: "parties", label: T.tabs.case.parties, count: null, more: true },
+  { key: "links", label: T.tabs.case.links, count: "links", more: true },
+  { key: "custody", label: T.tabs.case.custody, count: null, more: true },
+  { key: "alerts", label: T.tabs.case.alerts, count: null, more: true },
+  { key: "details", label: T.tabs.case.details, count: null, more: true },
 ] as const;

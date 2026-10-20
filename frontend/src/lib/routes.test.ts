@@ -76,10 +76,16 @@ describe("department discovery navigation", () => {
 });
 
 describe("the case page tabs (portal-workflow)", () => {
-  it("include Custody and stage after Overview and Alerts after Notes, without a count on Alerts", () => {
-    const tabs = CASE_TABS.map((t) => t.key);
-    expect(tabs.slice(0, 2)).toEqual(["", "custody"]);
-    expect(tabs[tabs.indexOf("notes") + 1]).toBe("alerts");
+  it("six tabs, then Parties, Linked cases, Custody and stage, Alerts and Details under More (portal-ui-redesign, 10.9)", () => {
+    expect(CASE_TABS.filter((t) => !t.more).map((t) => t.label)).toEqual([
+      "Overview",
+      "Hearings",
+      "Orders",
+      "Documents",
+      "Notes",
+      "Timeline",
+    ]);
+    expect(CASE_TABS.filter((t) => t.more).map((t) => t.key)).toEqual(["parties", "links", "custody", "alerts", "details"]);
     expect(CASE_TABS.find((t) => t.key === "custody")!.label).toBe("Custody and stage");
     expect(CASE_TABS.find((t) => t.key === "alerts")!.count).toBeNull();
     expect(CRUMBS.custody).toBe("Custody and stage");
@@ -99,8 +105,11 @@ const membership = (department_code: string | null, functions: Permission[], rol
   functions,
 });
 
-describe("Files and Alerts & calendar navigation (portal-files-alerts)", () => {
-  it("Alerts & calendar shows for case readers", () => {
+describe("Files, My calendar and Alerts navigation (portal-files-alerts; portal-ui-redesign, decision 8)", () => {
+  it("Alerts and My calendar show for case readers", () => {
+    expect(navFor({ functions: ["cases.view_scope"] }).find((e) => e.key === "alerts")!.label).toBe("Alerts");
+    expect(navFor({ functions: ["cases.view_scope"] }).find((e) => e.key === "calendar")!.href).toBe("/calendar");
+    expect(navFor({ functions: ["users.view"] }).map((e) => e.key)).not.toContain("calendar");
     expect(navFor({ functions: ["cases.view_scope"] }).map((e) => e.key)).toContain("alerts");
     expect(navFor({ functions: ["cases.view_all"] }).map((e) => e.key)).toContain("alerts");
     expect(navFor({ functions: ["users.view"] }).map((e) => e.key)).not.toContain("alerts");
@@ -130,16 +139,16 @@ describe("Files and Alerts & calendar navigation (portal-files-alerts)", () => {
     expect(filesTabsFor(null)).toEqual([]);
   });
 
-  it("the Alerts frame has two tabs for case readers", () => {
-    expect(keys(alertsTabsFor({ functions: ["cases.view_scope"] }))).toEqual(["list", "calendar"]);
+  it("the Alerts frame has the alerts tab for case readers (the calendar moved to My calendar)", () => {
+    expect(keys(alertsTabsFor({ functions: ["cases.view_scope"] }))).toEqual(["list"]);
     expect(alertsTabsFor({ functions: ["users.view"] })).toEqual([]);
   });
 
   it("the Next dates to confirm tab shows only with next_dates.review (portal-next-dates, decision 1)", () => {
     const both = alertsTabsFor({ functions: ["cases.view_scope", "next_dates.review"] });
-    expect(keys(both)).toEqual(["list", "calendar", "next-dates"]);
-    expect(both[2]!.label).toBe("Next dates to confirm");
-    expect(both[2]!.href).toBe("/alerts/next-dates");
+    expect(keys(both)).toEqual(["list", "next-dates"]);
+    expect(both[1]!.label).toBe("Next dates to confirm");
+    expect(both[1]!.href).toBe("/alerts/next-dates");
     expect(keys(alertsTabsFor({ functions: ["cases.view_scope"] }))).not.toContain("next-dates");
     expect(crumbLabel("/alerts/next-dates")).toBe("Next dates to confirm");
   });
@@ -147,7 +156,8 @@ describe("Files and Alerts & calendar navigation (portal-files-alerts)", () => {
   it("CRUMB_PATHS names the screens by path, while the segments keep their meaning", () => {
     expect(crumbLabel("/files/offices")).toBe("My offices");
     expect(crumbLabel("/admin/offices")).toBe("Offices");
-    expect(crumbLabel("/alerts")).toBe("Alerts & calendar");
+    expect(crumbLabel("/alerts")).toBe("Alerts");
+    expect(crumbLabel("/calendar")).toBe("My calendar");
     expect(crumbLabel("/cases/x/alerts")).toBe("Alerts");
     expect(crumbLabel("/alerts/calendar")).toBe("Hearing calendar");
     expect(CRUMB_PATHS["/files"]).toBe("Files");

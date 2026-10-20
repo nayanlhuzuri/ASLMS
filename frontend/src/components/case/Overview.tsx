@@ -1,84 +1,42 @@
 "use client";
 
 /**
- * The Overview tab (design portal-cases, decision 10; Annexure B cards): Next hearing, Parties and advocates,
- * Proceedings, Custody (with Send file and Recall by the card's `can_send` / `can_recall`, design portal-workflow,
- * decisions 5-7), Stage (Set stage by `workflow.set_stage`, decision 9), Latest order and Ownership, with a muted
- * "You see this case as: …" line from `access_basis`. "Next date from orders" follows "Next hearing" and the Latest
- * order card carries the order's reading (design portal-next-dates, decision 8).
+ * The Overview tab (design portal-ui-redesign, decisions 10.10 and 24; plan §5.3; Annexure B cards), two columns that
+ * stack below 1100 px:
+ * - Latest order: its date, kind and short text (`order_details`), the collapsible order row with the stored PDF
+ *   (decision 7), the order's reading and the next-date block of portal-next-dates (decision 8: the date in use,
+ *   "Waiting for you" with Confirm / Not correct, Enter next date by the `next_dates` flag), "All orders →", and the
+ *   folded "Show parties, advocates and acts" (the first petitioner and respondent with their advocates, the counsel
+ *   codes and the acts, "+ n more" to Parties);
+ * - Recent activity: the five latest timeline entries on the timeline rail, "Timeline →";
+ * - below, the folded "Ownership and recommendations" (today's Ownership card), and the muted "You see this case as:
+ *   …" line from `access_basis`.
+ * The next hearing, the file holder, the stage and the owner are in the summary header; the full custody card and the
+ * stage history are on the Custody and stage tab.
  */
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 
+import { OrderRow } from "@/components/claim/OrderRow";
 import { NextDateBlock } from "@/components/nextdates/CaseNextDate";
-import { Badge, Button, ErrorBanner, Loading, Notice } from "@/components/ui";
-import { CustodyActions } from "@/components/workflow/CustodyDialogs";
-import { CustodyFacts } from "@/components/workflow/CustodyTab";
-import { StageDialog } from "@/components/workflow/StageDialog";
+import { Card, Collapsible, ErrorBanner, KvList, Loading } from "@/components/ui";
 import { api } from "@/lib/api/client";
-import { caseKey, useCase, useMe } from "@/lib/api/hooks";
-import type { CaseDetail, HearingList, ListingList, OrderList } from "@/lib/api/types";
-import { can } from "@/lib/can";
-import { formatDate, hearingBadge } from "@/lib/format";
+import { caseKey, useCase } from "@/lib/api/hooks";
+import type { CaseDetail, OrderList, TimelineList } from "@/lib/api/types";
+import { formatDate, formatDateTime } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { readingLabel } from "@/lib/nextDates";
 import { apiCasePath, casePath } from "@/lib/refs";
+import { timelineDetail } from "@/lib/timeline";
 
 import s from "./case.module.css";
-import { fileUrl } from "./Orders";
 import { OwnershipCard } from "./OwnershipCard";
+import { useTimelineLabels } from "./Timeline";
 
-function Card({ title, children, more }: { title: string; children: ReactNode; more?: ReactNode }) {
-  return (
-    <section className="card stack" aria-label={title}>
-      <h3>{title}</h3>
-      {children}
-      {more}
-    </section>
-  );
-}
+const RECENT = 5;
 
-function NextHearing({ caseRef, c }: { caseRef: string; c: CaseDetail }) {
-  const listing = useQuery({
-    queryKey: [...caseKey(caseRef), "listings", 1],
-    queryFn: () => api<ListingList>(`${apiCasePath(caseRef)}/listings`, { query: { limit: 1 } }),
-  });
-  const next = c.status.next_hearing_date;
-  const badge = hearingBadge(next);
-  const last = listing.data?.items[0];
-  return (
-    <Card title={T.case.nextHearing}>
-      {next ? (
-        <>
-          <div className="row">
-            <strong>{formatDate(next)}</strong>
-            {badge === "critical" ? <Badge tone="danger">{T.case.within48}</Badge> : null}
-            {badge === "week" ? <Badge>{T.case.thisWeek}</Badge> : null}
-          </div>
-          {c.status.next_purpose ? <div>{c.status.next_purpose}</div> : null}
-        </>
-      ) : (
-        <p className="muted">{T.case.noNext}</p>
-      )}
-      {last ? (
-        <div className="muted">
-          {T.inbox.listing(formatDate(last.list_date), last.court_no, last.sr_no)} · {T.case.source}: {last.source}
-        </div>
-      ) : null}
-    </Card>
-  );
-}
-
-function NextDateCard({ caseRef, c }: { caseRef: string; c: CaseDetail }) {
-  return (
-    <Card title={T.nd.card}>
-      <NextDateBlock caseRef={caseRef} c={c} />
-    </Card>
-  );
-}
-
-function PartiesCard({ caseRef, c }: { caseRef: string; c: CaseDetail }) {
+function PartiesAndActs({ caseRef, c }: { caseRef: string; c: CaseDetail }) {
   const current = c.parties.filter((p) => p.is_current);
   const advocates = c.advocates.filter((a) => a.is_current);
   const pet = current.find((p) => p.role === "petitioner");
@@ -88,106 +46,37 @@ function PartiesCard({ caseRef, c }: { caseRef: string; c: CaseDetail }) {
       .filter((a) => a.side === side)
       .map((a) => a.name_as_listed)
       .join(", ");
+  const codes = [...new Set(advocates.map((a) => a.counsel_code).filter((x): x is string => !!x))];
+  const acts = c.acts.map((a) => [a.act_name_as_listed, a.section].filter(Boolean).join(", ")).filter(Boolean);
   const shown = (pet ? 1 : 0) + (res ? 1 : 0);
   const more = current.length - shown;
+  const items: [string, ReactNode][] = [
+    [
+      T.case.petitioner,
+      <>
+        {pet?.name ?? c.parties_as_printed.petitioner_summary ?? "—"}
+        {advOf("petitioner") ? <div className="muted">{advOf("petitioner")}</div> : null}
+      </>,
+    ],
+    [
+      T.case.respondent,
+      <>
+        {res?.name ?? c.parties_as_printed.respondent_summary ?? "—"}
+        {advOf("respondent") ? <div className="muted">{advOf("respondent")}</div> : null}
+      </>,
+    ],
+  ];
+  if (codes.length > 0) items.push([T.case.counselCodes, codes.join("; ")]);
+  if (acts.length > 0) items.push([T.case.acts, acts.join("; ")]);
   return (
-    <Card
-      title={T.case.partiesCard}
-      more={more > 0 ? <Link href={casePath(caseRef, "parties")}>{T.case.more(more)}</Link> : null}
-    >
-      <dl className={s.facts}>
-        <div>
-          <dt>{T.case.petitioner}</dt>
-          <dd>
-            {pet?.name ?? c.parties_as_printed.petitioner_summary ?? "—"}
-            {advOf("petitioner") ? <div className="muted">{advOf("petitioner")}</div> : null}
-          </dd>
-        </div>
-        <div>
-          <dt>{T.case.respondent}</dt>
-          <dd>
-            {res?.name ?? c.parties_as_printed.respondent_summary ?? "—"}
-            {advOf("respondent") ? <div className="muted">{advOf("respondent")}</div> : null}
-          </dd>
-        </div>
-      </dl>
-    </Card>
+    <Collapsible summary={T.case.showParties}>
+      <KvList items={items} />
+      {more > 0 ? <Link href={casePath(caseRef, "parties")}>{T.case.more(more)}</Link> : null}
+    </Collapsible>
   );
 }
 
-function Proceedings({ caseRef }: { caseRef: string }) {
-  const list = useQuery({
-    queryKey: [...caseKey(caseRef), "hearings", 5],
-    queryFn: () => api<HearingList>(`${apiCasePath(caseRef)}/hearings`, { query: { limit: 5 } }),
-  });
-  return (
-    <Card title={T.case.proceedings} more={<Link href={casePath(caseRef, "hearings")}>{T.case.allHearings}</Link>}>
-      {list.isPending ? <Loading /> : null}
-      <ErrorBanner error={list.error} />
-      {list.data ? (
-        list.data.items.length === 0 ? (
-          <p className="muted">{T.case.noHearings}</p>
-        ) : (
-          <ul className={s.cardList}>
-            {list.data.items.map((h, i) => (
-              <li key={i}>
-                <strong>{formatDate(h.business_date ?? h.hearing_date)}</strong> {h.purpose ?? ""}
-                {h.next_date ? <span className="muted"> → {formatDate(h.next_date)}</span> : null}
-              </li>
-            ))}
-          </ul>
-        )
-      ) : null}
-    </Card>
-  );
-}
-
-function Custody({ caseRef, c }: { caseRef: string; c: CaseDetail }) {
-  const k = c.custody;
-  return (
-    <Card title={T.case.custody} more={k ? <Link href={casePath(caseRef, "custody")}>{T.wf.openCustody}</Link> : null}>
-      {k ? <CustodyFacts card={k} /> : <p className="muted">{T.case.noCustody}</p>}
-      {k ? <CustodyActions caseRef={caseRef} detail={c} card={k} /> : null}
-    </Card>
-  );
-}
-
-function StageCard({ caseRef, c }: { caseRef: string; c: CaseDetail }) {
-  const [open, setOpen] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
-  return (
-    <Card title={T.case.stage} more={c.ownership.primary ? <Link href={casePath(caseRef, "custody")}>{T.wf.openCustody}</Link> : null}>
-      {notice ? <Notice>{notice}</Notice> : null}
-      {c.stage ? (
-        <div>
-          <strong>{c.stage.label}</strong>
-          {c.stage.phase ? <span className="muted"> · {c.stage.phase}</span> : null}
-        </div>
-      ) : (
-        <p className="muted">{T.case.noStage}</p>
-      )}
-      {c.workflow.set_stage ? (
-        <>
-          <div className="row">
-            <Button variant="secondary" onClick={() => setOpen(true)}>
-              {T.wf.setStage}
-            </Button>
-          </div>
-          <StageDialog
-            open={open}
-            caseRef={caseRef}
-            current={c.stage ? { stage: c.stage.stage, response_mode: c.stage.response_mode } : null}
-            onClose={() => setOpen(false)}
-            onDone={setNotice}
-          />
-        </>
-      ) : null}
-    </Card>
-  );
-}
-
-function LatestOrder({ caseRef }: { caseRef: string }) {
-  const me = useMe();
+function LatestOrder({ caseRef, c }: { caseRef: string; c: CaseDetail }) {
   const list = useQuery({
     queryKey: [...caseKey(caseRef), "orders", 1],
     queryFn: () => api<OrderList>(`${apiCasePath(caseRef)}/orders`, { query: { limit: 1 } }),
@@ -195,29 +84,70 @@ function LatestOrder({ caseRef }: { caseRef: string }) {
   const o = list.data?.items[0];
   const reading = o ? readingLabel(o) : null;
   return (
-    <Card title={T.case.latestOrder}>
-      {list.isPending ? <Loading /> : null}
-      <ErrorBanner error={list.error} />
-      {list.data && !o ? <p className="muted">{T.case.noOrders}</p> : null}
-      {o ? (
-        <div className="row">
-          <span>
-            {formatDate(o.order_date)} · {o.kind}
-          </span>
-          {o.download_status === "stored" && can(me.data, "documents.view") ? (
-            <a href={fileUrl(caseRef, o.id, "inline")} target="_blank" rel="noopener noreferrer">
-              {T.case.view}
-            </a>
+    <section aria-label={T.case.latestOrder}>
+      <Card title={T.case.latestOrder} actions={<Link href={casePath(caseRef, "orders")}>{T.case.allOrders}</Link>}>
+        <div className="stack">
+          {list.isPending ? <Loading lines={2} /> : null}
+          <ErrorBanner error={list.error} />
+          {list.data && !o ? <p className="muted">{T.case.noOrders}</p> : null}
+          {o ? (
+            <>
+              <div>
+                <strong>{formatDate(o.order_date)}</strong> · {o.kind}
+              </div>
+              {o.order_details ? <p className={s.orderText}>{o.order_details}</p> : null}
+              <OrderRow caseRef={caseRef} order={o} label={T.case.showOrder} />
+            </>
           ) : null}
+          {reading ? (
+            <div>
+              {reading.date ? T.nd.foundInOrder(reading.date) : `${T.nd.readCol}: ${reading.words}`}
+              {reading.date && o?.next_date_status === "period" ? <span className="muted"> · {reading.words}</span> : null}
+            </div>
+          ) : null}
+          <section className="stack" aria-label={T.nd.card}>
+            <NextDateBlock caseRef={caseRef} c={c} />
+          </section>
+          <PartiesAndActs caseRef={caseRef} c={c} />
         </div>
-      ) : null}
-      {reading ? (
-        <div>
-          {reading.date ? T.nd.foundInOrder(reading.date) : `${T.nd.readCol}: ${reading.words}`}
-          {reading.date && o?.next_date_status === "period" ? <span className="muted"> · {reading.words}</span> : null}
-        </div>
-      ) : null}
-    </Card>
+      </Card>
+    </section>
+  );
+}
+
+function RecentActivity({ caseRef }: { caseRef: string }) {
+  const labels = useTimelineLabels();
+  const list = useQuery({
+    queryKey: [...caseKey(caseRef), "timeline", "recent"],
+    queryFn: () => api<TimelineList>(`${apiCasePath(caseRef)}/timeline`, { query: { limit: RECENT, offset: 0 } }),
+  });
+  return (
+    <section aria-label={T.case.recentActivity}>
+      <Card title={T.case.recentActivity} actions={<Link href={casePath(caseRef, "timeline")}>{T.case.timelineLink}</Link>}>
+        {list.isPending ? <Loading lines={3} /> : null}
+        <ErrorBanner error={list.error} onRetry={() => list.refetch()} />
+        {list.data ? (
+          list.data.items.length === 0 ? (
+            <p className="muted">{T.case.noTimeline}</p>
+          ) : (
+            <ol className={s.rail} aria-label={T.case.recentActivity}>
+              {list.data.items.slice(0, RECENT).map((e, i) => {
+                const detail = timelineDetail(e.type, e.payload, labels);
+                return (
+                  <li key={`${e.occurred_at}-${i}`} className={s.railItem}>
+                    <div className={s.when}>{formatDateTime(e.occurred_at)}</div>
+                    <strong>{e.label}</strong>
+                    {detail || e.actor_name ? (
+                      <div className="muted">{[detail, e.actor_name].filter(Boolean).join(" · ")}</div>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ol>
+          )
+        ) : null}
+      </Card>
+    </section>
   );
 }
 
@@ -228,16 +158,13 @@ export function Overview({ caseRef }: { caseRef: string }) {
   const basis = c.access_basis.map((b) => T.case.bases[b] ?? b).join(", ");
   return (
     <div className="stack">
-      <div className={s.cards}>
-        <NextHearing caseRef={caseRef} c={c} />
-        <NextDateCard caseRef={caseRef} c={c} />
-        <PartiesCard caseRef={caseRef} c={c} />
-        <Proceedings caseRef={caseRef} />
-        <Custody caseRef={caseRef} c={c} />
-        <StageCard caseRef={caseRef} c={c} />
-        <LatestOrder caseRef={caseRef} />
+      <div className={s.caseGrid}>
+        <LatestOrder caseRef={caseRef} c={c} />
+        <RecentActivity caseRef={caseRef} />
       </div>
-      <OwnershipCard caseRef={caseRef} detail={c} />
+      <Collapsible summary={T.case.ownershipFolded}>
+        <OwnershipCard caseRef={caseRef} detail={c} secondaryOnly />
+      </Collapsible>
       {basis ? <p className="muted">{T.case.seenAs(basis)}</p> : null}
     </div>
   );

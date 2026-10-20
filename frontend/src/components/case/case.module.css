@@ -1,36 +1,163 @@
+/* The case page (design portal-ui-redesign, decisions 10.9, 10.10 and 24): the summary header card with one primary
+   action, four facts (two per row below 1100 px), the Overview's two columns and the timeline rail. */
+
 .header {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--s3);
+  padding: var(--s5);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-1);
+}
+
+.titleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
 }
 
 .caseNo {
-  font-family: var(--font-serif);
-  font-size: var(--text-2xl);
   margin: 0;
+  font-size: var(--t-2xl);
+  font-weight: 600;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  margin-left: auto;
 }
 
 .parties {
   margin: 0;
-  font-size: var(--text-lg);
+  color: var(--text-2);
+  font-size: var(--t-lg);
 }
 
 .facts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-5);
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--s4);
   margin: 0;
+  padding-top: var(--s4);
+  border-top: 1px solid var(--border);
 }
 
 .facts dt {
-  color: var(--ink-muted);
-  font-size: var(--text-xs);
+  color: var(--text-3);
+  font-size: var(--t-xs);
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
 .facts dd {
+  margin: var(--s1) 0 0;
+  font-weight: 500;
+}
+
+.factLine {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.caseGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: var(--s4);
+  align-items: start;
+}
+
+.orderText {
   margin: 0;
+  white-space: pre-wrap;
+}
+
+.orderList {
+  display: flex;
+  flex-direction: column;
+}
+
+.orderMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1) var(--s4);
+  padding-bottom: var(--s2);
+}
+
+.orderReading {
+  display: flex;
+  gap: var(--s1);
+  align-items: baseline;
+}
+
+.rail {
+  position: relative;
+  margin: 0;
+  padding: 0 0 0 var(--s5);
+  list-style: none;
+}
+
+.rail::before {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  background: var(--border);
+}
+
+.railItem {
+  position: relative;
+  padding-bottom: var(--s4);
+}
+
+.railItem::before {
+  content: "";
+  position: absolute;
+  left: -22px;
+  top: 6px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--accent);
+}
+
+.when {
+  color: var(--text-3);
+  font-size: var(--t-xs);
+}
+
+.plainList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (max-width: 1099px) {
+  .facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .caseGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 819px) {
+  .actions {
+    margin-left: 0;
+    width: 100%;
+  }
 }
 
 .banner {

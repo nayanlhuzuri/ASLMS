@@ -1,0 +1,222 @@
+/* My calendar (design portal-ui-redesign, decision 8): the grid beside the agenda on laptops, stacked below 1100 px;
+   below 820 px the events become coloured dots. Spacing from the scale only (decision 14). */
+
+.wrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: var(--s4);
+  align-items: start;
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  margin-bottom: var(--s3);
+}
+
+.title {
+  margin: 0 var(--s3) 0 0;
+  min-width: 150px;
+  font-size: var(--t-lg);
+  font-weight: 600;
+}
+
+.legend {
+  margin-left: auto;
+}
+
+.swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: var(--s1);
+  border-radius: 50%;
+}
+
+.sw-hearing {
+  background: var(--red);
+}
+
+.sw-action_due {
+  background: var(--amber);
+}
+
+.sw-confirm {
+  background: var(--accent);
+}
+
+.grid {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.grid th {
+  padding: var(--s2) var(--s3);
+  font-size: var(--t-xs);
+  font-weight: 600;
+  color: var(--text-3);
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border);
+}
+
+.grid th abbr {
+  text-decoration: none;
+}
+
+.grid td {
+  padding: 0;
+  vertical-align: top;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.grid td:last-child {
+  border-right: 0;
+}
+
+.day {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  width: 100%;
+  min-height: 104px;
+  padding: var(--s2);
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--fast) var(--ease);
+}
+
+.day:hover {
+  background: var(--surface-2);
+}
+
+.selected .day {
+  background: var(--accent-soft);
+}
+
+.outside .day {
+  background: var(--surface-2);
+  color: var(--text-3);
+}
+
+.dayNo {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  font-size: var(--t-sm);
+  font-weight: 500;
+}
+
+.weekend .dayNo {
+  color: var(--text-3);
+}
+
+.dayNo.today {
+  background: var(--accent);
+  color: #fff;
+}
+
+.ev {
+  overflow: hidden;
+  padding: 2px var(--s1);
+  border-radius: var(--r-sm);
+  font-size: var(--t-xs);
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ev-hearing {
+  background: var(--red-soft);
+  color: var(--red-text);
+}
+
+.ev-action_due {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
+.ev-confirm {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.moreEv {
+  font-size: var(--t-xs);
+  color: var(--text-3);
+}
+
+.agenda {
+  position: sticky;
+  top: var(--s4);
+}
+
+.agendaList {
+  margin: 0;
+  padding: 0;
+}
+
+@media (max-width: 1099px) {
+  .wrap {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .agenda {
+    position: static;
+  }
+}
+
+@media (max-width: 819px) {
+  .legend {
+    margin-left: 0;
+  }
+
+  .day {
+    min-height: 64px;
+    padding: var(--s1);
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-content: flex-start;
+  }
+
+  .dayNo {
+    flex-basis: 100%;
+    justify-content: start;
+  }
+
+  .ev {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    padding: 0;
+    border-radius: 50%;
+    font-size: 0;
+  }
+
+  .ev-hearing {
+    background: var(--red);
+  }
+
+  .ev-action_due {
+    background: var(--amber);
+  }
+
+  .ev-confirm {
+    background: var(--accent);
+  }
+
+  .moreEv {
+    display: none;
+  }
+}

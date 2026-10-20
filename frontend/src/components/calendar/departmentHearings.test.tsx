@@ -7,7 +7,7 @@ import { monthOf, shiftMonth, todayIst } from "@/lib/workflow";
 import { nav, resetNav } from "@/test/nav";
 import { browserApi, json, makeMe, renderWithClient } from "@/test/render";
 
-import { Calendar } from "./Calendar";
+import { DepartmentHearings as Calendar } from "./DepartmentHearings";
 
 const CASE = { id: "c1", ref_no: "ASLMS/GOA/CASE/2026/000001", cnr: null, case_no_text: "WP(C)/1/2026" };
 
@@ -37,7 +37,7 @@ function calendarCalls(calls: { path: string }[]) {
 }
 
 beforeEach(() => {
-  resetNav("/alerts/calendar");
+  resetNav("/calendar");
 });
 
 describe("the hearing calendar (portal-files-alerts, decisions 10, 11)", () => {
@@ -110,13 +110,13 @@ describe("the hearing calendar (portal-files-alerts, decisions 10, 11)", () => {
     renderWithClient(<Calendar params={{ month: "2026-01" }} />);
     await screen.findByRole("table", { name: "January 2026" });
     await userEvent.click(screen.getByRole("button", { name: "Previous month" }));
-    expect(nav.replace).toHaveBeenLastCalledWith("/alerts/calendar?month=2025-12");
+    expect(nav.replace).toHaveBeenLastCalledWith("/calendar?month=2025-12");
     await userEvent.click(screen.getByRole("button", { name: "Next month" }));
-    expect(nav.replace).toHaveBeenLastCalledWith("/alerts/calendar?month=2026-02");
+    expect(nav.replace).toHaveBeenLastCalledWith("/calendar?month=2026-02");
     await userEvent.click(screen.getByRole("button", { name: "This month" }));
-    expect(nav.replace).toHaveBeenLastCalledWith(`/alerts/calendar?month=${monthOf(todayIst())}`);
+    expect(nav.replace).toHaveBeenLastCalledWith(`/calendar?month=${monthOf(todayIst())}`);
     await userEvent.click(screen.getByRole("button", { name: "Next 7 days" }));
-    expect(nav.replace).toHaveBeenLastCalledWith("/alerts/calendar");
+    expect(nav.replace).toHaveBeenLastCalledWith("/calendar");
   });
 
   it("today is marked in the grid", async () => {
@@ -140,7 +140,7 @@ describe("the hearing calendar (portal-files-alerts, decisions 10, 11)", () => {
     await waitFor(() => expect(screen.getByRole("option", { name: "EDU — Education" })).toBeInTheDocument());
     expect(calendarCalls(api.calls)).toHaveLength(0);
     await userEvent.selectOptions(screen.getByLabelText("Department"), "EDU");
-    expect(nav.replace).toHaveBeenLastCalledWith("/alerts/calendar?department=EDU");
+    expect(nav.replace).toHaveBeenLastCalledWith("/calendar?department=EDU");
     unmount();
     renderWithClient(<Calendar params={{ department: "EDU" }} />);
     await screen.findByRole("region", { name: "Agenda" });

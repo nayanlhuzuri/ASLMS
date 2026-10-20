@@ -1,0 +1,85 @@
+/* The workflow dialogs on the Action dialog template (design portal-ui-redesign, decision 25): the stepped Send file's
+   panes slide in, the people are selectable cards. Spacing from the scale only (decision 14). */
+
+.pane {
+  animation: pane-in var(--med) var(--ease);
+}
+
+@keyframes pane-in {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+}
+
+.people {
+  display: grid;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.people legend {
+  margin-bottom: var(--s2);
+  font-size: var(--t-sm);
+  font-weight: 500;
+}
+
+.person {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  transition:
+    border-color var(--fast) var(--ease),
+    background var(--fast) var(--ease);
+}
+
+.person:hover {
+  border-color: var(--accent);
+}
+
+.person:focus-within {
+  box-shadow: 0 0 0 4px var(--accent-ring);
+}
+
+.personOn {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.person input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+
+.avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--control-h);
+  height: var(--control-h);
+  border-radius: 50%;
+  background: var(--slate-soft);
+  color: var(--text-2);
+  font-size: var(--t-xs);
+  font-weight: 600;
+}
+
+.personText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.error {
+  margin: 0;
+  color: var(--red-text);
+  font-size: var(--t-sm);
+}

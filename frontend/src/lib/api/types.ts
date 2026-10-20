@@ -174,6 +174,9 @@ export type CustodySummary = S["CustodySummaryOut"];
 export type DepartmentCustodySummary = S["DepartmentCustodySummaryOut"];
 export type CalendarList = S["CalendarOut"];
 export type CalendarItem = S["CalendarItemOut"];
+// portal-ui-redesign, A6: My calendar
+export type MyCalendarList = S["MyCalendarOut"];
+export type MyCalendarItem = S["MyCalendarItemOut"];
 // portal-causelist: the Cause list screen
 export type CauselistDates = S["CauselistDatesOut"];
 export type CauselistDate = S["CauselistDateOut"];

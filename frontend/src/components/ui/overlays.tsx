@@ -116,18 +116,31 @@ function CloseButton({ onClose }: { onClose: () => void }) {
   );
 }
 
-/** The dialog: a title, the Close button and its body; it eases in and out. */
+/**
+ * The dialog on the Action dialog template (decision 25): 560 px wide (720 px with `wide`, the note composer), a header
+ * with the title and an optional subtitle (the case number) and more under it (a stepper), a scrolling body, and an
+ * optional footer fixed at the bottom; full screen on phones. It eases in and out.
+ */
 export function Dialog({
   open,
   title,
+  subtitle,
+  head,
   onClose,
   children,
+  footer,
   wide,
 }: {
   open: boolean;
   title: string;
+  /** Under the title: the case number on a case's workflow dialogs. */
+  subtitle?: ReactNode;
+  /** More in the header, under the title (the stepper of a stepped dialog). */
+  head?: ReactNode;
   onClose: () => void;
   children: ReactNode;
+  /** The footer fixed at the bottom: Cancel or Back on the left, one primary on the right. */
+  footer?: ReactNode;
   /** 720 px instead of 560 px (the note composer). */
   wide?: boolean;
 }) {
@@ -147,44 +160,82 @@ export function Dialog({
         tabIndex={-1}
       >
         <div className={s.dialogHead}>
-          <h2 id={titleId}>{title}</h2>
+          <div className={s.dialogTitle}>
+            <h2 id={titleId}>{title}</h2>
+            {subtitle ? <p className={cx(s.dialogSub, "cno")}>{subtitle}</p> : null}
+            {head}
+          </div>
           <CloseButton onClose={onClose} />
         </div>
         <div className={s.dialogBody}>{children}</div>
+        {footer ? <div className={s.dialogFoot}>{footer}</div> : null}
       </div>
     </div>
   );
 }
 
-/** A dialog that asks before an action: its fields, the API's refusal, and Cancel / one primary Confirm. */
+/**
+ * A dialog that asks before an action: its fields, the API's refusal, and the footer with Cancel (or `cancelLabel`,
+ * Back on a stepped dialog) on the left and one primary Confirm on the right. Enter in a field submits the form.
+ */
 export function ConfirmDialog({
   open,
   title,
+  subtitle,
+  head,
   onClose,
   onConfirm,
+  onCancel,
   busy,
   error,
   confirmLabel = T.own.confirm,
+  cancelLabel = T.cancel,
   confirmDisabled,
   danger,
+  wide,
   messages,
   children,
 }: {
   open: boolean;
   title: string;
+  subtitle?: ReactNode;
+  head?: ReactNode;
   onClose: () => void;
   onConfirm: () => void;
+  /** The left footer button (default: close). */
+  onCancel?: () => void;
   busy?: boolean;
   error?: unknown;
   confirmLabel?: string;
+  cancelLabel?: string;
   confirmDisabled?: boolean;
   danger?: boolean;
+  wide?: boolean;
   messages?: ErrorTexts;
   children?: ReactNode;
 }) {
+  const formId = useId();
   return (
-    <Dialog open={open} title={title} onClose={onClose}>
+    <Dialog
+      open={open}
+      title={title}
+      subtitle={subtitle}
+      head={head}
+      onClose={onClose}
+      wide={wide}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onCancel ?? onClose}>
+            {cancelLabel}
+          </Button>
+          <Button type="submit" form={formId} variant={danger ? "danger" : "primary"} busy={busy} disabled={confirmDisabled}>
+            {confirmLabel}
+          </Button>
+        </>
+      }
+    >
       <form
+        id={formId}
         className="stack"
         onSubmit={(e) => {
           e.preventDefault();
@@ -196,14 +247,6 @@ export function ConfirmDialog({
       >
         {children}
         <ErrorBanner error={error} messages={messages} />
-        <div className={s.dialogActions}>
-          <Button variant="secondary" onClick={onClose}>
-            {T.cancel}
-          </Button>
-          <Button type="submit" variant={danger ? "danger" : "primary"} busy={busy} disabled={confirmDisabled}>
-            {confirmLabel}
-          </Button>
-        </div>
       </form>
     </Dialog>
   );

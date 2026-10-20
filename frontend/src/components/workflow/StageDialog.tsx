@@ -9,7 +9,7 @@ import { useState } from "react";
 
 import { CharCounter, ConfirmDialog, SelectField, TextArea } from "@/components/ui";
 import { api } from "@/lib/api/client";
-import { useWorkflowCodes } from "@/lib/api/hooks";
+import { useCaseTitle, useWorkflowCodes } from "@/lib/api/hooks";
 import type { StageCode } from "@/lib/api/types";
 import { T } from "@/lib/messages";
 import { apiCasePath } from "@/lib/refs";
@@ -44,6 +44,7 @@ export function StageDialog({
 }) {
   const codes = useWorkflowCodes(open);
   const refresh = useWorkflowRefresh(caseRef);
+  const caseTitle = useCaseTitle(caseRef);
   const action = useAction();
   const [stage, setStage] = useState("");
   const [mode, setMode] = useState<string | null>(null);
@@ -79,6 +80,7 @@ export function StageDialog({
 
   return (
     <ConfirmDialog
+      subtitle={caseTitle}
       open={open}
       title={T.wf.stageTitle}
       onClose={close}

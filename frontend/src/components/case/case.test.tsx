@@ -14,6 +14,7 @@ import { Links } from "./Links";
 import { Notes } from "./Notes";
 import { Orders } from "./Orders";
 import { Overview } from "./Overview";
+import { Timeline } from "./Timeline";
 
 const REF = "ASLMS-GOA-CASE-2026-000001";
 const BASE = `/cases/${REF}`;
@@ -226,6 +227,11 @@ beforeEach(() => {
   resetNav(BASE);
 });
 
+/** The Overview folds today's Ownership card under "Ownership and recommendations" (portal-ui-redesign, decision 24). */
+async function openOwnership() {
+  await userEvent.click(await screen.findByRole("button", { name: "Ownership and recommendations" }));
+}
+
 describe("the frame", () => {
   it("a 404 shows one neutral message", async () => {
     browserApi({ "GET /me": me(), [`GET ${BASE}`]: json(404, { detail: "no such case" }) });
@@ -275,54 +281,206 @@ describe("the frame", () => {
     expect(screen.queryByRole("button", { name: "Fetch from the court" })).toBeNull();
   });
 
-  it("tab badges come from counts; no Case Assistant, Upload or Hand over", async () => {
+  it("six tabs with counts and More (Parties, Linked cases, Custody and stage, Alerts, Details); no Case Assistant", async () => {
     browserApi({ "GET /me": me(), [`GET ${BASE}`]: detail() });
     renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
     const tabs = await screen.findByRole("navigation", { name: "Case sections" });
     expect(within(tabs).getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
     expect(within(tabs).getByRole("link", { name: "Hearings (7)" })).toHaveAttribute("href", `${BASE}/hearings`);
     expect(within(tabs).getByRole("link", { name: "Orders (5)" })).toBeInTheDocument();
+    expect(within(tabs).getByRole("link", { name: "Documents (2)" })).toBeInTheDocument();
     expect(within(tabs).getByRole("link", { name: "Notes (4)" })).toBeInTheDocument();
-    expect(within(tabs).getByRole("link", { name: "Custody and stage" })).toHaveAttribute("href", `${BASE}/custody`);
-    expect(within(tabs).getByRole("link", { name: "Alerts" })).toHaveAttribute("href", `${BASE}/alerts`);
+    expect(within(tabs).getByRole("link", { name: "Timeline (12)" })).toBeInTheDocument();
+    expect(within(tabs).queryByRole("link", { name: "Custody and stage" })).toBeNull();
+    await userEvent.click(within(tabs).getByRole("button", { name: "More" }));
+    const more = within(tabs).getByRole("menu");
+    expect(within(more).getAllByRole("menuitem").map((m) => m.textContent)).toEqual([
+      "Parties",
+      "Linked cases",
+      "Custody and stage",
+      "Alerts",
+      "Details",
+    ]);
+    expect(within(more).getByRole("menuitem", { name: "Custody and stage" })).toHaveAttribute("href", `${BASE}/custody`);
+    expect(within(more).getByRole("menuitem", { name: "Alerts" })).toHaveAttribute("href", `${BASE}/alerts`);
     expect(within(tabs).queryByRole("link", { name: /Assistant/ })).toBeNull();
-    expect(screen.queryByRole("button", { name: /Upload|Hand over|Assistant/ })).toBeNull();
-    expect(screen.getByRole("heading", { name: "WP(C)/1234/2026" })).toBeInTheDocument();
-    expect(screen.getByText("ASHC010012342026")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Hand over|Assistant/ })).toBeNull();
+    expect(screen.getByRole("heading", { name: "WP(C)/1234/2026", level: 1 })).toBeInTheDocument();
+  });
+
+  it("the More menu shows the current tab's label when one of its tabs is open", async () => {
+    resetNav(`${BASE}/custody`);
+    browserApi({ "GET /me": me(), [`GET ${BASE}`]: detail() });
+    renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
+    const tabs = await screen.findByRole("navigation", { name: "Case sections" });
+    expect(within(tabs).getByRole("button", { name: "Custody and stage" })).toHaveAttribute("aria-haspopup", "menu");
+    expect(within(tabs).getByRole("link", { name: "Overview" })).not.toHaveAttribute("aria-current");
+  });
+
+  it("the summary header shows the four facts and the badges (portal-ui-redesign, decision 24)", async () => {
+    const c = detail({
+      custody: { ...detail().custody!, holder_user: { id: "u-1", full_name: "Anita Sharma", designation: "Under Secretary" } },
+      status: { ...detail().status, next_hearing_date: "2026-11-20" },
+    });
+    browserApi({
+      "GET /me": me(),
+      [`GET ${BASE}`]: c,
+      [`GET ${BASE}/listings`]: {
+        items: [{ list_date: "2026-11-20", court_no: "3", sr_no: 14, list_type: "daily", source: "causelist" }],
+        total: 1,
+      },
+    });
+    renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
+    const header = await screen.findByRole("region", { name: "Case summary" });
+    expect(within(header).getByText("Pending")).toBeInTheDocument();
+    expect(within(header).getByText("Your department")).toBeInTheDocument();
+    expect(within(header).getByText(/RAM KUMAR/)).toBeInTheDocument();
+    const fact = (label: string) => within(header).getByText(label, { selector: "dt" }).nextElementSibling as HTMLElement;
+    await waitFor(() => expect(fact("Next hearing")).toHaveTextContent("20 Nov 2026 · Court 3, item 14"));
+    expect(fact("File is with")).toHaveTextContent("You · Under Secretary");
+    expect(fact("Stage")).toHaveTextContent("Reply due");
+    expect(fact("Owner")).toHaveTextContent("Education");
+  });
+
+  it("another department's owner shows its code; a colleague holds the file; no owner says Not claimed", async () => {
+    browserApi({
+      "GET /me": me(),
+      [`GET ${BASE}`]: detail({
+        ownership: { primary: { office_code: "HEALTH", office_name: "Health", unit: null, officer: null, claimed_at: "2026-09-01T10:00:00Z" }, watchers: [] },
+      }),
+    });
+    const { unmount } = renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
+    const header = await screen.findByRole("region", { name: "Case summary" });
+    expect(within(header).getByText("HEALTH")).toBeInTheDocument();
+    expect(within(header).queryByText("Your department")).toBeNull();
+    const fact = (label: string) => within(header).getByText(label, { selector: "dt" }).nextElementSibling as HTMLElement;
+    expect(fact("File is with")).toHaveTextContent("Officer One · SO");
+    unmount();
+    browserApi({ "GET /me": me(), [`GET ${BASE}`]: detail({ ownership: { primary: null, watchers: [] }, custody: null, stage: null }) });
+    renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
+    const bare = await screen.findByRole("region", { name: "Case summary" });
+    const fact2 = (label: string) => within(bare).getByText(label, { selector: "dt" }).nextElementSibling as HTMLElement;
+    expect(fact2("Owner")).toHaveTextContent("Not claimed");
+    expect(fact2("Stage")).toHaveTextContent("No stage set.");
+    expect(fact2("File is with")).toHaveTextContent("—");
+  });
+
+  it("one primary action, picked from the flags: Send file, else Claim, else Accept transfer", async () => {
+    const primaries = () => document.querySelectorAll("[data-variant='primary']");
+    // Send file by custody.can_send; Recall in More actions by can_recall
+    browserApi({ "GET /me": me(), [`GET ${BASE}`]: detail(), [`GET ${BASE}/ownership`]: ownership(actions({ claim: true, claim_departments: ["EDU"] })) });
+    let view = renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
+    let group = await screen.findByRole("group", { name: "Case actions" });
+    expect(within(group).getByRole("button", { name: "Send file" })).toBeInTheDocument();
+    expect(within(group).queryByRole("button", { name: "Claim" })).toBeNull();
+    await waitFor(() => expect(within(group).getByRole("button", { name: "More actions" })).toBeInTheDocument());
+    await userEvent.click(within(group).getByRole("button", { name: "More actions" }));
+    expect(within(group).getByRole("menuitem", { name: "Recall" })).toBeInTheDocument();
+    // the claim that is not primary waits in the menu
+    await waitFor(() => expect(within(group).getByRole("menuitem", { name: "Claim" })).toBeInTheDocument());
+    expect(primaries()).toHaveLength(1);
+    view.unmount();
+    // no file to send: Claim is the primary
+    const noSend = { ...detail().custody!, can_send: false, can_recall: false };
+    browserApi({
+      "GET /me": me(),
+      [`GET ${BASE}`]: detail({ custody: noSend }),
+      [`GET ${BASE}/ownership`]: ownership(actions({ claim: true, claim_departments: ["EDU"] }), { primary: null }),
+    });
+    view = renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
+    group = await screen.findByRole("group", { name: "Case actions" });
+    expect(await within(group).findByRole("button", { name: "Claim" })).toBeInTheDocument();
+    expect(within(group).queryByRole("button", { name: "Send file" })).toBeNull();
+    view.unmount();
+    // nothing else: Accept transfer by decide_transfer
+    browserApi({
+      "GET /me": me(),
+      [`GET ${BASE}`]: detail({ custody: noSend }),
+      [`GET ${BASE}/ownership`]: ownership(actions({ decide_transfer: true }), {
+        open_transfer: { id: "t-1", ref_no: "ASLMS-EDU-TRF-2026-000001", from_office_code: "HEALTH", to_office_code: "EDU", status: "requested", reason: "ours", requested_at: "2026-10-01T10:00:00Z" } as CaseOwnershipView["open_transfer"],
+      }),
+    });
+    view = renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
+    group = await screen.findByRole("group", { name: "Case actions" });
+    expect(await within(group).findByRole("button", { name: "Accept transfer" })).toBeInTheDocument();
+    view.unmount();
+    // a reader with no action sees no button at all
+    browserApi({ "GET /me": me(), [`GET ${BASE}`]: detail({ custody: noSend }), [`GET ${BASE}/ownership`]: json(404, { detail: "no" }) });
+    renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
+    group = await screen.findByRole("group", { name: "Case actions" });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(within(group).queryAllByRole("button")).toHaveLength(0);
+  });
+
+  it("Add note shows by note_mode and opens the composer; Set stage, Upload and Enter next date sit in More actions by their flags", async () => {
+    const noSend = { ...detail().custody!, can_send: false, can_recall: false };
+    browserApi({
+      "GET /me": me(),
+      [`GET ${BASE}`]: detail({ custody: noSend, workflow: { note_mode: "permanent", upload: true, set_stage: true, next_dates: true } }),
+      "GET /workflow/codes": { note_kinds: [], pending_actions: [], stages: [], response_modes: [], custody_reasons: [], limits: { note_max_chars: 100, attachments_max_files: 2, note_drafts_max: 5 } },
+    });
+    const view = renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
+    const group = await screen.findByRole("group", { name: "Case actions" });
+    await userEvent.click(within(group).getByRole("button", { name: "More actions" }));
+    expect(within(group).getAllByRole("menuitem").map((m) => m.textContent)).toEqual([
+      "Set stage",
+      "Upload a document",
+      "Enter next date",
+    ]);
+    await userEvent.keyboard("{Escape}");
+    await userEvent.click(within(group).getByRole("button", { name: "Add note" }));
+    const dialog = screen.getByRole("dialog", { name: "Add a note" });
+    expect(within(dialog).getByText("WP(C)/1234/2026")).toBeInTheDocument();
+    expect(within(dialog).getByText(/becomes part of the case record at once/)).toBeInTheDocument();
+    view.unmount();
+    browserApi({ "GET /me": me(), [`GET ${BASE}`]: detail({ custody: noSend }) });
+    renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
+    const none = await screen.findByRole("group", { name: "Case actions" });
+    expect(within(none).queryByRole("button", { name: "Add note" })).toBeNull();
+    expect(within(none).queryByRole("button", { name: "More actions" })).toBeNull();
   });
 });
 
 describe("the overview and the ownership card", () => {
-  it("the custody card shows Send file and Recall by its flags, and the basis line", async () => {
-    browserApi(overviewRoutes(detail(), ownership(actions())));
-    const { unmount } = renderWithClient(<Overview caseRef={REF} />);
-    const custody = await screen.findByRole("region", { name: "Custody" });
-    expect(within(custody).getByText("Prepare reply")).toBeInTheDocument();
-    expect(within(custody).getByText("2 day(s) overdue")).toBeInTheDocument();
-    expect(within(custody).getByText("Please draft the affidavit")).toBeInTheDocument();
-    expect(within(custody).getByRole("button", { name: "Send file" })).toBeInTheDocument();
-    expect(within(custody).getByRole("button", { name: "Recall" })).toBeInTheDocument();
-    expect(within(custody).getByRole("link", { name: "Custody and stage" })).toHaveAttribute("href", `${BASE}/custody`);
+  it("Latest order and Recent activity, the folded parties and the basis line (portal-ui-redesign, decision 24)", async () => {
+    const events = Array.from({ length: 5 }, (_, i) => ({
+      type: "custody_moved",
+      label: `Event ${i + 1}`,
+      occurred_at: `2026-10-1${i}T10:00:00Z`,
+      actor_name: "Edu Admin",
+      payload: {},
+    }));
+    browserApi({
+      ...overviewRoutes(detail(), ownership(actions())),
+      [`GET ${BASE}/timeline`]: { items: events, total: 12 },
+      [`GET ${BASE}/orders`]: {
+        items: [
+          { id: "o-1", order_no: "3", order_date: "2026-09-25", kind: "interim", order_judge_name: "X", download_status: "stored", document_id: "d-1", order_details: "Affidavit within four weeks.", is_reportable: null, date_judgement_pronounced: null, date_judgement_reserved: null },
+        ],
+        total: 1,
+      },
+    });
+    renderWithClient(<Overview caseRef={REF} />);
+    const latest = await screen.findByRole("region", { name: "Latest order" });
+    expect(await within(latest).findByText("Affidavit within four weeks.")).toBeInTheDocument();
+    expect(within(latest).getByRole("link", { name: "All orders →" })).toHaveAttribute("href", `${BASE}/orders`);
+    const recent = await screen.findByRole("region", { name: "Recent activity" });
+    const list = await within(recent).findByRole("list", { name: "Recent activity" });
+    expect(within(list).getAllByRole("listitem")).toHaveLength(5);
+    expect(within(recent).getByRole("link", { name: "Timeline →" })).toHaveAttribute("href", `${BASE}/timeline`);
+    // the parties, advocates and acts are folded away until asked for
+    const fold = within(latest).getByRole("button", { name: "Show parties, advocates and acts" });
+    expect(fold).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(fold);
+    expect(fold).toHaveAttribute("aria-expanded", "true");
+    expect(within(latest).getByText("A. Das")).toBeInTheDocument();
+    expect(within(latest).getByText("SC,EDU")).toBeInTheDocument();
+    expect(within(latest).getByText("Constitution of India, 226")).toBeInTheDocument();
+    expect(within(latest).getByRole("link", { name: "+ 1 more" })).toHaveAttribute("href", `${BASE}/parties`);
     expect(screen.getByText("You see this case as: owning department")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "+ 1 more" })).toHaveAttribute("href", `${BASE}/parties`);
-    unmount();
-    const card = { ...detail().custody!, can_send: false, can_recall: false };
-    browserApi(overviewRoutes(detail({ custody: card }), ownership(actions())));
-    renderWithClient(<Overview caseRef={REF} />);
-    const readOnly = await screen.findByRole("region", { name: "Custody" });
-    expect(within(readOnly).queryByRole("button", { name: /Send|Recall/ })).toBeNull();
-  });
-
-  it("the Stage card offers Set stage only with workflow.set_stage", async () => {
-    browserApi(overviewRoutes(detail(), ownership(actions())));
-    const { unmount } = renderWithClient(<Overview caseRef={REF} />);
-    const stage = await screen.findByRole("region", { name: "Stage" });
-    expect(within(stage).queryByRole("button", { name: "Set stage" })).toBeNull();
-    unmount();
-    browserApi(overviewRoutes(detail({ workflow: { note_mode: "permanent", upload: true, set_stage: true, next_dates: false } }), ownership(actions())));
-    renderWithClient(<Overview caseRef={REF} />);
-    const withFlag = await screen.findByRole("region", { name: "Stage" });
-    expect(within(withFlag).getByRole("button", { name: "Set stage" })).toBeInTheDocument();
+    // no custody or stage card on the Overview any more: those facts are in the summary header
+    expect(screen.queryByRole("region", { name: "Custody" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Stage" })).toBeNull();
   });
 
   it("shows exactly the buttons whose actions flag is true, never a release", async () => {
@@ -333,6 +491,7 @@ describe("the overview and the ownership card", () => {
       ),
     );
     renderWithClient(<Overview caseRef={REF} />);
+    await openOwnership();
     const card = await screen.findByRole("region", { name: "Ownership" });
     await within(card).findByRole("button", { name: "Allot" });
     const buttons = within(card).getAllByRole("button").map((b) => b.textContent);
@@ -346,6 +505,7 @@ describe("the overview and the ownership card", () => {
       [`POST ${BASE}/claim`]: json(201, {}),
     });
     renderWithClient(<Overview caseRef={REF} />);
+    await openOwnership();
     await userEvent.click(await screen.findByRole("button", { name: "Claim" }));
     const dialog = screen.getByRole("dialog", { name: "Claim this case" });
     const pick = within(dialog).getByLabelText("Claim for");
@@ -363,6 +523,7 @@ describe("the overview and the ownership card", () => {
       "GET /custody/recipients": { departments: [{ code: "EDU", name: "Education" }, { code: "FIN", name: "Finance" }], items: [], units: [], total: 2 },
     });
     renderWithClient(<Overview caseRef={REF} />);
+    await openOwnership();
     await userEvent.click(await screen.findByRole("button", { name: "Claim" }));
     const dialog = screen.getByRole("dialog", { name: "Claim this case" });
     await waitFor(() => expect(within(dialog).getByRole("option", { name: "FIN — Finance" })).toBeInTheDocument());
@@ -375,6 +536,7 @@ describe("the overview and the ownership card", () => {
       [`POST ${BASE}/take-over`]: {},
     });
     renderWithClient(<Overview caseRef={REF} />);
+    await openOwnership();
     await userEvent.click(await screen.findByRole("button", { name: "Take over" }));
     const dialog = screen.getByRole("dialog", { name: "Take over this case" });
     expect(within(dialog).getByText(/allotted to Officer Two/)).toBeInTheDocument();
@@ -391,6 +553,7 @@ describe("the overview and the ownership card", () => {
     });
     const api = browserApi({ ...overviewRoutes(detail(), view), [`POST ${BASE}/stop-watching`]: {} });
     renderWithClient(<Overview caseRef={REF} />);
+    await openOwnership();
     await userEvent.click(await screen.findByRole("button", { name: "Stop watching" }));
     const dialog = screen.getByRole("dialog", { name: "Stop watching this case" });
     await userEvent.click(within(dialog).getByRole("button", { name: "Stop watching" }));
@@ -410,6 +573,7 @@ describe("the overview and the ownership card", () => {
       [`POST ${BASE}/transfers`]: json(201, {}),
     });
     renderWithClient(<Overview caseRef={REF} />);
+    await openOwnership();
     await userEvent.click(await screen.findByRole("button", { name: "Request transfer" }));
     const dialog = screen.getByRole("dialog", { name: "Request a transfer" });
     await waitFor(() => expect(within(dialog).getByRole("option", { name: "HEALTH — Health" })).toBeInTheDocument());
@@ -429,7 +593,7 @@ describe("the overview and the ownership card", () => {
 });
 
 describe("tabs", () => {
-  it("orders offer View and Download by function and file state", async () => {
+  it("orders are collapsible rows: Print and Download PDF by function, the PDF inline once, and the file state", async () => {
     browserApi({
       "GET /me": me(["cases.view_scope", "documents.view"]),
       [`GET ${BASE}/orders`]: {
@@ -442,11 +606,21 @@ describe("tabs", () => {
       },
     });
     renderWithClient(<Orders caseRef={REF} />);
-    const view = await screen.findByRole("link", { name: "View" });
-    expect(view).toHaveAttribute("href", `/api/backend${BASE}/orders/o-1/file?disposition=inline`);
-    expect(view).toHaveAttribute("target", "_blank");
-    expect(screen.queryByRole("link", { name: "Download" })).toBeNull(); // no documents.download
+    const rows = await screen.findAllByRole("button", { name: /interim/ });
+    expect(rows).toHaveLength(3);
+    // the date leads each row in the fixed column
+    expect(within(rows[0]!).getByText("25 Sep 2026")).toBeInTheDocument();
+    expect(screen.getByText("Judge: X")).toBeInTheDocument();
+    expect(document.querySelector("iframe")).toBeNull();
+    await userEvent.click(rows[0]!);
+    const print = screen.getByRole("link", { name: "Print" });
+    expect(print).toHaveAttribute("href", `/api/backend${BASE}/orders/o-1/file?disposition=inline`);
+    expect(print).toHaveAttribute("target", "_blank");
+    expect(screen.queryByRole("link", { name: "Download PDF" })).toBeNull(); // no documents.download
+    expect(document.querySelectorAll("iframe")).toHaveLength(1);
+    await userEvent.click(rows[1]!);
     expect(screen.getByText("fetch pending")).toBeInTheDocument();
+    await userEvent.click(rows[2]!);
     expect(screen.getByText("not yet published")).toBeInTheDocument();
   });
 
@@ -639,6 +813,7 @@ describe("the department that acts (portal-cases-followups)", () => {
       [`POST ${BASE}/dismiss`]: {},
     });
     renderWithClient(<Overview caseRef={REF} />);
+    await openOwnership();
     await userEvent.click(await screen.findByRole("button", { name: "Dismiss" }));
     const dialog = screen.getByRole("dialog", { name: "Dismiss this recommendation" });
     expect(within(dialog).getByText("EDU")).toBeInTheDocument();
@@ -653,6 +828,7 @@ describe("the department that acts (portal-cases-followups)", () => {
       [`POST ${BASE}/dismiss`]: {},
     });
     renderWithClient(<Overview caseRef={REF} />);
+    await openOwnership();
     await userEvent.click(await screen.findByRole("button", { name: "Dismiss" }));
     const dialog = screen.getByRole("dialog", { name: "Dismiss this recommendation" });
     const pick = within(dialog).getByLabelText("For");
@@ -676,6 +852,7 @@ describe("the department that acts (portal-cases-followups)", () => {
           : {},
     });
     renderWithClient(<Overview caseRef={REF} />);
+    await openOwnership();
     await userEvent.click(await screen.findByRole("button", { name: "Stop watching" }));
     const dialog = screen.getByRole("dialog", { name: "Stop watching this case" });
     await userEvent.type(within(dialog).getByLabelText("Reason (required)"), "not ours");
@@ -702,6 +879,7 @@ describe("the department that acts (portal-cases-followups)", () => {
     });
     const api = browserApi({ ...overviewRoutes(detail(), view), [`POST ${BASE}/stop-watching`]: {} });
     renderWithClient(<Overview caseRef={REF} />);
+    await openOwnership();
     await userEvent.click(await screen.findByRole("button", { name: "Stop watching" }));
     const dialog = screen.getByRole("dialog", { name: "Stop watching this case" });
     await userEvent.type(within(dialog).getByLabelText("Reason (required)"), "done");
@@ -722,6 +900,7 @@ describe("the department that acts (portal-cases-followups)", () => {
       [`POST ${BASE}/suggest`]: {},
     });
     renderWithClient(<Overview caseRef={REF} />);
+    await openOwnership();
     await userEvent.click(await screen.findByRole("button", { name: "Suggest department" }));
     const dialog = screen.getByRole("dialog", { name: "Suggest another department" });
     await userEvent.selectOptions(within(dialog).getByLabelText("Suggest from"), "HEALTH");
@@ -749,6 +928,7 @@ describe("the department that acts (portal-cases-followups)", () => {
       [`POST ${BASE}/suggest`]: {},
     });
     renderWithClient(<Overview caseRef={REF} />);
+    await openOwnership();
     await userEvent.click(await screen.findByRole("button", { name: "Suggest department" }));
     const dialog = screen.getByRole("dialog", { name: "Suggest another department" });
     expect(within(dialog).queryByLabelText("Suggest from")).toBeNull();
@@ -769,6 +949,7 @@ describe("the department that acts (portal-cases-followups)", () => {
       [`POST ${BASE}/allot`]: {},
     });
     renderWithClient(<Overview caseRef={REF} />);
+    await openOwnership();
     await userEvent.click(await screen.findByRole("button", { name: "Allot" }));
     const dialog = screen.getByRole("dialog", { name: "Allot this case" });
     expect(within(dialog).queryByLabelText("Officer")).toBeNull(); // nothing until the department is chosen
@@ -790,6 +971,7 @@ describe("the department that acts (portal-cases-followups)", () => {
       [`POST ${BASE}/take-over`]: {},
     });
     renderWithClient(<Overview caseRef={REF} />);
+    await openOwnership();
     await userEvent.click(await screen.findByRole("button", { name: "Take over" }));
     const dialog = screen.getByRole("dialog", { name: "Take over this case" });
     expect(within(dialog).queryByText(/allotted to/)).toBeNull();
@@ -804,6 +986,7 @@ describe("the department that acts (portal-cases-followups)", () => {
   it("no Allot or Take over button without a department list", async () => {
     browserApi(overviewRoutes(detail(), ownership(actions({ request_transfer: true, transfer_from: "EDU" }))));
     renderWithClient(<Overview caseRef={REF} />);
+    await openOwnership();
     const card = await screen.findByRole("region", { name: "Ownership" });
     await within(card).findByRole("button", { name: "Request transfer" });
     expect(within(card).queryByRole("button", { name: "Allot" })).toBeNull();
@@ -817,6 +1000,7 @@ describe("the department that acts (portal-cases-followups)", () => {
       [`POST ${BASE}/claim`]: json(201, {}),
     });
     renderWithClient(<Overview caseRef={REF} />);
+    await openOwnership();
     await userEvent.click(await screen.findByRole("button", { name: "Claim" }));
     const dialog = screen.getByRole("dialog", { name: "Claim this case" });
     const pick = within(dialog).getByLabelText("Claim for");
@@ -1008,7 +1192,9 @@ describe("the Audit trail link (portal-audit-health, decision 7)", () => {
   it("shows for an audit reader with the case's reference", async () => {
     browserApi({ "GET /me": auditMe("auditor", ["audit.view", "cases.view_all", ...READ]), [`GET ${BASE}`]: detail() });
     renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
-    expect(await screen.findByRole("link", { name: "Audit trail" })).toHaveAttribute(
+    // portal-ui-redesign, decision 24: in the header's "More actions" menu
+    await userEvent.click(await screen.findByRole("button", { name: "More actions" }));
+    expect(await screen.findByRole("menuitem", { name: "Audit trail" })).toHaveAttribute(
       "href",
       "/audit?case=ASLMS%2FGOA%2FCASE%2F2026%2F000001",
     );
@@ -1018,7 +1204,9 @@ describe("the Audit trail link (portal-audit-health, decision 7)", () => {
     browserApi({ "GET /me": auditMe("dept_admin", ["audit.view", ...READ]), [`GET ${BASE}`]: detail() });
     renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
     await screen.findByRole("navigation", { name: "Case sections" });
-    expect(screen.queryByRole("link", { name: "Audit trail" })).toBeNull();
+    const more = screen.queryByRole("button", { name: "More actions" });
+    if (more) await userEvent.click(more);
+    expect(screen.queryByRole("menuitem", { name: "Audit trail" })).toBeNull();
   });
 });
 
@@ -1195,7 +1383,7 @@ describe("next dates from orders on the case page (portal-next-dates, decisions 
       },
     });
     renderWithClient(<Orders caseRef={REF} />);
-    expect(await screen.findByRole("columnheader", { name: "Next date read" })).toBeInTheDocument();
+    expect((await screen.findAllByText("Next date read:")).length).toBe(statuses.length);
     expect(screen.getByText("20 Nov 2026")).toBeInTheDocument();
     expect(screen.getByText("Date in the order")).toBeInTheDocument();
     expect(screen.getByText("26 Oct 2026")).toBeInTheDocument();
@@ -1252,5 +1440,27 @@ describe("next dates from orders on the case page (portal-next-dates, decisions 
     expect(within(rows[1]!).getByText("Replaced by a later date")).toBeInTheDocument();
     // a reader without the action (workflow.next_dates false) sees the neutral wording
     expect(within(rows[2]!).getByText("Waiting for confirmation")).toBeInTheDocument();
+  });
+});
+
+describe("the Timeline tab (portal-ui-redesign, decision 15)", () => {
+  it("each row leads with its date in the fixed date column", async () => {
+    browserApi({
+      "GET /me": me(),
+      [`GET ${BASE}/timeline`]: {
+        items: [
+          { type: "custody_moved", label: "File sent", occurred_at: "2026-10-12T05:00:00Z", actor_name: "Edu Admin", payload: {} },
+          { type: "case_claimed", label: "Claimed", occurred_at: "2026-10-01T05:00:00Z", actor_name: null, payload: {} },
+        ],
+        total: 2,
+      },
+    });
+    renderWithClient(<Timeline caseRef={REF} />);
+    const list = await screen.findByRole("list", { name: "Timeline" });
+    const rows = within(list).getAllByRole("listitem");
+    expect(rows).toHaveLength(2);
+    for (const row of rows) expect(row.firstElementChild).toHaveAttribute("data-lead", "date");
+    expect(within(rows[0]!).getByText("File sent")).toBeInTheDocument();
+    expect(within(rows[0]!).getByText("12")).toBeInTheDocument();
   });
 });

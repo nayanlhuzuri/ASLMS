@@ -36,7 +36,17 @@ function Row({ o }: { o: Ownership }) {
   );
 }
 
-export function OwnershipCard({ caseRef, detail }: { caseRef: string; detail: CaseDetail }) {
+export function OwnershipCard({
+  caseRef,
+  detail,
+  secondaryOnly = false,
+}: {
+  caseRef: string;
+  detail: CaseDetail;
+  /** Inside the Overview's folded section: the header holds the page's one primary action (design portal-ui-redesign,
+   * decision 16), so every button here is secondary. */
+  secondaryOnly?: boolean;
+}) {
   const me = useMe();
   const view = useOwnership(caseRef);
   const [dialog, setDialog] = useState<DialogKind | null>(null);
@@ -60,6 +70,7 @@ export function OwnershipCard({ caseRef, detail }: { caseRef: string; detail: Ca
   const ownRecs = v.recommendations.filter((r) => r.office_code && mine.includes(r.office_code) && r.status === "recommended");
   const otherRecs = v.recommendations.filter((r) => !(r.office_code && mine.includes(r.office_code)));
   const t = v.open_transfer;
+  const main = secondaryOnly ? "secondary" : "primary";
   return (
     <section className="card stack" aria-label={T.case.ownership}>
       <h3>{T.case.ownership}</h3>
@@ -110,6 +121,7 @@ export function OwnershipCard({ caseRef, detail }: { caseRef: string; detail: Ca
       <div className="row">
         {a.claim ? (
           <Button
+            variant={main}
             onClick={() =>
               setDialog({
                 kind: "claim",
@@ -163,7 +175,7 @@ export function OwnershipCard({ caseRef, detail }: { caseRef: string; detail: Ca
         ) : null}
         {a.decide_transfer && t ? (
           <>
-            <Button onClick={() => setDialog({ kind: "decide", caseRef, transferId: t.id, accept: true })}>
+            <Button variant={main} onClick={() => setDialog({ kind: "decide", caseRef, transferId: t.id, accept: true })}>
               {T.own.accept}
             </Button>
             <Button variant="secondary" onClick={() => setDialog({ kind: "decide", caseRef, transferId: t.id, accept: false })}>

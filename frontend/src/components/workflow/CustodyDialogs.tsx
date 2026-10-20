@@ -9,22 +9,24 @@
  */
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useId, useState } from "react";
 
 import {
   Button,
   CharCounter,
   ConfirmDialog,
+  cx,
   ErrorBanner,
   Loading,
   Notice,
   Pagination,
   SelectField,
+  Stepper,
   TextArea,
   TextField,
 } from "@/components/ui";
 import { api } from "@/lib/api/client";
-import { caseKey, useDepartments, useWorkflowCodes } from "@/lib/api/hooks";
+import { caseKey, useCaseTitle, useDepartments, useWorkflowCodes } from "@/lib/api/hooks";
 import type { CaseDetail, CustodyCard, CustodyMove, Recipient, RecipientList } from "@/lib/api/types";
 import { setFlash } from "@/lib/flash";
 import { formatDate } from "@/lib/format";
@@ -34,6 +36,7 @@ import { useAction } from "@/lib/useAction";
 import { dueDateBounds } from "@/lib/workflow";
 
 import { useWorkflowRefresh, within } from "./common";
+import s from "./workflow.module.css";
 
 const REMARK_MIN = 3;
 const REMARK_MAX = 2000;
@@ -59,6 +62,66 @@ function movedNotice(result: CustodyMove, head: string): string {
   return result.finalised_notes.length > 0 ? `${head} ${T.wf.finalised(result.finalised_notes.join(", "))}` : head;
 }
 
+function initials(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]!.toUpperCase())
+    .join("");
+}
+
+/** The people of the chosen department as selectable cards (avatar initials, name, designation, office). */
+function PeopleCards({
+  people,
+  value,
+  onChange,
+  error,
+}: {
+  people: Recipient[];
+  value: string;
+  onChange: (p: Recipient) => void;
+  error?: string;
+}) {
+  const name = useId();
+  return (
+    <fieldset className={s.people} aria-describedby={error ? `${name}-error` : undefined}>
+      <legend>{T.wf.person}</legend>
+      {people.map((p) => (
+        <label key={p.membership_id} className={cx(s.person, value === p.membership_id && s.personOn)}>
+          <input
+            type="radio"
+            name={name}
+            value={p.membership_id}
+            checked={value === p.membership_id}
+            onChange={() => onChange(p)}
+            aria-label={personLabel(p)}
+          />
+          <span className={s.avatar} aria-hidden="true">
+            {initials(p.full_name)}
+          </span>
+          <span className={s.personText} aria-hidden="true">
+            <strong>{p.full_name}</strong>
+            <span className="muted">{[p.designation, `${p.office_code} — ${p.office_name}`].filter(Boolean).join(" · ")}</span>
+          </span>
+        </label>
+      ))}
+      {error ? (
+        <p id={`${name}-error`} className={s.error} role="alert">
+          {error}
+        </p>
+      ) : null}
+    </fieldset>
+  );
+}
+
+/**
+ * Send file as a three-step dialog (design portal-ui-redesign, decision 25) with the stepper: 1 who receives it
+ * (department, search, the people as cards, from `/custody/recipients`); 2 what they should do (pending action, due
+ * date within the bounds, optional stage); 3 remark and confirm (remark with its counter, the drafts notice, the
+ * summary line). Continue checks the step's required fields; Back keeps what was entered; the last step's primary is
+ * "Send file". The request, the refusal texts, the send-away handling and the audit are unchanged.
+ */
 export function SendDialog({
   open,
   caseRef,
@@ -75,9 +138,11 @@ export function SendDialog({
   const router = useRouter();
   const queryClient = useQueryClient();
   const refresh = useWorkflowRefresh(caseRef);
+  const subtitle = useCaseTitle(caseRef);
   const action = useAction();
   const departments = useDepartments(open);
   const codes = useWorkflowCodes(open);
+  const [step, setStep] = useState(1);
   const [department, setDepartment] = useState("");
   const [q, setQ] = useState("");
   const [offset, setOffset] = useState(0);
@@ -103,6 +168,7 @@ export function SendDialog({
   const remarkOk = within(remark, REMARK_MIN, REMARK_MAX);
 
   function reset() {
+    setStep(1);
     setDepartment("");
     setQ("");
     setOffset(0);
@@ -118,6 +184,21 @@ export function SendDialog({
   function close() {
     reset();
     onClose();
+  }
+
+  /** Continue: the step's required fields first (step 1 a person, step 2 the pending action). */
+  function next() {
+    setTried(true);
+    if (step === 1 && !person) return;
+    if (step === 2 && !pending) return;
+    setTried(false);
+    setStep((n) => n + 1);
+  }
+
+  function back() {
+    setTried(false);
+    action.reset();
+    setStep((n) => Math.max(1, n - 1));
   }
 
   async function submit() {
@@ -170,104 +251,117 @@ export function SendDialog({
     <ConfirmDialog
       open={open}
       title={T.wf.sendTitle}
+      subtitle={subtitle}
+      head={<Stepper step={step} steps={T.wf.sendSteps} />}
       onClose={close}
-      onConfirm={submit}
-      busy={action.busy}
-      error={action.error}
+      onCancel={step > 1 ? back : close}
+      cancelLabel={step > 1 ? T.back : T.cancel}
+      onConfirm={step < 3 ? next : submit}
+      busy={step === 3 && action.busy}
+      error={step === 3 ? action.error : null}
       messages={CUSTODY_ERRORS}
-      confirmLabel={T.wf.send}
+      confirmLabel={step < 3 ? T.wf.continue : T.wf.send}
     >
-      <SelectField
-        label={T.wf.department}
-        options={(departments.data?.departments ?? []).map((d) => ({ value: d.code, label: `${d.code} — ${d.name}` }))}
-        placeholder={T.wf.chooseDepartment}
-        value={department}
-        aria-required
-        error={tried && !department ? T.wf.required : undefined}
-        onChange={(e) => {
-          setDepartment(e.target.value);
-          setPerson(null);
-          setOffset(0);
-          setQ("");
-        }}
-      />
-      {department ? (
-        <>
-          <TextField
-            label={T.wf.searchPeople}
-            type="search"
-            value={q}
-            maxLength={100}
+      {step === 1 ? (
+        <div className={cx("stack", s.pane)} key="who">
+          <SelectField
+            label={T.wf.department}
+            options={(departments.data?.departments ?? []).map((d) => ({ value: d.code, label: `${d.code} — ${d.name}` }))}
+            placeholder={T.wf.chooseDepartment}
+            value={department}
+            aria-required
+            error={tried && !department ? T.wf.required : undefined}
             onChange={(e) => {
-              setQ(e.target.value);
+              setDepartment(e.target.value);
+              setPerson(null);
               setOffset(0);
+              setQ("");
             }}
           />
-          {people.isPending ? <Loading /> : null}
-          <ErrorBanner error={people.error} />
-          {people.data && items.length === 0 ? <p className="muted">{T.wf.noPeople}</p> : null}
-          {items.length > 0 ? (
-            <SelectField
-              label={T.wf.officer}
-              options={items.map((p) => ({ value: p.membership_id, label: personLabel(p) }))}
-              placeholder={T.wf.chooseOfficer}
-              value={person?.membership_id ?? ""}
-              aria-required
-              error={tried && !person ? T.wf.required : undefined}
-              onChange={(e) => setPerson(items.find((p) => p.membership_id === e.target.value) ?? null)}
-            />
-          ) : null}
-          {total > PEOPLE_PAGE ? (
+          {department ? (
             <>
-              <p className="muted">{T.wf.morePeople(items.length, total)}</p>
-              <Pagination offset={offset} limit={PEOPLE_PAGE} total={total} onChange={setOffset} />
+              <TextField
+                label={T.wf.searchPeople}
+                type="search"
+                value={q}
+                maxLength={100}
+                onChange={(e) => {
+                  setQ(e.target.value);
+                  setOffset(0);
+                }}
+              />
+              {people.isPending ? <Loading /> : null}
+              <ErrorBanner error={people.error} />
+              {people.data && items.length === 0 ? <p className="muted">{T.wf.noPeople}</p> : null}
+              {items.length > 0 ? (
+                <PeopleCards
+                  people={items}
+                  value={person?.membership_id ?? ""}
+                  onChange={setPerson}
+                  error={tried && !person ? T.wf.choosePerson : undefined}
+                />
+              ) : null}
+              {total > PEOPLE_PAGE ? (
+                <>
+                  <p className="muted">{T.wf.morePeople(items.length, total)}</p>
+                  <Pagination offset={offset} limit={PEOPLE_PAGE} total={total} onChange={setOffset} />
+                </>
+              ) : null}
             </>
           ) : null}
-        </>
+        </div>
       ) : null}
-      <SelectField
-        label={T.wf.pendingAction}
-        options={sendable.map((a) => ({ value: a.code, label: a.label }))}
-        placeholder={T.wf.chooseAction}
-        value={pending}
-        aria-required
-        error={tried && !pending ? T.wf.required : undefined}
-        onChange={(e) => setPending(e.target.value)}
-      />
-      <TextField
-        label={T.wf.dueDate}
-        type="date"
-        min={bounds.min}
-        max={bounds.max}
-        value={due}
-        hint={T.wf.dueHint(formatDate(bounds.min), formatDate(bounds.max))}
-        onChange={(e) => setDue(e.target.value)}
-      />
-      <TextArea
-        label={T.wf.remark}
-        value={remark}
-        rows={3}
-        maxLength={REMARK_MAX}
-        aria-required
-        hint={T.wf.remarkHint}
-        error={tried && !remarkOk ? T.wf.remarkRequired : undefined}
-        onChange={(e) => setRemark(e.target.value)}
-      />
-      <CharCounter value={remark} max={REMARK_MAX} />
-      {detail.workflow.set_stage ? (
-        <SelectField
-          label={T.wf.stageOptional}
-          options={(codes.data?.stages ?? []).map((s) => ({ value: s.code, label: s.label }))}
-          placeholder={T.wf.keepStage}
-          value={stage}
-          onChange={(e) => setStage(e.target.value)}
-        />
+      {step === 2 ? (
+        <div className={cx("stack", s.pane)} key="what">
+          <SelectField
+            label={T.wf.pendingAction}
+            options={sendable.map((a) => ({ value: a.code, label: a.label }))}
+            placeholder={T.wf.chooseAction}
+            value={pending}
+            aria-required
+            error={tried && !pending ? T.wf.required : undefined}
+            onChange={(e) => setPending(e.target.value)}
+          />
+          <TextField
+            label={T.wf.dueDate}
+            type="date"
+            min={bounds.min}
+            max={bounds.max}
+            value={due}
+            hint={T.wf.dueHint(formatDate(bounds.min), formatDate(bounds.max))}
+            onChange={(e) => setDue(e.target.value)}
+          />
+          {detail.workflow.set_stage ? (
+            <SelectField
+              label={T.wf.stageOptional}
+              options={(codes.data?.stages ?? []).map((st) => ({ value: st.code, label: st.label }))}
+              placeholder={T.wf.keepStage}
+              value={stage}
+              onChange={(e) => setStage(e.target.value)}
+            />
+          ) : null}
+        </div>
       ) : null}
-      {drafts > 0 ? <Notice>{T.wf.draftsWarning(drafts)}</Notice> : null}
-      {person && pending ? (
-        <p>
-          <strong>{T.wf.summary(personShort(person), actionLabel, due ? formatDate(due) : null)}</strong>
-        </p>
+      {step === 3 ? (
+        <div className={cx("stack", s.pane)} key="confirm">
+          <TextArea
+            label={T.wf.remark}
+            value={remark}
+            rows={3}
+            maxLength={REMARK_MAX}
+            aria-required
+            hint={T.wf.remarkHint}
+            error={tried && !remarkOk ? T.wf.remarkRequired : undefined}
+            onChange={(e) => setRemark(e.target.value)}
+          />
+          <CharCounter value={remark} max={REMARK_MAX} />
+          {drafts > 0 ? <Notice>{T.wf.draftsWarning(drafts)}</Notice> : null}
+          {person && pending ? (
+            <p>
+              <strong>{T.wf.summary(personShort(person), actionLabel, due ? formatDate(due) : null)}</strong>
+            </p>
+          ) : null}
+        </div>
       ) : null}
     </ConfirmDialog>
   );
@@ -287,6 +381,7 @@ export function RecallDialog({
   onDone: (notice: string) => void;
 }) {
   const refresh = useWorkflowRefresh(caseRef);
+  const subtitle = useCaseTitle(caseRef);
   const action = useAction();
   const [remark, setRemark] = useState("");
   const [tried, setTried] = useState(false);
@@ -316,6 +411,7 @@ export function RecallDialog({
     <ConfirmDialog
       open={open}
       title={T.wf.recallTitle}
+      subtitle={subtitle}
       onClose={close}
       onConfirm={submit}
       busy={action.busy}

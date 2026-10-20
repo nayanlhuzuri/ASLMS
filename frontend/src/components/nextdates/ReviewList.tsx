@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * "Next dates to confirm" (design portal-next-dates, decisions 1, 2, 4 and 16; plan §5.3, §5.7): the third tab of
- * Alerts & calendar. `GET /next-dates/review` paged by 50 in the API's order (the date to answer by, then the case),
+ * "Next dates to confirm" (design portal-next-dates, decisions 1, 2, 4 and 16; plan §5.3, §5.7): the second tab of
+ * Alerts. `GET /next-dates/review` paged by 50 in the API's order (the date to answer by, then the case),
  * with the one filter bar: the shared case fields with the owning department, and "Show" (`kind`). Every row the API
  * returns may be acted on; the API decides every call. The notice of an action and a stale answer show above the
  * list, because the row they came from leaves it.

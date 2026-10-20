@@ -14,17 +14,19 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import ColumnElement, exists, or_, select
+from sqlalchemy import ColumnElement, and_, exists, or_, select
 from sqlalchemy.dialects.postgresql import distinct_on
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from aslms.domain.alerts import NextDate, NextDateSource, ReviewStatus
 from aslms.domain.cases import Case
 from aslms.domain.causelists import Causelist, CauselistEntry
 from aslms.domain.org import Office, User
 from aslms.domain.ownership import CaseOwnership, OwnershipStatus
+from aslms.domain.reference import Permission
+from aslms.domain.workflow import PENDING_ACTION_LABELS, Custody, PendingAction
+from aslms.services import access, my_cases, visibility
 from aslms.services import alert_rules as rules
-from aslms.services import visibility
 from aslms.services.access import Forbidden
 from aslms.services.offices import find_office
 
@@ -205,3 +207,164 @@ def calendar_for_user(
 
 def case_ref(case: Case) -> dict[str, Any]:
     return {"id": case.id, "ref_no": case.ref_no, "cnr": case.cnr, "case_no_text": case.case_no_text}
+
+
+# ------------------------------------------------------------------------------------------------ my calendar
+# design `portal-ui-redesign`, decision 8 and API A6: the caller's own dates of three kinds
+
+MY_KINDS = ("hearing", "action_due", "confirm")
+_KIND_RANK = {k: i for i, k in enumerate(MY_KINDS)}
+
+
+def month_grid(day: date) -> tuple[date, date]:
+    """The month grid around `day`: from the Monday on or before the 1st to the Sunday on or after the last day."""
+    first = day.replace(day=1)
+    nxt = (first + timedelta(days=32)).replace(day=1)
+    last = nxt - timedelta(days=1)
+    return first - timedelta(days=first.weekday()), last + timedelta(days=6 - last.weekday())
+
+
+def my_range(from_: date | None, to: date | None, today: date) -> tuple[date, date]:
+    """A6's range: both missing → the current month's grid; one missing → the grid of the given one's month.
+    At most `MAX_RANGE_DAYS`; `CalendarError` otherwise."""
+    if from_ is None and to is None:
+        from_, to = month_grid(today)
+    elif from_ is None:
+        assert to is not None
+        from_ = min(month_grid(to)[0], to)
+    elif to is None:
+        to = max(month_grid(from_)[1], from_)
+    if to < from_:
+        raise CalendarError("`to` is before `from`")
+    if (to - from_).days > MAX_RANGE_DAYS:
+        raise CalendarError(f"the range is at most {MAX_RANGE_DAYS} days")
+    return from_, to
+
+
+def _due_critical(d: date, now: datetime, critical_hours: int, overdue: bool) -> bool:
+    """An action due date is critical when it is overdue or its day ends (IST) within `critical_hours`."""
+    if overdue:
+        return True
+    ends = datetime.combine(d + timedelta(days=1), datetime.min.time(), tzinfo=rules.IST)
+    return ends - now <= timedelta(hours=critical_hours)
+
+
+def my_calendar(
+    session: Session,
+    user: User,
+    *,
+    from_: date | None = None,
+    to: date | None = None,
+    now: datetime | None = None,
+    critical_hours: int = 48,
+    sitting_time: str = "10:30",
+    review_cfg: Any = None,
+) -> list[dict[str, Any]]:
+    """A6. Hearings of my cases (`my_cases.my_cases_condition`), my action due dates (custody I hold with a
+    pending action), and the next dates waiting for my confirmation (the review queue's `confirm` items, dated by
+    the proposed date; none without `next_dates.review`). Every row is ANDed with the visibility rule. Ordered
+    by date, kind (hearing, action_due, confirm), then the case number. Writes nothing."""
+    from aslms.services import next_dates  # next_dates imports this module
+
+    now = now or datetime.now(UTC)
+    today = rules.today_ist(now)
+    from_, to = my_range(from_, to, today)
+    visible = visibility.visible_case_condition(session, user)
+    live = Case.merged_into_case_id.is_(None)
+    items: list[dict[str, Any]] = []
+    case_ids: set[uuid.UUID] = set()
+
+    for r in hearing_rows(
+        session, from_=from_, to=to, case_condition=and_(my_cases.my_cases_condition(session, user), visible)
+    ):
+        critical, this_week = flags(r.date, now, critical_hours=critical_hours, sitting_time=sitting_time)
+        items.append(
+            {
+                "date": r.date,
+                "kind": "hearing",
+                "case_id": r.case_id,
+                "critical": critical,
+                "court_no": r.court_no,
+                "item_no": r.item_no,
+                "purpose": r.purpose,
+                "source": r.source,
+                "this_week": this_week,
+            }
+        )
+        case_ids.add(r.case_id)
+
+    due = aliased(Custody, name="cal_due")
+    for case_id, d, action in session.execute(
+        select(due.case_id, due.due_date, due.pending_action)
+        .join(Case, Case.id == due.case_id)
+        .where(
+            due.holder_user_id == user.id,
+            due.pending_action != PendingAction.NONE,
+            due.due_date.between(from_, to),
+            live,
+            visible,
+        )
+    ).all():
+        act = PendingAction(action)
+        overdue = d < today
+        items.append(
+            {
+                "date": d,
+                "kind": "action_due",
+                "case_id": case_id,
+                "critical": _due_critical(d, now, critical_hours, overdue),
+                "pending_action": act.value,
+                "pending_action_label": PENDING_ACTION_LABELS[act],
+                "overdue": overdue,
+            }
+        )
+        case_ids.add(case_id)
+
+    if access.has(session, user, Permission.NEXT_DATES_REVIEW):
+        cfg = review_cfg or next_dates.NextDateConfig.from_settings()
+        q = next_dates.queue_subquery(
+            session,
+            and_(next_dates.review_condition(session, user), visible),
+            today=today,
+            cfg=cfg,
+            kind="confirm",
+        )
+        for nd_id, case_id, d, source in session.execute(
+            select(q.c.id, q.c.case_id, q.c.next_date, NextDate.source)
+            .join(NextDate, NextDate.id == q.c.id)
+            .where(q.c.next_date.between(from_, to))
+        ).all():
+            critical, _ = flags(d, now, critical_hours=critical_hours, sitting_time=sitting_time)
+            items.append(
+                {
+                    "date": d,
+                    "kind": "confirm",
+                    "case_id": case_id,
+                    "critical": critical,
+                    "next_date_id": nd_id,
+                    "source": NextDateSource(source).value,
+                }
+            )
+            case_ids.add(case_id)
+
+    cases = (
+        {c.id: c for c in session.scalars(select(Case).where(Case.id.in_(case_ids))).all()}
+        if case_ids
+        else {}
+    )
+    out = []
+    for item in items:
+        case = cases.get(item.pop("case_id"))
+        if case is None:
+            continue
+        item["case"] = case_ref(case)
+        out.append(item)
+    out.sort(
+        key=lambda i: (
+            i["date"],
+            _KIND_RANK[i["kind"]],
+            i["case"]["case_no_text"] or "",
+            i["case"]["ref_no"],
+        )
+    )
+    return out

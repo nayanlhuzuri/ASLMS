@@ -9,9 +9,11 @@
  * sandbox` and `nosniff` stay. Print opens the same inline address in a new tab, where the browser's viewer prints
  * (the portal cannot script into the sandboxed frame, so it never calls `print()` on it). When the PDF is not stored the
  * row says "Not yet published" or "Fetch pending"; when `INLINE_PDF` is false the expanded row offers "Open in a new
- * tab" and Download instead.
+ * tab" and Download instead. `meta` (the case page's Orders tab: the judge and the order's next-date reading) shows
+ * under the row's summary, always.
  */
 import { useQuery } from "@tanstack/react-query";
+import type { ReactNode } from "react";
 
 import { fileState, fileUrl } from "@/components/case/Orders";
 import { buttonClass, Collapsible, EmptyState, ErrorBanner, Loading } from "@/components/ui";
@@ -26,7 +28,18 @@ import { apiCasePath } from "@/lib/refs";
 
 import s from "./claim.module.css";
 
-export function OrderRow({ caseRef, order }: { caseRef: string; order: Order }) {
+export function OrderRow({
+  caseRef,
+  order,
+  meta,
+  label,
+}: {
+  caseRef: string;
+  order: Order;
+  meta?: ReactNode;
+  /** In place of the order's details in the summary (the Overview's Latest order card, which shows them above). */
+  label?: ReactNode;
+}) {
   const me = useMe();
   const canView = can(me.data, "documents.view");
   const canDownload = can(me.data, "documents.download");
@@ -36,14 +49,18 @@ export function OrderRow({ caseRef, order }: { caseRef: string; order: Order }) 
   const summary = (
     <span className={s.orderHead}>
       <span className={s.orderDate}>{date}</span>
-      <span>
-        {order.order_details || order.kind}
-        {order.order_no ? <span className="muted"> · {order.order_no}</span> : null}
-      </span>
+      {label ? (
+        <span>{label}</span>
+      ) : (
+        <span>
+          {order.order_details || order.kind}
+          {order.order_no ? <span className="muted"> · {order.order_no}</span> : null}
+        </span>
+      )}
     </span>
   );
   return (
-    <Collapsible summary={summary}>
+    <Collapsible summary={summary} after={meta}>
       {!stored ? (
         <p className="muted">{fileState(order.download_status)}</p>
       ) : (

@@ -254,6 +254,11 @@
   cursor: pointer;
 }
 
+.after {
+  padding-left: calc(var(--s4) + var(--s2));
+  font-size: var(--t-sm);
+}
+
 .chev {
   flex: none;
   transition: transform var(--med) var(--ease);

@@ -97,6 +97,7 @@ export function ConfirmNextDate({
     <ConfirmDialog
       open={open}
       title={T.nd.confirmTitle(date, name)}
+      subtitle={name}
       onClose={close}
       onConfirm={() =>
         run(
@@ -151,6 +152,7 @@ export function RejectNextDate({
     <ConfirmDialog
       open={open}
       title={T.nd.rejectTitle}
+      subtitle={caseName(item.case)}
       onClose={close}
       onConfirm={submit}
       busy={action.busy}
@@ -222,6 +224,7 @@ export function EnterNextDate({
     <ConfirmDialog
       open={open}
       title={T.nd.enterTitle}
+      subtitle={name}
       onClose={close}
       onConfirm={submit}
       busy={action.busy}
@@ -229,7 +232,6 @@ export function EnterNextDate({
       messages={NEXT_DATE_ERRORS}
       confirmLabel={T.nd.save}
     >
-      <p className="mono">{name}</p>
       <Sentence phrase={phrase} />
       <TextField
         label={T.nd.nextDate}

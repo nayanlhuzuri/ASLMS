@@ -1,27 +1,28 @@
 "use client";
 
 /**
- * The Orders tab (design portal-cases, decisions 10 and 15): number, date, kind, judge and the file's state; View
- * (inline, `documents.view`) opens the API's file in a new tab through the relay, which keeps the API's nosniff and
- * sandbox headers; Download (`documents.download`) saves it. An order not stored says "not yet published" or "fetch
- * pending". Order files are PDFs: View follows `INLINE_PDF` (design portal-cases-followups, decision 10). "Next date
- * read" gives the order's own reading in plain words, with the court's sentence (design portal-next-dates, decision
- * 11); never the review state or the rule code.
+ * The Orders tab (design portal-cases, decisions 10 and 15; portal-ui-redesign, decisions 7 and 10.12): each order is
+ * the collapsible order row shared with the claim modal — the date in the fixed leading column, the kind or order
+ * details and the number; expanded, Print and Download PDF (by `documents.view` / `documents.download`) and the stored
+ * PDF inline while `INLINE_PDF` is true, else "Open in a new tab" and Download. The relay keeps the API's nosniff and
+ * sandbox headers. An order not stored says "not yet published" or "fetch pending". Under each row, always: the judge
+ * and "Next date read", the order's own reading in plain words with the court's sentence (design portal-next-dates,
+ * decision 11); never the review state or the rule code.
  */
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { EmptyState, ErrorBanner, Loading, Pagination, Table } from "@/components/ui";
+import { OrderRow } from "@/components/claim/OrderRow";
+import { EmptyState, ErrorBanner, Loading, Pagination } from "@/components/ui";
 import { api } from "@/lib/api/client";
-import { caseKey, useMe } from "@/lib/api/hooks";
+import { caseKey } from "@/lib/api/hooks";
 import type { OrderList } from "@/lib/api/types";
-import { can } from "@/lib/can";
-import { canViewInline, pdfDownloadOnly } from "@/lib/documents";
-import { formatDate } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { readingLabel } from "@/lib/nextDates";
 import { apiCasePath } from "@/lib/refs";
 import { PAGE } from "@/lib/params";
+
+import s from "./case.module.css";
 
 /** The relay URL of an order's PDF. */
 export function fileUrl(caseRef: string, orderId: string, disposition: "inline" | "attachment"): string {
@@ -32,8 +33,6 @@ export function fileUrl(caseRef: string, orderId: string, disposition: "inline" 
 export function documentUrl(documentId: string, disposition: "inline" | "attachment"): string {
   return `/api/backend/documents/${encodeURIComponent(documentId)}/file?disposition=${disposition}`;
 }
-
-const ORDER_MIME = "application/pdf";
 
 /** Decision 11: the reading of one order (the date in bold, its words, the court's sentence under "What the order says"). */
 export function OrderReading({ order }: { order: { next_date_status?: string | null; next_date_found?: string | null; next_date_phrase?: string | null } }) {
@@ -60,14 +59,11 @@ export function fileState(status: string): string {
 }
 
 export function Orders({ caseRef }: { caseRef: string }) {
-  const me = useMe();
   const [offset, setOffset] = useState(0);
   const list = useQuery({
     queryKey: [...caseKey(caseRef), "orders", "page", offset],
     queryFn: () => api<OrderList>(`${apiCasePath(caseRef)}/orders`, { query: { limit: PAGE, offset } }),
   });
-  const canView = can(me.data, "documents.view");
-  const canDownload = can(me.data, "documents.download");
   return (
     <section className="stack" aria-label={T.case.orders}>
       {list.isPending ? <Loading /> : null}
@@ -77,52 +73,27 @@ export function Orders({ caseRef }: { caseRef: string }) {
           <EmptyState>{T.case.noOrders}</EmptyState>
         ) : (
           <>
-            <Table caption={T.case.orders}>
-              <thead>
-                <tr>
-                  <th scope="col">{T.case.orderNo}</th>
-                  <th scope="col">{T.case.orderDate}</th>
-                  <th scope="col">{T.case.kind}</th>
-                  <th scope="col">{T.case.judge}</th>
-                  <th scope="col">{T.case.fileStatus}</th>
-                  <th scope="col">{T.nd.readCol}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {list.data.items.map((o) => (
-                  <tr key={o.id}>
-                    <td className="mono">{o.order_no}</td>
-                    <td>{formatDate(o.order_date)}</td>
-                    <td>{o.kind}</td>
-                    <td>{o.order_judge_name ?? "—"}</td>
-                    <td>
-                      {o.download_status === "stored" ? (
-                        <div className="row">
-                          {canView && canViewInline(ORDER_MIME) ? (
-                            <a href={fileUrl(caseRef, o.id, "inline")} target="_blank" rel="noopener noreferrer">
-                              {T.case.view}
-                            </a>
-                          ) : null}
-                          {canDownload ? (
-                            <a href={fileUrl(caseRef, o.id, "attachment")} download>
-                              {T.case.download}
-                            </a>
-                          ) : null}
-                          {canDownload && pdfDownloadOnly(ORDER_MIME) ? (
-                            <span className="muted">{T.case.opensAsDownload}</span>
-                          ) : null}
-                        </div>
-                      ) : (
-                        <span className="muted">{fileState(o.download_status)}</span>
-                      )}
-                    </td>
-                    <td>
-                      <OrderReading order={o} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
+            <div className={s.orderList}>
+              {list.data.items.map((o) => (
+                <OrderRow
+                  key={o.id}
+                  caseRef={caseRef}
+                  order={o}
+                  meta={
+                    <div className={s.orderMeta} aria-label={T.case.orderMeta} role="group">
+                      {o.order_judge_name ? (
+                        <span>
+                          {T.case.judge}: {o.order_judge_name}
+                        </span>
+                      ) : null}
+                      <div className={s.orderReading}>
+                        <span className="muted">{T.nd.readCol}:</span> <OrderReading order={o} />
+                      </div>
+                    </div>
+                  }
+                />
+              ))}
+            </div>
             <Pagination offset={offset} limit={PAGE} total={list.data.total} onChange={setOffset} />
           </>
         )

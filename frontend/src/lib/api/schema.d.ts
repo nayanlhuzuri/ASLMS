@@ -3373,6 +3373,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Calendar
+         * @description My calendar (design `portal-ui-redesign`, A6): hearings of my cases, due dates of the files I hold, and the
+         *     next dates waiting for my confirmation, from `from` to `to` (IST dates, at most 62 days; default the current
+         *     month's grid, Monday to Sunday). Ordered by date, kind, then case. Reading writes nothing.
+         */
+        get: operations["my_calendar_me_calendar_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/devices": {
         parameters: {
             query?: never;
@@ -7493,6 +7515,49 @@ export interface components {
             month: string;
             orders: components["schemas"]["OrderTotalsOut"];
             work_left: components["schemas"]["KindCountsOut"];
+        };
+        /**
+         * MyCalendarItemOut
+         * @description One of the caller's dates (design `portal-ui-redesign`, A6): a hearing of their case, a due date of a file
+         *     they hold, or a next date waiting for their confirmation; the fields of the other kinds are null.
+         */
+        MyCalendarItemOut: {
+            case: components["schemas"]["AlertCaseOut"];
+            /** Court No */
+            court_no?: string | null;
+            /** Critical */
+            critical: boolean;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Item No */
+            item_no?: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "hearing" | "action_due" | "confirm";
+            /** Next Date Id */
+            next_date_id?: string | null;
+            /** Overdue */
+            overdue?: boolean | null;
+            /** Pending Action */
+            pending_action?: string | null;
+            /** Pending Action Label */
+            pending_action_label?: string | null;
+            /** Purpose */
+            purpose?: string | null;
+            /** Source */
+            source?: string | null;
+            /** This Week */
+            this_week?: boolean | null;
+        };
+        /** MyCalendarOut */
+        MyCalendarOut: {
+            /** Items */
+            items: components["schemas"]["MyCalendarItemOut"][];
         };
         /** MyCaseCountsOut */
         MyCaseCountsOut: {
@@ -18112,6 +18177,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MeOut"];
+                };
+            };
+        };
+    };
+    my_calendar_me_calendar_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyCalendarOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

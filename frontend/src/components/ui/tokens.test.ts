@@ -99,7 +99,7 @@ describe("design tokens (design portal-ui-redesign, decision 11)", () => {
   });
 });
 
-/** The CSS modules of rounds 1 and 2 (decision 14: the check widens to every module in round 5). */
+/** The CSS modules of rounds 1 to 3 (decision 14: the check widens to every module in round 5). */
 const ROUND_MODULES = [
   "components/ui/controls.module.css",
   "components/ui/data.module.css",
@@ -110,6 +110,11 @@ const ROUND_MODULES = [
   // round 2 (row 102): the modules it touched
   "components/inbox/inbox.module.css",
   "components/claim/claim.module.css",
+  // round 3 (row 103): the case page and My calendar
+  "components/case/case.module.css",
+  "components/calendar/calendar.module.css",
+  "components/calendar/hearings.module.css",
+  "components/workflow/workflow.module.css",
 ];
 
 /** Raw lengths in margins, paddings and gaps other than 0 and 1-2 px (borders); tokens and calc of tokens pass. */

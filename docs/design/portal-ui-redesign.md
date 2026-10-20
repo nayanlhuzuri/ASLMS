@@ -1143,3 +1143,52 @@ Choices made where the note is silent, each the smallest reasonable option:
 
 ### Emblem (20 Oct 2026, on `main` between rounds 2 and 3)
 - The official file the owner supplied is installed (decision 21): the lion capital cut from it is in the header, and the whole emblem is on the sign-in and first-sign-in pages, ahead of round 5. `/brand/` is outside the page gate, and the `web` image copies `public/`. Round 5 keeps `BrandLockup` when it redesigns the public pages.
+
+### Round 3, row 103 `portal-ui-case-calendar` (developer, 20 Oct 2026)
+Choices made where the note is silent, each the smallest reasonable option:
+
+1. **No separate note.** Backlog row 103 links this note; there is no `docs/design/portal-ui-case-calendar.md`. Round
+   3 was built from decisions 2 (round 3), 8, 10.3, 10.7, 10.9-10.12, 15, 16, 24 and 25, A6, "Backend (round 3)",
+   "Portal (round 3)" and "Tests, round 3".
+2. **A6 with one bound.** Both `from` and `to` missing give the current month's grid; with only one given, the other
+   is the grid edge of that date's month (`from` alone ends on the Sunday after its month's last day; `to` alone starts
+   on the Monday before its month's 1st). The 62-day limit and `to` before `from` answer 422 `bad_range`.
+3. **A6 `critical`.** A hearing: `calendar.flags` (within `ALERT_CRITICAL_HOURS` of the court's sitting time). An
+   action due date: overdue, or its IST day ends within `ALERT_CRITICAL_HOURS`. A next date to confirm: the hearing
+   rule on the proposed date.
+4. **A6 rows.** `action_due` is every custody row the caller holds with a pending action other than `none` and a due
+   date in range, ANDed with the visibility rule (it is not narrowed to `my_cases_condition`, which holds it anyway).
+   `confirm` items are the review queue's (`queue_subquery`, kind `confirm`), so they need an active primary owner and a
+   proposed date from today on. "Then case" in the order is the case number text, then `ref_no`.
+5. **The header's next hearing** names the court and item only when the latest listing is on the next hearing day
+   (otherwise the latest listing is an earlier day and would mislead). The header does not repeat the CNR, court,
+   registration date and `ref_no`; they stay on the Details tab.
+6. **More actions** also holds Claim and Accept transfer when another action is the primary (Send file first). Decline
+   and Withdraw stay on the Ownership card in the folded "Ownership and recommendations", whose buttons are all
+   secondary there, so the page keeps one primary.
+7. **Add note** opens the composer in a 720 px dialog; the composer keeps its own Cancel and Add note / Save draft
+   buttons at the foot of its form. The Notes tab keeps its inline composer.
+8. **The Action dialog template is the kit's `Dialog`.** Every `Dialog` is now 560 px (720 px `wide`), the
+   administration dialogs included until round 5 restyles them. `ConfirmDialog` puts Cancel (or Back) left and its one
+   primary right in a footer fixed at the bottom, submitting the form through the button's `form` attribute. The
+   subtitle is the case number from the case already loaded on the page (`useCaseTitle`, no request), so it is absent
+   where no case page is open (the claim modal shows the number in its own header). The next-date dialogs take the
+   name from their item; Enter next date's body line with the name moved into the subtitle.
+9. **Send file, step 1:** the people are native radio inputs drawn as cards (keyboard and screen readers work without
+   extra code); a missing department says "Required.", a missing person "Choose the person who receives the file."
+10. **Orders tab:** under each collapsible row, always visible, the judge and "Next date read" with the reading (a new
+    `after` slot on `Collapsible`). With `INLINE_PDF` false the expanded row offers "Open in a new tab" and "Download
+    PDF" (decision 7) in place of "Download" with the "Opens as a download" hint. On the Overview's Latest order card
+    the row's summary reads "Show the order" (`OrderRow` `label`), because the card shows the details above it. The
+    next-date block of portal-next-dates is reused unchanged inside the card.
+11. **Timeline tab** rows lead with the `DateChip` (decision 15).
+12. **My calendar:** the chosen day defaults to today when the current month is shown, else none; the legend is screen
+    state, not in the query string; an event shows the case number; Today is a secondary button; switching views drops
+    `month`, `day` and `department`. The view switch shows when any of the caller's departments is read whole on
+    `/inbox/counts` (not per selected department), or for a State-wide reader.
+13. **Department hearings view:** the old `alerts/Calendar.tsx` moved to `calendar/DepartmentHearings.tsx` unchanged,
+    except that its "Next 7 days | This month" pair became chips, so the page keeps one primary.
+14. **`/alerts/calendar`** keeps its query string on the redirect (adding `view=department` when allowed); it shows the
+    Alerts frame with a loading line for the moment before the redirect.
+15. **The spacing check** (`tokens.test.ts`) now covers the round's modules: `case`, `calendar`, `hearings` and
+    `workflow`.

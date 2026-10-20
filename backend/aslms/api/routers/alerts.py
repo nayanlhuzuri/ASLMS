@@ -1,4 +1,4 @@
-"""`/alerts`, `/cases/{ref}/alerts`, `/calendar` and `/me/notification-preferences` (design
+"""`/alerts`, `/cases/{ref}/alerts`, `/calendar`, `/me/calendar` and `/me/notification-preferences` (design
 `alerts-notifications`, "API"). `{alr}` is an alert id or its `ref_no` in dash form
 (`ASLMS-GOA-ALR-2026-000042`); `{ref}` a case as in the cases API. Reading alerts and the calendar needs
 `cases.view_scope` or `cases.view_all`; acting on an alert needs `alerts.acknowledge`; preferences and marking
@@ -24,6 +24,7 @@ from aslms.services.alerts import AlertConflict, AlertError, AlertNotFound
 from aslms.services.calendar import CalendarError
 from aslms.services.case_filters import CaseFilters
 from aslms.services.cases import CaseNotFound, resolve_case_ref
+from aslms.services.next_dates import NextDateConfig
 from aslms.services.notifications import PreferenceError
 from aslms.services.visibility import NotVisibleCase
 
@@ -223,6 +224,33 @@ def hearing_calendar(
     except HANDLED as exc:
         raise _http(exc) from exc
     return schemas.CalendarOut(items=items)
+
+
+@router.get("/me/calendar", response_model=schemas.MyCalendarOut)
+def my_calendar(
+    request: Request,
+    from_: date | None = Query(None, alias="from"),
+    to: date | None = None,
+    session: Session = Depends(get_session),
+    user: User = Depends(read),
+) -> schemas.MyCalendarOut:
+    """My calendar (design `portal-ui-redesign`, A6): hearings of my cases, due dates of the files I hold, and the
+    next dates waiting for my confirmation, from `from` to `to` (IST dates, at most 62 days; default the current
+    month's grid, Monday to Sunday). Ordered by date, kind, then case. Reading writes nothing."""
+    s = _settings(request)
+    try:
+        items = calendar.my_calendar(
+            session,
+            user,
+            from_=from_,
+            to=to,
+            critical_hours=s.alert_critical_hours,
+            sitting_time=s.court_sitting_time,
+            review_cfg=NextDateConfig.from_settings(s),
+        )
+    except HANDLED as exc:
+        raise _http(exc) from exc
+    return schemas.MyCalendarOut(items=items)
 
 
 # ------------------------------------------------------------------------------------------------ preferences

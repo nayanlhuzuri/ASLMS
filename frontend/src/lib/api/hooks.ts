@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { apiCasePath, refPath } from "../refs";
 import { api, ApiError } from "./client";
@@ -128,6 +128,18 @@ export function useCase(ref: string) {
     queryKey: [...caseKey(ref), "overview"],
     queryFn: () => api<CaseDetail>(apiCasePath(ref)),
   });
+}
+
+/**
+ * The case number for a workflow dialog's subtitle (the Action dialog template, design portal-ui-redesign, decision
+ * 25): read from the case already loaded on the page, never a new request; undefined elsewhere (the claim modal shows
+ * the number in its own header).
+ */
+export function useCaseTitle(ref: string | null | undefined): string | undefined {
+  const queryClient = useQueryClient();
+  if (!ref) return undefined;
+  const c = queryClient.getQueryData<CaseDetail>([...caseKey(ref), "overview"]);
+  return c ? c.identity?.case_no_text || c.ref_no : undefined;
 }
 
 /** A case's ownership and the actions the caller may take (`GET /cases/{ref}/ownership`); 404 when not visible. */

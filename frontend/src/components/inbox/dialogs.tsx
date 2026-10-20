@@ -16,7 +16,7 @@ import { useState } from "react";
 
 import { CheckField, ConfirmDialog, ErrorBanner, Loading, SelectField, TextArea, type Option } from "@/components/ui";
 import { api, ApiError } from "@/lib/api/client";
-import { caseKey, INBOX_KEY, useDepartmentPeople, useDepartments, useMe, useOwnership } from "@/lib/api/hooks";
+import { caseKey, INBOX_KEY, useCaseTitle, useDepartmentPeople, useDepartments, useMe, useOwnership } from "@/lib/api/hooks";
 import type { Ownership, Recipient } from "@/lib/api/types";
 import { canIn, isSuperAdmin } from "@/lib/can";
 import { T } from "@/lib/messages";
@@ -198,6 +198,7 @@ export function ClaimDialog({
   const [unit, setUnit] = useState("");
   const [officer, setOfficer] = useState("");
   const run = useOwnershipCall(caseRef);
+  const caseTitle = useCaseTitle(caseRef);
   const all = useDepartments(open && anyDepartment);
   const office = anyDepartment && choice.codes.length === 0 ? chosenAny || null : choice.office;
   const canAllot = !!office && (canIn(me.data, office, "cases.allot") || isSuperAdmin(me.data));
@@ -233,6 +234,7 @@ export function ClaimDialog({
   return (
     <ConfirmDialog
       open={open}
+      subtitle={caseTitle}
       title={T.own.claimTitle}
       onClose={onClose}
       onConfirm={confirm}
@@ -314,6 +316,7 @@ export function DismissDialog({
   const [reason, setReason] = useState("");
   const choice = useOfficeRequired(departments, department);
   const run = useOwnershipCall(caseRef);
+  const caseTitle = useCaseTitle(caseRef);
   async function confirm() {
     if (!choice.check()) return;
     const out = await run.call(casePathOf(caseRef, "dismiss"), {
@@ -330,6 +333,7 @@ export function DismissDialog({
   return (
     <ConfirmDialog
       open={open}
+      subtitle={caseTitle}
       title={T.own.dismissTitle}
       onClose={onClose}
       onConfirm={confirm}
@@ -365,6 +369,7 @@ export function SuggestDialog({
   const [reason, setReason] = useState("");
   const [tried, setTried] = useState(false);
   const run = useOwnershipCall(caseRef);
+  const caseTitle = useCaseTitle(caseRef);
   const left = [...exclude, choice.office];
   const options = departmentOptions(all.data?.departments ?? [], left);
   const targetOk = !!target && !left.includes(target);
@@ -387,6 +392,7 @@ export function SuggestDialog({
   return (
     <ConfirmDialog
       open={open}
+      subtitle={caseTitle}
       title={T.own.suggestTitle}
       onClose={onClose}
       onConfirm={confirm}
@@ -445,6 +451,7 @@ export function AllotDialog({
   const [unit, setUnit] = useState(KEEP);
   const [officer, setOfficer] = useState(KEEP);
   const run = useOwnershipCall(caseRef);
+  const caseTitle = useCaseTitle(caseRef);
   const now = rows ? rowOf(rows, office) : (current ?? null);
   async function confirm() {
     if (!choice.check() || !office) return;
@@ -461,6 +468,7 @@ export function AllotDialog({
   return (
     <ConfirmDialog
       open={open}
+      subtitle={caseTitle}
       title={T.own.allotTitle}
       onClose={onClose}
       onConfirm={confirm}
@@ -520,6 +528,7 @@ export function TakeOverDialog({
   const [reason, setReason] = useState("");
   const choice = useOfficeRequired(departments);
   const run = useOwnershipCall(caseRef);
+  const caseTitle = useCaseTitle(caseRef);
   const holder = rowOf(rows, choice.office)?.officer ?? null;
   async function confirm() {
     if (!choice.check() || !choice.office || !holder) return;
@@ -538,6 +547,7 @@ export function TakeOverDialog({
   return (
     <ConfirmDialog
       open={open}
+      subtitle={caseTitle}
       title={T.own.takeOverTitle}
       onClose={onClose}
       onConfirm={confirm}
@@ -564,6 +574,7 @@ export function StopWatchingDialog({
   const [tried, setTried] = useState(false);
   const choice = useOfficeRequired(departments);
   const run = useOwnershipCall(caseRef);
+  const caseTitle = useCaseTitle(caseRef);
   async function confirm() {
     setTried(true);
     const fromOk = choice.check();
@@ -582,6 +593,7 @@ export function StopWatchingDialog({
   return (
     <ConfirmDialog
       open={open}
+      subtitle={caseTitle}
       title={T.own.stopTitle}
       onClose={onClose}
       onConfirm={confirm}
@@ -617,6 +629,7 @@ export function TransferDialog({
   const [stay, setStay] = useState(false);
   const [tried, setTried] = useState(false);
   const run = useOwnershipCall(caseRef);
+  const caseTitle = useCaseTitle(caseRef);
   async function confirm() {
     setTried(true);
     if (!target || !reason.trim()) return;
@@ -633,6 +646,7 @@ export function TransferDialog({
   return (
     <ConfirmDialog
       open={open}
+      subtitle={caseTitle}
       title={T.own.transferTitle}
       onClose={onClose}
       onConfirm={confirm}
@@ -670,6 +684,7 @@ export function DecideDialog({
 }: BaseProps & { transferId: string; accept: boolean }) {
   const [note, setNote] = useState("");
   const run = useOwnershipCall(caseRef);
+  const caseTitle = useCaseTitle(caseRef);
   async function confirm() {
     const out = await run.call(`/transfers/${encodeURIComponent(transferId)}/${accept ? "accept" : "decline"}`, {
       note: note.trim() || undefined,
@@ -682,6 +697,7 @@ export function DecideDialog({
   return (
     <ConfirmDialog
       open={open}
+      subtitle={caseTitle}
       title={T.own.decideTitle(accept)}
       onClose={onClose}
       onConfirm={confirm}
@@ -697,6 +713,7 @@ export function DecideDialog({
 
 export function WithdrawDialog({ open, caseRef, onClose, onDone, transferId }: BaseProps & { transferId: string }) {
   const run = useOwnershipCall(caseRef);
+  const caseTitle = useCaseTitle(caseRef);
   async function confirm() {
     const out = await run.call(`/transfers/${encodeURIComponent(transferId)}/withdraw`);
     if (out.ok) {
@@ -707,6 +724,7 @@ export function WithdrawDialog({ open, caseRef, onClose, onDone, transferId }: B
   return (
     <ConfirmDialog
       open={open}
+      subtitle={caseTitle}
       title={T.own.withdrawTitle}
       onClose={onClose}
       onConfirm={confirm}
