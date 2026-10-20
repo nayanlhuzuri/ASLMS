@@ -11,9 +11,7 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
         <div className={s.brand}>
           <BrandLockup />
           <strong>{T.portal}</strong>
-          <span>
-            {T.portalLong} · {T.court}
-          </span>
+          <span>{T.portalLong}</span>
         </div>
         {children}
       </div>

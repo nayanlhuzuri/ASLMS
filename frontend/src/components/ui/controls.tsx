@@ -9,6 +9,7 @@
 import {
   useId,
   useRef,
+  useState,
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
   type KeyboardEvent,
@@ -99,16 +100,50 @@ function FieldFrame({ ids, label, hint, error, children }: FieldShell & { ids: R
 
 export function TextField({ label, hint, error, id, className, ...rest }: FieldShell & InputHTMLAttributes<HTMLInputElement>) {
   const ids = useFieldIds(id);
+  const [shown, setShown] = useState(false);
+  const isPassword = rest.type === "password";
+  const input = (
+    <input
+      id={ids.id}
+      className={cx(s.input, s.control, isPassword && s.withReveal, className)}
+      aria-invalid={error ? true : undefined}
+      aria-describedby={describedBy(ids, hint, error)}
+      {...rest}
+      type={isPassword && shown ? "text" : rest.type}
+    />
+  );
   return (
     <FieldFrame ids={ids} label={label} hint={hint} error={error}>
-      <input
-        id={ids.id}
-        className={cx(s.input, s.control, className)}
-        aria-invalid={error ? true : undefined}
-        aria-describedby={describedBy(ids, hint, error)}
-        {...rest}
-      />
+      {isPassword ? (
+        // every password field can be shown while typing; the button is a toggle, so a screen reader hears its state
+        <div className={s.reveal}>
+          {input}
+          <button
+            type="button"
+            className={s.revealButton}
+            aria-label={shown ? T.hidePassword : T.showPassword}
+            aria-pressed={shown}
+            aria-controls={ids.id}
+            disabled={rest.disabled}
+            onClick={() => setShown((v) => !v)}
+          >
+            <EyeIcon off={shown} />
+          </button>
+        </div>
+      ) : (
+        input
+      )}
     </FieldFrame>
+  );
+}
+
+function EyeIcon({ off }: { off: boolean }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
+      <circle cx="12" cy="12" r="3" />
+      {off ? <path d="M3 3l18 18" /> : null}
+    </svg>
   );
 }
 

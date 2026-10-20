@@ -364,7 +364,7 @@ def render_ticket_mail(alert: Any, portal_base_url: str) -> tuple[str, str]:
         "",
         f"Open: {portal_base_url.rstrip('/')}/admin/tickets/{ticket_url_ref(d.get('ticket_ref'))}",
         "",
-        "ASLMS - Legal Case Monitoring Portal",
+        "ASLMS - Assam State Litigation Management System",
     ]
     return subject, "\n".join(lines)
 
@@ -390,7 +390,7 @@ def render_mail(
         "",
         f"Open: {portal_base_url.rstrip('/')}/cases/{case_url_ref}",
         "",
-        "ASLMS - Legal Case Monitoring Portal",
+        "ASLMS - Assam State Litigation Management System",
     ]
     return subject, "\n".join(lines)
 
@@ -430,5 +430,5 @@ def render_digest(
             f"Possible matches awaiting a decision in your department's inbox: {medium_recommendations}"
         )
         lines.append("")
-    lines.append("ASLMS - Legal Case Monitoring Portal")
+    lines.append("ASLMS - Assam State Litigation Management System")
     return subject, "\n".join(lines)

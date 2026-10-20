@@ -395,7 +395,7 @@ describe("header, brand, drawer and bottom bar (portal-ui-redesign, decisions 18
     expect(slot).toHaveAttribute("aria-hidden", "true");
     expect(screen.queryByRole("img")).toBeNull();
     expect(screen.getByText("Government of Assam")).toBeInTheDocument();
-    expect(screen.getByText("Legal Case Monitoring Portal")).toBeInTheDocument();
+    expect(screen.getByText("Assam State Litigation Management System")).toBeInTheDocument();
   });
 
   it("with an emblem file set, the header shows the image with its alternative text at 40 px high", () => {
@@ -430,7 +430,7 @@ describe("header, brand, drawer and bottom bar (portal-ui-redesign, decisions 18
       </PortalShell>,
     );
     const header = await screen.findByRole("banner");
-    expect(within(header).getByText("Legal Case Monitoring Portal")).toBeInTheDocument();
+    expect(within(header).getByText("Assam State Litigation Management System")).toBeInTheDocument();
     expect(within(header).getByRole("searchbox")).toBeInTheDocument();
     expect(await within(header).findByRole("link", { name: "2 unread alerts" })).toBeInTheDocument();
     expect(within(header).getByRole("button", { name: "User menu" })).toHaveTextContent("AS");

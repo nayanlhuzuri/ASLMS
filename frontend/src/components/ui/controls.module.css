@@ -148,6 +148,46 @@
   padding-right: var(--s6);
 }
 
+/* a password field with its show / hide button inside the right edge */
+.reveal {
+  position: relative;
+}
+
+.reveal .withReveal {
+  width: 100%;
+  padding-right: calc(var(--control-h) + var(--s1));
+}
+
+.revealButton {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: grid;
+  place-items: center;
+  width: var(--control-h);
+  height: var(--control-h);
+  border: 0;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: color var(--fast) var(--ease);
+}
+
+.revealButton:hover {
+  color: var(--text);
+}
+
+.revealButton:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px var(--accent-ring);
+}
+
+.revealButton:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
 .textarea {
   min-height: 96px;
   padding: var(--s2) var(--s3);

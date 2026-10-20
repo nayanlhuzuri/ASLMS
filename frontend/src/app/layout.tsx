@@ -13,7 +13,7 @@ import { T } from "@/lib/messages";
 
 export const metadata: Metadata = {
   title: { default: `${T.portal} — ${T.portalLong}`, template: `%s · ${T.portal}` },
-  description: `${T.portalLong}, ${T.court}`,
+  description: `${T.portalLong}, ${T.owner}`,
   robots: { index: false, follow: false },
 };
 

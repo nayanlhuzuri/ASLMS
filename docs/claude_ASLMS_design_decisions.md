@@ -1996,3 +1996,14 @@ Backlog row 102 `portal-ui-inbox-claim`, branch `feature/portal-ui-inbox-claim`;
 - Tests: `shell.test.tsx`: the header shows the official mark by default, both files are present under `public/brand/`, and the placeholder is still shown when no emblem is set. `proxy.test.ts`: `/brand/` files are outside the gate. Vitest has 710 tests, lint and typecheck are clean, and portal_smoke passed against the rebuilt `web`.
 
 **Left for later**: an SVG or a larger PNG (at least 800 px high) would sharpen the header mark on high-density screens; the owner may supply one, and only the files and the sizes in `brand.ts` change.
+
+## 2026-10-20 — The application's name; show-password button (on `main`, outside a cycle)
+
+**Owner decision (20 Oct 2026).** The application is the **Assam State Litigation Management System**, abbreviated ASLMS. "Legal Case Monitoring Portal" was a working title and is no longer used. The sign-in pages no longer name the Gauhati High Court.
+
+**What changed**
+- The portal uses the new name (`T.portalLong`) in the header, the page title and the sign-in and first-sign-in pages. On phones the header shows "ASLMS", and the full name stays available to screen readers.
+- The e-mail footers in `services/alert_rules.py`, the test e-mail in `cli/alerts.py`, the API title (`api/main.py`, `frontend/openapi.json`), `pyproject.toml`, `README.md`, the `CLAUDE.md` heading and the architect's definition all use the new name.
+- Existing file names, such as `Legal_Case_Monitoring_Portal_Plan.docx`, and earlier entries of this log are not changed.
+- Every password field now has a show / hide button. `TextField` with `type="password"` adds an eye button that toggles, with `aria-pressed` and the label "Show password" / "Hide password". This covers the sign-in, reset, first-sign-in and administrator forms. Tests are in `ui.test.tsx`.
+- A new sign-in page template is being chosen with the owner from mockups. It will be built separately.

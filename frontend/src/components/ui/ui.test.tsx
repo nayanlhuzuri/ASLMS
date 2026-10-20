@@ -400,3 +400,25 @@ describe("chips, switches and the page header", () => {
     expect(document.querySelectorAll("[data-variant='primary']")).toHaveLength(1);
   });
 });
+
+describe("password fields", () => {
+  it("every password field has a show / hide toggle that switches the input type and its own label", async () => {
+    const user = userEvent.setup();
+    renderWithClient(<TextField label="Password" type="password" defaultValue="s3cret" />);
+    const input = screen.getByLabelText("Password");
+    expect(input).toHaveAttribute("type", "password");
+    const toggle = screen.getByRole("button", { name: "Show password" });
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    expect(toggle).toHaveAttribute("type", "button");
+    await user.click(toggle);
+    expect(input).toHaveAttribute("type", "text");
+    expect(screen.getByRole("button", { name: "Hide password" })).toHaveAttribute("aria-pressed", "true");
+    await user.click(screen.getByRole("button", { name: "Hide password" }));
+    expect(input).toHaveAttribute("type", "password");
+  });
+
+  it("other fields carry no toggle", () => {
+    renderWithClient(<TextField label="E-mail" type="email" />);
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+});

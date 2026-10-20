@@ -54,7 +54,7 @@ def create_app(settings: Settings | None = None, session_factory=None) -> FastAP
     # decision 4: the API documentation only in development; app.openapi() still works for the snapshot tool
     docs = settings.app_env == "dev"
     app = FastAPI(
-        title="ASLMS — Legal Case Monitoring Portal",
+        title="ASLMS — Assam State Litigation Management System",
         version=__version__,
         lifespan=lifespan,
         docs_url="/docs" if docs else None,

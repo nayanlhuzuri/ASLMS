@@ -1,4 +1,4 @@
-# ASLMS — Legal Case Monitoring Portal
+# ASLMS — Assam State Litigation Management System
 
 A portal for Assam government departments to track their cases before the Gauhati High Court: daily cause lists, case details and orders from the NAPIX APIs, department ownership, hearing alerts, custody and notes, and an AI Case Assistant through SourceTrace. Owner: SeMT Assam / AMTRON.
 

@@ -40,7 +40,12 @@ export function Brand({ brand = BRAND }: { brand?: BrandConfig }) {
       <EmblemSlot brand={brand} />
       <span className={s.brandText}>
         <span className={s.gov}>{T.owner}</span>
-        <span className={s.app}>{T.portalLong}</span>
+        <span className={s.app}>
+          <span className={s.appLong}>{T.portalLong}</span>
+          <span className={s.appShort} aria-hidden="true">
+            {T.portal}
+          </span>
+        </span>
       </span>
     </div>
   );

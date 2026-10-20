@@ -182,9 +182,11 @@ export function errorText(error: unknown, context?: ErrorTexts): string {
 
 export const T = {
   portal: "ASLMS",
-  portalLong: "Legal Case Monitoring Portal",
+  portalLong: "Assam State Litigation Management System",
   court: "Gauhati High Court",
   owner: "Government of Assam",
+  showPassword: "Show password",
+  hidePassword: "Hide password",
   skip: "Skip to content",
   loading: "Loading…",
   retry: "Try again",

@@ -1,7 +1,7 @@
 [project]
 name = "aslms"
 version = "3.0.0a0"
-description = "Assam State Legal Management System — Legal Case Monitoring Portal backend"
+description = "ASLMS — Assam State Litigation Management System, backend"
 requires-python = ">=3.11"
 dependencies = [
   "httpx>=0.27",

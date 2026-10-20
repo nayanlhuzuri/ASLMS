@@ -110,7 +110,7 @@ def test_mail(to: str = typer.Option(..., "--to", help="the recipient address"))
         mailer.send(
             to,
             "ASLMS test message",
-            "This is a test message from the ASLMS Legal Case Monitoring Portal.\n"
+            "This is a test message from ASLMS, the Assam State Litigation Management System.\n"
             f"Portal: {settings.portal_base_url}\n",
         )
     except MailError as exc:

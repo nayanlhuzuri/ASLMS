@@ -1,6 +1,6 @@
-# ASLMS v2: Assam State Legal Management System
+# ASLMS v2: Assam State Litigation Management System
 
-The Legal Case Monitoring Portal for the Government of Assam. Each department tracks its cases before the Gauhati
+The Assam State Litigation Management System (ASLMS) of the Government of Assam. Each department tracks its cases before the Gauhati
 High Court in one place: daily cause lists, case details and orders from the official eCourts / High Court APIs
 (NAPIX), department ownership by recommend-and-claim, hearing alerts, custody of the file, case notes, documents,
 dashboards, reports and the audit trail. Case research and order reading go through SourceTrace (the connector is
