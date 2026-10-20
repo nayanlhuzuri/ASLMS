@@ -198,6 +198,10 @@ adds `sent`, `recalled` and (with `user-memberships`) `reassigned_on_exit`.
 > order's document; an order without a stored document stays `pending`; a document with `text_status = none` gives
 > `no_text`. Court text only; nothing is sent to SourceTrace or any AI service. FKs unchanged.
 
+> **document-ocr (20 Oct 2026, no migration).** No table or column added. `documents.text_status = none` stays what
+> text extraction gives to a PDF without a text layer, a JPEG or PNG, an old `.doc` and an empty `.docx`; there is no OCR
+> in Phase 1, so these are shown as "Scanned, not read" and counted by `GET /admin/data-health` (`documents_text`).
+
 ## Group 7 — Next dates, alerts and notifications
 As built by `alerts-notifications` (migration 0007, 6 Oct 2026): `alerts` gains `office_id`, `data`, `closed_at`, `closed_by_user_id` (indexed), CHECKs and indexes; `notifications` gains `severity`, `attempts`, `next_attempt_at` and the outbox index; `digests` gains its sending state. `ref_alert_kind` gains `ownership` and `new_document` (seed only). The rows below are the as-built columns.
 | Table | Columns | Notes |

@@ -1897,3 +1897,23 @@ Backlog row 94 (rows 81, 90, 91, 92 and 93 in full; row 86 items 1, 5 and 9; row
 
 - 2026-10-20 — github-and-ci: approved by the owner with the defaults, and the repository always stays on the owner's personal account nayanlhuzuri (no transfer); private; GitHub Free to start; the integrator pushes main and the feature/*-done tags after each local merge (fast-forward only, never forced), replacing the 4 Oct "never push" rule; the owner signs in gh and makes the first push after two full-history scans (docs/design/github-and-ci.md).
 - 2026-10-20 — document-ocr: owner chose option C, no OCR in Phase 1; build Part 0 only (plain-words text labels such as "Scanned, not read", the content-search note, the documents_text block on data-health) and pin PyMuPDF below 2 so that no onnxruntime models are loaded under the "no local model" rule. Option B (SourceTrace returns the text it holds) parked as a follow-up row until row 36 (docs/design/document-ocr.md).
+
+## Document OCR, Part 0 only (2026-10-20)
+Backlog row 23, design `docs/design/document-ocr.md` (approved by the owner 20 Oct 2026, option C: no OCR in Phase 1), branch `feature/document-ocr`. No migration, no schema change.
+
+**Built**
+- Plain-words text labels on the Documents tab (`textLabel` in `frontend/src/lib/documents.ts`, words in `T.case.textLabels`): `pending` "Being read", `extracted` "Searchable", `none` on a PDF or image "Scanned, not read", on an old Word file "Old Word format, not read", on anything else "No text in the file", `failed` "Text could not be read". The raw `text_status` is no longer shown; a value added later shows as sent until it has words.
+- The content-search note under the box on the Search text tab: scanned documents, images and old Word files are not searched by their content.
+- `documents_text` block on `GET /admin/data-health` (`data_health.documents_text`, schemas `DocumentsTextOut`, `DocumentsTextKindOut`, `DocumentsTextNoneOut`): one grouped count over kinds `order`, `upload`, `attachment` (never `causelist` or `admin`) by status, with `none` split into `scanned_pdf`, `image`, `doc`, `other`. Totals only. Shown as a "Document text" block on the data-health screen. `frontend/openapi.json` and `schema.d.ts` regenerated.
+- PyMuPDF pinned `pymupdf>=1.24,<2` in `backend/pyproject.toml`, with `test_pymupdf_loads_no_neural_runtime` (importing it loads no onnxruntime) and `test_pyproject_pins_pymupdf_below_2`.
+
+**Decisions and reasons**
+- Option C, no OCR in Phase 1: the dev database holds only born-digital court orders (0 `none` among 60,612 order PDFs at design time), uploads are still unmeasured, and a local OCR engine would sit against "no local model". The pilot gives the real count of scanned filings, which the data-health block now shows.
+- PyMuPDF below 2: version 2 pulls onnxruntime layout models, which the "all AI through SourceTrace, no local model" rule forbids. Measured on 200 stored order PDFs (803 pages): text from 1.28.2 and 2.0 identical in 200 of 200 files and 803 of 803 pages. Image 596 MB against 914 MB with 2.0.
+- Say "scanned, not read" plainly rather than leave the reading column empty.
+
+**Deviations from the design note**: a fourth `none` bucket `other`, because `text_extract` also gives `none` to an empty DOCX, which "Scanned, not read" would misdescribe (labelled "No text in the file"); the second dependency test; `textLabel` in `lib/documents.ts`; the image check on a separately tagged image so the shared images are left for the integrator. Listed in the note's "Deviations".
+
+**Verified**: `import pymupdf` on the built image gives 1.28.2 with no onnxruntime loaded; `documents_text` on the dev database equals the SQL group count (order 59,542 extracted, 4,189 pending, 0 failed, 0 none; upload and attachment 0). Backend and frontend tests for the counts, labels, note and block were added.
+
+**Left for later**: Part A (local OCR engine, migration 0021) and the OCR interface are not built; Part B (SourceTrace returns the text of court orders and filings it holds, never internal documents) is parked as row 96, waiting for row 36 and decided again after the pilot. The tester's step 3 (uploads through the portal) needs the rebuilt `api` and `web` images; the integrator rebuilds them.

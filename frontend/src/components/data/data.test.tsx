@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { Sidebar } from "@/components/shell/PortalShell";
 import type { DataHealth, DataLoad, Duplicates as DuplicatesList, NapixHealth, Permission } from "@/lib/api/types";
+import { formatNumber } from "@/lib/format";
 import { resetNav } from "@/test/nav";
 import { browserApi, json, labels, makeMe, renderWithClient } from "@/test/render";
 
@@ -385,6 +386,11 @@ const SNAPSHOT = {
   mail: { email_queued: 0, email_failed: 0, email_oldest_queued_at: null, digests_queued: 0, digests_failed: 0 },
   sourcetrace: {},
   failures: [],
+  documents_text: {
+    order: { pending: 3220, extracted: 57392, failed: 0, none: { scanned_pdf: 0, image: 0, doc: 0, other: 0 } },
+    upload: { pending: 0, extracted: 14, failed: 11, none: { scanned_pdf: 12, image: 15, doc: 13, other: 0 } },
+    attachment: { pending: 0, extracted: 0, failed: 0, none: { scanned_pdf: 0, image: 16, doc: 0, other: 0 } },
+  },
 } as unknown as DataHealth;
 
 const QUEUED_DAY = {
@@ -441,6 +447,27 @@ describe("the health tab", () => {
     renderWithClient(<Health />);
     expect(await screen.findByText("This window")).toBeInTheDocument();
     expect(screen.getByText(text)).toBeInTheDocument();
+  });
+
+  it("shows the document text block by kind, the ones not read split by type (document-ocr)", async () => {
+    healthRoutes(["reports.state"]);
+    renderWithClient(<Health />);
+    const block = await screen.findByRole("region", { name: "Document text" });
+    expect(within(block).getByText(/not read, so they cannot be searched by their content/)).toBeInTheDocument();
+    const rowOf = (name: string) => within(block).getByRole("row", { name: new RegExp(`^${name}`) });
+    expect(within(rowOf("Court orders")).getAllByRole("cell").map((c) => c.textContent)).toEqual([
+      "Court orders",
+      formatNumber(3220),
+      formatNumber(57392),
+      "0",
+      "0",
+      "0",
+      "0",
+      "0",
+    ]);
+    expect(within(rowOf("Uploads")).getAllByRole("cell").map((c) => c.textContent)).toEqual(["Uploads", "0", "14", "11", "12", "15", "13", "0"]);
+    expect(within(rowOf("Note attachments")).getAllByRole("cell")[5]).toHaveTextContent("16");
+    expect(within(block).getByRole("columnheader", { name: "Scanned PDFs, not read" })).toBeInTheDocument();
   });
 
   it("links to the period report with reports.state only (portal-reports)", async () => {

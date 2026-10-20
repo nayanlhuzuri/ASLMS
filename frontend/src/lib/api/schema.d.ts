@@ -5668,6 +5668,7 @@ export interface components {
             as_of: string;
             /** Daily Cycle */
             daily_cycle: components["schemas"]["DailyCycleDayOut"][];
+            documents_text: components["schemas"]["DocumentsTextOut"];
             /** Failures */
             failures: components["schemas"]["FailureKindOut"][];
             /** Jobs */
@@ -6237,6 +6238,48 @@ export interface components {
         DocumentVisibilityIn: {
             /** Visibility */
             visibility: string;
+        };
+        /** DocumentsTextKindOut */
+        DocumentsTextKindOut: {
+            /** Extracted */
+            extracted: number;
+            /** Failed */
+            failed: number;
+            none: components["schemas"]["DocumentsTextNoneOut"];
+            /** Pending */
+            pending: number;
+        };
+        /** DocumentsTextNoneOut */
+        DocumentsTextNoneOut: {
+            /**
+             * Doc
+             * @description old Word (.doc) files: not read
+             */
+            doc: number;
+            /**
+             * Image
+             * @description JPEG and PNG images: not read
+             */
+            image: number;
+            /**
+             * Other
+             * @description other files with no text in them (an empty Word .docx)
+             */
+            other: number;
+            /**
+             * Scanned Pdf
+             * @description PDFs without a text layer: scanned, not read
+             */
+            scanned_pdf: number;
+        };
+        /**
+         * DocumentsTextOut
+         * @description Design `document-ocr`, decision 4: documents by text status (totals only).
+         */
+        DocumentsTextOut: {
+            attachment: components["schemas"]["DocumentsTextKindOut"];
+            order: components["schemas"]["DocumentsTextKindOut"];
+            upload: components["schemas"]["DocumentsTextKindOut"];
         };
         /** DraftDocumentOut */
         DraftDocumentOut: {

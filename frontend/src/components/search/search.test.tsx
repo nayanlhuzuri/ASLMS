@@ -198,6 +198,14 @@ describe("local search", () => {
     expect(await screen.findByRole("link", { name: "Order and document text" })).toHaveAttribute("aria-current", "page");
     await waitFor(() => expect(api.calls.some((c) => c.path.startsWith("/documents/search?q=eviction"))).toBe(true));
   });
+
+  it("the text tab says scanned documents, images and old Word files are not searched (document-ocr)", async () => {
+    browserApi({ "GET /me": me(READER), "GET /documents/search": { items: [], total: 0 } });
+    renderWithClient(<Search params={{ tab: "text" }} />);
+    expect(
+      await screen.findByText("Scanned documents, images and old Word files are not searched by their content."),
+    ).toBeInTheDocument();
+  });
 });
 
 describe("court search", () => {

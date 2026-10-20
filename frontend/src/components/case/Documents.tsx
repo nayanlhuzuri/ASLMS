@@ -3,7 +3,8 @@
 /**
  * The Documents tab (design portal-cases, decision 10; Annexure B "Case documents and upload"): grouped Court orders /
  * Court filings / Internal documents (`doc_group`), each with type, date, description, uploader and office, size and
- * pages, "In Case Assistant" / "Not sent to SourceTrace", the visibility badge and the text status; View / Download by
+ * pages, "In Case Assistant" / "Not sent to SourceTrace", the visibility badge and the text status in plain words
+ * (`textLabel`, design document-ocr: "Scanned, not read" and the others); View / Download by
  * function; "Show archived". The upload panel sits alongside when the overview's `workflow.upload` is true, and each
  * row the API marks `can_manage` offers Change visibility and Archive (design portal-workflow, decisions 13, 14).
  *
@@ -21,7 +22,7 @@ import { api } from "@/lib/api/client";
 import { caseKey, useCase, useMe } from "@/lib/api/hooks";
 import type { DocumentItem, DocumentList } from "@/lib/api/types";
 import { can } from "@/lib/can";
-import { canViewInline, pdfDownloadOnly } from "@/lib/documents";
+import { canViewInline, pdfDownloadOnly, textLabel } from "@/lib/documents";
 import { formatDate, formatNumber } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { PAGE } from "@/lib/params";
@@ -80,7 +81,7 @@ function DocRow({
           )}
           <Badge>{T.case.visibilities[d.visibility] ?? d.visibility}</Badge>
           <span className="muted">
-            {T.case.textStatus}: {d.text_status}
+            {T.case.textStatus}: {textLabel(d)}
           </span>
         </div>
       </td>

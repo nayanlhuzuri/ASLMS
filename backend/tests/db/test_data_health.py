@@ -448,5 +448,132 @@ def test_cli_data_health_prints_the_snapshot(world, monkeypatch):
     assert r.output.startswith("NAPIX window unknown: ")  # the window line first (design napix-window)
     snap = json.loads(r.output[r.output.index("{") :])
     assert {k["kind"]: k["failed"] for k in snap["queue"]["by_kind"]}["dossier"] == 1
+    assert set(snap["documents_text"]) == {"order", "upload", "attachment"}  # design document-ocr, decision 4
     r = CliRunner().invoke(app, ["search", "--action", "napix.", "--limit", "5"])
     assert r.exit_code == 0, r.output
+
+
+# ------------------------------------------------------------------------------------------------ documents text
+
+
+def _text_doc(s, case, office, n, *, kind, status, mime, group=DocGroup.COURT_FILING, visibility=None):
+    """A document row in a given text state (no stored bytes: the block counts rows only)."""
+    from aslms.domain.documents import Document, ScanStatus, SourcetraceStatus
+    from aslms.domain.reference import DocType
+
+    user_file = kind in (DocKind.UPLOAD, DocKind.ATTACHMENT, DocKind.ADMIN)
+    if visibility is None:
+        visibility = Visibility.PRIVATE_TO_OFFICE if kind == DocKind.ADMIN else Visibility.CASE_SCOPE
+    doc = Document(
+        ref_no=allocate_ref_no(s, office.code, RecordType.DOC.value) if user_file else None,
+        sha256=f"{n:064x}",
+        storage_key=f"00/{n:064x}.bin",
+        mime=mime,
+        size_bytes=100,
+        kind=kind,
+        doc_type=DocType.ORDER if kind in (DocKind.ORDER, DocKind.CAUSELIST) else DocType.PETITION,
+        doc_group=group,
+        case_id=None if kind in (DocKind.ADMIN, DocKind.CAUSELIST) else case.id,
+        doc_date=date(2025, 1, 3),
+        visibility=visibility,
+        office_id=office.id if user_file else None,
+        virus_scan_status=ScanStatus.CLEAN if user_file else ScanStatus.SKIPPED,
+        text_status=status,
+        sourcetrace_status=SourcetraceStatus.NOT_APPLICABLE,
+    )
+    s.add(doc)
+    s.flush()
+    return doc
+
+
+def _seed_documents_text(s, world) -> None:
+    from aslms.domain.documents import TextStatus as TS
+    from aslms.services.filetypes import DOC_MIME, DOCX_MIME, JPEG_MIME, PDF_MIME, PNG_MIME
+
+    case = make_case(s)
+    office = world.office(s, "EDU")
+    O, U, A = DocKind.ORDER, DocKind.UPLOAD, DocKind.ATTACHMENT
+    rows = [
+        (O, TS.EXTRACTED, PDF_MIME, DocGroup.COURT_RECORD),
+        (O, TS.EXTRACTED, PDF_MIME, DocGroup.COURT_RECORD),
+        (O, TS.PENDING, PDF_MIME, DocGroup.COURT_RECORD),
+        (O, TS.NONE, PDF_MIME, DocGroup.COURT_RECORD),
+        (U, TS.EXTRACTED, DOCX_MIME, DocGroup.COURT_FILING),
+        (U, TS.FAILED, PDF_MIME, DocGroup.COURT_FILING),
+        (U, TS.NONE, PDF_MIME, DocGroup.COURT_FILING),
+        (U, TS.NONE, PDF_MIME, DocGroup.INTERNAL),
+        (U, TS.NONE, PNG_MIME, DocGroup.COURT_FILING),
+        (U, TS.NONE, JPEG_MIME, DocGroup.INTERNAL),
+        (U, TS.NONE, DOC_MIME, DocGroup.INTERNAL),
+        (U, TS.NONE, DOCX_MIME, DocGroup.INTERNAL),
+        (A, TS.PENDING, PDF_MIME, DocGroup.INTERNAL),
+        (A, TS.NONE, PNG_MIME, DocGroup.INTERNAL),
+        # never counted: cause-list PDFs (read by the parser) and administrative files
+        (DocKind.CAUSELIST, TS.NONE, PDF_MIME, DocGroup.COURT_RECORD),
+        (DocKind.ADMIN, TS.NONE, PDF_MIME, DocGroup.INTERNAL),
+        (DocKind.ADMIN, TS.EXTRACTED, PDF_MIME, DocGroup.INTERNAL),
+    ]
+    for n, (kind, status, mime, group) in enumerate(rows, start=1):
+        _text_doc(s, case, office, n, kind=kind, status=status, mime=mime, group=group)
+
+
+DOCUMENTS_TEXT = {
+    "order": {
+        "pending": 1,
+        "extracted": 2,
+        "failed": 0,
+        "none": {"scanned_pdf": 1, "image": 0, "doc": 0, "other": 0},
+    },
+    "upload": {
+        "pending": 0,
+        "extracted": 1,
+        "failed": 1,
+        "none": {"scanned_pdf": 2, "image": 2, "doc": 1, "other": 1},
+    },
+    "attachment": {
+        "pending": 1,
+        "extracted": 0,
+        "failed": 0,
+        "none": {"scanned_pdf": 0, "image": 1, "doc": 0, "other": 0},
+    },
+}
+
+
+def test_documents_text_counts(world, tmp_path):
+    """Design `document-ocr`, decision 4: per kind and text status, `none` split by type; cause-list and admin
+    documents not counted; zeros when nothing is held; the API answers it to a `reports.state` holder and 403 to a
+    plain department user."""
+    with world.Session() as s:
+        empty = data_health.documents_text(s)
+        assert empty["upload"] == {
+            "pending": 0,
+            "extracted": 0,
+            "failed": 0,
+            "none": {"scanned_pdf": 0, "image": 0, "doc": 0, "other": 0},
+        }
+        assert set(empty) == {"order", "upload", "attachment"}
+        _seed_documents_text(s, world)
+        assert data_health.documents_text(s) == DOCUMENTS_TEXT
+        assert data_health.snapshot(s, None, SETTINGS, now=NOW)["documents_text"] == DOCUMENTS_TEXT
+        root_actor, root = world.actor(s, "root")
+        access.set_override(
+            s,
+            root_actor,
+            root,
+            world.user(s, "health_off"),
+            Permission.REPORTS_STATE,
+            PermissionEffect.GRANT,
+            reason="t",
+        )
+        s.commit()
+    from tests.db import docs_support as ds
+
+    client = ds.make_api(world, tmp_path)
+    try:
+        r = client.get("/admin/data-health", headers=ds.login(client, "health_off"))
+        assert r.status_code == 200, r.text
+        assert r.json()["documents_text"] == DOCUMENTS_TEXT
+        r = client.get("/admin/data-health", headers=ds.login(client, "edu_off1"))
+        assert r.status_code == 403
+    finally:
+        client.__exit__(None, None, None)

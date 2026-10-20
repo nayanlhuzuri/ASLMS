@@ -851,6 +851,34 @@ describe("documents paging and inline viewing (portal-cases-followups)", () => {
       ...extra,
     }) as DocumentItem;
 
+  it("the text line is in plain words: scanned, old Word, searchable; never the raw value (document-ocr)", async () => {
+    const filings = [
+      doc("f-pdf", "court_filing", { text_status: "none", mime: "application/pdf" }),
+      doc("f-png", "court_filing", { text_status: "none", mime: "image/png" }),
+      doc("f-doc", "court_filing", { text_status: "none", mime: "application/msword" }),
+      doc("f-ok", "court_filing", { text_status: "extracted" }),
+      doc("f-wait", "court_filing", { text_status: "pending" }),
+      doc("f-bad", "court_filing", { text_status: "failed" }),
+    ];
+    browserApi({
+      "GET /me": me(),
+      [`GET ${BASE}/documents`]: (call: { url: string }) => {
+        const g = new URL(call.url, "http://x").searchParams.get("group");
+        return g === "court_filing" ? { items: filings, total: filings.length } : { items: [], total: 0 };
+      },
+    });
+    renderWithClient(<Documents caseRef={REF} />);
+    const region = await screen.findByRole("region", { name: "Court filings" });
+    const row = (id: string) => within(region).getByText(`${id} description`).closest("tr")! as HTMLElement;
+    expect(within(row("f-pdf")).getByText("Text: Scanned, not read")).toBeInTheDocument();
+    expect(within(row("f-png")).getByText("Text: Scanned, not read")).toBeInTheDocument();
+    expect(within(row("f-doc")).getByText("Text: Old Word format, not read")).toBeInTheDocument();
+    expect(within(row("f-ok")).getByText("Text: Searchable")).toBeInTheDocument();
+    expect(within(row("f-wait")).getByText("Text: Being read")).toBeInTheDocument();
+    expect(within(row("f-bad")).getByText("Text: Text could not be read")).toBeInTheDocument();
+    expect(within(region).queryByText(/\bnone\b/)).toBeNull();
+  });
+
   it("each group is its own query with its own pager; empty groups are hidden", async () => {
     const records = Array.from({ length: 51 }, (_, i) => doc(`r-${i}`, "court_record"));
     const api = browserApi({

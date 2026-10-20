@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 from aslms.core.config import Settings
 from aslms.domain.alerts import Digest, Notification, NotificationStatus
 from aslms.domain.courts import MasterSyncRun
-from aslms.domain.documents import Document
+from aslms.domain.documents import DocKind, Document, TextStatus
 from aslms.domain.ops import (
     FetchKind,
     FetchLane,
@@ -35,6 +35,7 @@ from aslms.integration.napix.hc import API
 from aslms.services import access, napix_window, sourcetrace_ingest
 from aslms.services.access import Member
 from aslms.services.audit_search import AuditInputError, decode_cursor, encode_cursor, like_escape, to_ist
+from aslms.services.filetypes import DOC_MIME, JPEG_MIME, PDF_MIME, PNG_MIME
 from aslms.services.queue import STALE_RUNNING
 from aslms.services.reporting_common import (
     IST_ZONE,
@@ -372,12 +373,53 @@ def failures(session: Session) -> list[dict[str, Any]]:
     ]
 
 
+TEXT_KINDS = (DocKind.ORDER, DocKind.UPLOAD, DocKind.ATTACHMENT)
+
+
+def _none_bucket(mime: str) -> str:
+    if mime == PDF_MIME:
+        return "scanned_pdf"
+    if mime in (JPEG_MIME, PNG_MIME):
+        return "image"
+    if mime == DOC_MIME:
+        return "doc"
+    return "other"
+
+
+def documents_text(session: Session) -> dict[str, Any]:
+    """Design `document-ocr`, decision 4: documents by kind (`order`, `upload`, `attachment`; never `causelist` or
+    `admin`) and text status, `none` split by type into scanned PDFs, images and old Word files (`other`: a Word
+    file with no text in it). One grouped count; totals only, no case data."""
+    out: dict[str, Any] = {
+        kind.value: {
+            "pending": 0,
+            "extracted": 0,
+            "failed": 0,
+            "none": {"scanned_pdf": 0, "image": 0, "doc": 0, "other": 0},
+        }
+        for kind in TEXT_KINDS
+    }
+    rows = session.execute(
+        select(Document.kind, Document.text_status, Document.mime, func.count())
+        .where(Document.kind.in_(TEXT_KINDS))
+        .group_by(Document.kind, Document.text_status, Document.mime)
+    ).all()
+    for kind, status, mime, n in rows:
+        block = out[_value(kind)]
+        if _value(status) == TextStatus.NONE.value:
+            block["none"][_none_bucket(mime)] += int(n)
+        else:
+            block[_value(status)] += int(n)
+    return out
+
+
 def snapshot(
     session: Session, user: User | Member | None, settings: Settings, now: datetime | None = None
 ) -> dict[str, Any]:
     """Decision 5: the whole screen in one transaction (one consistent snapshot). Counts only; one block depends on
     the caller: the NAPIX block's `by_user` is filled for the NAPIX operators only (design `napix-window`, decision
-    11). `user` is `None` for the CLI before a super admin exists (no operator then)."""
+    11). `user` is `None` for the CLI before a super admin exists (no operator then). `documents_text` counts
+    documents by text status (design `document-ocr`, decision 4)."""
     now = _now(now)
     with_timeout(session, settings.report_statement_timeout_seconds)
     return {
@@ -391,6 +433,7 @@ def snapshot(
         "mail": mail(session),
         "sourcetrace": sourcetrace_ingest.status(session, settings),
         "failures": failures(session),
+        "documents_text": documents_text(session),
     }
 
 

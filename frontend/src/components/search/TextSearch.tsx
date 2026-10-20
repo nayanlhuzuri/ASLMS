@@ -4,7 +4,8 @@
  * "Order and document text" (design portal-cases, decision 9; plan §5.6 "searched by content"): with
  * `documents.view`, `GET /documents/search` with the API's snippet and the case link; visibility is applied by the API.
  * The one filter bar (design portal-filters): the words, the document group and type and the document date range (the
- * API's `group`, `doc_type`, `date_from`, `date_to`).
+ * API's `group`, `doc_type`, `date_from`, `date_to`). Under the box, the note that scanned documents, images and old
+ * Word files are not searched by their content (design document-ocr, decision 3; no OCR in Phase 1).
  */
 import { useQuery } from "@tanstack/react-query";
 import { FilterBar } from "@/components/filters/FilterBar";
@@ -62,6 +63,7 @@ export function TextSearch({ params }: { params: Params }) {
         total={q.length >= 3 ? list.data?.total : undefined}
         noun="documents"
       />
+      <p className="muted">{T.search.textNotSearched}</p>
       <ErrorBanner error={list.error} onRetry={() => list.refetch()} />
       {q.length >= 3 && list.isPending ? <Loading /> : null}
       {list.data ? (

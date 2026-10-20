@@ -2643,6 +2643,28 @@ class FailureKindOut(BaseModel):
     oldest_first_seen: datetime | None
 
 
+class DocumentsTextNoneOut(BaseModel):
+    scanned_pdf: int = Field(description="PDFs without a text layer: scanned, not read")
+    image: int = Field(description="JPEG and PNG images: not read")
+    doc: int = Field(description="old Word (.doc) files: not read")
+    other: int = Field(description="other files with no text in them (an empty Word .docx)")
+
+
+class DocumentsTextKindOut(BaseModel):
+    pending: int
+    extracted: int
+    failed: int
+    none: DocumentsTextNoneOut
+
+
+class DocumentsTextOut(BaseModel):
+    """Design `document-ocr`, decision 4: documents by text status (totals only)."""
+
+    order: DocumentsTextKindOut
+    upload: DocumentsTextKindOut
+    attachment: DocumentsTextKindOut
+
+
 class DataHealthOut(BaseModel):
     as_of: datetime
     napix: NapixHealthOut
@@ -2654,6 +2676,7 @@ class DataHealthOut(BaseModel):
     mail: MailOutboxOut
     sourcetrace: SourcetraceStatusOut
     failures: list[FailureKindOut]
+    documents_text: DocumentsTextOut
 
 
 class QueueRowOut(BaseModel):

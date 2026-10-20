@@ -6081,6 +6081,9 @@
             "title": "Daily Cycle",
             "type": "array"
           },
+          "documents_text": {
+            "$ref": "#/components/schemas/DocumentsTextOut"
+          },
           "failures": {
             "items": {
               "$ref": "#/components/schemas/FailureKindOut"
@@ -6135,7 +6138,8 @@
           "jobs",
           "mail",
           "sourcetrace",
-          "failures"
+          "failures",
+          "documents_text"
         ],
         "title": "DataHealthOut",
         "type": "object"
@@ -7872,6 +7876,86 @@
           "visibility"
         ],
         "title": "DocumentVisibilityIn",
+        "type": "object"
+      },
+      "DocumentsTextKindOut": {
+        "properties": {
+          "extracted": {
+            "title": "Extracted",
+            "type": "integer"
+          },
+          "failed": {
+            "title": "Failed",
+            "type": "integer"
+          },
+          "none": {
+            "$ref": "#/components/schemas/DocumentsTextNoneOut"
+          },
+          "pending": {
+            "title": "Pending",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pending",
+          "extracted",
+          "failed",
+          "none"
+        ],
+        "title": "DocumentsTextKindOut",
+        "type": "object"
+      },
+      "DocumentsTextNoneOut": {
+        "properties": {
+          "doc": {
+            "description": "old Word (.doc) files: not read",
+            "title": "Doc",
+            "type": "integer"
+          },
+          "image": {
+            "description": "JPEG and PNG images: not read",
+            "title": "Image",
+            "type": "integer"
+          },
+          "other": {
+            "description": "other files with no text in them (an empty Word .docx)",
+            "title": "Other",
+            "type": "integer"
+          },
+          "scanned_pdf": {
+            "description": "PDFs without a text layer: scanned, not read",
+            "title": "Scanned Pdf",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "scanned_pdf",
+          "image",
+          "doc",
+          "other"
+        ],
+        "title": "DocumentsTextNoneOut",
+        "type": "object"
+      },
+      "DocumentsTextOut": {
+        "description": "Design `document-ocr`, decision 4: documents by text status (totals only).",
+        "properties": {
+          "attachment": {
+            "$ref": "#/components/schemas/DocumentsTextKindOut"
+          },
+          "order": {
+            "$ref": "#/components/schemas/DocumentsTextKindOut"
+          },
+          "upload": {
+            "$ref": "#/components/schemas/DocumentsTextKindOut"
+          }
+        },
+        "required": [
+          "order",
+          "upload",
+          "attachment"
+        ],
+        "title": "DocumentsTextOut",
         "type": "object"
       },
       "DraftDocumentOut": {

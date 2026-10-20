@@ -6,7 +6,9 @@
  * block shows the detected quota window, its recent resets and, for the NAPIX operators only (the API sends `by_user`
  * to them alone), the calls by user (design napix-window). Sync masters needs
  * `admin.masters_sync`; the re-fetch buttons `admin.napix_refetch` and warn before queuing data already held ("Fetch
- * anyway" resends with `force`); the connectivity check either function. No GET calls NAPIX.
+ * anyway" resends with `force`); the connectivity check either function. No GET calls NAPIX. The document text
+ * block (design document-ocr, decision 4) counts documents by text status, the ones not read split into scanned PDFs,
+ * images and old Word files.
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
@@ -227,7 +229,51 @@ function SnapshotBlocks({ data }: { data: DataHealth }) {
           ))}
         </ul>
       </section>
+      <DocumentsTextBlock data={data.documents_text} />
     </>
+  );
+}
+
+const TEXT_KINDS = ["order", "upload", "attachment"] as const;
+
+/** Design document-ocr, decision 4: documents by text status, the ones not read split by type (totals only). */
+function DocumentsTextBlock({ data }: { data: DataHealth["documents_text"] }) {
+  return (
+    <section className="stack" aria-label={T.data.documentsText}>
+      <h2>{T.data.documentsText}</h2>
+      <p className="muted">{T.data.documentsTextNote}</p>
+      <Table caption={T.data.documentsText}>
+        <thead>
+          <tr>
+            <th scope="col">{T.data.docKind}</th>
+            <th scope="col" className={numCell}>{T.data.textPending}</th>
+            <th scope="col" className={numCell}>{T.data.textExtracted}</th>
+            <th scope="col" className={numCell}>{T.data.textFailed}</th>
+            <th scope="col" className={numCell}>{T.data.textScannedPdf}</th>
+            <th scope="col" className={numCell}>{T.data.textImage}</th>
+            <th scope="col" className={numCell}>{T.data.textDoc}</th>
+            <th scope="col" className={numCell}>{T.data.textOther}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {TEXT_KINDS.map((kind) => {
+            const k = data[kind];
+            return (
+              <tr key={kind}>
+                <td>{T.data.docKinds[kind]}</td>
+                <td className={numCell}>{formatNumber(k.pending)}</td>
+                <td className={numCell}>{formatNumber(k.extracted)}</td>
+                <td className={numCell}>{formatNumber(k.failed)}</td>
+                <td className={numCell}>{formatNumber(k.none.scanned_pdf)}</td>
+                <td className={numCell}>{formatNumber(k.none.image)}</td>
+                <td className={numCell}>{formatNumber(k.none.doc)}</td>
+                <td className={numCell}>{formatNumber(k.none.other)}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </Table>
+    </section>
   );
 }
 

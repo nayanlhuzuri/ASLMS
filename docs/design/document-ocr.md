@@ -322,7 +322,7 @@ No new endpoint. All changes are additions to existing responses; the visibility
 
 | Method and path | Function required (`Permission`) | Change | Part |
 |---|---|---|---|
-| `GET /admin/data-health` | `health_reader`: `REPORTS_STATE` or `ADMIN_NAPIX_REFETCH` or `ADMIN_MASTERS_SYNC` (unchanged) | gains `documents_text: {order|upload|attachment: {pending, extracted, failed, none: {scanned_pdf, image, doc}}}`; under A / B also `ocr: {engine, pending_eligible, pending_not_eligible, done, empty, failed, last_run}`. Totals only. | 0, A, B |
+| `GET /admin/data-health` | `health_reader`: `REPORTS_STATE` or `ADMIN_NAPIX_REFETCH` or `ADMIN_MASTERS_SYNC` (unchanged) | gains `documents_text: {order|upload|attachment: {pending, extracted, failed, none: {scanned_pdf, image, doc, other}}}`; under A / B also `ocr: {engine, pending_eligible, pending_not_eligible, done, empty, failed, last_run}`. Totals only. | 0, A, B |
 | `GET /cases/{ref}/documents` | `DOCUMENTS_VIEW` and the case and document visibility (unchanged) | items gain `text_source` (`text_layer` / `docx` / `ocr` / null) and `ocr_status` | A, B |
 | `GET /cases/{ref}/orders` | the case visible (unchanged) | items gain `text_source` | A, B |
 | `GET /documents/search` | unchanged (visibility rule) | none; OCR'd documents become findable | A, B |
@@ -434,3 +434,26 @@ B3. After row 36 delivers a real connector with a text endpoint: one ingested sc
    And, under the same rule: **may the backend keep PyMuPDF 2.0, which now loads three bundled neural-network
    layout models (onnxruntime) at import although the portal does not use them, or is it pinned below 2 as this
    note proposes (decision 2)?** The architect recommends the pin whatever the answer to the first part.
+
+## Deviations (developer, 20 Oct 2026; Part 0 only, per the owner's option C)
+1. **A fourth `none` bucket, `other`.** The design splits `none` into `scanned_pdf`, `image` and `doc` by `mime`, but
+   `text_extract` also gives `none` to a DOCX with no text in it (an empty Word file). So the totals add up, the
+   `documents_text` block has `none.other` as well, and the Documents tab labels such a file "No text in the file"
+   (not "Scanned, not read", which would be untrue). The API table above therefore reads
+   `none: {scanned_pdf, image, doc, other}`.
+2. **`textLabel(doc)` lives in `frontend/src/lib/documents.ts`** (beside `canViewInline`, with its own unit tests);
+   the words are `T.case.textLabels` in `lib/messages.ts`. A `text_status` value added later is shown as sent
+   until it has words. The Documents tab keeps its "Text:" prefix ("Text: Scanned, not read").
+3. **The 1.x / 2.0 comparison (decision 2)**: `page.get_text("text")` of 200 stored order PDFs (803 pages, chosen
+   by `md5(id)` among `extracted` orders on the dev database) under PyMuPDF 1.28.2 (backend venv) and 2.0 (the
+   `api` container before the rebuild): **200 of 200 files and 803 of 803 pages identical**, no difference to list.
+4. **A second dependency test**, `test_pyproject_pins_pymupdf_below_2`, checks the pin itself in `pyproject.toml`
+   so a later edit cannot drop the bound while a 1.x wheel is still installed locally.
+5. **Verification step 1, done on a separately tagged image** (`docker build backend`, removed afterwards) so the
+   shared `api` / `worker` / `scheduler` images are left for the integrator's build: `pymupdf.VersionBind` `1.28.2`,
+   `'onnxruntime' in sys.modules` `False`, no onnxruntime package installed; the image is 596 MB against 914 MB for
+   today's `aslms-api:latest` (PyMuPDF 2.0).
+6. **Verification step 2** (read-only, the branch's `data_health.documents_text` against the dev database on 20 Oct
+   2026): `order` 59,542 extracted, 4,189 pending, 0 failed, 0 none, equal to
+   `SELECT text_status, count(*) FROM documents WHERE kind='order' GROUP BY 1`; `upload` and `attachment` all 0.
+   Step 3 (uploads through the portal) is left to the tester: it needs the rebuilt `api` and `web` images.
