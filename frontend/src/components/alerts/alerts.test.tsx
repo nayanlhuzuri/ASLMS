@@ -163,7 +163,8 @@ describe("the alert list (portal-files-alerts, decisions 7-9)", () => {
     renderWithClient(<AlertList params={{}} />);
     await screen.findByText("File recalled");
     expect(screen.queryByRole("link", { name: "WP(C)/1234/2026" })).toBeNull();
-    expect(screen.getByText("WP(C)/1234/2026")).toHaveClass("mono");
+    // portal-ui-redesign, decision 10.1: a case number is semibold with tabular figures (`cno`), not monospace
+    expect(screen.getByText("WP(C)/1234/2026")).toHaveClass("cno");
     expect(screen.getByText("You can no longer open this case.")).toBeInTheDocument();
   });
 

@@ -10,7 +10,7 @@
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 
-import { Button, EmptyState, ErrorBanner, Loading } from "@/components/ui";
+import { Button, EmptyState, ErrorBanner, Loading, PageHeader } from "@/components/ui";
 import { api, ApiError } from "@/lib/api/client";
 import { useAuditActions } from "@/lib/api/hooks";
 import type { AuditPage } from "@/lib/api/types";
@@ -69,7 +69,7 @@ export function AuditSearch({ params }: { params: Params }) {
   if (forbidden || (actions.error instanceof ApiError && actions.error.status === 403)) {
     return (
       <div className="stack">
-        <h1>{T.audit.title}</h1>
+        <PageHeader title={T.audit.title} />
         <EmptyState>{T.audit.readersOnly}</EmptyState>
       </div>
     );
@@ -83,7 +83,7 @@ export function AuditSearch({ params }: { params: Params }) {
 
   return (
     <div className="stack">
-      <h1>{T.audit.title}</h1>
+      <PageHeader title={T.audit.title} />
       <AuditFilters
         key={queryString(apiParams)}
         params={apiParams}

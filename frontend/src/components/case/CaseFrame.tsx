@@ -13,12 +13,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
-import { Badge, Button, EmptyState, ErrorBanner, Loading, Notice, Tabs } from "@/components/ui";
+import { Badge, Breadcrumb, Button, EmptyState, ErrorBanner, Loading, Notice, Tabs } from "@/components/ui";
 import { api, ApiError } from "@/lib/api/client";
 import { caseKey, useCase, useMe } from "@/lib/api/hooks";
 import type { CaseDetail } from "@/lib/api/types";
 import { can, readsAudit } from "@/lib/can";
-import { formatDate, formatNumber } from "@/lib/format";
+import { formatDate } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { queryString } from "@/lib/params";
 import { apiCasePath, casePath } from "@/lib/refs";
@@ -27,8 +27,9 @@ import { useAction } from "@/lib/useAction";
 
 import s from "./case.module.css";
 
+// decision 10.15: green means done (disposed); pending and unknown are neutral, amber is kept for due soon
 function statusTone(status: string) {
-  return status === "disposed" ? "success" : status === "pending" ? "warning" : undefined;
+  return status === "disposed" ? "success" : undefined;
 }
 
 export function CaseHeader({ c }: { c: CaseDetail }) {
@@ -38,14 +39,15 @@ export function CaseHeader({ c }: { c: CaseDetail }) {
   const res = c.parties_as_printed.respondent_summary;
   return (
     <header className={s.header}>
+      <Breadcrumb />
       <div className="row">
         <Badge tone={statusTone(c.status.status)}>{T.inbox.statuses[c.status.status] ?? c.status.status}</Badge>
         {c.identity.case_type_text ? <span className="muted">{c.identity.case_type_text}</span> : null}
       </div>
-      <h1 className={s.caseNo}>{c.identity.case_no_text ?? c.ref_no}</h1>
+      <h1 className={`${s.caseNo} cno`}>{c.identity.case_no_text ?? c.ref_no}</h1>
       {pet || res ? (
         <p className={s.parties}>
-          {pet ?? "—"} <span className="muted">vs</span> {res ?? "—"}
+          {pet ?? "—"} <span className="muted">{T.vs}</span> {res ?? "—"}
         </p>
       ) : null}
       <dl className={s.facts}>
@@ -66,7 +68,7 @@ export function CaseHeader({ c }: { c: CaseDetail }) {
           <dd>{owner ? `${owner.office_code ?? ""}${owner.office_name ? ` — ${owner.office_name}` : ""}` : T.case.unowned}</dd>
         </div>
         <div>
-          <dt>Ref</dt>
+          <dt>{T.case.refNo}</dt>
           <dd className="mono">{c.ref_no}</dd>
         </div>
       </dl>
@@ -138,7 +140,8 @@ export function CaseFrame({ caseRef, children }: { caseRef: string; children: Re
           const n = t.count ? c.counts[t.count] : null;
           return {
             href,
-            label: n === null ? t.label : `${t.label} (${formatNumber(n)})`,
+            label: t.label,
+            count: n,
             active: t.key ? pathname.endsWith(`/${t.key}`) : pathname === base || pathname === decodeURIComponent(base),
           };
         })}

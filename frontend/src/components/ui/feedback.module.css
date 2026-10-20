@@ -1,0 +1,216 @@
+/* Feedback (design portal-ui-redesign, decisions 11, 17 and 19). */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  height: 22px;
+  max-width: 100%;
+  padding: 0 var(--s2);
+  border-radius: 999px;
+  background: var(--slate-soft);
+  color: var(--text-2);
+  font-size: var(--t-xs);
+  font-weight: 500;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.badge::before {
+  content: "";
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.8;
+}
+
+/* a badge longer than its column is truncated; its full text stays the accessible name and the title */
+.badgeText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.badge-danger {
+  background: var(--red-soft);
+  color: var(--red-text);
+}
+
+.badge-warning {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
+.badge-success {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.badge-info {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  border: 1px solid #fecdca;
+  border-radius: var(--r-md);
+  background: var(--red-soft);
+  color: var(--red-text);
+  font-size: var(--t-md);
+}
+
+.notice {
+  padding: var(--s3) var(--s4);
+  border: 1px solid #abefc6;
+  border-radius: var(--r-md);
+  background: var(--green-soft);
+  color: var(--green);
+  font-size: var(--t-md);
+}
+
+.loading {
+  display: block;
+  padding: var(--s3) 0;
+}
+
+.skeletonGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.skeleton {
+  display: block;
+  height: 12px;
+  border-radius: var(--r-sm);
+  background: linear-gradient(90deg, #eef0f3 25%, #f7f8fa 50%, #eef0f3 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+}
+
+.skeleton:nth-child(3n + 2) {
+  width: 82%;
+}
+
+.skeleton:nth-child(3n) {
+  width: 64%;
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.empty {
+  padding: var(--s7) var(--s5);
+  text-align: center;
+  color: var(--text-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+}
+
+.emptyIcon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  margin: 0 auto var(--s3);
+  border-radius: 50%;
+  background: var(--slate-soft);
+  color: var(--text-3);
+}
+
+.emptyTitle {
+  margin: 0 0 var(--s1);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.emptyText {
+  font-size: var(--t-md);
+}
+
+.signals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1);
+  list-style: none;
+  margin: var(--s1) 0 0;
+  padding: 0;
+}
+
+.signal {
+  display: inline-block;
+  padding: 1px var(--s2);
+  border-radius: 999px;
+  background: var(--slate-soft);
+  color: var(--text-2);
+  font-size: var(--t-xs);
+}
+
+.meter {
+  height: 6px;
+  margin-top: var(--s2);
+  border-radius: 3px;
+  background: var(--slate-soft);
+  overflow: hidden;
+}
+
+.meterFill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent);
+  animation: meter-fill 700ms var(--ease);
+}
+
+@keyframes meter-fill {
+  from {
+    width: 0;
+  }
+}
+
+.stepper {
+  margin-top: var(--s4);
+}
+
+.steps {
+  display: flex;
+  gap: var(--s2);
+}
+
+.step {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--slate-soft);
+  overflow: hidden;
+}
+
+.step i {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: var(--accent);
+  transition: width var(--slow) var(--ease);
+}
+
+.stepDone i {
+  width: 100%;
+}
+
+.stepLabel {
+  margin: var(--s2) 0 0;
+  font-size: var(--t-xs);
+  color: var(--text-3);
+}

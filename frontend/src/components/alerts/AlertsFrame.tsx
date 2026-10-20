@@ -9,7 +9,7 @@
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
-import { EmptyState, Loading, Tabs } from "@/components/ui";
+import { EmptyState, Loading, PageHeader, Tabs } from "@/components/ui";
 import { useMe } from "@/lib/api/hooks";
 import { T } from "@/lib/messages";
 import { alertsTabsFor } from "@/lib/routes";
@@ -21,7 +21,7 @@ export function AlertsFrame({ children }: { children: ReactNode }) {
   const tabs = alertsTabsFor(me.data);
   return (
     <div className="stack">
-      <h1>{T.alerts.title}</h1>
+      <PageHeader title={T.alerts.title} />
       {tabs.length > 0 ? (
         <Tabs
           label={T.alerts.tabs}

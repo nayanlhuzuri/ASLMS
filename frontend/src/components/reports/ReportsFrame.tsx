@@ -9,7 +9,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 
-import { EmptyState, ErrorBanner, Loading, Tabs } from "@/components/ui";
+import { EmptyState, ErrorBanner, Loading, PageHeader, Tabs } from "@/components/ui";
 import { ApiError } from "@/lib/api/client";
 import { useReportCatalogue } from "@/lib/api/hooks";
 import type { ReportCatalogue } from "@/lib/api/types";
@@ -28,7 +28,7 @@ export function ReportsFrame({ children }: { children: ReactNode }) {
   const forbidden = catalogue.error instanceof ApiError && catalogue.error.status === 403;
   return (
     <div className="stack">
-      <h1>{T.reports.title}</h1>
+      <PageHeader title={T.reports.title} />
       {catalogue.isPending ? <Loading /> : null}
       {forbidden ? <EmptyState>{T.reports.notAvailable}</EmptyState> : null}
       {catalogue.error && !forbidden ? <ErrorBanner error={catalogue.error} onRetry={() => catalogue.refetch()} /> : null}

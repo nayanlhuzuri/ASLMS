@@ -16,7 +16,7 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 import { FilterBar } from "@/components/filters/FilterBar";
-import { EmptyState, ErrorBanner, Loading, Pagination, Tabs } from "@/components/ui";
+import { EmptyState, ErrorBanner, Loading, PageHeader, Pagination, Tabs } from "@/components/ui";
 import { useFilters } from "@/components/inbox/common";
 import { api } from "@/lib/api/client";
 import { useMe } from "@/lib/api/hooks";
@@ -40,7 +40,7 @@ export function Search({ params }: { params: Params }) {
   const tab = params.tab === "text" && can(me.data, "documents.view") ? "text" : "cases";
   return (
     <div className="stack">
-      <h1>{T.search.title}</h1>
+      <PageHeader title={T.search.title} />
       {can(me.data, "documents.view") ? (
         <Tabs
           label={T.search.tabs}

@@ -1,47 +1,125 @@
-/* Design tokens (design portal-shell, decision 17; Annexure B): dark navy sidebar, serif headings, sans body,
-   monospace case numbers. Colour pairs are chosen for WCAG 2.1 AA contrast (4.5:1 for text). */
+/* Design tokens (design portal-ui-redesign, decisions 11-14; the visual reference is
+   docs/design/ui/aslms-ui-direction-v4.html): a neutral base, one blue accent, status colours with fixed meanings
+   (red = urgent, overdue or within 48 h; amber = due soon; green = done or confirmed; blue = action or selection;
+   neutral = everything else), the 8-point spacing scale, one type scale and one control height. Every text and
+   background pair meets WCAG 2.1 AA (tokens.test.ts checks them). */
 :root {
-  --navy-900: #0f1d33;
-  --navy-800: #15284a;
-  --navy-700: #1f3a66;
-  --navy-100: #e6ebf3;
-  --gold-600: #8a6416;
-  --gold-100: #f6edd9;
-  --ink: #1b2330;
-  --ink-muted: #4f5968;
-  --line: #d5dae2;
+  --bg: #f5f7fa;
   --surface: #ffffff;
-  --page: #f4f5f7;
-  --danger: #9f1f17;
-  --danger-bg: #fbeceb;
-  --success: #1d6a3f;
-  --success-bg: #e8f4ed;
-  --warning: #7a4f00;
-  --warning-bg: #fdf3dc;
-  --focus: #1a5fd0;
+  --surface-2: #f9fafb;
+  --border: #e4e7ec;
+  --border-strong: #d0d5dd;
+  --text: #101828;
+  --text-2: #475467;
+  --text-3: #667085;
+  --accent: #1d4ed8;
+  --accent-hover: #1e40af;
+  --accent-soft: #eef2ff;
+  --accent-ring: rgba(29, 78, 216, 0.25);
+  --red: #d92d20;
+  /* text in red on a soft or grey ground: #d92d20 on --red-soft is 4.45:1, below AA (design note, Deviations) */
+  --red-text: #b42318;
+  --red-soft: #fef3f2;
+  --amber: #b54708;
+  --amber-soft: #fffaeb;
+  --green: #067647;
+  --green-soft: #ecfdf3;
+  --slate-soft: #f2f4f7;
 
-  --font-serif: "Source Serif 4", Georgia, "Times New Roman", serif;
-  --font-sans: "IBM Plex Sans", "Segoe UI", Arial, sans-serif;
+  --font-sans: "Inter Variable", Inter, system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
   --font-mono: "IBM Plex Mono", Consolas, "Courier New", monospace;
 
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 24px;
-  --space-6: 32px;
-  --space-7: 48px;
+  /* 8-point spacing scale */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+  --s7: 48px;
 
-  --text-xs: 0.75rem;
-  --text-sm: 0.875rem;
-  --text-md: 1rem;
-  --text-lg: 1.25rem;
-  --text-xl: 1.6rem;
-  --text-2xl: 2rem;
+  /* type scale */
+  --t-xs: 12px;
+  --t-sm: 13px;
+  --t-md: 14px;
+  --t-lg: 16px;
+  --t-xl: 20px;
+  --t-2xl: 24px;
+  --t-3xl: 30px;
 
-  --radius: 6px;
-  --shadow: 0 1px 2px rgba(15, 29, 51, 0.08), 0 2px 8px rgba(15, 29, 51, 0.06);
-  --sidebar-width: 248px;
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --r-xl: 16px;
+
+  --shadow-1: 0 1px 2px rgba(16, 24, 40, 0.06);
+  --shadow-2: 0 4px 12px rgba(16, 24, 40, 0.08);
+  --shadow-3: 0 16px 40px rgba(16, 24, 40, 0.16);
+
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --fast: 150ms;
+  --med: 220ms;
+  --slow: 320ms;
+
+  --control-h: 36px;
+  --sidebar: 248px;
+  --header-h: 64px;
+  /* the fixed leading columns of the alignment rule (decision 15); --lead-w may widen per locale */
+  --lead-w: 96px;
+  --date-w: 48px;
+  --icon-w: 20px;
+
+  /* Deprecated aliases of the earlier names, kept during rounds 1-4 so no CSS module breaks; round 5 removes them. */
+  --navy-900: var(--text);
+  --navy-800: var(--accent);
+  --navy-700: var(--accent);
+  --navy-100: var(--slate-soft);
+  --gold-600: var(--amber);
+  --gold-100: var(--amber-soft);
+  --ink: var(--text);
+  --ink-muted: var(--text-3);
+  --line: var(--border);
+  --page: var(--bg);
+  --danger: var(--red-text);
+  --danger-bg: var(--red-soft);
+  --success: var(--green);
+  --success-bg: var(--green-soft);
+  --warning: var(--amber);
+  --warning-bg: var(--amber-soft);
+  --focus: var(--accent);
+  --font-serif: var(--font-sans);
+  --space-1: var(--s1);
+  --space-2: var(--s2);
+  --space-3: var(--s3);
+  --space-4: var(--s4);
+  --space-5: var(--s5);
+  --space-6: var(--s6);
+  --space-7: var(--s7);
+  --text-xs: var(--t-xs);
+  --text-sm: var(--t-sm);
+  --text-md: var(--t-md);
+  --text-lg: var(--t-lg);
+  --text-xl: var(--t-2xl);
+  --text-2xl: var(--t-3xl);
+  --radius: var(--r-md);
+  --shadow: var(--shadow-1);
+  --sidebar-width: var(--sidebar);
+}
+
+/* decision 13: under reduced motion the durations become 0 ms and every animation and transition is off */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --fast: 0ms;
+    --med: 0ms;
+    --slow: 0ms;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
 }
 
 *,
@@ -58,54 +136,72 @@ body {
 
 body {
   font-family: var(--font-sans);
-  font-size: var(--text-md);
+  font-size: var(--t-md);
   line-height: 1.5;
-  color: var(--ink);
-  background: var(--page);
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
 }
 
 h1,
 h2,
 h3 {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-weight: 600;
   line-height: 1.25;
-  margin: 0 0 var(--space-3);
+  letter-spacing: -0.01em;
+  margin: 0 0 var(--s3);
 }
 
 h1 {
-  font-size: var(--text-xl);
+  font-size: var(--t-2xl);
 }
 
 h2 {
-  font-size: var(--text-lg);
+  font-size: var(--t-xl);
 }
 
 h3 {
-  font-size: var(--text-md);
+  font-size: var(--t-lg);
 }
 
 p {
-  margin: 0 0 var(--space-3);
+  margin: 0 0 var(--s3);
 }
 
 a {
-  color: var(--navy-700);
+  color: var(--accent);
 }
 
 a:hover {
-  color: var(--navy-900);
+  color: var(--accent-hover);
 }
 
+/* decision 20: the visible 4 px accent ring */
 :focus-visible {
-  outline: 3px solid var(--focus);
-  outline-offset: 2px;
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 4px var(--accent-ring);
 }
 
 code,
 .mono {
   font-family: var(--font-mono);
   font-size: 0.92em;
+}
+
+/* case numbers: semibold with tabular figures (decision 10.1); CNRs and ref_no stay monospace */
+.cno {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 .visually-hidden {
@@ -122,46 +218,47 @@ code,
 
 .skip-link {
   position: absolute;
-  left: var(--space-3);
+  left: var(--s3);
   top: -100px;
   z-index: 100;
-  padding: var(--space-2) var(--space-3);
+  padding: var(--s2) var(--s3);
   background: var(--surface);
-  color: var(--navy-900);
-  border-radius: var(--radius);
+  color: var(--accent);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-2);
 }
 
 .skip-link:focus {
-  top: var(--space-3);
+  top: var(--s3);
 }
 
 .muted {
-  color: var(--ink-muted);
+  color: var(--text-3);
 }
 
 .stack > * + * {
-  margin-top: var(--space-4);
+  margin-top: var(--s4);
 }
 
 .row {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-3);
+  gap: var(--s3);
   align-items: flex-end;
 }
 
 .grid-2 {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: var(--space-4);
+  gap: var(--s4);
 }
 
 .card {
   background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-1);
+  padding: var(--s4) var(--s5);
 }
 
 .card > h2:first-child,
@@ -172,36 +269,41 @@ code,
 .button-link {
   display: inline-flex;
   align-items: center;
-  min-height: 38px;
-  padding: 0 var(--space-4);
-  border-radius: var(--radius);
-  background: var(--navy-800);
+  height: var(--control-h);
+  padding: 0 var(--s4);
+  border-radius: var(--r-md);
+  background: var(--accent);
   color: #fff;
   font-weight: 500;
   text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background var(--fast) var(--ease),
+    transform var(--fast) var(--ease);
 }
 
 .button-link:hover {
-  background: var(--navy-900);
+  background: var(--accent-hover);
   color: #fff;
+  transform: translateY(-1px);
 }
 
 .actions {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
+  gap: var(--s2);
 }
 
 dl.facts {
   display: grid;
   grid-template-columns: max-content 1fr;
-  gap: var(--space-2) var(--space-4);
+  gap: var(--s2) var(--s4);
   margin: 0;
 }
 
 dl.facts dt {
   font-weight: 500;
-  color: var(--ink-muted);
+  color: var(--text-3);
 }
 
 dl.facts dd {
@@ -212,7 +314,7 @@ dl.facts dd {
 .tree ul {
   list-style: none;
   margin: 0;
-  padding-left: var(--space-5);
+  padding-left: var(--s5);
 }
 
 .tree {
@@ -220,5 +322,18 @@ dl.facts dd {
 }
 
 .tree li {
-  padding: var(--space-1) 0;
+  padding: var(--s1) 0;
+}
+
+/* page content fades in on navigation (decision 13) */
+@keyframes aslms-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }

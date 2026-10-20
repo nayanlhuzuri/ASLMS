@@ -1,9 +1,41 @@
 /**
  * Dates in IST (`Asia/Kolkata`) whatever the browser's zone, written `25 Sep 2026`; numbers in the Indian grouping
- * (`1,28,400`). Month names are fixed here so every browser shows the same text.
+ * (`1,28,400`). Month names are fixed here so every browser shows the same text. Each function takes the locale
+ * (design portal-ui-redesign, decision 27): English keeps these fixed texts; any other locale goes through
+ * `Intl.DateTimeFormat` / `Intl.NumberFormat` in IST.
  */
+import { DEFAULT_LOCALE, localeOf, type LocaleInfo } from "./i18n";
+
+/** A locale code or a locale; omitted, English. */
+export type LocaleArg = string | LocaleInfo;
+
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const MONTHS_LONG = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const ZONE = "Asia/Kolkata";
+
+/** The `Intl` locale when the locale is not English, else null (the fixed English texts apply). */
+function intlOf(locale?: LocaleArg): string | null {
+  const l = localeOf(locale);
+  return l.code === DEFAULT_LOCALE ? null : l.intl;
+}
+
+function intlDate(value: Date, intl: string, options: Intl.DateTimeFormatOptions): string {
+  return new Intl.DateTimeFormat(intl, { timeZone: ZONE, ...options }).format(value);
+}
 
 interface Parts {
   year: number;
@@ -39,18 +71,24 @@ function toDate(value: string | Date): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-export function formatDate(value: string | Date | null | undefined): string {
+export function formatDate(value: string | Date | null | undefined, locale?: LocaleArg): string {
   if (!value) return "—";
   const d = toDate(value);
   if (!d) return String(value);
+  const intl = intlOf(locale);
+  if (intl) return intlDate(d, intl, { day: "numeric", month: "short", year: "numeric" });
   const p = istParts(d);
   return `${p.day} ${MONTHS[p.month - 1]} ${p.year}`;
 }
 
-export function formatDateTime(value: string | Date | null | undefined): string {
+export function formatDateTime(value: string | Date | null | undefined, locale?: LocaleArg): string {
   if (!value) return "—";
   const d = toDate(value);
   if (!d) return String(value);
+  const intl = intlOf(locale);
+  if (intl) {
+    return intlDate(d, intl, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+  }
   const p = istParts(d);
   const hh = String(p.hour).padStart(2, "0");
   const mm = String(p.minute).padStart(2, "0");
@@ -58,27 +96,43 @@ export function formatDateTime(value: string | Date | null | undefined): string 
 }
 
 /** An instant in IST to the second, `14 Oct 2026, 14:34:07` (design portal-audit-health, decision 5). */
-export function formatDateTimeSeconds(value: string | Date | null | undefined): string {
+export function formatDateTimeSeconds(value: string | Date | null | undefined, locale?: LocaleArg): string {
   if (!value) return "—";
   const d = toDate(value);
   if (!d) return String(value);
+  const intl = intlOf(locale);
+  if (intl) {
+    return intlDate(d, intl, {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hourCycle: "h23",
+    });
+  }
   const p = istParts(d);
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${p.day} ${MONTHS[p.month - 1]} ${p.year}, ${pad(p.hour)}:${pad(p.minute)}:${pad(p.second)}`;
 }
 
 /** The IST time of an instant, `14:34` (no date). */
-export function formatTime(value: string | Date | null | undefined): string {
+export function formatTime(value: string | Date | null | undefined, locale?: LocaleArg): string {
   if (!value) return "—";
   const d = toDate(value);
   if (!d) return String(value);
+  const intl = intlOf(locale);
+  if (intl) return intlDate(d, intl, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
   const p = istParts(d);
   return `${String(p.hour).padStart(2, "0")}:${String(p.minute).padStart(2, "0")}`;
 }
 
 /** 128400 → "1,28,400"; negative numbers and decimals keep their sign and fraction. */
-export function formatNumber(value: number | null | undefined): string {
+export function formatNumber(value: number | null | undefined, locale?: LocaleArg): string {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
+  const intl = intlOf(locale);
+  if (intl) return new Intl.NumberFormat(intl, { maximumFractionDigits: 20 }).format(value);
   const negative = value < 0;
   const [whole = "0", fraction] = Math.abs(value).toString().split(".");
   let grouped = whole;
@@ -88,6 +142,40 @@ export function formatNumber(value: number | null | undefined): string {
     grouped = `${rest},${last3}`;
   }
   return `${negative ? "-" : ""}${grouped}${fraction ? "." + fraction : ""}`;
+}
+
+/** The day and short month of a date in IST, `{ day: "22", month: "Oct" }`, for the `DateChip` (decision 15). */
+export function dayMonth(value: string | Date | null | undefined, locale?: LocaleArg): { day: string; month: string } | null {
+  if (!value) return null;
+  const d = toDate(value);
+  if (!d) return null;
+  const intl = intlOf(locale);
+  if (intl) return { day: intlDate(d, intl, { day: "numeric" }), month: intlDate(d, intl, { month: "short" }) };
+  const p = istParts(d);
+  return { day: String(p.day), month: MONTHS[p.month - 1]! };
+}
+
+/** The weekday of a date in IST, `Tuesday` (the calendar and the greeting). */
+export function formatWeekday(value: string | Date | null | undefined, locale?: LocaleArg): string {
+  if (!value) return "—";
+  const d = toDate(value);
+  if (!d) return String(value);
+  const intl = intlOf(locale);
+  if (intl) return intlDate(d, intl, { weekday: "long" });
+  const p = istParts(d);
+  // the IST calendar day's weekday, counted in UTC so the browser's zone plays no part
+  return WEEKDAYS[new Date(Date.UTC(p.year, p.month - 1, p.day)).getUTCDay()]!;
+}
+
+/** The month and year of a date in IST, `October 2026` (the calendar's heading). */
+export function formatMonthYear(value: string | Date | null | undefined, locale?: LocaleArg): string {
+  if (!value) return "—";
+  const d = toDate(value);
+  if (!d) return String(value);
+  const intl = intlOf(locale);
+  if (intl) return intlDate(d, intl, { month: "long", year: "numeric" });
+  const p = istParts(d);
+  return `${MONTHS_LONG[p.month - 1]} ${p.year}`;
 }
 
 /** The IST calendar day of an instant as `YYYY-MM-DD`. */

@@ -5,6 +5,7 @@
  */
 import type { Report, ReportDepartment } from "./api/types";
 import { addDays, formatDate, formatNumber } from "./format";
+import { T } from "./messages";
 import { queryString, type Params } from "./params";
 
 export type ReportKey = "pending-cases" | "hearings-disposals" | "pending-actions" | "data-health";
@@ -17,10 +18,10 @@ export interface ReportTab {
 
 /** The four reports in order; which show comes from `GET /reports`, not from a function table. */
 export const REPORT_TABS: readonly ReportTab[] = [
-  { key: "pending-cases", label: "Pending cases", href: "/reports/pending-cases" },
-  { key: "hearings-disposals", label: "Hearings and disposals", href: "/reports/hearings-disposals" },
-  { key: "pending-actions", label: "Pending actions", href: "/reports/pending-actions" },
-  { key: "data-health", label: "Data collection health", href: "/reports/data-health" },
+  { key: "pending-cases", label: T.tabs.reports.pendingCases, href: "/reports/pending-cases" },
+  { key: "hearings-disposals", label: T.tabs.reports.hearingsDisposals, href: "/reports/hearings-disposals" },
+  { key: "pending-actions", label: T.tabs.reports.pendingActions, href: "/reports/pending-actions" },
+  { key: "data-health", label: T.tabs.reports.dataHealth, href: "/reports/data-health" },
 ];
 
 export type PeriodChoice = "this_month" | "last_month" | "this_year" | "last_7" | "last_30" | "custom";

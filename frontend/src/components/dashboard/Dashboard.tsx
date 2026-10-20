@@ -9,7 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 
-import { Badge, CaseLink, EmptyState, ErrorBanner, Loading, numCell, SelectField, Table, Tile } from "@/components/ui";
+import { Badge, CaseLink, EmptyState, ErrorBanner, Loading, numCell, PageHeader, SelectField, Table, Tile } from "@/components/ui";
 import { FlashNotice } from "@/components/workflow/common";
 import { api } from "@/lib/api/client";
 import { labelOf, useLabels, useMe } from "@/lib/api/hooks";
@@ -573,7 +573,7 @@ export function Dashboard() {
   if (!readsCases) {
     return (
       <div className="stack">
-        <h1>{T.dash.title}</h1>
+        <PageHeader title={T.dash.title} />
         {handlesTickets ? <TicketsSection /> : null}
         <NoDashboard me={me.data} />
       </div>
@@ -581,7 +581,7 @@ export function Dashboard() {
   }
   return (
     <div className="stack">
-      <h1>{T.dash.title}</h1>
+      <PageHeader title={T.dash.title} />
       <FlashNotice />
       {handlesTickets ? <TicketsSection /> : null}
       {index.isPending ? <Loading /> : null}

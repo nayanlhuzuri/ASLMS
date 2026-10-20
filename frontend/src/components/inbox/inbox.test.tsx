@@ -209,8 +209,8 @@ describe("Recommended", () => {
     });
     renderWithClient(<InboxFrame tab="recommended" params={{}} />);
     const first = (await screen.findByText("WP(C)/1/2026")).closest("tr")!;
-    expect(within(first).getByText("0.849")).toBeInTheDocument();
-    expect(within(first).getByText("POSSIBLE")).toBeInTheDocument(); // the API's band, not 0.849 ≥ 0.85
+    // portal-ui-redesign, decision 10.6: "Possible · 0.849" from the API's band, not 0.849 ≥ 0.85
+    expect(within(first).getByText("Possible · 0.849")).toBeInTheDocument();
     expect(within(first).getByText("Code: SC, EDU")).toBeInTheDocument();
     expect(within(first).getByText("Linked: WP(C)/2417/2026")).toBeInTheDocument();
     expect(within(first).getByText(/Cause list 25 Sep 2026 · Court 3 · Item 41/)).toBeInTheDocument();
@@ -219,7 +219,7 @@ describe("Recommended", () => {
       "/cases/ASLMS-GOA-CASE-2026-000001",
     );
     const second = screen.getByText("WP(C)/2/2026").closest("tr")!;
-    expect(within(second).getByText("STRONG")).toBeInTheDocument();
+    expect(within(second).getByText("Strong · 0.912")).toBeInTheDocument();
     expect(within(second).getByText("Suggested by FIN: school land")).toBeInTheDocument();
     expect(within(second).getByText("Owned by HEALTH")).toBeInTheDocument();
   });

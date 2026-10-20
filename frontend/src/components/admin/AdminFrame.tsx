@@ -4,7 +4,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 
-import { EmptyState, Loading, Tabs } from "@/components/ui";
+import { EmptyState, Loading, PageHeader, Tabs } from "@/components/ui";
 import { useMe } from "@/lib/api/hooks";
 import { T } from "@/lib/messages";
 import { adminTabsFor } from "@/lib/routes";
@@ -16,7 +16,7 @@ export function AdminFrame({ children }: { children: ReactNode }) {
   const tabs = adminTabsFor(me.data);
   return (
     <div>
-      <h1>{T.admin.title}</h1>
+      <PageHeader title={T.admin.title} />
       {tabs.length > 0 ? (
         <Tabs
           label={T.admin.tabs}

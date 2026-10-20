@@ -155,11 +155,13 @@ describe("Files and Alerts & calendar navigation (portal-files-alerts)", () => {
 });
 
 describe("the Cause list navigation (portal-causelist)", () => {
-  it("shows for cases.view_scope and for cases.view_all, right after Search, and not without them", () => {
+  it("shows for cases.view_scope and for cases.view_all, in Work before Search, and not without them", () => {
+    // portal-ui-redesign, decision 4: Dashboard, Case inbox, Case claim, Cause list, Files, My calendar, Alerts, Search
     for (const fn of ["cases.view_scope", "cases.view_all"] as const) {
       const keys = navFor({ functions: [fn], memberships: [] }).map((e) => e.key);
       expect(keys).toContain("causelist");
-      expect(keys.indexOf("causelist")).toBe(keys.indexOf("search") + 1);
+      expect(keys.indexOf("causelist")).toBeLessThan(keys.indexOf("search"));
+      expect(NAV.find((e) => e.key === "causelist")!.group).toBe("work");
     }
     expect(navFor({ functions: ["users.view"] }).map((e) => e.key)).not.toContain("causelist");
     expect(navFor({ functions: [] }).map((e) => e.key)).not.toContain("causelist");

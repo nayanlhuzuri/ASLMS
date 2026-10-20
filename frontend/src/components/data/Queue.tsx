@@ -156,7 +156,7 @@ function CallLog() {
                 <th scope="col">{T.data.lane}</th>
                 {showUsers ? <th scope="col">{T.data.user}</th> : null}
                 <th scope="col">{T.data.ok}</th>
-                <th scope="col" className={numCell}>HTTP</th>
+                <th scope="col" className={numCell}>{T.data.http}</th>
                 <th scope="col" className={numCell}>{T.data.remaining("").trim()}</th>
                 <th scope="col">{T.data.lastError}</th>
               </tr>

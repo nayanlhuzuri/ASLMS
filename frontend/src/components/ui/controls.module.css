@@ -1,0 +1,298 @@
+/* Controls (design portal-ui-redesign, decisions 14 and 17). Every gap and padding comes from the spacing scale. */
+
+.control {
+  height: var(--control-h);
+  min-height: var(--control-h);
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  padding: 0 var(--s4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    background var(--fast) var(--ease),
+    border-color var(--fast) var(--ease),
+    box-shadow var(--fast) var(--ease),
+    transform var(--fast) var(--ease);
+}
+
+.button:hover:not([disabled]) {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-1);
+}
+
+.button:active:not([disabled]) {
+  transform: none;
+}
+
+.button[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.primary:hover:not([disabled]) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.secondary:hover:not([disabled]) {
+  background: var(--surface-2);
+}
+
+.ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-2);
+}
+
+.ghost:hover:not([disabled]) {
+  background: var(--slate-soft);
+  box-shadow: none;
+}
+
+.danger {
+  background: var(--surface);
+  border-color: #fda29b;
+  color: var(--red-text);
+}
+
+.danger:hover:not([disabled]) {
+  background: var(--red-soft);
+}
+
+.link {
+  background: none;
+  border-color: transparent;
+  color: var(--accent);
+  padding: 0 var(--s1);
+  text-decoration: underline;
+  min-height: auto;
+}
+
+.link:hover:not([disabled]) {
+  color: var(--accent-hover);
+  transform: none;
+  box-shadow: none;
+}
+
+.sm {
+  height: 30px;
+  padding: 0 var(--s3);
+  font-size: var(--t-sm);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  min-width: 200px;
+}
+
+.label {
+  font-size: var(--t-sm);
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+.hint {
+  font-size: var(--t-xs);
+  color: var(--text-3);
+}
+
+.error {
+  font-size: var(--t-sm);
+  color: var(--red-text);
+}
+
+.input {
+  padding: 0 var(--s3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  transition:
+    border-color var(--fast) var(--ease),
+    box-shadow var(--fast) var(--ease);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-ring);
+}
+
+.input[aria-invalid="true"] {
+  border-color: var(--red);
+}
+
+.select {
+  padding-right: var(--s6);
+}
+
+.textarea {
+  min-height: 96px;
+  padding: var(--s2) var(--s3);
+  resize: vertical;
+}
+
+.file {
+  padding: var(--s1) var(--s2);
+  min-height: var(--control-h);
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: 24px;
+}
+
+.check input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.radios {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  height: 30px;
+  padding: 0 var(--s3);
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--t-sm);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background var(--fast) var(--ease),
+    border-color var(--fast) var(--ease),
+    color var(--fast) var(--ease);
+}
+
+.chip:hover:not([disabled]) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.chipOn {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.filterChip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  height: 26px;
+  padding: 0 var(--s1) 0 var(--s3);
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: var(--t-xs);
+  font-weight: 500;
+  animation: chip-in var(--med) var(--ease);
+}
+
+.filterChip button {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: inherit;
+  font-size: var(--t-md);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.filterChip button:hover {
+  background: var(--surface);
+}
+
+@keyframes chip-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.segmented {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--slate-soft);
+}
+
+.segment {
+  height: 30px;
+  padding: 0 var(--s3);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--t-sm);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background var(--fast) var(--ease),
+    color var(--fast) var(--ease);
+}
+
+.segmentOn {
+  background: var(--surface);
+  color: var(--accent);
+  box-shadow: var(--shadow-1);
+}

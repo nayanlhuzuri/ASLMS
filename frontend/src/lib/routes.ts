@@ -1,22 +1,31 @@
 /**
- * The navigation, declared once (design portal-shell, decision 13). An entry shows when the login holds one of
- * its functions (an empty list: everyone signed in) and its screen is built; unbuilt entries stay hidden until
- * their backlog rows. Showing an entry is convenience only: the API decides every figure and action.
+ * The navigation, declared once (design portal-shell, decision 13; portal-ui-redesign, decision 4): three groups
+ * (Work, Oversight, Settings). An entry shows when the login holds one of its functions (an empty list: everyone
+ * signed in) and its screen is built; unbuilt entries stay hidden until their backlog rows. Showing an entry is
+ * convenience only: the API decides every figure and action. Every label comes from `messages.ts`.
  */
 import type { Me, Permission } from "./api/types";
 import { can, canAny, departmentsOf, readsAudit, tracksDepartment } from "./can";
+import { T } from "./messages";
 
 /** What the navigation reads of `/me`: the functions, and the memberships where an entry needs them. */
 export type MeLike = Pick<Me, "functions"> & Partial<Pick<Me, "memberships">>;
+
+export type NavGroupKey = "work" | "oversight" | "settings";
+
+/** The server figure shown in an entry's pill (decision 4); only counts the API serves today are named here. */
+export type NavCount = "alerts";
 
 export interface NavEntry {
   key: string;
   label: string;
   href: string;
+  group: NavGroupKey;
   functions: readonly Permission[];
   built: boolean;
   /** A further condition on `/me` (besides the functions). */
   show?: (me: MeLike) => boolean;
+  count?: NavCount;
 }
 
 /**
@@ -59,21 +68,46 @@ export const DATA_READERS: readonly Permission[] = [
   "admin.masters_sync",
 ];
 
+/** The functions that open Case claim (decision 4); its tabs come from `/inbox/counts`. */
+export const CLAIM_FUNCTIONS: readonly Permission[] = [
+  "cases.claim",
+  "cases.view_all",
+  "cases.transfer_request",
+  "cases.transfer_decide",
+];
+
 export const NAV: readonly NavEntry[] = [
-  { key: "dashboard", label: "Dashboard", href: "/", functions: [], built: true },
-  { key: "inbox", label: "Case inbox", href: "/inbox", functions: CASE_READERS, built: true, show: showsInbox },
-  { key: "search", label: "Search", href: "/search", functions: CASE_READERS, built: true },
+  { key: "dashboard", label: T.nav.dashboard, href: "/", group: "work", functions: [], built: true },
+  { key: "inbox", label: T.nav.inbox, href: "/inbox", group: "work", functions: CASE_READERS, built: true, show: showsInbox },
+  // design portal-ui-redesign, decision 6: Case claim is built in round 2 (row 102)
+  { key: "claim", label: T.nav.claim, href: "/claim", group: "work", functions: CLAIM_FUNCTIONS, built: false, show: showsInbox },
   // design portal-causelist, decision 11: the published lists are court-public, read by every reader of cases
-  { key: "causelist", label: "Cause list", href: "/causelist", functions: CASE_READERS, built: true },
+  { key: "causelist", label: T.nav.causelist, href: "/causelist", group: "work", functions: CASE_READERS, built: true },
   // design portal-files-alerts, decision 2: anyone may be sent a file, so Files shows with `cases.view_scope`
-  { key: "files", label: "Files", href: "/files", functions: ["cases.view_scope"], built: true },
-  { key: "alerts", label: "Alerts & calendar", href: "/alerts", functions: CASE_READERS, built: true },
+  { key: "files", label: T.nav.files, href: "/files", group: "work", functions: ["cases.view_scope"], built: true },
+  // design portal-ui-redesign, decision 8: My calendar is built in round 3 (row 103)
+  { key: "calendar", label: T.nav.calendar, href: "/calendar", group: "work", functions: CASE_READERS, built: false },
+  { key: "alerts", label: T.nav.alerts, href: "/alerts", group: "work", functions: CASE_READERS, built: true, count: "alerts" },
+  { key: "search", label: T.nav.search, href: "/search", group: "work", functions: CASE_READERS, built: true },
   // design portal-reports, decision 2: the tabs inside come from `GET /reports`; the API decides every report
-  { key: "reports", label: "Reports", href: "/reports", functions: ["reports.department", "reports.state"], built: true },
+  {
+    key: "reports",
+    label: T.nav.reports,
+    href: "/reports",
+    group: "oversight",
+    functions: ["reports.department", "reports.state"],
+    built: true,
+  },
   // design portal-audit-health, decision 2: only where the API serves the log (State-wide `audit.view`)
-  { key: "audit", label: "Audit log", href: "/audit", functions: ["audit.view"], built: true, show: readsAudit },
-  { key: "data", label: "Data collection", href: "/data/load", functions: DATA_READERS, built: true },
-  { key: "admin", label: "Administration", href: "/admin", functions: ADMIN_FUNCTIONS, built: true },
+  { key: "audit", label: T.nav.audit, href: "/audit", group: "oversight", functions: ["audit.view"], built: true, show: readsAudit },
+  { key: "data", label: T.nav.data, href: "/data/load", group: "settings", functions: DATA_READERS, built: true },
+  { key: "admin", label: T.nav.admin, href: "/admin", group: "settings", functions: ADMIN_FUNCTIONS, built: true },
+];
+
+export const NAV_GROUPS: readonly { key: NavGroupKey; label: string }[] = [
+  { key: "work", label: T.nav.groups.work },
+  { key: "oversight", label: T.nav.groups.oversight },
+  { key: "settings", label: T.nav.groups.settings },
 ];
 
 export interface AdminTab {
@@ -84,12 +118,12 @@ export interface AdminTab {
 }
 
 export const ADMIN_TABS: readonly AdminTab[] = [
-  { key: "users", label: "Users", href: "/admin/users", functions: ["users.view"] },
-  { key: "access", label: "User types", href: "/admin/access", functions: ["users.view", "access.manage_types"] },
-  { key: "offices", label: "Offices", href: "/admin/offices", functions: ["users.view", "offices.manage"] },
-  { key: "designations", label: "Designations", href: "/admin/designations", functions: PEOPLE_ADMIN_FUNCTIONS },
-  { key: "mapping", label: "Department mapping", href: "/admin/mapping", functions: MAPPING_FUNCTIONS },
-  { key: "tickets", label: "Tickets", href: "/admin/tickets", functions: ["users.propose_head", "admin.tickets"] },
+  { key: "users", label: T.tabs.admin.users, href: "/admin/users", functions: ["users.view"] },
+  { key: "access", label: T.tabs.admin.access, href: "/admin/access", functions: ["users.view", "access.manage_types"] },
+  { key: "offices", label: T.tabs.admin.offices, href: "/admin/offices", functions: ["users.view", "offices.manage"] },
+  { key: "designations", label: T.tabs.admin.designations, href: "/admin/designations", functions: PEOPLE_ADMIN_FUNCTIONS },
+  { key: "mapping", label: T.tabs.admin.mapping, href: "/admin/mapping", functions: MAPPING_FUNCTIONS },
+  { key: "tickets", label: T.tabs.admin.tickets, href: "/admin/tickets", functions: ["users.propose_head", "admin.tickets"] },
 ];
 
 /**
@@ -97,14 +131,14 @@ export const ADMIN_TABS: readonly AdminTab[] = [
  * read rule (`admin.scoring`, `admin.counsel_codes` or `admin.keywords`); only `admin.scoring` may change it.
  */
 export const MAPPING_TABS: readonly AdminTab[] = [
-  { key: "codes", label: "Counsel codes", href: "/admin/mapping/codes", functions: ["admin.counsel_codes"] },
-  { key: "keywords", label: "Keywords and name patterns", href: "/admin/mapping/keywords", functions: ["admin.keywords"] },
+  { key: "codes", label: T.tabs.mapping.codes, href: "/admin/mapping/codes", functions: ["admin.counsel_codes"] },
+  { key: "keywords", label: T.tabs.mapping.keywords, href: "/admin/mapping/keywords", functions: ["admin.keywords"] },
   // design department-discovery, decision 13 (b): the department's names searched at the court and what they found
-  { key: "discovery", label: "Court search", href: "/admin/mapping/discovery", functions: ["admin.keywords"] },
-  { key: "watchlist", label: "Watchlist", href: "/admin/mapping/watchlist", functions: ["admin.watchlist"] },
+  { key: "discovery", label: T.tabs.mapping.discovery, href: "/admin/mapping/discovery", functions: ["admin.keywords"] },
+  { key: "watchlist", label: T.tabs.mapping.watchlist, href: "/admin/mapping/watchlist", functions: ["admin.watchlist"] },
   {
     key: "scoring",
-    label: "Scoring",
+    label: T.tabs.mapping.scoring,
     href: "/admin/mapping/scoring",
     functions: ["admin.scoring", "admin.counsel_codes", "admin.keywords"],
   },
@@ -118,12 +152,12 @@ export interface DataTab {
 }
 
 export const DATA_TABS: readonly DataTab[] = [
-  { key: "load", label: "Load", href: "/data/load", functions: DATA_READERS },
-  { key: "health", label: "Health", href: "/data/health", functions: DATA_READERS },
-  { key: "queue", label: "Queue and calls", href: "/data/queue", functions: DATA_READERS },
-  { key: "duplicates", label: "Duplicates", href: "/data/duplicates", functions: DATA_READERS },
+  { key: "load", label: T.tabs.data.load, href: "/data/load", functions: DATA_READERS },
+  { key: "health", label: T.tabs.data.health, href: "/data/health", functions: DATA_READERS },
+  { key: "queue", label: T.tabs.data.queue, href: "/data/queue", functions: DATA_READERS },
+  { key: "duplicates", label: T.tabs.data.duplicates, href: "/data/duplicates", functions: DATA_READERS },
   // design department-discovery, decision 13 (d): the discovery share, queue and finds (system figures only)
-  { key: "discovery", label: "Discovery", href: "/data/discovery", functions: DATA_READERS },
+  { key: "discovery", label: T.tabs.data.discovery, href: "/data/discovery", functions: DATA_READERS },
 ];
 
 function visible(me: Pick<Me, "functions"> | null | undefined, functions: readonly Permission[]): boolean {
@@ -134,6 +168,29 @@ export function navFor(me: MeLike | null | undefined): NavEntry[] {
   return NAV.filter(
     (entry) => entry.built && visible(me, entry.functions) && (!entry.show || (!!me && entry.show(me))),
   );
+}
+
+export interface NavGroup {
+  key: NavGroupKey;
+  label: string;
+  entries: NavEntry[];
+}
+
+/** The visible entries by group, in order; a group with no visible entry is left out (decision 4). */
+export function navGroupsFor(me: MeLike | null | undefined): NavGroup[] {
+  const entries = navFor(me);
+  return NAV_GROUPS.map((g) => ({ ...g, entries: entries.filter((e) => e.group === g.key) })).filter(
+    (g) => g.entries.length > 0,
+  );
+}
+
+/** The phone bottom bar (decision 18): up to three of the login's entries among Dashboard, Case inbox and Files. */
+export const BOTTOM_BAR_KEYS: readonly string[] = ["dashboard", "inbox", "files"];
+
+export function bottomBarFor(me: MeLike | null | undefined): NavEntry[] {
+  return navFor(me)
+    .filter((e) => BOTTOM_BAR_KEYS.includes(e.key))
+    .slice(0, 3);
 }
 
 export function dataTabsFor(me: Pick<Me, "functions"> | null | undefined): DataTab[] {
@@ -161,10 +218,10 @@ export interface FilesTab {
  * with a department membership holding `custody.track` (the API's tracked-departments rule).
  */
 export const FILES_TABS: readonly FilesTab[] = [
-  { key: "mine", label: "With me", href: "/files/mine", functions: CASE_READERS },
-  { key: "offices", label: "My offices", href: "/files/offices", functions: CASE_READERS },
-  { key: "department", label: "Department files", href: "/files/department", functions: [], show: tracksDepartment },
-  { key: "sent", label: "Sent", href: "/files/sent", functions: CASE_READERS },
+  { key: "mine", label: T.tabs.files.mine, href: "/files/mine", functions: CASE_READERS },
+  { key: "offices", label: T.tabs.files.offices, href: "/files/offices", functions: CASE_READERS },
+  { key: "department", label: T.tabs.files.department, href: "/files/department", functions: [], show: tracksDepartment },
+  { key: "sent", label: T.tabs.files.sent, href: "/files/sent", functions: CASE_READERS },
 ];
 
 export function filesTabsFor(me: MeLike | null | undefined): FilesTab[] {
@@ -177,9 +234,9 @@ export function filesTabsFor(me: MeLike | null | undefined): FilesTab[] {
  * (design portal-next-dates, decision 1) with `next_dates.review`, the review API's gate.
  */
 export const ALERTS_TABS: readonly DataTab[] = [
-  { key: "list", label: "Alerts", href: "/alerts", functions: CASE_READERS },
-  { key: "calendar", label: "Hearing calendar", href: "/alerts/calendar", functions: CASE_READERS },
-  { key: "next-dates", label: "Next dates to confirm", href: "/alerts/next-dates", functions: ["next_dates.review"] },
+  { key: "list", label: T.tabs.alerts.list, href: "/alerts", functions: CASE_READERS },
+  { key: "calendar", label: T.tabs.alerts.calendar, href: "/alerts/calendar", functions: CASE_READERS },
+  { key: "next-dates", label: T.tabs.alerts.nextDates, href: "/alerts/next-dates", functions: ["next_dates.review"] },
 ];
 
 export function alertsTabsFor(me: Pick<Me, "functions"> | null | undefined): DataTab[] {
@@ -191,26 +248,10 @@ export function alertsTabsFor(me: Pick<Me, "functions"> | null | undefined): Dat
  * segment `offices` means Administration → Offices and `alerts` the case tab, so the Files and Alerts screens are
  * named by path.
  */
-export const CRUMB_PATHS: Record<string, string> = {
-  "/causelist": "Cause list",
-  "/files": "Files",
-  "/files/mine": "With me",
-  "/files/offices": "My offices",
-  "/files/department": "Department files",
-  "/files/sent": "Sent",
-  "/alerts": "Alerts & calendar",
-  "/alerts/calendar": "Hearing calendar",
-  "/alerts/next-dates": "Next dates to confirm",
-  "/admin/mapping/discovery": "Court search",
-  "/data/discovery": "Discovery",
-  "/reports/pending-cases": "Pending cases",
-  "/reports/hearings-disposals": "Hearings and disposals",
-  "/reports/pending-actions": "Pending actions",
-  "/reports/data-health": "Data collection health",
-};
+export const CRUMB_PATHS: Record<string, string> = T.crumbPaths;
 
 /** The last crumb of one audit entry (`/audit/<id>`): the id is not a label. */
-export const AUDIT_ENTRY_CRUMB = "Entry";
+export const AUDIT_ENTRY_CRUMB = T.crumbEntry;
 
 /** The breadcrumb label of a path (`CRUMB_PATHS` first, then the segment's label, else the segment itself). */
 export function crumbLabel(path: string): string {
@@ -220,52 +261,14 @@ export function crumbLabel(path: string): string {
 }
 
 /** The breadcrumb label of a path segment. */
-export const CRUMBS: Record<string, string> = {
-  admin: "Administration",
-  users: "Users",
-  new: "New",
-  access: "User types",
-  offices: "Offices",
-  designations: "Designations",
-  tickets: "Tickets",
-  profile: "My profile",
-  data: "Data collection",
-  reports: "Reports",
-  audit: "Audit log",
-  load: "Load",
-  health: "Health",
-  queue: "Queue and calls",
-  duplicates: "Duplicates",
-  inbox: "Case inbox",
-  recommended: "Recommended",
-  claimed: "Claimed",
-  pool: "Unclaimed pool",
-  transfers: "Transfers",
-  search: "Search",
-  cases: "Cases",
-  hearings: "Hearings",
-  orders: "Orders",
-  parties: "Parties",
-  documents: "Documents",
-  links: "Linked cases",
-  notes: "Notes",
-  timeline: "Timeline",
-  details: "Details",
-  custody: "Custody and stage",
-  alerts: "Alerts",
-  mapping: "Department mapping",
-  codes: "Counsel codes",
-  keywords: "Keywords and name patterns",
-  watchlist: "Watchlist",
-  scoring: "Scoring",
-};
+export const CRUMBS: Record<string, string> = T.crumbs;
 
 /** The inbox tabs (design portal-cases, decisions 4-6), in order; which show comes from `/inbox/counts`. */
 export const INBOX_TABS = [
-  { key: "recommended", label: "Recommended", href: "/inbox/recommended" },
-  { key: "claimed", label: "Claimed", href: "/inbox/claimed" },
-  { key: "pool", label: "Unclaimed pool", href: "/inbox/pool" },
-  { key: "transfers", label: "Transfers", href: "/inbox/transfers" },
+  { key: "recommended", label: T.tabs.inbox.recommended, href: "/inbox/recommended" },
+  { key: "claimed", label: T.tabs.inbox.claimed, href: "/inbox/claimed" },
+  { key: "pool", label: T.tabs.inbox.pool, href: "/inbox/pool" },
+  { key: "transfers", label: T.tabs.inbox.transfers, href: "/inbox/transfers" },
 ] as const;
 
 export type InboxTab = (typeof INBOX_TABS)[number]["key"];
@@ -275,15 +278,15 @@ export type InboxTab = (typeof INBOX_TABS)[number]["key"];
  * and "Alerts" come with portal-workflow (decision 2). The Alerts tab has no count (the overview carries none).
  */
 export const CASE_TABS = [
-  { key: "", label: "Overview", count: null },
-  { key: "custody", label: "Custody and stage", count: null },
-  { key: "hearings", label: "Hearings", count: "hearings" },
-  { key: "orders", label: "Orders", count: "orders" },
-  { key: "parties", label: "Parties", count: null },
-  { key: "documents", label: "Documents", count: "documents" },
-  { key: "links", label: "Linked cases", count: "links" },
-  { key: "notes", label: "Notes", count: "notes" },
-  { key: "alerts", label: "Alerts", count: null },
-  { key: "timeline", label: "Timeline", count: "timeline" },
-  { key: "details", label: "Details", count: null },
+  { key: "", label: T.tabs.case.overview, count: null },
+  { key: "custody", label: T.tabs.case.custody, count: null },
+  { key: "hearings", label: T.tabs.case.hearings, count: "hearings" },
+  { key: "orders", label: T.tabs.case.orders, count: "orders" },
+  { key: "parties", label: T.tabs.case.parties, count: null },
+  { key: "documents", label: T.tabs.case.documents, count: "documents" },
+  { key: "links", label: T.tabs.case.links, count: "links" },
+  { key: "notes", label: T.tabs.case.notes, count: "notes" },
+  { key: "alerts", label: T.tabs.case.alerts, count: null },
+  { key: "timeline", label: T.tabs.case.timeline, count: "timeline" },
+  { key: "details", label: T.tabs.case.details, count: null },
 ] as const;

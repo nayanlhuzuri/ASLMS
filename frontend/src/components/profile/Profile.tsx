@@ -8,7 +8,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 
 import { PreferenceFields, prefsBody, prefsFrom, type PrefsValue } from "@/components/auth/WelcomeForms";
-import { Badge, Button, ErrorBanner, Loading, Notice, Table, TextField } from "@/components/ui";
+import { Badge, Button, ErrorBanner, Loading, Notice, PageHeader, Table, TextField } from "@/components/ui";
 import { api, session } from "@/lib/api/client";
 import type { DeviceOut, NotificationPreferences, ProfileOut } from "@/lib/api/types";
 import { formatDateTime } from "@/lib/format";
@@ -21,7 +21,7 @@ export function ProfilePage() {
   if (profile.error || !profile.data) return <ErrorBanner error={profile.error} onRetry={() => profile.refetch()} />;
   return (
     <div className="stack">
-      <h1>{T.profile.title}</h1>
+      <PageHeader title={T.profile.title} />
       <div className="grid-2">
         <DetailsCard profile={profile.data} />
         <PreferencesCard profile={profile.data} />

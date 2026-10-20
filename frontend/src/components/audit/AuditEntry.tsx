@@ -10,7 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { CaseLink, DefinitionList, EmptyState, ErrorBanner, Loading } from "@/components/ui";
+import { CaseLink, DefinitionList, EmptyState, ErrorBanner, Loading, PageHeader } from "@/components/ui";
 import { api, ApiError } from "@/lib/api/client";
 import type { AuditRow } from "@/lib/api/types";
 import { formatDateTimeSeconds } from "@/lib/format";
@@ -55,7 +55,7 @@ export function AuditEntry({ id }: { id: string }) {
   if (error instanceof ApiError && error.status === 403) {
     return (
       <div className="stack">
-        <h1>{T.audit.entryTitle}</h1>
+        <PageHeader title={T.audit.entryTitle} />
         <EmptyState>{T.audit.readersOnly}</EmptyState>
       </div>
     );
@@ -63,7 +63,7 @@ export function AuditEntry({ id }: { id: string }) {
   if (error instanceof ApiError && (error.status === 404 || error.status === 422)) {
     return (
       <div className="stack">
-        <h1>{T.audit.entryTitle}</h1>
+        <PageHeader title={T.audit.entryTitle} />
         <EmptyState>{T.audit.noEntry}</EmptyState>
         <p>{back}</p>
       </div>
@@ -86,7 +86,7 @@ export function AuditEntry({ id }: { id: string }) {
 
   return (
     <div className="stack">
-      <h1>{T.audit.entryTitle}</h1>
+      <PageHeader title={T.audit.entryTitle} />
       <section className="card stack" aria-label={T.audit.entry}>
         <DefinitionList
           items={[

@@ -1060,3 +1060,38 @@ answers otherwise at approval.
 
 
 > Row numbers renumbered when the design was brought into `main` on 20 Oct 2026 (rows 97-100 were taken by github-and-ci follow-ups): 97 -> 101, 98 -> 102, 99 -> 103, 100 -> 104, 101 -> 105.
+
+## Deviations
+
+### Round 1, row 101 `portal-ui-foundation` (developer, 20 Oct 2026)
+Choices made where the note is silent, each the smallest reasonable option:
+
+1. **No separate note.** Backlog row 101 links this note; there is no `docs/design/portal-ui-foundation.md`. Round 1
+   was built from decisions 2 (round 1), 10.1-10.2, 10.6, 10.13-10.15, 11-22 and 27, "Portal (round 1)" and "Tests,
+   round 1".
+2. **`--red-text #B42318` for red text.** `--red #D92D20` on `--red-soft` is 4.45:1 and on `--bg` 4.49:1, below the
+   4.5:1 that decision 11 requires. `--red` stays for fills (the bell dot, borders); red text (danger badges, errors,
+   the danger button, the `hot` date chip) uses `--red-text` (6.0:1 on `--red-soft`), and the `--danger` alias points
+   to it. `tokens.test.ts` checks every pair.
+3. **Navigation counts in round 1.** Only the Alerts entry has its pill (`unread` from `/alerts/counts`, the bell's
+   query). The Case inbox and Files counts read `/inbox/mine/counts` (A2), which arrives in round 2. Case claim and
+   My calendar are declared in `routes.ts` with `built: false` until rounds 2 and 3, and the entry keeps the label
+   "Alerts & calendar" until round 3 moves the calendar out (decision 10.3).
+4. **Breadcrumb in the page.** Every frame's title is now a `PageHeader` (breadcrumb above the title). The case page
+   shows the breadcrumb at the top of its summary header until round 3 rebuilds that header. The sign-in, code,
+   reset and error pages are round 5 and keep their headings.
+5. **Dialog width.** `Dialog` keeps its 760 px width until round 3 puts the workflow dialogs on the Action dialog
+   template (560 px; 720 px through the new `wide` prop); its look, easing, focus trap and full screen on phones are
+   in place now.
+6. **No `matchMedia`, no motion.** Where the reduced-motion query cannot be read (jsdom in tests, very old browsers),
+   the motion hooks behave as under reduced motion: count-up shows the final number and overlays unmount at once.
+7. **The bell** shows the mock-up's pulsing dot when there are unread alerts; the number stays in its accessible name
+   ("7 unread alerts") and in the Alerts entry's pill.
+8. **Date helpers.** `format.ts` gains `dayMonth` (the `DateChip`), `formatWeekday` and `formatMonthYear` (for the
+   calendar and the greeting in rounds 3 and 4); English names are fixed there like the existing month abbreviations.
+9. **The JSX literal check** (`i18n.test.ts`) scans every non-test `.ts`/`.tsx` under `src/` except `src/test/`, the
+   generated API types and `messages.ts`, with the TypeScript parser. Its allowlist is text without a word of two or
+   more letters (symbols, dashes, separators); case data always come from the API. The two literals it found
+   ("HTTP" in the queue table, "vs" in the parties line) moved into `messages.ts`.
+10. **Case numbers** in `CaseLink` carry the global `cno` class (semibold, tabular figures); a bare `ref_no` stays
+    monospace (decision 10.1). The one test that asserted `mono` on a case number now asserts `cno`.

@@ -10,7 +10,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 
-import { EmptyState, ErrorBanner, Loading, Notice, SelectField, Tabs } from "@/components/ui";
+import { EmptyState, ErrorBanner, Loading, Notice, PageHeader, SelectField, Tabs } from "@/components/ui";
 import { useDepartments, useInboxCounts, useMe } from "@/lib/api/hooks";
 import type { InboxCounts, Me } from "@/lib/api/types";
 import { can, departmentsOf } from "@/lib/can";
@@ -101,7 +101,7 @@ export function InboxFrame({ tab, params, children }: { tab: InboxTab; params: P
   const showSelector = sel.options.length > 1 || (sel.options.length === 1 && sel.department !== sel.options[0]!.code);
   return (
     <div className="stack">
-      <h1>{T.inbox.title}</h1>
+      <PageHeader title={T.inbox.title} />
       <Notice>{T.inbox.notice}</Notice>
       <ErrorBanner error={sel.error} onRetry={sel.refetch} />
       {showSelector ? (
@@ -161,7 +161,7 @@ export function InboxIndex({ params }: { params: Params }) {
   if (sel.isPending || first) return <Loading />;
   return (
     <div className="stack">
-      <h1>{T.inbox.title}</h1>
+      <PageHeader title={T.inbox.title} />
       <ErrorBanner error={sel.error} onRetry={sel.refetch} />
       <EmptyState>{T.inbox.noDepartmentInbox}</EmptyState>
     </div>

@@ -1,15 +1,22 @@
+import { existsSync, readdirSync } from "node:fs";
+import { join } from "node:path";
+
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { AdminFrame } from "@/components/admin/AdminFrame";
 import { MappingFrame } from "@/components/admin/mapping/MappingFrame";
+import { PageHeader } from "@/components/ui";
+import { BRAND } from "@/lib/brand";
 import type { Permission } from "@/lib/api/types";
+import { bottomBarFor } from "@/lib/routes";
 import { resetNav } from "@/test/nav";
 import { browserApi, labels, makeMe, renderWithClient } from "@/test/render";
 
 import { nav } from "@/test/nav";
 
+import { Brand } from "./Brand";
 import { AlertBell, Breadcrumb, HeaderSearch, PortalShell, Sidebar } from "./PortalShell";
 
 const OFFICER: Permission[] = ["cases.view_scope", "notes.add", "documents.view", "alerts.acknowledge"];
@@ -30,28 +37,65 @@ beforeEach(() => {
 });
 
 describe("navigation by functions", () => {
-  it("Cause list after Search, Files after it and Alerts & calendar show for a case reader", () => {
+  it("Work lists Cause list, Files, Alerts & calendar and Search in order for a case reader (portal-ui-redesign)", () => {
     browserApi({ "GET /reference/labels": labels() });
     renderWithClient(<Sidebar me={makeMe(OFFICER)} />);
     const nav = screen.getByRole("navigation", { name: "Main navigation" });
     const names = within(nav)
       .getAllByRole("link")
       .map((a) => a.textContent);
-    expect(names.indexOf("Cause list")).toBe(names.indexOf("Search") + 1);
-    expect(names.indexOf("Files")).toBe(names.indexOf("Cause list") + 1);
+    expect(names).toEqual(["Dashboard", "Case inbox", "Cause list", "Files", "Alerts & calendar", "Search"]);
     expect(within(nav).getByRole("link", { name: "Cause list" })).toHaveAttribute("href", "/causelist");
     expect(within(nav).getByRole("link", { name: "Files" })).toHaveAttribute("href", "/files");
     expect(within(nav).getByRole("link", { name: "Alerts & calendar" })).toHaveAttribute("href", "/alerts");
   });
 
-  it("Reports shows between Alerts & calendar and Data collection with a reports function (portal-reports)", () => {
+  it("Reports and Audit log sit under Oversight, Data collection and Administration under Settings", () => {
+    browserApi({ "GET /reference/labels": labels() });
+    const me = makeMe(["cases.view_all", "reports.state", "audit.view", "users.view"], "super_admin");
+    renderWithClient(<Sidebar me={me} />);
+    const oversight = screen.getByRole("list", { name: "Oversight" });
+    expect(
+      within(oversight)
+        .getAllByRole("link")
+        .map((a) => a.textContent),
+    ).toEqual(["Reports", "Audit log"]);
+    const settings = screen.getByRole("list", { name: "Settings" });
+    expect(
+      within(settings)
+        .getAllByRole("link")
+        .map((a) => a.textContent),
+    ).toEqual(["Data collection", "Administration"]);
+    expect(within(screen.getByRole("list", { name: "Work" })).getByRole("link", { name: "Dashboard" })).toBeInTheDocument();
+  });
+
+  it("a group with no visible entry is hidden", () => {
+    browserApi({ "GET /reference/labels": labels() });
+    renderWithClient(<Sidebar me={makeMe(OFFICER)} />);
+    expect(screen.getByRole("list", { name: "Work" })).toBeInTheDocument();
+    expect(screen.queryByRole("list", { name: "Oversight" })).toBeNull();
+    expect(screen.queryByRole("list", { name: "Settings" })).toBeNull();
+    expect(screen.queryByText("Oversight")).toBeNull();
+  });
+
+  it("the Alerts entry shows the unread count from /alerts/counts in its pill", async () => {
+    browserApi({
+      "GET /reference/labels": labels(),
+      "GET /alerts/counts": { unread: 3, open: { critical: 0, high: 1, normal: 2 } },
+    });
+    renderWithClient(<Sidebar me={makeMe(OFFICER)} />);
+    const link = await screen.findByRole("link", { name: "Alerts & calendar, 3" });
+    expect(link).toHaveAttribute("href", "/alerts");
+    expect(within(link).getByText("3")).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("Reports shows with a reports function, before Data collection (portal-reports)", () => {
     browserApi({ "GET /reference/labels": labels() });
     renderWithClient(<Sidebar me={makeMe(["cases.view_all", "reports.state"], "state_oversight")} />);
     const nav = screen.getByRole("navigation", { name: "Main navigation" });
     const names = within(nav)
       .getAllByRole("link")
       .map((a) => a.textContent);
-    expect(names.indexOf("Reports")).toBe(names.indexOf("Alerts & calendar") + 1);
     expect(names.indexOf("Data collection")).toBe(names.indexOf("Reports") + 1);
     expect(within(nav).getByRole("link", { name: "Reports" })).toHaveAttribute("href", "/reports");
   });
@@ -333,5 +377,147 @@ describe("header and sidebar foot", () => {
     browserApi({});
     renderWithClient(<HeaderSearch me={makeMe(["users.view"])} />);
     expect(screen.queryByRole("search")).toBeNull();
+  });
+});
+
+describe("header, brand, drawer and bottom bar (portal-ui-redesign, decisions 18, 21 and 22)", () => {
+  const shellApi = (me = makeMe(OFFICER)) =>
+    browserApi({
+      "GET /me": me,
+      "GET /reference/labels": labels(),
+      "GET /alerts/counts": { unread: 2, open: { critical: 0, high: 0, normal: 2 } },
+    });
+
+  it("the emblem slot is a marked placeholder hidden from screen readers while BRAND.emblem is null", () => {
+    expect(BRAND.emblem).toBeNull();
+    renderWithClient(<Brand />);
+    const slot = screen.getByText("Emblem");
+    expect(slot).toHaveAttribute("title", "Place for the official Government of Assam emblem");
+    expect(slot).toHaveAttribute("aria-hidden", "true");
+    expect(screen.queryByRole("img")).toBeNull();
+    expect(screen.getByText("Government of Assam")).toBeInTheDocument();
+    expect(screen.getByText("Legal Case Monitoring Portal")).toBeInTheDocument();
+  });
+
+  it("with an emblem file set, the header shows the image with its alternative text at 40 px high", () => {
+    renderWithClient(<Brand brand={{ emblem: { src: "/brand/emblem.svg", width: 160, height: 200 } }} />);
+    const img = screen.getByRole("img", { name: "Emblem of the Government of Assam" });
+    expect(img).toHaveAttribute("src", "/brand/emblem.svg");
+    expect(img).toHaveAttribute("height", "40");
+    expect(img).toHaveAttribute("width", "32");
+    expect(screen.queryByText("Emblem")).toBeNull();
+  });
+
+  it("nothing under public/brand/ is committed by the build team", () => {
+    const dir = join(process.cwd(), "public", "brand");
+    const files = existsSync(dir) ? readdirSync(dir).filter((f) => f !== ".gitkeep") : [];
+    expect(files).toEqual([]);
+  });
+
+  it("the header shows the brand, the search box, the bell and the avatar menu; no breadcrumb", async () => {
+    shellApi();
+    renderWithClient(
+      <PortalShell>
+        <p>page body</p>
+      </PortalShell>,
+    );
+    const header = await screen.findByRole("banner");
+    expect(within(header).getByText("Legal Case Monitoring Portal")).toBeInTheDocument();
+    expect(within(header).getByRole("searchbox")).toBeInTheDocument();
+    expect(await within(header).findByRole("link", { name: "2 unread alerts" })).toBeInTheDocument();
+    expect(within(header).getByRole("button", { name: "User menu" })).toHaveTextContent("AS");
+    expect(within(header).queryByRole("navigation", { name: "Breadcrumb" })).toBeNull();
+  });
+
+  it("the avatar menu opens and closes by keyboard and lists My profile and Sign out", async () => {
+    shellApi();
+    renderWithClient(
+      <PortalShell>
+        <p>page body</p>
+      </PortalShell>,
+    );
+    const button = await screen.findByRole("button", { name: "User menu" });
+    button.focus();
+    await userEvent.keyboard("{ArrowDown}");
+    const menu = screen.getByRole("menu", { name: "User menu" });
+    expect(within(menu).getByRole("menuitem", { name: "My profile" })).toHaveFocus();
+    await userEvent.keyboard("{ArrowDown}");
+    expect(within(menu).getByRole("menuitem", { name: "Sign out" })).toHaveFocus();
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(button).toHaveFocus();
+  });
+
+  it("the drawer opens from the menu button, traps focus and closes on Escape and on the overlay", async () => {
+    shellApi();
+    renderWithClient(
+      <PortalShell>
+        <p>page body</p>
+      </PortalShell>,
+    );
+    const open = await screen.findByRole("button", { name: "Open menu" });
+    expect(open).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(open);
+    expect(open).toHaveAttribute("aria-expanded", "true");
+    const drawer = screen.getByRole("dialog", { name: "Main navigation" });
+    expect(drawer).toHaveAttribute("aria-modal", "true");
+    expect(drawer.contains(document.activeElement)).toBe(true);
+    // Tab past the last control comes back to the first: the focus stays in the drawer
+    for (let i = 0; i < 20; i += 1) await userEvent.tab();
+    expect(drawer.contains(document.activeElement)).toBe(true);
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "Main navigation" })).toBeNull();
+    expect(open).toHaveFocus();
+    await userEvent.click(open);
+    await userEvent.click(screen.getByTestId("drawer-overlay"));
+    expect(open).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByTestId("drawer-overlay")).toBeNull();
+  });
+
+  it("the drawer's top carries the brand and the search box for phones", async () => {
+    shellApi();
+    renderWithClient(
+      <PortalShell>
+        <p>page body</p>
+      </PortalShell>,
+    );
+    await screen.findByText("page body");
+    expect(screen.getAllByRole("search")).toHaveLength(2);
+    expect(document.getElementById("drawer-search")).toHaveAccessibleName("Search by CINO, case number or party name");
+  });
+
+  it("the bottom bar shows at most three entries plus More, which opens the drawer", async () => {
+    shellApi();
+    renderWithClient(
+      <PortalShell>
+        <p>page body</p>
+      </PortalShell>,
+    );
+    const bar = await screen.findByRole("navigation", { name: "Quick links" });
+    expect(
+      within(bar)
+        .getAllByRole("link")
+        .map((a) => a.textContent),
+    ).toEqual(["Dashboard", "Case inbox", "Files"]);
+    const more = within(bar).getByRole("button", { name: "More" });
+    await userEvent.click(more);
+    expect(screen.getByRole("dialog", { name: "Main navigation" })).toBeInTheDocument();
+  });
+
+  it("the bottom bar never holds more than three entries, and only the login's own", () => {
+    const all = bottomBarFor(makeMe(["cases.view_scope", "cases.view_all", "users.view", "reports.state"], "super_admin"));
+    expect(all.length).toBeLessThanOrEqual(3);
+    expect(all.map((e) => e.key)).toEqual(["dashboard", "inbox", "files"]);
+    expect(bottomBarFor(makeMe(["users.view"], "dept_admin")).map((e) => e.key)).toEqual(["dashboard"]);
+  });
+
+  it("the breadcrumb renders inside the page header, above the title", () => {
+    resetNav("/files/offices");
+    renderWithClient(<PageHeader title="Files" />);
+    const header = screen.getByRole("banner");
+    const crumbs = within(header).getByRole("navigation", { name: "Breadcrumb" });
+    const title = within(header).getByRole("heading", { level: 1, name: "Files" });
+    expect(crumbs.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(crumbs).getByText("My offices", { selector: "[aria-current=page]" })).toBeInTheDocument();
   });
 });

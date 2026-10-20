@@ -1,0 +1,295 @@
+/* Overlays (design portal-ui-redesign, decisions 13, 17 and 18): dialog and modal ease (scale .96 -> 1 with a fade,
+   --med); the side panel slides (--slow); below 820 px every overlay fills the screen. */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(16, 24, 40, 0.35);
+  animation: fade-in var(--med) var(--ease);
+}
+
+.center {
+  align-items: center;
+  justify-content: center;
+  padding: var(--s4);
+}
+
+.overlay.closing {
+  animation: fade-out var(--med) var(--ease) forwards;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+}
+
+@keyframes scale-out {
+  to {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+}
+
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes slide-out {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+.dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(760px, 100%);
+  max-height: calc(100vh - 32px);
+  background: var(--surface);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-3);
+  animation: scale-in var(--med) var(--ease);
+}
+
+.dialog.wide {
+  width: min(720px, 100%);
+}
+
+.dialog.closing,
+.modal.closing {
+  animation: scale-out var(--med) var(--ease) forwards;
+}
+
+.dialog:focus,
+.modal:focus,
+.panel:focus {
+  outline: none;
+  box-shadow: var(--shadow-3);
+}
+
+.dialogHead,
+.panelHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding: var(--s5) var(--s5) var(--s4);
+}
+
+.dialogHead h2,
+.panelHead h2,
+.modalTop h2 {
+  margin: 0;
+  font-size: var(--t-xl);
+  font-weight: 600;
+}
+
+.dialogBody {
+  padding: 0 var(--s5) var(--s5);
+  overflow: auto;
+}
+
+.close {
+  flex: none;
+  width: var(--control-h);
+  padding: 0;
+}
+
+.dialogActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s2);
+  margin-top: var(--s4);
+  padding-top: var(--s4);
+  border-top: 1px solid var(--border);
+}
+
+.modal {
+  display: flex;
+  flex-direction: column;
+  width: min(1040px, 100%);
+  height: min(86vh, 860px);
+  background: var(--surface);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-3);
+  animation: scale-in var(--med) var(--ease);
+}
+
+.modalHead {
+  padding: var(--s5) var(--s5) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.modalTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s3);
+  margin-bottom: var(--s4);
+}
+
+.modalTop h2 {
+  font-size: var(--t-2xl);
+}
+
+.modalBody {
+  flex: 1;
+  overflow: auto;
+  padding: var(--s5);
+}
+
+.modalFoot,
+.panelFoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s4) var(--s5);
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.modalFoot {
+  border-radius: 0 0 var(--r-xl) var(--r-xl);
+}
+
+.panelFoot {
+  justify-content: flex-end;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  width: min(480px, 100%);
+  height: 100vh;
+  background: var(--surface);
+  box-shadow: var(--shadow-3);
+  animation: slide-in var(--slow) var(--ease);
+}
+
+.panel.closing {
+  animation: slide-out var(--slow) var(--ease) forwards;
+}
+
+.panelHead {
+  border-bottom: 1px solid var(--border);
+}
+
+.panelBody {
+  flex: 1;
+  overflow: auto;
+  padding: var(--s5);
+}
+
+.menu {
+  position: relative;
+  display: inline-block;
+}
+
+.menuButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  height: var(--control-h);
+  padding: 0 var(--s3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.menuList {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 40;
+  min-width: 200px;
+  margin: 0;
+  padding: var(--s1) 0;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-2);
+  animation: scale-in var(--fast) var(--ease);
+}
+
+.menuStart {
+  left: 0;
+  right: auto;
+}
+
+.menuList a,
+.menuList button {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: var(--control-h);
+  padding: 0 var(--s4);
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.menuList a:hover,
+.menuList button:hover,
+.menuList a:focus,
+.menuList button:focus {
+  background: var(--slate-soft);
+  outline: none;
+  box-shadow: none;
+}
+
+.menuList a[aria-current="page"] {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+@media (max-width: 819px) {
+  .center {
+    padding: 0;
+  }
+
+  .dialog,
+  .dialog.wide,
+  .modal {
+    width: 100%;
+    height: 100%;
+    max-height: none;
+    border-radius: 0;
+  }
+
+  .modalFoot {
+    border-radius: 0;
+  }
+
+  .panel {
+    width: 100%;
+  }
+}

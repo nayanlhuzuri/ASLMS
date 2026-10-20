@@ -12,7 +12,7 @@ import { useEffect, useState, type FormEvent } from "react";
 
 import { useFilters } from "@/components/inbox/common";
 import { ClaimDialog } from "@/components/inbox/dialogs";
-import { Button, EmptyState, ErrorBanner, Loading, Pagination, SelectField, TextField } from "@/components/ui";
+import { Button, EmptyState, ErrorBanner, Loading, PageHeader, Pagination, SelectField, TextField } from "@/components/ui";
 import {
   CAUSELISTS_KEY,
   useCauselistDates,
@@ -105,8 +105,7 @@ export function CauseList({ params }: { params: Params }) {
 
   return (
     <div className="stack">
-      <h1>{T.causelist.title}</h1>
-      <p className="muted">{T.causelist.intro}</p>
+      <PageHeader title={T.causelist.title} subtitle={T.causelist.intro} />
       <ErrorBanner error={dates.error} onRetry={() => dates.refetch()} />
       {!date ? (
         dates.isPending ? (

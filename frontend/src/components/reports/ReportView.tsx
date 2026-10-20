@@ -11,7 +11,7 @@ import Link from "next/link";
 import { useState, type ReactNode } from "react";
 
 import { Notice, numCell, Pagination } from "@/components/ui";
-import u from "@/components/ui/ui.module.css";
+import u from "@/components/ui/data.module.css";
 import type { Report, ReportDepartment, ReportSection } from "@/lib/api/types";
 import { formatDateTime, formatNumber } from "@/lib/format";
 import { T } from "@/lib/messages";

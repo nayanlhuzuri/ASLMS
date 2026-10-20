@@ -8,7 +8,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 
-import { EmptyState, Loading, Tabs } from "@/components/ui";
+import { EmptyState, Loading, PageHeader, Tabs } from "@/components/ui";
 import { FlashNotice } from "@/components/workflow/common";
 import { useMe } from "@/lib/api/hooks";
 import { T } from "@/lib/messages";
@@ -22,7 +22,7 @@ export function FilesFrame({ children }: { children: ReactNode }) {
   const allowed = pathname === "/files" || tabs.some((t) => pathname === t.href || pathname.startsWith(t.href + "/"));
   return (
     <div className="stack">
-      <h1>{T.files.title}</h1>
+      <PageHeader title={T.files.title} />
       <FlashNotice />
       {tabs.length > 0 ? (
         <Tabs

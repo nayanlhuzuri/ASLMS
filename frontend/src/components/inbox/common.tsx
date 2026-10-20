@@ -27,7 +27,7 @@ export function PartiesLine({ c }: { c: Pick<CaseSummary, "petitioner_summary" |
   if (!c.petitioner_summary && !c.respondent_summary) return null;
   return (
     <div>
-      {c.petitioner_summary ?? "—"} <span className="muted">vs</span> {c.respondent_summary ?? "—"}
+      {c.petitioner_summary ?? "—"} <span className="muted">{T.vs}</span> {c.respondent_summary ?? "—"}
     </div>
   );
 }

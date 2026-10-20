@@ -1943,3 +1943,22 @@ Backlog row 15, design `docs/design/github-and-ci.md` (approved by the owner 20 
 **Left for later**: nothing is pushed yet. Row 97 (owner: first push, first green run, repository settings, `settings.json` entries), row 98 (dependency locks), row 99 (optional test Postgres service), row 100 (possible flaky tests).
 
 - 2026-10-20 — portal-ui-redesign: approved by the owner after four interactive mockups (v4 kept as docs/design/ui/aslms-ui-direction-v4.html): modern clean theme with smooth animations, one design system and the alignment rule, Government of Assam branding with the official emblem to be supplied, responsive on every device, English with seams for later translation (Bhashini/Sarvam would need an owner exception to the SourceTrace-only AI rule), Case inbox (own work, with Department cases and full filters for admins) and Case claim (suggestions with a full-details modal and inline orders with print and download), My calendar, simpler dashboard and case page; five build rounds; open questions as recommended, including the sight-only transfer_in basis for the receiving department while a transfer is requested (docs/design/portal-ui-redesign.md).
+
+## Portal UI redesign, round 1: design system and shell (2026-10-20)
+Backlog row 101 `portal-ui-foundation`, branch `feature/portal-ui-foundation`; design `docs/design/portal-ui-redesign.md` (approved by the owner; visual reference `docs/design/ui/aslms-ui-direction-v4.html`). Frontend only: no migration, no API change, `docs/schema/schema.md` unchanged.
+
+**Built**
+- Design tokens and the split UI kit in `frontend/src/components/ui/` (`controls`, `data`, `feedback`, `layout`, `overlays`, each with its own CSS module; `index.tsx` now re-exports; the old `ui.module.css` is gone): Card, PageHeader, Kpi, Chip, Skeleton, Collapsible, Menu, SidePanel, Modal, Stepper, DataTable (cards on phones), Lead and DateChip alignment columns. `motion.ts` holds the motion hooks, which honour `prefers-reduced-motion`.
+- Shell: `PortalShell.tsx`, `Brand.tsx`, `icons.tsx`, header with the Government of Assam emblem slot (placeholder; `src/lib/brand.ts` is where the official emblem goes), grouped sidebar, phone drawer and bottom bar, breadcrumbs inside each page's `PageHeader`. Navigation declared in `src/lib/routes.ts`.
+- i18n seams: `lang` attribute, locale-aware formatting in `format.ts`, labels moved into `src/lib/messages.ts`, `i18n.ts`.
+- Tests: `tokens.test.ts` (contrast of every token pair), `motion.test.tsx`, `ui.test.tsx`, `i18n.test.ts` (JSX literal check), extended `shell.test.tsx`, `routes.test.ts`.
+
+**Decisions and reasons** (full list in the design note's "Deviations", round 1, items 1 to 10)
+- Red text uses `--red-text #B42318`, because `--red #D92D20` is 4.45:1 and 4.49:1, under the 4.5:1 the design requires; `--red` stays for fills.
+- Only the Alerts entry has a count pill in round 1; Case inbox and Files counts wait for `/inbox/mine/counts` (round 2). Case claim and My calendar are declared with `built: false` until rounds 2 and 3.
+- `Dialog` keeps its 760 px width until round 3 moves workflow dialogs to the Action dialog template.
+- Where `matchMedia` is unavailable the motion hooks act as under reduced motion.
+- Case numbers carry the global `cno` class; bare `ref_no` stays monospace.
+- No separate design note for the row; round 1 was built from the redesign note.
+
+**Left for later**: rounds 2 to 5 (rows 102 to 105: inbox and claim, case page and calendar, dashboard and work lists, oversight and settings, sign-in pages, removal of deprecated token aliases, the responsive sweep). The official emblem is still to be supplied by the owner.

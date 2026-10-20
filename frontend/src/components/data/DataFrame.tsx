@@ -8,7 +8,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 
-import { EmptyState, Loading, Tabs } from "@/components/ui";
+import { EmptyState, Loading, PageHeader, Tabs } from "@/components/ui";
 import { useMe } from "@/lib/api/hooks";
 import { T } from "@/lib/messages";
 import { dataTabsFor } from "@/lib/routes";
@@ -20,7 +20,7 @@ export function DataFrame({ children }: { children: ReactNode }) {
   const tabs = dataTabsFor(me.data);
   return (
     <div>
-      <h1>{T.data.title}</h1>
+      <PageHeader title={T.data.title} />
       {tabs.length > 0 ? (
         <Tabs
           label={T.data.tabs}
