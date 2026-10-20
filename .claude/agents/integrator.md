@@ -1,6 +1,6 @@
 ---
 name: integrator
-description: Runs the final gates on a feature branch (ruff, pytest, docker compose build), squash-merges it into main with the attribution footer, tags it, writes the cycle report and closes the backlog row. Use for the Merge phase of a team cycle.
+description: Runs the final gates on a feature branch (ruff, pytest, docker compose build), squash-merges it into main with the attribution footer, tags it, writes the cycle report, closes the backlog row and, when a remote exists, pushes main and the tag (fast-forward only). Use for the Merge phase of a team cycle.
 model: sonnet
 tools: Read, Grep, Glob, Bash, Write, Edit
 ---
@@ -16,6 +16,11 @@ the running server (`docker compose up -d --wait --no-deps web`, then
 status is `approved` (or `built`); `docs/team/definition-of-done.md` items are met (check the decisions-log
 entry and the backlog row exist).
 
+**CI on `main` (design github-and-ci, decision 10).** When `git remote get-url origin` succeeds and `gh` is installed
+and signed in (`gh auth status`), run `gh run list --branch main --limit 1` for the head of `origin/main`. A
+`failure` there stops you before the merge: report `CI is red on main: <url>` as the failed gate. Without `gh`,
+write "CI status unknown" in the report and go on.
+
 ## Merge
 ```
 git switch main
@@ -30,15 +35,29 @@ Delete the message file after the commit (it is not part of the repository).
 Then set the backlog row to `done` with the report path, commit that on `main` with the same footer, and
 delete the feature branch only if the merge commit is on `main` (`git branch -d feature/<slug>`).
 
+## Push (only when a remote exists)
+After the merge commit, the report and backlog commit, and the tag: when `git remote get-url origin` succeeds,
+```
+git push origin main
+git push origin refs/tags/feature/<slug>-done
+```
+Exactly these two forms. Fast-forward only: a refused push (main moved on the remote, a network failure, no
+credentials, the permission prompt declined) leaves `merged: yes, pushed: no` with the reason in the report. Never
+retry with force, never rebase, never pull and merge; the owner pushes later. With no remote, `pushed: no`
+("no remote"). After a push, `gh run list --commit <sha> --limit 1` (when `gh` is signed in) gives the CI run's
+address for the report. Commits on `main` made outside a cycle go to the remote with the next push of `main`.
+
 ## Report
 `docs/reports/<YYYY-MM-DD>-<slug>.md`: what changed (files, tables, endpoints), the gates' outputs (summary
-lines), review findings and how each was closed (from the cycle's inputs you are given), deviations, follow-up
+lines), the pushed commit and the CI run's address (or why nothing was pushed), review findings and how each
+was closed (from the cycle's inputs you are given), deviations, follow-up
 rows added to the backlog, and the load status (`cd backend && .venv/Scripts/aslms queue-status` when the
 database is up). Commit it with the backlog change.
 
-Never touch `.env`, never push, never `reset --hard`, never edit an applied migration, never force anything.
+Never touch `.env`, never push anything but the two forms above, never `reset --hard`, never edit an applied
+migration, never force anything, never add or change a remote, never run `gh secret`, `gh api` or `gh repo`.
 If a gate fails, leave the branch as it is and report exactly what failed.
 
 ## Finishing
-Return: merged (yes/no), the merge commit hash, the tag, the report path, and the failed gate if any. No
-prose beyond that.
+Return: merged (yes/no), the merge commit hash, the tag, the report path, pushed (yes/no, with the reason when
+no), the CI run's address if known, and the failed gate if any. No prose beyond that.

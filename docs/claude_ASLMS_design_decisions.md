@@ -1917,3 +1917,27 @@ Backlog row 23, design `docs/design/document-ocr.md` (approved by the owner 20 O
 **Verified**: `import pymupdf` on the built image gives 1.28.2 with no onnxruntime loaded; `documents_text` on the dev database equals the SQL group count (order 59,542 extracted, 4,189 pending, 0 failed, 0 none; upload and attachment 0). Backend and frontend tests for the counts, labels, note and block were added.
 
 **Left for later**: Part A (local OCR engine, migration 0021) and the OCR interface are not built; Part B (SourceTrace returns the text of court orders and filings it holds, never internal documents) is parked as row 96, waiting for row 36 and decided again after the pilot. The tester's step 3 (uploads through the portal) needs the rebuilt `api` and `web` images; the integrator rebuilds them.
+
+## GitHub remote and CI (2026-10-20)
+Backlog row 15, design `docs/design/github-and-ci.md` (approved by the owner 20 Oct 2026), branch `feature/github-and-ci`. No migration, no schema change; `docs/schema/schema.md` is unchanged.
+
+**Built**
+- `.github/workflows/ci.yml`: jobs `changes` (docs-only detection), `policy`, `backend` (Postgres 16.15 service, `ASLMS_TEST_REQUIRE_DB=1`, installs with `backend/constraints-ci.txt`), `frontend`, `compose` (bake with per-target tags, `web` smoke through `portal_smoke.py`, `promtool test rules`) and `ci-ok`. Read-only token, no secrets, `NAPIX_ENABLED=false` with empty credentials, actions pinned by commit SHA. `.github/workflows/secret-scan.yml` (weekly, whole history) and `.github/dependabot.yml` (github-actions, monthly).
+- A test database per run (`backend/tests/db/conftest.py`, helpers in `backend/tests/db/rundb.py`): name `<base>_<UTC stamp>_<6 hex>`, stale run databases swept after 24 hours (never `FORCE`, exact-pattern names only), dropped at session end; test-only variables `ASLMS_TEST_DB_PER_RUN`, `ASLMS_TEST_KEEP_DB`, `ASLMS_TEST_REQUIRE_DB`. A cluster advisory lock on the `postgres` database serialises role creation, the `migrated` upgrade and every test marked `migration_cycle` (new marker; all `test_migration_*.py` modules and the cycling tests elsewhere are marked).
+- `backend/tools/repo_policy.py` (`tree`, `range`, `history`; prints path, line and rule, never the value), `.gitleaks.toml` (default rules plus NAPIX credential, Mailtrap token and private-key rules, commented allowlist), `.gitignore` additions, an optional `.githooks/pre-push` (owner enables with `git config core.hooksPath .githooks`).
+- `.claude/hooks/guard.py`: refuses forced, mirrored, all-branch, pruning and deleting pushes, a push with no remote or a remote other than `origin`, `git remote` changes, and `gh secret` / `gh repo` / `gh api` forms; it reads every line of a multi-line command.
+- Team definitions: the integrator checks CI on `main` before merging and pushes `main` and the `feature/<slug>-done` tag (fast-forward only) when a remote exists; `team-cycle` returns `pushed` and `ciRun`; `team-status` shows `origin/main` and the last CI runs; definition of done, team README, `README.md` and `docs/operations.md` (sections 16 and 19) follow.
+- Tests: `test_ci_workflow`, `test_db_test_isolation`, `test_run_database`, `test_repo_policy`, `test_guard_push`.
+
+**Decisions and reasons**
+- Private repository on the owner's personal account `nayanlhuzuri`, always (no transfer): the repo holds court-record personal data (samples, fixtures) and specification PDFs of unknown redistribution licence.
+- This replaces the 4 Oct "never push" rule: the integrator pushes `main` and the tag after each local merge, fast-forward only, never forced; a refused push is `merged: yes, pushed: no`. A red CI run on `main` stops the next merge; without `gh` the report says "CI status unknown".
+- CI holds no secrets and starts only `web` in the `compose` job, so nothing can reach NAPIX.
+- A per-run database fixes the audit finding that two runs wiped each other's data; the cluster lock covers roles, which are shared by every database (0020 grants and revokes `pg_monitor`).
+- gitleaks CLI by image digest, not `gitleaks-action` (licence key). A true finding is never fixed by an agent; history rewriting and key rotation are the owner's.
+
+**Deviations from the design note** (listed in its "Deviations", 1 to 14): `.claude/settings.json` left unchanged for the owner to apply; images built with `docker/bake-action` and tagged per target (unproven until the first GitHub run; fallback is a plain `docker compose build`); the history holds three old development defaults, not one (`POSTGRES_PASSWORD=aslms`, `ASLMS_APP_PASSWORD=aslms_app`, `ASLMS_READONLY_PASSWORD=aslms_readonly`), kept in a commented `HISTORY_ALLOWLIST` used only by `range` and `history`; extra guard and policy rules; `backend/constraints-ci.txt` added because an unconstrained install resolved newer FastAPI, Starlette and ruff and would have made CI red; two tests made independent of the CI environment; the OpenAPI export keeps RFC 9110 phrases on Python 3.12 and 3.13; the guard multi-line fix from review.
+
+**Verified**: full-history gitleaks 8.30.1 scan clean (275 commits, per the design note); the backend job reproduced in Linux containers; the guard, policy, workflow and isolation tests added. Two discovery-runner tests failed once in the first Linux run and passed on rerun (row 100).
+
+**Left for later**: nothing is pushed yet. Row 97 (owner: first push, first green run, repository settings, `settings.json` entries), row 98 (dependency locks), row 99 (optional test Postgres service), row 100 (possible flaky tests).

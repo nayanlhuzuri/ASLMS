@@ -15,6 +15,14 @@ from aslms.services import mailer as m
 TOKEN = "tok-secret-123456"
 
 
+@pytest.fixture(autouse=True)
+def _no_mail_environment(monkeypatch):
+    """The backend is chosen by the settings each test builds, never by the process environment (CI sets
+    MAIL_BACKEND=console for the whole run)."""
+    for var in ("MAIL_BACKEND", "MAILTRAP_API_TOKEN", "MAILTRAP_API_URL", "SMTP_HOST", "SMTP_FROM"):
+        monkeypatch.delenv(var, raising=False)
+
+
 def settings(**kw) -> Settings:
     return Settings(_env_file=None, **kw)
 

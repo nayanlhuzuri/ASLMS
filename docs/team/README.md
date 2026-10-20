@@ -34,8 +34,16 @@ pick → design → [owner approves] → build → test ⇄ fix → review ⇄ f
 5. The cycle report lands in `docs/reports/`; the backlog row becomes `done`.
 
 Continuous operation: `/loop 45m /team-cycle` keeps cycling while a Claude Code session is open. A tick with
-nothing to do (waiting for approval) is a no-op. There is no server-side scheduler yet: that needs a git
-remote and CI, which is itself a backlog item.
+nothing to do (waiting for approval) is a no-op. There is no server-side scheduler (it would need an AI API key
+in GitHub; the owner's decision later).
+
+**Remote and CI** (design github-and-ci): the code lives in the private repository `nayanlhuzuri/aslms` once the
+owner has made the first push (operations.md section 19). The team keeps merging locally; after each merge the
+integrator pushes `main` and the `feature/<slug>-done` tag (fast-forward only, never forced). GitHub Actions
+(`.github/workflows/ci.yml`) runs the gates on every push of `main` and every pull request: repository policy and
+gitleaks, ruff and pytest against a Postgres service, the portal checks, the Compose build with the `web` smoke and
+`promtool`. A red run on `main` stops the next merge. The guard hook refuses forced pushes, remote changes and
+`gh secret` / `gh api` / `gh repo`; the remote and the repository's settings are the owner's.
 
 ## Commands
 

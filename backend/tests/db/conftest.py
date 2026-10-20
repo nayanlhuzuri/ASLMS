@@ -1,11 +1,13 @@
-"""Database tests run against a real PostgreSQL (the Compose `postgres` service, database `aslms_test`).
-They are skipped when it is not reachable. The schema is built by the real migration, never by create_all."""
+"""Database tests run against a real PostgreSQL (the Compose `postgres` service locally, a service container in CI).
+Each session works in its own database `<base>_<UTC stamp>_<hex>` (tests/db/rundb.py, design github-and-ci), created
+at the start and dropped at the end. They are skipped when the server is not reachable, unless
+`ASLMS_TEST_REQUIRE_DB=1` (CI). The schema is built by the real migration, never by create_all."""
 
 from __future__ import annotations
 
 import json
-import os
 from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 import httpx
@@ -19,12 +21,24 @@ from aslms.integration.napix.client import NapixClient
 from aslms.integration.napix.crypto import NapixCrypto
 from aslms.integration.napix.hc import NapixHighCourt
 from aslms.services.seed import seed_all
+from tests.db import rundb
 from tests.unit.conftest import KEY, Gateway
 
 BACKEND = Path(__file__).resolve().parents[2]
-TEST_URL = os.environ.get(
-    "ASLMS_TEST_DATABASE_URL", "postgresql+psycopg://aslms:aslms@127.0.0.1:5433/aslms_test"
-)
+BASE_URL = rundb.base_url()
+PER_RUN = rundb.flag("ASLMS_TEST_DB_PER_RUN", "1")
+KEEP_DB = rundb.flag("ASLMS_TEST_KEEP_DB", "0")
+REQUIRE_DB = rundb.flag("ASLMS_TEST_REQUIRE_DB", "0")
+RUN_DATABASE = rundb.run_database_name(BASE_URL.database or "aslms_test") if PER_RUN else BASE_URL.database
+# a module constant, as before: the modules that import it get this run's database
+TEST_URL = rundb.url_string(BASE_URL.set(database=RUN_DATABASE))
+
+
+@contextmanager
+def cluster_lock() -> Iterator[None]:
+    """Serialises cluster-wide changes (roles, `pg_monitor`) between concurrent runs on one server."""
+    with rundb.cluster_lock(BASE_URL):
+        yield
 
 
 def head_revision() -> str:
@@ -57,28 +71,97 @@ def no_bootstrap_super_admin() -> Iterator[None]:
     get_settings.cache_clear()
 
 
+def _unreachable(exc: Exception) -> None:
+    msg = (
+        f"test database server not reachable ({exc.__class__.__name__}); start `docker compose up -d postgres` "
+        "or set ASLMS_TEST_DATABASE_URL"
+    )
+    if REQUIRE_DB:
+        pytest.fail(f"{msg} (ASLMS_TEST_REQUIRE_DB=1)", pytrace=False)
+    pytest.skip(msg)
+
+
+def _report(request: pytest.FixtureRequest, line: str) -> None:
+    reporter = request.config.pluginmanager.get_plugin("terminalreporter")
+    if reporter is not None:
+        reporter.write_line(line)
+    else:
+        print(line)
+
+
 @pytest.fixture(scope="session")
-def db_url() -> str:
+def db_url(request: pytest.FixtureRequest) -> Iterator[str]:
+    """This run's database. Per run (the default): the stale run databases of killed runs are swept, the run's
+    database is created, the cluster roles are pre-created under the cluster lock, and the database is dropped at
+    the end of the session (kept with ASLMS_TEST_KEEP_DB=1). With ASLMS_TEST_DB_PER_RUN=0 the named database is
+    used as it is, and only when its name contains `test`."""
+    if not PER_RUN:
+        try:
+            rundb.check_named_database(RUN_DATABASE)
+        except ValueError as exc:
+            pytest.fail(str(exc), pytrace=False)
+    target = rundb.maintenance_url(BASE_URL) if PER_RUN else BASE_URL.set(database=RUN_DATABASE)
+    admin = rundb.autocommit_engine(target)
     try:
-        engine = sa.create_engine(TEST_URL, poolclass=sa.pool.NullPool)
-        with engine.connect() as conn:
-            conn.execute(sa.text("select 1"))
-    except Exception as exc:  # noqa: BLE001
-        pytest.skip(
-            f"test database not reachable ({exc.__class__.__name__}); start `docker compose up -d postgres`"
-        )
-    return TEST_URL
+        try:
+            with admin.connect() as conn:
+                conn.execute(sa.text("select 1"))
+        except Exception as exc:  # noqa: BLE001
+            _unreachable(exc)
+        if not PER_RUN:
+            with cluster_lock(), admin.connect() as conn:
+                rundb.ensure_roles(conn)
+            yield TEST_URL
+            return
+        with admin.connect() as conn:
+            rundb.sweep_stale(conn, BASE_URL.database or "aslms_test")
+            try:
+                rundb.create_database(conn, RUN_DATABASE)
+            except sa.exc.ProgrammingError as exc:
+                pytest.fail(
+                    f"cannot create the run database {RUN_DATABASE} ({exc.orig.__class__.__name__}): the user of "
+                    "ASLMS_TEST_DATABASE_URL needs CREATEDB, or set ASLMS_TEST_DB_PER_RUN=0 to use the named "
+                    "database",
+                    pytrace=False,
+                )
+        try:
+            with cluster_lock(), admin.connect() as conn:
+                rundb.ensure_roles(conn)
+            yield TEST_URL
+        finally:
+            if KEEP_DB:
+                _report(request, f"ASLMS_TEST_KEEP_DB=1: the run database {RUN_DATABASE} is kept")
+            else:
+                with admin.connect() as conn:
+                    rundb.drop_database(conn, RUN_DATABASE)
+    finally:
+        admin.dispose()
 
 
 @pytest.fixture(scope="session")
 def migrated(db_url: str) -> Iterator[str]:
-    """Head of the migration chain on a clean test database. Rows left by an earlier run are wiped first: the
-    downgrades refuse to strip populated tables (e.g. 0010 with `user_devices` rows)."""
+    """Head of the migration chain on this run's database, under the cluster lock (0001 and 0020 touch roles that
+    every database shares). Per run the database is new and empty. With ASLMS_TEST_DB_PER_RUN=0, rows left by an
+    earlier run are wiped and the chain is downgraded first: the downgrades refuse to strip populated tables
+    (e.g. 0010 with `user_devices` rows)."""
     cfg = alembic_config(db_url)
-    wipe_if_migrated(db_url)
-    command.downgrade(cfg, "base")
-    command.upgrade(cfg, "head")
+    with cluster_lock():
+        if not PER_RUN:
+            wipe_if_migrated(db_url)
+            command.downgrade(cfg, "base")
+        command.upgrade(cfg, "head")
     yield db_url
+
+
+@pytest.fixture(autouse=True)
+def _migration_cycle_lock(request: pytest.FixtureRequest) -> Iterator[None]:
+    """Tests marked `migration_cycle` (they call command.upgrade / downgrade) hold the cluster lock while they run:
+    0020's downgrade revokes `pg_monitor` for every database on the server."""
+    if request.node.get_closest_marker("migration_cycle") is None:
+        yield
+        return
+    with cluster_lock():
+        yield
 
 
 @pytest.fixture(scope="session")

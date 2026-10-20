@@ -19,6 +19,8 @@ from aslms.db.base import Base
 from aslms.services.seed import seed_all
 from tests.db.conftest import BACKEND, alembic_config, head_revision, wipe_if_migrated
 
+pytestmark = pytest.mark.migration_cycle
+
 EXPECTED = [
     ("review_petition_filed", "Review petition filed", "appeal", 180, True),
     ("appeal_dismissed", "Appeal or review dismissed", "appeal", 190, True),

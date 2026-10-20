@@ -28,3 +28,5 @@ merge and the reviewer treats a miss as a blocking finding.
 - The design note exists and was approved by the owner before building; deviations are written back into it.
 - Review findings are closed (fixed) or recorded as advisory in the report with the reason.
 - The branch is squash-merged into `main` with the attribution footer and tagged `feature/<slug>-done`.
+- When a remote exists, `main` and the tag are pushed (fast-forward only; a refused push is reported, never
+  forced); a red CI run on `main` stops the next merge.

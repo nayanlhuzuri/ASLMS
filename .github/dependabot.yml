@@ -1,0 +1,10 @@
+# Dependabot (design github-and-ci, decision 12): only the GitHub Actions SHA pins, monthly, so they do not rot.
+# pip, npm and the Docker images are pinned on purpose and change through the upgrade procedure (operations.md 8).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "ci"

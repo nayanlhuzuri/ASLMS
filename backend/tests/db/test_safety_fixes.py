@@ -328,6 +328,7 @@ def test_queue_retry_failed_cli_revives_and_audits(world, monkeypatch):
 # ------------------------------------------------------------------------------------------------ migration 0019
 
 
+@pytest.mark.migration_cycle
 def test_migration_0019_adds_kind_and_downgrade_refuses_while_pending(db_url, engine):
     cfg = alembic_config(db_url)
     wipe_if_migrated(db_url)

@@ -1,0 +1,316 @@
+# ASLMS CI (design github-and-ci, decision 3): the definition-of-done gates on every pull request into main, every push
+# to main and by hand. It holds no secrets at all (decision 6): no repository or environment secret exists, NAPIX is
+# off with empty credentials, and only the `web` service is ever started. Every action is pinned to a full commit
+# SHA (Dependabot keeps them current); images are pinned by version or digest. How to read a red run:
+# docs/operations.md section 19.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  # a newer run cancels an older one on pull-request refs, never on main
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  NAPIX_ENABLED: "false"
+  NAPIX_CLIENT_ID: ""
+  NAPIX_CLIENT_SECRET: ""
+  NAPIX_DEPT_ID: ""
+  NAPIX_AUTH_KEY: ""
+  MAIL_BACKEND: console
+  SOURCETRACE_ENABLED: "false"
+  APP_ENV: test
+  GITLEAKS_IMAGE: ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f # v8.30.1
+  ACTIONLINT_IMAGE: rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 # 1.7.12
+  PROMETHEUS_IMAGE: prom/prometheus:v3.7.2
+
+jobs:
+  changes:
+    name: changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+      base: ${{ steps.diff.outputs.base }}
+      head: ${{ steps.diff.outputs.head }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Code or docs only
+        id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          head=$(git rev-parse HEAD)
+          case "$EVENT" in
+            pull_request) base="$PR_BASE" ;;
+            push) base="$PUSH_BEFORE" ;;
+            *) base="" ;;
+          esac
+          if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ] \
+            || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            # a first push, a manual run or a missing base: the whole tree counts
+            base=""
+            files=$(git ls-files)
+          else
+            files=$(git diff --name-only "$base" "$head")
+          fi
+          code=false
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            case "$f" in
+              docs/design/* | docs/reports/* | docs/audits/* | docs/team/*) ;;
+              docs/backlog.md | docs/claude_ASLMS_design_decisions.md | README.md | CLAUDE.md) ;;
+              docs/*.docx)
+                # the top-level docs/*.docx only
+                case "${f#docs/}" in */*) code=true ;; esac
+                ;;
+              *) code=true ;;
+            esac
+          done <<< "$files"
+          {
+            echo "code=$code"
+            echo "base=$base"
+            echo "head=$head"
+          } >> "$GITHUB_OUTPUT"
+          echo "code=$code base=${base:-<none>} head=$head"
+
+  policy:
+    name: policy
+    needs: changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      BASE: ${{ needs.changes.outputs.base }}
+      HEAD: ${{ needs.changes.outputs.head }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: repo_policy tree
+        run: python3 backend/tools/repo_policy.py tree
+      - name: repo_policy range
+        run: |
+          if [ -n "$BASE" ]; then
+            python3 backend/tools/repo_policy.py range "$BASE..$HEAD"
+          else
+            python3 backend/tools/repo_policy.py history --branch "$HEAD"
+          fi
+      - name: gitleaks on the commits of this push or pull request
+        run: |
+          if [ -n "$BASE" ]; then opts=(--log-opts="$BASE..$HEAD"); else opts=(--log-opts="$HEAD"); fi
+          docker run --rm -v "$GITHUB_WORKSPACE:/repo" \
+            -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0='*' \
+            "$GITLEAKS_IMAGE" git /repo --config /repo/.gitleaks.toml --redact --no-banner "${opts[@]}"
+      - name: actionlint
+        run: docker run --rm -v "$GITHUB_WORKSPACE:/repo" --workdir /repo "$ACTIONLINT_IMAGE" -color
+
+  backend:
+    name: backend
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16.15
+        env:
+          POSTGRES_USER: aslms
+          POSTGRES_PASSWORD: aslms-ci # a throwaway service container reachable only on the runner, not a secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U aslms -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      ASLMS_TEST_DATABASE_URL: postgresql+psycopg://aslms:aslms-ci@127.0.0.1:5432/aslms_test
+      ASLMS_TEST_REQUIRE_DB: "1"
+    steps:
+      - name: No NAPIX credential and the switch off
+        run: |
+          for v in NAPIX_CLIENT_ID NAPIX_CLIENT_SECRET NAPIX_DEPT_ID NAPIX_AUTH_KEY; do
+            if [ -n "${!v:-}" ]; then echo "::error::$v is not empty; CI never holds a NAPIX credential"; exit 1; fi
+          done
+          if [ "$NAPIX_ENABLED" != "false" ]; then echo "::error::the NAPIX switch must be false in CI"; exit 1; fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            backend/pyproject.toml
+            backend/constraints-ci.txt
+      - name: Postgres speed settings (disposable cluster)
+        env:
+          PG: ${{ job.services.postgres.id }}
+        run: |
+          for setting in "fsync = off" "synchronous_commit = off" "full_page_writes = off"; do
+            docker exec "$PG" psql -U aslms -d postgres -v ON_ERROR_STOP=1 -c "ALTER SYSTEM SET $setting"
+          done
+          docker exec "$PG" psql -U aslms -d postgres -v ON_ERROR_STOP=1 -c "SELECT pg_reload_conf()"
+      - name: Install
+        # the owner's development versions (backend/constraints-ci.txt) until a lock file exists (row dependency-locks)
+        run: python -m pip install -c backend/constraints-ci.txt -e "backend[dev,redis]"
+      - name: ruff check
+        working-directory: backend
+        run: ruff check .
+      - name: ruff format
+        working-directory: backend
+        run: ruff format --check .
+      - name: pytest
+        working-directory: backend
+        run: python -m pytest -q -ra --junitxml=pytest-junit.xml
+      - name: Upload the JUnit report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: backend-junit
+          path: backend/pytest-junit.xml
+          retention-days: 7
+          if-no-files-found: ignore
+
+  frontend:
+    name: frontend
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: frontend/.next/cache
+          key: nextjs-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}-${{ hashFiles('frontend/src/**') }}
+          restore-keys: |
+            nextjs-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}-
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: gen:api leaves no diff
+        run: |
+          npm run gen:api
+          git diff --exit-code -- src/lib/api/schema.d.ts
+
+  compose:
+    name: compose
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      APP_ENV: dev
+      COMPOSE_FILE: compose.yml:compose.dev.yml
+      COMPOSE_PROJECT_NAME: aslms
+      PORTAL_BASE_URL: http://localhost:3000
+      COOKIE_SECURE: "false"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Throwaway Compose values (generated, masked; no .env file is written)
+        run: |
+          for v in POSTGRES_PASSWORD ASLMS_APP_PASSWORD ASLMS_READONLY_PASSWORD REDIS_PASSWORD ASLMS_JWT_SECRET \
+            GRAFANA_ADMIN_PASSWORD; do
+            val=$(openssl rand -hex 32)
+            echo "::add-mask::$val"
+            echo "$v=$val" >> "$GITHUB_ENV"
+          done
+          val=$(openssl rand -hex 32)
+          echo "::add-mask::$val"
+          echo "FLOWER_BASIC_AUTH=ops:$val" >> "$GITHUB_ENV"
+      - name: docker compose config
+        run: docker compose config -q
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Bake targets under the names Compose expects
+        id: targets
+        run: |
+          set -euo pipefail
+          targets=$(docker buildx bake -f compose.yml --print 2>/dev/null | jq -r '.group.default.targets | join(" ")')
+          {
+            echo "list=$targets"
+            echo "set<<SET_EOF"
+            echo "*.cache-from=type=gha"
+            echo "*.cache-to=type=gha,mode=max"
+            for t in $targets; do echo "$t.tags=aslms-$t"; done
+            echo "SET_EOF"
+          } >> "$GITHUB_OUTPUT"
+      - name: Build every image (profiles included)
+        uses: docker/bake-action@59cb1203cd42bcefd40a1b6d73b589e48c86040e # v7.5.0
+        with:
+          source: .
+          files: compose.yml
+          load: true
+          set: ${{ steps.targets.outputs.set }}
+      - name: Every image is loaded
+        env:
+          TARGETS: ${{ steps.targets.outputs.list }}
+        run: for t in $TARGETS; do docker image inspect "aslms-$t" --format "aslms-$t {{.Id}}"; done
+      - name: Start web
+        run: docker compose up -d --wait --no-deps web
+      - name: Portal smoke
+        run: python3 backend/tools/portal_smoke.py --base http://localhost:3000
+      - name: promtool test rules
+        run: >-
+          docker run --rm -v "$GITHUB_WORKSPACE/infra/prometheus:/p:ro" --entrypoint promtool "$PROMETHEUS_IMAGE"
+          test rules /p/rules.test.yml
+      - name: Web log
+        if: failure()
+        run: docker compose logs web > web.log 2>&1 || true
+      - name: Upload the web log
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: compose-web-log
+          path: web.log
+          retention-days: 7
+          if-no-files-found: ignore
+      - name: Down
+        if: always()
+        run: docker compose down -v
+
+  ci-ok:
+    name: ci-ok
+    if: always()
+    needs: [changes, policy, backend, frontend, compose]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Every job passed or was skipped
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "$RESULTS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          echo "$RESULTS" | jq -e 'to_entries | all(.value.result == "success" or .value.result == "skipped")' > /dev/null

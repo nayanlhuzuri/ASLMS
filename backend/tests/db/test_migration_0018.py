@@ -17,6 +17,8 @@ from aslms.services.seed import seed_all
 from tests.db.conftest import alembic_config, head_revision, wipe, wipe_if_migrated
 from tests.db.world import make_case
 
+pytestmark = pytest.mark.migration_cycle
+
 
 def _cols(engine, table: str) -> set[str]:
     return {c["name"] for c in sa.inspect(engine).get_columns(table)}

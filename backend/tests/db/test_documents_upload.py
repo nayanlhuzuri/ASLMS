@@ -365,6 +365,7 @@ def test_an_order_pdf_never_points_at_an_upload(api, world, owned):
 # ------------------------------------------------------------------------------------------------ migration 0006
 
 
+@pytest.mark.migration_cycle
 def test_migration_0006_cycles_with_documents_and_refuses_duplicate_sha(api, world, owned):
     """Upgrade → downgrade → upgrade on a database holding an order PDF, a cause-list PDF and an upload (all
     distinct bytes), data intact; with two rows sharing a sha256 the downgrade stops without deleting."""

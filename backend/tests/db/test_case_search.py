@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from datetime import date
 
+import pytest
 import sqlalchemy as sa
 from alembic import command
 
@@ -46,12 +47,13 @@ def add_case_type(s, code, short, aliases=()):
 # ------------------------------------------------------------------------------------------------ vector upkeep
 
 
+@pytest.mark.migration_cycle
 def test_migration_backfill_fills_the_vector(world, engine):
     with world.Session() as s:
         c = make_case(s, pet="BACKFILL PARTY")
         s.commit()
         cid = c.id
-    cfg = alembic_config(str(engine.url).replace("***", "aslms"))
+    cfg = alembic_config(engine.url.render_as_string(hide_password=False))
     command.downgrade(cfg, "0004")
     with engine.connect() as conn:
         assert (

@@ -2,7 +2,8 @@
 
 How to install, run, upgrade, back up and restore the ASLMS pilot. Written for the design
 [deployment-checklist](design/deployment-checklist.md) (Part A, backlog row 16). DB_STANDARD §11 step 7 names this
-file. Monitoring (Part B, row 77) is section 17; PgBouncer (Part C, row 78) is section 18.
+file. Monitoring (Part B, row 77) is section 17; PgBouncer (Part C, row 78) is section 18; the repository and CI
+(design [github-and-ci](design/github-and-ci.md)) are section 19.
 
 Never write the NAPIX master switch into a file. The owner sets it in the shell for the run that needs it
 (`docs/napix_integration_notes.md`). Never print or paste a secret from `.env`.
@@ -306,7 +307,23 @@ A developer's `.env` keeps `APP_ENV=dev`, `COMPOSE_PATH_SEPARATOR=:` and `COMPOS
 (`127.0.0.1:8000`, with `/docs`) and web (`http://localhost:3000`) on loopback only. The proxy starts only with
 `--profile proxy`. Redis is never published: run host-side commands that need it through
 `docker compose exec api …`. The database tests use `ASLMS_TEST_DATABASE_URL`, by default
-`postgresql+psycopg://aslms:aslms@127.0.0.1:5433/aslms_test`. Use `127.0.0.1`, not `localhost`: on Windows
+`postgresql+psycopg://aslms:aslms@127.0.0.1:5433/aslms_test`: the server, the credentials and a base name. Each
+`pytest` session creates its own database on that server, `<base>_<UTC yyyymmddHHMMSS>_<6 hex>` (for example
+`aslms_test_20261020101500_a1b2c3`), migrates it to head and drops it at the end, so two sessions at once never
+touch each other's data. A killed run leaves its database behind; the next run drops it after 24 hours (only names
+of exactly that form, and only when nobody is connected). Changes to cluster-wide state (the three roles,
+`pg_monitor`) are serialised by an advisory lock in the `postgres` database: the first migration and every test
+marked `migration_cycle` take it. The URL's user needs `CREATEDB` (the Compose superuser `aslms` has it). Three
+test-only variables, never application settings and never read from `.env`:
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `ASLMS_TEST_DB_PER_RUN` | `1` | `0` uses the named database as before (wipe, downgrade, upgrade), for debugging with `psql`; a name without `test` is refused, so a mistyped URL can never wipe `aslms`. |
+| `ASLMS_TEST_KEEP_DB` | `0` | `1` keeps the run database at the end and prints its name; drop it by hand afterwards. |
+| `ASLMS_TEST_REQUIRE_DB` | `0` | `1` makes an unreachable server a failure instead of a skip (CI sets it). |
+
+The old shared `aslms_test` database is no longer used and may be dropped once by hand
+(`docker compose exec postgres dropdb -U aslms aslms_test`). Use `127.0.0.1`, not `localhost`: on Windows
 `localhost` resolves to `::1` first, nothing listens there, and every new connection waits seconds before falling
 back to IPv4, which makes the database tests crawl. After the cluster password changes, set that variable
 in the shell that runs `pytest`. Compose checks the variables of every service, profiles included, so a developer's
@@ -473,6 +490,99 @@ docker compose exec postgres psql -U aslms -d aslms -c "select usename, client_a
 
 **Deferring PgBouncer** (owner check 7): to run without it, the three services' `DATABASE_URL_SYNC` would point at
 `postgres:5432` again. That is a recorded deviation in the design, never a quiet edit of `compose.yml`.
+
+## 19. Repository and CI
+
+Design [github-and-ci](design/github-and-ci.md) (backlog row 15).
+
+**The remote.** A private GitHub repository, `nayanlhuzuri/aslms`, on the owner's personal account, where it stays.
+Private because the repository holds personal data from public court records (see below) and the e-Committee
+specification PDFs, whose licence for redistribution is unknown. Forking is off; collaborators are named people only.
+The remote and the repository's settings are the owner's: the guard hook refuses `git remote add` / `set-url` /
+`remove`, `git config remote.*`, `gh repo create|delete|edit|rename|archive`, `gh secret` and `gh api` from the
+assistant.
+
+**The first push** (owner, backlog row `github-first-push`), on the owner's machine with a clean `main`:
+1. Create the private repository `nayanlhuzuri/aslms`, empty (no README, licence or `.gitignore`). Apply the
+   settings and rulesets below that the plan offers.
+2. `python backend/tools/repo_policy.py history`: clean.
+3. A full-history gitleaks scan with the repository's configuration: clean.
+   ```
+   docker run --rm -v "$PWD:/repo" -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0='*' \
+     ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
+     git /repo --config /repo/.gitleaks.toml --redact --no-banner
+   ```
+4. `git remote add origin <url>`, `git push -u origin main`, `git push origin "refs/tags/feature/*"`. The old local
+   `feature/*`, `design/*` and `worktree-agent-*` branches are not pushed: their work is on `main` as squash commits.
+5. Watch the first `CI` run: every job green. Record its address and duration in the decisions log. A red job
+   becomes a fix row.
+6. `gh auth login` on the machine that runs cycles (the token stays in the Windows credential store, never in the
+   repository or `.env`). `/team-status` then shows CI, and the integrator can check `main` before merging.
+
+**What never reaches the remote, and why.** Enforced three times: `.gitignore`, `backend/tools/repo_policy.py`
+(`tree`, `range A..B`, `history`; it prints the path, the line and the rule, never the value) and gitleaks
+(`.gitleaks.toml`, every allowlist entry commented).
+- `.env` and `.env.*` in any folder (only `.env.example` is tracked, with every secret empty); keys and
+  certificates (`*.pem`, `*.key`, `*.p12`, `*.pfx`); `backups/`, `*.dump`, `roles-*.sql`; `data/` (the document
+  store and cause-list PDFs; `frontend/src/**/data/` is source); `infra/proxy/certs/`, `infra/clamav/freshclam.conf`;
+  `docs/specs/napix/hc/samples/` (unreviewed `aslms napix-check` output); `.claude/settings.local.json`,
+  `.claude/worktrees/`; Postman environments; the old document folders.
+- A non-empty secret in an example env file; the NAPIX switch on in configuration; a private-key block; a literal
+  NAPIX credential; a file over 20 MB.
+- `docs/specs/samples/` and `backend/tests/fixtures/causelists/` stay: the tests depend on them. They hold no token,
+  key, client id or personal contact, but they do hold **personal data from public court records** (party, advocate
+  and judge names, case numbers, CNRs, order and cause-list PDFs). That is acceptable in a private repository with
+  named collaborators only. Making the repository public needs a separate redaction item first.
+- Three old development defaults are in the history of `.env.example` (`POSTGRES_PASSWORD`, `ASLMS_APP_PASSWORD`,
+  `ASLMS_READONLY_PASSWORD`); preflight refuses all three in production, and `repo_policy.py` lists them, commit by
+  commit, in its history allowlist.
+
+**No secrets in GitHub, ever.** No repository or environment secret is created: never a NAPIX credential, a mail
+token, a JWT secret or a SourceTrace key. CI runs with the NAPIX switch off and empty credentials (a step fails the
+job otherwise), the console mail backend and SourceTrace off. The test database password `aslms-ci` belongs to a
+throwaway service container. The `compose` job generates its Compose values with `openssl rand`, masks them and
+writes no `.env`; only `web` is started.
+
+**What each CI job checks** (`.github/workflows/ci.yml`; on pull requests into `main`, pushes to `main` and by hand):
+
+| Job | Checks | A red run means |
+|---|---|---|
+| `changes` | Whether anything outside the docs-only list changed (design notes, reports, audits, team docs, backlog, decisions log, `README.md`, `CLAUDE.md`, top-level `docs/*.docx`). | Rarely red; a git error. |
+| `policy` | `repo_policy.py tree` and `range` (or `history` on a first push); gitleaks on the pushed commits; actionlint. | A forbidden file or value was committed (stop: see below), or a workflow error. |
+| `backend` | ruff check, ruff format, pytest against a `postgres:16.15` service with `ASLMS_TEST_REQUIRE_DB=1`, installed with the development versions in `backend/constraints-ci.txt` (refresh it with `pip freeze --exclude-editable` when the `.venv` is upgraded). The JUnit report is an artifact (7 days). | A lint or test failure; open the JUnit artifact or the step log. |
+| `frontend` | `npm ci`, lint, typecheck, test, build, and `gen:api` leaving no diff. | A portal failure, or `openapi.json` and `schema.d.ts` out of step. |
+| `compose` | `docker compose config`, every image built (profiles included), `web` started, `portal_smoke.py`, `promtool test rules`. The web log is an artifact on failure. | An image does not build, a page does not render, or an alert rule test fails. |
+| `ci-ok` | Every job passed or was skipped. | Look at the job that failed. |
+
+A docs-only push runs `changes`, `policy` and `ci-ok` only. A red run on `main` stops the integrator's next merge.
+
+**The weekly secret scan** (`.github/workflows/secret-scan.yml`, Sunday 21:00 UTC = Monday 02:30 IST, and by hand):
+gitleaks and `repo_policy.py history` over the whole history. A failure e-mails the owner through GitHub. **On a
+true finding: stop.** No agent "fixes" it. The owner rotates the key at its source first, then decides whether to
+rewrite history (which needs every clone re-made).
+
+**The pre-push hook** (optional): `git config core.hooksPath .githooks` once. `.githooks/pre-push` then runs
+`repo_policy.py range` on the outgoing commits, and gitleaks when it is on `PATH`; a finding refuses the push.
+
+**Pushes by the team.** The team merges locally; the integrator then runs exactly `git push origin main` and
+`git push origin refs/tags/feature/<slug>-done`, fast-forward only. A refused push is reported, never forced; the
+owner pushes later. The guard hook refuses `--force`, `-f`, `--force-with-lease`, `--mirror`, `--all`, `--delete`,
+a `+` or `:` refspec and any remote other than `origin`. The narrow permissions in `.claude/settings.json` (allow
+the two push forms and `gh run list` / `gh run view`; deny the force forms) are set by the owner.
+
+**Rulesets and settings** (if the plan offers them for a private repository; on GitHub Free the guard hook and
+gitleaks carry the load and the owner is the only person with write access):
+- a ruleset on `main`: block force pushes and deletion, require linear history; pull requests and status checks are
+  not required (a squash commit made locally has no checks yet);
+- a tag ruleset on `feature/*-done`: block update and deletion;
+- Actions limited to GitHub-made actions and `docker/*`; the default workflow token read-only; "Allow GitHub Actions
+  to create and approve pull requests" off; Dependabot alerts on (`.github/dependabot.yml` updates the action pins
+  monthly); forking off; GitHub secret scanning and push protection on if the plan offers them.
+
+**The minutes budget.** A full run is about 25–35 billed minutes (backend about 15, frontend about 6, compose about
+10, policy 1; about 15 minutes on the clock), a docs-only push about 2. Roughly 35–45 minutes per cycle: GitHub
+Free's 2,000 private minutes a month cover about 45–60 cycles (check the account's billing page). Artifacts are kept
+7 days.
 
 ## Pilot go-live checklist
 

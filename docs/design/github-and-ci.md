@@ -562,3 +562,85 @@ same whatever the answers, and the answers are applied at the first push.
    `pg_monitor` during migration tests matters.
 10. **Commit e-mail.** The history already carries the owner's commit address, visible to collaborators of a
     private repository. Default: leave it. GitHub's no-reply address can be used for future commits if preferred.
+
+## Deviations
+Recorded by the developer at build time (20 Oct 2026).
+
+1. **`.claude/settings.json` is not changed by the build.** Decision 10's permission entries widen what the agents
+   may run, so they are left for the owner to apply by hand: in `allow`, `Bash(git push origin main)`,
+   `Bash(git push origin refs/tags/feature/*)`, `Bash(gh run list*)` and `Bash(gh run view*)`; in `deny`,
+   `Bash(git push --force*)`, `Bash(git push -f*)`, `Bash(git push --force-with-lease*)` and
+   `Bash(git push --mirror*)`. Until then every `git push` stays in `ask`, and the guard hook already refuses the
+   force forms. The integrator's definition handles a declined push as `pushed: no`.
+2. **Images are built with `docker/bake-action` and tagged per target.** `docker buildx bake -f compose.yml` gives
+   every service a target but no tag (no service in `compose.yml` names an `image:`), so the `compose` job reads the
+   target list from `bake --print` and sets `<target>.tags=aslms-<target>` (the names Compose gives with the project
+   `aslms`), plus one shared `type=gha` cache for all targets. A step checks that every image is loaded under that
+   name before `docker compose up --no-deps web`. The bake action runs with `source: .` (the checkout, not the Git
+   context). This is unproven until the first run on GitHub; if it fails there, the fallback in decision 3 (plain
+   `docker compose --profile '*' build`) applies.
+3. **The history holds two more old development defaults than the design listed.** Besides `POSTGRES_PASSWORD=aslms`
+   (commit 6f238048), commit ec1254cb set `ASLMS_APP_PASSWORD=aslms_app` and `ASLMS_READONLY_PASSWORD=aslms_readonly`
+   in `.env.example`. All three are on preflight's weak-value list. `repo_policy.py` keeps a commented
+   `HISTORY_ALLOWLIST` of exactly these three (commit, path, rule) entries, used only by `range` and `history`; the
+   `tree` mode has no exceptions. gitleaks does not flag them.
+4. **Rule details in `repo_policy.py`** (the design is silent on them):
+   - the switch rule also matches `1`, `yes` and `on`, the other values the settings read as true;
+   - a private-key finding is a line that is only the BEGIN marker, or the marker followed by an escaped `\n` and
+     key material on one line; an assertion that mentions the marker (`test_ops_unit.py`) is not a block;
+   - for the credential and example-env rules, a value that starts with `#` (a comment) or a backtick (the end of a
+     Markdown code span such as `` `NAPIX_AUTH_KEY=` ``), or that is only closing punctuation (`"NAME=",` in Python),
+     is empty;
+   - `range` accepts any git revision list after `--` (the pre-push hook passes `<sha> --not --remotes=<remote>` for
+     a new ref); `history` takes `--branch` (CI passes `HEAD`, the checked-out `main`).
+5. **gitleaks allowlist.** Five commented entries: the NAPIX `response_token` in `docs/specs/samples/*.json` and the
+   known-answer vectors in `crypto.py` / the integration notes (HMACs under the published hash key), the test fakes
+   (the generic rule only, under `backend/tests/`; the three ASLMS rules still apply there), the npm integrity hashes,
+   and the specification PDFs. The full-history scan with gitleaks 8.30.1 is clean (275 commits).
+6. **Guard extensions.** Besides the forms in decision 9, the guard refuses `git push` with no remote named (its
+   remote cannot be checked), `--prune` and `--repo`, `git remote rm` and `rename`, and `gh repo unarchive` and
+   `set-default`. Commands inside `bash -c` / `pwsh -Command` are checked too.
+7. **The per-run helpers live in `backend/tests/db/rundb.py`** (pure functions, the sweep, the cluster lock), imported
+   by `conftest.py`, so the unit tests use them without a database. `cluster_lock()` is re-entrant within a thread,
+   so the role pre-creation, `migrated` and a marked test never wait on themselves.
+8. **Pinned tools:** gitleaks 8.30.1 and actionlint 1.7.12 run from their images by digest (`GITLEAKS_IMAGE`,
+   `ACTIONLINT_IMAGE` in the workflow `env`); the actions are checkout v7.0.1, setup-python v7.0.0, setup-node
+   v7.1.0, cache v6.1.0, upload-artifact v7.0.2, setup-buildx-action v4.4.1 and bake-action v7.5.0, each by commit SHA.
+9. **CI installs the backend with `backend/constraints-ci.txt`.** Reproducing the `backend` job in Linux
+   containers (Verification part 1, step 4) showed that an unconstrained `pip install` resolves newer packages than
+   the owner's `.venv` (FastAPI 0.150 and Starlette 1.9 against 0.142 and 1.7): Starlette's new reason phrases
+   ("Content Too Large") make `test_committed_openapi_matches_the_app` fail, and a newer ruff could reformat files.
+   So CI would be red from its first run. The smallest fix: a constraints file holding the `.venv`'s versions
+   (`pip freeze --exclude-editable`), used only by CI (`pip install -c`). The `dependency-locks` row still replaces
+   it with one lock used by CI and the Dockerfile alike; until then the file is refreshed by hand when the `.venv`
+   is upgraded.
+10. **Two tests made independent of the CI environment** (the only test-logic changes besides the markers):
+    `test_case_search.py::test_migration_backfill_fills_the_vector` built its Alembic URL by replacing the masked
+    password with the literal `aslms`, which fails against any other password (CI's `aslms-ci`); it now renders the
+    engine's URL with the password. `test_mailer.py` removes `MAIL_BACKEND` and the mail variables from the process
+    environment for its tests, because CI sets `MAIL_BACKEND=console` for the whole run (decision 6) and the tests
+    check the automatic choice.
+11. **The OpenAPI export is the same on Python 3.12 and 3.13.** The image and CI run 3.12 (decision 3), the owner's
+    `.venv` runs 3.13, and 3.13 renamed some `http.HTTPStatus` phrases that FastAPI uses as default response
+    descriptions (413 "Request Entity Too Large" became "Content Too Large"). The committed `frontend/openapi.json`
+    carries the 3.13 names, so `test_committed_openapi_matches_the_app` failed on 3.12. `backend/tools/export_openapi.py`
+    now maps the four old phrases (413, 414, 416, 422) to RFC 9110's when a response carries exactly the old one;
+    on 3.13 nothing changes and `openapi.json` is unchanged.
+12. **Observed once, not reproduced:** the first Linux reproduction also failed
+    `test_discovery_run.py::test_a_search_stores_records_and_queues_dossiers` and
+    `::test_a_malformed_cino_is_counted_not_stored` (`result` still empty after the run). Both passed alone and in
+    the second full Linux run. If CI shows them again, they become a fix row (a likely ordering or timing dependency
+    in the discovery runner's tests), not a change here.
+13. **Left to the scribe:** the decisions-log entry, `CLAUDE.md` "Current focus" and the follow-up rows of decision 15
+   (`github-first-push`, `dependency-locks`, `test-postgres-service`).
+14. **The guard reads every line of a command (review fix).** `segments()` treated a line break as plain
+    whitespace, so a multi-line command was checked as one simple command and a push, remote or `gh` command after
+    the first line passed. An unquoted line break (`\n` or `\r\n`) now separates commands like `;`. A backslash
+    before the break continues the line; so does PowerShell's backtick, and because a POSIX shell does not join on
+    a backtick, such a command is checked both ways. A break inside quotes stays part of its word, so a multi-line
+    commit message is still one argument. Comments, heredoc bodies (`<<EOF`, `<<-EOF`, quoted delimiters) and
+    PowerShell here-strings (`@'…'@`, `@"…"@`) are dropped before the split, so an apostrophe or a command-like line
+    inside them neither shifts the quoting nor counts as a command. `test_guard_push.py` covers the multi-line
+    forms. Known limit, as before: a `"` inside a heredoc nested in a double-quoted `$(…)` can still shift the
+    quoting; the guard is a backstop to the permission rules, not a shell parser. The unused `low` variable was
+    removed so `guard.py` is `ruff` clean.

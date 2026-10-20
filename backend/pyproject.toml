@@ -53,3 +53,6 @@ ignore = ["E501", "B008", "B905", "E741"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+  "migration_cycle: the test calls command.upgrade / downgrade and holds the cluster lock (tests/db/rundb.py)",
+]

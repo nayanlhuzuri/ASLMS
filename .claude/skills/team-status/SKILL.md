@@ -12,6 +12,9 @@ Gather and show, in one compact message:
 4. The two newest files in `docs/reports/` (title line and the merged commit).
 5. Load progress: `cd backend && .venv/Scripts/aslms queue-status` (skip with a note if the database is down),
    plus `docker compose ps --format "{{.Name}} {{.Status}}"`.
-6. What the owner must do next, if anything (approve a note, answer a question).
+6. The remote and CI (design github-and-ci), when `git remote get-url origin` succeeds: how far `main` is ahead
+   of `origin/main` (`git rev-list --count origin/main..main`), and the last three CI runs on `main`
+   (`gh run list --branch main --limit 3`, skipped with a note when `gh` is missing or not signed in).
+7. What the owner must do next, if anything (approve a note, answer a question, push, fix a red CI run).
 
 Read-only: change nothing.

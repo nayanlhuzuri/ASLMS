@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from datetime import date
 
+import pytest
 import sqlalchemy as sa
 from alembic import command
 from alembic.autogenerate import compare_metadata
@@ -16,6 +17,8 @@ from sqlalchemy.orm import sessionmaker
 from aslms.db.base import Base
 from aslms.services.seed import seed_all
 from tests.db.conftest import alembic_config, wipe, wipe_if_migrated
+
+pytestmark = pytest.mark.migration_cycle
 
 CNR = "GAHC010000012025"
 OTHER = "GAHC010000022025"

@@ -12,6 +12,8 @@ from alembic import command
 
 from tests.db.conftest import alembic_config, head_revision, wipe_if_migrated
 
+pytestmark = pytest.mark.migration_cycle
+
 
 def _scalar(conn, sql: str, **params):
     return conn.execute(sa.text(sql), params).scalar()

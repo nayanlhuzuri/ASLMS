@@ -100,6 +100,9 @@ const MERGE = {
     tag: { type: 'string' },
     report: { type: 'string' },
     failedGate: { type: 'string' },
+    pushed: { type: 'boolean' },
+    pushNote: { type: 'string' },
+    ciRun: { type: 'string' },
   },
   required: ['merged'],
 }
@@ -212,7 +215,7 @@ const docs = await agent(
 // ------------------------------------------------------------------ Merge
 phase('Merge')
 const merge = await agent(
-  `Run the gates on branch feature/${slug}, squash-merge into main, tag, set the backlog row to done and write docs/reports/${today}-${slug}.md. Review findings and how they were closed:\n${JSON.stringify(reviewHistory.map((r) => r.findings).flat(), null, 2)}`,
+  `Run the gates on branch feature/${slug} (including the CI-on-main check when a remote exists), squash-merge into main, tag, set the backlog row to done, write docs/reports/${today}-${slug}.md, then push main and the tag when a remote exists (fast-forward only; return pushed, pushNote and ciRun). Review findings and how they were closed:\n${JSON.stringify(reviewHistory.map((r) => r.findings).flat(), null, 2)}`,
   { label: `integrator: ${slug}`, agentType: 'integrator', schema: MERGE },
 )
 
@@ -224,5 +227,5 @@ return {
   review: review ? { findings: review.findings, mayMerge: review.mayMerge } : null,
   docs: docs ? docs.files : null,
   merge,
-  outcome: merge && merge.merged ? `merged as ${merge.commit}; report ${merge.report}` : `not merged: ${merge ? merge.failedGate : 'integrator did not return'}`,
+  outcome: merge && merge.merged ? `merged as ${merge.commit}; report ${merge.report}; ${merge.pushed ? `pushed${merge.ciRun ? `, CI ${merge.ciRun}` : ''}` : `not pushed${merge.pushNote ? ` (${merge.pushNote})` : ''}`}` : `not merged: ${merge ? merge.failedGate : 'integrator did not return'}`,
 }

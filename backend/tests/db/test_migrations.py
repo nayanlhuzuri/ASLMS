@@ -20,6 +20,7 @@ def _scalar(engine: sa.Engine, sql: str):
         return conn.execute(sa.text(sql)).scalar()
 
 
+@pytest.mark.migration_cycle
 def test_upgrade_downgrade_upgrade(db_url: str):
     cfg = alembic_config(db_url)
     wipe_if_migrated(db_url)  # the downgrades refuse to strip populated tables

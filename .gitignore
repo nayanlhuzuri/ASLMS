@@ -4,6 +4,10 @@
 !.env.example
 *.pem
 *.key
+*.p12
+*.pfx
+# Postman environments hold live values (the collection holds {{placeholders}} only)
+*.postman_environment.json
 
 # --- local data (cause-list PDFs, document storage, samples) ---------------
 data/
@@ -15,6 +19,8 @@ order_documents/
 
 # --- deployment (design deployment-checklist): backups and the proxy's certificate and keys ---------
 backups/
+*.dump
+roles-*.sql
 infra/proxy/certs/
 infra/clamav/freshclam.conf
 

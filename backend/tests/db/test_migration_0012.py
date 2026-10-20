@@ -3,6 +3,7 @@ gone after the downgrade; the database matches the models at head."""
 
 from __future__ import annotations
 
+import pytest
 import sqlalchemy as sa
 from alembic import command
 from alembic.autogenerate import compare_metadata
@@ -10,6 +11,8 @@ from alembic.migration import MigrationContext
 
 from aslms.db.base import Base
 from tests.db.conftest import alembic_config, wipe_if_migrated
+
+pytestmark = pytest.mark.migration_cycle
 
 INDEXES = ("ix_cases_disposal_date", "ix_case_hearings_business_date")
 

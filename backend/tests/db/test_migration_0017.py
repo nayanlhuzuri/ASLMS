@@ -19,6 +19,8 @@ from aslms.services import queue
 from aslms.services.seed import seed_all
 from tests.db.conftest import alembic_config, head_revision, wipe, wipe_if_migrated
 
+pytestmark = pytest.mark.migration_cycle
+
 
 def _tables(engine) -> set[str]:
     return set(sa.inspect(engine).get_table_names())

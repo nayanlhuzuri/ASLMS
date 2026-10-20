@@ -14,7 +14,9 @@ Run one cycle of the ASLMS agent team as described in `docs/team/README.md`.
    (add `"dryRun": true` when the user wrote `--dry-run`: the cycle then stops after the design). The owner has
    opted into this orchestration by invoking this command.
 3. When the workflow returns, read its result and report in a few lines: the phase reached, the design
-   status, commits and branch, test summary, review findings and how they were closed, the report path, and
+   status, commits and branch, test summary, review findings and how they were closed, the report path,
+   whether `main` was pushed and the CI run's address, and
    what the owner must do next (approve a note, answer a question, or nothing).
 
-Never set `NAPIX_ENABLED`, never touch `.env`, never run `git push`.
+Never set `NAPIX_ENABLED`, never touch `.env`. Only the integrator pushes, as its definition says (`main` and
+the cycle's tag, fast-forward only, when a remote exists); nothing else runs `git push`.

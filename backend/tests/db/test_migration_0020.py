@@ -3,10 +3,13 @@ the predefined role `pg_monitor` (statistics only, still no write), and the down
 
 from __future__ import annotations
 
+import pytest
 import sqlalchemy as sa
 from alembic import command
 
 from tests.db.conftest import alembic_config
+
+pytestmark = pytest.mark.migration_cycle
 
 
 def test_readonly_role_is_a_pg_monitor_member(engine):

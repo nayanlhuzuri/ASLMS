@@ -546,6 +546,7 @@ def test_ingestion_rows_are_append_only(world, api, case_id):
     assert len(h.attempts(world, d.id)) == 1
 
 
+@pytest.mark.migration_cycle
 def test_migration_0011_back_fills_archived_and_down_up(db_url, engine):
     cfg = alembic_config(db_url)
     wipe_if_migrated(db_url)

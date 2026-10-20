@@ -1,0 +1,77 @@
+# gitleaks configuration for ASLMS (design github-and-ci, decision 8).
+# Run in CI on the commits of each push or pull request, every week over the whole history
+# (.github/workflows/secret-scan.yml), and by the owner before the first push (docs/operations.md section 19):
+#   docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks@sha256:<digest in ci.yml> git /repo \
+#     --config /repo/.gitleaks.toml --redact --no-banner
+# A true finding is never "fixed" by an agent: the owner rotates the key and decides on the history.
+
+title = "ASLMS gitleaks rules"
+
+[extend]
+useDefault = true
+
+# A non-empty NAPIX credential value (client id, client secret, department id, the AES auth key). Placeholders
+# (empty, "", ${...}, <...>, {{...}}), comments and Markdown code spans are not values.
+[[rules]]
+id = "aslms-napix-credential"
+description = "A NAPIX credential with a value"
+regex = '''NAPIX_(?:CLIENT_ID|CLIENT_SECRET|DEPT_ID|AUTH_KEY)["']?[ \t]*[=:][ \t]*["']?([^\s"'#$<{`][^\s"'`]{3,})'''
+secretGroup = 1
+keywords = ["napix_client_id", "napix_client_secret", "napix_dept_id", "napix_auth_key"]
+
+# Mailtrap API tokens (32 hex characters) next to the word mailtrap or the token's variable.
+[[rules]]
+id = "aslms-mailtrap-token"
+description = "A Mailtrap API token"
+regex = '''(?i)(?:mailtrap[\w.-]{0,30}|MAILTRAP_API_TOKEN)["']?[ \t]*[=:][ \t]*["']?([0-9a-f]{32})\b'''
+secretGroup = 1
+keywords = ["mailtrap"]
+
+# A PEM private-key block: the BEGIN marker followed by key material.
+[[rules]]
+id = "aslms-private-key-block"
+description = "A PEM private-key block"
+regex = '''-----BEGIN[ A-Z0-9_-]{0,40}PRIVATE KEY-----[\s\\nr]*[A-Za-z0-9+/=]{40,}'''
+keywords = ["private key"]
+
+# ------------------------------------------------------------------------------------------------- allowlist
+# Each entry names what it lets through and why. Nothing else is allowed.
+
+# The NAPIX envelope's `response_token` is the HMAC-SHA256 of the response text under the hash key 15081947, which
+# the e-Committee specification publishes (docs/napix_integration_notes.md). It proves integrity; it is not a secret.
+[[allowlists]]
+description = "NAPIX response_token in the decrypted samples: HMAC under the published hash key"
+condition = "AND"
+paths = ['''^docs/specs/samples/[^/]+\.json$''']
+regexTarget = "match"
+regexes = ['''response_token"\s*:''']
+
+# The known-answer HMAC vectors in the crypto module and its notes are made with the published hash key 15081947.
+[[allowlists]]
+description = "Known-answer HMAC test vectors made with the published hash key"
+condition = "AND"
+paths = ['''^backend/aslms/integration/napix/crypto\.py$''', '''^docs/napix_integration_notes\.md$''']
+regexTarget = "line"
+regexes = ['''KNOWN_ANSWER''', '''15081947''']
+
+# Test fakes: the unit and database tests hold made-up keys and tokens (`test-key-16bytes`, `secret-test`,
+# `tok-secret-...`, `st-dummy-key-...`, preflight's sample passwords). Only the generic rule is relaxed there: the
+# ASLMS rules (NAPIX credential, Mailtrap token, private-key block) still apply to the tests.
+[[allowlists]]
+description = "Made-up keys and tokens in the test suite (generic rule only)"
+targetRules = ["generic-api-key"]
+paths = ['''^backend/tests/''']
+
+# npm's Subresource Integrity hashes in the lock file are public package digests.
+[[allowlists]]
+description = "npm integrity hashes in frontend/package-lock.json"
+condition = "AND"
+paths = ['''^frontend/package-lock\.json$''']
+regexTarget = "line"
+regexes = ['''"integrity":\s*"sha(?:1|256|384|512)-''']
+
+# The e-Committee API specifications and the NAPIX subscriber manual (binary PDFs, no credentials; reviewed when
+# the design was written). Compressed PDF streams produce random high-entropy text.
+[[allowlists]]
+description = "NAPIX and e-Committee specification PDFs"
+paths = ['''^docs/specs/pdf/[^/]+\.pdf$''']

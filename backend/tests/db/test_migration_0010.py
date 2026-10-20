@@ -12,6 +12,8 @@ from alembic import command
 
 from tests.db.conftest import TEST_URL, alembic_config, head_revision, wipe_if_migrated
 
+pytestmark = pytest.mark.migration_cycle
+
 
 def test_migration_0010_cycles_and_refuses_with_a_device(db_url, engine):
     cfg = alembic_config(db_url)

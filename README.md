@@ -20,8 +20,11 @@ Prometheus, Alertmanager, Grafana and Flower (Compose profile `monitoring`), and
    is fine in development).
 2. `docker compose up -d`. The portal is at http://localhost:3000, the API at http://127.0.0.1:8000 (`/docs`), and
    Postgres at `127.0.0.1:5433`. Every port is bound to loopback only.
-3. Backend tests: `cd backend && .venv/Scripts/python -m pytest -q` (the database tests use the Compose Postgres,
-   database `aslms_test`). Lint: `.venv/Scripts/ruff check .`. Frontend: `cd frontend && npm test && npm run lint`.
+3. Backend tests: `cd backend && .venv/Scripts/python -m pytest -q` (the database tests use the Compose Postgres;
+   each run creates and drops its own database `aslms_test_<stamp>_<hex>`, operations.md section 16). Lint: `.venv/Scripts/ruff check .`. Frontend: `cd frontend && npm test && npm run lint`.
+
+CI runs the same gates on GitHub for every push of `main` and every pull request (`.github/workflows/ci.yml`,
+operations.md section 19); it holds no secrets.
 
 The NAPIX master switch stays off in every file. The owner sets it in the shell for a live run.
 

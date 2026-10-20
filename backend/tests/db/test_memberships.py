@@ -73,6 +73,7 @@ def at_0007(engine):
         wipe(conn)
 
 
+@pytest.mark.migration_cycle
 def test_backfill_gives_every_user_one_primary_membership_and_moves_overrides(engine, at_0007):
     u1, u2, u3 = (str(uuid.uuid4()) for _ in range(3))
     with engine.begin() as conn:
@@ -117,6 +118,7 @@ def test_backfill_gives_every_user_one_primary_membership_and_moves_overrides(en
         )
 
 
+@pytest.mark.migration_cycle
 def test_migration_guard_stops_on_two_super_admins(engine, at_0007):
     with engine.begin() as conn:
         conn.execute(sa.text(_user_sql(str(uuid.uuid4()), "root1@example.org", "super_admin", "1")))
@@ -137,6 +139,7 @@ def test_migration_guard_stops_on_two_super_admins(engine, at_0007):
         conn.execute(sa.text("DELETE FROM users WHERE email = 'head2@example.org'"))
 
 
+@pytest.mark.migration_cycle
 def test_downgrade_stops_on_a_second_membership(world):
     """The downgrade refuses while the old schema cannot hold the data."""
     from tests.db.world import add_membership
@@ -151,6 +154,7 @@ def test_downgrade_stops_on_a_second_membership(world):
         assert s.execute(sa.text("select version_num from alembic_version")).scalar() == head_revision()
 
 
+@pytest.mark.migration_cycle
 def test_downgrade_stops_on_a_ticket(world):
     """A ticket is a legal record: the downgrade refuses."""
     from aslms.services import tickets
@@ -168,6 +172,7 @@ def test_downgrade_stops_on_a_ticket(world):
         assert s.execute(sa.text("select version_num from alembic_version")).scalar() == head_revision()
 
 
+@pytest.mark.migration_cycle
 def test_migration_reports_headless_departments_and_creates_nothing(engine, at_0007):
     with engine.begin() as conn:
         conn.execute(sa.text(_user_sql(str(uuid.uuid4()), "admin@example.org", "dept_admin", "2")))
