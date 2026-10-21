@@ -2,10 +2,10 @@
 
 ```
 slug: system-health-inspector
-status: awaiting-approval
+status: approved
 author: architect
 date: 2026-10-21
-approved_by: (pending)
+approved_by: owner on 2026-10-21, with the stated defaults (pre-fill only from cases the sender may see; the full decrypted answer for holders who also have cases.view_all); decisions A-E confirmed
 ```
 
 ## Context
