@@ -606,8 +606,18 @@ parallel (row 15), which this note does not touch; the official emblem file, whi
       Administration (users, user types, offices, designations, Department mapping, tickets) and My profile.
     - **Audit log** and **Data collection**: Work list and Dashboard templates respectively, with their rules
       unchanged (portal-audit-health, data-load-console).
-    - **Public pages:** the sign-in, code, reset and first-sign-in pages as a centred card with the brand
-      (decision 21). The error and not-found pages use the empty-state pattern.
+    - **Public pages:** the sign-in, code, reset and first-sign-in pages with the brand (decision 21). The error
+      and not-found pages use the empty-state pattern.
+      *Amended by the owner, 20 Oct 2026:* template **A, the split panel**, replaces the centred card. The visual
+      reference is `docs/design/ui/aslms-sign-in-templates.html`, tab A. On laptops:
+      - the left half is a deep-blue panel with "Government of Assam", the full name "Assam State Litigation
+        Management System", one line on what it is for, and three short benefit tiles;
+      - the right half is white, with the official emblem (`BrandLockup`), the form, the two-step indicator
+        ("Password, then a code sent to your e-mail") and "Forgot password?".
+      On phones the panel shrinks to a header above the form and the benefit tiles are hidden. The same frame serves
+      the code, reset and first-sign-in pages, with only the right half changing. Every password field has the
+      show / hide button that is already in `TextField`. The Gauhati High Court is not named on these pages. The
+      tiles' text lives in `messages.ts` like all other text.
 
 ### E. Languages (owner decision 5; Round 1)
 
