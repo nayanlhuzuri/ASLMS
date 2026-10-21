@@ -10,6 +10,7 @@ import asyncio
 import base64
 import binascii
 import hashlib
+import hmac
 import json
 import random
 import re
@@ -39,6 +40,30 @@ from aslms.core.logging import get_logger
 from aslms.integration.napix.crypto import NapixCrypto, build_plain
 
 log = get_logger(__name__)
+
+# A signature mismatch is recorded on every call (`token_verified` in the call log) but warned at most once per API
+# in this many seconds, with the number of mismatches since the last warning: the gateway signs PDF answers in a form
+# that does not match on every Show Order call, and one warning per order flooded the worker's log.
+MISMATCH_WARN_SECONDS = 600
+_mismatch_lock = threading.Lock()
+_mismatch_seen: dict[str, tuple[float, int]] = {}
+
+
+def _warn_mismatch(api: str) -> None:
+    now = time.monotonic()
+    with _mismatch_lock:
+        last, quiet = _mismatch_seen.get(api, (0.0, 0))
+        if last and now - last < MISMATCH_WARN_SECONDS:
+            _mismatch_seen[api] = (last, quiet + 1)
+            return
+        _mismatch_seen[api] = (now, 0)
+    log.warning(
+        "napix response_token mismatch",
+        api=api,
+        mismatches_since_last_warning=quiet,
+        warned_at_most_every_seconds=MISMATCH_WARN_SECONDS,
+    )
+
 
 NAPIX_STATUS: dict[int, str] = {
     600: "INVALID_CNR",
@@ -439,6 +464,19 @@ class NapixClient:
             raise NapixEmptyResponse(f"NAPIX {what}", api=result.api)
         self.parse_body(body, result)
 
+    def signature_matches(self, token: str, text: str, cipher: Any) -> bool:
+        """The gateway's `response_token` is HMAC-SHA256 (key 15081947) of the decrypted JSON text, and JSON answers
+        verify that way. PDF answers (Show Order, Show Cause List: a JSON string holding Base64) do not
+        (napix_integration_notes.md section 4), so the other forms the gateway may have signed are tried too: the
+        unquoted Base64 inside the string, and the encrypted `response_str` as sent. A match on any of them counts."""
+        candidates = [text]
+        inner = _json_or_none(text.strip())
+        if isinstance(inner, str):
+            candidates.append(inner)
+        if isinstance(cipher, str):
+            candidates.append(cipher)
+        return any(hmac.compare_digest(token, self.crypto.token(c)) for c in candidates)
+
     def parse_body(self, body: Any, result: NapixResult) -> None:
         """Decrypts `response_str`, verifies `response_token`, maps every error shape seen live. Pure."""
         if isinstance(body, dict) and "response_str" in body:
@@ -448,9 +486,11 @@ class NapixClient:
                 raise NapixProtocolError(str(e), api=result.api) from e
             result.raw_text = text
             if body.get("response_token"):
-                result.token_verified = body["response_token"] == self.crypto.token(text)
+                result.token_verified = self.signature_matches(
+                    str(body["response_token"]), text, body["response_str"]
+                )
                 if not result.token_verified:
-                    log.warning("napix response_token mismatch", api=result.api)
+                    _warn_mismatch(result.api)
             stripped = text.strip()
             data = _json_or_none(stripped)
             if isinstance(data, str):  # Show Cause List: a JSON string holding the Base64 PDF

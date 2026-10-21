@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import base64
+import json
+
 import httpx
 import pytest
 
@@ -313,3 +316,42 @@ async def test_zero_remaining_waits_probe_interval_not_window(monkeypatch) -> No
     await lim.wait()
     assert slept == [180]
     assert RateLimiter(60, window_seconds=60, zero_wait_seconds=180)._header_delay() == 0  # nothing seen yet
+
+
+async def test_pdf_answers_signed_over_the_base64_or_the_ciphertext_verify(
+    client: NapixClient, gateway: Gateway
+) -> None:
+    """Show Order and Show Cause List send a JSON string of Base64; the gateway's signature is not over that quoted
+    text, so the unquoted Base64 and the ciphertext are accepted as the signed forms."""
+    b64 = base64.b64encode(b"%PDF-1.4 sample").decode()
+    quoted = json.dumps(b64)
+    cipher = gateway.crypto.encrypt(quoted)
+    over_b64 = {"response_str": cipher, "response_token": gateway.crypto.token(b64), "version": "v1.0"}
+    over_cipher = {"response_str": cipher, "response_token": gateway.crypto.token(cipher), "version": "v1.0"}
+    unsigned = {
+        "response_str": cipher,
+        "response_token": gateway.crypto.token("something else"),
+        "version": "v1.0",
+    }
+    for body in (over_b64, over_cipher, unsigned):
+        gateway.responses.append(lambda p, q, r, body=body: httpx.Response(200, text=json.dumps(body)))
+    async with client:
+        a = await client.call("hc-order-api/order")
+        b = await client.call("hc-order-api/order")
+        c = await client.call("hc-order-api/order")
+    assert a.token_verified is True and b.token_verified is True
+    assert c.token_verified is False
+
+
+def test_signature_mismatches_are_warned_at_most_once_per_api_per_period(monkeypatch) -> None:
+    from aslms.integration.napix import client as client_module
+
+    warnings: list[dict] = []
+    monkeypatch.setattr(client_module, "_mismatch_seen", {})
+    monkeypatch.setattr(client_module.log, "warning", lambda event, **kw: warnings.append(kw))
+    clock = iter([1000.0, 1001.0, 1002.0, 1000.0 + client_module.MISMATCH_WARN_SECONDS + 5, 1003.0])
+    monkeypatch.setattr(client_module.time, "monotonic", lambda: next(clock))
+    for api in ("hc-order-api/order",) * 4 + ("hc-cnr-api/CNR",):
+        client_module._warn_mismatch(api)
+    assert [w["api"] for w in warnings] == ["hc-order-api/order", "hc-order-api/order", "hc-cnr-api/CNR"]
+    assert warnings[1]["mismatches_since_last_warning"] == 2

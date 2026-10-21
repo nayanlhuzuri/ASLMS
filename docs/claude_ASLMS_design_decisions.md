@@ -2179,3 +2179,11 @@ Backlog row 110 `api-health-checker-followups`, branch `feature/api-health-check
 
 - Until now Compose passed `NAPIX_ENABLED` only to the `worker`. The `api` therefore always ran with the switch off, and the portal's own court calls answered `napix_off`: court search, fetch from court, the data-load fetch and System health's Test now. The owner approved passing it to the `api` the same way (`NAPIX_ENABLED: ${NAPIX_ENABLED:-false}`). It is still never written as on in any file, and the default stays off.
 - The rule in `docs/operations.md` section 11 is updated to say so.
+
+## 2026-10-21 — NAPIX signature check for PDF answers; warnings throttled (on `main`, outside a cycle)
+
+- The owner saw the worker log flooded with "napix response_token mismatch". The call log showed the cause: all 20,287 Show Order answers in 24 hours failed the signature check, while every JSON answer verified. This is the gateway quirk for PDF answers recorded on 1 Oct. The PDFs are decrypted, checked (`%PDF`) and stored as before.
+- `NapixClient.signature_matches` also accepts the unquoted Base64 and the encrypted `response_str` as signed forms.
+- `_warn_mismatch` warns at most once per API every 10 minutes and counts the suppressed mismatches. Every call still records `token_verified` in `napix_call_log`, so nothing is lost.
+- Tests in `tests/unit/test_napix_client.py`.
+- Whether the gateway's real form is one of these will show in the call log after deployment. If it is neither, the warnings stay throttled. The System health inspector (row 123) will show the check per API.

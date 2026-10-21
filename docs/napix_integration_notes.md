@@ -51,6 +51,11 @@ Status legend: ✅ verified live · ⚠️ from the spec, not yet verified live
   the HMAC the gateway sends does not match the decrypted JSON string, presumably because it is computed over
   the raw Base64 rather than the quoted string. The client logs the mismatch and keeps the PDF
   (`token_verified = false` in `napix_call_log`); JSON responses verify as before.
+  - 21 Oct 2026: in 24 hours of the load, all 20,287 Show Order answers failed the check and every JSON API verified
+    (about 900 calls). The client now also accepts a signature over the unquoted Base64 or over the encrypted
+    `response_str`. The worker log will show whether either form matches: `token_verified` turns true for Show Order
+    if so. A mismatch is still recorded on every call, but warned at most once per API every 10 minutes, with the
+    count since the last warning.
 
 ## 5. Error formats seen live ✅
 | What comes back | Meaning |
