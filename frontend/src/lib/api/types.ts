@@ -76,6 +76,19 @@ export type ApiTest = S["ApiTestOut"];
 export type ApiCall = S["CallOut"];
 export type HealthStatus = S["ApiCardOut"]["status"];
 export type ServicesHealth = S["ServicesOut"];
+// the System health request console (design system-health-inspector)
+export type ApiConsole = S["ConsoleOut"];
+export type ConsoleRequest = S["ConsoleRequestOut"];
+export type ConsoleField = S["ConsoleFieldOut"];
+export type LastSend = S["LastSendOut"];
+export type LatestAnswer = S["LatestAnswerOut"];
+export type StoredResponse = S["StoredResponseOut"];
+export type NapixReference = S["ReferenceOut"];
+export type NapixToken = S["NapixTokenOut"];
+export type NapixTokenCheck = S["NapixTokenCheckOut"];
+export type NapixDoc = S["NapixDocOut"];
+export type AnswerStructure = S["StructureOut"];
+export type InventoryDiff = S["InventoryDiffOut"];
 export type ServiceCheck = S["ServiceCheckOut"];
 export type RetryFailed = S["RetryFailedOut"];
 // portal-cases: inbox, search, case page

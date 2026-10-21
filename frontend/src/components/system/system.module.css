@@ -204,3 +204,130 @@
   height: 14px;
   background: var(--text);
 }
+
+/* The request console and the token card (design system-health-inspector, decision 14) */
+.tokenCard {
+  width: 100%;
+}
+
+.tablist {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: var(--s4);
+}
+
+.tab {
+  padding: var(--s3) var(--s4);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--text-2);
+  font: inherit;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tab[aria-selected="true"] {
+  border-bottom-color: var(--accent);
+  color: var(--accent);
+}
+
+.tab:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px var(--accent-ring);
+}
+
+/* the form: two columns on wide screens, stacked fields (label, input, hint) on phones */
+.fieldGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--s3);
+  min-width: 0;
+}
+
+@media (min-width: 820px) {
+  .fieldGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--t-sm);
+  overflow-wrap: anywhere;
+}
+
+.outline {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--t-sm);
+  overflow-wrap: anywhere;
+}
+
+.outline li {
+  padding: 2px 0;
+}
+
+.raw {
+  max-width: 100%;
+  max-height: 480px;
+  margin: 0;
+  padding: var(--s3);
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  font-family: var(--font-mono);
+  font-size: var(--t-sm);
+  white-space: pre;
+}
+
+.rowGap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.outcome {
+  margin: 0;
+  font-size: var(--t-lg);
+  font-weight: 600;
+}
+
+.steps {
+  margin: 0;
+  padding-left: var(--s5);
+}
+
+.steps li + li {
+  margin-top: var(--s1);
+}
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s3);
+  width: 100%;
+}
+
+.modalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+  min-width: 0;
+}
+
+.modalHeader > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: var(--t-sm);
+}

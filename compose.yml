@@ -237,6 +237,8 @@ services:
       NAPIX_ENABLED: ${NAPIX_ENABLED:-false}
     volumes:
       - ./data:/data
+      # the NAPIX documents behind admin.service_health, read-only (design system-health-inspector, decision 12)
+      - ./docs/specs/pdf:/app/napix-docs:ro
     depends_on:
       init:
         condition: service_completed_successfully

@@ -11,6 +11,8 @@
  *   parameter.
  * The mark is merged into the router's own entry state; if a later navigation drops it, `close()` replaces, which is
  * the older behaviour and never loses the page.
+ * `linked` names parameters that belong to the overlay (the console's `tab`, design system-health-inspector, decision
+ * 1): `open(value, extra)` adds them and `close()` drops them with the overlay's own.
  */
 import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
@@ -30,7 +32,7 @@ function currentMark(): unknown {
   return state ? state[OVERLAY_MARK] : undefined;
 }
 
-export function useUrlOverlay(param: string, params: Params, path: string) {
+export function useUrlOverlay(param: string, params: Params, path: string, linked: readonly string[] = []) {
   const router = useRouter();
   const value = params[param] || null;
   // the value this page pushed and has not yet marked
@@ -43,9 +45,9 @@ export function useUrlOverlay(param: string, params: Params, path: string) {
     window.history.replaceState({ ...state, [OVERLAY_MARK]: markOf(param, value) }, "", window.location.href);
   }, [param, value]);
 
-  function open(next: string) {
+  function open(next: string, extra: Params = {}) {
     pending.current = next;
-    router.push(path + queryString({ ...params, [param]: next }));
+    router.push(path + queryString({ ...params, [param]: next, ...extra }));
   }
 
   function close() {
@@ -56,6 +58,7 @@ export function useUrlOverlay(param: string, params: Params, path: string) {
     }
     const rest: Params = { ...params };
     delete rest[param];
+    for (const key of linked) delete rest[key];
     router.replace(path + queryString(rest));
   }
 

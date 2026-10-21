@@ -216,6 +216,12 @@ class Settings(BaseSettings):
     health_pool_address: str = "pgbouncer:6432"
     health_postgres_direct_host: str = "postgres"
     health_postgres_direct_port: int = Field(5432, ge=1, le=65535)
+    # --- the System health request console (design system-health-inspector, decision 17) ---------------
+    # the NAPIX PDFs served behind admin.service_health (a read-only mount of docs/specs/pdf on the api); "Check token"
+    # at most once per HEALTH_TOKEN_CHECK_MIN_SECONDS by anyone; the full decrypted answer up to HEALTH_RAW_MAX_BYTES
+    napix_docs_dir: str = "/app/napix-docs"
+    health_token_check_min_seconds: int = Field(600, ge=60, le=86400)
+    health_raw_max_bytes: int = Field(2_000_000, ge=10_000, le=20_000_000)
 
     @model_validator(mode="after")
     def _reserves_ordered(self) -> Settings:

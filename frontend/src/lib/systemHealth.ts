@@ -3,7 +3,7 @@
  * answered rate, the typical response, the status tones, the seconds until the next test is allowed and the plain
  * reason a "Test now" button is disabled. Every figure comes from the API; nothing here decides a status.
  */
-import type { ApiCard, HealthStatus, SystemHealth } from "./api/types";
+import type { ApiCard, HealthStatus, NapixToken, SystemHealth } from "./api/types";
 import { T } from "./messages";
 
 export type Tone = "success" | "warning" | "danger" | undefined;
@@ -49,12 +49,39 @@ export function secondsUntil(at: string | null | undefined, now: number = Date.n
 /** Why "Test now" is disabled on a card (null: it may be pressed): the switch, then the wait for the next allowed
  * test (counted down here; once past, the server checks again), then the server's reason (no sample held). */
 export function testBlock(card: ApiCard, napixEnabled: boolean, now: number = Date.now()): string | null {
-  if (!napixEnabled) return card.test.reason ?? T.system.switchedOff;
-  if (card.test.next_allowed_at) {
-    const wait = secondsUntil(card.test.next_allowed_at, now);
+  return sendBlock(card.test, napixEnabled, now);
+}
+
+/** The same rule for the console's Send state (design system-health-inspector, decision 8). */
+export function sendBlock(state: SendState, napixEnabled: boolean, now: number = Date.now()): string | null {
+  if (!napixEnabled) return state.reason ?? T.system.switchedOff;
+  if (state.next_allowed_at) {
+    const wait = secondsUntil(state.next_allowed_at, now);
     return wait > 0 ? T.system.nextIn(wait) : null;
   }
-  return card.test.available ? null : (card.test.reason ?? null);
+  return state.available ? null : (state.reason ?? null);
+}
+
+export interface SendState {
+  available: boolean;
+  reason?: string | null;
+  next_allowed_at?: string | null;
+}
+
+/** The signature check in words: verified, a mismatch (expected for PDFs) or not sent. */
+export function signatureWord(verified: boolean | null | undefined): string {
+  if (verified === true) return T.system.console.signatureWords.verified!;
+  if (verified === false) return T.system.console.signatureWords.mismatch!;
+  return T.system.console.signatureWords.none!;
+}
+
+/** The Access token card's one line (decision 10): held with its minutes left, renewing, none held, no store. */
+export function tokenLine(token: NapixToken): string {
+  if (!token.napix_enabled && !token.held) return T.system.token.off;
+  if (!token.shared_store && !token.held) return T.system.token.noStore;
+  if (token.held && token.renewing_soon) return T.system.token.renewing;
+  if (token.held) return T.system.token.heldShort(Math.max(0, Math.round((token.ttl_seconds ?? 0) / 60)));
+  return T.system.token.none;
 }
 
 /** The worst of the court cards in the overall ring's tone: a court card counts at most as `warn`. */

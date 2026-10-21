@@ -280,6 +280,20 @@ As built by `alerts-notifications` (migration 0007, 6 Oct 2026): `alerts` gains 
 > data-health connectivity check commits its rows the same way and takes `napix-api-test:overview`
 > (design `api-health-checker-followups`, no migration).
 
+> System health request console (design `system-health-inspector`, no migration, no table or column): the console,
+> the token card and the documentation read `napix_call_log` (the latest calls of an API and the calls since the
+> current token was issued, served by `ix_napix_call_log_called_at`), `napix_responses` (the stored answer of a send
+> by its id, or the latest stored answer by `(api, params_sha256)`, for its structure and, for holders of
+> `admin.service_health` and `cases.view_all`, its verbatim payload) and `audit_log` (`napix.api_tested`). A send's
+> `audit_log.after` also holds `params` (the plain parameters sent), `params_sha256`, `edited`, `response_id`,
+> `token_verified`, `rate_limit` and `structure` (field paths, types and counts, no values). A send is never applied to
+> case data. New audit actions: `napix.response_viewed` (`after`: api, response_id, source, bytes; never the payload)
+> and `napix.token_checked` (`after`: outcome, HTTP status, error family, duration, expires_in, the token endpoint's
+> rate headers; never the token). The per-API interval counts `napix.api_tested`; the per-person hourly cap counts
+> `napix.api_tested` and `napix.token_checked`; the token-check interval counts `napix.token_checked`. Outside the
+> database, the integration layer keeps non-secret token metadata in Redis (`napix:token:meta`,
+> `napix:token:requests:<date>`, 8-day expiry).
+
 > (department-discovery, migration 0017) `fetch_kind` gains `party_search` (ref `<est_code>|P|<reg_year>|<term>`);
 > `fetch_lane` gains `discovery` between `daily` and `load` (precedence request < daily < discovery < load).
 > Discovery rows are claimed only at or above `NAPIX_RATE_RESERVE` and while the discovery calls of the current window

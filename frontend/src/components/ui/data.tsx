@@ -7,7 +7,7 @@
  * leading columns (`Lead`, `DateChip`, `LeadIcon`) composed by `ListRow`.
  */
 import Link from "next/link";
-import { useCallback, useLayoutEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 
 import { dayMonth, formatDate, formatNumber } from "@/lib/format";
 import { T } from "@/lib/messages";
@@ -323,5 +323,55 @@ export function ListRow({
       <div className={s.listBody}>{children}</div>
       {trail ? <div className={s.listTrail}>{trail}</div> : null}
     </Tag>
+  );
+}
+
+/**
+ * A copy button (design system-health-inspector, decision 14): copies `text` and announces "Copied" to screen readers
+ * through a polite live region; a refused clipboard announces that instead.
+ */
+export function CopyButton({ text, label = T.copy }: { text: string; label?: string }) {
+  const [said, setSaid] = useState("");
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current);
+  }, []);
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(text);
+      setSaid(T.copied);
+    } catch {
+      setSaid(T.copyFailed);
+    }
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setSaid(""), 2000);
+  }
+  return (
+    <span className={s.copyWrap}>
+      <Button variant="ghost" size="sm" onClick={() => void copy()}>
+        {label}
+      </Button>
+      <span className={s.copyStatus} role="status" aria-live="polite">
+        {said}
+      </span>
+    </span>
+  );
+}
+
+/**
+ * Monospace text in a block that scrolls sideways inside itself, never the page (decision 14), with a copy button.
+ * `label` names the block for screen readers.
+ */
+export function CodeBlock({ children, label, copy = true }: { children: string; label: string; copy?: boolean }) {
+  return (
+    <figure className={s.codeBlock} data-ui="code">
+      <figcaption className={s.codeHead}>
+        <span className={s.codeLabel}>{label}</span>
+        {copy ? <CopyButton text={children} /> : null}
+      </figcaption>
+      <pre className={s.code} tabIndex={0} aria-label={label}>
+        <code>{children}</code>
+      </pre>
+    </figure>
   );
 }

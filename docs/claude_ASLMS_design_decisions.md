@@ -2221,3 +2221,25 @@ Row 115 `portal-ui-polish`, design `docs/design/portal-ui-polish.md`. No migrati
 - Runs: first (`./data/uicheck/20261021-2006`) 77 page routes and 5 states, 205 screenshots, no findings, 121 s. After the fix (`./data/uicheck/20261021-2239`) 77 routes and 5 states, 205 screenshots, 244 passed, `findings.json` `[]`, exit 0.
 
 **Left for later**: `uicheck` in CI (row 125, renumbered from 123 because row 123 was already the System health inspector); the owner's signed-in browser checklist on real data (row 124).
+
+## System health request console (2026-10-22)
+
+Row 123, design `docs/design/system-health-inspector.md` (approved 21 Oct 2026), branch `feature/system-health-inspector`. No migration, no table or column (head stays 0020).
+
+**Built**
+- The 17 court API cards on `/system` keep status and call-log history only and make no call; "Test now" left the card. A card opens a large modal at `?api=<key>&tab=request|response|history|docs` (`useUrlOverlay`, now with linked tab parameters). `?api=token` opens the Access token modal.
+- Request tab: method, full URL (base URL without user-info), plain parameters pre-filled from held data and editable, validated per the specification and integration notes (`services/napix_inspect.py`, `services/napix_reference.py`), the plain string, masked envelope, `request_token`, cURL and Postman templates with placeholders. The request is built by a capturing preview of the real `hc.py` method (`integration/napix/preview.py`), so it is never a second copy of what is sent.
+- Response tab: one live call per Send under the Test now guards (switch, quota floor, per-API interval, per-person hourly cap), HTTP and NAPIX status with meanings, timing, rate-limit headers, signature check, structure against the field inventory, and the full decrypted JSON for holders of `admin.service_health` and `cases.view_all` (audited `napix.response_viewed`, never the payload). A send is never applied to case data.
+- Access token card (`services/napix_token.py`): held, issued, expires, accepted since issue, last renewal, read with no call from non-secret Redis metadata (`napix:token:meta`, `napix:token:requests:<date>`, 8-day expiry). "Check token" is one audited token request (`napix.token_checked`).
+- Documentation tab: the three NAPIX PDFs behind the function, opened at the API's verified page, and an in-app reference. `api` mounts `./docs/specs/pdf:/app/napix-docs:ro`. Settings `NAPIX_DOCS_DIR`, `HEALTH_TOKEN_CHECK_MIN_SECONDS` (600), `HEALTH_RAW_MAX_BYTES` (2000000) in `core/config.py` and `.env.example`.
+
+**Decisions**
+- Nothing calls NAPIX on opening; every call is a person's Send, so quota use is attributable.
+- No secret in any answer, log line or audit row, proved by tests; token requests write one log line (outcome, error family, HTTP status, duration).
+- Review findings fixed (deviations 15 and 16 of the design note): a send with no body is refused with 409 `sample_hidden` when the held sample belongs to a case the caller cannot see; the last send shows names, CNRs, case and filing numbers only to the sender, `cases.view_all` holders, or for an unedited sample of a case the viewer can see, otherwise `‹not shown›` and `params_sha256` null.
+- Token requests are not rows of `napix_call_log` in this item (design decision 11): every reader that counts calls would change, and whether a token request counts against the window is not yet measured.
+
+**Deviations** (16 recorded in the design note, none changes a business rule): schema names `NapixTokenOut` and `NapixTokenCheckOut`; status `unknown` when no token is held and none requested; "Check token" is the modal footer primary; additive response fields; `params` in the audit row is a JSON object, plain string rebuilt in documented order; an unrelated calendar test now accepts " (Today)" on 22 Oct 2026.
+
+**Left for later**: the owner-run live check, master switch on for that run only (row 128); a durable token-request record and the quota-counting decision (row 127).
+

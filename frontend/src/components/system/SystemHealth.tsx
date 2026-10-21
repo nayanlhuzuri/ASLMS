@@ -3,16 +3,17 @@
 /**
  * The System health screen (design api-health-checker, decisions 2-15), for holders of `admin.service_health`: the
  * overview band (the court cards' 24 h answered rate in a ring, the overall sentence computed by the server and four
- * headline figures), the 17 court API cards in four groups read from the call log, and the ten ASLMS service checks.
- * Reading never calls the court; "Test now" makes one court call (its cost is on the button) and opens the card's
- * panel (`?api=<key>`, so Back closes it; closing goes back when this page opened it: `useUrlOverlay`, design
- * portal-ui-polish, decision 10) with the test running. The court cards are read again every minute while
- * the page is visible and after each test; the services when the page opens, on "Check services again" (the page's
- * one primary button) and on window focus. People are never named: calls read "background work", "a person" or
- * "your test".
+ * headline figures), the Access token card and the 17 court API cards in four groups read from the call log, and the
+ * ten ASLMS service checks. Reading never calls the court. A card shows status and history only and makes no call;
+ * clicking it opens that API's request console in a large modal (`?api=<key>&tab=…`, so Back closes it; closing goes
+ * back when this page opened it: `useUrlOverlay`, design portal-ui-polish, decision 10), where "Send · 1 court call"
+ * makes the one call (design system-health-inspector, decision 1). The Access token card opens `?api=token` (decision
+ * 10). The court cards are read again every minute while the page is visible and after each send; the services when
+ * the page opens, on "Check services again" (the page's one primary button) and on window focus. People are never
+ * named: calls read "background work", "a person" or "your test".
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useState } from "react";
 
 import {
   Badge,
@@ -31,22 +32,28 @@ import {
   SparkBars,
 } from "@/components/ui";
 import { api } from "@/lib/api/client";
-import type { ApiCard, ApiTest, ServicesHealth, SystemHealth as SystemHealthData } from "@/lib/api/types";
+import type { ApiCard, ServicesHealth, SystemHealth as SystemHealthData } from "@/lib/api/types";
 import { formatNumber, formatTime } from "@/lib/format";
 import { T } from "@/lib/messages";
-import type { Params } from "@/lib/params";
+import { queryString, type Params } from "@/lib/params";
 import { cardsOf, courtTotals, percent, ringTone, toneOf, typicalMs } from "@/lib/systemHealth";
 import { useUrlOverlay } from "@/lib/useUrlOverlay";
 
-import { ApiPanel, TestButton, type TestState } from "./ApiPanel";
+import { CONSOLE_TABS, ConsoleModal, type ConsoleTab } from "./Console";
 import s from "./system.module.css";
+import { TOKEN_TABS, TokenCard, TokenModal, useToken, type TokenTab } from "./Token";
 
 export const SUMMARY_KEY = ["system-health"] as const;
 export const SERVICES_KEY = ["system-health", "services"] as const;
 export const SUMMARY_POLL_MS = 60_000;
+const TOKEN = "token"; // a reserved key, never a court API
+
+function tabOf<K extends string>(tabs: readonly K[], value: string | undefined): K {
+  return (tabs as readonly string[]).includes(value ?? "") ? (value as K) : tabs[0]!;
+}
 
 export function SystemHealth({ params }: { params: Params }) {
-  const overlay = useUrlOverlay("api", params, "/system");
+  const overlay = useUrlOverlay("api", params, "/system", ["tab"]);
   const qc = useQueryClient();
   const summary = useQuery({
     queryKey: SUMMARY_KEY,
@@ -59,35 +66,26 @@ export function SystemHealth({ params }: { params: Params }) {
     staleTime: 0,
     refetchOnWindowFocus: true,
   });
-  const [tests, setTests] = useState<Record<string, TestState>>({});
-  const inFlight = useRef<Set<string>>(new Set());
+  const token = useToken();
   const openKey = params.api ?? null;
   const cards = cardsOf(summary.data);
   const openCard = cards.find((c) => c.key === openKey) ?? null;
+  // the tab lives in the address (a shared link opens it) without a new history entry, so Back still closes; a
+  // tab chosen in this overlay wins over the address it was opened with
+  const [chosen, setChosen] = useState<{ key: string | null; tab: string } | null>(null);
+  const tab = chosen && chosen.key === openKey ? chosen.tab : params.tab;
 
   function open(key: string) {
-    overlay.open(key);
+    overlay.open(key, { tab: key === TOKEN ? TOKEN_TABS[0] : CONSOLE_TABS[0] });
   }
   function close() {
     overlay.close();
   }
-  async function runTest(key: string) {
-    if (inFlight.current.has(key)) return; // a double click sends one request
-    inFlight.current.add(key);
-    setTests((t) => ({ ...t, [key]: { running: true } }));
-    try {
-      const result = await api<ApiTest>(`/admin/system-health/napix/${key}/test`, { method: "POST" });
-      setTests((t) => ({ ...t, [key]: { running: false, result } }));
-    } catch (error) {
-      setTests((t) => ({ ...t, [key]: { running: false, error } }));
-    } finally {
-      inFlight.current.delete(key);
-      void qc.invalidateQueries({ queryKey: SUMMARY_KEY });
-    }
-  }
-  function testFromCard(key: string) {
-    if (openKey !== key) open(key);
-    void runTest(key);
+  function selectTab(next: string) {
+    setChosen({ key: openKey, tab: next });
+    if (typeof window === "undefined" || !openKey) return;
+    const state = (window.history.state as Record<string, unknown> | null) ?? {};
+    window.history.replaceState(state, "", "/system" + queryString({ ...params, api: openKey, tab: next }));
   }
 
   return (
@@ -111,19 +109,13 @@ export function SystemHealth({ params }: { params: Params }) {
             <h2 id="court-heading">{T.system.court}</h2>
             <span className="muted">{T.system.courtCount(summary.data.summary.working, summary.data.summary.total)}</span>
           </div>
+          <TokenCard token={token.data} onOpen={() => open(TOKEN)} />
           {summary.data.groups.map((g) => (
             <section key={g.key} className="stack" aria-labelledby={`group-${g.key}`}>
               <h3 id={`group-${g.key}`}>{T.system.groups[g.key] ?? g.label}</h3>
               <div className={s.grid}>
                 {g.cards.map((c) => (
-                  <CourtCard
-                    key={c.key}
-                    card={c}
-                    napixEnabled={summary.data.napix_enabled}
-                    running={!!tests[c.key]?.running}
-                    onOpen={() => open(c.key)}
-                    onTest={() => testFromCard(c.key)}
-                  />
+                  <CourtCard key={c.key} card={c} onOpen={() => open(c.key)} />
                 ))}
               </div>
             </section>
@@ -131,16 +123,18 @@ export function SystemHealth({ params }: { params: Params }) {
         </section>
       ) : null}
       <Services query={services} />
-      {summary.data ? (
-        <ApiPanel
-          apiKey={openKey}
+      {summary.data && openCard ? (
+        <ConsoleModal
+          apiKey={openCard.key}
           card={openCard}
           napixEnabled={summary.data.napix_enabled}
-          test={openKey ? tests[openKey] : undefined}
-          onTest={() => openKey && void runTest(openKey)}
+          tab={tabOf<ConsoleTab>(CONSOLE_TABS, tab)}
+          onTab={selectTab}
           onClose={close}
+          onSent={() => void qc.invalidateQueries({ queryKey: SUMMARY_KEY })}
         />
       ) : null}
+      {openKey === TOKEN ? <TokenModal tab={tabOf<TokenTab>(TOKEN_TABS, tab)} onTab={selectTab} onClose={close} /> : null}
     </div>
   );
 }
@@ -206,19 +200,8 @@ function Overview({ data, services }: { data: SystemHealthData; services: Servic
   );
 }
 
-function CourtCard({
-  card,
-  napixEnabled,
-  running,
-  onOpen,
-  onTest,
-}: {
-  card: ApiCard;
-  napixEnabled: boolean;
-  running: boolean;
-  onOpen: () => void;
-  onTest: () => void;
-}) {
+/** A court API's card: status and history from the call log, no call; clicking it opens the console. */
+function CourtCard({ card, onOpen }: { card: ApiCard; onOpen: () => void }) {
   const name = T.system.apis[card.key] ?? card.label;
   const answered = card.hours.reduce((n, h) => n + h.answered, 0);
   const failed = card.hours.reduce((n, h) => n + h.failed, 0);
@@ -252,7 +235,6 @@ function CourtCard({
         <span>{T.system.rate24(percent(card.h24.rate))}</span>
         <span>{T.system.rate7(percent(card.d7.rate))}</span>
       </p>
-      <TestButton card={card} napixEnabled={napixEnabled} running={running} onTest={onTest} />
     </article>
   );
 }

@@ -1249,6 +1249,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/system-health/docs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Docs
+         * @description The three NAPIX documents and whether each is installed on this server (pinned by SHA-256).
+         */
+        get: operations["list_docs_admin_system_health_docs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/system-health/docs/{doc}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Doc
+         * @description One NAPIX document, inline (`#page=N` opens it at a page), behind the function; never from a public path. 404
+         *     `not_found` for an unknown id, 404 `doc_missing` when the file is absent or not the pinned edition. Not
+         *     audited.
+         */
+        get: operations["get_doc_admin_system_health_docs__doc__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/system-health/napix/{api}": {
         parameters: {
             query?: never;
@@ -1271,6 +1313,115 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/system-health/napix/{api}/console": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Console
+         * @description The request console of one court API: the form pre-filled with the held sample (a name, a CNR, a case or a
+         *     filing number only when the caller may see the case), the request built from the code that sends it (method, URL,
+         *     plain string, the masked envelope, `request_token`, the cURL template), the Send state, the last send, the latest
+         *     stored answer and the documentation link. Never calls NAPIX; not audited.
+         */
+        get: operations["get_console_admin_system_health_napix__api__console_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/system-health/napix/{api}/postman": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Export Postman
+         * @description A Postman v2.1 collection for this API and the form's values (checked as the preview): the token request, this
+         *     request with `input=<plain string>` and the collection's encrypt and verify scripts. Every secret variable is
+         *     empty. No call; not audited.
+         */
+        post: operations["export_postman_admin_system_health_napix__api__postman_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/system-health/napix/{api}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview Request
+         * @description The request for the form's values (422 `invalid_input` with a message per parameter). No call; not audited.
+         */
+        post: operations["preview_request_admin_system_health_napix__api__preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/system-health/napix/{api}/reference": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Reference
+         * @description The in-app NAPIX reference of one court API (inputs, outputs, statuses, how a request is built and an answer
+         *     read, the document links), or of the token request with `api=token`. Static.
+         */
+        get: operations["get_reference_admin_system_health_napix__api__reference_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/system-health/napix/{api}/response": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Stored Response
+         * @description The full decrypted answer of a send (`source=send&response_id=…`) or the latest stored answer
+         *     (`source=latest`), verbatim from `napix_responses`. Also needs `cases.view_all` (403 `forbidden`): a search answer
+         *     names cases the caller might not otherwise see. Each opening is audited `napix.response_viewed` (never the
+         *     payload). 404 `no_response`; 413 `too_large` over `HEALTH_RAW_MAX_BYTES`.
+         */
+        get: operations["get_stored_response_admin_system_health_napix__api__response_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/system-health/napix/{api}/test": {
         parameters: {
             query?: never;
@@ -1282,11 +1433,13 @@ export interface paths {
         put?: never;
         /**
          * Test Api
-         * @description ONE court call to this API with an input ASLMS holds (no body: the server picks it), on a fresh client with no
-         *     retry, logged and audited. Refused with no call and nothing written: 404 `not_found`; 409 `napix_off`,
-         *     `no_sample`, `test_running`, `user_test_running` (your other test is still running: one test at a time per
+         * @description Send: ONE court call to this API, on a fresh client with no retry, logged and audited. With a body, the values
+         *     in the console's form (any parameter, checked first: 422 `invalid_input`); without one, an input ASLMS holds (the
+         *     server picks it). Refused with no call and nothing written: 404 `not_found`; 409 `napix_off`, `no_sample` (no body
+         *     and nothing held), `sample_hidden` (no body and the held sample belongs to a case you cannot see), `test_running`, `user_test_running` (your other test is still running: one test at a time per
          *     person); 429 `test_too_soon`, `test_limit`, `napix_budget`. The court's own failure is a 200 with `ok: false`.
-         *     ASLMS's own failure after the call answers 500: the call and its audit row are recorded before the error.
+         *     Nothing is applied to case data. ASLMS's own failure after the call answers 500: the call and its audit row are
+         *     recorded before the error.
          */
         post: operations["test_api_admin_system_health_napix__api__test_post"];
         delete?: never;
@@ -1310,6 +1463,49 @@ export interface paths {
         get: operations["get_services_admin_system_health_services_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/system-health/token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Token
+         * @description The access token's state (held, minutes left, issued, expires, accepted by the gateway since issue, the last
+         *     renewal), read with no call and no token request; never the token. Not audited.
+         */
+        get: operations["get_token_admin_system_health_token_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/system-health/token/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Check Token
+         * @description Check token: ONE token request (no retry) that replaces the shared token, audited `napix.token_checked`.
+         *     Refused before any request and writing nothing: 409 `napix_off`, `check_running`; 429 `check_too_soon`,
+         *     `test_limit` (shared with sends), `napix_budget`. A token-service failure is a 200 with `ok: false`.
+         */
+        post: operations["check_token_admin_system_health_token_check_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3950,6 +4146,18 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AcceptedOut */
+        AcceptedOut: {
+            /** Api Label */
+            api_label: string;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Http Status */
+            http_status: number;
+        };
         /** ActOut */
         ActOut: {
             /** Act Name As Listed */
@@ -4301,24 +4509,38 @@ export interface components {
             called_at: string;
             /** Duration Ms */
             duration_ms: number;
+            /** Edited */
+            edited: boolean;
             /** Error Family */
             error_family: string | null;
+            /** Http Meaning */
+            http_meaning: string | null;
             /** Http Status */
             http_status: number | null;
             input: components["schemas"]["ApiTestInputOut"];
+            inventory_diff: components["schemas"]["InventoryDiffOut"] | null;
+            /** Napix Meaning */
+            napix_meaning: string | null;
             /** Napix Status */
             napix_status: number | null;
             /** Ok */
             ok: boolean;
+            rate_limit: components["schemas"]["RateLimitOut"];
             /** Reason */
             reason: string;
             /** Remaining */
             remaining: number | null;
+            request: components["schemas"]["SentRequestOut"];
+            /** Response Available */
+            response_available: boolean;
+            /** Response Id */
+            response_id: string | null;
             /**
              * Status
              * @enum {string}
              */
             status: "ok" | "warn" | "down" | "unknown";
+            structure: components["schemas"]["StructureOut"] | null;
             summary: components["schemas"]["ApiTestSummaryOut"];
             /** Token Verified */
             token_verified: boolean | null;
@@ -5322,6 +5544,138 @@ export interface components {
             code: string;
             /** Label */
             label: string;
+        };
+        /** ConsoleFieldOut */
+        ConsoleFieldOut: {
+            /** Editable */
+            editable: boolean;
+            /** Format */
+            format: string;
+            /** Hint */
+            hint: string | null;
+            /**
+             * Mandatory
+             * @description as the specification says
+             */
+            mandatory: boolean;
+            /** Meaning */
+            meaning: string;
+            /** Name */
+            name: string;
+            /** Prefilled */
+            prefilled: boolean;
+            /**
+             * Required
+             * @description the console needs a value
+             */
+            required: boolean;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "settings" | "held" | "empty";
+            /** Value */
+            value: string;
+        };
+        /**
+         * ConsoleOut
+         * @description `GET /admin/system-health/napix/{api}/console`: the request console of one court API. Never calls NAPIX.
+         */
+        ConsoleOut: {
+            /** Api */
+            api: string;
+            doc: components["schemas"]["DocLinkOut"];
+            /** Envelope */
+            envelope: components["schemas"]["EnvelopeItemOut"][];
+            /** Fields */
+            fields: components["schemas"]["ConsoleFieldOut"][];
+            /** Full Answer Allowed */
+            full_answer_allowed: boolean;
+            /** Full Answer Note */
+            full_answer_note: string | null;
+            /** Headers */
+            headers: components["schemas"]["HeaderOut"][];
+            /** Label */
+            label: string;
+            last_send: components["schemas"]["LastSendOut"] | null;
+            latest_answer: components["schemas"]["LatestAnswerOut"] | null;
+            /** Method */
+            method: string;
+            /** Method Note */
+            method_note: string | null;
+            /** No Input Note */
+            no_input_note: string | null;
+            /** Not Saved Note */
+            not_saved_note: string;
+            /** Plain */
+            plain: string;
+            /** Plain Complete */
+            plain_complete: boolean;
+            /** Plain Sha256 */
+            plain_sha256: string;
+            /**
+             * Request Token
+             * @description HMAC-SHA256 under the published hash key; not secret
+             */
+            request_token: string | null;
+            sample: components["schemas"]["ConsoleSampleOut"];
+            send: components["schemas"]["ApiTestStateOut"];
+            templates: components["schemas"]["TemplatesOut"];
+            /** Url */
+            url: string;
+        };
+        /**
+         * ConsoleRequestOut
+         * @description `POST /admin/system-health/napix/{api}/preview`: the request for the form's values. No call.
+         */
+        ConsoleRequestOut: {
+            /** Api */
+            api: string;
+            /** Envelope */
+            envelope: components["schemas"]["EnvelopeItemOut"][];
+            /** Headers */
+            headers: components["schemas"]["HeaderOut"][];
+            /** Label */
+            label: string;
+            /** Method */
+            method: string;
+            /** Method Note */
+            method_note: string | null;
+            /** No Input Note */
+            no_input_note: string | null;
+            /** Plain */
+            plain: string;
+            /** Plain Complete */
+            plain_complete: boolean;
+            /** Plain Sha256 */
+            plain_sha256: string;
+            /**
+             * Request Token
+             * @description HMAC-SHA256 under the published hash key; not secret
+             */
+            request_token: string | null;
+            templates: components["schemas"]["TemplatesOut"];
+            /** Url */
+            url: string;
+        };
+        /** ConsoleSampleOut */
+        ConsoleSampleOut: {
+            /** Available */
+            available: boolean;
+            /** Label */
+            label: string | null;
+            /** Reason */
+            reason: string | null;
+        };
+        /**
+         * ConsoleValuesIn
+         * @description The console's form: NAPIX parameter name -> value (design `system-health-inspector`, decision 8).
+         */
+        ConsoleValuesIn: {
+            /** Values */
+            values?: {
+                [key: string]: string | number | null;
+            };
         };
         /** CounselCodeIn */
         CounselCodeIn: {
@@ -6551,6 +6905,20 @@ export interface components {
             /** Reason */
             reason?: string | null;
         };
+        /** DocLinkOut */
+        DocLinkOut: {
+            /**
+             * Available
+             * @default true
+             */
+            available: boolean;
+            /** Doc */
+            doc: string;
+            /** Page */
+            page: number;
+            /** Section */
+            section: string;
+        };
         /** DocumentArchiveIn */
         DocumentArchiveIn: {
             /** Reason */
@@ -6878,6 +7246,20 @@ export interface components {
             /** Score */
             score: number;
         };
+        /** EnvelopeItemOut */
+        EnvelopeItemOut: {
+            /** Length */
+            length?: number | null;
+            /** Name */
+            name: string;
+            /** Note */
+            note: string;
+            /**
+             * Shown
+             * @description the value as shown: dept_id masked, request_str never
+             */
+            shown: string;
+        };
         /** ErrorOut */
         ErrorOut: {
             /** Code */
@@ -7151,6 +7533,13 @@ export interface components {
             /** Password */
             password?: string | null;
         };
+        /** HeaderOut */
+        HeaderOut: {
+            /** Name */
+            name: string;
+            /** Shown */
+            shown: string;
+        };
         /** HealthCheckOut */
         HealthCheckOut: {
             /**
@@ -7295,6 +7684,21 @@ export interface components {
              */
             whole_department: boolean;
         };
+        /** InventoryDiffOut */
+        InventoryDiffOut: {
+            /**
+             * Absent
+             * @description inventory paths not in this answer (information)
+             */
+            absent: string[];
+            /** Checked */
+            checked: boolean;
+            /**
+             * New
+             * @description paths not in the field inventory: a field without a home, report it
+             */
+            new: string[];
+        };
         /** JobRunOut */
         JobRunOut: {
             /** Counters */
@@ -7390,6 +7794,75 @@ export interface components {
             /** Request */
             request: number;
         };
+        /** LastSendOut */
+        LastSendOut: {
+            /** Answered */
+            answered: boolean;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Attempts */
+            attempts: number;
+            /**
+             * By
+             * @enum {string}
+             */
+            by: "you" | "person";
+            /** Duration Ms */
+            duration_ms: number;
+            /** Edited */
+            edited: boolean | null;
+            /** Error Family */
+            error_family: string | null;
+            /** Http Meaning */
+            http_meaning: string | null;
+            /** Http Status */
+            http_status: number | null;
+            inventory_diff: components["schemas"]["InventoryDiffOut"] | null;
+            /** Method */
+            method: string;
+            /** Napix Meaning */
+            napix_meaning: string | null;
+            /** Napix Status */
+            napix_status: number | null;
+            /** Ok */
+            ok: boolean;
+            /** Params Sha256 */
+            params_sha256: string | null;
+            /** Plain */
+            plain: string | null;
+            rate_limit: components["schemas"]["RateLimitOut"] | null;
+            /** Reason */
+            reason: string;
+            /**
+             * Recorded
+             * @description false for tests before this version: the new facts are null
+             */
+            recorded: boolean;
+            /** Remaining */
+            remaining: number | null;
+            /** Response Available */
+            response_available: boolean;
+            /** Response Id */
+            response_id: string | null;
+            /** Same Plain As Form */
+            same_plain_as_form: boolean | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "warn" | "down" | "unknown";
+            structure: components["schemas"]["StructureOut"] | null;
+            summary: components["schemas"]["ApiTestSummaryOut"] | null;
+            /** Token Verified */
+            token_verified: boolean | null;
+            /** Url */
+            url: string;
+            /** Window Reset At */
+            window_reset_at: string | null;
+        };
         /** LastTestOut */
         LastTestOut: {
             /**
@@ -7401,6 +7874,25 @@ export interface components {
             by_you: boolean;
             /** Ok */
             ok: boolean | null;
+        };
+        /** LatestAnswerOut */
+        LatestAnswerOut: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * By
+             * @enum {string}
+             */
+            by: "you" | "person" | "background";
+            inventory_diff: components["schemas"]["InventoryDiffOut"] | null;
+            /** Response Available */
+            response_available: boolean;
+            /** Response Id */
+            response_id: string | null;
+            structure: components["schemas"]["StructureOut"] | null;
         };
         /** LinkGraphOut */
         LinkGraphOut: {
@@ -8052,6 +8544,17 @@ export interface components {
             /** Window */
             window: components["schemas"]["UserCallsOut"][];
         };
+        /** NapixDocOut */
+        NapixDocOut: {
+            /** Available */
+            available: boolean;
+            /** Doc */
+            doc: string;
+            /** Pages */
+            pages: number;
+            /** Title */
+            title: string;
+        };
         /** NapixHealthOut */
         NapixHealthOut: {
             /** @description NAPIX operators only (admin.napix_refetch or admin.masters_sync); null otherwise */
@@ -8132,6 +8635,66 @@ export interface components {
             failed: number;
             /** Token Unverified */
             token_unverified: number;
+        };
+        /**
+         * NapixTokenCheckOut
+         * @description `POST /admin/system-health/token/check`: one token request's outcome; never the token.
+         */
+        NapixTokenCheckOut: {
+            /** Duration Ms */
+            duration_ms: number;
+            /** Expires In */
+            expires_in: number | null;
+            /** Http Status */
+            http_status: number | null;
+            /** Ok */
+            ok: boolean;
+            /** Outcome */
+            outcome: string | null;
+            rate_limit: components["schemas"]["RateLimitOut"];
+            token: components["schemas"]["NapixTokenOut"];
+        };
+        /**
+         * NapixTokenOut
+         * @description `GET /admin/system-health/token`: the access token's state, read with no call; never the token.
+         */
+        NapixTokenOut: {
+            accepted_since: components["schemas"]["AcceptedOut"] | null;
+            check: components["schemas"]["TokenCheckStateOut"];
+            /** Curl Token */
+            curl_token: string;
+            endpoint: components["schemas"]["TokenEndpointOut"];
+            /** Expires At */
+            expires_at: string | null;
+            /** Held */
+            held: boolean;
+            last_failure: components["schemas"]["TokenFailureOut"] | null;
+            last_request: components["schemas"]["TokenRequestOut"] | null;
+            /** Napix Enabled */
+            napix_enabled: boolean;
+            /** Obtained At */
+            obtained_at: string | null;
+            /** Rejected Since */
+            rejected_since: number;
+            /** Renewing Soon */
+            renewing_soon: boolean;
+            /** Requests Today */
+            requests_today: number;
+            /** Scope */
+            scope: string | null;
+            /** Shared Store */
+            shared_store: boolean;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "warn" | "down" | "unknown";
+            /** Token Type */
+            token_type: string | null;
+            /** Ttl Seconds */
+            ttl_seconds: number | null;
+            /** Valid Until */
+            valid_until: string | null;
         };
         /**
          * NapixWindowOut
@@ -9124,6 +9687,13 @@ export interface components {
             /** Rate */
             rate: number | null;
         };
+        /** RateLimitOut */
+        RateLimitOut: {
+            /** Limit */
+            limit?: number | null;
+            /** Remaining */
+            remaining?: number | null;
+        };
         /** ReassignedOut */
         ReassignedOut: {
             /** Case Ref */
@@ -9225,6 +9795,21 @@ export interface components {
             /** Suggested By Office Code */
             suggested_by_office_code: string | null;
         };
+        /** ReferenceInputOut */
+        ReferenceInputOut: {
+            /** Format */
+            format: string;
+            /** Mandatory */
+            mandatory: boolean;
+            /** Meaning */
+            meaning: string;
+            /** Name */
+            name: string;
+            /** Note */
+            note: string | null;
+            /** Required */
+            required: boolean;
+        };
         /**
          * ReferenceLabelsOut
          * @description Design `portal-shell`, decision 16a: the database's labels; `assignable` is the caller's.
@@ -9238,6 +9823,68 @@ export interface components {
             ticket_kinds: components["schemas"]["LabelOut"][];
             /** User Types */
             user_types: components["schemas"]["UserTypeLabelOut"][];
+        };
+        /** ReferenceLinkOut */
+        ReferenceLinkOut: {
+            /** Doc */
+            doc: string;
+            /** Label */
+            label: string;
+            /** Page */
+            page: number;
+        };
+        /**
+         * ReferenceOut
+         * @description `GET /admin/system-health/napix/{api}/reference`: the in-app NAPIX reference. Static.
+         */
+        ReferenceOut: {
+            /** Api */
+            api: string;
+            /** Build Steps */
+            build_steps: string[];
+            doc: components["schemas"]["DocLinkOut"];
+            /** General Links */
+            general_links: components["schemas"]["ReferenceLinkOut"][];
+            /** Inputs */
+            inputs: components["schemas"]["ReferenceInputOut"][];
+            outputs: components["schemas"]["ReferenceOutputsOut"];
+            /** Read Steps */
+            read_steps: string[];
+            /** Statuses */
+            statuses: components["schemas"]["ReferenceStatusOut"][];
+        };
+        /** ReferenceOutputsOut */
+        ReferenceOutputsOut: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "json" | "pdf";
+            /** Note */
+            note: string | null;
+            /** Paths */
+            paths: components["schemas"]["ReferencePathOut"][];
+        };
+        /** ReferencePathOut */
+        ReferencePathOut: {
+            /** Path */
+            path: string;
+            /** Type */
+            type: string;
+        };
+        /** ReferenceStatusOut */
+        ReferenceStatusOut: {
+            /** Code */
+            code: string;
+            /**
+             * Listed
+             * @description listed for this API in the specification
+             */
+            listed: boolean;
+            /** Meaning */
+            meaning: string;
+            /** Name */
+            name: string | null;
         };
         /** RefetchCaseIn */
         RefetchCaseIn: {
@@ -9561,6 +10208,17 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** SentRequestOut */
+        SentRequestOut: {
+            /** Envelope */
+            envelope: components["schemas"]["EnvelopeItemOut"][];
+            /** Method */
+            method: string;
+            /** Plain */
+            plain: string;
+            /** Url */
+            url: string;
+        };
         /** ServiceCheckOut */
         ServiceCheckOut: {
             /** Duration Ms */
@@ -9815,6 +10473,63 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /**
+         * StoredResponseOut
+         * @description The verbatim decrypted answer (State-wide viewers only; audited `napix.response_viewed`).
+         */
+        StoredResponseOut: {
+            /** Api */
+            api: string;
+            /** Bytes */
+            bytes: number;
+            /**
+             * Fetched At
+             * Format: date-time
+             */
+            fetched_at: string;
+            /**
+             * Last Seen At
+             * Format: date-time
+             */
+            last_seen_at: string;
+            /** Payload */
+            payload: unknown;
+            /**
+             * Response Id
+             * Format: uuid
+             */
+            response_id: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "send" | "latest";
+            /** Token Verified */
+            token_verified: boolean | null;
+        };
+        /**
+         * StructureOut
+         * @description An answer's field paths, types and counts; never a value (design `system-health-inspector`, decision 5).
+         */
+        StructureOut: {
+            /** Depth Limited */
+            depth_limited: boolean;
+            /** More */
+            more: number;
+            /** Paths */
+            paths: components["schemas"]["StructurePathOut"][];
+            /** Total */
+            total: number;
+        };
+        /** StructurePathOut */
+        StructurePathOut: {
+            /** Count */
+            count: number;
+            /** Path */
+            path: string;
+            /** Type */
+            type: string;
+        };
         /** SuggestIn */
         SuggestIn: {
             /**
@@ -9905,6 +10620,13 @@ export interface components {
             name: string;
             /** Path */
             path: string;
+        };
+        /** TemplatesOut */
+        TemplatesOut: {
+            /** Curl */
+            curl: string;
+            /** Note */
+            note: string;
         };
         /** TicketArchiveIn */
         TicketArchiveIn: {
@@ -10103,6 +10825,35 @@ export interface components {
             /** Type */
             type: string;
         };
+        /** TokenCheckStateOut */
+        TokenCheckStateOut: {
+            /** Allowed */
+            allowed: boolean;
+            /** Next Allowed At */
+            next_allowed_at: string | null;
+            /** Reason */
+            reason: string | null;
+        };
+        /** TokenEndpointOut */
+        TokenEndpointOut: {
+            /** Auth Note */
+            auth_note: string;
+            /** Body */
+            body: string;
+            /** Content Type */
+            content_type: string;
+            /** Method */
+            method: string;
+            /** Url */
+            url: string;
+        };
+        /** TokenFailureOut */
+        TokenFailureOut: {
+            /** At */
+            at: string | null;
+            /** Family */
+            family: string | null;
+        };
         /** TokenOut */
         TokenOut: {
             /** Access Token */
@@ -10128,6 +10879,20 @@ export interface components {
              */
             token_type: string;
             user: components["schemas"]["UserOut"];
+        };
+        /** TokenRequestOut */
+        TokenRequestOut: {
+            /** At */
+            at: string | null;
+            /** Duration Ms */
+            duration_ms: number | null;
+            /** Http Status */
+            http_status: number | null;
+            /** Ok */
+            ok: boolean;
+            /** Outcome */
+            outcome: string | null;
+            rate_limit: components["schemas"]["RateLimitOut"];
         };
         /** TransferDecisionIn */
         TransferDecisionIn: {
@@ -13926,6 +14691,76 @@ export interface operations {
             };
         };
     };
+    list_docs_admin_system_health_docs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NapixDocOut"][];
+                };
+            };
+        };
+    };
+    get_doc_admin_system_health_docs__doc__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                doc: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description the PDF, inline */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                    "application/pdf": unknown;
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_api_detail_admin_system_health_napix__api__get: {
         parameters: {
             query?: never;
@@ -13973,13 +14808,368 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorOut"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Unprocessable Content */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    get_console_admin_system_health_napix__api__console_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                api: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsoleOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    export_postman_admin_system_health_napix__api__postman_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                api: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConsoleValuesIn"];
+            };
+        };
+        responses: {
+            /** @description a Postman v2.1 collection */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    preview_request_admin_system_health_napix__api__preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                api: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConsoleValuesIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsoleRequestOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    get_reference_admin_system_health_napix__api__reference_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                api: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReferenceOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    get_stored_response_admin_system_health_napix__api__response_get: {
+        parameters: {
+            query?: {
+                source?: "send" | "latest";
+                response_id?: string | null;
+            };
+            header?: never;
+            path: {
+                api: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoredResponseOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
                 };
             };
             /** @description Too Many Requests */
@@ -14002,7 +15192,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ConsoleValuesIn"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -14040,13 +15234,13 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorOut"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Unprocessable Content */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorOut"];
                 };
             };
             /** @description Too Many Requests */
@@ -14076,6 +15270,91 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ServicesOut"];
+                };
+            };
+        };
+    };
+    get_token_admin_system_health_token_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NapixTokenOut"];
+                };
+            };
+        };
+    };
+    check_token_admin_system_health_token_check_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NapixTokenCheckOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
                 };
             };
         };

@@ -257,6 +257,12 @@ empty to signed in in the decisions log.
 - `job_runs` rows left `running` by a restart are marked failed (`interrupted`) when the worker, the scheduler and
   the backup service start (decision 18). Never run `aslms queue-run` by hand during a restart. For an old stuck row:
   `docker compose exec api aslms ops repair-jobs --older-than 6h [--job NAME] [--dry-run]`.
+- System health request console (design `system-health-inspector`, row 123): opening `/system` makes no court call
+  and no token request. A card opens the console; Send makes one live call under the Test now guards; "Check token" is
+  one audited token request, at most once per `HEALTH_TOKEN_CHECK_MIN_SECONDS` (600). The NAPIX PDFs are served from
+  `NAPIX_DOCS_DIR` (`/app/napix-docs`, a read-only mount of `docs/specs/pdf` on the `api`); `docker compose exec api ls
+  /app/napix-docs` lists three files. The owner-run live check (at most 6 requests, the master switch on for that run
+  only, set in the shell) is in the design note's Verification, step 5.
 
 ## 12. ClamAV (decision 17)
 

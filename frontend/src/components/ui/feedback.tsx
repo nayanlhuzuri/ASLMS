@@ -52,9 +52,10 @@ export function ErrorBanner({
   );
 }
 
-export function Notice({ children }: { children: ReactNode }) {
+/** A short message in the page; `tone="warning"` (amber) for something to report or act on. */
+export function Notice({ children, tone }: { children: ReactNode; tone?: "warning" }) {
   return (
-    <div className={s.notice} role="status" aria-live="polite">
+    <div className={s.notice} role="status" aria-live="polite" data-tone={tone}>
       {children}
     </div>
   );

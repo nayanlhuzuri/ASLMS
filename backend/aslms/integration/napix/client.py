@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import quote
+from zoneinfo import ZoneInfo
 
 import httpx
 
@@ -71,11 +72,15 @@ NAPIX_STATUS: dict[int, str] = {
     602: "INVALID_ORDER_NO",
     603: "INVALID_EST_CODE",
     604: "INVALID_CASE_TYPE",
+    605: "INVALID_REG_NO",
     606: "INVALID_REG_YEAR",
     607: "INVALID_FIL_NO",
     608: "INVALID_FIL_YEAR",
+    609: "INVALID_PEND_DISP",
+    610: "INVALID_LITIGANT_NAME",
     614: "INVALID_ADVOCATE_NAME",
     616: "INVALID_CAUSELIST_DATE",
+    624: "INVALID_STATE_CODE",
     626: "INVALID_TOKEN",
     627: "INVALID_DEPT_ID",
     628: "RECORD_NOT_FOUND",
@@ -122,18 +127,83 @@ class NapixResult:
 
 CallHook = Callable[[NapixResult], None]
 
+META_KEY = "napix:token:meta"
+REQUESTS_KEY = "napix:token:requests:"  # + the IST date
+META_TTL_SECONDS = 8 * 24 * 3600
+IST = ZoneInfo("Asia/Kolkata")
+# the per-request fields of the token metadata: rewritten (blank when absent) on every token request
+REQUEST_FIELDS = (
+    "requested_at",
+    "ok",
+    "http_status",
+    "error_family",
+    "duration_ms",
+    "expires_in",
+    "token_type",
+    "scope",
+    "rate_limit_limit",
+    "rate_limit_remaining",
+)
+
+
+@dataclass(frozen=True)
+class TokenState:
+    """Whether a token is held and for how long; never the token itself."""
+
+    held: bool
+    ttl_seconds: int | None
+    shared_store: bool
+
+
+@dataclass(frozen=True)
+class TokenRenewal:
+    """The outcome of one token request; never the token (design `system-health-inspector`, decision 10)."""
+
+    ok: bool
+    http_status: int | None
+    error_family: str | None
+    duration_ms: int
+    expires_in: int | None
+    rate_limit: tuple[int | None, int | None] = (None, None)
+    token_type: str | None = None
+    scope: str | None = None
+
+
+def _rate_number(value: str | None) -> int | None:
+    if not value:
+        return None
+    m = RATE_LIMIT_NUMBER.search(value)
+    return int(m.group(1)) if m else None
+
+
+def _text(v: Any) -> str:
+    return v.decode() if isinstance(v, bytes) else str(v)
+
+
+def _blank(v: Any) -> str:
+    return "" if v is None else str(v)
+
+
+def _ist_date(now: datetime | None = None) -> str:
+    return (now or datetime.now(UTC)).astimezone(IST).date().isoformat()
+
 
 class TokenCache:
     """One token per process (threads share it); mirrored in Redis under `napix:token` when a URL is given,
-    so the API, the workers and the CLI reuse one token. Redis trouble never fails a call."""
+    so the API, the workers and the CLI reuse one token. Redis trouble never fails a call.
 
-    def __init__(self, redis_url: str | None = None, key: str = "napix:token"):
+    Every token request, background or manual, also writes non-secret metadata (`note_request`): the hash
+    `napix:token:meta` and the day counter `napix:token:requests:<IST date>`, both expiring after 8 days (design
+    `system-health-inspector`, decision 10). `redis_client` is a seam for tests (a dict-backed stub)."""
+
+    def __init__(self, redis_url: str | None = None, key: str = "napix:token", redis_client: Any = None):
         self._lock = threading.Lock()
         self._token: str | None = None
         self._expires_at = 0.0
         self._key = key
-        self._redis = None
-        if redis_url:
+        self._redis = redis_client
+        self._meta: dict[str, str] = {}  # this process's copy when there is no shared store
+        if redis_client is None and redis_url:
             try:
                 import redis  # optional dependency
 
@@ -175,6 +245,81 @@ class TokenCache:
                 self._redis.delete(self._key)
             except Exception:  # noqa: BLE001
                 pass
+
+    # ------------------------------------------------------------------ metadata (never the token)
+    @property
+    def shared_store(self) -> bool:
+        return self._redis is not None
+
+    def state(self) -> TokenState:
+        """Whether a token is held and its remaining seconds: the shared copy's TTL when there is a store, else this
+        process's copy. Never the value."""
+        if self._redis is not None:
+            try:
+                ttl = int(self._redis.ttl(self._key) or -2)
+            except Exception:  # noqa: BLE001
+                log.warning("napix token cache: redis read failed")
+                return TokenState(held=False, ttl_seconds=None, shared_store=True)
+            return TokenState(held=ttl > 0, ttl_seconds=ttl if ttl > 0 else None, shared_store=True)
+        with self._lock:
+            left = int(self._expires_at - time.time()) if self._token else 0
+        return TokenState(held=left > 0, ttl_seconds=left if left > 0 else None, shared_store=False)
+
+    def meta(self) -> dict[str, str]:
+        """The metadata hash as text, plus `requests_today` (read-only; {} when nothing is recorded)."""
+        if self._redis is None:
+            return dict(self._meta)
+        try:
+            raw = self._redis.hgetall(META_KEY) or {}
+            out = {_text(k): _text(v) for k, v in raw.items()}
+            count = self._redis.get(REQUESTS_KEY + _ist_date())
+            if count is not None:
+                out["requests_today"] = _text(count)
+            return out
+        except Exception:  # noqa: BLE001
+            log.warning("napix token cache: redis read failed")
+            return {}
+
+    def note_request(self, renewal: TokenRenewal, now: datetime | None = None) -> None:
+        """Records one token request in the metadata and the day counter; Redis trouble never fails a call."""
+        now = now or datetime.now(UTC)
+        stamp = now.isoformat()
+        fields: dict[str, str] = dict.fromkeys(REQUEST_FIELDS, "")
+        fields.update(
+            {
+                "requested_at": stamp,
+                "ok": "1" if renewal.ok else "0",
+                "http_status": _blank(renewal.http_status),
+                "error_family": renewal.error_family or "",
+                "duration_ms": str(renewal.duration_ms),
+                "expires_in": _blank(renewal.expires_in),
+                "token_type": renewal.token_type or "",
+                "scope": renewal.scope or "",
+                "rate_limit_limit": _blank(renewal.rate_limit[0]),
+                "rate_limit_remaining": _blank(renewal.rate_limit[1]),
+            }
+        )
+        if renewal.ok:
+            fields["obtained_at"] = stamp
+            if renewal.expires_in:
+                fields["expires_at"] = datetime.fromtimestamp(
+                    now.timestamp() + renewal.expires_in, UTC
+                ).isoformat()
+        else:
+            fields["last_failure_at"] = stamp
+            fields["last_failure_family"] = renewal.error_family or ""
+        if self._redis is None:
+            self._meta.update(fields)
+            self._meta["requests_today"] = str(int(self._meta.get("requests_today") or 0) + 1)
+            return
+        try:
+            day = REQUESTS_KEY + _ist_date(now)
+            self._redis.hset(META_KEY, mapping=fields)
+            self._redis.expire(META_KEY, META_TTL_SECONDS)
+            self._redis.incr(day)
+            self._redis.expire(day, META_TTL_SECONDS)
+        except Exception:  # noqa: BLE001
+            log.warning("napix token cache: redis metadata write failed")
 
 
 class RateLimiter:
@@ -261,6 +406,7 @@ class NapixClient:
         self.max_attempts, self.backoff_base = max_attempts, backoff_base
         self._transport = transport
         self._http: httpx.AsyncClient | None = None
+        self.last_token_request: TokenRenewal | None = None
 
     @classmethod
     def from_settings(cls, s: Settings | None = None, **overrides: Any) -> NapixClient:
@@ -306,10 +452,24 @@ class NapixClient:
 
     # ------------------------------------------------------------------ token (§3)
     async def token(self, force: bool = False) -> str:
+        """The cached token, or one token request. Every request is recorded in the token metadata and one log line
+        ("napix token requested": outcome, HTTP status, duration; never the token or the answer's body)."""
         if not force:
             cached = self.tokens.get()
             if cached:
                 return cached
+        started = time.perf_counter()
+        facts: dict[str, Any] = {"http_status": None, "rate_limit": (None, None)}
+        try:
+            token, ttl, payload = await self._request_token(facts)
+        except IntegrationError as e:
+            self._note_token(started, facts, error_family=type(e).__name__)
+            raise
+        self.tokens.set(token, ttl)
+        self._note_token(started, facts, payload=payload, expires_in=int(ttl))
+        return token
+
+    async def _request_token(self, facts: dict[str, Any]) -> tuple[str, float, dict[str, Any]]:
         try:
             r = await self.http.post(
                 f"{self.base_url}//oauth2/token",  # the manual's form; what succeeded live
@@ -319,6 +479,11 @@ class NapixClient:
             )
         except httpx.HTTPError as e:
             raise NapixUnavailable(f"NAPIX token endpoint: {e}") from e
+        facts["http_status"] = r.status_code
+        facts["rate_limit"] = (
+            _rate_number(r.headers.get("x-ratelimit-limit")),
+            _rate_number(r.headers.get("x-ratelimit-remaining")),
+        )
         if r.status_code in (401, 403):
             raise NapixAuthError(f"NAPIX token endpoint HTTP {r.status_code}: check NAPIX_CLIENT_ID / SECRET")
         if r.status_code != 200:
@@ -328,8 +493,51 @@ class NapixClient:
         if not token:
             raise NapixProtocolError("NAPIX token response has no access_token")
         ttl = float(payload.get("expires_in") or self.token_ttl_seconds)
-        self.tokens.set(token, ttl)
-        return token
+        return token, ttl, payload
+
+    def _note_token(
+        self,
+        started: float,
+        facts: dict[str, Any],
+        *,
+        error_family: str | None = None,
+        payload: dict[str, Any] | None = None,
+        expires_in: int | None = None,
+    ) -> None:
+        payload = payload or {}
+        renewal = TokenRenewal(
+            ok=error_family is None,
+            http_status=facts.get("http_status"),
+            error_family=error_family,
+            duration_ms=int((time.perf_counter() - started) * 1000),
+            expires_in=expires_in,
+            rate_limit=facts.get("rate_limit") or (None, None),
+            token_type=str(payload["token_type"])[:40] if payload.get("token_type") else None,
+            scope=str(payload["scope"])[:80] if payload.get("scope") else None,
+        )
+        self.last_token_request = renewal
+        try:
+            self.tokens.note_request(renewal)
+        except Exception:  # noqa: BLE001 — recording must never break the call
+            log.warning("napix token metadata could not be written")
+        log.info(
+            "napix token requested",
+            outcome="obtained" if renewal.ok else "failed",
+            error_family=renewal.error_family,
+            http_status=renewal.http_status,
+            duration_ms=renewal.duration_ms,
+        )
+
+    async def renew_token(self) -> TokenRenewal:
+        """One fresh token request with no retry ("Check token", design `system-health-inspector`, decision 10): the
+        new token replaces the shared one; a failure is an outcome. Never returns the token."""
+        self.last_token_request = None
+        try:
+            await self.token(force=True)
+        except IntegrationError:
+            pass
+        assert self.last_token_request is not None
+        return self.last_token_request
 
     # ------------------------------------------------------------------ call (§4–§7)
     async def call(

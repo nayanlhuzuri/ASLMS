@@ -696,3 +696,60 @@ No live NAPIX. The switch is never set; tests patch `Settings.napix_configured` 
 ## Open questions
 None. The owner's decisions A to E (21 Oct 2026) are built in as decisions 1, 7, 8, 10 and 12; decision 18 lists the
 defaults the owner may change at approval without reopening the design.
+
+## Deviations
+Recorded by the developer while building (22 Oct 2026); none changes a business rule or a decision's intent.
+
+1. **Schema names.** The token answers are `NapixTokenOut` and `NapixTokenCheckOut`: `TokenOut` is already the
+   sign-in token's schema.
+2. **The token modal's Documentation tab** reads `GET /admin/system-health/napix/token/reference` (the reserved key
+   `token`): no inputs, the token answer's fields (notes §2), the HTTP rows and the Subscriber Manual links of decision
+   10. Every other key not in the catalogue is 404, as before.
+3. **Token status with nothing to go on.** Switch on, no token held and no token request recorded reads `unknown`
+   ("No token held — the next court call obtains one"); decision 10 lists no status for that case.
+4. **"Check token · 1 token request" is the token modal's footer primary** (decision 14) rather than a secondary
+   button on the Token tab (decision 10); decision 14 sets the one-primary rule for the modal.
+5. **The console's `send` block leaves out the held-sample condition** (a send of typed values needs none) and does
+   not decide completeness: the form keeps Send disabled until every value is typed ("Type every value first") and
+   while the preview reports an error ("Correct the values marked first"). `plain_complete` says whether the pre-filled
+   form is complete.
+6. **`params` in the audit row is a JSON object**; JSONB does not keep key order, so the plain string of a past send is
+   rebuilt in the documented parameter order (`napix_reference.INPUTS`, which a test keeps equal to what `hc.py`
+   sends). `params_sha256` is the hash of the string actually sent.
+7. **Additive fields** for the screen: `plain_sha256`, `method_note`, `no_input_note`, `templates.note` on the request;
+   `not_saved_note`, `full_answer_note` on the console; `recorded`, `params_sha256`, `remaining` on the last send;
+   `required` on a field; `http_meaning`, `napix_meaning` on a send's answer; `renewing_soon`, `valid_until` on the
+   token; `read_steps` on the reference.
+8. **Structure notation.** `structure` collapses numbered keys exactly as `aslms napix-fields` does (only when every
+   value is an object), so `pet_extra_party.party_noN` stays keyed as in the inventory and the diff against the
+   inventory has no false "new" paths. An empty block above known fields (e.g. `acts` with no rows) is not new.
+9. **Validation seam.** The held masters a typed code must be one of are read through `napix_inspect.HeldMasters`
+   (one read per check), so the rule table is unit-tested without a database.
+10. **Logs.** The production logging setup (`core/logging.py`) already keeps httpx's request-URL lines, which carry
+    `request_str`, out of the log; the no-secret test mirrors that setting. Every token request writes the one line
+    "napix token requested" (outcome, error family, HTTP status, duration).
+11. **Token store seam.** The router reads the shared store from `app.state.napix_token_cache` when a test sets it,
+    else `TokenCache(REDIS_URL)`; a send's client also uses it, which is the same Redis copy as before in production.
+12. **UI kit.** `Notice` gains `tone="warning"` (amber) for "Not in the field inventory — report it"; the `?` help
+    button is a link styled as a ghost button (it opens a new tab); `useUrlOverlay` gains linked parameters
+    (`open(value, {tab})`, `close()` drops `tab`), and a tab change rewrites the address with
+    `history.replaceState`, keeping the overlay's history mark so Back still closes the modal.
+13. **The exported Postman collection** carries the repository collection's scripts unchanged; those read `auth_key`
+    and `hash_key` from the Postman environment, so the collection's own variables are defaults the owner's
+    environment overrides.
+14. **Unrelated test.** `frontend/src/components/calendar/calendar.test.tsx` expected 22 Oct 2026 not to be today; on
+    22 Oct 2026 itself the day's name ends in " (Today)". Its two assertions now accept that suffix.
+15. **A send with no body never uses a hidden sample (review finding).** `POST …/napix/{api}/test` without a body is
+    refused with 409 `sample_hidden` ("The held sample belongs to a case you cannot see; type the values in the
+    console's form and send them") when the held sample carries a name, CNR, case or filing number of a case the
+    caller cannot see, before any call and writing nothing (after `no_sample`, before the interval checks). Refusing
+    rather than masking keeps decision 6 exact: every value sent was seen or typed by the sender, so the answer's
+    `request.plain` and the audit row's `params` never carry a value the sender could not see. The portal always
+    sends the form's values, so only a direct API call meets this refusal.
+16. **The last send masks case values the viewer may not see (review finding).** The console's `last_send.plain`
+    shows a name, CNR, case or filing number (`litigant_name`, `advocate_name`, `cino`, `reg_no`, `fil_no`) only when
+    the viewer is the sender, holds `cases.view_all`, or the send used the unedited held sample of a case the viewer
+    can see (`visibility.access_basis` on the audit row's `sample.case_ref_no`; a held sample with no source case, the
+    discovery term, is shown as since row 109). Otherwise each such value reads `‹not shown›` and `params_sha256` is
+    `null` (a hash of a name can be checked against guesses); `same_plain_as_form` is still computed on the server.
+    Values typed by another person are never shown to a viewer without `cases.view_all`.

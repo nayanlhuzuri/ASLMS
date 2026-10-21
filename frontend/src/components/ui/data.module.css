@@ -387,3 +387,49 @@
 .listTrail {
   flex: none;
 }
+
+/* CodeBlock: monospace, scrolling sideways inside the block, never the page (design system-health-inspector, 14) */
+.codeBlock {
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-2, #f8fafc);
+}
+
+.codeHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+  padding: var(--s1) var(--s2) var(--s1) var(--s3);
+  border-bottom: 1px solid var(--border);
+}
+
+.codeLabel {
+  color: var(--text-3);
+  font-size: var(--t-sm);
+}
+
+.code {
+  max-width: 100%;
+  margin: 0;
+  padding: var(--s3);
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: var(--t-sm);
+  line-height: 1.5;
+  white-space: pre;
+}
+
+.copyWrap {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.copyStatus {
+  color: var(--text-3);
+  font-size: var(--t-sm);
+}

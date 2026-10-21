@@ -3599,6 +3599,51 @@ class ApiTestSummaryOut(BaseModel):
     facts: list[FactOut]
 
 
+class EnvelopeItemOut(BaseModel):
+    name: str
+    shown: str = Field(description="the value as shown: dept_id masked, request_str never")
+    note: str
+    length: int | None = None
+
+
+class HeaderOut(BaseModel):
+    name: str
+    shown: str
+
+
+class SentRequestOut(BaseModel):
+    method: str
+    url: str
+    plain: str
+    envelope: list[EnvelopeItemOut]
+
+
+class RateLimitOut(BaseModel):
+    limit: int | None = None
+    remaining: int | None = None
+
+
+class StructurePathOut(BaseModel):
+    path: str
+    type: str
+    count: int
+
+
+class StructureOut(BaseModel):
+    """An answer's field paths, types and counts; never a value (design `system-health-inspector`, decision 5)."""
+
+    paths: list[StructurePathOut]
+    total: int
+    more: int
+    depth_limited: bool
+
+
+class InventoryDiffOut(BaseModel):
+    checked: bool
+    new: list[str] = Field(description="paths not in the field inventory: a field without a home, report it")
+    absent: list[str] = Field(description="inventory paths not in this answer (information)")
+
+
 class ApiTestOut(BaseModel):
     """One court call's outcome, summarised; the payload is never returned. A court failure is `ok: false`."""
 
@@ -3617,6 +3662,261 @@ class ApiTestOut(BaseModel):
     remaining: int | None
     input: ApiTestInputOut
     summary: ApiTestSummaryOut
+    request: SentRequestOut
+    edited: bool
+    rate_limit: RateLimitOut
+    structure: StructureOut | None
+    inventory_diff: InventoryDiffOut | None
+    response_id: uuid.UUID | None
+    response_available: bool
+    http_meaning: str | None
+    napix_meaning: str | None
+
+
+class ConsoleValuesIn(BaseModel):
+    """The console's form: NAPIX parameter name -> value (design `system-health-inspector`, decision 8)."""
+
+    values: dict[str, str | int | None] = Field(default_factory=dict)
+
+
+class ConsoleFieldOut(BaseModel):
+    name: str
+    value: str
+    prefilled: bool
+    source: Literal["settings", "held", "empty"]
+    editable: bool
+    mandatory: bool = Field(description="as the specification says")
+    required: bool = Field(description="the console needs a value")
+    format: str
+    meaning: str
+    hint: str | None
+
+
+class TemplatesOut(BaseModel):
+    curl: str
+    note: str
+
+
+class ConsoleRequestOut(BaseModel):
+    """`POST /admin/system-health/napix/{api}/preview`: the request for the form's values. No call."""
+
+    api: str
+    label: str
+    method: str
+    method_note: str | None
+    url: str
+    plain: str
+    plain_sha256: str
+    plain_complete: bool
+    no_input_note: str | None
+    envelope: list[EnvelopeItemOut]
+    headers: list[HeaderOut]
+    request_token: str | None = Field(description="HMAC-SHA256 under the published hash key; not secret")
+    templates: TemplatesOut
+
+
+class ConsoleSampleOut(BaseModel):
+    available: bool
+    label: str | None
+    reason: str | None
+
+
+class LastSendOut(BaseModel):
+    at: datetime
+    by: Literal["you", "person"]
+    recorded: bool = Field(description="false for tests before this version: the new facts are null")
+    edited: bool | None
+    ok: bool
+    answered: bool
+    status: HealthStatus
+    reason: str
+    method: str
+    url: str
+    plain: str | None
+    params_sha256: str | None
+    http_status: int | None
+    http_meaning: str | None
+    napix_status: int | None
+    napix_meaning: str | None
+    error_family: str | None
+    duration_ms: int
+    attempts: int
+    remaining: int | None
+    rate_limit: RateLimitOut | None
+    window_reset_at: datetime | None
+    token_verified: bool | None
+    summary: ApiTestSummaryOut | None
+    structure: StructureOut | None
+    inventory_diff: InventoryDiffOut | None
+    response_id: uuid.UUID | None
+    response_available: bool
+    same_plain_as_form: bool | None
+
+
+class LatestAnswerOut(BaseModel):
+    at: datetime
+    by: Literal["you", "person", "background"]
+    structure: StructureOut | None
+    inventory_diff: InventoryDiffOut | None
+    response_id: uuid.UUID | None
+    response_available: bool
+
+
+class DocLinkOut(BaseModel):
+    doc: str
+    page: int
+    section: str
+    available: bool = True
+
+
+class ConsoleOut(ConsoleRequestOut):
+    """`GET /admin/system-health/napix/{api}/console`: the request console of one court API. Never calls NAPIX."""
+
+    fields: list[ConsoleFieldOut]
+    sample: ConsoleSampleOut
+    send: ApiTestStateOut
+    last_send: LastSendOut | None
+    latest_answer: LatestAnswerOut | None
+    doc: DocLinkOut
+    full_answer_allowed: bool
+    not_saved_note: str
+    full_answer_note: str | None
+
+
+class StoredResponseOut(BaseModel):
+    """The verbatim decrypted answer (State-wide viewers only; audited `napix.response_viewed`)."""
+
+    api: str
+    source: Literal["send", "latest"]
+    response_id: uuid.UUID
+    fetched_at: datetime
+    last_seen_at: datetime
+    token_verified: bool | None
+    bytes: int
+    payload: Any
+
+
+class ReferenceInputOut(BaseModel):
+    name: str
+    mandatory: bool
+    required: bool
+    format: str
+    meaning: str
+    note: str | None
+
+
+class ReferencePathOut(BaseModel):
+    path: str
+    type: str
+
+
+class ReferenceOutputsOut(BaseModel):
+    kind: Literal["json", "pdf"]
+    note: str | None
+    paths: list[ReferencePathOut]
+
+
+class ReferenceStatusOut(BaseModel):
+    code: str
+    name: str | None
+    meaning: str
+    listed: bool = Field(description="listed for this API in the specification")
+
+
+class ReferenceLinkOut(BaseModel):
+    doc: str
+    page: int
+    label: str
+
+
+class ReferenceOut(BaseModel):
+    """`GET /admin/system-health/napix/{api}/reference`: the in-app NAPIX reference. Static."""
+
+    api: str
+    inputs: list[ReferenceInputOut]
+    outputs: ReferenceOutputsOut
+    statuses: list[ReferenceStatusOut]
+    build_steps: list[str]
+    read_steps: list[str]
+    doc: DocLinkOut
+    general_links: list[ReferenceLinkOut]
+
+
+class NapixDocOut(BaseModel):
+    doc: str
+    title: str
+    pages: int
+    available: bool
+
+
+class AcceptedOut(BaseModel):
+    at: datetime
+    api_label: str
+    http_status: int
+
+
+class TokenRequestOut(BaseModel):
+    at: datetime | None
+    ok: bool
+    outcome: str | None
+    http_status: int | None
+    duration_ms: int | None
+    rate_limit: RateLimitOut
+
+
+class TokenFailureOut(BaseModel):
+    at: datetime | None
+    family: str | None
+
+
+class TokenEndpointOut(BaseModel):
+    method: str
+    url: str
+    body: str
+    content_type: str
+    auth_note: str
+
+
+class TokenCheckStateOut(BaseModel):
+    allowed: bool
+    reason: str | None
+    next_allowed_at: datetime | None
+
+
+class NapixTokenOut(BaseModel):
+    """`GET /admin/system-health/token`: the access token's state, read with no call; never the token."""
+
+    status: HealthStatus
+    napix_enabled: bool
+    shared_store: bool
+    held: bool
+    ttl_seconds: int | None
+    renewing_soon: bool
+    valid_until: datetime | None
+    expires_at: datetime | None
+    obtained_at: datetime | None
+    token_type: str | None
+    scope: str | None
+    accepted_since: AcceptedOut | None
+    rejected_since: int
+    last_request: TokenRequestOut | None
+    last_failure: TokenFailureOut | None
+    requests_today: int
+    endpoint: TokenEndpointOut
+    curl_token: str
+    check: TokenCheckStateOut
+
+
+class NapixTokenCheckOut(BaseModel):
+    """`POST /admin/system-health/token/check`: one token request's outcome; never the token."""
+
+    ok: bool
+    http_status: int | None
+    outcome: str | None
+    duration_ms: int
+    expires_in: int | None
+    rate_limit: RateLimitOut
+    token: NapixTokenOut
 
 
 class ServiceCheckOut(BaseModel):

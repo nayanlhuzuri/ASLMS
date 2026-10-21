@@ -76,6 +76,12 @@
   font-size: var(--t-md);
 }
 
+.notice[data-tone="warning"] {
+  border-color: #fedf89;
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
 .loading {
   display: block;
   padding: var(--s3) 0;

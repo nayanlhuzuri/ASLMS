@@ -66,6 +66,16 @@ class Sample:
     hidden: frozenset[str] = field(default_factory=lambda: NAME_KEYS)
     case_keys: frozenset[str] = field(default_factory=lambda: CASE_KEYS)
     case_visible: bool = False
+    # the System health console: true when a value sent differs from the held sample (design
+    # system-health-inspector, decision 5)
+    edited: bool = False
+
+    def hidden_from_caller(self) -> frozenset[str]:
+        """The value keys the console leaves empty for this caller (decision 6): a name, a CNR, a case or a filing
+        number of a case the caller cannot see. A discovery term (no source case) is pre-filled."""
+        if self.source_case_id is None or self.case_visible:
+            return frozenset()
+        return frozenset(self.hidden | self.case_keys)
 
     def public_values(self, *, case_visible: bool | None = None) -> dict[str, Any]:
         """The values the screen and the audit row may carry: never a name; a CNR or a case or filing number only

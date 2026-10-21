@@ -2,7 +2,9 @@
 court API through the integration layer, with an input ASLMS already holds, run in the request.
 
 - **The guard** (`guard`, decision 8) refuses before any call and writes nothing, in this order: unknown API (404),
-  the switch off (409 `napix_off`), no sample (409 `no_sample`), a test of this API less than
+  the switch off (409 `napix_off`), no sample (409 `no_sample`), a send with no body whose held sample carries a
+  value hidden from the caller (409 `sample_hidden`: a name, a CNR, a case or filing number of a case the caller
+  cannot see; design `system-health-inspector`, decision 6), a test of this API less than
   `HEALTH_TEST_API_MIN_SECONDS` ago by anyone (429 `test_too_soon`; the Connection check also counts the data-health
   connectivity check), the caller's `HEALTH_TEST_PER_USER_HOUR` reached (429 `test_limit`), the detected window's
   remaining calls below `NAPIX_SEARCH_FLOOR` (429 `napix_budget`; an unknown remaining allows the test). `run` then
@@ -41,7 +43,16 @@ from aslms.domain.org import User
 from aslms.domain.reference import Permission
 from aslms.integration.napix.client import NapixClient, NapixResult, nested_list
 from aslms.integration.napix.hc import NapixHighCourt, rows_of, search_rows
-from aslms.services import access, audit, napix_samples, napix_window, system_health
+from aslms.integration.napix.preview import preview
+from aslms.services import (
+    access,
+    audit,
+    napix_inspect,
+    napix_reference,
+    napix_samples,
+    napix_window,
+    system_health,
+)
 from aslms.services.access import Member
 from aslms.services.audit import Actor
 from aslms.services.audit_search import to_ist
@@ -56,6 +67,9 @@ MASTER_KEYS = ("state", "district", "bench_master", "case_type", "act")
 LIST_KEYS = ("causelist_bench", "causelist_details")
 SEARCH_KEYS = ("case_search", "filing", "party_name", "advocate_name")
 ANSWERED_FAMILIES = system_health.ANSWERED_FAMILIES
+SAMPLE_HIDDEN = (
+    "The held sample belongs to a case you cannot see; type the values in the console's form and send them"
+)
 
 
 class TestRefused(Exception):
@@ -87,6 +101,13 @@ class TestOutcome:
     remaining: int | None
     input: dict[str, Any]
     summary: dict[str, Any] = field(default_factory=dict)
+    # the console (design system-health-inspector, decision 5)
+    request: dict[str, Any] = field(default_factory=dict)
+    edited: bool = False
+    rate_limit: dict[str, int | None] = field(default_factory=lambda: {"limit": None, "remaining": None})
+    structure: dict[str, Any] | None = None
+    inventory_diff: dict[str, Any] | None = None
+    response_id: Any = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -105,6 +126,15 @@ class TestOutcome:
             "remaining": self.remaining,
             "input": self.input,
             "summary": self.summary,
+            "request": self.request,
+            "edited": self.edited,
+            "rate_limit": self.rate_limit,
+            "structure": self.structure,
+            "inventory_diff": self.inventory_diff,
+            "response_id": self.response_id,
+            "response_available": self.response_id is not None,
+            "http_meaning": napix_reference.http_meaning(self.http_status, self.error_family),
+            "napix_meaning": napix_reference.napix_meaning(self.napix_status),
         }
 
 
@@ -313,9 +343,17 @@ def _over_cap(session: Session, settings: Settings, user: User | Member, now: da
 
 
 def guard(
-    session: Session, settings: Settings, user: User | Member, key: str, now: datetime | None = None
+    session: Session,
+    settings: Settings,
+    user: User | Member,
+    key: str,
+    now: datetime | None = None,
+    values: dict[str, Any] | None = None,
 ) -> Sample:
-    """Decision 8's refusals 1-6, in order, before any call and writing nothing; the chosen sample."""
+    """Decision 8's refusals 1-6, in order, before any call and writing nothing; the sample to send. With `values`
+    (the console's form, design `system-health-inspector`, decision 8) they are checked right after the switch and
+    replace the held sample (`napix_inspect.InvalidInput`, 422); `no_sample` and `sample_hidden` are only for a send
+    without values."""
     now = now or datetime.now(UTC)
     if key not in system_health.BY_KEY:
         raise TestRefused("not_found", "no such court API", 404)
@@ -324,8 +362,14 @@ def guard(
             "napix_off", "Court calls are switched off on this server (NAPIX_ENABLED is false)", 409
         )
     chosen = napix_samples.choose(session, settings, key, user)
+    if values is not None:
+        chosen = napix_inspect.validate(session, settings, key, values, held=chosen)
     if isinstance(chosen, NoSample):
         raise TestRefused("no_sample", chosen.reason, 409)
+    if values is None and chosen.hidden_from_caller() & chosen.values.keys():
+        # design system-health-inspector, decision 6: every value sent was seen or typed by the sender, so a send
+        # with no body never uses a name, CNR, case or filing number of a case the caller cannot see
+        raise TestRefused("sample_hidden", SAMPLE_HIDDEN, 409)
     _too_soon(session, settings, key, now)
     _over_cap(session, settings, user, now)
     window = napix_window.current(session, settings, now)
@@ -388,12 +432,13 @@ async def run(
     client: NapixClient,
     hc: NapixHighCourt,
     key: str,
+    values: dict[str, Any] | None = None,
 ) -> TestOutcome:
     """One call of one court API (decisions 7-13). A court failure is an outcome (`ok = false`), not an exception.
     The call rows and the audit row are committed through `session_factory`, each in a session of its own; the
     request session only reads and holds the locks (design `api-health-checker-followups`, decisions 1, 2 and 6)."""
     member = acting_member(session, user, Permission.ADMIN_SERVICE_HEALTH)
-    sample = guard(session, settings, user, key)
+    sample = guard(session, settings, user, key, values=values)
     user_id = napix_window.user_id_of(user)
     if user_id is not None:
         lock_user(session, user_id)
@@ -403,6 +448,8 @@ async def run(
     _too_soon(session, settings, key, now)
     _over_cap(session, settings, user, now)
     e = system_health.entry(key)
+    request = preview(settings, key, e.invoke, sample.values)  # the request as it is sent (no call)
+    target = hc.for_codes(est_code=sample.values.get("est_code"), state_code=sample.values.get("state_code"))
     recorder = NapixRecorder(user_id=user_id)
     client.on_call = recorder.on_call
     client.max_attempts = 1
@@ -414,7 +461,7 @@ async def run(
     try:
         try:
             async with client:
-                value = await e.invoke(hc, sample.values)
+                value = await e.invoke(target, sample.values)
         except (IntegrationError, httpx.HTTPError) as exc:
             error_family = type(exc).__name__
     finally:
@@ -442,7 +489,22 @@ async def run(
         remaining=recorder.last_remaining,
         input={"label": sample.label, "values": sample.public_values()},
         summary={"kind": e.kind, "row_count": None, "field_names": [], "facts": []},
+        request={
+            "method": request.method,
+            "url": request.url,
+            "plain": request.plain,
+            "envelope": napix_inspect.envelope(settings, request),
+        },
+        edited=sample.edited,
+        rate_limit={
+            "limit": last.rate_limit[0] if last is not None else None,
+            "remaining": last.rate_limit[1] if last is not None else None,
+        },
+        response_id=recorder.response_ids.get((e.path, request.plain_sha256)) if ok else None,
     )
+    if ok and last is not None and last.pdf is None and last.data is not None:
+        outcome.structure = napix_inspect.structure(last.data)
+        outcome.inventory_diff = napix_inspect.inventory_diff(key, napix_inspect.structure_paths(last.data))
     failure: Exception | None = None
     try:
         if ok and last is not None:
@@ -462,6 +524,15 @@ async def run(
         "remaining": outcome.remaining,
         "sample": _audit_sample(sample),
         "summary": None if failure is not None else outcome.summary,
+        # the console's facts (design system-health-inspector, decision 5): the plain parameters sent (names
+        # included, as court search audits its query; decision 6 ensures the sender saw or typed them)
+        "params": dict(request.params),
+        "params_sha256": request.plain_sha256,
+        "edited": sample.edited,
+        "response_id": str(outcome.response_id) if outcome.response_id is not None else None,
+        "token_verified": outcome.token_verified,
+        "rate_limit": outcome.rate_limit,
+        "structure": outcome.structure,
     }
     if failure is not None:
         after["summary_error"] = type(failure).__name__

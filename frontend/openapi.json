@@ -1,6 +1,30 @@
 {
   "components": {
     "schemas": {
+      "AcceptedOut": {
+        "properties": {
+          "api_label": {
+            "title": "Api Label",
+            "type": "string"
+          },
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "http_status": {
+            "title": "Http Status",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "at",
+          "api_label",
+          "http_status"
+        ],
+        "title": "AcceptedOut",
+        "type": "object"
+      },
       "ActOut": {
         "properties": {
           "act_name_as_listed": {
@@ -1103,6 +1127,10 @@
             "title": "Duration Ms",
             "type": "integer"
           },
+          "edited": {
+            "title": "Edited",
+            "type": "boolean"
+          },
           "error_family": {
             "anyOf": [
               {
@@ -1113,6 +1141,17 @@
               }
             ],
             "title": "Error Family"
+          },
+          "http_meaning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Http Meaning"
           },
           "http_status": {
             "anyOf": [
@@ -1127,6 +1166,27 @@
           },
           "input": {
             "$ref": "#/components/schemas/ApiTestInputOut"
+          },
+          "inventory_diff": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InventoryDiffOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "napix_meaning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Napix Meaning"
           },
           "napix_status": {
             "anyOf": [
@@ -1143,6 +1203,9 @@
             "title": "Ok",
             "type": "boolean"
           },
+          "rate_limit": {
+            "$ref": "#/components/schemas/RateLimitOut"
+          },
           "reason": {
             "title": "Reason",
             "type": "string"
@@ -1158,6 +1221,25 @@
             ],
             "title": "Remaining"
           },
+          "request": {
+            "$ref": "#/components/schemas/SentRequestOut"
+          },
+          "response_available": {
+            "title": "Response Available",
+            "type": "boolean"
+          },
+          "response_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Response Id"
+          },
           "status": {
             "enum": [
               "ok",
@@ -1167,6 +1249,16 @@
             ],
             "title": "Status",
             "type": "string"
+          },
+          "structure": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StructureOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "summary": {
             "$ref": "#/components/schemas/ApiTestSummaryOut"
@@ -1198,7 +1290,16 @@
           "token_verified",
           "remaining",
           "input",
-          "summary"
+          "summary",
+          "request",
+          "edited",
+          "rate_limit",
+          "structure",
+          "inventory_diff",
+          "response_id",
+          "response_available",
+          "http_meaning",
+          "napix_meaning"
         ],
         "title": "ApiTestOut",
         "type": "object"
@@ -4681,6 +4782,405 @@
           "label"
         ],
         "title": "CodeLabelOut",
+        "type": "object"
+      },
+      "ConsoleFieldOut": {
+        "properties": {
+          "editable": {
+            "title": "Editable",
+            "type": "boolean"
+          },
+          "format": {
+            "title": "Format",
+            "type": "string"
+          },
+          "hint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hint"
+          },
+          "mandatory": {
+            "description": "as the specification says",
+            "title": "Mandatory",
+            "type": "boolean"
+          },
+          "meaning": {
+            "title": "Meaning",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "prefilled": {
+            "title": "Prefilled",
+            "type": "boolean"
+          },
+          "required": {
+            "description": "the console needs a value",
+            "title": "Required",
+            "type": "boolean"
+          },
+          "source": {
+            "enum": [
+              "settings",
+              "held",
+              "empty"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "value",
+          "prefilled",
+          "source",
+          "editable",
+          "mandatory",
+          "required",
+          "format",
+          "meaning",
+          "hint"
+        ],
+        "title": "ConsoleFieldOut",
+        "type": "object"
+      },
+      "ConsoleOut": {
+        "description": "`GET /admin/system-health/napix/{api}/console`: the request console of one court API. Never calls NAPIX.",
+        "properties": {
+          "api": {
+            "title": "Api",
+            "type": "string"
+          },
+          "doc": {
+            "$ref": "#/components/schemas/DocLinkOut"
+          },
+          "envelope": {
+            "items": {
+              "$ref": "#/components/schemas/EnvelopeItemOut"
+            },
+            "title": "Envelope",
+            "type": "array"
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/ConsoleFieldOut"
+            },
+            "title": "Fields",
+            "type": "array"
+          },
+          "full_answer_allowed": {
+            "title": "Full Answer Allowed",
+            "type": "boolean"
+          },
+          "full_answer_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Answer Note"
+          },
+          "headers": {
+            "items": {
+              "$ref": "#/components/schemas/HeaderOut"
+            },
+            "title": "Headers",
+            "type": "array"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "last_send": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LastSendOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "latest_answer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LatestAnswerOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "method_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Method Note"
+          },
+          "no_input_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "No Input Note"
+          },
+          "not_saved_note": {
+            "title": "Not Saved Note",
+            "type": "string"
+          },
+          "plain": {
+            "title": "Plain",
+            "type": "string"
+          },
+          "plain_complete": {
+            "title": "Plain Complete",
+            "type": "boolean"
+          },
+          "plain_sha256": {
+            "title": "Plain Sha256",
+            "type": "string"
+          },
+          "request_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "HMAC-SHA256 under the published hash key; not secret",
+            "title": "Request Token"
+          },
+          "sample": {
+            "$ref": "#/components/schemas/ConsoleSampleOut"
+          },
+          "send": {
+            "$ref": "#/components/schemas/ApiTestStateOut"
+          },
+          "templates": {
+            "$ref": "#/components/schemas/TemplatesOut"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "api",
+          "label",
+          "method",
+          "method_note",
+          "url",
+          "plain",
+          "plain_sha256",
+          "plain_complete",
+          "no_input_note",
+          "envelope",
+          "headers",
+          "request_token",
+          "templates",
+          "fields",
+          "sample",
+          "send",
+          "last_send",
+          "latest_answer",
+          "doc",
+          "full_answer_allowed",
+          "not_saved_note",
+          "full_answer_note"
+        ],
+        "title": "ConsoleOut",
+        "type": "object"
+      },
+      "ConsoleRequestOut": {
+        "description": "`POST /admin/system-health/napix/{api}/preview`: the request for the form's values. No call.",
+        "properties": {
+          "api": {
+            "title": "Api",
+            "type": "string"
+          },
+          "envelope": {
+            "items": {
+              "$ref": "#/components/schemas/EnvelopeItemOut"
+            },
+            "title": "Envelope",
+            "type": "array"
+          },
+          "headers": {
+            "items": {
+              "$ref": "#/components/schemas/HeaderOut"
+            },
+            "title": "Headers",
+            "type": "array"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "method_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Method Note"
+          },
+          "no_input_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "No Input Note"
+          },
+          "plain": {
+            "title": "Plain",
+            "type": "string"
+          },
+          "plain_complete": {
+            "title": "Plain Complete",
+            "type": "boolean"
+          },
+          "plain_sha256": {
+            "title": "Plain Sha256",
+            "type": "string"
+          },
+          "request_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "HMAC-SHA256 under the published hash key; not secret",
+            "title": "Request Token"
+          },
+          "templates": {
+            "$ref": "#/components/schemas/TemplatesOut"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "api",
+          "label",
+          "method",
+          "method_note",
+          "url",
+          "plain",
+          "plain_sha256",
+          "plain_complete",
+          "no_input_note",
+          "envelope",
+          "headers",
+          "request_token",
+          "templates"
+        ],
+        "title": "ConsoleRequestOut",
+        "type": "object"
+      },
+      "ConsoleSampleOut": {
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "available",
+          "label",
+          "reason"
+        ],
+        "title": "ConsoleSampleOut",
+        "type": "object"
+      },
+      "ConsoleValuesIn": {
+        "description": "The console's form: NAPIX parameter name -> value (design `system-health-inspector`, decision 8).",
+        "properties": {
+          "values": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Values",
+            "type": "object"
+          }
+        },
+        "title": "ConsoleValuesIn",
         "type": "object"
       },
       "CounselCodeIn": {
@@ -8305,6 +8805,34 @@
         "title": "DismissIn",
         "type": "object"
       },
+      "DocLinkOut": {
+        "properties": {
+          "available": {
+            "default": true,
+            "title": "Available",
+            "type": "boolean"
+          },
+          "doc": {
+            "title": "Doc",
+            "type": "string"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "section": {
+            "title": "Section",
+            "type": "string"
+          }
+        },
+        "required": [
+          "doc",
+          "page",
+          "section"
+        ],
+        "title": "DocLinkOut",
+        "type": "object"
+      },
       "DocumentArchiveIn": {
         "properties": {
           "reason": {
@@ -9312,6 +9840,41 @@
         "title": "EntryRecommendationOut",
         "type": "object"
       },
+      "EnvelopeItemOut": {
+        "properties": {
+          "length": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Length"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "shown": {
+            "description": "the value as shown: dept_id masked, request_str never",
+            "title": "Shown",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "shown",
+          "note"
+        ],
+        "title": "EnvelopeItemOut",
+        "type": "object"
+      },
       "ErrorOut": {
         "properties": {
           "code": {
@@ -10185,6 +10748,24 @@
         "title": "HeadIn",
         "type": "object"
       },
+      "HeaderOut": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "shown": {
+            "title": "Shown",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "shown"
+        ],
+        "title": "HeaderOut",
+        "type": "object"
+      },
       "HealthCheckOut": {
         "properties": {
           "called_at": {
@@ -10729,6 +11310,37 @@
         "title": "InboxCountsOut",
         "type": "object"
       },
+      "InventoryDiffOut": {
+        "properties": {
+          "absent": {
+            "description": "inventory paths not in this answer (information)",
+            "items": {
+              "type": "string"
+            },
+            "title": "Absent",
+            "type": "array"
+          },
+          "checked": {
+            "title": "Checked",
+            "type": "boolean"
+          },
+          "new": {
+            "description": "paths not in the field inventory: a field without a home, report it",
+            "items": {
+              "type": "string"
+            },
+            "title": "New",
+            "type": "array"
+          }
+        },
+        "required": [
+          "checked",
+          "new",
+          "absent"
+        ],
+        "title": "InventoryDiffOut",
+        "type": "object"
+      },
       "JobRunOut": {
         "properties": {
           "counters": {
@@ -10989,6 +11601,288 @@
         "title": "LaneCountsOut",
         "type": "object"
       },
+      "LastSendOut": {
+        "properties": {
+          "answered": {
+            "title": "Answered",
+            "type": "boolean"
+          },
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "attempts": {
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "by": {
+            "enum": [
+              "you",
+              "person"
+            ],
+            "title": "By",
+            "type": "string"
+          },
+          "duration_ms": {
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "edited": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edited"
+          },
+          "error_family": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Family"
+          },
+          "http_meaning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Http Meaning"
+          },
+          "http_status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Http Status"
+          },
+          "inventory_diff": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InventoryDiffOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "napix_meaning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Napix Meaning"
+          },
+          "napix_status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Napix Status"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "params_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Params Sha256"
+          },
+          "plain": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plain"
+          },
+          "rate_limit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RateLimitOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "recorded": {
+            "description": "false for tests before this version: the new facts are null",
+            "title": "Recorded",
+            "type": "boolean"
+          },
+          "remaining": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining"
+          },
+          "response_available": {
+            "title": "Response Available",
+            "type": "boolean"
+          },
+          "response_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Response Id"
+          },
+          "same_plain_as_form": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Same Plain As Form"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "warn",
+              "down",
+              "unknown"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "structure": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StructureOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ApiTestSummaryOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "token_verified": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Verified"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "window_reset_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window Reset At"
+          }
+        },
+        "required": [
+          "at",
+          "by",
+          "recorded",
+          "edited",
+          "ok",
+          "answered",
+          "status",
+          "reason",
+          "method",
+          "url",
+          "plain",
+          "params_sha256",
+          "http_status",
+          "http_meaning",
+          "napix_status",
+          "napix_meaning",
+          "error_family",
+          "duration_ms",
+          "attempts",
+          "remaining",
+          "rate_limit",
+          "window_reset_at",
+          "token_verified",
+          "summary",
+          "structure",
+          "inventory_diff",
+          "response_id",
+          "response_available",
+          "same_plain_as_form"
+        ],
+        "title": "LastSendOut",
+        "type": "object"
+      },
       "LastTestOut": {
         "properties": {
           "at": {
@@ -11018,6 +11912,70 @@
           "by_you"
         ],
         "title": "LastTestOut",
+        "type": "object"
+      },
+      "LatestAnswerOut": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "enum": [
+              "you",
+              "person",
+              "background"
+            ],
+            "title": "By",
+            "type": "string"
+          },
+          "inventory_diff": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InventoryDiffOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "response_available": {
+            "title": "Response Available",
+            "type": "boolean"
+          },
+          "response_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Response Id"
+          },
+          "structure": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StructureOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "at",
+          "by",
+          "structure",
+          "inventory_diff",
+          "response_id",
+          "response_available"
+        ],
+        "title": "LatestAnswerOut",
         "type": "object"
       },
       "LinkGraphOut": {
@@ -12970,6 +13928,34 @@
         "title": "NapixByUserOut",
         "type": "object"
       },
+      "NapixDocOut": {
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "doc": {
+            "title": "Doc",
+            "type": "string"
+          },
+          "pages": {
+            "title": "Pages",
+            "type": "integer"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "doc",
+          "title",
+          "pages",
+          "available"
+        ],
+        "title": "NapixDocOut",
+        "type": "object"
+      },
       "NapixHealthOut": {
         "properties": {
           "by_user": {
@@ -13222,6 +14208,240 @@
           "token_unverified"
         ],
         "title": "NapixTodayOut",
+        "type": "object"
+      },
+      "NapixTokenCheckOut": {
+        "description": "`POST /admin/system-health/token/check`: one token request's outcome; never the token.",
+        "properties": {
+          "duration_ms": {
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "expires_in": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires In"
+          },
+          "http_status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Http Status"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "rate_limit": {
+            "$ref": "#/components/schemas/RateLimitOut"
+          },
+          "token": {
+            "$ref": "#/components/schemas/NapixTokenOut"
+          }
+        },
+        "required": [
+          "ok",
+          "http_status",
+          "outcome",
+          "duration_ms",
+          "expires_in",
+          "rate_limit",
+          "token"
+        ],
+        "title": "NapixTokenCheckOut",
+        "type": "object"
+      },
+      "NapixTokenOut": {
+        "description": "`GET /admin/system-health/token`: the access token's state, read with no call; never the token.",
+        "properties": {
+          "accepted_since": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AcceptedOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "check": {
+            "$ref": "#/components/schemas/TokenCheckStateOut"
+          },
+          "curl_token": {
+            "title": "Curl Token",
+            "type": "string"
+          },
+          "endpoint": {
+            "$ref": "#/components/schemas/TokenEndpointOut"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "held": {
+            "title": "Held",
+            "type": "boolean"
+          },
+          "last_failure": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TokenFailureOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_request": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TokenRequestOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "napix_enabled": {
+            "title": "Napix Enabled",
+            "type": "boolean"
+          },
+          "obtained_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Obtained At"
+          },
+          "rejected_since": {
+            "title": "Rejected Since",
+            "type": "integer"
+          },
+          "renewing_soon": {
+            "title": "Renewing Soon",
+            "type": "boolean"
+          },
+          "requests_today": {
+            "title": "Requests Today",
+            "type": "integer"
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope"
+          },
+          "shared_store": {
+            "title": "Shared Store",
+            "type": "boolean"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "warn",
+              "down",
+              "unknown"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "token_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Type"
+          },
+          "ttl_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ttl Seconds"
+          },
+          "valid_until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Until"
+          }
+        },
+        "required": [
+          "status",
+          "napix_enabled",
+          "shared_store",
+          "held",
+          "ttl_seconds",
+          "renewing_soon",
+          "valid_until",
+          "expires_at",
+          "obtained_at",
+          "token_type",
+          "scope",
+          "accepted_since",
+          "rejected_since",
+          "last_request",
+          "last_failure",
+          "requests_today",
+          "endpoint",
+          "curl_token",
+          "check"
+        ],
+        "title": "NapixTokenOut",
         "type": "object"
       },
       "NapixWindowOut": {
@@ -16384,6 +17604,34 @@
         "title": "Rate7Out",
         "type": "object"
       },
+      "RateLimitOut": {
+        "properties": {
+          "limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit"
+          },
+          "remaining": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining"
+          }
+        },
+        "title": "RateLimitOut",
+        "type": "object"
+      },
       "ReassignedOut": {
         "properties": {
           "case_ref": {
@@ -16638,6 +17886,51 @@
         "title": "RecommendationOut",
         "type": "object"
       },
+      "ReferenceInputOut": {
+        "properties": {
+          "format": {
+            "title": "Format",
+            "type": "string"
+          },
+          "mandatory": {
+            "title": "Mandatory",
+            "type": "boolean"
+          },
+          "meaning": {
+            "title": "Meaning",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "required": {
+            "title": "Required",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "mandatory",
+          "required",
+          "format",
+          "meaning",
+          "note"
+        ],
+        "title": "ReferenceInputOut",
+        "type": "object"
+      },
       "ReferenceLabelsOut": {
         "description": "Design `portal-shell`, decision 16a: the database's labels; `assignable` is the caller's.",
         "properties": {
@@ -16677,6 +17970,182 @@
           "alert_kinds"
         ],
         "title": "ReferenceLabelsOut",
+        "type": "object"
+      },
+      "ReferenceLinkOut": {
+        "properties": {
+          "doc": {
+            "title": "Doc",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "doc",
+          "page",
+          "label"
+        ],
+        "title": "ReferenceLinkOut",
+        "type": "object"
+      },
+      "ReferenceOut": {
+        "description": "`GET /admin/system-health/napix/{api}/reference`: the in-app NAPIX reference. Static.",
+        "properties": {
+          "api": {
+            "title": "Api",
+            "type": "string"
+          },
+          "build_steps": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Build Steps",
+            "type": "array"
+          },
+          "doc": {
+            "$ref": "#/components/schemas/DocLinkOut"
+          },
+          "general_links": {
+            "items": {
+              "$ref": "#/components/schemas/ReferenceLinkOut"
+            },
+            "title": "General Links",
+            "type": "array"
+          },
+          "inputs": {
+            "items": {
+              "$ref": "#/components/schemas/ReferenceInputOut"
+            },
+            "title": "Inputs",
+            "type": "array"
+          },
+          "outputs": {
+            "$ref": "#/components/schemas/ReferenceOutputsOut"
+          },
+          "read_steps": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Read Steps",
+            "type": "array"
+          },
+          "statuses": {
+            "items": {
+              "$ref": "#/components/schemas/ReferenceStatusOut"
+            },
+            "title": "Statuses",
+            "type": "array"
+          }
+        },
+        "required": [
+          "api",
+          "inputs",
+          "outputs",
+          "statuses",
+          "build_steps",
+          "read_steps",
+          "doc",
+          "general_links"
+        ],
+        "title": "ReferenceOut",
+        "type": "object"
+      },
+      "ReferenceOutputsOut": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "json",
+              "pdf"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "paths": {
+            "items": {
+              "$ref": "#/components/schemas/ReferencePathOut"
+            },
+            "title": "Paths",
+            "type": "array"
+          }
+        },
+        "required": [
+          "kind",
+          "note",
+          "paths"
+        ],
+        "title": "ReferenceOutputsOut",
+        "type": "object"
+      },
+      "ReferencePathOut": {
+        "properties": {
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "type"
+        ],
+        "title": "ReferencePathOut",
+        "type": "object"
+      },
+      "ReferenceStatusOut": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "listed": {
+            "description": "listed for this API in the specification",
+            "title": "Listed",
+            "type": "boolean"
+          },
+          "meaning": {
+            "title": "Meaning",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "meaning",
+          "listed"
+        ],
+        "title": "ReferenceStatusOut",
         "type": "object"
       },
       "RefetchCaseIn": {
@@ -17590,6 +19059,37 @@
         "title": "SentListOut",
         "type": "object"
       },
+      "SentRequestOut": {
+        "properties": {
+          "envelope": {
+            "items": {
+              "$ref": "#/components/schemas/EnvelopeItemOut"
+            },
+            "title": "Envelope",
+            "type": "array"
+          },
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "plain": {
+            "title": "Plain",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "method",
+          "url",
+          "plain",
+          "envelope"
+        ],
+        "title": "SentRequestOut",
+        "type": "object"
+      },
       "ServiceCheckOut": {
         "properties": {
           "duration_ms": {
@@ -18368,6 +19868,123 @@
         "title": "StopWatchingIn",
         "type": "object"
       },
+      "StoredResponseOut": {
+        "description": "The verbatim decrypted answer (State-wide viewers only; audited `napix.response_viewed`).",
+        "properties": {
+          "api": {
+            "title": "Api",
+            "type": "string"
+          },
+          "bytes": {
+            "title": "Bytes",
+            "type": "integer"
+          },
+          "fetched_at": {
+            "format": "date-time",
+            "title": "Fetched At",
+            "type": "string"
+          },
+          "last_seen_at": {
+            "format": "date-time",
+            "title": "Last Seen At",
+            "type": "string"
+          },
+          "payload": {
+            "title": "Payload"
+          },
+          "response_id": {
+            "format": "uuid",
+            "title": "Response Id",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "send",
+              "latest"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "token_verified": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Verified"
+          }
+        },
+        "required": [
+          "api",
+          "source",
+          "response_id",
+          "fetched_at",
+          "last_seen_at",
+          "token_verified",
+          "bytes",
+          "payload"
+        ],
+        "title": "StoredResponseOut",
+        "type": "object"
+      },
+      "StructureOut": {
+        "description": "An answer's field paths, types and counts; never a value (design `system-health-inspector`, decision 5).",
+        "properties": {
+          "depth_limited": {
+            "title": "Depth Limited",
+            "type": "boolean"
+          },
+          "more": {
+            "title": "More",
+            "type": "integer"
+          },
+          "paths": {
+            "items": {
+              "$ref": "#/components/schemas/StructurePathOut"
+            },
+            "title": "Paths",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "paths",
+          "total",
+          "more",
+          "depth_limited"
+        ],
+        "title": "StructureOut",
+        "type": "object"
+      },
+      "StructurePathOut": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "type",
+          "count"
+        ],
+        "title": "StructurePathOut",
+        "type": "object"
+      },
       "SuggestIn": {
         "properties": {
           "from_office_code": {
@@ -18678,6 +20295,24 @@
           "input_fields"
         ],
         "title": "TechnicalOut",
+        "type": "object"
+      },
+      "TemplatesOut": {
+        "properties": {
+          "curl": {
+            "title": "Curl",
+            "type": "string"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "curl",
+          "note"
+        ],
+        "title": "TemplatesOut",
         "type": "object"
       },
       "TicketArchiveIn": {
@@ -19352,6 +20987,110 @@
         "title": "TimelineOut",
         "type": "object"
       },
+      "TokenCheckStateOut": {
+        "properties": {
+          "allowed": {
+            "title": "Allowed",
+            "type": "boolean"
+          },
+          "next_allowed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Allowed At"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "allowed",
+          "reason",
+          "next_allowed_at"
+        ],
+        "title": "TokenCheckStateOut",
+        "type": "object"
+      },
+      "TokenEndpointOut": {
+        "properties": {
+          "auth_note": {
+            "title": "Auth Note",
+            "type": "string"
+          },
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "content_type": {
+            "title": "Content Type",
+            "type": "string"
+          },
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "method",
+          "url",
+          "body",
+          "content_type",
+          "auth_note"
+        ],
+        "title": "TokenEndpointOut",
+        "type": "object"
+      },
+      "TokenFailureOut": {
+        "properties": {
+          "at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "family": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Family"
+          }
+        },
+        "required": [
+          "at",
+          "family"
+        ],
+        "title": "TokenFailureOut",
+        "type": "object"
+      },
       "TokenOut": {
         "properties": {
           "access_token": {
@@ -19404,6 +21143,72 @@
           "user"
         ],
         "title": "TokenOut",
+        "type": "object"
+      },
+      "TokenRequestOut": {
+        "properties": {
+          "at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "duration_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Ms"
+          },
+          "http_status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Http Status"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "rate_limit": {
+            "$ref": "#/components/schemas/RateLimitOut"
+          }
+        },
+        "required": [
+          "at",
+          "ok",
+          "outcome",
+          "http_status",
+          "duration_ms",
+          "rate_limit"
+        ],
+        "title": "TokenRequestOut",
         "type": "object"
       },
       "TransferDecisionIn": {
@@ -25693,6 +27498,104 @@
         ]
       }
     },
+    "/admin/system-health/docs": {
+      "get": {
+        "description": "The three NAPIX documents and whether each is installed on this server (pinned by SHA-256).",
+        "operationId": "list_docs_admin_system_health_docs_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/NapixDocOut"
+                  },
+                  "title": "Response List Docs Admin System Health Docs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Docs",
+        "tags": [
+          "system-health"
+        ]
+      }
+    },
+    "/admin/system-health/docs/{doc}": {
+      "get": {
+        "description": "One NAPIX document, inline (`#page=N` opens it at a page), behind the function; never from a public path. 404\n`not_found` for an unknown id, 404 `doc_missing` when the file is absent or not the pinned edition. Not\naudited.",
+        "operationId": "get_doc_admin_system_health_docs__doc__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "doc",
+            "required": true,
+            "schema": {
+              "title": "Doc",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "application/pdf": {}
+            },
+            "description": "the PDF, inline"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Doc",
+        "tags": [
+          "system-health"
+        ]
+      }
+    },
     "/admin/system-health/napix/{api}": {
       "get": {
         "description": "One card with its 7 daily buckets, its last 10 calls, the held sample the test would use (a case is named\nonly when the caller may see it; a name never) and the technical details. 404 for an unknown key. Never calls\nNAPIX.",
@@ -25753,11 +27656,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ErrorOut"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "Unprocessable Content"
           },
           "429": {
             "content": {
@@ -25781,9 +27684,508 @@
         ]
       }
     },
+    "/admin/system-health/napix/{api}/console": {
+      "get": {
+        "description": "The request console of one court API: the form pre-filled with the held sample (a name, a CNR, a case or a\nfiling number only when the caller may see the case), the request built from the code that sends it (method, URL,\nplain string, the masked envelope, `request_token`, the cURL template), the Send state, the last send, the latest\nstored answer and the documentation link. Never calls NAPIX; not audited.",
+        "operationId": "get_console_admin_system_health_napix__api__console_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "api",
+            "required": true,
+            "schema": {
+              "title": "Api",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Console",
+        "tags": [
+          "system-health"
+        ]
+      }
+    },
+    "/admin/system-health/napix/{api}/postman": {
+      "post": {
+        "description": "A Postman v2.1 collection for this API and the form's values (checked as the preview): the token request, this\nrequest with `input=<plain string>` and the collection's encrypt and verify scripts. Every secret variable is\nempty. No call; not audited.",
+        "operationId": "export_postman_admin_system_health_napix__api__postman_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "api",
+            "required": true,
+            "schema": {
+              "title": "Api",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsoleValuesIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "a Postman v2.1 collection"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Export Postman",
+        "tags": [
+          "system-health"
+        ]
+      }
+    },
+    "/admin/system-health/napix/{api}/preview": {
+      "post": {
+        "description": "The request for the form's values (422 `invalid_input` with a message per parameter). No call; not audited.",
+        "operationId": "preview_request_admin_system_health_napix__api__preview_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "api",
+            "required": true,
+            "schema": {
+              "title": "Api",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsoleValuesIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleRequestOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Preview Request",
+        "tags": [
+          "system-health"
+        ]
+      }
+    },
+    "/admin/system-health/napix/{api}/reference": {
+      "get": {
+        "description": "The in-app NAPIX reference of one court API (inputs, outputs, statuses, how a request is built and an answer\nread, the document links), or of the token request with `api=token`. Static.",
+        "operationId": "get_reference_admin_system_health_napix__api__reference_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "api",
+            "required": true,
+            "schema": {
+              "title": "Api",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReferenceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Reference",
+        "tags": [
+          "system-health"
+        ]
+      }
+    },
+    "/admin/system-health/napix/{api}/response": {
+      "get": {
+        "description": "The full decrypted answer of a send (`source=send&response_id=…`) or the latest stored answer\n(`source=latest`), verbatim from `napix_responses`. Also needs `cases.view_all` (403 `forbidden`): a search answer\nnames cases the caller might not otherwise see. Each opening is audited `napix.response_viewed` (never the\npayload). 404 `no_response`; 413 `too_large` over `HEALTH_RAW_MAX_BYTES`.",
+        "operationId": "get_stored_response_admin_system_health_napix__api__response_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "api",
+            "required": true,
+            "schema": {
+              "title": "Api",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "default": "send",
+              "enum": [
+                "send",
+                "latest"
+              ],
+              "title": "Source",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "response_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Response Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoredResponseOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Stored Response",
+        "tags": [
+          "system-health"
+        ]
+      }
+    },
     "/admin/system-health/napix/{api}/test": {
       "post": {
-        "description": "ONE court call to this API with an input ASLMS holds (no body: the server picks it), on a fresh client with no\nretry, logged and audited. Refused with no call and nothing written: 404 `not_found`; 409 `napix_off`,\n`no_sample`, `test_running`, `user_test_running` (your other test is still running: one test at a time per\nperson); 429 `test_too_soon`, `test_limit`, `napix_budget`. The court's own failure is a 200 with `ok: false`.\nASLMS's own failure after the call answers 500: the call and its audit row are recorded before the error.",
+        "description": "Send: ONE court call to this API, on a fresh client with no retry, logged and audited. With a body, the values\nin the console's form (any parameter, checked first: 422 `invalid_input`); without one, an input ASLMS holds (the\nserver picks it). Refused with no call and nothing written: 404 `not_found`; 409 `napix_off`, `no_sample` (no body\nand nothing held), `sample_hidden` (no body and the held sample belongs to a case you cannot see), `test_running`, `user_test_running` (your other test is still running: one test at a time per\nperson); 429 `test_too_soon`, `test_limit`, `napix_budget`. The court's own failure is a 200 with `ok: false`.\nNothing is applied to case data. ASLMS's own failure after the call answers 500: the call and its audit row are\nrecorded before the error.",
         "operationId": "test_api_admin_system_health_napix__api__test_post",
         "parameters": [
           {
@@ -25796,6 +28198,23 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ConsoleValuesIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
@@ -25841,11 +28260,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ErrorOut"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "Unprocessable Content"
           },
           "429": {
             "content": {
@@ -25891,6 +28310,110 @@
           }
         ],
         "summary": "Get Services",
+        "tags": [
+          "system-health"
+        ]
+      }
+    },
+    "/admin/system-health/token": {
+      "get": {
+        "description": "The access token's state (held, minutes left, issued, expires, accepted by the gateway since issue, the last\nrenewal), read with no call and no token request; never the token. Not audited.",
+        "operationId": "get_token_admin_system_health_token_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NapixTokenOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Token",
+        "tags": [
+          "system-health"
+        ]
+      }
+    },
+    "/admin/system-health/token/check": {
+      "post": {
+        "description": "Check token: ONE token request (no retry) that replaces the shared token, audited `napix.token_checked`.\nRefused before any request and writing nothing: 409 `napix_off`, `check_running`; 429 `check_too_soon`,\n`test_limit` (shared with sends), `napix_budget`. A token-service failure is a 200 with `ok: false`.",
+        "operationId": "check_token_admin_system_health_token_check_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NapixTokenCheckOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Check Token",
         "tags": [
           "system-health"
         ]

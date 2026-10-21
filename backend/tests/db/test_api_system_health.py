@@ -569,22 +569,29 @@ def test_party_search_prefers_a_discovery_term(api, world, gw, held, switch_on):
     assert "case_ref_no" not in _audits(world)[0].after["sample"]
 
 
-def test_party_and_advocate_names_never_leave_the_server(api, world, gw, held, switch_on):
+def test_names_leave_the_server_only_as_the_value_sent(api, world, gw, held, switch_on):
+    """Row 109 kept every name on the server; design `system-health-inspector` (decisions 6 and 8) shows the name a
+    send used in its request and keeps it in the audit row's `params`, because the sender could see the case. The
+    History panel still never shows a name, and no name of the court's answer ever leaves the server."""
     h = ds.login(api, "root")
-    names = {PARTY, ADVOCATE}
+    sent = {"party_name": PARTY, "advocate_name": ADVOCATE}
+    answer_names: set[str] = set()
     for f in ("party_name_2026-09-03.json", "advocate_name_2026-10-18-p1.json"):
         for row in sample(f)["casenos"].values():
-            names.update(n for n in (row.get("pet_name"), row.get("res_name")) if n)
+            answer_names.update(n for n in (row.get("pet_name"), row.get("res_name")) if n)
     for key in ("party_name", "advocate_name"):
         detail = api.get(f"/admin/system-health/napix/{key}", headers=h)
+        assert not [n for n in answer_names | set(sent.values()) if n in detail.text], key
         r = _post(api, key, h)
         assert r.status_code == 200, r.text
-        for text in (detail.text, r.text):
-            assert not [n for n in names if n in text], key
+        assert sent[key] in r.json()["request"]["plain"]
+        assert not [n for n in answer_names - {sent[key]} if n in r.text], key
         assert "of WP(C)/7714/2024" in r.json()["input"]["label"]
     for audit in _audits(world):
-        dumped = json.dumps(audit.after)
-        assert not [n for n in names if n in dumped]
+        key = audit.after["api"]
+        assert sent[key] in audit.after["params"].values()
+        dumped = json.dumps({k: v for k, v in audit.after.items() if k != "params"})
+        assert not [n for n in answer_names | set(sent.values()) if n in dumped]
 
 
 def test_sample_label_names_the_case_only_when_visible(api, world, gw, held):

@@ -34,6 +34,9 @@ from aslms.services.audit_search import to_ist
 from aslms.services.reporting_common import IST_ZONE, with_timeout
 
 TEST_ACTION = "napix.api_tested"
+TOKEN_ACTION = "napix.token_checked"
+# the per-person hourly cap counts sends and token checks together (design system-health-inspector, decision 8)
+CAP_ACTIONS = (TEST_ACTION, TOKEN_ACTION)
 WINDOW = timedelta(days=7)
 DAY = timedelta(hours=24)
 ANSWERED_FAMILIES = ("NapixNotFound", "NapixInputError")
@@ -344,17 +347,17 @@ def last_tests(session: Session, since: datetime) -> dict[str, dict[str, Any]]:
 
 
 def user_tests(session: Session, user_id: uuid.UUID | None, now: datetime) -> tuple[int, datetime | None]:
-    """The caller's tests in the last hour and the oldest of them (`ix_audit_log_actor_created`)."""
+    """The caller's sends and token checks in the last hour and the oldest of them (`ix_audit_log_actor_created`)."""
     if user_id is None:
         return 0, None
     n, oldest = session.execute(
         text(
             """
             SELECT count(*), min(created_at) FROM audit_log
-            WHERE actor_user_id = :uid AND action = :action AND created_at >= :since
+            WHERE actor_user_id = :uid AND action = ANY(:actions) AND created_at >= :since
             """
         ),
-        {"uid": user_id, "action": TEST_ACTION, "since": now - timedelta(hours=1)},
+        {"uid": user_id, "actions": list(CAP_ACTIONS), "since": now - timedelta(hours=1)},
     ).one()
     return int(n or 0), oldest
 
@@ -509,7 +512,12 @@ def _card(
 
 
 def _test_states(
-    session: Session, settings: Settings, user: User | Member | None, now: datetime, keys: list[str]
+    session: Session,
+    settings: Settings,
+    user: User | Member | None,
+    now: datetime,
+    keys: list[str],
+    need_sample: bool = True,
 ) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any] | None]]:
     from aslms.services.napix_admin import last_check_at
 
@@ -522,7 +530,7 @@ def _test_states(
     states: dict[str, dict[str, Any]] = {}
     lasts: dict[str, dict[str, Any] | None] = {}
     for key in keys:
-        have, why = napix_samples.exists(session, settings, key)
+        have, why = napix_samples.exists(session, settings, key) if need_sample else (True, None)
         api_at = api_allowed_at(session, settings, key, now, week, check_at)
         next_at = max((t for t in (api_at, cap_at) if t is not None), default=None)
         if not switch:
@@ -552,6 +560,16 @@ def _test_states(
             else None
         )
     return states, lasts
+
+
+def send_state(
+    session: Session, settings: Settings, user: User | Member | None, key: str, now: datetime | None = None
+) -> dict[str, Any]:
+    """The console's Send state of one API (available, reason, cost, next allowed time): the card's `test` rules
+    without the held-sample condition, since a send of typed values needs none (design system-health-inspector,
+    decision 8); whether every value is typed is the form's own check."""
+    states, _lasts = _test_states(session, settings, user, _now(now), [key], need_sample=False)
+    return states[key]
 
 
 def napix_cards(

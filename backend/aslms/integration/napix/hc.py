@@ -83,6 +83,14 @@ class NapixHighCourt:
         self.client, self.est_code, self.state_code = client, est_code, state_code
         self.last: NapixResult | None = None
 
+    def for_codes(self, est_code: str | None = None, state_code: str | None = None) -> NapixHighCourt:
+        """The same client for another court or state code: used only by the System health console, so an edited
+        `est_code` or `state_code` reaches the same method (design `system-health-inspector`, decision 13). Every
+        other caller keeps the configured codes."""
+        if not est_code and not state_code:
+            return self
+        return NapixHighCourt(self.client, est_code or self.est_code, state_code or self.state_code)
+
     async def _get(self, key: str, params: dict[str, Any] | None = None, method: str = "GET") -> NapixResult:
         self.last = await self.client.call(API[key], params, method)
         return self.last
