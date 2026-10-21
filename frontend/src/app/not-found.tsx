@@ -1,13 +1,22 @@
+"use client";
+
+// a client component: it calls buttonClass(), which lives in the client UI kit
 import Link from "next/link";
 
+import { StatusPage } from "@/components/shell/StatusPage";
+import { buttonClass } from "@/components/ui";
 import { T } from "@/lib/messages";
 
 export default function NotFound() {
   return (
-    <main id="main" style={{ padding: 48, maxWidth: 640, margin: "0 auto" }}>
-      <h1>{T.notFound}</h1>
-      <p>{T.notFoundText}</p>
-      <Link href="/">{T.goHome}</Link>
-    </main>
+    <StatusPage
+      title={T.notFound}
+      text={T.notFoundText}
+      actions={
+        <Link href="/" className={buttonClass("primary")}>
+          {T.goHome}
+        </Link>
+      }
+    />
   );
 }

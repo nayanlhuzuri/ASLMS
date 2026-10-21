@@ -4,13 +4,14 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import type { ExitPreview, MembershipOut, Permission, TicketDetail, UserOut } from "@/lib/api/types";
 import { nav, resetNav } from "@/test/nav";
-import { browserApi, json, labels, makeMe, renderWithClient } from "@/test/render";
+import { browserApi, json, labels, makeMe, primaryActions, renderWithClient } from "@/test/render";
 
 import { AccessMatrix } from "./Access";
+import { AdminFrame } from "./AdminFrame";
 import { OfficeDetailView } from "./Offices";
 import { TicketView } from "./Tickets";
 import { UserDetail } from "./UserDetail";
-import { NewUserForm } from "./Users";
+import { NewUserForm, UsersList } from "./Users";
 
 const MEMBERSHIP: MembershipOut = {
   id: "m-9",
@@ -370,5 +371,57 @@ describe("audit links (portal-audit-health, decision 7)", () => {
     renderWithClient(<OfficeDetailView code="EDU-DSE" />);
     await screen.findByRole("heading", { name: /Secondary Education/ });
     expect(screen.queryByRole("link", { name: "Entries by this office" })).toBeNull();
+  });
+});
+
+describe("Administration on the Settings template (design portal-ui-redesign, decision 26)", () => {
+  it("the groups are a sub-menu by function with the current one marked, and a select for phones", async () => {
+    resetNav("/admin/offices/EDU");
+    browserApi({ "GET /me": makeMe([...DEPT_ADMIN, "admin.keywords"], "dept_admin") });
+    renderWithClient(<AdminFrame>body</AdminFrame>);
+    const menu = await screen.findByRole("navigation", { name: "Administration sections" });
+    expect(within(menu).getAllByRole("link").map((l) => l.textContent)).toEqual([
+      "Users",
+      "User types",
+      "Offices",
+      "Designations",
+      "Department mapping",
+      "Tickets",
+    ]);
+    expect(within(menu).getByRole("link", { name: "Offices" })).toHaveAttribute("aria-current", "page");
+    expect(within(menu).getByRole("link", { name: "Users" })).not.toHaveAttribute("aria-current");
+    const select = screen.getByLabelText("Setting group");
+    expect(select).toHaveValue("offices");
+    await userEvent.selectOptions(select, "mapping");
+    expect(nav.push).toHaveBeenCalledWith("/admin/mapping");
+    expect(screen.getByText("body")).toBeInTheDocument();
+  });
+
+  it("a login with no group sees the body alone", async () => {
+    browserApi({ "GET /me": makeMe(["cases.view_scope"]) });
+    renderWithClient(<AdminFrame>nothing here</AdminFrame>);
+    expect(await screen.findByText("nothing here")).toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "Administration sections" })).toBeNull();
+  });
+
+  it("the users group keeps one primary (New user); the filter's Search is secondary", async () => {
+    browserApi({
+      "GET /me": makeMe(DEPT_ADMIN, "dept_admin"),
+      "GET /reference/labels": labels(),
+      "GET /admin/users": () => json(200, [USER], { "x-total-count": "1" }),
+    });
+    const { container } = renderWithClient(<UsersList />);
+    await screen.findByRole("link", { name: "Ravi Das" });
+    expect(primaryActions(container)).toEqual(["New user"]);
+    expect(screen.getByRole("button", { name: "Search" })).toHaveAttribute("data-variant", "secondary");
+  });
+
+  it("a disabled login's Enable is secondary, so editing it keeps one primary", async () => {
+    userRoutes(makeMe(DEPT_ADMIN, "dept_admin"), { "GET /admin/users/u-9": { ...USER, is_active: false } });
+    const { container } = renderWithClient(<UserDetail id="u-9" />);
+    await screen.findByRole("heading", { name: "Ravi Das" });
+    expect(screen.getByRole("button", { name: "Enable login" })).toHaveAttribute("data-variant", "secondary");
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    expect(primaryActions(container)).toEqual(["Save"]);
   });
 });

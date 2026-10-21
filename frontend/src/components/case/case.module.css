@@ -164,18 +164,18 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--warning);
-  background: var(--warning-bg);
-  color: var(--warning);
-  border-radius: var(--radius);
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--amber);
+  background: var(--amber-soft);
+  color: var(--amber);
+  border-radius: var(--r-md);
 }
 
 .cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+  gap: var(--s4);
 }
 
 .cardList {
@@ -185,31 +185,31 @@
 }
 
 .cardList li + li {
-  margin-top: var(--space-2);
+  margin-top: var(--s2);
 }
 
 .note {
-  border-left: 3px solid var(--navy-100);
-  padding: var(--space-2) var(--space-4);
+  border-left: 3px solid var(--slate-soft);
+  padding: var(--s2) var(--s4);
 }
 
 .noteHead {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
+  gap: var(--s2);
   align-items: baseline;
 }
 
 .noteBody {
   white-space: pre-wrap;
-  margin: var(--space-2) 0;
+  margin: var(--s2) 0;
 }
 
 .graph {
   max-width: 100%;
   overflow-x: auto;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
   background: var(--surface);
 }
 

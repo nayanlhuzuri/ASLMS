@@ -14,6 +14,7 @@ import { useState, type FormEvent } from "react";
 import {
   Badge,
   Button,
+  buttonClass,
   CheckField,
   Dialog,
   EmptyState,
@@ -31,6 +32,8 @@ import { formatDate, formatNumber } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { queryString } from "@/lib/params";
 import { useAction } from "@/lib/useAction";
+
+import a from "./admin.module.css";
 
 import { DesignationInput } from "./Users";
 
@@ -66,7 +69,7 @@ export function OfficesTree() {
   });
   return (
     <section className="stack" aria-label={T.offices.title}>
-      <div className="row" style={{ justifyContent: "space-between" }}>
+      <div className={a.groupHead}>
         <h2>{T.offices.title}</h2>
         {can(me.data, "offices.manage") ? (
           <Link href="/admin/offices/new" className="button-link">
@@ -112,7 +115,7 @@ function headBody(h: HeadDraft) {
 
 function HeadFields({ value, onChange }: { value: HeadDraft; onChange: (v: HeadDraft) => void }) {
   return (
-    <fieldset className="stack" style={{ border: "1px solid var(--line)", borderRadius: 6, padding: 16 }}>
+    <fieldset className={`stack ${a.fieldset}`}>
       <legend>{T.offices.headSection}</legend>
       <div className="row">
         <TextField label={T.users.email} type="email" required value={value.email} onChange={(e) => onChange({ ...value, email: e.target.value })} />
@@ -272,7 +275,7 @@ export function OfficeDetailView({ code }: { code: string }) {
   return (
     <div className="stack">
       <section className="card stack" aria-label={T.offices.detail}>
-        <div className="row" style={{ justifyContent: "space-between" }}>
+        <div className={a.groupHead}>
           <h2>
             {o.name} <span className="mono muted">{o.code}</span>
           </h2>
@@ -333,7 +336,7 @@ export function OfficeDetailView({ code }: { code: string }) {
                 {T.edit}
               </Button>
             ) : null}
-            <Link href={`/admin/offices/new?parent=${encodeURIComponent(o.code)}`} className="button-link">
+            <Link href={`/admin/offices/new?parent=${encodeURIComponent(o.code)}`} className={buttonClass("secondary")}>
               {T.offices.newOffice}
             </Link>
             {o.is_active !== false ? (
@@ -341,9 +344,11 @@ export function OfficeDetailView({ code }: { code: string }) {
                 {T.offices.deactivate}
               </Button>
             ) : isDept ? (
-              <Button onClick={() => setReactivating(true)}>{T.offices.reactivate}</Button>
+              <Button variant="secondary" onClick={() => setReactivating(true)}>
+                {T.offices.reactivate}
+              </Button>
             ) : (
-              <Button busy={action.busy} onClick={() => reactivate()}>
+              <Button variant="secondary" busy={action.busy} onClick={() => reactivate()}>
                 {T.offices.reactivate}
               </Button>
             )}
@@ -480,7 +485,11 @@ function DepartmentPeople({
       )}
       {superAdmin ? (
         <div className="actions">
-          {!admin ? <Button onClick={() => setAdding(true)}>{T.offices.addAdmin}</Button> : null}
+          {!admin ? (
+            <Button variant="secondary" onClick={() => setAdding(true)}>
+              {T.offices.addAdmin}
+            </Button>
+          ) : null}
           {admin ? (
             <Button variant="secondary" onClick={() => setSwapping(true)}>
               {T.offices.swapAdmin}

@@ -44,6 +44,8 @@ import { T } from "@/lib/messages";
 import { queryString } from "@/lib/params";
 import { useAction } from "@/lib/useAction";
 
+import a from "./admin.module.css";
+
 import { assignableOptions, DesignationInput, MembershipFields, type MembershipDraft } from "./Users";
 
 function userKey(id: string) {
@@ -119,7 +121,7 @@ function LoginCard({ user, me }: { user: UserOut; me: Me }) {
 
   return (
     <section className="card stack" aria-label={T.users.login}>
-      <div className="row" style={{ justifyContent: "space-between" }}>
+      <div className={a.groupHead}>
         <h2>{user.full_name}</h2>
         {user.is_active ? <Badge tone="success">{T.active}</Badge> : <Badge tone="danger">{T.users.disabled}</Badge>}
       </div>
@@ -170,7 +172,7 @@ function LoginCard({ user, me }: { user: UserOut; me: Me }) {
               {T.users.disable}
             </Button>
           ) : (
-            <Button busy={toggle.busy} onClick={() => setEnabled(true)}>
+            <Button variant="secondary" busy={toggle.busy} onClick={() => setEnabled(true)}>
               {T.users.enable}
             </Button>
           )

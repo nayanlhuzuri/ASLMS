@@ -119,3 +119,13 @@ export function makeMe(functions: Permission[], role: Role = "dept_officer", ext
     ...extra,
   };
 }
+
+/**
+ * The elements drawn in the primary style (design portal-ui-redesign, decision 16: at most one per screen): a
+ * primary `Button`, the global `.button-link`, and a link given `buttonClass("primary")`.
+ */
+export const PRIMARY_SELECTOR = "[data-variant='primary'], .button-link, a[class*='_primary_']";
+
+export function primaryActions(root: ParentNode): string[] {
+  return [...root.querySelectorAll(PRIMARY_SELECTOR)].map((e) => e.textContent ?? "");
+}

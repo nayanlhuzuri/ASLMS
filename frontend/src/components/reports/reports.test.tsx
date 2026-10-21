@@ -6,7 +6,7 @@ import { Sidebar } from "@/components/shell/PortalShell";
 import type { Me, Permission, Report, ReportCatalogue, ReportSection } from "@/lib/api/types";
 import { istDay } from "@/lib/format";
 import { nav, resetNav } from "@/test/nav";
-import { browserApi, json, labels, makeMe, renderWithClient } from "@/test/render";
+import { browserApi, json, labels, makeMe, primaryActions, renderWithClient } from "@/test/render";
 
 import { ReportPage } from "./ReportPage";
 import { ReportsFrame, ReportsIndex } from "./ReportsFrame";
@@ -427,5 +427,50 @@ describe("pending actions", () => {
     browserApi({ ...routes, "GET /me": tracker });
     renderWithClient(<ReportPage reportKey="pending-actions" params={{ department: "EDU" }} />);
     expect(await screen.findByRole("link", { name: "Department files" })).toHaveAttribute("href", "/files/department");
+  });
+});
+
+describe("the Report template (design portal-ui-redesign, decision 26)", () => {
+  it("the choices sit on top, the downloads in the header's secondary actions, disabled until the report loads", async () => {
+    let release: (v: unknown) => void = () => undefined;
+    const pending = new Promise((r) => (release = r));
+    browserApi({
+      "GET /me": stateMe(),
+      "GET /reports": catalogue(true),
+      "GET /reports/pending-cases": async () => {
+        await pending;
+        return report("pending-cases");
+      },
+    });
+    const { container } = renderWithClient(
+      <ReportsFrame>
+        <ReportPage reportKey="pending-cases" params={{}} />
+      </ReportsFrame>,
+    );
+    const group = await screen.findByRole("group", { name: "Downloads" });
+    const header = group.closest("header")!;
+    expect(within(header).getByRole("heading", { level: 1, name: "Reports" })).toBeInTheDocument();
+    // before the report: the two buttons are there but disabled, and no link is offered
+    expect(within(group).getByRole("button", { name: "Download Excel" })).toBeDisabled();
+    expect(within(group).getByRole("button", { name: "Download PDF" })).toBeDisabled();
+    expect(screen.queryByRole("link", { name: "Download Excel" })).toBeNull();
+    // the form comes before the results
+    const form = screen.getByRole("form", { name: "Report choices" });
+    release(undefined);
+    const xlsx = await within(group).findByRole("link", { name: "Download Excel" });
+    expect(xlsx).toHaveAttribute("href", "/api/backend/reports/pending-cases?format=xlsx");
+    expect(xlsx.className).not.toMatch(/primary/);
+    expect(screen.getAllByRole("link", { name: "Download Excel" })).toHaveLength(1);
+    const title = screen.getByRole("heading", { level: 2, name: "Pending cases by department, court and age" });
+    expect(form.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // one primary on the page: Show report
+    expect(primaryActions(container)).toEqual(["Show report"]);
+  });
+
+  it("a reader without reports sees no download buttons", async () => {
+    browserApi({ "GET /reports": json(403, { detail: { code: "forbidden", message: "no" } }) });
+    renderWithClient(<ReportsFrame>body</ReportsFrame>);
+    expect(await screen.findByText("This report is not available to you.")).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Downloads" })).toBeNull();
   });
 });

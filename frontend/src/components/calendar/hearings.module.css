@@ -9,17 +9,17 @@
 
 .grid caption {
   text-align: left;
-  font-family: var(--font-serif);
-  font-size: var(--text-lg);
+  font-family: var(--font-sans);
+  font-size: var(--t-lg);
   font-weight: 600;
-  padding-bottom: var(--space-2);
+  padding-bottom: var(--s2);
 }
 
 .grid th {
-  padding: var(--space-2);
-  font-size: var(--text-sm);
-  color: var(--ink-muted);
-  border-bottom: 1px solid var(--line);
+  padding: var(--s2);
+  font-size: var(--t-sm);
+  color: var(--text-3);
+  border-bottom: 1px solid var(--border);
 }
 
 .grid th abbr {
@@ -29,16 +29,16 @@
 .grid td {
   vertical-align: top;
   height: 4.5rem;
-  padding: var(--space-2);
-  border: 1px solid var(--line);
+  padding: var(--s2);
+  border: 1px solid var(--border);
 }
 
 .outside {
-  background: var(--navy-100);
+  background: var(--slate-soft);
 }
 
 .today {
-  box-shadow: inset 0 0 0 2px var(--navy-700);
+  box-shadow: inset 0 0 0 2px var(--accent);
 }
 
 .dayNo {
@@ -49,10 +49,10 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  font-size: var(--text-sm);
+  font-size: var(--t-sm);
 }
 
 .critical {
-  color: var(--danger);
+  color: var(--red-text);
   font-weight: 600;
 }

@@ -18,6 +18,8 @@ import { formatDateTime } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { useAction } from "@/lib/useAction";
 
+import ds from "./data.module.css";
+
 const LIMIT = 50;
 const STATUSES = ["pending", "running", "done", "failed", "skipped"];
 
@@ -53,7 +55,7 @@ function QueueRows() {
     setOffset(0);
   };
   return (
-    <section className="stack" aria-label={T.data.queueRows}>
+    <section className={`stack ${ds.panel}`} aria-label={T.data.queueRows}>
       <h2>{T.data.queueRows}</h2>
       <div className="row">
         <SelectField
@@ -140,7 +142,7 @@ function CallLog() {
   const items = calls.data?.pages.flatMap((p) => p.items) ?? [];
   const showUsers = items.some((c) => c.user_id);
   return (
-    <section className="stack" aria-label={T.data.callLog}>
+    <section className={`stack ${ds.panel}`} aria-label={T.data.callLog}>
       <h2>{T.data.callLog}</h2>
       <ErrorBanner error={calls.error} onRetry={() => calls.refetch()} />
       {calls.isPending ? <Loading /> : null}

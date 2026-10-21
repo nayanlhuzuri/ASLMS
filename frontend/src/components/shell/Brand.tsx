@@ -25,12 +25,12 @@ export function EmblemSlot({ brand = BRAND }: { brand?: BrandConfig }) {
 }
 
 /** The whole official emblem with its legends, above the portal name on the public pages (sign-in, welcome). */
-export function BrandLockup({ brand = BRAND, height = 96 }: { brand?: BrandConfig; height?: number }) {
+export function BrandLockup({ brand = BRAND, height = 96, className }: { brand?: BrandConfig; height?: number; className?: string }) {
   const lockup = brand.lockup;
   if (!lockup) return null;
   return (
     // eslint-disable-next-line @next/next/no-img-element
-    <img className={s.lockupImage} src={lockup.src} width={Math.round((lockup.width * height) / lockup.height)} height={height} alt={T.brand.emblemAlt} />
+    <img className={className ?? s.lockupImage} src={lockup.src} width={Math.round((lockup.width * height) / lockup.height)} height={height} alt={T.brand.emblemAlt} />
   );
 }
 

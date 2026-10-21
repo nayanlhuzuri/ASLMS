@@ -97,7 +97,7 @@ export interface PrefsValue {
 
 export function PreferenceFields({ value, onChange }: { value: PrefsValue; onChange: (v: PrefsValue) => void }) {
   return (
-    <fieldset className="stack" style={{ border: "1px solid var(--line)", borderRadius: 6, padding: 16 }}>
+    <fieldset className={`stack ${s.fieldset}`}>
       <legend>{T.prefs.title}</legend>
       <CheckField label={T.prefs.inApp} checked disabled readOnly />
       <CheckField

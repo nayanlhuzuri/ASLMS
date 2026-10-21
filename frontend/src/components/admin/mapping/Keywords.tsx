@@ -375,7 +375,7 @@ function NamePatterns() {
         <OfficePicker id={officeId} choices={choices} required value={draft.office} onChange={(office) => setDraft({ ...draft, office })} />
         <DiscoverBox text={draft.pattern} kind={draft.kind} value={discover} onChange={setDiscover} />
         {canScore ? <WeightField mode="create" draft={weight} onChange={setWeight} /> : null}
-        <Button type="submit" busy={action.busy}>
+        <Button type="submit" variant="secondary" busy={action.busy}>
           {T.mapping.addPattern}
         </Button>
       </form>

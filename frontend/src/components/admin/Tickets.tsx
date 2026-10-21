@@ -14,10 +14,10 @@ import { useState, type FormEvent } from "react";
 import {
   Badge,
   Button,
+  DataTable,
   EmptyState,
   ErrorBanner,
   Loading,
-  numCell,
   Pagination,
   SelectField,
   Table,
@@ -35,6 +35,8 @@ import { refPath } from "@/lib/refs";
 import { STATUSES, type TicketStatus } from "@/lib/tickets";
 import { useAction } from "@/lib/useAction";
 
+import a from "./admin.module.css";
+
 import { assignableOptions, DesignationInput, PAGE_SIZE } from "./Users";
 
 
@@ -45,6 +47,7 @@ function statusBadge(status: string) {
 
 export function TicketsList({ status }: { status: TicketStatus }) {
   const me = useMe();
+  const router = useRouter();
   const labels = useLabels();
   const [offset, setOffset] = useState(0);
   const list = useQuery({
@@ -53,7 +56,7 @@ export function TicketsList({ status }: { status: TicketStatus }) {
   });
   return (
     <section className="stack" aria-label={T.tickets.title}>
-      <div className="row" style={{ justifyContent: "space-between" }}>
+      <div className={a.groupHead}>
         <h2>
           {T.tickets.title}
           {list.data ? <span className="muted"> · {T.tickets.openCount(formatNumber(list.data.counts.open))}</span> : null}
@@ -79,41 +82,40 @@ export function TicketsList({ status }: { status: TicketStatus }) {
           <EmptyState>{T.tickets.empty}</EmptyState>
         ) : (
           <>
-            <Table caption={T.tickets.title}>
-              <thead>
-                <tr>
-                  <th scope="col">{T.tickets.ref}</th>
-                  <th scope="col">{T.tickets.kind}</th>
-                  <th scope="col">{T.tickets.department}</th>
-                  <th scope="col">{T.tickets.target}</th>
-                  <th scope="col">{T.tickets.requestedBy}</th>
-                  <th scope="col" className={numCell}>
-                    {T.tickets.age}
-                  </th>
-                  <th scope="col">{T.tickets.status}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {list.data.items.map((t) => (
-                  <tr key={t.ref_no}>
-                    <td>
-                      <Link href={`/admin/tickets/${refPath(t.ref_no)}`} className="mono">
-                        {t.ref_no}
-                      </Link>
-                    </td>
-                    <td>
+            <DataTable
+              caption={T.tickets.title}
+              rows={list.data.items}
+              rowKey={(t) => t.ref_no}
+              rowLabel={(t) => t.ref_no}
+              onRowClick={(t) => router.push(`/admin/tickets/${refPath(t.ref_no)}`)}
+              columns={[
+                {
+                  key: "ref",
+                  header: T.tickets.ref,
+                  primary: true,
+                  cell: (t) => (
+                    <Link href={`/admin/tickets/${refPath(t.ref_no)}`} className="mono">
+                      {t.ref_no}
+                    </Link>
+                  ),
+                },
+                {
+                  key: "kind",
+                  header: T.tickets.kind,
+                  cell: (t) => (
+                    <>
                       {labelOf(labels.data?.ticket_kinds, t.kind)}
                       {t.operation ? <span className="muted"> · {t.operation}</span> : null}
-                    </td>
-                    <td className="mono">{t.department_code ?? "—"}</td>
-                    <td>{t.target.user_name ?? "—"}</td>
-                    <td>{t.requested_by.name ?? "—"}</td>
-                    <td className={numCell}>{formatNumber(t.age_days)}</td>
-                    <td>{statusBadge(t.status)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
+                    </>
+                  ),
+                },
+                { key: "department", header: T.tickets.department, cell: (t) => <span className="mono">{t.department_code ?? "—"}</span> },
+                { key: "target", header: T.tickets.target, cell: (t) => t.target.user_name ?? "—" },
+                { key: "by", header: T.tickets.requestedBy, cell: (t) => t.requested_by.name ?? "—" },
+                { key: "age", header: T.tickets.age, align: "right", cell: (t) => formatNumber(t.age_days) },
+                { key: "status", header: T.tickets.status, width: "var(--lead-w)", cell: (t) => statusBadge(t.status) },
+              ]}
+            />
             <Pagination offset={offset} limit={PAGE_SIZE} total={list.data.total} onChange={setOffset} />
           </>
         )
@@ -207,7 +209,7 @@ function DocumentsSection({ ticket, onChanged }: { ticket: TicketDetail; onChang
       {archiving ? (
         <form className="row" onSubmit={archive}>
           <TextField label={T.tickets.archiveReason} required value={reason} onChange={(e) => setReason(e.target.value)} />
-          <Button type="submit" busy={action.busy} disabled={reason.trim().length < 3}>
+          <Button type="submit" variant="secondary" busy={action.busy} disabled={reason.trim().length < 3}>
             {T.tickets.archive}
           </Button>
           <Button variant="secondary" onClick={() => setArchiving(null)}>
@@ -226,7 +228,7 @@ function DocumentsSection({ ticket, onChanged }: { ticket: TicketDetail; onChang
           />
           <TextField label={T.tickets.docDate} type="date" value={docDate} onChange={(e) => setDocDate(e.target.value)} />
           <TextField label={T.tickets.description} value={description} onChange={(e) => setDescription(e.target.value)} />
-          <Button type="submit" busy={action.busy} disabled={!file}>
+          <Button type="submit" variant="secondary" busy={action.busy} disabled={!file}>
             {T.tickets.attach}
           </Button>
         </form>
@@ -266,7 +268,7 @@ export function TicketView({ ticketRef }: { ticketRef: string }) {
   return (
     <div className="stack">
       <section className="card stack" aria-label={t.ref_no}>
-        <div className="row" style={{ justifyContent: "space-between" }}>
+        <div className={a.groupHead}>
           <h2 className="mono">{t.ref_no}</h2>
           {statusBadge(t.status)}
         </div>

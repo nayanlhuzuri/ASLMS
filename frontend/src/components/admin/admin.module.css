@@ -1,0 +1,26 @@
+/* Administration on the Settings template (design portal-ui-redesign, decision 26): a group's heading with its one
+   action at the right, the membership list in a cell, and the head fields. Tokens only. */
+
+.groupHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+
+.groupHead > h2 {
+  margin: 0;
+}
+
+.memberList {
+  margin: 0;
+  padding-left: var(--s4);
+}
+
+.fieldset {
+  margin: 0;
+  padding: var(--s4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}

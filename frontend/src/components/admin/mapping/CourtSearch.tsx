@@ -269,7 +269,9 @@ function TermCases({ term }: { term: DiscoveryTerm }) {
                     </td>
                     <td>
                       {item.claimable ? (
-                        <Button onClick={() => setClaiming(item.case.ref_no)}>{T.own.claim}</Button>
+                        <Button variant="secondary" onClick={() => setClaiming(item.case.ref_no)}>
+                          {T.own.claim}
+                        </Button>
                       ) : null}
                     </td>
                   </tr>

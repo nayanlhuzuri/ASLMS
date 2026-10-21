@@ -7,8 +7,9 @@
  * address, browser and the before / after values are on the entry page only.
  */
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
-import { CaseLink, Table } from "@/components/ui";
+import { CaseLink, DataTable, type Column } from "@/components/ui";
 import type { AuditRow } from "@/lib/api/types";
 import { formatDateTimeSeconds } from "@/lib/format";
 import { T } from "@/lib/messages";
@@ -31,47 +32,56 @@ function remember(id: string) {
   }
 }
 
+/**
+ * The rows on the Work list template (design portal-ui-redesign, decision 26): a `DataTable`, cards on phones, and a
+ * row opens its entry page by click or Enter (the before / after values stay on that page, portal-audit-health
+ * decision 5). The links inside a row (action, person, office, case) do their own job.
+ */
 export function AuditTable({ rows, params }: { rows: readonly AuditRow[]; params: Params }) {
+  const router = useRouter();
+  const columns: Column<AuditRow>[] = [
+    { key: "when", header: T.audit.when, width: "190px", cell: (r) => formatDateTimeSeconds(r.at) },
+    {
+      key: "action",
+      header: T.audit.action,
+      primary: true,
+      cell: (r) => (
+        <Link href={narrow(params, { action: r.action })} className={s.code}>
+          {r.action}
+        </Link>
+      ),
+    },
+    { key: "by", header: T.audit.by, cell: (r) => <Actor row={r} params={params} /> },
+    {
+      key: "case",
+      header: T.audit.case,
+      cell: (r) => (r.case?.ref_no ? <CaseLink value={{ ...r.case, ref_no: r.case.ref_no }} /> : "—"),
+    },
+    { key: "record", header: T.audit.record, cell: (r) => <span className={s.code}>{r.entity_type}</span> },
+    {
+      key: "view",
+      header: <span className="visually-hidden">{T.audit.view}</span>,
+      hideOnPhone: true,
+      align: "right",
+      cell: (r) => (
+        <Link href={`/audit/${r.id}`} aria-label={T.audit.viewEntry(formatDateTimeSeconds(r.at))} onClick={() => remember(r.id)}>
+          {T.audit.view}
+        </Link>
+      ),
+    },
+  ];
   return (
-    <Table caption={T.audit.caption}>
-      <thead>
-        <tr>
-          <th scope="col">{T.audit.when}</th>
-          <th scope="col">{T.audit.action}</th>
-          <th scope="col">{T.audit.by}</th>
-          <th scope="col">{T.audit.case}</th>
-          <th scope="col">{T.audit.record}</th>
-          <th scope="col">
-            <span className="visually-hidden">{T.audit.view}</span>
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((r) => {
-          const when = formatDateTimeSeconds(r.at);
-          return (
-            <tr key={r.id}>
-              <td>{when}</td>
-              <td>
-                <Link href={narrow(params, { action: r.action })} className={s.code}>
-                  {r.action}
-                </Link>
-              </td>
-              <td>
-                <Actor row={r} params={params} />
-              </td>
-              <td>{r.case?.ref_no ? <CaseLink value={{ ...r.case, ref_no: r.case.ref_no }} /> : "—"}</td>
-              <td className={s.code}>{r.entity_type}</td>
-              <td>
-                <Link href={`/audit/${r.id}`} aria-label={T.audit.viewEntry(when)} onClick={() => remember(r.id)}>
-                  {T.audit.view}
-                </Link>
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </Table>
+    <DataTable
+      caption={T.audit.caption}
+      columns={columns}
+      rows={[...rows]}
+      rowKey={(r) => r.id}
+      rowLabel={(r) => T.audit.viewEntry(formatDateTimeSeconds(r.at))}
+      onRowClick={(r) => {
+        remember(r.id);
+        router.push(`/audit/${r.id}`);
+      }}
+    />
   );
 }
 

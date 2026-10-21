@@ -18,9 +18,9 @@
 }
 
 .summary {
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--s4);
   background: var(--surface);
 }
 
@@ -31,14 +31,14 @@
 .tiles {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
-  gap: var(--space-3);
-  margin-bottom: var(--space-4);
+  gap: var(--s3);
+  margin-bottom: var(--s4);
 }
 
 .columns {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
-  gap: var(--space-4);
+  gap: var(--s4);
 }
 
 /* the Work list template (design portal-ui-redesign, decision 26) */

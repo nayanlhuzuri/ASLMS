@@ -6,7 +6,7 @@ import { Sidebar } from "@/components/shell/PortalShell";
 import type { AuditRow, Me, Permission, Role } from "@/lib/api/types";
 import { addDays, istDay } from "@/lib/format";
 import { nav, resetNav } from "@/test/nav";
-import { browserApi, json, labels, makeMe, renderWithClient, type BrowserCall } from "@/test/render";
+import { browserApi, json, labels, makeMe, primaryActions, renderWithClient, type BrowserCall } from "@/test/render";
 
 import { AuditEntry } from "./AuditEntry";
 import { AuditSearch } from "./AuditSearch";
@@ -393,5 +393,29 @@ describe("the entry page", () => {
     browserApi({ [`GET /audit/${ID}`]: json(403, { detail: { code: "audit_scope", message: "no" } }) });
     renderWithClient(<AuditEntry id={ID} />);
     expect(await screen.findByText("The audit log is read only by the super admin and the Auditor.")).toBeInTheDocument();
+  });
+});
+
+describe("the Work list template (design portal-ui-redesign, decision 26)", () => {
+  it("rows open their entry page by click or Enter, cells carry phone labels, and the page has one primary", async () => {
+    routes({ items: [row("r-1"), row("r-2", { action: "custody.sent" })], next_cursor: null });
+    const { container } = renderWithClient(<AuditSearch params={{}} />);
+    const table = await screen.findByRole("table", { name: "Audit log entries" });
+    const [, first, second] = within(table).getAllByRole("row");
+    // every cell but the primary and the hidden View has its label for the phone card
+    const labelled = [...first!.querySelectorAll("td[data-label]")].map((td) => td.getAttribute("data-label"));
+    expect(labelled).toEqual(["When", "By", "Case", "Record"]);
+    await userEvent.click(within(first!).getAllByRole("cell")[0]!);
+    expect(nav.push).toHaveBeenCalledWith("/audit/r-1");
+    expect(window.sessionStorage.getItem("aslms.audit.fromSearch")).toBe("r-1");
+    second!.focus();
+    await userEvent.keyboard("{Enter}");
+    expect(nav.push).toHaveBeenLastCalledWith("/audit/r-2");
+    // a link inside a row does its own job, not the row's
+    nav.push.mockReset();
+    await userEvent.click(within(second!).getByRole("link", { name: "custody.sent" }));
+    expect(nav.push).not.toHaveBeenCalledWith("/audit/r-2");
+    expect(screen.getByText("2 entries")).toBeInTheDocument();
+    expect(primaryActions(container)).toEqual(["Search"]);
   });
 });

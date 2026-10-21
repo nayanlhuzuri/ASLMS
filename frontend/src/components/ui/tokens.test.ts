@@ -1,5 +1,5 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join, relative } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -36,6 +36,61 @@ function contrast(fg: string, bg: string): number {
   return (a! + 0.05) / (b! + 0.05);
 }
 
+/** The earlier token names, aliases during rounds 1-4 and removed in round 5 (decision 11). */
+const REMOVED_ALIASES = [
+  "--navy-900",
+  "--navy-800",
+  "--navy-700",
+  "--navy-100",
+  "--gold-600",
+  "--gold-100",
+  "--ink",
+  "--ink-muted",
+  "--line",
+  "--page",
+  "--danger",
+  "--danger-bg",
+  "--success",
+  "--success-bg",
+  "--warning",
+  "--warning-bg",
+  "--focus",
+  "--font-serif",
+  "--space-1",
+  "--space-2",
+  "--space-3",
+  "--space-4",
+  "--space-5",
+  "--space-6",
+  "--space-7",
+  "--text-xs",
+  "--text-sm",
+  "--text-md",
+  "--text-lg",
+  "--text-xl",
+  "--text-2xl",
+  "--radius",
+  "--shadow",
+  "--sidebar-width",
+];
+
+/** Every file under `src/` with one of the extensions, as paths relative to `src/` with forward slashes. */
+function sources(extensions: string[], dir = SRC): string[] {
+  const out: string[] = [];
+  for (const name of readdirSync(dir)) {
+    const path = join(dir, name);
+    if (statSync(path).isDirectory()) out.push(...sources(extensions, path));
+    else if (extensions.some((e) => name.endsWith(e))) out.push(relative(SRC, path).split("\\").join("/"));
+  }
+  return out.sort();
+}
+
+/** The uses of a removed alias in a stylesheet or a component (`var(--line)`, `var(--focus, #fff)`). */
+function aliasUses(text: string): string[] {
+  const names = REMOVED_ALIASES.map((a) => a.slice(2)).join("|");
+  return [...text.matchAll(new RegExp(`var\\(--(${names})(?=[,)\\s])`, "g"))].map((m) => m[0]);
+}
+
 describe("design tokens (design portal-ui-redesign, decision 11)", () => {
   it("carry the v4 values", () => {
     expect(TOKENS["--accent"]).toBe("#1d4ed8");
@@ -55,10 +110,8 @@ describe("design tokens (design portal-ui-redesign, decision 11)", () => {
     expect([TOKENS["--lead-w"], TOKENS["--date-w"], TOKENS["--icon-w"]]).toEqual(["96px", "48px", "20px"]);
   });
 
-  it("keep the old names as aliases during rounds 1-4", () => {
-    for (const alias of ["--navy-900", "--ink", "--ink-muted", "--line", "--page", "--danger", "--success-bg", "--warning", "--space-3", "--text-sm", "--radius"]) {
-      expect(TOKENS[alias]).toMatch(/^var\(--/);
-    }
+  it("no longer define the deprecated aliases (round 5 removed them)", () => {
+    for (const alias of REMOVED_ALIASES) expect(TOKENS[alias]).toBeUndefined();
   });
 
   it("turn motion off under prefers-reduced-motion", () => {
@@ -89,6 +142,14 @@ describe("design tokens (design portal-ui-redesign, decision 11)", () => {
     ["--amber", "--amber-soft"],
     ["--green", "--green-soft"],
     ["--accent", "--accent-soft"],
+    // the public pages' panel (round 5): every text colour on both ends of its gradient
+    ["--panel-text", "--panel-from"],
+    ["--panel-text", "--panel-to"],
+    ["--panel-strong", "--panel-from"],
+    ["--panel-muted", "--panel-from"],
+    ["--panel-muted", "--panel-to"],
+    ["--panel-accent", "--panel-from"],
+    ["--panel-accent", "--panel-to"],
   ])("%s on %s is at least 4.5:1", (fg, bg) => {
     expect(contrast(hex(fg), hex(bg))).toBeGreaterThanOrEqual(4.5);
   });
@@ -99,27 +160,8 @@ describe("design tokens (design portal-ui-redesign, decision 11)", () => {
   });
 });
 
-/** The CSS modules of rounds 1 to 4 (decision 14: the check widens to every module in round 5). */
-const ROUND_MODULES = [
-  "components/ui/controls.module.css",
-  "components/ui/data.module.css",
-  "components/ui/feedback.module.css",
-  "components/ui/layout.module.css",
-  "components/ui/overlays.module.css",
-  "components/shell/shell.module.css",
-  // round 2 (row 102): the modules it touched
-  "components/inbox/inbox.module.css",
-  "components/claim/claim.module.css",
-  // round 3 (row 103): the case page and My calendar
-  "components/case/case.module.css",
-  "components/calendar/calendar.module.css",
-  "components/calendar/hearings.module.css",
-  "components/workflow/workflow.module.css",
-  // round 4 (row 104): the dashboard, Files and the Cause list
-  "components/dashboard/dashboard.module.css",
-  "components/files/files.module.css",
-  "components/causelist/causelist.module.css",
-];
+/** Every CSS module of the portal (decision 14: the check widened to every module in round 5). */
+const MODULES = sources([".module.css"]);
 
 /** Raw lengths in margins, paddings and gaps other than 0 and 1-2 px (borders); tokens and calc of tokens pass. */
 function rawSpacing(css: string): string[] {
@@ -139,7 +181,14 @@ function rawSpacing(css: string): string[] {
 }
 
 describe("spacing from the scale only (decision 14)", () => {
-  it.each(ROUND_MODULES)("%s has no raw margin, padding or gap", (path) => {
+  it("covers every module, the ones of rounds 1-5 among them", () => {
+    expect(MODULES.length).toBeGreaterThanOrEqual(20);
+    for (const path of ["components/ui/layout.module.css", "components/reports/reports.module.css", "components/auth/auth.module.css"]) {
+      expect(MODULES).toContain(path);
+    }
+  });
+
+  it.each(MODULES)("%s has no raw margin, padding or gap", (path) => {
     expect(rawSpacing(readFileSync(join(SRC, path), "utf-8"))).toEqual([]);
   });
 
@@ -155,4 +204,22 @@ describe("spacing from the scale only (decision 14)", () => {
     expect(css).toMatch(/\.control\s*\{\s*height:\s*var\(--control-h\);/);
     expect(css).toMatch(/\.sm\s*\{\s*height:\s*30px;/);
   });
+});
+
+describe("no deprecated alias is left (decision 11, round 5)", () => {
+  it("the check finds an alias and lets the new names through", () => {
+    expect(aliasUses("a { color: var(--ink-muted); border: 1px solid var(--line); outline: var(--focus, #000) }")).toEqual([
+      "var(--ink-muted",
+      "var(--line",
+      "var(--focus",
+    ]);
+    expect(aliasUses("a { color: var(--text-3); padding: var(--s3); font-size: var(--t-sm); box-shadow: var(--shadow-1) }")).toEqual([]);
+  });
+
+  it.each(sources([".css", ".tsx", ".ts"]).filter((p) => !p.endsWith(".test.ts") && !p.endsWith(".test.tsx")))(
+    "%s uses no removed alias",
+    (path) => {
+      expect(aliasUses(readFileSync(join(SRC, path), "utf-8"))).toEqual([]);
+    },
+  );
 });

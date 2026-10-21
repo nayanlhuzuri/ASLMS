@@ -14,7 +14,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 
-import { Badge, Button, Dialog, ErrorBanner, Loading, Notice, numCell, Table, TextField, Tile } from "@/components/ui";
+import { Badge, Button, Dialog, ErrorBanner, Kpi, Loading, Notice, numCell, Table, TextField } from "@/components/ui";
 import { api, ApiError } from "@/lib/api/client";
 import { useMe } from "@/lib/api/hooks";
 import type { DataHealth, HealthCheck, NapixHealth, QueueState } from "@/lib/api/types";
@@ -22,6 +22,8 @@ import { can, canAny } from "@/lib/can";
 import { formatDate, formatDateTime, formatNumber, formatTime } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { useAction } from "@/lib/useAction";
+
+import ds from "./data.module.css";
 
 export const HEALTH_POLL_MS = 60_000;
 
@@ -41,15 +43,23 @@ export function Health() {
   const refetcher = can(me.data, "admin.napix_refetch");
   const checker = canAny(me.data, ["admin.napix_refetch", "admin.masters_sync"]);
   return (
-    <section className="stack" aria-label={T.data.health}>
+    <section className={ds.board} aria-label={T.data.health}>
       {can(me.data, "reports.state") ? (
         // design portal-reports, decision 10: the dated report of the same figures
-        <p>
+        <p className={ds.wide}>
           <Link href="/reports/data-health">{T.reports.periodReport}</Link>
         </p>
       ) : null}
-      <ErrorBanner error={snapshot.error ?? napix.error} onRetry={() => (snapshot.refetch(), napix.refetch())} />
-      {snapshot.isPending || napix.isPending ? <Loading /> : null}
+      {snapshot.error || napix.error ? (
+        <div className={ds.wide}>
+          <ErrorBanner error={snapshot.error ?? napix.error} onRetry={() => (snapshot.refetch(), napix.refetch())} />
+        </div>
+      ) : null}
+      {snapshot.isPending || napix.isPending ? (
+        <div className={ds.wide}>
+          <Loading lines={6} />
+        </div>
+      ) : null}
       {napix.data ? <NapixBlock data={napix.data} /> : null}
       {snapshot.data ? <SnapshotBlocks data={snapshot.data} /> : null}
       {syncer || refetcher || checker ? <Buttons syncer={syncer} refetcher={refetcher} checker={checker} /> : null}
@@ -60,15 +70,25 @@ export function Health() {
 function NapixBlock({ data }: { data: NapixHealth }) {
   const w = data.window;
   return (
-    <section className="stack" aria-label={T.data.napix}>
+    <section className={`stack ${ds.panel} ${ds.wide}`} aria-label={T.data.napix}>
       <h2>{T.data.napix}</h2>
       <p>
         {data.enabled ? <Badge tone="success">{T.data.switchApi(true)}</Badge> : <Badge tone="warning">{T.data.switchApi(false)}</Badge>}{" "}
         <span className="muted">{T.data.switchNote}</span>
       </p>
-      <div className="row">
-        <Tile label={T.data.window} value={w.calls} sub={`${formatNumber(w.failed)} ${T.data.failed.toLowerCase()}`} />
-        <Tile label={T.data.today} value={data.today.calls} sub={`${formatNumber(data.today.failed)} ${T.data.failed.toLowerCase()}`} />
+      <div className={ds.kpis}>
+        <Kpi
+          label={T.data.window}
+          value={w.calls}
+          sub={`${formatNumber(w.failed)} ${T.data.failed.toLowerCase()}`}
+          tone={w.failed > 0 ? "danger" : undefined}
+        />
+        <Kpi
+          label={T.data.today}
+          value={data.today.calls}
+          sub={`${formatNumber(data.today.failed)} ${T.data.failed.toLowerCase()}`}
+          tone={data.today.failed > 0 ? "danger" : undefined}
+        />
       </div>
       <p>{T.data.windowLine(w.status, formatTime(w.started_at), formatTime(w.next_reset_at), Math.round(w.probe_seconds / 60))}</p>
       <p>{w.remaining === null || w.remaining === undefined ? T.data.remainingUnknown : T.data.remaining(formatNumber(w.remaining))}</p>
@@ -139,7 +159,7 @@ function CallsByUser({ byUser }: { byUser: ByUser }) {
 function SnapshotBlocks({ data }: { data: DataHealth }) {
   return (
     <>
-      <section className="stack" aria-label={T.data.queue}>
+      <section className={`stack ${ds.panel} ${ds.wide}`} aria-label={T.data.queue}>
         <h2>{T.data.queue}</h2>
         <Table caption={T.data.queue}>
           <thead>
@@ -170,7 +190,7 @@ function SnapshotBlocks({ data }: { data: DataHealth }) {
           </tbody>
         </Table>
       </section>
-      <section className="stack" aria-label={T.data.dailyCycle}>
+      <section className={`stack ${ds.panel}`} aria-label={T.data.dailyCycle}>
         <h2>{T.data.dailyCycle}</h2>
         <Table caption={T.data.dailyCycle}>
           <thead>
@@ -193,7 +213,7 @@ function SnapshotBlocks({ data }: { data: DataHealth }) {
           </tbody>
         </Table>
       </section>
-      <section className="stack" aria-label={T.data.masters}>
+      <section className={`stack ${ds.panel}`} aria-label={T.data.masters}>
         <h2>{T.data.masters}</h2>
         <ul>
           {data.masters.map((m) => (
@@ -203,7 +223,7 @@ function SnapshotBlocks({ data }: { data: DataHealth }) {
           ))}
         </ul>
       </section>
-      <section className="stack" aria-label={T.data.jobs}>
+      <section className={`stack ${ds.panel}`} aria-label={T.data.jobs}>
         <h2>{T.data.jobs}</h2>
         <ul>
           {data.jobs.map((j) => (
@@ -213,13 +233,13 @@ function SnapshotBlocks({ data }: { data: DataHealth }) {
           ))}
         </ul>
       </section>
-      <section className="stack" aria-label={T.data.mail}>
+      <section className={`stack ${ds.panel}`} aria-label={T.data.mail}>
         <h2>{T.data.mail}</h2>
         <p>
           {formatNumber(data.mail.email_queued)} / {formatNumber(data.mail.email_failed)}
         </p>
       </section>
-      <section className="stack" aria-label={T.data.openFailures}>
+      <section className={`stack ${ds.panel}`} aria-label={T.data.openFailures}>
         <h2>{T.data.openFailures}</h2>
         <ul>
           {data.failures.map((f) => (
@@ -239,7 +259,7 @@ const TEXT_KINDS = ["order", "upload", "attachment"] as const;
 /** Design document-ocr, decision 4: documents by text status, the ones not read split by type (totals only). */
 function DocumentsTextBlock({ data }: { data: DataHealth["documents_text"] }) {
   return (
-    <section className="stack" aria-label={T.data.documentsText}>
+    <section className={`stack ${ds.panel} ${ds.wide}`} aria-label={T.data.documentsText}>
       <h2>{T.data.documentsText}</h2>
       <p className="muted">{T.data.documentsTextNote}</p>
       <Table caption={T.data.documentsText}>
@@ -317,7 +337,7 @@ function Buttons({ syncer, refetcher, checker }: { syncer: boolean; refetcher: b
   }
 
   return (
-    <section className="stack" aria-label={T.data.actions}>
+    <section className={`stack ${ds.panel} ${ds.wide}`} aria-label={T.data.actions}>
       <h2>{T.data.actions}</h2>
       <ErrorBanner error={action.error} />
       {message ? <Notice>{message}</Notice> : null}

@@ -20,9 +20,9 @@ import {
   Notice,
   numCell,
   SelectField,
+  Kpi,
   Table,
   TextField,
-  Tile,
 } from "@/components/ui";
 import { api, ApiError } from "@/lib/api/client";
 import { useMe } from "@/lib/api/hooks";
@@ -44,6 +44,8 @@ import { formatDate, formatDateTime, formatNumber, formatTime } from "@/lib/form
 import { T } from "@/lib/messages";
 import { useAction } from "@/lib/useAction";
 
+import ds from "./data.module.css";
+
 export const PROGRESS_KEY = ["data-load", "progress"] as const;
 export const PROGRESS_POLL_MS = 30_000;
 // the worker's probe interval while a reset is late (NAPIX_WINDOW_PROBE_SECONDS default; the health tab shows the set value)
@@ -59,9 +61,17 @@ export function LoadConsole() {
   const manage = can(me.data, "admin.data_load");
   const retry = can(me.data, "admin.napix_refetch");
   return (
-    <section className="stack" aria-label={T.data.title}>
-      <ErrorBanner error={progress.error} onRetry={() => progress.refetch()} />
-      {progress.isPending ? <Loading /> : null}
+    <section className={ds.board} aria-label={T.data.title}>
+      {progress.error ? (
+        <div className={ds.wide}>
+          <ErrorBanner error={progress.error} onRetry={() => progress.refetch()} />
+        </div>
+      ) : null}
+      {progress.isPending ? (
+        <div className={ds.wide}>
+          <Loading lines={6} />
+        </div>
+      ) : null}
       {progress.data ? (
         <>
           <StatusBanner data={progress.data} />
@@ -80,7 +90,8 @@ export function LoadConsole() {
 function StatusBanner({ data }: { data: DataLoad }) {
   const st = data.settings;
   return (
-    <div className="stack" aria-label={T.data.running}>
+    <section className={`stack ${ds.panel}`} aria-label={T.data.status}>
+      <h2>{T.data.status}</h2>
       <p>
         {st.paused ? <Badge tone="warning">{T.data.paused}</Badge> : <Badge tone="success">{T.data.running}</Badge>}{" "}
         {st.version > 0 && st.changed_by ? (
@@ -99,18 +110,18 @@ function StatusBanner({ data }: { data: DataLoad }) {
         {data.period ? T.data.period(formatDate(data.period.from), formatDate(data.period.to)) : T.data.noPeriod}{" "}
         {st.load_order ? <span className="muted">({T.data.presets[st.load_order] ?? st.load_order})</span> : null}
       </p>
-    </div>
+    </section>
   );
 }
 
 function AllowanceCard({ data }: { data: DataLoad }) {
   const a = data.allowance;
   return (
-    <section className="stack" aria-label={T.data.allowance}>
+    <section className={`stack ${ds.panel}`} aria-label={T.data.allowance}>
       <h2>{T.data.allowance}</h2>
-      <div className="row">
+      <div className={ds.kpis}>
         {(["load", "discovery", "daily", "request", "outside_queue"] as const).map((lane) => (
-          <Tile key={lane} label={T.data.lanes[lane] ?? lane} value={a.used[lane]} />
+          <Kpi key={lane} label={T.data.lanes[lane] ?? lane} value={a.used[lane]} />
         ))}
       </div>
       <p>{a.remaining === null || a.remaining === undefined ? T.data.remainingUnknown : T.data.remaining(formatNumber(a.remaining))}</p>
@@ -134,7 +145,7 @@ function WorkLeftTable({ data, retry }: { data: DataLoad; retry: boolean }) {
     }
   }
   return (
-    <section className="stack" aria-label={T.data.workLeft}>
+    <section className={`stack ${ds.panel} ${ds.wide}`} aria-label={T.data.workLeft}>
       <h2>{T.data.workLeft}</h2>
       <ErrorBanner error={action.error} />
       {message ? <Notice>{message}</Notice> : null}
@@ -193,7 +204,7 @@ function EstimateBlock({ data }: { data: DataLoad }) {
   else if (e.calls_needed === 0) text = T.data.estimateDone;
   else text = T.data.estimateAt(formatDateTime(e.finish_at), formatNumber(e.hours ?? null));
   return (
-    <section className="stack" aria-label={T.data.estimate}>
+    <section className={`stack ${ds.panel}`} aria-label={T.data.estimate}>
       <h2>{T.data.estimate}</h2>
       <p>{text}</p>
       {!e.reason && e.calls_needed ? (
@@ -201,7 +212,7 @@ function EstimateBlock({ data }: { data: DataLoad }) {
           <summary>{T.data.basis}</summary>
           <p>{T.data.callsNeeded(formatNumber(e.calls_needed))}</p>
           <p>{T.data.callsPerHour(formatNumber(Number(basis.calls_per_hour ?? 0)))}</p>
-          <pre className="mono">{JSON.stringify(basis, null, 2)}</pre>
+          <pre className={`mono ${ds.json}`}>{JSON.stringify(basis, null, 2)}</pre>
         </details>
       ) : null}
     </section>
@@ -211,7 +222,7 @@ function EstimateBlock({ data }: { data: DataLoad }) {
 function FailuresTable({ data }: { data: DataLoad }) {
   const rows = data.failures.latest;
   return (
-    <section className="stack" aria-label={T.data.failures}>
+    <section className={`stack ${ds.panel}`} aria-label={T.data.failures}>
       <h2>{T.data.failures}</h2>
       {rows.length === 0 ? (
         <EmptyState>{T.data.noFailures}</EmptyState>
@@ -257,7 +268,7 @@ function CoverageBlock() {
     enabled: !!month,
   });
   return (
-    <section className="stack" aria-label={T.data.coverage}>
+    <section className={`stack ${ds.panel} ${ds.wide}`} aria-label={T.data.coverage}>
       <h2>{T.data.coverage}</h2>
       {!open ? (
         <Button variant="secondary" onClick={() => setOpen(true)}>
@@ -340,11 +351,13 @@ function CoverageBlock() {
 
 function ActionsPanel({ data }: { data: DataLoad }) {
   return (
-    <section className="stack" aria-label={T.data.actions}>
+    <section className={`stack ${ds.panel} ${ds.wide}`} aria-label={T.data.actions}>
       <h2>{T.data.actions}</h2>
-      <StartLoad />
-      <PauseResume paused={data.settings.paused} />
-      <OrderForm current={data.settings.load_order} />
+      <div className={ds.forms}>
+        <StartLoad />
+        <PauseResume paused={data.settings.paused} />
+        <OrderForm current={data.settings.load_order} />
+      </div>
       <FetchFromCourt />
     </section>
   );
@@ -454,7 +467,7 @@ function PauseResume({ paused }: { paused: boolean }) {
       ) : null}
       <ErrorBanner error={action.error} />
       <div>
-        <Button type="submit" variant={paused ? "primary" : "danger"} busy={action.busy} disabled={!paused && reason.trim().length < 3}>
+        <Button type="submit" variant={paused ? "secondary" : "danger"} busy={action.busy} disabled={!paused && reason.trim().length < 3}>
           {paused ? T.data.resume : T.data.pause}
         </Button>
       </div>
@@ -509,7 +522,7 @@ function OrderForm({ current }: { current: string }) {
       <ErrorBanner error={action.error} />
       {message ? <Notice>{message}</Notice> : null}
       <div>
-        <Button type="submit" busy={action.busy} disabled={form.reason.trim().length < 3}>
+        <Button type="submit" variant="secondary" busy={action.busy} disabled={form.reason.trim().length < 3}>
           {T.save}
         </Button>
       </div>
@@ -634,7 +647,7 @@ export function FetchFromCourt() {
         {form.kind !== "cnr" ? (
           <TextField label={T.data.regYear} type="number" required value={form.reg_year} onChange={(e) => setForm({ ...form, reg_year: e.target.value })} />
         ) : null}
-        <Button type="submit" busy={action.busy}>
+        <Button type="submit" variant="secondary" busy={action.busy}>
           {T.data.fetchNow}
         </Button>
       </div>

@@ -3,7 +3,7 @@
 .suggested {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: var(--s1);
 }
 
 .date {
@@ -11,23 +11,23 @@
 }
 
 .hint {
-  color: var(--ink-muted);
-  font-size: var(--text-sm);
+  color: var(--text-3);
+  font-size: var(--t-sm);
 }
 
 .panel {
-  border: 1px solid var(--warning);
-  background: var(--warning-bg);
-  border-radius: var(--radius);
-  padding: var(--space-3);
+  border: 1px solid var(--amber);
+  background: var(--amber-soft);
+  border-radius: var(--r-md);
+  padding: var(--s3);
 }
 
 .panel h4 {
-  margin: 0 0 var(--space-2);
+  margin: 0 0 var(--s2);
 }
 
 .actions {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
+  gap: var(--s2);
 }

@@ -212,6 +212,7 @@ export const T = {
   notFound: "Page not found",
   notFoundText: "The page does not exist, or you cannot see it.",
   errorTitle: "Something went wrong",
+  errorText: "The page could not be shown. Try again, or go back to the dashboard.",
   goHome: "Go to the dashboard",
   auth: {
     signIn: "Sign in",
@@ -250,6 +251,21 @@ export const T = {
     mobileRequired: "A mobile number is required.",
     confirm: "Confirm and continue",
     memberships: "Your offices",
+    // the public pages' frame (design portal-ui-redesign, decision 26 as amended 20 Oct 2026: template A, split panel)
+    signInSub: "Use your official e-mail and password.",
+    steps: "Password, then a code sent to your e-mail",
+    stepOf: (n: number, total: number) => `Step ${n} of ${total}`,
+    frame: {
+      label: "About the portal",
+      lead: "Every department's cases in one place: hearings, orders, the file's movement and what needs doing next.",
+      tiles: [
+        { title: "Never miss a hearing", text: "Your dates and the day's cause list, with alerts." },
+        { title: "Orders as they are passed", text: "Read, print or download every order of your cases." },
+        { title: "Know who holds the file", text: "Send, track and recall the file with a clear trail." },
+      ],
+      maker: "ASLMS · SeMT Assam / AMTRON",
+      foot: "For official use by Government of Assam departments.",
+    },
   },
   prefs: {
     title: "Notifications",
@@ -677,6 +693,8 @@ export const T = {
   admin: {
     title: "Administration",
     tabs: "Administration sections",
+    group: "Setting group",
+    subtitle: "People, offices, designations, department mapping and tickets, one group at a time.",
   },
   users: {
     title: "Users",
@@ -1723,6 +1741,8 @@ export const T = {
     downloadXlsx: "Download Excel",
     downloadPdf: "Download PDF",
     downloads: "Downloads",
+    downloadWait: "Available once the report is shown.",
+    subtitle: "Choose the scope and period, show the report, then download exactly what is on screen.",
     downloadNote:
       "Downloads are recorded in the audit log. The PDF lists at most the first rows of a long file list; the Excel file holds more.",
     emptySection: "Nothing to report for these parameters.",
@@ -1820,6 +1840,9 @@ export const T = {
     viewEntry: (when: string) => `View the entry of ${when}`,
     system: "System",
     empty: "No entries match these filters.",
+    emptyTitle: "No entries",
+    subtitle: "Every significant action, newest first. Searching the log is not itself recorded.",
+    shown: (n: string, more: boolean) => (more ? `${n} entries shown; more below` : `${n} entries`),
     moreRows: "More",
     timeout: "The search took too long; narrow the search.",
     entry: "Entry",

@@ -1,10 +1,15 @@
 "use client";
 
-/** Administration in tabs (Annexure B, "Department mapping"); each tab shows only with one of its functions. */
+/**
+ * Administration (Annexure B, "Department mapping") on the Settings template (design portal-ui-redesign, decision
+ * 26): the setting groups (users, access, offices, designations, Department mapping, tickets) as a sub-menu on the
+ * left on laptops and a select on phones, one group at a time beside it. Each group shows only with one of its
+ * functions; the API decides every read and write.
+ */
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 
-import { EmptyState, Loading, PageHeader, Tabs } from "@/components/ui";
+import { EmptyState, Loading, PageHeader, SettingsLayout } from "@/components/ui";
 import { useMe } from "@/lib/api/hooks";
 import { T } from "@/lib/messages";
 import { adminTabsFor } from "@/lib/routes";
@@ -15,19 +20,24 @@ export function AdminFrame({ children }: { children: ReactNode }) {
   if (me.isPending) return <Loading />;
   const tabs = adminTabsFor(me.data);
   return (
-    <div>
-      <PageHeader title={T.admin.title} />
+    <div className="stack">
+      <PageHeader title={T.admin.title} subtitle={T.admin.subtitle} />
       {tabs.length > 0 ? (
-        <Tabs
+        <SettingsLayout
           label={T.admin.tabs}
+          selectLabel={T.admin.group}
           items={tabs.map((t) => ({
+            key: t.key,
             href: t.href,
             label: t.label,
             active: pathname === t.href || pathname.startsWith(t.href + "/"),
           }))}
-        />
-      ) : null}
-      {children}
+        >
+          {children}
+        </SettingsLayout>
+      ) : (
+        children
+      )}
     </div>
   );
 }

@@ -1,10 +1,10 @@
 .bar {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
   background: var(--surface);
 }
 
@@ -12,14 +12,14 @@
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: var(--space-3);
+  gap: var(--s3);
 }
 
 .dateGroup {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: var(--space-2);
+  gap: var(--s2);
 }
 
 .dateGroup > div {
@@ -30,23 +30,23 @@
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: var(--space-3);
-  padding-top: var(--space-2);
-  border-top: 1px dashed var(--line);
+  gap: var(--s3);
+  padding-top: var(--s2);
+  border-top: 1px dashed var(--border);
 }
 
 .actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--s2);
 }
 
 .chips {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--s2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -55,13 +55,13 @@
 .chip {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
-  padding: 2px var(--space-1) 2px var(--space-2);
-  border: 1px solid var(--navy-700);
+  gap: var(--s1);
+  padding: 2px var(--s1) 2px var(--s2);
+  border: 1px solid var(--accent);
   border-radius: 999px;
-  background: var(--navy-100);
-  color: var(--navy-900);
-  font-size: var(--text-sm);
+  background: var(--slate-soft);
+  color: var(--text);
+  font-size: var(--t-sm);
 }
 
 .chipRemove {
@@ -81,7 +81,7 @@
 
 .chipRemove:hover,
 .chipRemove:focus-visible {
-  background: var(--navy-800);
+  background: var(--accent);
   color: #fff;
 }
 

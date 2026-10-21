@@ -1,20 +1,8 @@
 import type { ReactNode } from "react";
 
-import s from "@/components/auth/auth.module.css";
-import { BrandLockup } from "@/components/shell/Brand";
-import { T } from "@/lib/messages";
+import { AuthFrame } from "@/components/auth/AuthFrame";
 
+/** The sign-in, code and reset pages in the split-panel frame (design portal-ui-redesign, decision 26, template A). */
 export default function PublicLayout({ children }: { children: ReactNode }) {
-  return (
-    <main className={s.page} id="main">
-      <div className={s.card}>
-        <div className={s.brand}>
-          <BrandLockup />
-          <strong>{T.portal}</strong>
-          <span>{T.portalLong}</span>
-        </div>
-        {children}
-      </div>
-    </main>
-  );
+  return <AuthFrame>{children}</AuthFrame>;
 }

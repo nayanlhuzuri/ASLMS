@@ -25,6 +25,13 @@
   --green: #067647;
   --green-soft: #ecfdf3;
   --slate-soft: #f2f4f7;
+  /* the deep-blue panel of the public pages (decision 26, template A) and its text */
+  --panel-from: #0b1f4d;
+  --panel-to: #0f172a;
+  --panel-text: #cbd5e1;
+  --panel-strong: #ffffff;
+  --panel-muted: #94a3b8;
+  --panel-accent: #93c5fd;
 
   --font-sans: "Inter Variable", Inter, system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
   --font-mono: "IBM Plex Mono", Consolas, "Courier New", monospace;
@@ -68,42 +75,6 @@
   --lead-w: 96px;
   --date-w: 48px;
   --icon-w: 20px;
-
-  /* Deprecated aliases of the earlier names, kept during rounds 1-4 so no CSS module breaks; round 5 removes them. */
-  --navy-900: var(--text);
-  --navy-800: var(--accent);
-  --navy-700: var(--accent);
-  --navy-100: var(--slate-soft);
-  --gold-600: var(--amber);
-  --gold-100: var(--amber-soft);
-  --ink: var(--text);
-  --ink-muted: var(--text-3);
-  --line: var(--border);
-  --page: var(--bg);
-  --danger: var(--red-text);
-  --danger-bg: var(--red-soft);
-  --success: var(--green);
-  --success-bg: var(--green-soft);
-  --warning: var(--amber);
-  --warning-bg: var(--amber-soft);
-  --focus: var(--accent);
-  --font-serif: var(--font-sans);
-  --space-1: var(--s1);
-  --space-2: var(--s2);
-  --space-3: var(--s3);
-  --space-4: var(--s4);
-  --space-5: var(--s5);
-  --space-6: var(--s6);
-  --space-7: var(--s7);
-  --text-xs: var(--t-xs);
-  --text-sm: var(--t-sm);
-  --text-md: var(--t-md);
-  --text-lg: var(--t-lg);
-  --text-xl: var(--t-2xl);
-  --text-2xl: var(--t-3xl);
-  --radius: var(--r-md);
-  --shadow: var(--shadow-1);
-  --sidebar-width: var(--sidebar);
 }
 
 /* decision 13: under reduced motion the durations become 0 ms and every animation and transition is off */
@@ -249,7 +220,7 @@ code,
 
 .grid-2 {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
   gap: var(--s4);
 }
 

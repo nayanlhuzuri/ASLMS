@@ -6,7 +6,7 @@ import { Sidebar } from "@/components/shell/PortalShell";
 import type { DataHealth, DataLoad, Duplicates as DuplicatesList, NapixHealth, Permission } from "@/lib/api/types";
 import { formatNumber } from "@/lib/format";
 import { resetNav } from "@/test/nav";
-import { browserApi, json, labels, makeMe, renderWithClient } from "@/test/render";
+import { browserApi, json, labels, makeMe, primaryActions, renderWithClient } from "@/test/render";
 
 import { DataFrame } from "./DataFrame";
 import { Duplicates } from "./Duplicates";
@@ -644,5 +644,60 @@ describe("navigation", () => {
     );
     expect(await screen.findByText("The page does not exist, or you cannot see it.")).toBeInTheDocument();
     expect(screen.queryByText("body")).toBeNull();
+  });
+});
+
+describe("the Dashboard template (design portal-ui-redesign, decision 26)", () => {
+  it("the console shows the lanes as headline numbers, each block a panel, and no primary until a preview", async () => {
+    consoleRoutes([...MANAGER, "admin.napix_refetch"], {
+      "POST /admin/data-load/preview": {
+        days: 2,
+        held_with_lists: 0,
+        held_no_list: 0,
+        waiting: 0,
+        failed: 0,
+        not_queued: 2,
+        calls_estimate: 4,
+        masters_stale: false,
+      },
+    });
+    const { container } = renderWithClient(<LoadConsole />);
+    const allowance = await screen.findByRole("region", { name: "Court gateway allowance, this window" });
+    expect(allowance.className).toMatch(/panel/);
+    expect(within(allowance).getAllByText(/./, { selector: "[class*='kpiLabel']" }).length).toBe(5);
+    for (const name of ["Status", "Work left", "Estimated finish", "Actions"]) {
+      expect(screen.getByRole("region", { name }).className).toMatch(/panel/);
+    }
+    expect(primaryActions(container)).toEqual([]);
+    const form = screen.getByRole("form", { name: "Start a load" });
+    await userEvent.type(within(form).getByLabelText("From"), "2025-02-01");
+    await userEvent.type(within(form).getByLabelText("To"), "2025-02-02");
+    await userEvent.click(within(form).getByRole("button", { name: "Preview" }));
+    await within(form).findByRole("button", { name: "Start" });
+    expect(primaryActions(container)).toEqual(["Start"]);
+  });
+
+  it("the health tab puts the call counts in headline numbers and has no primary", async () => {
+    browserApi({
+      "GET /me": makeMe(["reports.state", "admin.napix_refetch", "admin.masters_sync"], "central_operator"),
+      "GET /admin/data-health": SNAPSHOT,
+      "GET /admin/napix/health": NAPIX,
+    });
+    const { container } = renderWithClient(<Health />);
+    const gateway = await screen.findByRole("region", { name: "Court gateway" });
+    expect(within(gateway).getAllByText(/./, { selector: "[class*='kpiLabel']" }).length).toBe(2);
+    expect(screen.getByRole("region", { name: "Document text" }).className).toMatch(/wide/);
+    expect(primaryActions(container)).toEqual([]);
+  });
+
+  it("the duplicate kinds are chips, not primary buttons", async () => {
+    browserApi({
+      "GET /me": makeMe(["admin.data_load"], "central_operator"),
+      "GET /admin/data-load/duplicates": { items: [], total: 0 },
+    });
+    const { container } = renderWithClient(<Duplicates />);
+    const group = await screen.findByRole("group", { name: "Duplicates" });
+    expect(within(group).getByRole("button", { name: "Needs review" })).toHaveAttribute("aria-pressed", "true");
+    expect(primaryActions(container)).toEqual([]);
   });
 });

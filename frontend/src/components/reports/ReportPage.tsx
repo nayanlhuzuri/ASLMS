@@ -4,16 +4,17 @@
  * One report tab (design portal-reports, decisions 3-11): the parameters come from the URL, the defaults are filled
  * and the JSON report is requested at once; "Show report" writes the choices to the URL so a link, a bookmark or Back
  * restores the same report. A department-only reader without a department in the URL gets their first written there.
- * The Excel and PDF links carry exactly the parameters of the report shown and appear only once it has loaded; the
+ * The Excel and PDF links carry exactly the parameters of the report shown and become links only once it has loaded
+ * (in the frame's header, decision 26 of portal-ui-redesign); the
  * API writes the `report.exported` audit row, the screen writes nothing. A path the caller's catalogue does not hold
  * says so and requests nothing.
  */
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useContext, useEffect } from "react";
 
-import { EmptyState, ErrorBanner, Loading } from "@/components/ui";
+import { Card, EmptyState, ErrorBanner, Loading } from "@/components/ui";
 import { api, ApiError } from "@/lib/api/client";
 import { useDepartments, useMe, useReportCatalogue } from "@/lib/api/hooks";
 import type { Report } from "@/lib/api/types";
@@ -24,8 +25,8 @@ import { queryString, type Params } from "@/lib/params";
 import { exportUrl, reportParams, type ReportKey } from "@/lib/reports";
 
 import { ReportForm } from "./ReportForm";
+import { DownloadsSlot, ReportDownloads } from "./ReportsFrame";
 import { ReportView } from "./ReportView";
-import s from "./reports.module.css";
 
 export function ReportPage({ reportKey, params }: { reportKey: ReportKey; params: Params }) {
   const catalogue = useReportCatalogue();
@@ -47,6 +48,16 @@ export function ReportPage({ reportKey, params }: { reportKey: ReportKey; params
     enabled: !!item && !firstDepartment,
   });
 
+  const setDownloads = useContext(DownloadsSlot);
+  const loaded = query.isSuccess && !!query.data;
+  const xlsx = exportUrl(reportKey, apiParams, "xlsx");
+  const pdf = exportUrl(reportKey, apiParams, "pdf");
+  // the frame's header offers the downloads of the report on screen only (decision 26: the Report template)
+  useEffect(() => {
+    setDownloads?.(loaded ? { xlsx, pdf } : null);
+  }, [setDownloads, loaded, xlsx, pdf]);
+  useEffect(() => () => setDownloads?.(null), [setDownloads]);
+
   useEffect(() => {
     if (firstDepartment) router.replace(pathname + queryString({ ...params, department: firstDepartment }));
   }, [firstDepartment, params, pathname, router]);
@@ -61,11 +72,11 @@ export function ReportPage({ reportKey, params }: { reportKey: ReportKey; params
   const holderList = holders.data?.departments ?? [];
   const holderNames: Record<string, string> = {};
   for (const d of holderList) holderNames[d.code] = d.name;
-  const loaded = query.isSuccess && !!query.data;
 
   return (
     <div className="stack">
-      <ReportForm
+      <Card>
+        <ReportForm
         key={queryString(params)}
         reportKey={reportKey}
         item={item}
@@ -77,7 +88,8 @@ export function ReportPage({ reportKey, params }: { reportKey: ReportKey; params
         busy={query.isFetching}
         onShow={(next) => router.push(pathname + queryString(next))}
         onRefresh={() => void query.refetch()}
-      />
+        />
+      </Card>
       {firstDepartment || query.isPending ? (
         error ? null : (
           <p className="muted" role="status" aria-live="polite">
@@ -93,14 +105,7 @@ export function ReportPage({ reportKey, params }: { reportKey: ReportKey; params
           holderNames={holderNames}
           actions={
             <div className="stack">
-              <div className={s.actions} role="group" aria-label={T.reports.downloads}>
-                <a className="button-link" href={exportUrl(reportKey, apiParams, "xlsx")} download>
-                  {T.reports.downloadXlsx}
-                </a>
-                <a className="button-link" href={exportUrl(reportKey, apiParams, "pdf")} download>
-                  {T.reports.downloadPdf}
-                </a>
-              </div>
+              {setDownloads ? null : <ReportDownloads downloads={{ xlsx, pdf }} />}
               <p className="muted">{T.reports.downloadNote}</p>
             </div>
           }

@@ -5,11 +5,11 @@
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
-  gap: var(--space-3);
+  gap: var(--s3);
 }
 
 .form > * {
-  min-width: 12rem;
+  min-width: min(12rem, 100%);
 }
 
 .more {
@@ -18,23 +18,23 @@
 
 .more > summary {
   cursor: pointer;
-  margin-bottom: var(--space-2);
+  margin-bottom: var(--s2);
 }
 
 .moreFields {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-3);
+  gap: var(--s3);
 }
 
 .moreFields > * {
-  min-width: 12rem;
+  min-width: min(12rem, 100%);
 }
 
 .actions {
   flex-basis: 100%;
   display: flex;
-  gap: var(--space-2);
+  gap: var(--s2);
   align-items: center;
   flex-wrap: wrap;
 }
@@ -51,11 +51,11 @@
 }
 
 .who small {
-  color: var(--ink-muted);
+  color: var(--text-3);
 }
 
 .changedRow {
-  background: var(--warning-bg);
+  background: var(--amber-soft);
 }
 
 .mark {
@@ -73,7 +73,7 @@
 .links {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-3);
+  gap: var(--s3);
   list-style: none;
   margin: 0;
   padding: 0;

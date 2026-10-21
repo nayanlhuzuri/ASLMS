@@ -2084,3 +2084,47 @@ Backlog row 104 `portal-ui-dashboard-work`, branch `feature/portal-ui-dashboard-
 **Deviations**: none from the plan or the approved note; the choices where the note was silent are in its "Round 4" section.
 
 **Left for later**: round 5 (row 105: Reports, Audit log, Data collection and Administration on the Report, Work list, Dashboard and Settings templates; sign-in pages with the brand; removal of deprecated token aliases; responsive sweep). `SettingsLayout` is reused there for Administration.
+
+
+## Portal UI redesign, round 5: oversight, settings and the final sweep (2026-10-21)
+Backlog row 105 `portal-ui-oversight-settings`, branch `feature/portal-ui-oversight-settings`; design
+`docs/design/portal-ui-redesign.md` (approved; no separate note for the row, the developer's choices are in its "Round 5,
+row 105" section, items 1 to 10). Frontend only: no API change, no migration, `docs/schema/schema.md` unchanged.
+
+**Built**
+- Reports on the Report template: the choices in a card on top, the results below, Download Excel and Download PDF always
+  in the page header's secondary actions (disabled until the report on screen has loaded, then carrying exactly its
+  parameters).
+- Audit log on the Work list template: filters in a card, rows as a `DataTable` (cards on phones), a row opening its entry
+  page, a count of the entries shown.
+- Data collection on the Dashboard template: panels on a two-column board, the lanes, call counts and discovery figures as
+  headline numbers, the duplicate kinds as chips.
+- Administration on the Settings template: the groups (users, user types, offices, designations, Department mapping,
+  tickets) as a sub-menu on laptops and a select on phones; Users and Tickets lists as `DataTable`s.
+- The sign-in, code, reset and first-sign-in pages on `AuthFrame`, the owner's template A (split panel with the full name,
+  three benefit tiles and the official emblem lockup; the two-step indicator on sign-in and code); the error and not-found
+  pages with the brand over the empty-state pattern.
+- The deprecated token aliases removed; new `--panel-*` tokens for the sign-in panel, contrast-tested.
+- Tests: `components/auth/frame.test.tsx` (the brand and panel on every public page, steps, show password, error pages);
+  Report, Work list, Dashboard and Settings template tests in `reports.test.tsx`, `audit.test.tsx`, `data.test.tsx` and
+  `admin.test.tsx`; `tokens.test.ts` fails on any alias left and checks spacing in every CSS module;
+  `src/app/pages.test.tsx` renders every page and allows at most one primary action, and refuses a server file calling a
+  function of the client UI kit.
+
+**Decisions and reasons** (full list in the design note)
+- One primary per page is now checked across the portal; where a page had two, the secondary one became secondary (the
+  users filter's Search, Enable login, Reactivate, Add admin, New office under an office, a ticket's Archive and Attach,
+  Add pattern, the discovery tab's Claim, the load console's Resume, Save and Fetch now).
+- Audit rows open the entry page, not a side panel, because the before / after values, IP address and browser stay on the
+  entry page only (portal-audit-health decision 5).
+- Administration keeps its group routes, so no address changes.
+- `not-found.tsx` became a client component after the Compose portal smoke showed every page logging a server call to
+  `buttonClass()`; the new check in `pages.test.tsx` keeps that from returning.
+
+**Deviations**: none from the plan or the approved note; the choices where the note was silent are in its "Round 5"
+section.
+
+**Left for later**: the owner's browser check of round 5 (Verification, "After round 5": the same layout on Reports,
+Audit log, Data collection and Administration; the sign-in page with the emblem; 375, 768 and 1280 px without sideways
+scrolling except wide report tables). Administration tables other than Users and Tickets still scroll sideways inside
+their card on phones.

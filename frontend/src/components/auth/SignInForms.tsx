@@ -15,6 +15,7 @@ import type { LoginStep, NextStep, ResetStep } from "@/lib/api/types";
 import { T } from "@/lib/messages";
 import { safeNext } from "@/lib/safeNext";
 
+import { SignInSteps } from "./AuthFrame";
 import s from "./auth.module.css";
 import { afterSignIn, clearStep, loadStep, resendLeft, saveStep, type StoredStep } from "./steps";
 
@@ -53,6 +54,8 @@ export function LoginForm() {
   return (
     <form className={s.form} onSubmit={submit} noValidate>
       <h1>{T.auth.signIn}</h1>
+      <p>{T.auth.signInSub}</p>
+      <SignInSteps step={1} />
       {params.get("reset") === "done" ? <Notice>{T.auth.passwordChanged}</Notice> : null}
       {params.get("expired") ? <ErrorBanner error={new ApiError(401, "otp_expired", "")} /> : null}
       <ErrorBanner error={error} />
@@ -143,6 +146,7 @@ export function CodeForm() {
   return (
     <form className={s.form} onSubmit={submit} noValidate>
       <h1>{T.auth.codeTitle}</h1>
+      <SignInSteps step={2} />
       <p>{step?.sent_to ? T.auth.codeSent(step.sent_to) : T.auth.codeSentGeneric}</p>
       {resent ? <Notice>{T.auth.resent}</Notice> : null}
       <ErrorBanner error={error} />

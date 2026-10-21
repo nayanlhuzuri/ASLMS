@@ -1,0 +1,63 @@
+/* Data collection on the Dashboard template (design portal-ui-redesign, decision 26): headline numbers as `Kpi`s,
+   each block a panel, two panels side by side from 1100 px, wide blocks across. Tokens only. */
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s4);
+  align-items: start;
+}
+
+.wide {
+  grid-column: 1 / -1;
+}
+
+.panel {
+  min-width: 0;
+  padding: var(--s4) var(--s5);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-1);
+}
+
+.panel > h2 {
+  margin: 0;
+  font-size: var(--t-lg);
+}
+
+.panel > h3 {
+  margin: 0;
+  font-size: var(--t-md);
+}
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--s3);
+}
+
+.forms {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s5);
+  align-items: start;
+}
+
+.forms > * {
+  min-width: 0;
+}
+
+.json {
+  margin: 0;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 1099px) {
+  .board,
+  .forms {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

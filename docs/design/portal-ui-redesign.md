@@ -1253,3 +1253,56 @@ Choices made where the note is silent, each the smallest reasonable option:
     Details, Notifications, Change password and Devices, `?group=` in the query string, Details by default.
 14. **Tests.** The A7 database tests are in a new file, `tests/db/test_dashboard_headline.py`, next to
     `test_dashboard.py`. The spacing check now covers the `dashboard`, `files` and `causelist` modules.
+
+### Round 5, row 105 `portal-ui-oversight-settings` (developer, 21 Oct 2026)
+Choices made where the note is silent, each the smallest reasonable option:
+
+1. **No separate note.** Backlog row 105 links this note; there is no `docs/design/portal-ui-oversight-settings.md`.
+   Round 5 was built from decisions 2 (round 5), 11, 14, 16, 21 and 26 (with the owner's amendment of 20 Oct:
+   template A), "Portal (round 5)" and "Tests, round 5". No API change, no migration.
+2. **Reports.** The downloads sit in the frame's `PageHeader` actions: the tab tells the frame the Excel and PDF
+   addresses of the report on screen through a context (`DownloadsSlot`); until the report has loaded they are two
+   disabled secondary buttons titled "Available once the report is shown". A tab rendered without the frame draws them
+   itself. The choices are in a card on top; the download note stays under the report's header; the page has a
+   subtitle. Show report is the one primary.
+3. **Audit log.** A row opens its entry page (click or Enter), not a side panel: portal-audit-health decision 5 keeps
+   the IP address, browser and before / after values on the entry page only. The list is a `DataTable` (cards on
+   phones, the action on top of each card, View left out of the card); the filters are in a card; a line counts the
+   entries shown ("50 entries shown; more below").
+4. **Data collection.** The Dashboard template is a two-column board of panels (one column below 1100 px), wide
+   blocks across. The allowance lanes, the window and today's call counts and the discovery figures are `Kpi`s (a red
+   sub line when calls failed). The console's actions keep one primary: Start, which only appears after a preview;
+   Resume, Save (order) and Fetch now are secondary, Pause stays danger. The duplicate kinds are `Chip`s instead of
+   primary / secondary buttons. The Queue, Duplicates and Discovery tabs are panels; their tables keep their layout.
+5. **Administration.** The groups are the existing tab routes (not `?group=` as on My profile), so every address,
+   bookmark and test path stays. Department mapping keeps its own tabs inside its group. A login with no group sees the
+   page body alone. The Users and Tickets lists became `DataTable`s (cards on phones, a row opens the person or the
+   ticket, the status in the fixed `--lead-w` column); the other administration tables keep sideways scrolling inside
+   their card. One primary per group: the users filter's Search, Enable login, New office under an office,
+   Reactivate, Add admin, a ticket's Archive and Attach, Add pattern (Keywords keeps Add keyword) and the discovery
+   tab's Claim are secondary.
+6. **Public pages.** One `AuthFrame` serves the `(public)` and `(welcome)` layouts (the welcome pages with a wider
+   form side). The panel's colours are new tokens `--panel-from`, `--panel-to`, `--panel-text`, `--panel-strong`,
+   `--panel-muted`, `--panel-accent`, each text pair checked for 4.5:1 in `tokens.test.ts`. The panel foot "ASLMS ·
+   SeMT Assam / AMTRON" and the form side's foot "For official use by Government of Assam departments." come from the
+   mock-up. The two-step indicator shows on the sign-in (step 1) and code (step 2) pages only, with "Step n of 2" for
+   screen readers; the sign-in has the line "Use your official e-mail and password.". The phone breakpoint is the
+   kit's 820 px, not the mock-up's 900 px. `BrandLockup` gained a `className` prop (64 px in the brand row).
+7. **Error pages.** `StatusPage` puts the header's brand (emblem and names) over the empty-state pattern. The error page
+   offers Try again (its one primary) and Go to the dashboard; it never shows the error's message. The not-found page
+   offers Go to the dashboard. `not-found.tsx` is a client component, because it calls `buttonClass()` from the client
+   kit: the Compose portal smoke caught the server call, and `pages.test.tsx` now fails when a server file under
+   `src/app` imports anything but components from the kit.
+8. **Tokens.** The aliases are gone from `globals.css`; the alias check scans every `.css`, `.ts` and `.tsx` under
+   `src/` (tests excepted) and the spacing check every `*.module.css` (`globals.css` is not a module; its
+   `.visually-hidden` keeps `margin: -1px`). The one raw value found (`padding: 0 4px` in the mapping module) uses
+   `--s1`.
+9. **The page-level test** (`src/app/pages.test.tsx`) renders every `page.tsx` inside its section layouts (not the
+   portal shell, which has no primary) with a fake `/me` holding every function read from the generated schema. Pages
+   whose data the fake API does not answer are checked in their error or empty state; seven pages assert their known
+   primary. "Primary" is a primary `Button`, the global `.button-link`, or a link given `buttonClass("primary")`
+   (`primaryActions` in `src/test/render.tsx`).
+10. **The responsive and alignment sweep** was done in the code, without a browser: grids that could not shrink below
+    300-320 px (`.grid-2`, the case cards) use `minmax(min(…, 100%), 1fr)`; report and audit fields shrink below 12 rem
+    on narrow screens; inline spacing styles in Administration and the notification preferences became classes. The
+    look at 375, 768 and 1280 px is the owner's browser check (Verification, "After round 5").

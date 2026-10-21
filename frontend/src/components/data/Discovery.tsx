@@ -18,7 +18,7 @@ import {
   Notice,
   numCell,
   Table,
-  Tile,
+  Kpi,
 } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { useMe } from "@/lib/api/hooks";
@@ -27,6 +27,8 @@ import { can } from "@/lib/can";
 import { formatDateTime, formatNumber, formatTime } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { useAction } from "@/lib/useAction";
+
+import ds from "./data.module.css";
 
 const KEY = ["data-discovery"] as const;
 const KINDS = ["party_search", "dossier", "order_pdf"] as const;
@@ -50,7 +52,7 @@ export function Discovery() {
   }
 
   return (
-    <section className="stack" aria-label={T.discovery.dataTab}>
+    <section className={`stack ${ds.panel}`} aria-label={T.discovery.dataTab}>
       <h2>{T.discovery.dataTab}</h2>
       {data.isPending ? <Loading /> : null}
       <ErrorBanner error={data.error} onRetry={() => data.refetch()} />
@@ -78,12 +80,12 @@ export function Discovery() {
             </p>
             <p className="muted">{T.discovery.fromYear(data.data.settings.from_year)}</p>
           </section>
-          <div className="row">
-            <Tile label={T.discovery.termsActive} value={data.data.terms.active} />
-            <Tile label={T.discovery.termsInactive} value={data.data.terms.inactive} />
-            <Tile label={T.discovery.casesFoundAll} value={data.data.cases.found} />
-            <Tile label={T.discovery.createdByDiscovery} value={data.data.cases.created_by_discovery} />
-            <Tile label={T.discovery.recommendedFromDiscovery} value={data.data.cases.recommended_from_discovery} />
+          <div className={ds.kpis}>
+            <Kpi label={T.discovery.termsActive} value={data.data.terms.active} />
+            <Kpi label={T.discovery.termsInactive} value={data.data.terms.inactive} />
+            <Kpi label={T.discovery.casesFoundAll} value={data.data.cases.found} />
+            <Kpi label={T.discovery.createdByDiscovery} value={data.data.cases.created_by_discovery} />
+            <Kpi label={T.discovery.recommendedFromDiscovery} value={data.data.cases.recommended_from_discovery} />
           </div>
           <p>
             {data.data.last_searched_at

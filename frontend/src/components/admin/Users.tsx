@@ -14,12 +14,12 @@ import {
   Badge,
   Button,
   CheckField,
+  DataTable,
   EmptyState,
   ErrorBanner,
   Loading,
   Pagination,
   SelectField,
-  Table,
   TextField,
 } from "@/components/ui";
 import { api, apiPage, ApiError } from "@/lib/api/client";
@@ -28,6 +28,8 @@ import type { Designation, MembershipOut, Role, UserLookup, UserOut, UserTypeLab
 import { can, isSuperAdmin } from "@/lib/can";
 import { T } from "@/lib/messages";
 import { useAction } from "@/lib/useAction";
+
+import a from "./admin.module.css";
 
 export const PAGE_SIZE = 50;
 
@@ -38,7 +40,7 @@ export function assignableOptions(types: UserTypeLabel[] | undefined) {
 export function MembershipSummary({ memberships, types }: { memberships: MembershipOut[]; types?: UserTypeLabel[] }) {
   if (memberships.length === 0) return <span className="muted">{T.users.noMembership}</span>;
   return (
-    <ul style={{ margin: 0, paddingLeft: 18 }}>
+    <ul className={a.memberList}>
       {memberships.map((m) => (
         <li key={m.id}>
           <span className="mono">{m.office.code}</span> · {labelOf(types, m.role)}
@@ -51,6 +53,7 @@ export function MembershipSummary({ memberships, types }: { memberships: Members
 
 export function UsersList() {
   const me = useMe();
+  const router = useRouter();
   const labels = useLabels();
   const [draft, setDraft] = useState({ q: "", office: "", role: "", includeEnded: false });
   const [filters, setFilters] = useState(draft);
@@ -84,7 +87,7 @@ export function UsersList() {
 
   return (
     <section className="stack" aria-label={T.users.title}>
-      <div className="row" style={{ justifyContent: "space-between" }}>
+      <div className={a.groupHead}>
         <h2>{T.users.title}</h2>
         {can(me.data, "users.create") ? (
           <Link href="/admin/users/new" className="button-link">
@@ -114,7 +117,9 @@ export function UsersList() {
             onChange={(e) => setDraft({ ...draft, includeEnded: e.target.checked })}
           />
         ) : null}
-        <Button type="submit">{T.users.apply}</Button>
+        <Button type="submit" variant="secondary">
+          {T.users.apply}
+        </Button>
       </form>
       {users.isPending ? <Loading /> : null}
       <ErrorBanner error={users.error} onRetry={() => users.refetch()} />
@@ -123,30 +128,34 @@ export function UsersList() {
           <EmptyState>{T.users.empty}</EmptyState>
         ) : (
           <>
-            <Table caption={T.users.title}>
-              <thead>
-                <tr>
-                  <th scope="col">{T.users.name}</th>
-                  <th scope="col">{T.users.email}</th>
-                  <th scope="col">{T.users.offices}</th>
-                  <th scope="col">{T.users.status}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.data.items.map((u) => (
-                  <tr key={u.id}>
-                    <td>
-                      <Link href={`/admin/users/${u.id}`}>{u.full_name}</Link>
-                    </td>
-                    <td>{u.email}</td>
-                    <td>
-                      <MembershipSummary memberships={u.memberships ?? []} types={labels.data?.user_types} />
-                    </td>
-                    <td>{u.is_active ? <Badge tone="success">{T.active}</Badge> : <Badge tone="danger">{T.users.disabled}</Badge>}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
+            <DataTable
+              caption={T.users.title}
+              rows={users.data.items}
+              rowKey={(u) => u.id}
+              rowLabel={(u) => u.full_name}
+              onRowClick={(u) => router.push(`/admin/users/${u.id}`)}
+              columns={[
+                {
+                  key: "name",
+                  header: T.users.name,
+                  primary: true,
+                  cell: (u) => <Link href={`/admin/users/${u.id}`}>{u.full_name}</Link>,
+                },
+                { key: "email", header: T.users.email, cell: (u) => u.email },
+                {
+                  key: "offices",
+                  header: T.users.offices,
+                  cell: (u) => <MembershipSummary memberships={u.memberships ?? []} types={labels.data?.user_types} />,
+                },
+                {
+                  key: "status",
+                  header: T.users.status,
+                  width: "var(--lead-w)",
+                  cell: (u) =>
+                    u.is_active ? <Badge tone="success">{T.active}</Badge> : <Badge tone="danger">{T.users.disabled}</Badge>,
+                },
+              ]}
+            />
             <Pagination offset={offset} limit={PAGE_SIZE} total={users.data.total} onChange={setOffset} />
           </>
         )
