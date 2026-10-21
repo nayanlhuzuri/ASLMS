@@ -2,10 +2,10 @@
 
 ```
 slug: ownership-refinements
-status: awaiting-approval
+status: approved
 author: architect
 date: 2026-10-21
-approved_by: (pending)
+approved_by: owner on 2026-10-21, with the architect's recommended answers (a)-(h); migration number by build order (0021)
 ```
 
 ## Context

@@ -2,10 +2,10 @@
 
 ```
 slug: court-data-freshness
-status: awaiting-approval
+status: approved
 author: architect
 date: 2026-10-21
-approved_by: (pending)
+approved_by: owner on 2026-10-21, with the recommended answers: (a) the morning recheck of today's lists is ON (CAUSELIST_RECHECK_MORNING defaults to true); (b) no orphaned responses purged; (c) a file-only change is not a new version; (d) 1,000 disposed refreshes a night; migration number by build order (0023)
 ```
 
 ## Context
@@ -253,7 +253,7 @@ Status as "Daily, for all tracked cases" and Show Cause List as "Daily". The pla
     *Owner check (a):* a correction to tomorrow's list published **after** 18:30 (overnight or early morning) is not
     caught before the hearing. The next evening's recheck sees it only as "today's list", after the court has sat. A
     recheck of today's lists in the 06:30 run would catch it, for another 30–45 calls. It is built behind
-    `CAUSELIST_RECHECK_MORNING` (default `false`, as decided).
+    `CAUSELIST_RECHECK_MORNING` (default `true`: owner's answer (a) at approval, 21 Oct 2026).
 15. **One writer per date.** `load_causelist_day` and the recheck both take
     `pg_advisory_xact_lock(hashtext('causelist-day:' || <date>))`. A day row and a recheck of the same date on two
     workers therefore never create two versions or race a parse. A transaction-level lock is safe under PgBouncer

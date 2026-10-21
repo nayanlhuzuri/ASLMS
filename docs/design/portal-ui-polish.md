@@ -2,10 +2,10 @@
 
 ```
 slug: portal-ui-polish
-status: awaiting-approval
+status: approved
 author: architect
 date: 2026-10-21
-approved_by: (pending)
+approved_by: owner on 2026-10-21, with the defaults (uicheck run whenever frontend/src changes; not in CI yet)
 ```
 
 ## Context

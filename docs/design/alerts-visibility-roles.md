@@ -2,10 +2,10 @@
 
 ```
 slug: alerts-visibility-roles
-status: awaiting-approval
+status: approved
 author: architect
 date: 2026-10-21
-approved_by: (pending)
+approved_by: owner on 2026-10-21, with the recommended answers: private documents follow the notes rule; listed-for-tomorrow critical with an immediate e-mail; the listing pass in the hourly sweep from 19:10; migration number by build order (0022)
 ```
 
 ## Context
