@@ -141,5 +141,6 @@ def test_cli_store_check_passes_on_a_writable_store(tmp_path, monkeypatch):
     root = _store(tmp_path)
     res = _invoke(monkeypatch, root)
     assert res.exit_code == 0, res.output
-    assert "writable (3 folders)" in res.output
+    # the console wraps at the terminal width, and a long temporary path (as on the CI runner) breaks the line
+    assert "writable (3 folders)" in " ".join(res.output.split())
     assert "chown" not in res.output
