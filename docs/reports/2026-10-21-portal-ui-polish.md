@@ -29,7 +29,7 @@ None beyond those recorded in the design note.
 See the final return: pushed result is recorded by the integrator after this commit.
 
 ## Follow-up rows
-123 uicheck-in-ci, 124 portal-ui-polish-owner-check (already in the backlog).
+125 uicheck-in-ci (first numbered 123; renumbered on main because row 123 is the System health inspector), 124 portal-ui-polish-owner-check (already in the backlog).
 
 ## Load status (`aslms queue-status`, tail)
 order_pdf done 111035, pending 190953, skipped 4; status_batch done 887, skipped 6; masters done 1; dossier skipped 28.

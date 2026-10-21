@@ -2220,4 +2220,4 @@ Row 115 `portal-ui-polish`, design `docs/design/portal-ui-polish.md`. No migrati
 - Review found two gaps, fixed: the guard treats a re-exporting barrel as a client module, and `DataTable` had `overflow: hidden` that cut wide tables on wide screens. `DataTable` now stacks as cards when it cannot fit (`fitTable`, `data-stacked`), `.dataWrap` is `overflow-x: auto`, and `uicheck` reports clipped content. Against the old image the new check gave 24 findings.
 - Runs: first (`./data/uicheck/20261021-2006`) 77 page routes and 5 states, 205 screenshots, no findings, 121 s. After the fix (`./data/uicheck/20261021-2239`) 77 routes and 5 states, 205 screenshots, 244 passed, `findings.json` `[]`, exit 0.
 
-**Left for later**: `uicheck` in CI (row 123); the owner's signed-in browser checklist on real data (row 124).
+**Left for later**: `uicheck` in CI (row 125, renumbered from 123 because row 123 was already the System health inspector); the owner's signed-in browser checklist on real data (row 124).

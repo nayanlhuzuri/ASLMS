@@ -107,6 +107,10 @@ const MERGE = {
   required: ['merged'],
 }
 
+// Owner, 22 Oct 2026: design drafts of other items may sit in temporary worktrees inside the project; they are never
+// part of this item, and the merge always happens in the main project folder.
+const SCOPE = ' Scope is exactly what the design note says. Ignore anything under .claude/worktrees/ (other items' drafts, not this item).'
+
 // ------------------------------------------------------------------ Pick
 phase('Pick')
 const pick = await agent(
@@ -165,7 +169,7 @@ phase('Test')
 let gapsReport = null
 for (let round = 1; round <= 2; round++) {
   gapsReport = await agent(
-    `Branch feature/${slug}, design docs/design/${slug}.md. Add the missing tests, run the suite, commit the tests, and return the gaps for the developer (empty when ready for review).`,
+    `Branch feature/${slug}, design docs/design/${slug}.md. Add the missing tests, run the suite, commit the tests, and return the gaps for the developer (empty when ready for review).` + SCOPE,
     { label: `tester: round ${round}`, agentType: 'tester', schema: GAPS },
   )
   if (!gapsReport || gapsReport.gaps.length === 0) break
@@ -185,7 +189,7 @@ const reviewHistory = []
 let review = null
 for (let round = 1; round <= 3; round++) {
   review = await agent(
-    `Review branch feature/${slug} for the design docs/design/${slug}.md as your definition says. Return findings (severity blocking or advisory, where, defect, scenario), the pytest summary and whether it may merge.`,
+    `Review branch feature/${slug} for the design docs/design/${slug}.md as your definition says. Return findings (severity blocking or advisory, where, defect, scenario), the pytest summary and whether it may merge.` + SCOPE,
     { label: `reviewer: round ${round}`, agentType: 'reviewer', schema: REVIEW },
   )
   if (!review) return { phase: 'Review', slug, outcome: 'reviewer did not return' }
@@ -215,7 +219,7 @@ const docs = await agent(
 // ------------------------------------------------------------------ Merge
 phase('Merge')
 const merge = await agent(
-  `Run the gates on branch feature/${slug} (including the CI-on-main check when a remote exists), squash-merge into main, tag, set the backlog row to done, write docs/reports/${today}-${slug}.md, then push main and the tag when a remote exists (fast-forward only; return pushed, pushNote and ciRun). Review findings and how they were closed:\n${JSON.stringify(reviewHistory.map((r) => r.findings).flat(), null, 2)}`,
+  `Run the gates on branch feature/${slug} (including the CI-on-main check when a remote exists), squash-merge into main, tag, set the backlog row to done, write docs/reports/${today}-${slug}.md, then push main and the tag when a remote exists (fast-forward only; return pushed, pushNote and ciRun). Work in the main project folder, never in a folder under .claude/worktrees/. Number any follow-up backlog row after the highest row number in docs/backlog.md on main. Review findings and how they were closed:\n${JSON.stringify(reviewHistory.map((r) => r.findings).flat(), null, 2)}`,
   { label: `integrator: ${slug}`, agentType: 'integrator', schema: MERGE },
 )
 
