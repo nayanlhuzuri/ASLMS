@@ -4,7 +4,7 @@
 
 | | |
 |---|---|
-| Owner | SeMT Assam / AMTRON, Government of Assam |
+| Owner | Government of Assam |
 | Describes | The system as built on `main`, 21 October 2026 |
 | Readers | The product owner, department and State officials, auditors and anyone asked how ASLMS handles data |
 | Status | Living document: updated when a workflow changes |

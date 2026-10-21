@@ -40,7 +40,7 @@ def test_code_hash_is_keyed_and_checked_in_constant_time():
 
 
 def test_masks():
-    assert otp.mask_email("nayan.semt@gmail.com") == "n***@gmail.com"
+    assert otp.mask_email("officer.edu@example.org") == "o***@example.org"
     assert otp.mask_email("broken") == "***"
     assert mask_ip("10.2.3.4") == "10.2.*.*"
     assert mask_ip("2001:db8::1") == "2001:0db8:*"

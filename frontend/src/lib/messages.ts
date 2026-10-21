@@ -266,7 +266,7 @@ export const T = {
         { title: "Orders as they are passed", text: "Read, print or download every order of your cases." },
         { title: "Know who holds the file", text: "Send, track and recall the file with a clear trail." },
       ],
-      maker: "ASLMS · SeMT Assam / AMTRON",
+      maker: "ASLMS · Government of Assam",
       foot: "For official use by Government of Assam departments.",
     },
   },

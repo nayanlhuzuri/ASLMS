@@ -2162,3 +2162,15 @@ Backlog row 110 `api-health-checker-followups`, branch `feature/api-health-check
 - The stray second `approved_by: (pending)` line of `docs/design/api-health-checker.md` removed; the team-approve skill wording was already changed by the owner on `main`.
 
 **Left for later**: data health's "failed today" count and failures list still include a renewal's 401 row (outside this row); past renewal rows whose repeat failed count twice until they leave the 7-day window (no rewrite of `napix_call_log`); typed test inputs and mail and SourceTrace cards (from row 109). No live NAPIX check was made (scripted gateway only).
+
+## 2026-10-21 — No agency names in the portal (owner decision, on `main`)
+
+- The owner's decision: the portal, its e-mails and documents written for others name only ASLMS and the Government of Assam, never SeMT or AMTRON. The owner said this earlier too. That first instruction was not recorded and was lost when the conversation was summarised.
+- Removed from:
+  - the sign-in frame's footer line (`T.auth.frame.maker`, now "ASLMS · Government of Assam");
+  - `README.md` and the `CLAUDE.md` heading paragraph ("Owner: Government of Assam");
+  - `docs/ASLMS_Process_Workflows.md`;
+  - the sign-in mockup `docs/design/ui/aslms-sign-in-templates.html`;
+  - a unit test's sample e-mail address.
+- Earlier entries of this log, reports and design notes are history and stay unchanged.
+- Guard tests: `frontend/src/lib/branding.test.ts` (no file under `src/` or `public/` names them; the application's name) and `backend/tests/unit/test_branding.py` (no file in the `aslms` package names them).

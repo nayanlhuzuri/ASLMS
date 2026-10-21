@@ -4,7 +4,7 @@ The Assam State Litigation Management System (ASLMS) of the Government of Assam.
 High Court in one place: daily cause lists, case details and orders from the official eCourts / High Court APIs
 (NAPIX), department ownership by recommend-and-claim, hearing alerts, custody of the file, case notes, documents,
 dashboards, reports and the audit trail. Case research and order reading go through SourceTrace (the connector is
-waiting for its API documentation). Owner: SeMT Assam / AMTRON.
+waiting for its API documentation). Owner: Government of Assam.
 
 ## Stack
 
