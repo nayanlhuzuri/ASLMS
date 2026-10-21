@@ -5,14 +5,16 @@
  * bench, see the day's list as published in court order, each entry with its recommendation or owner and Claim. The
  * URL keeps the place (`date`, `bench_id` or `list_id`, `list_type`, `court_no`, `q`, `only`, `offset`), so a
  * bookmarked or shared list reopens as it was; without a date the screen opens on the API's `default_date`. Every
- * row and every fact on it comes from the server, which applies the visibility and claim rules.
+ * row and every fact on it comes from the server, which applies the visibility and claim rules. On the Work list
+ * template (design portal-ui-redesign, decision 26): the day bar and the bench choice on top, the show-only choices as
+ * chips, the entries with court and item in the fixed leading column, cards on phones and details in a side panel.
  */
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type FormEvent } from "react";
 
 import { useFilters } from "@/components/inbox/common";
 import { ClaimDialog } from "@/components/inbox/dialogs";
-import { Button, EmptyState, ErrorBanner, Loading, PageHeader, Pagination, SelectField, TextField } from "@/components/ui";
+import { Button, Chip, ChipGroup, EmptyState, ErrorBanner, Loading, PageHeader, Pagination, SelectField, TextField } from "@/components/ui";
 import {
   CAUSELISTS_KEY,
   useCauselistDates,
@@ -175,32 +177,21 @@ export function CauseList({ params }: { params: Params }) {
                   </Button>
                 ) : null}
               </form>
-              <div className={s.toggles} role="group" aria-label={T.causelist.show}>
-                <button
-                  type="button"
-                  className={s.toggle}
-                  aria-pressed={!only}
-                  onClick={() => setFilters({ only: undefined })}
-                >
+              <ChipGroup label={T.causelist.show}>
+                <Chip on={!only} onClick={() => setFilters({ only: undefined })}>
                   {T.causelist.onlyAll}
                   {counts ? ` (${formatNumber(counts.entries)})` : ""}
-                </button>
+                </Chip>
                 {ONLY_VALUES.map((v) => {
                   const key = COUNTED[v];
                   return (
-                    <button
-                      key={v}
-                      type="button"
-                      className={s.toggle}
-                      aria-pressed={only === v}
-                      onClick={() => setFilters({ only: only === v ? undefined : v })}
-                    >
+                    <Chip key={v} on={only === v} onClick={() => setFilters({ only: only === v ? undefined : v })}>
                       {T.causelist.only[v]}
                       {counts && key ? ` (${formatNumber(counts[key])})` : ""}
-                    </button>
+                    </Chip>
                   );
                 })}
-              </div>
+              </ChipGroup>
               {counts ? (
                 <p className="muted" aria-live="polite">
                   {T.causelist.counts(counts)}

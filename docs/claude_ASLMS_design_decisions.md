@@ -2061,3 +2061,26 @@ Backlog row 109 `api-health-checker`, branch `feature/api-health-checker`; desig
 - After api-health-checker merged, `aslms system-health` in the running stack showed "Database through the pool — Unsteady, its details could not be read". The services connect as `aslms_app`, and migration 0001 revokes every right on `alembic_version` from that role, so the card's revision query was refused. The tests had run as the owner role and never saw it.
 - The card now reads the revision in its own savepoint. When the revision is refused, the fact reads "checked when the services start" (`init`'s db-guard already refuses to start the services on a database behind the code), and the card stays ok. The grant is not widened. Test: `test_pool_card_as_the_app_role_without_the_revision_table` (`SET LOCAL ROLE aslms_app`).
 - The first restore check of the backups was run by hand (`docker compose exec backup aslms ops restore-check`). The Backups card had read "no restore check in the last 8 days", because the weekly Sunday run had not yet come round since the backup service started.
+
+
+## Portal UI redesign, round 4: the dashboard and work screens (2026-10-21)
+Backlog row 104 `portal-ui-dashboard-work`, branch `feature/portal-ui-dashboard-work`; design `docs/design/portal-ui-redesign.md` (approved; no separate note for the row, the developer's choices are in its "Round 4, row 104" section, items 1 to 14). No migration; `docs/schema/schema.md` has an as-built note (no table or column change).
+
+**Built**
+- Backend, read-only: `GET /dashboard/me` gains `headline`, `upcoming` and `attention` (A7) in `services/dashboard.py`, with schemas `DashboardHeadlineOut`, `DashboardClaimCountsOut`, `DashboardWeekHearingsOut`, `DashboardFilesWithMeOut`, `DashboardOverdueOut`, `DashboardUpcomingOut` and `DashboardMeAttentionOut` in `api/schemas.py`. `frontend/openapi.json` and `schema.d.ts` regenerated. Existing personal fields are unchanged.
+- Portal dashboard: greeting, five headline numbers, Upcoming hearings, Needs your attention; the views My work, Department and State in the query string (`/?view=`), the rest of the old personal block folded under "More about my work" (`components/dashboard/Headline.tsx`, `Blocks.tsx`).
+- Files, Search, Cause list and My profile moved to the Work list and Settings templates: cards on phones, details in a side panel, the due date leading each Files row in a `DateChip`, Cause list entries with `Lead` and show-only `Chip`s, and the new kit component `SettingsLayout` (Details, Notifications, Change password, Devices; `?group=`).
+- Kit: `DataTable` ignores a row click that lands on a link or control inside the row; `format.ts` and `messages.ts` additions.
+- Tests: `backend/tests/db/test_dashboard_headline.py` (headline figures, upcoming hearings of the week in order, attention order and limits, merged and unseen cases hidden, existing personal fields unchanged, the headline writes nothing, the API answers the headline); frontend tests in `dashboard.test.tsx`, `files.test.tsx`, `search.test.tsx`, `causelist.test.tsx`, `profile.test.tsx`; the spacing check in `tokens.test.ts` now covers `dashboard`, `files` and `causelist`.
+
+**Decisions and reasons** (full list in the design note)
+- `headline.next_dates_to_confirm` is the next-date queue count for the caller, so the number equals the total of the review list it opens; `files_with_me` equals `/inbox/mine/counts.files`.
+- `file_received` items are files with me from the last 7 days, excluding legs the caller wrote themselves and files already listed as overdue or due soon.
+- Upcoming is My calendar's hearings from today to today + 7 in date order, showing "Court n . item m" because the alert item carries no parties.
+- A login with State and personal work opens on My work; without personal work it opens on State. The ticket panel heads the last view the login has.
+- `DashboardMeAttentionOut` is named so because `DashboardAttentionOut` already names the department block's section.
+- Search keeps one primary button on the page (the filter bar's Apply); "Search the court", Claim and Open case page are secondary.
+
+**Deviations**: none from the plan or the approved note; the choices where the note was silent are in its "Round 4" section.
+
+**Left for later**: round 5 (row 105: Reports, Audit log, Data collection and Administration on the Report, Work list, Dashboard and Settings templates; sign-in pages with the brand; removal of deprecated token aliases; responsive sweep). `SettingsLayout` is reused there for Administration.

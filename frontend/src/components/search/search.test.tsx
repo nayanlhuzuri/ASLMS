@@ -487,3 +487,46 @@ describe("court search caps (safety-fixes, decision 14)", () => {
     expect(within(capped).queryByText(/more cases are being added/)).toBeNull();
   });
 });
+
+describe("the Work list template on Search (portal-ui-redesign, decision 26)", () => {
+  const routes = (items: CaseSearchItem[]) => ({
+    "GET /me": me(SEARCHER),
+    "GET /reference/case-types": TYPES,
+    "GET /cases/search": { items, total: items.length },
+    "GET /cases": { items, total: items.length },
+  });
+
+  it("a row opens the side panel with the facts and Open case page; Close closes it", async () => {
+    browserApi(routes([item(1, { owner_office_code: "EDU" })]));
+    renderWithClient(<Search params={{ q: "RAM KUMAR" }} />);
+    await userEvent.click(await screen.findByRole("row", { name: "Details of WP(C)/1/2026" }));
+    const panel = await screen.findByRole("dialog", { name: "WP(C)/1/2026" });
+    expect(within(panel).getByText("Owned by EDU")).toBeInTheDocument();
+    expect(within(panel).getByText("ASHC010001002026")).toBeInTheDocument();
+    expect(within(panel).getByRole("link", { name: "Open case page" })).toHaveAttribute("href", "/cases/ASLMS-GOA-CASE-2026-000001");
+    await userEvent.click(within(panel).getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("a case the caller cannot open has no Open case page in the panel, and Claim when claimable", async () => {
+    browserApi(routes([item(3, { visible: false, in_pool: true, claimable: true })]));
+    renderWithClient(<Search params={{ q: "RAM KUMAR" }} />);
+    await userEvent.click(await screen.findByRole("row", { name: "Details of WP(C)/3/2026" }));
+    const panel = await screen.findByRole("dialog", { name: "WP(C)/3/2026" });
+    expect(within(panel).queryByRole("link")).toBeNull();
+    await userEvent.click(within(panel).getByRole("button", { name: "Claim" }));
+    expect(await screen.findByRole("dialog", { name: "Claim this case" })).toBeInTheDocument();
+  });
+
+  it("cards on phones (every cell labelled) and at most one primary on the page", async () => {
+    browserApi(routes([item(1), item(2, { claimable: true, visible: false })]));
+    const { container } = renderWithClient(<Search params={{ q: "RAM KUMAR" }} />);
+    const table = await screen.findByRole("table", { name: "Results" });
+    for (const row of within(table).getAllByRole("row").slice(1)) {
+      const cells = within(row).getAllByRole("cell");
+      expect(cells[0]).not.toHaveAttribute("data-label"); // the primary cell tops the card
+      expect(cells[1]).toHaveAttribute("data-label", "Status");
+    }
+    expect(container.querySelectorAll("[data-variant='primary']").length).toBeLessThanOrEqual(1);
+  });
+});

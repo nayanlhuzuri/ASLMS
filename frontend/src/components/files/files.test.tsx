@@ -234,15 +234,50 @@ describe("Files lists (portal-files-alerts, decision 12)", () => {
     for (const table of screen.getAllByRole("table")) expect(within(table).queryAllByRole("button")).toHaveLength(0);
   });
 
-  it("a remark longer than two lines has Show more, with the full text in the page", async () => {
+  it("a row opens the side panel with the card details and the full remark; Close closes it (portal-ui-redesign, decision 26)", async () => {
     const long = "Line one of the remark\nline two of the remark\nline three of the remark";
     browserApi({ "GET /custody/held": held([{ case: summary("c1", "WP(C)/1/2026"), card: card({ remark: long }) }]) });
     renderWithClient(<Held scope="me" params={{}} />);
-    const more = await screen.findByRole("button", { name: "Show more" });
-    expect(more).toHaveAttribute("aria-expanded", "false");
-    expect(screen.getByText(/line three of the remark/)).toBeInTheDocument();
-    await userEvent.click(more);
-    expect(screen.getByRole("button", { name: "Show less" })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.queryByText(/line three of the remark/)).toBeNull();
+    await userEvent.click(await screen.findByRole("row", { name: "Details of the file of WP(C)/1/2026" }));
+    const panel = await screen.findByRole("dialog", { name: "WP(C)/1/2026" });
+    expect(within(panel).getByText(/line three of the remark/)).toBeInTheDocument();
+    expect(within(panel).getByText("Officer One, Section Officer")).toBeInTheDocument();
+    expect(within(panel).getByText("Edu Admin, Joint Secretary")).toBeInTheDocument();
+    expect(within(panel).getByRole("link", { name: "Open case page" })).toHaveAttribute("href", "/cases/ASLMS-GOA-CASE-2026-c1");
+    expect(panel.querySelectorAll("[data-variant='primary']")).toHaveLength(1);
+    await userEvent.click(within(panel).getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("rows become cards on phones: every cell carries its label, the due date leads in the fixed column", async () => {
+    browserApi({ "GET /custody/held": held([{ case: summary("c1", "WP(C)/1/2026"), card: card() }]) });
+    const { container } = renderWithClient(<Held scope="office" params={{}} />);
+    const table = await screen.findByRole("table", { name: "Files with my offices" });
+    const cells = within(table).getAllByRole("cell");
+    expect(cells[0]!.querySelector("[data-lead='date']")).not.toBeNull();
+    expect(cells[0]).toHaveAttribute("data-label", "Due date");
+    expect(cells.find((c) => c.getAttribute("data-label") === "Held by")).toBeDefined();
+    // the page has at most one primary button (decision 16): the filter bar's Apply
+    expect(container.querySelectorAll("[data-variant='primary']").length).toBeLessThanOrEqual(1);
+  });
+
+  it("a link inside a row opens the case page, not the panel", async () => {
+    browserApi({ "GET /custody/held": held([{ case: summary("c1", "WP(C)/1/2026"), card: card() }]) });
+    renderWithClient(<Held scope="me" params={{}} />);
+    const link = await screen.findByRole("link", { name: "WP(C)/1/2026" });
+    link.addEventListener("click", (e) => e.preventDefault());
+    await userEvent.click(link);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("a Sent row the caller cannot open shows the panel without Open case page", async () => {
+    browserApi({ "GET /custody/sent": { items: [sentItem("c2", "WA/2/2026", false, "for your opinion")], total: 1 } });
+    renderWithClient(<Sent params={{}} />);
+    await userEvent.click(await screen.findByRole("row", { name: "Details of the file of WA/2/2026" }));
+    const panel = await screen.findByRole("dialog", { name: "WA/2/2026" });
+    expect(within(panel).getByText("for your opinion")).toBeInTheDocument();
+    expect(within(panel).queryByRole("link")).toBeNull();
   });
 });
 

@@ -189,6 +189,16 @@ export function formatDayLong(value: string | Date | null | undefined, locale?: 
   return `${formatWeekday(d)}, ${p.day} ${MONTHS_LONG[p.month - 1]}`;
 }
 
+/** The hour (0-23) of an instant in IST (the dashboard greeting). */
+export function istHour(now: Date = new Date()): number {
+  return istParts(now).hour;
+}
+
+/** Whole calendar days from `from` to `to` (both `YYYY-MM-DD`); negative when `to` is earlier. */
+export function daysBetween(from: string, to: string): number {
+  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
+}
+
 /** The IST calendar day of an instant as `YYYY-MM-DD`. */
 export function istDay(now: Date = new Date()): string {
   const p = istParts(now);

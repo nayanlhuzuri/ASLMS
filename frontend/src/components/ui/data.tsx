@@ -96,7 +96,16 @@ export function DataTable<Row>({
                 className={cx(open && s.clickable)}
                 tabIndex={open ? 0 : undefined}
                 aria-label={open && rowLabel ? rowLabel(row) : undefined}
-                onClick={open}
+                onClick={
+                  open
+                    ? (e) => {
+                        // a link or a control inside the row does its own job, not the row's
+                        const inner = (e.target as HTMLElement).closest?.("a, button, input, select, textarea, label");
+                        if (inner && e.currentTarget.contains(inner)) return;
+                        open();
+                      }
+                    : undefined
+                }
                 onKeyDown={
                   open
                     ? (e: KeyboardEvent<HTMLTableRowElement>) => {
@@ -235,15 +244,19 @@ export function Lead({ children }: { children: ReactNode }) {
   );
 }
 
-/** The fixed 48 px leading column with the day over the month of a date (IST); `hot` is red (within 48 hours). */
-export function DateChip({ date, hot }: { date: string; hot?: boolean }) {
+/** The fixed 48 px leading column with the day over the month of a date (IST), or a dash without one; `hot` is red. */
+export function DateChip({ date, hot }: { date: string | null | undefined; hot?: boolean }) {
   const parts = dayMonth(date);
   return (
     <span className={cx(s.dateChip, hot && s.hot)} data-lead="date">
-      <time dateTime={date} title={formatDate(date)}>
-        <b>{parts?.day ?? "—"}</b>
-        <span>{parts?.month ?? ""}</span>
-      </time>
+      {date && parts ? (
+        <time dateTime={date} title={formatDate(date)}>
+          <b>{parts.day}</b>
+          <span>{parts.month}</span>
+        </time>
+      ) : (
+        <b aria-hidden="true">—</b>
+      )}
     </span>
   );
 }

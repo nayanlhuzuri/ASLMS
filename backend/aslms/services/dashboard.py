@@ -20,8 +20,8 @@ import uuid
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import ColumnElement, Date, and_, cast, exists, func, select
-from sqlalchemy.orm import Session
+from sqlalchemy import ColumnElement, Date, and_, cast, exists, func, select, true
+from sqlalchemy.orm import Session, aliased
 
 from aslms.domain.alerts import Alert, NextDate, NextDateSource, ReviewStatus
 from aslms.domain.cases import Case
@@ -36,7 +36,7 @@ from aslms.domain.ownership import (
     TransferStatus,
 )
 from aslms.domain.reference import AlertKind, Permission, Role
-from aslms.domain.workflow import CaseNoteDraft, Custody, PendingAction
+from aslms.domain.workflow import PENDING_ACTION_LABELS, CaseNoteDraft, Custody, CustodyHistory, PendingAction
 from aslms.services import access, alerts, calendar, custody, inbox, next_dates, visibility
 from aslms.services.access import Forbidden, Member
 from aslms.services.offices import find_office
@@ -45,6 +45,7 @@ from aslms.services.reporting_common import (
     DepartmentRequired,
     ReportConfig,
     department_rows,
+    ist_date,
     now_utc,
     office_ref,
     primary_owned_condition,
@@ -310,6 +311,7 @@ def me_block(
         )
         or 0
     )
+    personal = personal_headline(session, user, now=now, cfg=cfg)
     return {
         "generated_at": now,
         "cases": own_cases,
@@ -329,7 +331,200 @@ def me_block(
             ],
         },
         "drafts": drafts,
+        **personal,
     }
+
+
+# ------------------------------------------------------------------------------------------------ headline
+# design `portal-ui-redesign`, decision 23 and API A7: the personal headline, upcoming hearings and the items
+# that need the caller's attention. Every list is ANDed with the caller's case visibility; nothing is written.
+
+ATTENTION_KINDS = ("overdue_action", "confirm_next_date", "due_soon", "file_received")
+RECEIVED_DAYS = 7
+CONFIRM_TITLE = "Next date to confirm"
+RECEIVED_TITLE = "File received"
+
+
+def _due_words(days: int) -> str:
+    if days <= 0:
+        return "Due today"
+    if days == 1:
+        return "Due tomorrow"
+    return f"Due in {days} days"
+
+
+def _sender_text(name: str | None, designation: str | None, office_code: str | None) -> str | None:
+    who = ", ".join(p for p in (name, designation) if p) or office_code
+    return f"From {who}" if who else None
+
+
+def _claim_counts(session: Session, user: User) -> dict[str, int] | None:
+    """`to_claim`: Strong and Possible recommendations summed over the departments where one of the caller's
+    memberships holds `cases.claim` (each department once); None when none does."""
+    depts: dict[uuid.UUID, Office] = {}
+    for m in access.members(session, user):
+        if m.department is not None and m.holds(Permission.CASES_CLAIM):
+            depts.setdefault(m.department.id, m.department)
+    if not depts:
+        return None
+    high = sum(_count(session, inbox.recommended_stmt(d, band=ScoreBand.HIGH)) for d in depts.values())
+    medium = sum(_count(session, inbox.recommended_stmt(d, band=ScoreBand.MEDIUM)) for d in depts.values())
+    return {"high": high, "medium": medium}
+
+
+def personal_headline(session: Session, user: User, *, now: datetime, cfg: ReportConfig) -> dict[str, Any]:
+    """A7: `headline` (five figures, a null one when its gate fails), `upcoming` (my hearings in the next 7 days)
+    and `attention` (overdue files, next dates to confirm, files due soon, files received lately), each list at
+    most `list_size` long."""
+    today = today_ist(now)
+    visible = visibility.visible_case_condition(session, user)
+    live = Case.merged_into_case_id.is_(None)
+
+    # my hearings, today .. today + 7 (A6)
+    week = [
+        i
+        for i in calendar.my_calendar(
+            session,
+            user,
+            from_=today,
+            to=today + timedelta(days=HEARING_DAYS),
+            now=now,
+            critical_hours=cfg.critical_hours,
+            sitting_time=cfg.sitting_time,
+        )
+        if i["kind"] == "hearing"
+    ]
+    upcoming = [
+        {k: i[k] for k in ("date", "case", "court_no", "item_no", "critical", "this_week")}
+        for i in week[: cfg.list_size]
+    ]
+
+    # files with me (the Case inbox's Files with me: held by me, visible, not merged)
+    held = custody.HELD
+    action = held.pending_action != PendingAction.NONE
+    file_conds = [held.holder_user_id == user.id, live, visible]
+    total, due_today, overdue_n, oldest = session.execute(
+        select(
+            func.count(),
+            func.count().filter(action, held.due_date == today),
+            func.count().filter(action, held.due_date < today),
+            func.min(held.due_date).filter(action, held.due_date < today),
+        )
+        .select_from(held)
+        .join(Case, Case.id == held.case_id)
+        .where(*file_conds)
+    ).one()
+
+    can_review = access.has(session, user, Permission.NEXT_DATES_REVIEW)
+    review_cfg = next_dates.NextDateConfig.from_settings()
+    headline = {
+        "to_claim": _claim_counts(session, user),
+        "hearings_week": {"total": len(week), "within_48h": sum(1 for i in week if i["critical"])},
+        "files_with_me": {"total": int(total), "due_today": int(due_today)},
+        "overdue_actions": {
+            "total": int(overdue_n),
+            "oldest_days": (today - oldest).days if oldest is not None else None,
+        },
+        "next_dates_to_confirm": (
+            next_dates.queue_count(session, user, today=today, cfg=review_cfg) if can_review else None
+        ),
+    }
+
+    # needs your attention, in the order of A7
+    attention: list[dict[str, Any]] = []
+    room = cfg.list_size
+    leg = aliased(CustodyHistory, name="attention_leg")
+
+    def file_rows(*conds, order, limit):
+        if limit <= 0:
+            return []
+        return session.execute(
+            select(
+                held, Case, leg.actor_user_id, leg.actor_name, leg.actor_designation, leg.actor_office_code
+            )
+            .join(Case, Case.id == held.case_id)
+            .outerjoin(leg, leg.id == held.current_leg_id)
+            .where(*file_conds, *conds)
+            .order_by(*order)
+            .limit(limit)
+        ).all()
+
+    def file_entry(kind: str, h: Custody, c: Case, detail: str | None, day: date | None) -> dict[str, Any]:
+        act = PendingAction(h.pending_action)
+        return {
+            "kind": kind,
+            "case": calendar.case_ref(c),
+            "title": PENDING_ACTION_LABELS[act] if act != PendingAction.NONE else RECEIVED_TITLE,
+            "date": day,
+            "detail": detail,
+            "pending_action": act.value,
+            "overdue_days": (today - h.due_date).days if h.due_date is not None and h.due_date < today else 0,
+            "next_date_id": None,
+        }
+
+    listed: set[uuid.UUID] = set()
+    for h, c, *_ in file_rows(
+        action, held.due_date < today, order=(held.due_date, held.since, held.case_id), limit=room
+    ):
+        days = (today - h.due_date).days
+        attention.append(
+            file_entry("overdue_action", h, c, f"Overdue {days} day{'s' if days != 1 else ''}", h.due_date)
+        )
+        listed.add(c.id)
+    room = cfg.list_size - len(attention)
+
+    if can_review and room > 0:
+        q = next_dates.queue_subquery(
+            session,
+            and_(next_dates.review_condition(session, user), visible),
+            today=today,
+            cfg=review_cfg,
+            kind="confirm",
+        )
+        for nd_id, d, c in session.execute(
+            select(q.c.id, q.c.next_date, Case)
+            .join(Case, Case.id == q.c.case_id)
+            .order_by(q.c.next_date, Case.case_no_text, Case.ref_no, q.c.id)
+            .limit(room)
+        ).all():
+            attention.append(
+                {
+                    "kind": "confirm_next_date",
+                    "case": calendar.case_ref(c),
+                    "title": CONFIRM_TITLE,
+                    "date": d,
+                    "detail": "Suggested from an order",
+                    "pending_action": None,
+                    "overdue_days": 0,
+                    "next_date_id": nd_id,
+                }
+            )
+        room = cfg.list_size - len(attention)
+
+    for h, c, *_ in file_rows(
+        action,
+        held.due_date >= today,
+        held.due_date <= today + timedelta(days=cfg.due_soon_days),
+        order=(held.due_date, held.since, held.case_id),
+        limit=room,
+    ):
+        attention.append(file_entry("due_soon", h, c, _due_words((h.due_date - today).days), h.due_date))
+        listed.add(c.id)
+    room = cfg.list_size - len(attention)
+
+    received = file_rows(
+        held.since >= now - timedelta(days=RECEIVED_DAYS),
+        func.coalesce(leg.actor_user_id != user.id, True),
+        held.case_id.not_in(listed) if listed else true(),
+        order=(held.since.desc(), held.case_id),
+        limit=room,
+    )
+    for h, c, _actor_id, name, designation, office_code in received:
+        attention.append(
+            file_entry("file_received", h, c, _sender_text(name, designation, office_code), ist_date(h.since))
+        )
+
+    return {"headline": headline, "upcoming": upcoming, "attention": attention}
 
 
 # ------------------------------------------------------------------------------------------------ department

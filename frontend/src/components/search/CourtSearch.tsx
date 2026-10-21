@@ -9,7 +9,8 @@
  * being added in the background, or that the court found too many and more of the name is needed (design
  * safety-fixes, decision 14). A row without court details offers "Fetch details".
  * A local search run with the advocate field opens on "Advocate name" with the same words. The button is disabled
- * while a search runs and a court search is never repeated automatically.
+ * while a search runs and a court search is never repeated automatically. The button is secondary: the page keeps one primary,
+ * the filter bar's Apply (design portal-ui-redesign, decision 16).
  */
 import { useState } from "react";
 
@@ -191,7 +192,7 @@ export function CourtSearch({
           </div>
         ) : null}
         <div>
-          <Button type="submit" busy={action.busy}>
+          <Button type="submit" variant="secondary" busy={action.busy}>
             {T.search.courtGo}
           </Button>
         </div>

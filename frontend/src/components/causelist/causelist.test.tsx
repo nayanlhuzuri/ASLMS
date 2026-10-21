@@ -398,3 +398,55 @@ describe("filters", () => {
     expect(nav.replace).toHaveBeenLastCalledWith(`/causelist?date=${D}&bench_id=1854&list_type=supplementary`);
   });
 });
+
+describe("the Work list template (portal-ui-redesign, decision 26)", () => {
+  it("court and item lead every entry in the fixed column; a connected entry has no item number", async () => {
+    browserApi(routes());
+    renderWithClient(<CauseList params={{ date: D }} />);
+    const table = await screen.findByRole("table", { name: "Cause-list entries" });
+    const rows = within(table)
+      .getAllByRole("row")
+      .filter((r) => r.getAttribute("tabindex") === "0");
+    expect(rows).toHaveLength(6);
+    for (const row of rows) expect(within(row).getAllByRole("cell")[0]!.querySelector("[data-lead='lead']")).not.toBeNull();
+    expect(within(rows[1]!).getAllByRole("cell")[0]).toHaveTextContent("10 · 2");
+    expect(within(rows[2]!).getAllByRole("cell")[0]).toHaveTextContent("10 · —");
+  });
+
+  it("rows become cards on phones: the cells after the case carry their labels", async () => {
+    browserApi(routes());
+    renderWithClient(<CauseList params={{ date: D }} />);
+    const row = (await screen.findByText("WP(C)/2/2025")).closest("tr")!;
+    const cells = within(row).getAllByRole("cell");
+    expect(cells[2]).toHaveAttribute("data-label", "Ownership");
+    expect(cells[3]).toHaveAttribute("data-label", "Action");
+  });
+
+  it("a row opens the whole entry in the side panel, Close closes it; Claim in the row does not open it", async () => {
+    browserApi(routes());
+    const { container } = renderWithClient(<CauseList params={{ date: D }} />);
+    const row = (await screen.findByText("WP(C)/2/2025")).closest("tr")!;
+    await userEvent.click(within(row).getByRole("button", { name: "Claim" }));
+    expect(screen.queryByRole("dialog", { name: "WP(C)/2/2025" })).toBeNull();
+    await userEvent.click(within(screen.getByRole("dialog", { name: "Claim this case" })).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(container.querySelectorAll("[data-variant='primary']").length).toBeLessThanOrEqual(1);
+    await userEvent.click(screen.getByRole("row", { name: "Details of WP(C)/4/2025" }));
+    const panel = await screen.findByRole("dialog", { name: "WP(C)/4/2025" });
+    expect(within(panel).getByText("MR. A. BORA")).toBeInTheDocument();
+    expect(within(panel).getByText("SC, REVENUE", { selector: "span" })).toBeInTheDocument();
+    expect(within(panel).getByText("FOR ADMISSION")).toBeInTheDocument();
+    expect(within(panel).getByRole("link", { name: "Open case page" })).toHaveAttribute("href", "/cases/ASLMS-GOA-CASE-2026-000004");
+    await userEvent.click(within(panel).getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("an entry the caller cannot open has no Open case page in its panel", async () => {
+    browserApi(routes());
+    renderWithClient(<CauseList params={{ date: D }} />);
+    await userEvent.click(await screen.findByRole("row", { name: "Details of WP(C)/3/2025" }));
+    const panel = await screen.findByRole("dialog", { name: "WP(C)/3/2025" });
+    expect(within(panel).queryByRole("link")).toBeNull();
+    expect(within(panel).getByText("with WP(C) 2087/2025")).toBeInTheDocument();
+  });
+});

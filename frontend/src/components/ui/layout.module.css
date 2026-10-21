@@ -282,3 +282,66 @@
   min-height: 0;
   overflow: hidden;
 }
+
+/* the Settings template (decision 26): the sub-menu on the left on laptops, a select on phones */
+.settings {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: var(--s5);
+  align-items: start;
+}
+
+.settingsNav ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.settingsLink {
+  display: flex;
+  align-items: center;
+  min-height: var(--control-h);
+  padding: 0 var(--s3);
+  border-radius: var(--r-md);
+  color: var(--text-2);
+  font-weight: 500;
+  text-decoration: none;
+  transition: background var(--fast) var(--ease);
+}
+
+.settingsLink:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.settingsLink[aria-current="page"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.settingsSelect {
+  display: none;
+}
+
+.settingsBody {
+  min-width: 0;
+}
+
+@media (max-width: 819px) {
+  .settings {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s4);
+  }
+
+  .settingsNav {
+    display: none;
+  }
+
+  .settingsSelect {
+    display: block;
+  }
+}

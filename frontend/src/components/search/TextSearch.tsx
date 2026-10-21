@@ -5,15 +5,18 @@
  * `documents.view`, `GET /documents/search` with the API's snippet and the case link; visibility is applied by the API.
  * The one filter bar (design portal-filters): the words, the document group and type and the document date range (the
  * API's `group`, `doc_type`, `date_from`, `date_to`). Under the box, the note that scanned documents, images and old
- * Word files are not searched by their content (design document-ocr, decision 3; no OCR in Phase 1).
+ * Word files are not searched by their content (design document-ocr, decision 3; no OCR in Phase 1). The results are a
+ * `DataTable`, cards on phones (design portal-ui-redesign, decision 26).
  */
 import { useQuery } from "@tanstack/react-query";
 import { FilterBar } from "@/components/filters/FilterBar";
-import { CaseLink, EmptyState, ErrorBanner, Loading, Pagination, Table } from "@/components/ui";
+import { CaseLink, DataTable, EmptyState, ErrorBanner, Loading, Pagination, type Column } from "@/components/ui";
 import { useFilters } from "@/components/inbox/common";
 import { api } from "@/lib/api/client";
 import { useDocumentTypes } from "@/lib/api/hooks";
 import type { DocumentSearch } from "@/lib/api/types";
+
+type Hit = DocumentSearch["items"][number];
 import { formatDate } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { offsetOf, PAGE, type Params } from "@/lib/params";
@@ -38,6 +41,25 @@ export function TextSearch({ params }: { params: Params }) {
     queryFn: () => api<DocumentSearch>("/documents/search", { query }),
     enabled: q.length >= 3,
   });
+  const columns: Column<Hit>[] = [
+    {
+      key: "document",
+      header: T.search.document,
+      primary: true,
+      cell: (it) => (
+        <>
+          <div>{it.document.doc_type_label}</div>
+          <div className="muted">
+            {[it.document.order ? `${it.document.order.kind} ${it.document.order.order_no}` : null, formatDate(it.document.doc_date)]
+              .filter(Boolean)
+              .join(" · ")}
+          </div>
+        </>
+      ),
+    },
+    { key: "case", header: T.inbox.case, cell: (it) => (it.case ? <CaseLink value={it.case} /> : "—") },
+    { key: "snippet", header: T.search.snippet, cell: (it) => it.snippet ?? "—" },
+  ];
   const typeOptions = (types.data?.items ?? [])
     .filter((t) => !group || t.doc_group === group)
     .map((t) => ({ value: t.code, label: t.label }));
@@ -71,31 +93,12 @@ export function TextSearch({ params }: { params: Params }) {
           <EmptyState>{T.search.textNone}</EmptyState>
         ) : (
           <>
-            <Table caption={T.search.text}>
-              <thead>
-                <tr>
-                  <th scope="col">{T.search.document}</th>
-                  <th scope="col">{T.inbox.case}</th>
-                  <th scope="col">{T.search.snippet}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {list.data.items.map((it) => (
-                  <tr key={it.document.id}>
-                    <td>
-                      <div>{it.document.doc_type_label}</div>
-                      <div className="muted">
-                        {[it.document.order ? `${it.document.order.kind} ${it.document.order.order_no}` : null, formatDate(it.document.doc_date)]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </div>
-                    </td>
-                    <td>{it.case ? <CaseLink value={it.case} /> : "—"}</td>
-                    <td>{it.snippet ?? "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
+            <DataTable
+              caption={T.search.text}
+              columns={columns}
+              rows={list.data.items}
+              rowKey={(it) => it.document.id}
+            />
             <Pagination offset={offset} limit={PAGE} total={list.data.total} onChange={(o) => setFilters({ offset: String(o) })} />
           </>
         )

@@ -2367,6 +2367,59 @@ class DashboardAlertsOut(BaseModel):
     items: list[DashboardAlertOut]
 
 
+class DashboardClaimCountsOut(BaseModel):
+    high: int
+    medium: int
+
+
+class DashboardWeekHearingsOut(BaseModel):
+    total: int
+    within_48h: int
+
+
+class DashboardFilesWithMeOut(BaseModel):
+    total: int
+    due_today: int
+
+
+class DashboardOverdueOut(BaseModel):
+    total: int
+    oldest_days: int | None
+
+
+class DashboardHeadlineOut(BaseModel):
+    """Design `portal-ui-redesign`, A7: the five headline figures; a null one is not shown (its gate fails)."""
+
+    to_claim: DashboardClaimCountsOut | None
+    hearings_week: DashboardWeekHearingsOut
+    files_with_me: DashboardFilesWithMeOut
+    overdue_actions: DashboardOverdueOut
+    next_dates_to_confirm: int | None
+
+
+class DashboardUpcomingOut(BaseModel):
+    date: date
+    case: AlertCaseOut
+    court_no: str | None
+    item_no: str | None
+    critical: bool
+    this_week: bool
+
+
+class DashboardMeAttentionOut(BaseModel):
+    """One item that needs the caller (A7): an overdue file, a next date to confirm, a file due soon or a file
+    received lately."""
+
+    kind: Literal["overdue_action", "confirm_next_date", "due_soon", "file_received"]
+    case: AlertCaseOut
+    title: str
+    date: date | None
+    detail: str | None
+    pending_action: str | None
+    overdue_days: int
+    next_date_id: uuid.UUID | None
+
+
 class DashboardMeOut(BaseModel):
     generated_at: datetime
     cases: list[DashboardOwnCasesOut]
@@ -2374,6 +2427,9 @@ class DashboardMeOut(BaseModel):
     alerts: DashboardAlertsOut
     hearings: DashboardHearingsOut
     drafts: int
+    headline: DashboardHeadlineOut
+    upcoming: list[DashboardUpcomingOut]
+    attention: list[DashboardMeAttentionOut]
 
 
 class DashboardRecommendationsOut(BaseModel):

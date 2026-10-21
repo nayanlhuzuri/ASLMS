@@ -630,6 +630,49 @@ export const T = {
     action: "Pending action",
     due: "Due",
     generated: (t: string) => `As of ${t}`,
+    // round 4 of portal-ui-redesign (decision 23; API A7): the greeting, the headline and the two panels
+    greeting: {
+      morning: (name: string) => `Good morning, ${name}`,
+      afternoon: (name: string) => `Good afternoon, ${name}`,
+      evening: (name: string) => `Good evening, ${name}`,
+    },
+    greetingLine: (parts: string[]) => parts.filter(Boolean).join(" · "),
+    reviewClaim: "Review cases to claim",
+    views: "Dashboard view",
+    viewMe: "My work",
+    viewDepartment: "Department",
+    viewState: "State",
+    headline: "Headline numbers",
+    kpiClaim: "Cases to claim",
+    kpiClaimSub: (h: string, m: string) => `${h} strong · ${m} possible`,
+    kpiHearings: "Hearings this week",
+    kpiHearingsSub: (n: string) => `${n} within 48 hours`,
+    kpiFiles: "Files with me",
+    kpiFilesSub: (n: string) => `${n} due today`,
+    kpiOverdue: "Overdue actions",
+    kpiOverdueSub: (n: number) => (n === 1 ? "Oldest 1 day" : `Oldest ${n} days`),
+    kpiOverdueNone: "Nothing overdue",
+    kpiConfirm: "Next dates to confirm",
+    kpiConfirmSub: "From new orders",
+    upcomingNone: "No hearing of your cases in the next 7 days.",
+    upcomingNoneTitle: "No hearings this week",
+    openCalendar: "Open calendar →",
+    needsAttention: "Needs your attention",
+    attentionNoneTitle: "Nothing waiting",
+    attentionNone: "Overdue files, next dates to confirm and files you receive appear here.",
+    leads: {
+      overdue_action: "Overdue",
+      confirm_next_date: "Confirm",
+      due_soon: "Due soon",
+      file_received: "New",
+    } as Record<string, string>,
+    today: "Today",
+    tomorrow: "Tomorrow",
+    inDays: (n: number) => `In ${n} days`,
+    courtItem: (court: string | null, item: string | null) =>
+      [court ? `Court ${court}` : null, item ? `item ${item}` : null].filter(Boolean).join(" · "),
+    moreWork: "More about my work",
+    caseDetail: (caseNo: string, detail: string | null) => [caseNo, detail].filter(Boolean).join(" · "),
   },
   admin: {
     title: "Administration",
@@ -924,6 +967,10 @@ export const T = {
     signOutDevice: "Sign out this device",
     revoked: "Signed out",
     passwordChanged: "Password changed. Other sessions have ended.",
+    // the Settings template (design portal-ui-redesign, decision 26): one setting group at a time
+    groups: "Profile settings",
+    group: "Setting",
+    notifications: "Notifications",
   },
   inbox: {
     title: "Case inbox",
@@ -1216,6 +1263,13 @@ export const T = {
     anyDocType: "Any type",
     docDateFrom: "Document date from",
     docDateTo: "Document date to",
+    // the Work list template (design portal-ui-redesign, decision 26)
+    openResult: (caseNo: string) => `Details of ${caseNo}`,
+    details: "Case details",
+    openCase: "Open case page",
+    cnrLabel: "CNR",
+    listing: "Listing",
+    nextHearing: "Next hearing",
   },
   // the Cause list screen (design portal-causelist, decision 11)
   causelist: {
@@ -1306,6 +1360,15 @@ export const T = {
     nothingHeld: "No list of this day is held.",
     openCauselist: "Open the cause list",
     connectedFallback: "with the case above",
+    // the Work list template (design portal-ui-redesign, decision 26)
+    courtItem: "Court · item",
+    courtItemText: (court: string | null, item: string | null) => `${court ?? "—"} · ${item ?? "—"}`,
+    openEntry: (caseNo: string) => `Details of ${caseNo}`,
+    details: "Entry details",
+    benchLabel: "Bench",
+    section: "Section",
+    remarks: "Remarks",
+    openCase: "Open case page",
   },
   // the one filter bar (design portal-filters, decisions 9-14)
   filters: {
@@ -2027,6 +2090,11 @@ export const T = {
     designation: "Designation",
     department: "Department",
     notTracking: "Tracking files of this department is not among your functions.",
+    // the Work list template (design portal-ui-redesign, decision 26): the card details and full remark in a side panel
+    openFile: (caseNo: string) => `Details of the file of ${caseNo}`,
+    details: "File details",
+    openCase: "Open case page",
+    noRemark: "No remark.",
   },
   // the Alerts list (decisions 7-9)
   alerts: {

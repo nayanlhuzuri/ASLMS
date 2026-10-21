@@ -1202,3 +1202,54 @@ Choices made where the note is silent, each the smallest reasonable option:
     Alerts frame with a loading line for the moment before the redirect.
 15. **The spacing check** (`tokens.test.ts`) now covers the round's modules: `case`, `calendar`, `hearings` and
     `workflow`.
+
+### Round 4, row 104 `portal-ui-dashboard-work` (developer, 21 Oct 2026)
+Choices made where the note is silent, each the smallest reasonable option:
+
+1. **No separate note.** Backlog row 104 links this note; there is no `docs/design/portal-ui-dashboard-work.md`. Round
+   4 was built from decisions 2 (round 4), 10.8, 15, 16, 23 and 26 (Files, Search, Cause list, My profile), A7,
+   "Backend (round 4)", "Portal (round 4)" and "Tests, round 4".
+2. **Schema names.** `DashboardAttentionOut` already names the department block's attention section, so A7's item is
+   `DashboardMeAttentionOut`; the other new schemas are `DashboardHeadlineOut`, `DashboardClaimCountsOut`,
+   `DashboardWeekHearingsOut`, `DashboardFilesWithMeOut`, `DashboardOverdueOut` and `DashboardUpcomingOut`.
+3. **A7 `attention` items** carry, besides `kind`, `case`, `title`, `date` and `detail`, the fields the rows need:
+   `pending_action`, `overdue_days` and `next_date_id` (null or 0 where they do not apply). `title` is the pending
+   action's label ("File received" when no action is pending; "Next date to confirm" for a next date); `detail` is a
+   short text ("Overdue 3 days", "Due today", "Due tomorrow", "Due in 2 days", "From <name>, <designation>",
+   "Suggested from an order"); `date` is the due date, the proposed next date, or the IST day the file arrived.
+4. **`file_received`**: files with me whose `since` is within 7 days, leaving out files whose current leg was written
+   by the caller (a recall or a file they took themselves is not "received") and files already listed as overdue or
+   due soon; newest first, the sender from the leg's actor snapshot.
+5. **The confirm figures.** `headline.next_dates_to_confirm` is `next_dates.queue_count` for the caller (both kinds of
+   queue item), so it equals the total of the review list its number opens. The `confirm_next_date` rows are the
+   queue's `confirm` items under `review_condition` AND the visibility rule (as My calendar), earliest proposed date
+   first.
+6. **Files with me** counts the files the caller holds on live, visible cases, so it equals `/inbox/mine/counts.files`;
+   `due_today` and `overdue_actions` count only files with a pending action (A1's `action` rule). `oldest_days` is null
+   when nothing is overdue. The existing `files` block is unchanged.
+7. **Upcoming** is My calendar's hearing items from today to today + 7 in date order (not critical first, unlike the
+   old personal hearing list); `hearings_week` counts the same items.
+8. **Upcoming rows** show the case number with "Court n · item m" under it: `AlertCaseOut` carries no parties and A7
+   lists no parties field. The badge is Today / Tomorrow (red when `critical`), "In n days" (red, `critical`) or "This
+   week" (`this_week`).
+9. **The views** are in the query string (`/?view=department|state`; My work is the default and writes nothing). A
+   login whose `/dashboard` has State and personal work opens on My work; without personal work (no own-case row, claim
+   figure, file, hearing, next date, upcoming or attention item) it opens on State. The ticket panel heads the last view
+   the login has: State for the super admin, else Department, else My work (a department admin who proposes head
+   changes). The rest of the old personal block (files held, own cases, alerts, drafts) is folded under "More about my
+   work" below the two panels.
+10. **Files.** The due date (on Sent, the day of the leg) leads each row in a `DateChip` (a dash without one); the
+    remark left the rows and is shown whole in the side panel with the card's facts and "Open case page" (only when the
+    caller can open the case). The case number stays a link in the row: the kit's `DataTable` now ignores a row click
+    that lands on a link or a control inside the row.
+11. **Search.** Rows open a side panel with the case's facts and "Open case page" when visible; Claim stays in the row
+    and is also in the panel, both secondary. "Search the court" is now a secondary button, so the page keeps one
+    primary (the filter bar's Apply). The text search results are a `DataTable` without a panel.
+12. **Cause list.** The entries keep their own table (the court, bench, list and section heading rows are not a
+    `DataTable` feature) with the same card styling on phones. "Court · item" leads in a `Lead`; the advocates, counsel
+    codes and remarks moved from the row into the side panel; the show-only toggles are the kit's `Chip`s; Claim is
+    secondary.
+13. **My profile** uses a new kit component, `SettingsLayout` (round 5 reuses it for Administration): the groups
+    Details, Notifications, Change password and Devices, `?group=` in the query string, Details by default.
+14. **Tests.** The A7 database tests are in a new file, `tests/db/test_dashboard_headline.py`, next to
+    `test_dashboard.py`. The spacing check now covers the `dashboard`, `files` and `causelist` modules.

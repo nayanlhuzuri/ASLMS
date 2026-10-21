@@ -5789,6 +5789,13 @@ export interface components {
             /** Watching Active */
             watching_active: number;
         };
+        /** DashboardClaimCountsOut */
+        DashboardClaimCountsOut: {
+            /** High */
+            high: number;
+            /** Medium */
+            medium: number;
+        };
         /** DashboardCodeCountOut */
         DashboardCodeCountOut: {
             /** Code */
@@ -5869,6 +5876,25 @@ export interface components {
             /** With Pending Action */
             with_pending_action: number;
         };
+        /** DashboardFilesWithMeOut */
+        DashboardFilesWithMeOut: {
+            /** Due Today */
+            due_today: number;
+            /** Total */
+            total: number;
+        };
+        /**
+         * DashboardHeadlineOut
+         * @description Design `portal-ui-redesign`, A7: the five headline figures; a null one is not shown (its gate fails).
+         */
+        DashboardHeadlineOut: {
+            files_with_me: components["schemas"]["DashboardFilesWithMeOut"];
+            hearings_week: components["schemas"]["DashboardWeekHearingsOut"];
+            /** Next Dates To Confirm */
+            next_dates_to_confirm: number | null;
+            overdue_actions: components["schemas"]["DashboardOverdueOut"];
+            to_claim: components["schemas"]["DashboardClaimCountsOut"] | null;
+        };
         /** DashboardHearingOut */
         DashboardHearingOut: {
             case: components["schemas"]["AlertCaseOut"];
@@ -5902,9 +5928,36 @@ export interface components {
             /** State */
             state: boolean;
         };
+        /**
+         * DashboardMeAttentionOut
+         * @description One item that needs the caller (A7): an overdue file, a next date to confirm, a file due soon or a file
+         *     received lately.
+         */
+        DashboardMeAttentionOut: {
+            case: components["schemas"]["AlertCaseOut"];
+            /** Date */
+            date: string | null;
+            /** Detail */
+            detail: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "overdue_action" | "confirm_next_date" | "due_soon" | "file_received";
+            /** Next Date Id */
+            next_date_id: string | null;
+            /** Overdue Days */
+            overdue_days: number;
+            /** Pending Action */
+            pending_action: string | null;
+            /** Title */
+            title: string;
+        };
         /** DashboardMeOut */
         DashboardMeOut: {
             alerts: components["schemas"]["DashboardAlertsOut"];
+            /** Attention */
+            attention: components["schemas"]["DashboardMeAttentionOut"][];
             /** Cases */
             cases: components["schemas"]["DashboardOwnCasesOut"][];
             /** Drafts */
@@ -5915,7 +5968,10 @@ export interface components {
              * Format: date-time
              */
             generated_at: string;
+            headline: components["schemas"]["DashboardHeadlineOut"];
             hearings: components["schemas"]["DashboardHearingsOut"];
+            /** Upcoming */
+            upcoming: components["schemas"]["DashboardUpcomingOut"][];
         };
         /** DashboardNotClaimedOut */
         DashboardNotClaimedOut: {
@@ -5945,6 +6001,13 @@ export interface components {
             by_holder: components["schemas"]["DashboardCodeCountOut"][];
             /** By Owner */
             by_owner: components["schemas"]["DashboardCodeCountOut"][];
+            /** Total */
+            total: number;
+        };
+        /** DashboardOverdueOut */
+        DashboardOverdueOut: {
+            /** Oldest Days */
+            oldest_days: number | null;
             /** Total */
             total: number;
         };
@@ -6021,6 +6084,30 @@ export interface components {
             recommended_high: number;
             /** Recommended Medium */
             recommended_medium: number;
+        };
+        /** DashboardUpcomingOut */
+        DashboardUpcomingOut: {
+            case: components["schemas"]["AlertCaseOut"];
+            /** Court No */
+            court_no: string | null;
+            /** Critical */
+            critical: boolean;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Item No */
+            item_no: string | null;
+            /** This Week */
+            this_week: boolean;
+        };
+        /** DashboardWeekHearingsOut */
+        DashboardWeekHearingsOut: {
+            /** Total */
+            total: number;
+            /** Within 48H */
+            within_48h: number;
         };
         /** DataHealthOut */
         DataHealthOut: {

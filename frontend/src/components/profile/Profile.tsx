@@ -3,31 +3,56 @@
 /**
  * My profile (design portal-shell, decision 15): name and mobile, notification preferences, the password change
  * (through the session handler, which keeps the new tokens in cookies) and the devices with "sign out this device".
+ * On the Settings template (design portal-ui-redesign, decision 26): the four groups as a sub-menu on the left on
+ * laptops and a select on phones, one group at a time (`?group=`), so each screen has at most one primary button.
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 
 import { PreferenceFields, prefsBody, prefsFrom, type PrefsValue } from "@/components/auth/WelcomeForms";
-import { Badge, Button, ErrorBanner, Loading, Notice, PageHeader, Table, TextField } from "@/components/ui";
+import { Badge, Button, ErrorBanner, Loading, Notice, PageHeader, SettingsLayout, Table, TextField } from "@/components/ui";
 import { api, session } from "@/lib/api/client";
 import type { DeviceOut, NotificationPreferences, ProfileOut } from "@/lib/api/types";
 import { formatDateTime } from "@/lib/format";
 import { T } from "@/lib/messages";
+import type { Params } from "@/lib/params";
 import { useAction } from "@/lib/useAction";
 
-export function ProfilePage() {
+export const PROFILE_GROUPS = ["details", "notifications", "password", "devices"] as const;
+export type ProfileGroup = (typeof PROFILE_GROUPS)[number];
+
+const GROUP_LABELS: Record<ProfileGroup, string> = {
+  details: T.profile.details,
+  notifications: T.profile.notifications,
+  password: T.profile.password,
+  devices: T.profile.devices,
+};
+
+export function ProfilePage({ params = {} }: { params?: Params }) {
   const profile = useQuery({ queryKey: ["me", "profile"], queryFn: () => api<ProfileOut>("/me/profile") });
+  const group: ProfileGroup = (PROFILE_GROUPS as readonly string[]).includes(params.group ?? "")
+    ? (params.group as ProfileGroup)
+    : "details";
   if (profile.isPending) return <Loading />;
   if (profile.error || !profile.data) return <ErrorBanner error={profile.error} onRetry={() => profile.refetch()} />;
   return (
     <div className="stack">
       <PageHeader title={T.profile.title} />
-      <div className="grid-2">
-        <DetailsCard profile={profile.data} />
-        <PreferencesCard profile={profile.data} />
-        <PasswordCard />
-        <DevicesCard />
-      </div>
+      <SettingsLayout
+        label={T.profile.groups}
+        selectLabel={T.profile.group}
+        items={PROFILE_GROUPS.map((g) => ({
+          key: g,
+          label: GROUP_LABELS[g],
+          href: g === "details" ? "/profile" : `/profile?group=${g}`,
+          active: g === group,
+        }))}
+      >
+        {group === "details" ? <DetailsCard profile={profile.data} /> : null}
+        {group === "notifications" ? <PreferencesCard profile={profile.data} /> : null}
+        {group === "password" ? <PasswordCard /> : null}
+        {group === "devices" ? <DevicesCard /> : null}
+      </SettingsLayout>
     </div>
   );
 }

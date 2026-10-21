@@ -1,9 +1,9 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { DashboardDepartment, DashboardMe, DashboardState } from "@/lib/api/types";
-import { resetNav } from "@/test/nav";
+import { nav, resetNav } from "@/test/nav";
 import { browserApi, json, makeMe, renderWithClient } from "@/test/render";
 
 import { Dashboard } from "./Dashboard";
@@ -44,6 +44,15 @@ const PERSONAL: DashboardMe = {
   },
   hearings: { total: 0, critical: 0, items: [] },
   drafts: 1,
+  headline: {
+    to_claim: null,
+    hearings_week: { total: 0, within_48h: 0 },
+    files_with_me: { total: 3, due_today: 0 },
+    overdue_actions: { total: 1, oldest_days: 2 },
+    next_dates_to_confirm: null,
+  },
+  upcoming: [],
+  attention: [],
 };
 
 const STATE: DashboardState = {
@@ -61,6 +70,16 @@ beforeEach(() => {
   resetNav("/");
 });
 
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
+
+/** Opens "More about my work", where the rest of the personal block is folded. */
+async function openMore() {
+  await userEvent.click(await screen.findByRole("button", { name: "More about my work" }));
+}
+
 describe("dashboard", () => {
   it("shows only the blocks /dashboard names", async () => {
     const api = browserApi({
@@ -73,6 +92,7 @@ describe("dashboard", () => {
     expect(screen.queryByRole("region", { name: "State overview" })).toBeNull();
     expect(api.calls.some((c) => c.path.startsWith("/dashboard/state"))).toBe(false);
     expect(api.calls.some((c) => c.path.startsWith("/dashboard/department"))).toBe(false);
+    await openMore();
     expect(await screen.findByText(/Hearing tomorrow/)).toBeInTheDocument();
   });
 
@@ -133,7 +153,7 @@ describe("dashboard", () => {
     expect(within(block).getByText("Hearings in 7 days")).toBeInTheDocument();
   });
 
-  it("one failing block shows its error while the others render", async () => {
+  it("one failing view shows its error while the others render", async () => {
     browserApi({
       "GET /me": makeMe(["cases.view_all", "dashboard.state"]),
       "GET /dashboard": { me: true, departments: [], state: true },
@@ -142,6 +162,9 @@ describe("dashboard", () => {
     });
     renderWithClient(<Dashboard />);
     expect(await screen.findByRole("region", { name: "My work" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("radio", { name: "State" }));
+    expect(nav.replace).toHaveBeenLastCalledWith("/?view=state");
+    renderWithClient(<Dashboard params={{ view: "state" }} />);
     const state = await screen.findByRole("region", { name: "State overview" });
     await waitFor(() => expect(within(state).getByText("This block could not be loaded.")).toBeInTheDocument());
     expect(within(state).getByRole("button", { name: "Try again" })).toBeInTheDocument();
@@ -215,7 +238,7 @@ describe("dashboard", () => {
     expect(api.calls.some((c) => c.path === "/dashboard")).toBe(false);
   });
 
-  it("links the My alerts heading to /alerts and the Files I hold tile to /files/mine (portal-files-alerts)", async () => {
+  it("links the My alerts heading to /alerts and the Files I hold number to /files/mine (portal-files-alerts)", async () => {
     const hidden = { ...CASE, id: "c9", ref_no: "EDU/2026/0009", case_no_text: "WA/9/2026" };
     browserApi({
       "GET /me": makeMe(["cases.view_scope"]),
@@ -232,6 +255,7 @@ describe("dashboard", () => {
       },
     });
     renderWithClient(<Dashboard />);
+    await openMore();
     await screen.findByText(/File recalled/);
     const block = screen.getByRole("region", { name: "My work" });
     expect(within(block).getByRole("link", { name: "My alerts" })).toHaveAttribute("href", "/alerts");
@@ -327,5 +351,188 @@ describe("dashboard", () => {
     renderWithClient(<Dashboard />);
     block = await screen.findByRole("region", { name: "Department: Education" });
     expect(within(block).queryByText("Next dates to confirm")).toBeNull();
+  });
+});
+
+// ------------------------------------------------------------------------------------------- round 4 (decision 23, A7)
+
+const HEADLINE: DashboardMe["headline"] = {
+  to_claim: { high: 5, medium: 7 },
+  hearings_week: { total: 4, within_48h: 2 },
+  files_with_me: { total: 6, due_today: 1 },
+  overdue_actions: { total: 3, oldest_days: 6 },
+  next_dates_to_confirm: 2,
+};
+
+const ATTENTION: DashboardMe["attention"] = [
+  { kind: "overdue_action", case: CASE, title: "Parawise comments", date: "2026-10-15", detail: "Overdue 6 days", pending_action: "parawise_comments", overdue_days: 6, next_date_id: null },
+  { kind: "confirm_next_date", case: { ...CASE, id: "c3", case_no_text: "WA/3/2026" }, title: "Next date to confirm", date: "2026-11-19", detail: "Suggested from an order", pending_action: null, overdue_days: 0, next_date_id: "nd-1" },
+  { kind: "due_soon", case: { ...CASE, id: "c4", case_no_text: "WA/4/2026" }, title: "Reply", date: "2026-10-22", detail: "Due tomorrow", pending_action: "reply", overdue_days: 0, next_date_id: null },
+  { kind: "file_received", case: { ...CASE, id: "c5", case_no_text: "WA/5/2026" }, title: "Examine", date: "2026-10-21", detail: "From Edu Admin, Joint Secretary", pending_action: "examine", overdue_days: 0, next_date_id: null },
+];
+
+function personal(extra: Partial<DashboardMe> = {}): DashboardMe {
+  return { ...PERSONAL, headline: HEADLINE, attention: ATTENTION, ...extra };
+}
+
+const CLAIMER = makeMe(["cases.view_scope", "cases.claim", "next_dates.review"], "dept_admin");
+
+function mine(data: DashboardMe = personal()) {
+  return { "GET /me": CLAIMER, "GET /dashboard": { me: true, departments: [], state: false }, "GET /dashboard/me": data };
+}
+
+describe("the personal dashboard (portal-ui-redesign, decision 23)", () => {
+  it("greets by the IST hour with the primary office and the IST date", async () => {
+    vi.useFakeTimers({ now: new Date("2026-10-21T03:00:00Z"), toFake: ["Date"] }); // 08:30 IST
+    browserApi(mine());
+    const { unmount } = renderWithClient(<Dashboard />);
+    expect(await screen.findByRole("heading", { level: 1, name: "Good morning, Anita" })).toBeInTheDocument();
+    expect(screen.getByText("Education · Wednesday, 21 October")).toBeInTheDocument();
+    unmount();
+    vi.setSystemTime(new Date("2026-10-21T09:00:00Z")); // 14:30 IST
+    browserApi(mine());
+    const second = renderWithClient(<Dashboard />);
+    expect(await screen.findByRole("heading", { level: 1, name: "Good afternoon, Anita" })).toBeInTheDocument();
+    second.unmount();
+    vi.setSystemTime(new Date("2026-10-21T13:00:00Z")); // 18:30 IST
+    browserApi(mine());
+    renderWithClient(<Dashboard />);
+    expect(await screen.findByRole("heading", { level: 1, name: "Good evening, Anita" })).toBeInTheDocument();
+  });
+
+  it("five headline numbers, each a link to its list; a null figure is left out", async () => {
+    browserApi(mine());
+    const { unmount } = renderWithClient(<Dashboard />);
+    const headline = await screen.findByRole("region", { name: "Headline numbers" });
+    const links = within(headline).getAllByRole("link");
+    expect(links.map((l) => [l.getAttribute("aria-label"), l.getAttribute("href")])).toEqual([
+      ["Cases to claim: 12", "/claim/recommended"],
+      ["Hearings this week: 4", "/calendar"],
+      ["Files with me: 6", "/inbox/files"],
+      ["Overdue actions: 3", "/inbox/files?action=overdue"],
+      ["Next dates to confirm: 2", "/alerts/next-dates"],
+    ]);
+    expect(within(headline).getByText("5 strong · 7 possible")).toBeInTheDocument();
+    expect(within(headline).getByText("2 within 48 hours")).toBeInTheDocument();
+    expect(within(headline).getByText("1 due today")).toBeInTheDocument();
+    expect(within(headline).getByText("Oldest 6 days")).toBeInTheDocument();
+    unmount();
+    browserApi({
+      "GET /me": makeMe(["cases.view_scope"]),
+      "GET /dashboard": { me: true, departments: [], state: false },
+      "GET /dashboard/me": personal({ headline: { ...HEADLINE, to_claim: null, next_dates_to_confirm: null } }),
+    });
+    renderWithClient(<Dashboard />);
+    const fewer = await screen.findByRole("region", { name: "Headline numbers" });
+    expect(within(fewer).getAllByRole("link")).toHaveLength(3);
+    expect(fewer).toHaveAttribute("data-count", "3");
+    expect(within(fewer).queryByText("Cases to claim")).toBeNull();
+    expect(within(fewer).queryByText("Next dates to confirm")).toBeNull();
+  });
+
+  it("under reduced motion the numbers show their final value at once", async () => {
+    vi.stubGlobal("matchMedia", (q: string) => ({ matches: q.includes("reduce"), media: q, addEventListener() {}, removeEventListener() {} }));
+    browserApi(mine());
+    renderWithClient(<Dashboard />);
+    const headline = await screen.findByRole("region", { name: "Headline numbers" });
+    expect(within(headline).getByText("12")).toBeInTheDocument();
+    expect(within(headline).getByText("6")).toBeInTheDocument();
+  });
+
+  it("Review cases to claim is the one primary, only with cases to claim and Case claim shown", async () => {
+    browserApi(mine());
+    const { container, unmount } = renderWithClient(<Dashboard />);
+    expect(await screen.findByRole("link", { name: "Review cases to claim" })).toHaveAttribute("href", "/claim/recommended");
+    expect(container.querySelectorAll("[data-variant='primary']")).toHaveLength(1);
+    unmount();
+    browserApi(mine(personal({ headline: { ...HEADLINE, to_claim: { high: 0, medium: 0 } } })));
+    const none = renderWithClient(<Dashboard />);
+    await screen.findByRole("region", { name: "Headline numbers" });
+    expect(screen.queryByRole("link", { name: "Review cases to claim" })).toBeNull();
+    expect(none.container.querySelectorAll("[data-variant='primary']").length).toBeLessThanOrEqual(1);
+  });
+
+  it("Needs your attention leads every row with a Lead badge and links to the case or the review", async () => {
+    browserApi(mine());
+    renderWithClient(<Dashboard />);
+    const list = await screen.findByRole("list", { name: "Needs your attention" });
+    const rows = within(list).getAllByRole("listitem");
+    expect(rows).toHaveLength(4);
+    for (const row of rows) expect(row.firstElementChild).toHaveAttribute("data-lead", "lead");
+    expect(rows.map((r) => r.firstElementChild!.textContent)).toEqual(["Overdue", "Confirm", "Due soon", "New"]);
+    expect(within(rows[0]!).getByRole("link", { name: "Parawise comments" })).toHaveAttribute("href", "/cases/EDU-2026-0001");
+    expect(within(rows[0]!).getByText("WP(C)/1234/2026 · Overdue 6 days")).toBeInTheDocument();
+    expect(within(rows[1]!).getByRole("link", { name: "Next date to confirm" })).toHaveAttribute("href", "/alerts/next-dates?q=c3");
+  });
+
+  it("Upcoming hearings lead with the date chip, red within 48 hours, and the day words", async () => {
+    vi.useFakeTimers({ now: new Date("2026-10-21T03:00:00Z"), toFake: ["Date"] });
+    browserApi(
+      mine(
+        personal({
+          upcoming: [
+            { case: CASE, date: "2026-10-22", court_no: "3", item_no: "14", critical: true, this_week: true },
+            { case: { ...CASE, id: "c2", case_no_text: "WA/55/2026" }, date: "2026-10-26", court_no: null, item_no: null, critical: false, this_week: true },
+          ],
+        }),
+      ),
+    );
+    renderWithClient(<Dashboard />);
+    const list = await screen.findByRole("list", { name: "Upcoming hearings" });
+    const rows = within(list).getAllByRole("listitem");
+    expect(rows.map((r) => r.firstElementChild!.getAttribute("data-lead"))).toEqual(["date", "date"]);
+    expect(rows[0]!.firstElementChild!.className).toMatch(/hot/);
+    expect(rows[1]!.firstElementChild!.className).not.toMatch(/hot/);
+    expect(within(rows[0]!).getByText("Tomorrow")).toBeInTheDocument();
+    expect(within(rows[0]!).getByText("Court 3 · item 14")).toBeInTheDocument();
+    expect(within(rows[1]!).getByText("This week")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open calendar →" })).toHaveAttribute("href", "/calendar");
+  });
+
+  it("the view switch shows only with more than one view", async () => {
+    browserApi(mine());
+    const { unmount } = renderWithClient(<Dashboard />);
+    await screen.findByRole("region", { name: "Headline numbers" });
+    expect(screen.queryByRole("radiogroup", { name: "Dashboard view" })).toBeNull();
+    unmount();
+    browserApi({
+      ...mine(),
+      "GET /dashboard": { me: true, departments: [{ code: "EDU", name: "Education" }], state: false },
+      "GET /dashboard/department": department("EDU", "Education"),
+    });
+    renderWithClient(<Dashboard />);
+    const group = await screen.findByRole("radiogroup", { name: "Dashboard view" });
+    expect(within(group).getAllByRole("radio").map((r) => r.textContent)).toEqual(["My work", "Department"]);
+    await userEvent.click(within(group).getByRole("radio", { name: "Department" }));
+    expect(nav.replace).toHaveBeenLastCalledWith("/?view=department");
+  });
+
+  it("the Department view keeps the department figures as headline numbers", async () => {
+    browserApi({
+      ...mine(),
+      "GET /dashboard": { me: true, departments: [{ code: "EDU", name: "Education" }], state: false },
+      "GET /dashboard/department": department("EDU", "Education"),
+    });
+    renderWithClient(<Dashboard params={{ view: "department" }} />);
+    const block = await screen.findByRole("region", { name: "Department: Education" });
+    expect(within(block).getByText("1,28,400")).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "My work" })).toBeNull();
+  });
+
+  it("a State-wide reader without personal work opens on State", async () => {
+    browserApi({
+      "GET /me": makeMe(["cases.view_all", "dashboard.state"], "state_oversight"),
+      "GET /dashboard": { me: true, departments: [], state: true },
+      "GET /dashboard/me": {
+        ...PERSONAL,
+        cases: [],
+        headline: { ...PERSONAL.headline, files_with_me: { total: 0, due_today: 0 }, overdue_actions: { total: 0, oldest_days: null } },
+      },
+      "GET /dashboard/state": STATE,
+    });
+    renderWithClient(<Dashboard />);
+    expect(await screen.findByRole("table", { name: "Cases by department" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "State" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.queryByRole("region", { name: "My work" })).toBeNull();
   });
 });

@@ -333,3 +333,6 @@ No migration and no table or column change. The visibility basis `transfer_in` i
 
 ## As-built note: portal-ui-case-calendar (row 103, 20 Oct 2026)
 No migration and no table or column change. `GET /me/calendar` (`services/calendar.py`, `my_calendar`) is read-only: it reads hearings from the case listings, custody rows (`action_due`: pending action other than `none` with a due date) and the next-date review queue (kind `confirm`), each ANDed with the server visibility rule. It writes nothing and is not audited.
+
+## As-built note: portal-ui-dashboard-work (row 104, 21 Oct 2026)
+No migration and no table or column change. `GET /dashboard/me` (`services/dashboard.py`) adds `headline`, `upcoming` and `attention`, all read-only: they read `case_custody`, `case_ownerships`, the case listings and the next-date review queue, each ANDed with the server visibility rule. They write nothing and are not audited.

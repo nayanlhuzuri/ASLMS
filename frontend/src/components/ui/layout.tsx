@@ -3,17 +3,18 @@
 /**
  * Layout of the UI kit (design portal-ui-redesign, decisions 10.2, 13, 16 and 17): the card, the page header with
  * the breadcrumb inside the page above the title and at most one primary action, the breadcrumb itself, tabs with
- * the sliding underline, counts and a "More" group, tiles, the headline number (`Kpi`) and the collapsible.
+ * the sliding underline, counts and a "More" group, tiles, the headline number (`Kpi`), the collapsible and the
+ * Settings template's frame (`SettingsLayout`).
  */
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
 import { formatNumber } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { crumbLabel } from "@/lib/routes";
 
-import { cx } from "./controls";
+import { cx, SelectField } from "./controls";
 import s from "./layout.module.css";
 import { useCountUp } from "./motion";
 import { Menu } from "./overlays";
@@ -287,6 +288,61 @@ export function Collapsible({
       <div id={bodyId} className={s.body} inert={!open} aria-hidden={!open}>
         <div className={s.bodyInner}>{opened ? children : null}</div>
       </div>
+    </div>
+  );
+}
+
+export interface SettingsItem {
+  key: string;
+  label: string;
+  href: string;
+  active: boolean;
+}
+
+/**
+ * The Settings template (design portal-ui-redesign, decision 26): a sub-menu of the setting groups on the left on
+ * laptops (links, `aria-current` on the current one), a select on phones, and one setting group at a time beside it.
+ */
+export function SettingsLayout({
+  label,
+  selectLabel,
+  items,
+  children,
+}: {
+  /** The accessible name of the sub-menu. */
+  label: string;
+  /** The phone select's label. */
+  selectLabel: string;
+  items: SettingsItem[];
+  children: ReactNode;
+}) {
+  const router = useRouter();
+  const current = items.find((i) => i.active) ?? items[0];
+  return (
+    <div className={s.settings}>
+      <nav aria-label={label} className={s.settingsNav}>
+        <ul>
+          {items.map((i) => (
+            <li key={i.key}>
+              <Link href={i.href} className={s.settingsLink} aria-current={i.active ? "page" : undefined}>
+                {i.label}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </nav>
+      <div className={s.settingsSelect}>
+        <SelectField
+          label={selectLabel}
+          value={current?.key ?? ""}
+          options={items.map((i) => ({ value: i.key, label: i.label }))}
+          onChange={(e) => {
+            const next = items.find((i) => i.key === e.target.value);
+            if (next) router.push(next.href);
+          }}
+        />
+      </div>
+      <div className={s.settingsBody}>{children}</div>
     </div>
   );
 }

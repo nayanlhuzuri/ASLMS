@@ -6028,6 +6028,24 @@
         "title": "DashboardCasesOut",
         "type": "object"
       },
+      "DashboardClaimCountsOut": {
+        "properties": {
+          "high": {
+            "title": "High",
+            "type": "integer"
+          },
+          "medium": {
+            "title": "Medium",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "high",
+          "medium"
+        ],
+        "title": "DashboardClaimCountsOut",
+        "type": "object"
+      },
       "DashboardCodeCountOut": {
         "properties": {
           "code": {
@@ -6271,6 +6289,68 @@
         "title": "DashboardFilesOut",
         "type": "object"
       },
+      "DashboardFilesWithMeOut": {
+        "properties": {
+          "due_today": {
+            "title": "Due Today",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "due_today"
+        ],
+        "title": "DashboardFilesWithMeOut",
+        "type": "object"
+      },
+      "DashboardHeadlineOut": {
+        "description": "Design `portal-ui-redesign`, A7: the five headline figures; a null one is not shown (its gate fails).",
+        "properties": {
+          "files_with_me": {
+            "$ref": "#/components/schemas/DashboardFilesWithMeOut"
+          },
+          "hearings_week": {
+            "$ref": "#/components/schemas/DashboardWeekHearingsOut"
+          },
+          "next_dates_to_confirm": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Dates To Confirm"
+          },
+          "overdue_actions": {
+            "$ref": "#/components/schemas/DashboardOverdueOut"
+          },
+          "to_claim": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DashboardClaimCountsOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "to_claim",
+          "hearings_week",
+          "files_with_me",
+          "overdue_actions",
+          "next_dates_to_confirm"
+        ],
+        "title": "DashboardHeadlineOut",
+        "type": "object"
+      },
       "DashboardHearingOut": {
         "properties": {
           "case": {
@@ -6370,10 +6450,101 @@
         "title": "DashboardIndexOut",
         "type": "object"
       },
+      "DashboardMeAttentionOut": {
+        "description": "One item that needs the caller (A7): an overdue file, a next date to confirm, a file due soon or a file\nreceived lately.",
+        "properties": {
+          "case": {
+            "$ref": "#/components/schemas/AlertCaseOut"
+          },
+          "date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "kind": {
+            "enum": [
+              "overdue_action",
+              "confirm_next_date",
+              "due_soon",
+              "file_received"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "next_date_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Date Id"
+          },
+          "overdue_days": {
+            "title": "Overdue Days",
+            "type": "integer"
+          },
+          "pending_action": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pending Action"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "case",
+          "title",
+          "date",
+          "detail",
+          "pending_action",
+          "overdue_days",
+          "next_date_id"
+        ],
+        "title": "DashboardMeAttentionOut",
+        "type": "object"
+      },
       "DashboardMeOut": {
         "properties": {
           "alerts": {
             "$ref": "#/components/schemas/DashboardAlertsOut"
+          },
+          "attention": {
+            "items": {
+              "$ref": "#/components/schemas/DashboardMeAttentionOut"
+            },
+            "title": "Attention",
+            "type": "array"
           },
           "cases": {
             "items": {
@@ -6394,8 +6565,18 @@
             "title": "Generated At",
             "type": "string"
           },
+          "headline": {
+            "$ref": "#/components/schemas/DashboardHeadlineOut"
+          },
           "hearings": {
             "$ref": "#/components/schemas/DashboardHearingsOut"
+          },
+          "upcoming": {
+            "items": {
+              "$ref": "#/components/schemas/DashboardUpcomingOut"
+            },
+            "title": "Upcoming",
+            "type": "array"
           }
         },
         "required": [
@@ -6404,7 +6585,10 @@
           "files",
           "alerts",
           "hearings",
-          "drafts"
+          "drafts",
+          "headline",
+          "upcoming",
+          "attention"
         ],
         "title": "DashboardMeOut",
         "type": "object"
@@ -6487,6 +6671,31 @@
           "by_holder"
         ],
         "title": "DashboardOverdueActionsOut",
+        "type": "object"
+      },
+      "DashboardOverdueOut": {
+        "properties": {
+          "oldest_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Oldest Days"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "oldest_days"
+        ],
+        "title": "DashboardOverdueOut",
         "type": "object"
       },
       "DashboardOwnCasesOut": {
@@ -6692,6 +6901,76 @@
           "compliance_overdue"
         ],
         "title": "DashboardStateRowOut",
+        "type": "object"
+      },
+      "DashboardUpcomingOut": {
+        "properties": {
+          "case": {
+            "$ref": "#/components/schemas/AlertCaseOut"
+          },
+          "court_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Court No"
+          },
+          "critical": {
+            "title": "Critical",
+            "type": "boolean"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "item_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Item No"
+          },
+          "this_week": {
+            "title": "This Week",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "date",
+          "case",
+          "court_no",
+          "item_no",
+          "critical",
+          "this_week"
+        ],
+        "title": "DashboardUpcomingOut",
+        "type": "object"
+      },
+      "DashboardWeekHearingsOut": {
+        "properties": {
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "within_48h": {
+            "title": "Within 48H",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "within_48h"
+        ],
+        "title": "DashboardWeekHearingsOut",
         "type": "object"
       },
       "DataHealthOut": {
