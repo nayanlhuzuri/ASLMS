@@ -6,12 +6,18 @@ court API through the integration layer, with an input ASLMS already holds, run 
   `HEALTH_TEST_API_MIN_SECONDS` ago by anyone (429 `test_too_soon`; the Connection check also counts the data-health
   connectivity check), the caller's `HEALTH_TEST_PER_USER_HOUR` reached (429 `test_limit`), the detected window's
   remaining calls below `NAPIX_SEARCH_FLOOR` (429 `napix_budget`; an unknown remaining allows the test). `run` then
-  takes a transaction-scoped advisory lock per API (409 `test_running`) and looks at the interval once more.
+  takes two transaction-scoped advisory locks, always the person's first (409 `user_test_running`: one test at a
+  time per person) and then the API's (409 `test_running`), and checks the interval and the person's hourly count
+  once more (design `api-health-checker-followups`, decision 6).
 - **One call** on a fresh client: `max_attempts = 1` (no back-off retry), `timeout = HEALTH_TEST_TIMEOUT_SECONDS`. The
-  only possible second attempt is the client's own token renewal after an HTTP 401; both attempts are logged.
-- **Recorded, never lost**: the `NapixRecorder` (carrying the caller's id) is flushed in a `finally`. A test writes
-  one `napix_call_log` row per attempt, at most one `napix_responses` row and one audit row `napix.api_tested`; no
-  case data, no master row, no queue row (decision 12). A PDF answer is hashed and discarded.
+  only possible second attempt is the client's own token renewal after an HTTP 401: the 401 step is logged first
+  and the repeated attempt after it, so the last attempt is the one that decided the outcome.
+- **Recorded, never lost** (design `api-health-checker-followups`, decisions 1-2): the `NapixRecorder` (carrying the
+  caller's id) is committed in a session of its own in a `finally` as soon as the call ends, and the audit row
+  `napix.api_tested` in another after the summary. A test writes one `napix_call_log` row per attempt, at most one
+  `napix_responses` row and one audit row; no case data, no master row, no queue row (decision 12). A PDF answer is
+  hashed and discarded. The request transaction itself holds only reads and the advisory locks. When ASLMS's own
+  summary fails, the audit row is still written (`summary: null`, `summary_error`) and the error propagates (500).
 - **Summarised, never shown verbatim** (decision 9): the outcome is built from a whitelist of computed facts. The
   payload, the PDF, the raw text, the parameters, the error text and every name stay on the server."""
 
@@ -25,7 +31,7 @@ from typing import Any
 
 import httpx
 from sqlalchemy import func, select, text
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 
 from aslms.core.config import Settings
 from aslms.core.errors import IntegrationError
@@ -35,14 +41,15 @@ from aslms.domain.org import User
 from aslms.domain.reference import Permission
 from aslms.integration.napix.client import NapixClient, NapixResult, nested_list
 from aslms.integration.napix.hc import NapixHighCourt, rows_of, search_rows
-from aslms.services import access, napix_samples, napix_window, system_health
+from aslms.services import access, audit, napix_samples, napix_window, system_health
 from aslms.services.access import Member
-from aslms.services.audit import Actor, write_audit
+from aslms.services.audit import Actor
 from aslms.services.audit_search import to_ist
 from aslms.services.case_filters import CNR_RE
 from aslms.services.napix_admin import acting_member
 from aslms.services.napix_samples import NoSample, Sample
 from aslms.services.napix_store import NapixRecorder
+from aslms.services.napix_values import as_date
 
 MAX_FIELDS = 40
 MASTER_KEYS = ("state", "district", "bench_master", "case_type", "act")
@@ -168,8 +175,14 @@ def _cnrs(rows: list[dict[str, Any]]) -> list[str]:
     return out
 
 
-def _present(value: Any) -> bool:
-    return value is not None and str(value).strip() not in ("", "0000-00-00")
+def _date_present(value: Any) -> bool:
+    """A real date: the court's sentinels (`5000-01-01`, `1900-01-01`, `0000-00-00`), a blank and "Next Date Not
+    Given" read absent (`napix_values.as_date`; design `api-health-checker-followups`, decision 8)."""
+    return as_date(value) is not None
+
+
+def _text_present(value: Any) -> bool:
+    return value is not None and str(value).strip() != ""
 
 
 def summarise_payload(
@@ -199,7 +212,7 @@ def summarise_payload(
         )
         pend = str(record.get("pend_disp") or "").strip().upper()
         facts.append(_fact("Case status", {"P": "pending", "D": "disposed"}.get(pend, "not given")))
-        facts.append(_fact("A next hearing date is present", _present(record.get("date_next_list"))))
+        facts.append(_fact("A next hearing date is present", _date_present(record.get("date_next_list"))))
         orders = len(nested_list(record.get("interimorder"))) + len(nested_list(record.get("finalorder")))
         facts.append(_fact("Orders in the answer", orders))
         facts.append(_fact("Hearings in the answer", len(nested_list(record.get("historyofcasehearing")))))
@@ -214,7 +227,7 @@ def summarise_payload(
         asked = sample_values.get("business_date")
         asked_text = asked.isoformat() if hasattr(asked, "isoformat") else str(asked or "")
         facts.append(_fact("The business date matches", str(record.get("business_date") or "") == asked_text))
-        facts.append(_fact("Business text is present", _present(record.get("business"))))
+        facts.append(_fact("Business text is present", _text_present(record.get("business"))))
     return summarise_record(record, facts)
 
 
@@ -286,6 +299,19 @@ def _too_soon(session: Session, settings: Settings, key: str, now: datetime) -> 
         )
 
 
+def _over_cap(session: Session, settings: Settings, user: User | Member, now: datetime) -> None:
+    """429 `test_limit` once the caller made `HEALTH_TEST_PER_USER_HOUR` tests in the last hour."""
+    count, oldest = system_health.user_tests(session, napix_window.user_id_of(user), now)
+    cap_at = system_health.user_allowed_at(settings, count, oldest, now)
+    if cap_at is not None:
+        raise TestRefused(
+            "test_limit",
+            f"you have made {count} tests in the last hour; the limit is {settings.health_test_per_user_hour}",
+            429,
+            _wait(cap_at, now),
+        )
+
+
 def guard(
     session: Session, settings: Settings, user: User | Member, key: str, now: datetime | None = None
 ) -> Sample:
@@ -301,15 +327,7 @@ def guard(
     if isinstance(chosen, NoSample):
         raise TestRefused("no_sample", chosen.reason, 409)
     _too_soon(session, settings, key, now)
-    count, oldest = system_health.user_tests(session, napix_window.user_id_of(user), now)
-    cap_at = system_health.user_allowed_at(settings, count, oldest, now)
-    if cap_at is not None:
-        raise TestRefused(
-            "test_limit",
-            f"you have made {count} tests in the last hour; the limit is {settings.health_test_per_user_hour}",
-            429,
-            _wait(cap_at, now),
-        )
+    _over_cap(session, settings, user, now)
     window = napix_window.current(session, settings, now)
     if window.remaining is not None and window.remaining < settings.napix_search_floor:
         resume = now + timedelta(seconds=window.retry_after(now))
@@ -323,6 +341,19 @@ def guard(
     return chosen
 
 
+def lock_user(session: Session, user_id: Any) -> None:
+    """409 `user_test_running` while the same person has another test in flight (transaction-scoped: PgBouncer-safe;
+    taken before the API's lock, always in that order; design `api-health-checker-followups`, decision 6)."""
+    got = session.scalar(
+        text("SELECT pg_try_advisory_xact_lock(hashtextextended(:k, 0))"),
+        {"k": f"napix-api-test-user:{user_id}"},
+    )
+    if not got:
+        raise TestRefused(
+            "user_test_running", "Your other test is still running; try again when it has finished", 409
+        )
+
+
 def lock(session: Session, key: str) -> None:
     """409 `test_running` while another test of the same API is in flight (transaction-scoped: PgBouncer-safe)."""
     got = session.scalar(
@@ -333,17 +364,6 @@ def lock(session: Session, key: str) -> None:
 
 
 # ------------------------------------------------------------------------------------------------ the test
-
-
-def final_attempt(attempts: list[NapixResult], *, raised: bool) -> NapixResult | None:
-    """The attempt that decided the outcome. After an HTTP 401 the client renews its token and asks again inside the
-    first attempt, so the renewed attempt is reported before the 401 one: on success it is the last answered
-    attempt, on failure the last one carrying an error family."""
-    if not attempts:
-        return None
-    if raised:
-        return next((a for a in reversed(attempts) if a.error_family), attempts[-1])
-    return next((a for a in reversed(attempts) if a.ok), attempts[-1])
 
 
 def _status(ok: bool, answered: bool) -> str:
@@ -361,6 +381,7 @@ def _audit_sample(sample: Sample) -> dict[str, Any]:
 
 async def run(
     session: Session,
+    session_factory: sessionmaker[Session],
     actor: Actor,
     user: User | Member,
     settings: Settings,
@@ -368,14 +389,21 @@ async def run(
     hc: NapixHighCourt,
     key: str,
 ) -> TestOutcome:
-    """One call of one court API (decisions 7-13). A court failure is an outcome (`ok = false`), not an exception."""
+    """One call of one court API (decisions 7-13). A court failure is an outcome (`ok = false`), not an exception.
+    The call rows and the audit row are committed through `session_factory`, each in a session of its own; the
+    request session only reads and holds the locks (design `api-health-checker-followups`, decisions 1, 2 and 6)."""
     member = acting_member(session, user, Permission.ADMIN_SERVICE_HEALTH)
     sample = guard(session, settings, user, key)
+    user_id = napix_window.user_id_of(user)
+    if user_id is not None:
+        lock_user(session, user_id)
     lock(session, key)
-    # a test of this API committed while this request waited for the lock: refuse rather than call again
-    _too_soon(session, settings, key, datetime.now(UTC))
+    # a test committed while this request waited for the locks: refuse rather than call again
+    now = datetime.now(UTC)
+    _too_soon(session, settings, key, now)
+    _over_cap(session, settings, user, now)
     e = system_health.entry(key)
-    recorder = NapixRecorder(user_id=napix_window.user_id_of(user))
+    recorder = NapixRecorder(user_id=user_id)
     client.on_call = recorder.on_call
     client.max_attempts = 1
     client.timeout = settings.health_test_timeout_seconds
@@ -391,16 +419,13 @@ async def run(
             error_family = type(exc).__name__
     finally:
         attempts = list(recorder.pending)
-        recorder.flush(session)
-    last = final_attempt(attempts, raised=error_family is not None)
+        recorder.flush_apart(session_factory)
+    last = attempts[-1] if attempts else None  # the client logs a renewal's 401 step first (decision 4)
     family = (last.error_family if last is not None and last.error_family else None) or error_family
     ok = error_family is None and last is not None and last.ok
     answered = ok or (last is not None and family in ANSWERED_FAMILIES)
     napix_status = last.napix_status if last is not None else None
     http_status = last.http_status if last is not None else None
-    summary: dict[str, Any] = {"kind": e.kind, "row_count": None, "field_names": [], "facts": []}
-    if ok and last is not None:
-        summary = _summary(session, settings, e, sample, last, value)
     outcome = TestOutcome(
         api=key,
         ok=ok,
@@ -416,29 +441,40 @@ async def run(
         token_verified=last.token_verified if last is not None else None,
         remaining=recorder.last_remaining,
         input={"label": sample.label, "values": sample.public_values()},
-        summary=summary,
+        summary={"kind": e.kind, "row_count": None, "field_names": [], "facts": []},
     )
-    write_audit(
-        session,
+    failure: Exception | None = None
+    try:
+        if ok and last is not None:
+            outcome.summary = _summary(session, settings, e, sample, last, value)
+    except Exception as exc:  # noqa: BLE001 — ASLMS's own defect: recorded in the audit row, then raised again
+        failure = exc
+    after: dict[str, Any] = {
+        "api": key,
+        "path": e.path,
+        "ok": outcome.ok,
+        "answered": outcome.answered,
+        "http_status": outcome.http_status,
+        "napix_status": outcome.napix_status,
+        "error_family": outcome.error_family,
+        "duration_ms": outcome.duration_ms,
+        "attempts": outcome.attempts,
+        "remaining": outcome.remaining,
+        "sample": _audit_sample(sample),
+        "summary": None if failure is not None else outcome.summary,
+    }
+    if failure is not None:
+        after["summary_error"] = type(failure).__name__
+    audit.write_audit_apart(
+        session_factory,
         access.actor_as(actor, member),
         system_health.TEST_ACTION,
         "napix",
         None,
-        after={
-            "api": key,
-            "path": e.path,
-            "ok": outcome.ok,
-            "answered": outcome.answered,
-            "http_status": outcome.http_status,
-            "napix_status": outcome.napix_status,
-            "error_family": outcome.error_family,
-            "duration_ms": outcome.duration_ms,
-            "attempts": outcome.attempts,
-            "remaining": outcome.remaining,
-            "sample": _audit_sample(sample),
-            "summary": summary,
-        },
+        after=after,
     )
+    if failure is not None:
+        raise failure
     return outcome
 
 

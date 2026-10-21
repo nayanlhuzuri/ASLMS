@@ -202,6 +202,10 @@ def _who(user_id: uuid.UUID | None, me: uuid.UUID | None) -> str:
 # ------------------------------------------------------------------------------------------------ the readings
 
 _ANSWERED_SQL = "(ok OR error_family IN ('NapixNotFound', 'NapixInputError'))"
+# the rows that are API calls: a token renewal's 401 step (`http_status` 401, no family) is left out of the rates, the
+# percentiles, the last-three rule and the last calls; the quota window and per-person counts keep it (design
+# api-health-checker-followups, decision 5)
+_COUNTED_SQL = "(http_status IS DISTINCT FROM 401 OR error_family IS NOT NULL)"
 
 
 def _now(now: datetime | None) -> datetime:
@@ -222,7 +226,7 @@ def _hourly(
             SELECT api, date_trunc('hour', called_at AT TIME ZONE 'Asia/Kolkata') AS h, count(*) AS calls,
                 count(*) FILTER (WHERE {_ANSWERED_SQL}) AS answered, avg(duration_ms) AS avg_ms
             FROM napix_call_log
-            WHERE called_at >= :since AND api = ANY(:apis)
+            WHERE called_at >= :since AND api = ANY(:apis) AND {_COUNTED_SQL}
             GROUP BY api, h
             """
         ),
@@ -242,7 +246,7 @@ def _day(session: Session, since: datetime, paths: list[str]) -> dict[str, dict[
                 percentile_cont(0.5) WITHIN GROUP (ORDER BY duration_ms) AS p50,
                 percentile_cont(0.95) WITHIN GROUP (ORDER BY duration_ms) AS p95
             FROM napix_call_log
-            WHERE called_at >= :since AND api = ANY(:apis)
+            WHERE called_at >= :since AND api = ANY(:apis) AND {_COUNTED_SQL}
             GROUP BY api
             """
         ),
@@ -270,7 +274,7 @@ def _latest(session: Session, since: datetime, paths: list[str], per_api: int = 
                 SELECT api, {_CALL_COLUMNS}, {_ANSWERED_SQL} AS answered,
                     row_number() OVER (PARTITION BY api ORDER BY called_at DESC, id DESC) AS rn
                 FROM napix_call_log
-                WHERE called_at >= :since AND api = ANY(:apis)
+                WHERE called_at >= :since AND api = ANY(:apis) AND {_COUNTED_SQL}
             ) t
             WHERE rn <= :n
             ORDER BY api, called_at DESC
@@ -291,7 +295,7 @@ def _recent(session: Session, since: datetime, path: str, limit: int = 10) -> li
             text(
                 f"""
                 SELECT {_CALL_COLUMNS}, {_ANSWERED_SQL} AS answered FROM napix_call_log
-                WHERE called_at >= :since AND api = :api
+                WHERE called_at >= :since AND api = :api AND {_COUNTED_SQL}
                 ORDER BY called_at DESC, id DESC
                 LIMIT :n
                 """

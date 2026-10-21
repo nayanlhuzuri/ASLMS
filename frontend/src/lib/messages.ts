@@ -43,6 +43,9 @@ const ERRORS: Record<string, (extra: Record<string, unknown>) => string> = {
   test_too_soon: (x) => `Next test possible in ${String(x.retry_after ?? 60)} s.`,
   test_limit: (x) => `You have reached the hourly limit of tests. Next test possible in ${String(x.retry_after ?? 60)} s.`,
   test_running: () => "A test of this API is running. Try again in a moment.",
+  // one test at a time per person, and the connectivity check's lock (design api-health-checker-followups, 6 and 7)
+  user_test_running: () => "Your other test is still running. Try again when it has finished.",
+  check_running: () => "A connectivity check or a test of the connection is running. Try again in a moment.",
   not_found: () => "Not found, or not visible to you.",
   scope: () => "This is outside your offices.",
   email_taken: () => "Another login already uses this e-mail.",

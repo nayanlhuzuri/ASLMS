@@ -68,6 +68,8 @@ GATEWAY_CODES = frozenset({631})
 PRINT_R_STATUS = re.compile(r"\[status_code\]\s*=>\s*(\d{3})")
 PRINT_R_NAME = re.compile(r"\[status\]\s*=>\s*([A-Z_]+)")
 RATE_LIMIT_NUMBER = re.compile(r"(\d+)\s*;?\s*$")
+# the `error` of a token renewal's 401 step (`ok` false, `http_status` 401, no family; api-health-checker-followups)
+RENEWED = "HTTP 401: the token had expired; it was renewed and the call repeated"
 
 
 @dataclass
@@ -309,7 +311,9 @@ class NapixClient:
         self, api_path: str, params: Mapping[str, Any] | None = None, method: str = "GET"
     ) -> NapixResult:
         """`api_path` like `hc-cnr-api/CNR`; `params` in the notes' documented order (empty for no-input APIs).
-        Retries `NapixUnavailable` with exponential back-off; refreshes the token once on 401. An empty or unreadable
+        Retries `NapixUnavailable` with exponential back-off; refreshes the token once on 401 (the 401 step and the
+        repeated attempt are two hook calls, in that order: design `api-health-checker-followups`, decision 4). An
+        empty or unreadable
         HTTP 200 body (`NapixEmptyResponse`) is re-raised at once: retrying seconds later spends the allowance on the
         same fault (design `safety-fixes`, decision 5); the queue's ladder backs off instead."""
         last: Exception | None = None
@@ -352,6 +356,7 @@ class NapixClient:
         await self.limiter.wait()
         result.called_at = datetime.now(UTC)
         started = time.perf_counter()
+        emitted = False  # the 401 step of a token renewal is handed over before the call is repeated
         try:
             headers = {
                 "Authorization": f"Bearer {await self.token()}",
@@ -372,9 +377,15 @@ class NapixClient:
             if r.status_code == 401:
                 self.tokens.clear()
                 if refresh_token:
+                    # a failed renewal raises here and is recorded on this attempt below; once it succeeds, this
+                    # 401 step is closed and logged before the call is repeated, so the log stays in time order and
+                    # a failure of the repeat is never copied onto it (design api-health-checker-followups, 4)
                     await self.token(force=True)
-                    inner = await self._attempt(api_path, params, method, refresh_token=False)
-                    return inner
+                    result.error = RENEWED
+                    result.duration_ms = int((time.perf_counter() - started) * 1000)
+                    self._emit(result)
+                    emitted = True
+                    return await self._attempt(api_path, params, method, refresh_token=False)
                 raise NapixAuthError("NAPIX 401 after a fresh token: check the credentials", api=api_path)
             if r.status_code in (429, 500, 502, 503, 504):
                 raise NapixUnavailable(f"NAPIX HTTP {r.status_code}", api=api_path)
@@ -388,20 +399,26 @@ class NapixClient:
             result.ok = True
             return result
         except IntegrationError as e:
-            result.error, result.error_family = f"{type(e).__name__}: {e.message}"[:500], type(e).__name__
-            if e.napix_status:
-                result.napix_status = e.napix_status
+            if not emitted:
+                result.error, result.error_family = f"{type(e).__name__}: {e.message}"[:500], type(e).__name__
+                if e.napix_status:
+                    result.napix_status = e.napix_status
             raise
         except Exception as e:  # noqa: BLE001 — recorded, then re-raised
-            result.error, result.error_family = f"{type(e).__name__}: {e}"[:500], type(e).__name__
+            if not emitted:
+                result.error, result.error_family = f"{type(e).__name__}: {e}"[:500], type(e).__name__
             raise
         finally:
-            result.duration_ms = int((time.perf_counter() - started) * 1000)
-            if self.on_call:
-                try:
-                    self.on_call(result)
-                except Exception:  # noqa: BLE001 — logging must never break the call
-                    log.exception("napix on_call hook failed")
+            if not emitted:
+                result.duration_ms = int((time.perf_counter() - started) * 1000)
+                self._emit(result)
+
+    def _emit(self, result: NapixResult) -> None:
+        if self.on_call:
+            try:
+                self.on_call(result)
+            except Exception:  # noqa: BLE001 — logging must never break the call
+                log.exception("napix on_call hook failed")
 
     # ------------------------------------------------------------------ envelope (§5)
     def _parse_response(self, r: httpx.Response, result: NapixResult) -> None:

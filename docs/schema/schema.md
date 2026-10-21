@@ -81,7 +81,7 @@ written from this document plus the approved addendum. **As built (1 Oct 2026):*
 | `ref_doc_type` | + doc_group (`court_record` / `court_filing` / `internal`) | The filing vocabulary. |
 | `ref_alert_kind` | + default_severity | (custody-workflow) + `workflow` ("Workflow", `normal`); `request_due` retired. |
 | `ref_event_type` | + timeline_label, icon_key, is_tracking_card | Timeline labels live in data. `case_taken_over` (tracking card) added by recommend-and-claim (seed only). (custody-workflow) `request_sent`, `request_answered` retired. (data-load-console) `case_merged` ("Case merged", not on the tracking card), seed only. |
-| `ref_permission` | + module (`users`, `access`, `admin`, `cases`, `custody`, `requests`, `stages`, `notes`, `documents`, `alerts`, `next_dates`, `reports`, `dashboard`, `assistant`, `audit`) | The functions of the application, seeded from `Permission` (added 1 Oct 2026, migration 0003); `admin.designations` added 4 Oct 2026 (43 functions, seed only, no migration); `admin.scoring` and `cases.take_over` added by recommend-and-claim (45 functions, seed only), `cases.release` relabelled "Stop watching"; `users.propose_head` and `admin.tickets` (reserved: enabled for no type, never overridden) added by `user-memberships` (47 functions, seed only); `custody.recall` and `custody.track` added and `requests.send`, `requests.answer` retired (`is_active = false`, matrix rows disabled, ignored by access) by `custody-workflow` (49 rows, 47 active, seed only); `admin.sourcetrace` ("SourceTrace ingestion", enabled by default for `central_operator`) added by `sourcetrace-connector` (50 rows, 48 active, seed only); `admin.data_load` ("Manage the data load", module `admin`, enabled for no type by default) added by `data-load-console` (51 rows, 49 active, seed only); `seed` refreshes labels and descriptions from `PERMISSION_LABELS`. |
+| `ref_permission` | + module (`users`, `access`, `admin`, `cases`, `custody`, `requests`, `stages`, `notes`, `documents`, `alerts`, `next_dates`, `reports`, `dashboard`, `assistant`, `audit`) | The functions of the application, seeded from `Permission` (added 1 Oct 2026, migration 0003); `admin.designations` added 4 Oct 2026 (43 functions, seed only, no migration); `admin.scoring` and `cases.take_over` added by recommend-and-claim (45 functions, seed only), `cases.release` relabelled "Stop watching"; `users.propose_head` and `admin.tickets` (reserved: enabled for no type, never overridden) added by `user-memberships` (47 functions, seed only); `custody.recall` and `custody.track` added and `requests.send`, `requests.answer` retired (`is_active = false`, matrix rows disabled, ignored by access) by `custody-workflow` (49 rows, 47 active, seed only); `admin.sourcetrace` ("SourceTrace ingestion", enabled by default for `central_operator`) added by `sourcetrace-connector` (50 rows, 48 active, seed only); `admin.data_load` ("Manage the data load", module `admin`, enabled for no type by default) added by `data-load-console` (51 rows, 49 active, seed only); `admin.service_health` ("System health", module `admin`, enabled for no type by default) added by `api-health-checker` (52 rows, 50 active, seed only); `seed` refreshes labels and descriptions from `PERMISSION_LABELS`. |
 | `ref_ticket_kind` | code (PK), label, description, sort_order, is_active | Seeded from `TicketKind`: `head_change` ("Head of department change"). Added by `user-memberships` (migration 0008). |
 | `ref_sequences` | office_code, record_type (FK ref_record_type), year, last_value; PK (office_code, record_type, year) | Locked row by row by `allocate_ref_no`. |
 
@@ -258,6 +258,11 @@ As built by `alerts-notifications` (migration 0007, 6 Oct 2026): `alerts` gains 
 > `NAPIX_WINDOW_RESET_JUMP`, precise when the previous reading is at most 300 s older; the phase comes from the
 > latest precise reset (design `napix-window`, migration 0015). Both tables stay class `derived`; `aslms_app`
 > grants unchanged (INSERT / SELECT on `napix_call_log`; SELECT / INSERT / UPDATE on `fetch_queue`).
+> A token renewal is logged as two rows in the order they happened: the HTTP 401 step (`ok` false, `http_status`
+> 401, `error_family` NULL, `error` naming the renewal) and the repeated attempt with its own outcome; a renewal that
+> fails is recorded on the 401 row with its family. The System health rates leave the 401 step out
+> (`http_status = 401 AND error_family IS NULL`); the quota window and per-person counts include it
+> (design `api-health-checker-followups`).
 
 > System health (design `api-health-checker`, no migration, no table or column): the function `admin.service_health`
 > joins `ref_permission` through `aslms seed`. No user type has it by default; the super admin holds every function.
@@ -269,6 +274,11 @@ As built by `alerts-notifications` (migration 0007, 6 Oct 2026): `alerts` gains 
 > `napix.api_tested` (`entity_type` `napix`, `entity_id` NULL, no `case_id`; `after` holds the API key, the outcome,
 > the non-personal sample values and the summary, never the payload). The per-API interval and the per-user hourly
 > cap of the test count those audit rows (`ix_audit_log_created_at`, `ix_audit_log_actor_created`).
+> The test's `napix_call_log` rows and `napix_responses` row are committed in a session of their own as soon as the
+> call ends, and its `audit_log` row in another, so a failure later in the request loses neither; the request
+> transaction holds only reads and the advisory locks `napix-api-test:<key>` and `napix-api-test-user:<user>`. The
+> data-health connectivity check commits its rows the same way and takes `napix-api-test:overview`
+> (design `api-health-checker-followups`, no migration).
 
 > (department-discovery, migration 0017) `fetch_kind` gains `party_search` (ref `<est_code>|P|<reg_year>|<term>`);
 > `fetch_lane` gains `discovery` between `daily` and `load` (precedence request < daily < discovery < load).

@@ -13,6 +13,7 @@ from datetime import UTC, date, datetime, timedelta
 import httpx
 import pytest
 import sqlalchemy as sa
+from fastapi import Request
 
 from aslms.core.config import Settings
 from aslms.domain.alerts import Alert
@@ -184,12 +185,15 @@ def _calls(world) -> list[NapixCallLog]:
         return list(s.scalars(sa.select(NapixCallLog).order_by(NapixCallLog.called_at)).all())
 
 
-def _log(s, api: str, minutes_ago: float, *, ok=True, family=None, ms=100, user_id=None, remaining=None):
+def _log(
+    s, api: str, minutes_ago: float, *, ok=True, family=None, ms=100, user_id=None, remaining=None, http=None
+):
     s.add(
         NapixCallLog(
             api=api,
             params_sha256="0" * 64,
             ok=ok,
+            http_status=http,
             error_family=family,
             duration_ms=ms,
             user_id=user_id,
@@ -677,11 +681,175 @@ def test_cnr_404_never_tries_the_alternate_path(api, world, gw, held, switch_on)
     assert [x["path"] for x in gw.seen] == ["hc-cnr-api/CNR"]
 
 
+def _card(api, h: dict, key: str) -> dict:
+    body = api.get("/admin/system-health", headers=h).json()
+    return next(c for g in body["groups"] for c in g["cards"] if c["key"] == key)
+
+
 def test_token_renewal_counts_two_attempts(api, world, gw, held, switch_on):
     gw.responses = [lambda p, q, r: httpx.Response(401, text="")] + [full_router(gw)] * 5
-    body = _post(api, "state", ds.login(api, "root")).json()
-    assert body["ok"] is True and body["attempts"] == 2 and gw.token_calls == 2
-    assert len(_calls(world)) == 2 and _audits(world)[0].after["attempts"] == 2
+    h = ds.login(api, "root")
+    body = _post(api, "state", h).json()
+    assert body["ok"] is True and body["attempts"] == 2 and body["http_status"] == 200 and gw.token_calls == 2
+    calls = _calls(world)
+    assert [(c.http_status, c.ok, c.error_family) for c in calls] == [(401, False, None), (200, True, None)]
+    assert _audits(world)[0].after["attempts"] == 2
+    card = _card(api, h, "state")
+    assert card["h24"]["calls"] == 1 and card["h24"]["answered"] == 1 and card["status"] == "ok"
+    detail = api.get("/admin/system-health/napix/state", headers=h).json()
+    assert [r["http_status"] for r in detail["recent"]] == [200]
+
+
+def test_renewal_failure_counts_once(api, world, gw, held, switch_on):
+    gw.responses = [lambda p, q, r: httpx.Response(401), lambda p, q, r: httpx.Response(500)]
+    h = ds.login(api, "root")
+    body = _post(api, "state", h).json()
+    assert body["status"] == "down" and body["error_family"] == "NapixUnavailable" and body["attempts"] == 2
+    assert [(c.http_status, c.error_family) for c in _calls(world)] == [
+        (401, None),
+        (500, "NapixUnavailable"),
+    ]
+    card = _card(api, h, "state")
+    assert card["h24"]["calls"] == 1 and card["h24"]["answered"] == 0
+
+
+def test_past_renewal_rows_are_not_counted(api, world):
+    path = "hc-state-api/state"
+    with world.Session() as s:
+        _log(s, path, 30, http=200)
+        for minutes in (
+            1,
+            2,
+            3,
+        ):  # renewal steps after it: counted, they would make the last three all failed
+            _log(s, path, minutes, ok=False, http=401)
+        s.commit()
+    h = ds.login(api, "root")
+    card = _card(api, h, "state")
+    assert card["h24"]["calls"] == 1 and card["h24"]["rate"] == 1.0 and card["d7"]["calls"] == 1
+    assert card["status"] == "ok" and card["last_call"]["answered"] is True
+    detail = api.get("/admin/system-health/napix/state", headers=h).json()
+    assert [r["http_status"] for r in detail["recent"]] == [200]
+    with world.Session() as s:  # the rows stay in the call log
+        assert s.scalar(sa.select(sa.func.count()).select_from(NapixCallLog)) == 4
+
+
+# ------------------------------------------------------------------------------------------------ recorded apart
+
+
+def _responses(world) -> int:
+    with world.Session() as s:
+        return int(s.scalar(sa.text("SELECT count(*) FROM napix_responses")) or 0)
+
+
+def test_call_rows_survive_a_failure_after_the_call(api, world, gw, held, switch_on, monkeypatch):
+    from aslms.services import napix_api_check
+
+    real = napix_api_check._summary
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("summary defect")
+
+    monkeypatch.setattr(napix_api_check, "_summary", broken)
+    h = ds.login(api, "root")
+    with pytest.raises(RuntimeError, match="summary defect"):  # the request answers 500
+        _post(api, "state", h)
+    with world.Session() as s:
+        root_id = world.user(s, "root").id
+    assert [(c.api, c.user_id) for c in _calls(world)] == [("hc-state-api/state", root_id)]
+    assert _responses(world) == 1
+    (audit,) = _audits(world)
+    assert audit.after["summary"] is None and audit.after["summary_error"] == "RuntimeError"
+    assert audit.after["ok"] is True and audit.actor_user_id == root_id
+    monkeypatch.setattr(napix_api_check, "_summary", real)
+    r = _post(api, "state", h)
+    assert r.status_code == 429 and r.json()["detail"]["code"] == "test_too_soon"
+    assert len(gw.seen) == 1
+
+
+def test_call_rows_survive_a_failed_audit(api, world, gw, held, switch_on, monkeypatch):
+    from aslms.services import audit
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("audit store down")
+
+    monkeypatch.setattr(audit, "write_audit_apart", broken)
+    h = ds.login(api, "root")
+    with pytest.raises(RuntimeError, match="audit store down"):
+        _post(api, "state", h)
+    assert len(_calls(world)) == 1 and _responses(world) == 1
+    assert _audits(world) == []
+
+
+def test_a_person_runs_one_test_at_a_time(api, world, gw, held, switch_on, engine):
+    with world.Session() as s:
+        root_id = world.user(s, "root").id
+    h = ds.login(api, "root")
+    with engine.connect() as conn, conn.begin():
+        conn.execute(
+            sa.text("SELECT pg_advisory_xact_lock(hashtextextended(:k, 0))"),
+            {"k": f"napix-api-test-user:{root_id}"},
+        )
+        r = _post(api, "state", h)
+        assert r.status_code == 409 and r.json()["detail"]["code"] == "user_test_running"
+        assert "other test is still running" in r.json()["detail"]["message"]
+    assert gw.seen == [] and _audits(world) == [] and _calls(world) == []
+    assert _post(api, "district", h).status_code == 200
+
+
+def test_cap_checked_again_after_the_locks(world, tmp_path, switch_on, monkeypatch):
+    from aslms.services import napix_api_check
+    from aslms.services.audit import write_audit
+
+    api, gateway = _api_with(world, tmp_path, health_test_per_user_hour=1)
+    try:
+        real = napix_api_check.lock_user
+
+        def racing(session, user_id):
+            # another request of the same person committed its test between this one's guard and its locks
+            with world.Session() as s:
+                actor, _ = world.actor(s, "root")
+                write_audit(s, actor, "napix.api_tested", "napix", None, after={"api": "act", "ok": True})
+                s.commit()
+            real(session, user_id)
+
+        monkeypatch.setattr(napix_api_check, "lock_user", racing)
+        r = _post(api, "state", ds.login(api, "root"))
+        assert r.status_code == 429 and r.json()["detail"]["code"] == "test_limit"
+        assert gateway.seen == [] and _calls(world) == []
+    finally:
+        api.__exit__(None, None, None)
+
+
+def test_request_transaction_writes_nothing(api, world, gw, held, switch_on):
+    """The seam: `get_session` is overridden to read `pg_current_xact_id_if_assigned()` just before the request
+    session commits. PostgreSQL assigns a transaction id only on a write, so NULL proves the request transaction wrote
+    nothing (advisory locks and reads do not assign one)."""
+    from aslms.api.deps import get_session
+
+    h = ds.login(api, "root")
+    xids: list = []
+
+    def recording(request: Request):
+        session = request.app.state.session_factory()
+        try:
+            yield session
+            xids.append(session.scalar(sa.text("SELECT pg_current_xact_id_if_assigned()")))
+            session.commit()
+        except BaseException:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+
+    api.app.dependency_overrides[get_session] = recording
+    try:
+        r = _post(api, "state", h)
+    finally:
+        api.app.dependency_overrides.clear()
+    assert r.status_code == 200, r.text
+    assert xids == [None]
+    assert len(_calls(world)) == 1 and len(_audits(world)) == 1
 
 
 def test_pdf_summary_compares_with_the_stored_copy(api, world, gw, held, switch_on):
@@ -733,6 +901,29 @@ def test_per_user_hourly_cap(world, tmp_path, held_cap, switch_on):
     assert int(r.headers["Retry-After"]) > 3000 and len(gw.seen) == 2
     card = api.get("/admin/system-health", headers=h).json()["groups"][0]["cards"][5]
     assert card["test"]["available"] is False and "limit is 2" in card["test"]["reason"]
+
+
+def _api_with(world, tmp_path, **overrides):
+    """An API with its own settings and a scripted gateway behind its client factory."""
+    client = ds.make_api(world, tmp_path, **overrides)
+    client.app.state.service_probes = fake_probes()
+    gateway = Gateway(NapixCrypto(KEY))
+    gateway.responses = [full_router(gateway)] * 100
+
+    def factory():
+        c = NapixClient(
+            base_url="https://gw.test/nic/ecourts",
+            client_id="key-test",
+            client_secret="secret-test",
+            dept_id="dept-test",
+            crypto=NapixCrypto(KEY),
+            transport=httpx.MockTransport(gateway.handle),
+            backoff_base=0.0,
+        )
+        return c, NapixHighCourt(c, "GAHC01", "18")
+
+    client.app.state.napix_factory = factory
+    return client, gateway
 
 
 @pytest.fixture()

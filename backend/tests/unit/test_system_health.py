@@ -240,14 +240,39 @@ def test_name_rules():
     assert not napix_samples.name_passes("RAM@HOME", 200)
 
 
-def test_final_attempt_after_a_token_renewal():
-    from aslms.integration.napix.client import NapixResult
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("5000-01-01", "no"),
+        ("1900-01-01", "no"),
+        ("0000-00-00", "no"),
+        ("", "no"),
+        (None, "no"),
+        ("Next Date Not Given", "no"),
+        ("2026-11-03", "yes"),
+    ],
+)
+def test_next_date_sentinels_read_absent(value, expected):
+    """Design api-health-checker-followups, decision 8: the court's sentinels read as no date."""
+    cnr = json.loads((SAMPLES / "cnr_pending.json").read_text(encoding="utf-8"))
+    cnr["date_next_list"] = value
+    facts = {
+        f["label"]: f["value"] for f in check.summarise_payload("cnr", cnr, {"cnr": cnr["cino"]})["facts"]
+    }
+    assert facts["A next hearing date is present"] == expected
 
-    renewed = NapixResult(api="a", params_sha256="x", ok=True, http_status=200)
-    first = NapixResult(api="a", params_sha256="x", ok=False, http_status=401)
-    assert check.final_attempt([renewed, first], raised=False) is renewed
-    failed = NapixResult(
-        api="a", params_sha256="x", ok=False, http_status=503, error_family="NapixUnavailable"
-    )
-    assert check.final_attempt([failed, first], raised=True) is failed
-    assert check.final_attempt([], raised=True) is None
+
+def test_business_text_presence_is_a_text_check():
+    asked = {"business_date": "2026-07-13"}
+    for business, expected in (
+        ("Heard. List after two weeks.", "yes"),
+        ("  ", "no"),
+        (None, "no"),
+        ("0", "yes"),
+    ):
+        record = {"business_date": "2026-07-13", "business": business}
+        facts = {
+            f["label"]: f["value"] for f in check.summarise_payload("show_business", record, asked)["facts"]
+        }
+        assert facts["Business text is present"] == expected, business
+    assert not hasattr(check, "final_attempt") and not hasattr(check, "_present")

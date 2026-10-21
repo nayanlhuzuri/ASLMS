@@ -14,7 +14,9 @@ a dossier the same way whether the queue or a user asked.
 - `fetch_court`: the dossier of a found case; a provisional case without a CNR is resolved through Search by
   Case Number first (the CNR comes from the court, never invented).
 Every call is audited with its outcome and the recorder's `napix_call_log` rows are flushed before the router
-commits — also before an HTTP error is raised, so failures are recorded, never lost. The router's recorder carries
+commits — also before an HTTP error is raised, so failures are recorded, never lost. The API's recorder carries a
+session factory, so those flushes are committed in a session of their own and survive an unexpected error later
+in the request (design `api-health-checker-followups`, decision 11). The router's recorder carries
 the caller's id, and the order PDFs a person's search queues carry them as `requested_by` (design `napix-window`,
 decision 9)."""
 

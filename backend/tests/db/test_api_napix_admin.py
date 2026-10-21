@@ -547,3 +547,72 @@ def test_by_user_operator_only(api, world, gateway, switch_on):
     assert len(calls) == 3 and {(c["user_id"], c["user_name"]) for c in calls} == {(None, None)}
     r = api.get(f"/admin/napix/calls?user_id={op_id}", headers=oversight)
     assert r.status_code == 403 and r.json()["detail"]["code"] == "forbidden"
+
+
+# ------------------------------------------------------------------------------------------------ recorded apart
+
+
+def test_health_check_renewed_success_is_ok(api, world, gateway, switch_on):
+    """Design api-health-checker-followups, decision 4: the last attempt decides, so a renewed success reads ok."""
+    overview = sample("overview_2026-09-03.json")
+    gateway.responses = [lambda p, q, r: httpx.Response(401), lambda p, q, r: gateway.envelope(overview)]
+    r = api.post("/admin/napix/health/check", headers=ds.login(api, "central_op"))
+    assert r.status_code == 200, r.text
+    assert r.json()["ok"] is True and r.json()["http_status"] == 200 and r.json()["error_family"] is None
+    (audit,) = _audits(world, "napix.health_checked")
+    assert audit.after["attempts"] == 2 and audit.after["ok"] is True
+    with world.Session() as s:
+        logged = s.scalars(sa.select(NapixCallLog).order_by(NapixCallLog.called_at)).all()
+    assert [c.http_status for c in logged] == [401, 200]
+
+
+def test_health_check_rows_survive_a_failed_audit(api, world, gateway, switch_on, monkeypatch):
+    from aslms.services import audit
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("audit store down")
+
+    monkeypatch.setattr(audit, "write_audit_apart", broken)
+    with pytest.raises(RuntimeError, match="audit store down"):  # the request answers 500
+        api.post("/admin/napix/health/check", headers=ds.login(api, "central_op"))
+    with world.Session() as s:
+        logged = s.scalars(sa.select(NapixCallLog)).all()
+    assert [c.api for c in logged] == ["overview/overview"]
+    assert _audits(world, "napix.health_checked") == []
+
+
+def test_health_check_rows_survive_an_unexpected_error(api, world, gateway, switch_on):
+    """The client's call raises an error that is not an integration error after the hook ran: the row is kept."""
+    factory = api.app.state.napix_factory
+
+    def breaking():
+        client, hc = factory()
+        real = client.call
+
+        async def call(*args, **kwargs):
+            await real(*args, **kwargs)
+            raise RuntimeError("after the hook")
+
+        client.call = call
+        return client, hc
+
+    api.app.state.napix_factory = breaking
+    with pytest.raises(RuntimeError, match="after the hook"):
+        api.post("/admin/napix/health/check", headers=ds.login(api, "central_op"))
+    assert len(gateway.seen) == 1
+    with world.Session() as s:
+        logged = s.scalars(sa.select(NapixCallLog)).all()
+    assert [(c.api, c.ok) for c in logged] == [("overview/overview", True)]
+    assert _audits(world, "napix.health_checked") == []
+
+
+def test_health_check_and_connection_test_exclude_each_other(api, world, gateway, switch_on, engine):
+    """Design api-health-checker-followups, decision 7: the check takes the Connection test's lock."""
+    h = ds.login(api, "central_op")
+    with engine.connect() as conn, conn.begin():
+        conn.execute(sa.text("SELECT pg_advisory_xact_lock(hashtextextended('napix-api-test:overview', 0))"))
+        r = api.post("/admin/napix/health/check", headers=h)
+        assert r.status_code == 409 and r.json()["detail"]["code"] == "check_running"
+    assert gateway.seen == [] and gateway.token_calls == 0
+    assert _count(world, NapixCallLog) == 0 and _audits(world, "napix.health_checked") == []
+    assert api.post("/admin/napix/health/check", headers=h).status_code == 200

@@ -6,7 +6,6 @@ status: approved
 approved_by: owner on 2026-10-20
 author: architect
 date: 2026-10-20
-approved_by: (pending)
 ```
 
 ## Context

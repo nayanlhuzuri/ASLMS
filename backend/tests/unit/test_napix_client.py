@@ -13,7 +13,7 @@ from aslms.core.errors import (
     NapixProtocolError,
     NapixUnavailable,
 )
-from aslms.integration.napix.client import NapixClient, RateLimiter, TokenCache, nested_list
+from aslms.integration.napix.client import RENEWED, NapixClient, RateLimiter, TokenCache, nested_list
 from tests.unit.conftest import Gateway
 
 
@@ -64,11 +64,80 @@ async def test_token_is_cached_and_refreshed_once_on_401(client: NapixClient, ga
     assert [s["auth"] for s in gateway.seen] == ["Bearer tok1", "Bearer tok2", "Bearer tok2"]
 
 
-async def test_second_401_is_an_auth_error(client: NapixClient, gateway: Gateway) -> None:
+async def test_second_401_is_an_auth_error(client: NapixClient, gateway: Gateway, calls) -> None:
     gateway.responses += [lambda p, q, r: httpx.Response(401), lambda p, q, r: httpx.Response(401)]
     async with client:
         with pytest.raises(NapixAuthError):
             await client.call("overview/overview")
+    assert [(c.http_status, c.error_family) for c in calls] == [(401, None), (401, "NapixAuthError")]
+    assert calls[0].error == RENEWED
+
+
+# ---------------------------------------------------------------- token renewal (api-health-checker-followups, 4)
+
+
+async def test_renewal_logs_the_401_step_first(client: NapixClient, gateway: Gateway, calls) -> None:
+    gateway.responses += [
+        lambda p, q, r: httpx.Response(401, text=""),
+        lambda p, q, r: gateway.envelope({"ok": 1}),
+    ]
+    async with client:
+        res = await client.call("overview/overview")
+    assert res.ok and len(calls) == 2
+    step, answered = calls
+    assert answered is res
+    assert (step.ok, step.http_status, step.error_family) == (False, 401, None)
+    assert "renewed" in (step.error or "") and step.error == RENEWED
+    assert (answered.ok, answered.http_status, answered.error_family) == (True, 200, None)
+    assert step.called_at is not None and answered.called_at is not None
+    assert step.called_at < answered.called_at
+
+
+async def test_renewal_then_failure_is_logged_once(client: NapixClient, gateway: Gateway, calls) -> None:
+    client.max_attempts = 1
+    gateway.responses += [lambda p, q, r: httpx.Response(401), lambda p, q, r: httpx.Response(503)]
+    async with client:
+        with pytest.raises(NapixUnavailable):
+            await client.call("overview/overview")
+    assert [(c.http_status, c.error_family) for c in calls] == [(401, None), (503, "NapixUnavailable")]
+    assert sum(1 for c in calls if c.error_family) == 1
+    assert calls[0].error == RENEWED
+
+
+async def test_failed_renewal_is_recorded_on_the_401_attempt(
+    client: NapixClient, gateway: Gateway, calls
+) -> None:
+    real = client.token
+
+    async def token(force: bool = False) -> str:
+        if force:
+            raise NapixAuthError("NAPIX token endpoint HTTP 401: check NAPIX_CLIENT_ID / SECRET")
+        return await real(force)
+
+    client.token = token  # type: ignore[method-assign]
+    gateway.responses.append(lambda p, q, r: httpx.Response(401))
+    async with client:
+        with pytest.raises(NapixAuthError):
+            await client.call("overview/overview")
+    assert len(calls) == 1
+    assert (calls[0].http_status, calls[0].error_family, calls[0].ok) == (401, "NapixAuthError", False)
+    assert len(gateway.seen) == 1
+
+
+async def test_renewal_step_duration_excludes_the_repeat(
+    client: NapixClient, gateway: Gateway, calls
+) -> None:
+    import time
+
+    def slow(p, q, r):
+        time.sleep(0.2)
+        return gateway.envelope({"ok": 1})
+
+    gateway.responses += [lambda p, q, r: httpx.Response(401), slow]
+    async with client:
+        await client.call("overview/overview")
+    step, repeat = calls
+    assert repeat.duration_ms >= 150 and step.duration_ms < repeat.duration_ms
 
 
 async def test_print_r_626_is_auth_error_not_retried(client: NapixClient, gateway: Gateway, calls) -> None:

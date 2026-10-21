@@ -220,12 +220,19 @@ def _held_items(session: Session, user: User, exc: data_load.AlreadyHeld) -> lis
 
 
 async def _with_napix(request: Request, user_id: uuid.UUID, fn):
-    """The integration client with a recorder carrying the caller's id (design napix-window, decision 9)."""
+    """The integration client with a recorder carrying the caller's id (design napix-window, decision 9). The
+    recorder commits its call rows and verbatim responses in a session of its own, at every flush and in the
+    `finally`, so an error later in the request cannot roll them back; the case data and the audit row stay in the
+    request transaction (design api-health-checker-followups, decision 11)."""
     client, hc = napix_client(request)
-    recorder = NapixRecorder(user_id=user_id)
+    factory = request.app.state.session_factory
+    recorder = NapixRecorder(user_id=user_id, session_factory=factory)
     client.on_call = recorder.on_call
-    async with client:
-        return await fn(hc, recorder)
+    try:
+        async with client:
+            return await fn(hc, recorder)
+    finally:
+        recorder.flush_apart(factory)
 
 
 @router.post("/fetch", response_model=schemas.CourtSearchOut, responses=ERRORS)
@@ -265,7 +272,7 @@ def fetch(
         )
     except HANDLED as exc:
         if isinstance(exc, CourtSearchFailure):
-            session.commit()  # the call log and the audit row survive the error
+            session.commit()  # the audit row survives the error (the call rows are already committed apart)
         raise _http(exc) from exc
     return schemas.CourtSearchOut(
         source=result.source,

@@ -3,7 +3,12 @@
 `NapixRecorder` is the integration layer's `on_call` hook: it collects each attempt and `flush()` writes one
 `napix_call_log` row per attempt and one `napix_responses` row per decrypted JSON response (deduplicated by
 API, parameters and payload hash; a repeat only bumps `last_seen_at`). PDFs are not stored here: they go to
-`documents` through the storage service."""
+`documents` through the storage service.
+
+`flush_apart(session_factory)` writes the same rows in a session of its own and commits it at once, so a failure
+later in an API request cannot roll them back (design `api-health-checker-followups`, decisions 1 and 11): the
+pattern of the queue runner's window probe, which flushes and commits in its own session. A recorder built with
+`session_factory` (the request paths) does that on every `flush`, whatever session the caller passes."""
 
 from __future__ import annotations
 
@@ -13,9 +18,12 @@ import uuid
 from typing import Any
 
 from sqlalchemy import text
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 
+from aslms.core.logging import get_logger
 from aslms.integration.napix.client import NapixResult
+
+log = get_logger(__name__)
 
 
 def payload_sha256(data: Any) -> str:
@@ -29,8 +37,15 @@ class NapixRecorder:
     search, a fetch or the connectivity check; the runner sets and clears it per item, like `lane`, from the row's
     `requested_by`. Both are recorded per attempt; `called_at` is the attempt's own time (decision 7)."""
 
-    def __init__(self, job_run_id: uuid.UUID | None = None, user_id: uuid.UUID | None = None):
+    def __init__(
+        self,
+        job_run_id: uuid.UUID | None = None,
+        user_id: uuid.UUID | None = None,
+        session_factory: sessionmaker[Session] | None = None,
+    ):
         self.job_run_id = job_run_id
+        # set on the request paths: every flush is committed apart (design api-health-checker-followups, 11)
+        self.session_factory = session_factory
         self.pending: list[NapixResult] = []
         self.calls = 0
         self.last_remaining: int | None = None
@@ -50,6 +65,48 @@ class NapixRecorder:
             self.last_remaining = result.rate_limit[1]
 
     def flush(self, session: Session) -> int:
+        """The pending attempts into `session` (the caller commits), or committed apart when the recorder was built
+        with a session factory."""
+        if self.session_factory is not None:
+            return self.flush_apart(self.session_factory)
+        n = self._write(session)
+        self._clear()
+        return n
+
+    def flush_apart(self, session_factory: sessionmaker[Session]) -> int:
+        """The pending attempts in a session of their own, committed at once. When that write fails (the database
+        cannot be reached), each attempt is named in a warning by its non-secret fields (never the parameters, the
+        payload or the error text) and the exception propagates; the attempts stay pending."""
+        if not self.pending:
+            return 0
+        try:
+            with session_factory() as s:
+                n = self._write(s)
+                s.commit()
+        except Exception:
+            log.warning(
+                "napix call rows could not be written",
+                attempts=[
+                    {
+                        "api": r.api,
+                        "http_status": r.http_status,
+                        "napix_status": r.napix_status,
+                        "error_family": r.error_family,
+                        "duration_ms": r.duration_ms,
+                        "called_at": r.called_at.isoformat() if r.called_at else None,
+                    }
+                    for r in self.pending
+                ],
+            )
+            raise
+        self._clear()
+        return n
+
+    def _clear(self) -> None:
+        self.pending.clear()
+        self._tags.clear()
+
+    def _write(self, session: Session) -> int:
         n = 0
         self.response_ids = {}
         tags = self._tags + [(None, None)] * (len(self.pending) - len(self._tags))
@@ -84,8 +141,6 @@ class NapixRecorder:
             if r.ok and r.data is not None and r.pdf is None:
                 self.response_ids[(r.api, r.params_sha256)] = store_response(session, r, self.job_run_id)
             n += 1
-        self.pending.clear()
-        self._tags.clear()
         return n
 
 

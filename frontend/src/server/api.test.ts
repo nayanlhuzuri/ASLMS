@@ -47,3 +47,14 @@ describe("the proxy's answers", () => {
     expect(text).toMatch(/Too many requests from this address/);
   });
 });
+
+describe("the System health refusals (design api-health-checker-followups, decisions 6 and 7)", () => {
+  it("has a text for a person's other test still running", () => {
+    const text = errorText(new ApiError(409, "user_test_running", "x"));
+    expect(text).toBe("Your other test is still running. Try again when it has finished.");
+  });
+  it("has a text for a connectivity check or connection test running", () => {
+    const text = errorText(new ApiError(409, "check_running", "x"));
+    expect(text).toBe("A connectivity check or a test of the connection is running. Try again in a moment.");
+  });
+});

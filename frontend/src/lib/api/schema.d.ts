@@ -808,10 +808,11 @@ export interface paths {
         /**
          * Health Check
          * @description One Overview call through the integration layer (logged in `napix_call_log`, audited); refused without a
-         *     call when the switch is off (409 `napix_off`), a check ran in the last minute (429 `check_too_soon`; the
-         *     runner's window probes do not count) or the detected window's remaining quota is below the floor (429
-         *     `napix_budget`, `retry_after` to the expected reset). The call carries the caller's id. The payload is not
-         *     returned.
+         *     call when the switch is off (409 `napix_off`), a connectivity check or a test of the connection is running (409
+         *     `check_running`), a check ran in the last minute (429 `check_too_soon`; the runner's window probes do not count)
+         *     or the detected window's remaining quota is below the floor (429 `napix_budget`, `retry_after` to the expected
+         *     reset). The call carries the caller's id. The payload is not returned. The call rows and the audit row are
+         *     committed before the answer is built.
          */
         post: operations["health_check_admin_napix_health_check_post"];
         delete?: never;
@@ -1283,8 +1284,9 @@ export interface paths {
          * Test Api
          * @description ONE court call to this API with an input ASLMS holds (no body: the server picks it), on a fresh client with no
          *     retry, logged and audited. Refused with no call and nothing written: 404 `not_found`; 409 `napix_off`,
-         *     `no_sample`, `test_running`; 429 `test_too_soon`, `test_limit`, `napix_budget`. The court's own failure is a 200
-         *     with `ok: false`.
+         *     `no_sample`, `test_running`, `user_test_running` (your other test is still running: one test at a time per
+         *     person); 429 `test_too_soon`, `test_limit`, `napix_budget`. The court's own failure is a 200 with `ok: false`.
+         *     ASLMS's own failure after the call answers 500: the call and its audit row are recorded before the error.
          */
         post: operations["test_api_admin_system_health_napix__api__test_post"];
         delete?: never;

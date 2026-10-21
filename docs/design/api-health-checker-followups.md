@@ -409,3 +409,35 @@ The owner may, at approval and without reopening the note:
 Separately, two recommendations for the owner, not part of this item:
 - a follow-up row giving the court search routes the same separate commit;
 - the clearer wording of step 2 of the team-approve skill.
+
+## Deviations
+Written by the developer while building (21 Oct 2026).
+
+1. **`POST /admin/data-load/fetch-details` makes no NAPIX call.** Decision 11 lists it among the request paths that
+   call NAPIX, but it only queues `dossier` rows in the `request` lane; the worker makes the calls and commits its own
+   rows. It is listed here as already safe and is not converted. Its test (`test_fetch_details_makes_no_court_call`)
+   proves no gateway call and no call row; the "row survives an unexpected error" test covers the three routes that
+   do call: `POST /cases/search-court`, `POST /cases/{ref}/fetch-court` and `POST /admin/data-load/fetch`.
+2. **The inventory of request-time callers** (`grep` for `NapixRecorder(`, `NapixClient(` and `napix_client(` under
+   `backend/aslms/api/` and `backend/aslms/services/`): the System health test (`napix_api_check.run`), the
+   connectivity check (`napix_admin.health_check`) and the two `_with_napix` helpers in `api/routers/cases.py` and
+   `api/routers/data_load.py`; all four are converted. The queue runner (`services/runner.py`) and the CLI
+   (`aslms napix-check`, `aslms pipeline`) already commit in their own sessions and are unchanged.
+3. **How the court routes commit apart.** In the court search the call and the case writes are interleaved inside
+   the service (`court_search._finish` and the advocate search flush the recorder mid-way; the advocate search needs
+   the response ids for its `search_rows` queue rows). Rather than change each call site, `NapixRecorder` takes an
+   optional `session_factory`; when it is set (only by the two API `_with_napix` helpers), every `flush(session)`
+   commits apart through `flush_apart`. `_with_napix` also calls `flush_apart` in a `finally` around the service call,
+   so attempts still pending when an unexpected error escapes are kept. The case data, the queue rows and the audit
+   row stay in the request transaction.
+4. **`flush_apart` details.** It opens no session when nothing is pending, and it clears the pending attempts only
+   after the commit, so a failed write leaves them pending (and named in the warning) rather than silently dropped.
+5. **The connectivity check's lock** is `napix_admin.lock_check` with the constant `CHECK_LOCK =
+   "napix-api-test:overview"`, the key `napix_api_check.lock(session, "overview")` takes. `napix_api_check` imports
+   `napix_admin`, so the check cannot call `napix_api_check.lock` without an import cycle.
+6. **The seam for `test_request_transaction_writes_nothing`**: `get_session` is replaced through
+   `app.dependency_overrides` by a copy that reads `pg_current_xact_id_if_assigned()` just before the commit.
+   PostgreSQL assigns a transaction id only on a write (reads and advisory locks do not), so NULL proves the request
+   transaction wrote nothing.
+7. **`test_health_check_rows_survive_an_unexpected_error`** wraps the client's `call` so that it raises a
+   `RuntimeError` after the real call (and its hook) completed.

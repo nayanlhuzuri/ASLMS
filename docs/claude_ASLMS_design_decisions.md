@@ -2129,3 +2129,36 @@ section.
 Audit log, Data collection and Administration; the sign-in page with the emblem; 375, 768 and 1280 px without sideways
 scrolling except wide report tables). Administration tables other than Users and Tickets still scroll sideways inside
 their card on phones.
+
+
+## System health follow-ups: call records that survive a failed request (2026-10-21)
+Backlog row 110 `api-health-checker-followups`, branch `feature/api-health-checker-followups`; design `docs/design/api-health-checker-followups.md` (approved by the owner on 21 Oct 2026 with the recommendations, 11 decisions). No migration (head stays 0020); `docs/schema/schema.md` has as-built notes (no table or column change) and the `ref_permission` count corrected to 52 rows, 50 active. Closes the six advisory findings of row 109 and two defects of the same kind found while designing.
+
+**Built**
+- `NapixRecorder.flush_apart(session_factory)` commits the `napix_call_log` and `napix_responses` rows in a session of their own, opens no session when nothing is pending, and clears the pending attempts only after the commit. `audit.write_audit_apart(...)` does the same for an audit row.
+- System health Test now (`services/napix_api_check.run`): call rows committed apart in a `finally`, then the summary, then `napix.api_tested` written apart; an unexpected error in the summary still writes the audit row with `summary: null` and `summary_error` (the exception class name) and the request answers 500. The request transaction itself writes nothing.
+- The data-health connectivity check (`napix_admin.health_check`) gets a `try/finally`, the same separate commits, and takes the lock `napix-api-test:overview` shared with the Connection test (409 `check_running`).
+- Per-person lock `napix-api-test-user:<user>` taken before the per-API lock (409 `user_test_running`); the per-API interval and the hourly cap are checked again once both locks are held.
+- Client (`NapixClient._attempt`): a token renewal is logged in the order it happened, as the HTTP 401 step (`ok` false, `error_family` NULL) and then the repeated attempt as its own row; a failed repeat is no longer copied onto the 401 row; durations no longer nest. `napix_api_check.final_attempt` removed.
+- `services/system_health.py`: the answered rates, bars, median and p95, last-result rule and last 10 calls leave out the renewal step (`http_status = 401 AND error_family IS NULL`). The quota window and calls-by-person still count it.
+- Summary dates read with `napix_values.as_date` (the sentinels `5000-01-01`, `1900-01-01`, `0000-00-00`, a blank and "Next Date Not Given" read as absent); business text stays a plain non-blank check.
+- Owner's addition (decision 11): `POST /cases/search-court`, `POST /cases/{ref}/fetch-court` and `POST /admin/data-load/fetch` commit their call rows apart too. Their audit rows and case data stay in the request transaction.
+- Portal: two messages in `frontend/src/lib/messages.ts`; `frontend/openapi.json` and `schema.d.ts` regenerated for the two new refusal codes.
+- Tests: `tests/unit/test_napix_client.py` (renewal logs the 401 step first, a failure after renewal is logged once, a failed renewal on the 401 row, durations do not nest, a second 401 is an auth error); `tests/unit/test_system_health.py` (sentinel dates, business text); `tests/db/test_api_system_health.py` (rows survive a failure after the call and a failed audit, one test at a time per person, cap checked again after the locks, request transaction writes nothing, renewal counted once, past renewal rows not counted); `tests/db/test_api_napix_admin.py` (renewed success is ok, rows survive a failed audit and an unexpected error, the check and the Connection test exclude each other); `tests/db/test_court_search.py` and `tests/db/test_api_data_load.py` (call rows survive an unexpected error; `fetch-details` makes no court call); `frontend/src/server/api.test.ts` (the two messages).
+
+**Decisions and reasons** (full list in the design note)
+- A separate session, not a savepoint or a mid-request commit: a savepoint rolls back with the request, and a mid-request commit would release the advisory locks and commit half-done work. It keeps the CLAUDE.md rule that every call is logged and failures are never lost.
+- The audit row is written apart too, so the per-API interval and the per-person cap, which count those rows, see every test that made a call. ASLMS's own defects after a call give a 500, not a hidden empty summary.
+- The client emits the 401 step before the repeat, rather than pairing rows in SQL, since the rows carry no link. One predicate also covers old successful-renewal rows, so no data migration.
+- A try-lock, not a blocking lock, so no pooled connection is held for another person's call; transaction-scoped, so safe under PgBouncer transaction mode (row 78).
+- The connectivity check shares the Connection test's lock (decision 7, kept by the owner) to close the race of two Overview calls.
+
+**Deviations from the design note**
+- `POST /admin/data-load/fetch-details` makes no NAPIX call (it only queues `dossier` rows in the `request` lane), so it is already safe and not converted; a test proves no call and no call row. The other three routes are converted.
+- Inventory of request-time callers: Test now, the connectivity check and the two `_with_napix` helpers (`api/routers/cases.py`, `api/routers/data_load.py`) are converted; the queue runner and the CLI already commit apart.
+- The court routes interleave the call and case writes inside the service, so `NapixRecorder` takes an optional `session_factory`; when set (only by the two `_with_napix` helpers) every `flush(session)` commits apart. `_with_napix` also calls `flush_apart` in a `finally`.
+- `CHECK_LOCK` and `napix_admin.lock_check` live in `napix_admin` because `napix_api_check` imports it (import cycle otherwise).
+- The seam of `test_request_transaction_writes_nothing`: `get_session` replaced through `dependency_overrides` with a copy that reads `pg_current_xact_id_if_assigned()` before the commit (NULL proves no write).
+- The stray second `approved_by: (pending)` line of `docs/design/api-health-checker.md` removed; the team-approve skill wording was already changed by the owner on `main`.
+
+**Left for later**: data health's "failed today" count and failures list still include a renewal's 401 row (outside this row); past renewal rows whose repeat failed count twice until they leave the 7-day window (no rewrite of `napix_call_log`); typed test inputs and mail and SourceTrace cards (from row 109). No live NAPIX check was made (scripted gateway only).

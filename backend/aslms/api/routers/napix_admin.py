@@ -180,10 +180,11 @@ def health_check(
     request: Request, session: Session = Depends(get_session), user: User = Depends(napix_operator)
 ) -> schemas.HealthCheckOut:
     """One Overview call through the integration layer (logged in `napix_call_log`, audited); refused without a
-    call when the switch is off (409 `napix_off`), a check ran in the last minute (429 `check_too_soon`; the
-    runner's window probes do not count) or the detected window's remaining quota is below the floor (429
-    `napix_budget`, `retry_after` to the expected reset). The call carries the caller's id. The payload is not
-    returned."""
+    call when the switch is off (409 `napix_off`), a connectivity check or a test of the connection is running (409
+    `check_running`), a check ran in the last minute (429 `check_too_soon`; the runner's window probes do not count)
+    or the detected window's remaining quota is below the floor (429 `napix_budget`, `retry_after` to the expected
+    reset). The call carries the caller's id. The payload is not returned. The call rows and the audit row are
+    committed before the answer is built."""
     settings = request.app.state.settings
     actor = actor_of(request, user, session)
     try:
@@ -192,7 +193,8 @@ def health_check(
         )
         napix_admin.check_guard(session, settings)
         client, hc = napix_client(request)
-        outcome = asyncio.run(napix_admin.health_check(session, actor, user, settings, client, hc))
+        factory = request.app.state.session_factory
+        outcome = asyncio.run(napix_admin.health_check(session, factory, actor, user, settings, client, hc))
     except HANDLED as exc:
         raise _http(exc) from exc
     return schemas.HealthCheckOut(**outcome.to_dict())

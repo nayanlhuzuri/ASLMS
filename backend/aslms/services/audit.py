@@ -9,7 +9,7 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 
 from aslms.domain.events import AuditLog
 
@@ -68,3 +68,25 @@ def write_audit(
     session.add(row)
     session.flush()
     return row
+
+
+def write_audit_apart(
+    session_factory: sessionmaker[Session],
+    actor: Actor,
+    action: str,
+    entity_type: str,
+    entity_id: uuid.UUID | None,
+    *,
+    before: Any = None,
+    after: Any = None,
+    case_id: uuid.UUID | None = None,
+) -> uuid.UUID:
+    """`write_audit` in a session of its own, committed at once: the same row in the same append-only table, kept
+    whatever the request does next (design `api-health-checker-followups`, decision 2). The row's id."""
+    with session_factory() as s:
+        row = write_audit(
+            s, actor, action, entity_type, entity_id, before=before, after=after, case_id=case_id
+        )
+        row_id = row.id
+        s.commit()
+    return row_id

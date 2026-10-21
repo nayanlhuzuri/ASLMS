@@ -16,7 +16,10 @@ or an order PDF, retry a failed queue row or every failed row of a kind, and the
   one Overview call, refused without a call when the switch is off, a check ran within
   `NAPIX_HEALTH_CHECK_MIN_SECONDS`, or the detected window's remaining quota is below `NAPIX_SEARCH_FLOOR` (design
   `napix-window`, decision 6). Only Overview calls without a `job_run_id` count as checks: the runner's window
-  probes carry their pass's id. The payload is never returned or stored in the audit row.
+  probes carry their pass's id. The payload is never returned or stored in the audit row. The check takes the
+  Connection test's advisory lock `napix-api-test:overview` (409 `check_running`) and looks at the guard once more;
+  its call rows and its audit row are committed in sessions of their own as soon as each is known (design
+  `api-health-checker-followups`, decisions 3 and 7).
 - **Who** (design `napix-window`, decision 9): the check's calls carry the caller's id; the rows a button queues
   carry the acting person as `requested_by` (NULL for the `system` actor); `retry-failed` sets none."""
 
@@ -29,7 +32,7 @@ from typing import Any
 
 import httpx
 from sqlalchemy import func, select, text
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 
 from aslms.core.config import Settings
 from aslms.core.errors import IntegrationError
@@ -41,7 +44,7 @@ from aslms.domain.org import User
 from aslms.domain.reference import Permission
 from aslms.integration.napix.client import NapixClient
 from aslms.integration.napix.hc import NapixHighCourt
-from aslms.services import access, napix_window, queue
+from aslms.services import access, audit, napix_window, queue
 from aslms.services.access import Forbidden, Member
 from aslms.services.audit import Actor, write_audit
 from aslms.services.audit_search import to_ist
@@ -101,8 +104,8 @@ class AdminNotFound(LookupError):
 
 
 class CheckRefused(Exception):
-    """The connectivity check was refused before any call: `napix_off` (409), `check_too_soon` or `napix_budget`
-    (429 with `retry_after`)."""
+    """The connectivity check was refused before any call: `napix_off` or `check_running` (409: a connectivity check
+    or a test of the connection is running), `check_too_soon` or `napix_budget` (429 with `retry_after`)."""
 
     def __init__(self, code: str, message: str, http_status: int, retry_after: int | None = None) -> None:
         super().__init__(message)
@@ -483,6 +486,22 @@ def check_guard(session: Session, settings: Settings, now: datetime | None = Non
         )
 
 
+# the key a Connection "Test now" locks (napix_api_check.lock(session, "overview")): one Overview call at a time
+CHECK_LOCK = "napix-api-test:overview"
+
+
+def lock_check(session: Session) -> None:
+    """409 `check_running` while a connectivity check or a Connection test is in flight (transaction-scoped:
+    PgBouncer-safe; design `api-health-checker-followups`, decision 7)."""
+    got = session.scalar(text("SELECT pg_try_advisory_xact_lock(hashtextextended(:k, 0))"), {"k": CHECK_LOCK})
+    if not got:
+        raise CheckRefused(
+            "check_running",
+            "A connectivity check or a test of the connection is running; try again in a moment",
+            409,
+        )
+
+
 def last_check_at(session: Session) -> datetime | None:
     """The latest connectivity check: an Overview call made outside a runner pass (probes carry a `job_run_id`)."""
     return session.scalar(
@@ -494,6 +513,7 @@ def last_check_at(session: Session) -> datetime | None:
 
 async def health_check(
     session: Session,
+    session_factory: sessionmaker[Session],
     actor: Actor,
     user: User | Member,
     settings: Settings,
@@ -501,23 +521,30 @@ async def health_check(
     hc: NapixHighCourt,
 ) -> CheckOutcome:
     """One Overview call with the recorder attached; the attempt(s) land in `napix_call_log` like any other call. An
-    integration error is an outcome (`ok = false` with its family), not an exception."""
+    integration error is an outcome (`ok = false` with its family), not an exception. The call rows and the audit
+    row are committed through `session_factory`, each in a session of its own (design
+    `api-health-checker-followups`, decision 3); the request session only reads and holds the lock."""
     member = acting_member(session, user, Permission.ADMIN_NAPIX_REFETCH, Permission.ADMIN_MASTERS_SYNC)
     check_guard(session, settings)
+    lock_check(session)
+    check_guard(session, settings)  # a check or a Connection test committed while this request took the lock
     recorder = NapixRecorder(user_id=napix_window.user_id_of(user))
     client.on_call = recorder.on_call
     called_at = datetime.now(UTC)
     error_family: str | None = None
     ok = True
+    attempts = []
     try:
-        async with client:
-            await hc.overview()
-    except (IntegrationError, httpx.HTTPError) as exc:
-        ok = False
-        error_family = type(exc).__name__
-    attempts = list(recorder.pending)
-    recorder.flush(session)
-    last = attempts[-1] if attempts else None
+        try:
+            async with client:
+                await hc.overview()
+        except (IntegrationError, httpx.HTTPError) as exc:
+            ok = False
+            error_family = type(exc).__name__
+    finally:
+        attempts = list(recorder.pending)
+        recorder.flush_apart(session_factory)
+    last = attempts[-1] if attempts else None  # the client logs a renewal's 401 step first
     outcome = CheckOutcome(
         ok=ok and last is not None and last.ok,
         called_at=called_at,
@@ -528,8 +555,8 @@ async def health_check(
         token_verified=last.token_verified if last else None,
         remaining=recorder.last_remaining,
     )
-    write_audit(
-        session,
+    audit.write_audit_apart(
+        session_factory,
         access.actor_as(actor, member),
         "napix.health_checked",
         "napix",

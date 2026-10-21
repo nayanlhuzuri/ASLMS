@@ -977,3 +977,49 @@ def test_advocate_name_cannot_alter_the_gateway_request(api, world, types):
         with pytest.raises(NapixInputError):
             asyncio.run(hc.search_advocate("SAIKIA|reg_year=1999", 2025))
     assert api.gw.seen == []
+
+
+# ------------------------------------------------------------------------------------------------ recorded apart
+
+
+def _broken_apply(*args, **kwargs):
+    raise RuntimeError("apply defect")
+
+
+def test_search_court_call_rows_survive_an_unexpected_error(api, world, types, monkeypatch):
+    """Design api-health-checker-followups, decision 11: the call rows and the verbatim response are committed apart;
+    the case data and the audit row of the failed request are not."""
+    from aslms.services import court_search
+
+    monkeypatch.setattr(court_search, "apply_dossier", _broken_apply)
+    cnr = "GAHC010000000778"
+    with pytest.raises(RuntimeError, match="apply defect"):  # the request answers 500
+        api.post("/cases/search-court", json={"kind": "cnr", "cnr": cnr}, headers=login(api, "edu_admin"))
+    assert [c["path"] for c in api.gw.seen] == ["hc-cnr-api/CNR"]
+    with world.Session() as s:
+        user_id = world.user(s, "edu_admin").id
+        calls = s.execute(sa.text("select api, user_id from napix_call_log")).all()
+    assert [(a, u) for a, u in calls] == [("hc-cnr-api/CNR", user_id)]
+    assert count(world, "napix_responses", "api = 'hc-cnr-api/CNR'") == 1
+    assert count(world, "cases", f"cnr = '{cnr}'") == 0 and count(world, "case_parties") == 0
+    assert audits(world, "case.search_court") == []
+
+
+def test_fetch_court_call_rows_survive_an_unexpected_error(api, world, types, monkeypatch):
+    from aslms.services import court_search
+
+    cnr = "GAHC010000000779"
+    with world.Session() as s:
+        case = make_case(s, cnr=cnr)
+        s.commit()
+        case_id = case.id
+    monkeypatch.setattr(court_search, "apply_dossier", _broken_apply)
+    with pytest.raises(RuntimeError, match="apply defect"):
+        api.post(f"/cases/{cnr}/fetch-court", headers=login(api, "edu_admin"))
+    assert [c["path"] for c in api.gw.seen] == ["hc-cnr-api/CNR"]
+    assert count(world, "napix_call_log", "api = 'hc-cnr-api/CNR'") == 1
+    assert count(world, "napix_responses", "api = 'hc-cnr-api/CNR'") == 1
+    with world.Session() as s:
+        assert s.get(Case, case_id).last_full_refresh_at is None
+    assert count(world, "case_parties", f"case_id = '{case_id}'") == 0
+    assert audits(world, "case.fetch_court") == []

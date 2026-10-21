@@ -75,14 +75,16 @@ def test_api(
 ) -> schemas.ApiTestOut:
     """ONE court call to this API with an input ASLMS holds (no body: the server picks it), on a fresh client with no
     retry, logged and audited. Refused with no call and nothing written: 404 `not_found`; 409 `napix_off`,
-    `no_sample`, `test_running`; 429 `test_too_soon`, `test_limit`, `napix_budget`. The court's own failure is a 200
-    with `ok: false`."""
+    `no_sample`, `test_running`, `user_test_running` (your other test is still running: one test at a time per
+    person); 429 `test_too_soon`, `test_limit`, `napix_budget`. The court's own failure is a 200 with `ok: false`.
+    ASLMS's own failure after the call answers 500: the call and its audit row are recorded before the error."""
     settings = request.app.state.settings
     actor = actor_of(request, user, session)
+    factory = request.app.state.session_factory
     try:
         napix_api_check.guard(session, settings, user, api)
         client, hc = napix_client(request)
-        outcome = asyncio.run(napix_api_check.run(session, actor, user, settings, client, hc, api))
+        outcome = asyncio.run(napix_api_check.run(session, factory, actor, user, settings, client, hc, api))
     except HANDLED as exc:
         raise _http(exc) from exc
     return schemas.ApiTestOut(**outcome.to_dict())

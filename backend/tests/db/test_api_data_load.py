@@ -538,3 +538,40 @@ def test_endpoints_refuse_unauthenticated_and_disabled_users(api, world):
         s.commit()
     for method, path in calls:
         assert getattr(api, method)(path, headers=headers).status_code == 401, path
+
+
+# ------------------------------------------------------------------------------------------------ recorded apart
+
+
+def test_fetch_call_rows_survive_an_unexpected_error(api, world, gateway, switch_on, monkeypatch):
+    """Design api-health-checker-followups, decision 11: the call rows and the verbatim response are committed apart;
+    the case data and the audit row of the failed request are not."""
+    from aslms.services import court_search
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("apply defect")
+
+    monkeypatch.setattr(court_search, "apply_dossier", broken)
+    with pytest.raises(RuntimeError, match="apply defect"):  # the request answers 500
+        api.post("/admin/data-load/fetch", json={"kind": "cnr", "cnr": CNR2}, headers=ds.login(api, "root"))
+    assert [x["path"] for x in gateway.seen] == ["hc-cnr-api/CNR"]
+    with world.Session() as s:
+        root_id = world.user(s, "root").id
+        calls = s.scalars(sa.select(NapixCallLog)).all()
+        assert [(c.api, c.user_id) for c in calls] == [("hc-cnr-api/CNR", root_id)]
+        assert s.scalar(sa.text("select count(*) from napix_responses")) == 1
+        assert s.scalar(sa.select(sa.func.count()).select_from(Case).where(Case.cnr == CNR2)) == 0
+    assert _audits(world, "case.search_court") == []
+
+
+def test_fetch_details_makes_no_court_call(api, world, gateway, switch_on):
+    """`fetch-details` only queues dossier rows for the worker (which commits its own rows): no request-time call,
+    so it has no call rows to lose (design api-health-checker-followups, decision 11)."""
+    with world.Session() as s:
+        make_case(s, cnr=CNR2)
+        s.commit()
+    r = api.post("/admin/data-load/fetch-details", json={"cases": [CNR2]}, headers=ds.login(api, "root"))
+    assert r.status_code == 200 and r.json()["items"][0]["state"] == "queued"
+    assert gateway.seen == [] and gateway.token_calls == 0
+    with world.Session() as s:
+        assert s.scalar(sa.select(sa.func.count()).select_from(NapixCallLog)) == 0
