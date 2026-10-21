@@ -2,10 +2,10 @@
 
 ```
 slug: api-health-checker-followups
-status: awaiting-approval
+status: approved
 author: architect
 date: 2026-10-21
-approved_by: (pending)
+approved_by: owner on 2026-10-21
 ```
 
 ## Context
@@ -194,8 +194,24 @@ Not covered here:
    - In `docs/design/api-health-checker.md`, the second header line `approved_by: (pending)` is deleted. The status
      `approved` and `approved_by: owner on 2026-10-20` stay, and the history stays in git.
    - The cause is the wording of step 2 in `.claude/skills/team-approve/SKILL.md` ("set … `approved_by:`"), which was
-     read as "add" rather than "replace". That file is the owner's team configuration. This item does not change it;
-     the owner may change the wording.
+     read as "add" rather than "replace". That file is the owner's team configuration. *At approval (21 Oct 2026),
+     the owner had the wording changed to "replace the existing `approved_by:` line"; the change is on `main`.*
+
+11. **Added at approval by the owner (21 Oct 2026): the other request paths that call NAPIX get the same treatment.**
+    These routes write their call rows into the request session and commit them only on the errors they handle, so an
+    unhandled exception after the call loses those rows. That breaks the same CLAUDE.md rule:
+    - `POST /cases/search-court` and `POST /cases/{ref}/fetch-court` in `backend/aslms/api/routers/cases.py`;
+    - `POST /admin/data-load/fetch` and `POST /admin/data-load/fetch-details` in `backend/aslms/api/routers/data_load.py`.
+    Each route uses `NapixRecorder.flush_apart(session_factory)` in a `finally` right after the call, as in decision 1,
+    so the call rows and the verbatim responses are committed whatever happens next. Their existing audit rows and the
+    case data they write stay in the request transaction (a failed request must not leave half-written case data). The
+    developer first reads any other request-time caller of the integration layer (`grep` for the recorder and for
+    `NapixClient(` under `backend/aslms/api/` and `backend/aslms/services/`). Every such caller is either converted or
+    listed in the report with the reason it is already safe. Callers that run in the worker already commit apart and are
+    not changed.
+    - Tests (scripted gateway): for each of the four routes, an unexpected error raised after the call (monkeypatched
+      into the step that follows) → the request answers 500, and the `napix_call_log` row and the `napix_responses`
+      row of that call are present in a fresh session; no case data from that request is committed.
 
 10. **No migration, no new table, column or setting.** The head stays 0020. The responses keep their shapes. The only
     API changes are the two new refusal codes (decisions 6 and 7) and a 500, instead of a silent loss, for ASLMS's own
