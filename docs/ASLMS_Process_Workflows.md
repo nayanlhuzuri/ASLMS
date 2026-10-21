@@ -446,9 +446,11 @@ Court records (orders, cause lists) are open to everyone who can see the case.
 
 ## 4. Walk-throughs by user type
 
-### 4.1 An Education department officer is recommended a case and claims it
+### 4.1 A departmental user is recommended a case and claims it
 
-*Example: you are the head of the Education department, or its admin. Both hold the claim function.*
+*The departmental user here is any member of a department who holds the "Claim cases" function: by default
+the department head and the department admin, or anyone the administrator grants it to. The Education Department
+is used as the example department.*
 
 **Step 1: the system recommends the case.** No person takes part in this step.
 
@@ -491,7 +493,7 @@ PDFs already downloaded in the background. An order not downloaded yet shows "Fe
 ```mermaid
 sequenceDiagram
     autonumber
-    actor O as Education head
+    actor O as Departmental user
     participant W as Portal
     participant A as ASLMS API
     participant D as Database
