@@ -109,7 +109,7 @@ const MERGE = {
 
 // Owner, 22 Oct 2026: design drafts of other items may sit in temporary worktrees inside the project; they are never
 // part of this item, and the merge always happens in the main project folder.
-const SCOPE = ' Scope is exactly what the design note says. Ignore anything under .claude/worktrees/ (other items' drafts, not this item).'
+const SCOPE = ' Scope is exactly what the design note says. Ignore anything under .claude/worktrees/ (drafts of other items, not this item).'
 
 // ------------------------------------------------------------------ Pick
 phase('Pick')
