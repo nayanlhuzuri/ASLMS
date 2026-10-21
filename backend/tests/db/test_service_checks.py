@@ -124,6 +124,19 @@ def test_pool_card_wording(session):
     assert sc.check_db_pool(session, SETTINGS, _probes(db_head=lambda s: stored)).status == "ok"
 
 
+def test_pool_card_as_the_app_role_without_the_revision_table(session):
+    """The running services connect as `aslms_app`, which may not read `alembic_version` (migration 0001): the card
+    stays ok and says the revision is checked at start-up, instead of 'its details could not be read'."""
+    _clean(session)
+    session.execute(sa.text("SET LOCAL ROLE aslms_app"))
+    try:
+        card = sc.check_db_pool(session, SETTINGS, _probes(db_head=lambda s: "9999"))
+    finally:
+        session.execute(sa.text("RESET ROLE"))
+    assert card.status == "ok", card.headline
+    assert {"label": "Database revision", "value": "checked when the services start"} in card.facts
+
+
 def test_whole_run_within_the_probe_timeout_when_a_probe_hangs(session, tmp_path):
     _clean(session)
     fast = Settings(

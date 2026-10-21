@@ -2055,3 +2055,9 @@ Backlog row 109 `api-health-checker`, branch `feature/api-health-checker`; desig
 **Deviations**: none from the plan or the approved note. The note's header carries a stray second `approved_by: (pending)` line; the owner's approval is recorded in the first.
 
 **Left for later**: typed test inputs, a "test all court APIs" button (rejected for now by decisions 6 and 7), and service cards for mail and SourceTrace once the real connector exists. The owner's browser check with `NAPIX_ENABLED` on for one run is not done by the team.
+
+## 2026-10-21 — System health: the pool card as the app role (on `main`, outside a cycle)
+
+- After api-health-checker merged, `aslms system-health` in the running stack showed "Database through the pool — Unsteady, its details could not be read". The services connect as `aslms_app`, and migration 0001 revokes every right on `alembic_version` from that role, so the card's revision query was refused. The tests had run as the owner role and never saw it.
+- The card now reads the revision in its own savepoint. When the revision is refused, the fact reads "checked when the services start" (`init`'s db-guard already refuses to start the services on a database behind the code), and the card stays ok. The grant is not widened. Test: `test_pool_card_as_the_app_role_without_the_revision_table` (`SET LOCAL ROLE aslms_app`).
+- The first restore check of the backups was run by hand (`docker compose exec backup aslms ops restore-check`). The Backups card had read "no restore check in the last 8 days", because the weekly Sunday run had not yet come round since the backup service started.

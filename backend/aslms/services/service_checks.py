@@ -246,7 +246,6 @@ def check_db_pool(session: Session, settings: Settings, probes: Probes) -> Check
                     "(SELECT count(*) FROM pg_stat_activity), current_setting('max_connections')::int"
                 )
             ).one()
-            stored = session.scalar(text("SELECT version_num FROM alembic_version LIMIT 1"))
     except Exception as exc:  # noqa: BLE001
         return Check(
             "db_pool",
@@ -255,6 +254,14 @@ def check_db_pool(session: Session, settings: Settings, probes: Probes) -> Check
             [_f("Error", type(exc).__name__)],
             select_ms,
         )
+    # `aslms_app` has no right on `alembic_version` (migration 0001 revokes it), so in the running services the
+    # revision is not readable here; `init` already refuses to start the services on a database behind the code
+    stored = None
+    try:
+        with session.begin_nested():
+            stored = session.scalar(text("SELECT version_num FROM alembic_version LIMIT 1"))
+    except Exception:  # noqa: BLE001 — a refused revision is a missing fact, not a fault
+        stored = None
     try:
         head = probes.db_head(settings)
     except Exception:  # noqa: BLE001 — the head is a fact, not the check
@@ -263,14 +270,14 @@ def check_db_pool(session: Session, settings: Settings, probes: Probes) -> Check
     status, headline = "ok", f"Answered in {select_ms} ms"
     if ratio > CONNECTIONS_WARN:
         status, headline = "warn", f"Connections are {round(ratio * 100)} % of the limit"
-    if head is not None and stored != head:
+    if head is not None and stored is not None and stored != head:
         status, headline = "warn", "The database needs an upgrade"
     direct = _address(settings) != settings.health_pool_address
     facts = [
         _f("Server version", version),
         _f("Database size", f"{round(int(size) / (1024 * 1024))} MB"),
         _f("Connections", f"{int(used)} of {int(limit)}"),
-        _f("Database revision", stored),
+        _f("Database revision", stored or "checked when the services start"),
         _f("Code revision", head or "not known"),
     ]
     if direct:
