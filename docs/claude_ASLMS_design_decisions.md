@@ -2174,3 +2174,8 @@ Backlog row 110 `api-health-checker-followups`, branch `feature/api-health-check
   - a unit test's sample e-mail address.
 - Earlier entries of this log, reports and design notes are history and stay unchanged.
 - Guard tests: `frontend/src/lib/branding.test.ts` (no file under `src/` or `public/` names them; the application's name) and `backend/tests/unit/test_branding.py` (no file in the `aslms` package names them).
+
+## 2026-10-21 — The NAPIX switch also reaches the API (owner decision, on `main`)
+
+- Until now Compose passed `NAPIX_ENABLED` only to the `worker`. The `api` therefore always ran with the switch off, and the portal's own court calls answered `napix_off`: court search, fetch from court, the data-load fetch and System health's Test now. The owner approved passing it to the `api` the same way (`NAPIX_ENABLED: ${NAPIX_ENABLED:-false}`). It is still never written as on in any file, and the default stays off.
+- The rule in `docs/operations.md` section 11 is updated to say so.

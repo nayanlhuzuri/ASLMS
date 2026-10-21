@@ -232,6 +232,9 @@ services:
       # the owner's credentials never reach an application process (row 82)
       POSTGRES_PASSWORD: ""
       ASLMS_MIGRATE_URL: ""
+      # the same master switch as the worker, for the portal's own court calls (court search, fetch from court,
+      # the data-load fetch, System health's Test now); off unless the shell that runs `docker compose up` sets it
+      NAPIX_ENABLED: ${NAPIX_ENABLED:-false}
     volumes:
       - ./data:/data
     depends_on:

@@ -249,7 +249,9 @@ empty to signed in in the decisions log.
 ## 11. The NAPIX switch and the load
 
 - NAPIX calls happen only while the master switch is on. The owner sets it in the shell for the run, never in
-  `.env`, `compose.yml` or code.
+  `.env`, `compose.yml` or code. Compose passes it to the `worker` (background fetching) and to the `api` (the
+  portal's own court calls: court search, fetch from court, the data-load fetch, System health's Test now), so one
+  `NAPIX_ENABLED=true docker compose up -d` turns both on, and a start without it leaves both off.
 - Pause and resume the backdated load on the portal's Data collection screen (or `aslms data-load pause --reason ...` /
   `resume`). Do not stop the worker for that.
 - `job_runs` rows left `running` by a restart are marked failed (`interrupted`) when the worker, the scheduler and
