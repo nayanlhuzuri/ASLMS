@@ -645,3 +645,42 @@ No live NAPIX anywhere. The switch is never set; `Settings.napix_configured` is 
 ## Open questions
 None. Every decision is made. Decision 19 lists the defaults the owner may change at approval without reopening the
 design.
+
+## Deviations
+Written by the developer, 21 Oct 2026.
+- **Visibility helper.** `visibility.case_visible` does not exist; the sample label uses `visibility.access_basis`
+  (a case is visible when it returns at least one basis), the same server rule every case query uses.
+- **"ASLMS holds n" for the masters** reads where masters sync keeps each list (`services/masters.py`): High Courts in
+  `high_courts` (not `states`), the court's districts and benches under its High Court (`districts` and `courts` with
+  `high_court_id` of the High Court whose `napix_state_code` is `NAPIX_STATE_CODE`; the bench master fills `courts`,
+  not `benches`), case types of the configured court, acts. Active rows only.
+- **A third read for the last calls.** Besides the two grouped queries, one `row_number()` query over the same 7-day
+  range gives each card's last three calls (the last call and the "last 3 all failed" rule). Verification step 4 on
+  the dev database (110,741 call-log rows in the last 7 days, 21 Oct 2026): hourly 71 ms, percentiles 11 ms, last
+  calls 99 ms, 181 ms in all; `napix_cards` end to end 332 ms. No index migration.
+- **The deciding attempt after a token renewal.** The client logs the renewed attempt before the HTTP 401 one (the
+  401 attempt's hook fires last), so the outcome reads the last answered attempt on success and the last attempt with
+  an error family on failure (`napix_api_check.final_attempt`). Both attempts are logged and counted. The
+  connectivity check `napix_admin.health_check` reads the last attempt and would report a renewed success as failed;
+  it is left unchanged here (decision 16) and noted for the reviewer.
+- **The interval looked at again after the lock.** `run` checks the per-API interval once more after taking the
+  advisory lock, so a test committed while another request waited for the lock refuses the second with
+  `test_too_soon` rather than making a second call.
+- **The outcome's `status`.** `ok` when the court answered with data, `warn` when it answered "not found" or refused
+  the input (answered, not ok), `down` when the call failed. The result shows "Answered", "Answered, nothing found" or
+  "Failed".
+- **Fields the design did not list.** `ApiCardOut` also carries `label`, `label_key` and `status_word`; the overall
+  line's `counts` are `court_working`, `court_total`, `services_working`, `services_total`, `attention` and
+  `not_working`, and `sentence_key` may be `not_known` while nothing is known yet.
+- **Overview figures.** "Typical court response (median, 24 h)" is the median of the cards' 24 h medians (the API
+  keeps no cross-API percentile). The ring's tone follows the card thresholds: 90 % answered or more green, 50 % or
+  more amber, below red; no calls grey.
+- **Samples.** A case whose status is `unknown` gives no advocate sample (`pend_disp` must be P or D). A discovery
+  term is shown as `term`; the `name` sent to the court is never in the public values. Masked names are those with
+  no letter other than X.
+- **Service cards.** Redis reads "Not known" when `REDIS_URL` is not set, and the web card when
+  `OPS_PROBE_WEB_URL` is blank. ClamAV answering without loaded signatures reads Unsteady. A pool card whose details
+  cannot be read (the `SELECT 1` answered) reads Unsteady. Backups read Not working when no restore check succeeded
+  in 8 days, including never (as `RestoreCheckMissing` fires on 0).
+- **Test seam.** `app.state.service_probes` replaces the network probes in the API tests, beside the existing
+  `app.state.napix_factory`.

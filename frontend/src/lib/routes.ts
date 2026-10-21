@@ -120,6 +120,8 @@ export const NAV: readonly NavEntry[] = [
   // design portal-audit-health, decision 2: only where the API serves the log (State-wide `audit.view`)
   { key: "audit", label: T.nav.audit, href: "/audit", group: "oversight", functions: ["audit.view"], built: true, show: readsAudit },
   { key: "data", label: T.nav.data, href: "/data/load", group: "settings", functions: DATA_READERS, built: true },
+  // design api-health-checker, decision 2: System health, after Data collection, for `admin.service_health` only
+  { key: "system", label: T.nav.system, href: "/system", group: "settings", functions: ["admin.service_health"], built: true },
   { key: "admin", label: T.nav.admin, href: "/admin", group: "settings", functions: ADMIN_FUNCTIONS, built: true },
 ];
 

@@ -2028,3 +2028,30 @@ Backlog row 103 `portal-ui-case-calendar`, branch `feature/portal-ui-case-calend
 - The calendar's legend is screen state, not in the URL; switching views drops `month`, `day` and `department`.
 
 **Left for later**: rounds 4 and 5 (rows 104 and 105: dashboard and work lists, oversight and settings, sign-in pages, removal of deprecated token aliases, responsive sweep).
+
+
+## System health: court API and ASLMS service checker (2026-10-21)
+Backlog row 109 `api-health-checker`, branch `feature/api-health-checker`; design `docs/design/api-health-checker.md` (approved by the owner on 20 Oct 2026, 19 numbered decisions). No migration; `docs/schema/schema.md` has an as-built note (no table or column change). This screen is an addition the owner asked for, not in the plan; it complements Prometheus and Grafana (row 77) and the data-health screen, and replaces neither.
+
+**Built**
+- Function `admin.service_health` ("System health"), seeded by `aslms seed` (`access_seed.py`, `domain/reference.py`), given to no user type by default; the super admin holds it. Every endpoint needs it, reading included.
+- API (`api/routers/system_health.py`, schemas in `api/schemas.py`): `GET /system-health` (cards and overall line), `GET /system-health/napix/{api}` (card detail), `POST /system-health/napix/{api}/test` ("Test now"), `GET /system-health/services` (the ten ASLMS checks). `frontend/openapi.json` and `schema.d.ts` regenerated.
+- Services: `services/system_health.py` (the 17 court cards from `napix_call_log` over 7 days with no call made, `card_status`, the overall line), `services/napix_samples.py` (one held-data input chooser per card), `services/napix_api_check.py` (guard, one live call through the integration layer, whitelisted summary, audit row), `services/service_checks.py` (API, database through the pool and direct, Redis, queue worker, scheduler, ClamAV, backups, document store, web portal).
+- `NapixHighCourt.case_by_cnr(cnr, *, fallback=True)`: the test passes `fallback=False` so a gateway 404 on `/CNR` is reported as it is and the alternate path is never tried.
+- `ops_metrics.worker_alive_at(session)`: the worker liveness rule is now one function shared by the exporter and this screen.
+- Settings (also in `.env.example`): `HEALTH_TEST_API_MIN_SECONDS` (60), `HEALTH_TEST_PER_USER_HOUR` (30), `HEALTH_TEST_TIMEOUT_SECONDS` (30), `HEALTH_POOL_ADDRESS`, `HEALTH_POSTGRES_DIRECT_HOST`, `HEALTH_POSTGRES_DIRECT_PORT`.
+- CLI: `aslms system-health [--json]`, read-only.
+- Portal: `/system` ("System health" in the Settings group): status ring, 17 court cards in four groups with 24 hourly bars and answered rates, a detail and test panel, the ten service checks; new inline SVG chart components in `components/ui/charts.tsx` with a reduced-motion fallback.
+- Tests: `tests/db/test_api_system_health.py` (every endpoint needs the function, reading never calls the gateway, one call per API from held inputs, no held data means no call, names never leave the server, a test writes no case data, a gateway 500 is one attempt, empty 200 reported as the known fault, 628 reads answered, the CNR 404 never tries the alternate path, per-API interval, per-user hourly cap, quota floor, unknown window allows a test, concurrent test refused), `test_service_checks.py`, `test_system_health_seed_cli.py`, unit tests `test_system_health.py` and `test_service_checks.py`, frontend `system.test.tsx`, `charts.test.tsx`, `systemHealth.test.ts`, `routes.test.ts`.
+
+**Decisions and reasons** (full list in the design note)
+- A grantable function rather than super-admin-only or reusing `admin.napix_refetch`, so live court tests do not reach every Central operator.
+- A card's "answered" counts a valid not-found or input refusal as up; only transport, gateway, auth and empty-answer failures count as failed. Status (Working, Unsteady, Failing, No recent calls) comes from one pure function.
+- "Test now" makes exactly one call, with no retry or batch, using an input only from data already held; no typed input in this item (the owner may reopen). The answer is summarised from a whitelist and never shown verbatim; party and advocate names never leave the server.
+- Refusals before any call and writing nothing, in order: unknown API, switch off, no held sample, one test per API per interval, per-person hourly cap, quota floor, one at a time (a transaction-scoped advisory lock, safe under PgBouncer transaction mode). Every test that made a call writes one `napix.api_tested` audit row; the interval and cap count those rows.
+- The test runs synchronously in the API request, not through the `request` lane. `NAPIX_ENABLED` is never set in code or tests; tests patch `Settings.napix_configured`.
+- The screen alerts nobody and keeps no history of its own; alerting stays in Prometheus and Alertmanager. Mail and SourceTrace are out of scope.
+
+**Deviations**: none from the plan or the approved note. The note's header carries a stray second `approved_by: (pending)` line; the owner's approval is recorded in the first.
+
+**Left for later**: typed test inputs, a "test all court APIs" button (rejected for now by decisions 6 and 7), and service cards for mail and SourceTrace once the real connector exists. The owner's browser check with `NAPIX_ENABLED` on for one run is not done by the team.

@@ -66,6 +66,14 @@ export type QueueState = S["QueueStateOut"];
 export type CallList = S["CallListOut"];
 export type CallRow = S["CallRowOut"];
 export type HealthCheck = S["HealthCheckOut"];
+export type SystemHealth = S["SystemHealthOut"];
+export type ApiCard = S["ApiCardOut"];
+export type ApiDetail = S["ApiDetailOut"];
+export type ApiTest = S["ApiTestOut"];
+export type ApiCall = S["CallOut"];
+export type HealthStatus = S["ApiCardOut"]["status"];
+export type ServicesHealth = S["ServicesOut"];
+export type ServiceCheck = S["ServiceCheckOut"];
 export type RetryFailed = S["RetryFailedOut"];
 // portal-cases: inbox, search, case page
 export type CaseSummary = S["CaseSummaryOut"];

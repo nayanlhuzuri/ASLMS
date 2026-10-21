@@ -9,3 +9,4 @@ export * from "./feedback";
 export * from "./layout";
 export * from "./motion";
 export * from "./overlays";
+export * from "./charts";

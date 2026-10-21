@@ -110,12 +110,26 @@ def _v(x: Any) -> str:
 # ------------------------------------------------------------------------------------------------ the database
 
 
+def worker_alive_at(session: Session) -> datetime | None:
+    """The queue worker's liveness (design pre-pilot-hardening, decision 4): the later of the latest `queue-run`
+    start and the latest claimed `fetch_queue` row. A long pass claims rows for hours; `search_rows`
+    (`queue.LOCAL_KINDS`) are claimed by the scheduler and do not count. One rule for the exporter and the System
+    health screen (design `api-health-checker`, decision 16). None when the worker never ran."""
+    from aslms.services import queue
+
+    last_pass = session.scalar(select(func.max(JobRun.started_at)).where(JobRun.job == WORKER_PASS_JOB))
+    last_claim = session.scalar(
+        select(func.max(FetchQueueItem.started_at)).where(FetchQueueItem.kind.not_in(queue.LOCAL_KINDS))
+    )
+    return max((t for t in (last_pass, last_claim) if t is not None), default=None)
+
+
 def collect_database(
     session: Session, settings: Settings, now: datetime | None = None
 ) -> tuple[list[Sample], dict[str, datetime]]:
     """Every database gauge in one read-only transaction under the statement timeout. Returns the samples and each
     job's last success (the backup gauges fall back to it)."""
-    from aslms.services import data_health, napix_window, queue, sourcetrace_ingest
+    from aslms.services import data_health, napix_window, sourcetrace_ingest
     from aslms.services.job_repair import ALL_SETS
     from aslms.services.reporting_common import with_timeout
 
@@ -185,13 +199,7 @@ def collect_database(
         out.append(Sample("aslms_job_running", {"job": job}, 0))
         out.append(Sample("aslms_job_running_oldest_seconds", {"job": job}, 0))
     out.append(Sample("aslms_worker_last_pass_timestamp", {}, _ts(last_pass)))
-    # design pre-pilot-hardening, decision 4: a long pass claims rows for hours, so liveness is the later of the pass
-    # start and the latest claim; search_rows (LOCAL_KINDS) are claimed by the scheduler and do not count
-    last_claim = session.execute(
-        select(func.max(q.started_at)).where(q.kind.not_in(queue.LOCAL_KINDS))
-    ).scalar()
-    alive = max((t for t in (last_pass, last_claim) if t is not None), default=None)
-    out.append(Sample("aslms_worker_alive_timestamp", {}, _ts(alive)))
+    out.append(Sample("aslms_worker_alive_timestamp", {}, _ts(worker_alive_at(session))))
 
     # NAPIX: the last hour, the detected window, the switch
     ok_n, failed_n = session.execute(

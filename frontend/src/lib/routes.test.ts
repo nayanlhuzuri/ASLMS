@@ -253,3 +253,18 @@ describe("Audit log navigation (portal-audit-health)", () => {
     expect(AUDIT_ENTRY_CRUMB).toBe("Entry");
   });
 });
+
+describe("System health navigation (api-health-checker, decision 2)", () => {
+  it("the entry shows only with admin.service_health, in Settings after Data collection", () => {
+    const entry = NAV.find((e) => e.key === "system")!;
+    expect(entry).toMatchObject({ href: "/system", group: "settings", label: "System health", functions: ["admin.service_health"] });
+    expect(navFor({ functions: ["admin.service_health"] }).map((e) => e.key)).toEqual(["dashboard", "system"]);
+    for (const fn of ["admin.napix_refetch", "admin.masters_sync", "reports.state", "admin.data_load"] as const) {
+      expect(navFor(only(fn)).map((e) => e.key)).not.toContain("system");
+    }
+    const keys = NAV.map((e) => e.key);
+    expect(keys.indexOf("system")).toBe(keys.indexOf("data") + 1);
+    expect(keys.indexOf("admin")).toBe(keys.indexOf("system") + 1);
+    expect(crumbLabel("/system")).toBe("System health");
+  });
+});

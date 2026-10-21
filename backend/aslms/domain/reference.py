@@ -186,6 +186,7 @@ class Permission(enum.StrEnum):
         "admin.sourcetrace"  # SourceTrace ingestion status and retries (sourcetrace-connector)
     )
     ADMIN_DATA_LOAD = "admin.data_load"  # the backdated load and duplicate checks (data-load-console)
+    ADMIN_SERVICE_HEALTH = "admin.service_health"  # the System health screen (api-health-checker)
     # cases and ownership
     CASES_VIEW_SCOPE = "cases.view_scope"
     CASES_VIEW_ALL = "cases.view_all"

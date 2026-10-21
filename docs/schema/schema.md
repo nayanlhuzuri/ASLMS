@@ -259,6 +259,17 @@ As built by `alerts-notifications` (migration 0007, 6 Oct 2026): `alerts` gains 
 > latest precise reset (design `napix-window`, migration 0015). Both tables stay class `derived`; `aslms_app`
 > grants unchanged (INSERT / SELECT on `napix_call_log`; SELECT / INSERT / UPDATE on `fetch_queue`).
 
+> System health (design `api-health-checker`, no migration, no table or column): the function `admin.service_health`
+> joins `ref_permission` through `aslms seed`. No user type has it by default; the super admin holds every function.
+> The screen reads `napix_call_log` over the last 7 days for its court cards, served by `ix_napix_call_log_called_at`.
+> It reads `job_runs`, `fetch_queue`, `causelists`, `orders`, `documents`, `cases`, `case_parties`, `case_advocates`,
+> `case_hearings`, `case_types`, `discovery_terms` and the master tables for samples and service checks; it never
+> writes to them. A "Test now" writes one `napix_call_log` row per attempt (`user_id` the caller, `lane` and
+> `job_run_id` NULL), at most one `napix_responses` row through the recorder, and one `audit_log` row
+> `napix.api_tested` (`entity_type` `napix`, `entity_id` NULL, no `case_id`; `after` holds the API key, the outcome,
+> the non-personal sample values and the summary, never the payload). The per-API interval and the per-user hourly
+> cap of the test count those audit rows (`ix_audit_log_created_at`, `ix_audit_log_actor_created`).
+
 > (department-discovery, migration 0017) `fetch_kind` gains `party_search` (ref `<est_code>|P|<reg_year>|<term>`);
 > `fetch_lane` gains `discovery` between `daily` and `load` (precedence request < daily < discovery < load).
 > Discovery rows are claimed only at or above `NAPIX_RATE_RESERVE` and while the discovery calls of the current window

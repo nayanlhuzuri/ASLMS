@@ -28,6 +28,7 @@ from aslms.api.routers import ownership as ownership_router
 from aslms.api.routers import reference as reference_router
 from aslms.api.routers import reports as reports_router
 from aslms.api.routers import sourcetrace as sourcetrace_router
+from aslms.api.routers import system_health as system_health_router
 from aslms.api.routers import tickets as tickets_router
 from aslms.api.routers import users as users_router
 from aslms.api.routers import workflow as workflow_router
@@ -86,6 +87,7 @@ def create_app(settings: Settings | None = None, session_factory=None) -> FastAP
     app.include_router(data_load_router.router)
     app.include_router(discovery_router.router)
     app.include_router(next_dates_router.router)
+    app.include_router(system_health_router.router)
 
     api_metrics.install(app)  # last, so it is the outermost middleware
 

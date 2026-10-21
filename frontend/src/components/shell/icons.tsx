@@ -106,6 +106,14 @@ export function DataIcon() {
   );
 }
 
+export function SystemIcon() {
+  return (
+    <Svg>
+      <path d="M1 9h3l2-5 3 10 2-6 1.5 3H17" />
+    </Svg>
+  );
+}
+
 export function AdminIcon() {
   return (
     <Svg>
@@ -146,5 +154,6 @@ export const NAV_ICONS: Record<string, () => ReactNode> = {
   reports: ReportsIcon,
   audit: AuditIcon,
   data: DataIcon,
+  system: SystemIcon,
   admin: AdminIcon,
 };

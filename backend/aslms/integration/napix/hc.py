@@ -152,11 +152,15 @@ class NapixHighCourt:
         return res.pdf if res.pdf is not None else (res.data or {})
 
     # ------------------------------------------------------------------ case record
-    async def case_by_cnr(self, cnr: str) -> dict[str, Any]:
+    async def case_by_cnr(self, cnr: str, *, fallback: bool = True) -> dict[str, Any]:
+        """`fallback=False` (the System health test, design `api-health-checker`, decision 3) reports a gateway 404
+        on `/CNR` as it is and never calls the known-404 `/cnr` path: one click, one call."""
         cino = cnr.strip().upper()
         try:
             res = await self._get("cnr", {"cino": cino})
         except NapixGatewayError:
+            if not fallback:
+                raise
             res = await self._get("cnr_alt", {"cino": cino})  # notes §7: path casing unverified
         return res.data or {}
 

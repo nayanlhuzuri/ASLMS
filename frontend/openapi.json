@@ -909,6 +909,390 @@
         "title": "AllowanceUsedOut",
         "type": "object"
       },
+      "ApiCardOut": {
+        "properties": {
+          "d7": {
+            "$ref": "#/components/schemas/Rate7Out"
+          },
+          "group": {
+            "title": "Group",
+            "type": "string"
+          },
+          "h24": {
+            "$ref": "#/components/schemas/Rate24Out"
+          },
+          "hours": {
+            "description": "24 IST hours, oldest first",
+            "items": {
+              "$ref": "#/components/schemas/HourBucketOut"
+            },
+            "title": "Hours",
+            "type": "array"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "label_key": {
+            "title": "Label Key",
+            "type": "string"
+          },
+          "last_call": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CallOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_test": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LastTestOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "warn",
+              "down",
+              "unknown"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "status_word": {
+            "title": "Status Word",
+            "type": "string"
+          },
+          "test": {
+            "$ref": "#/components/schemas/ApiTestStateOut"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "label_key",
+          "group",
+          "status",
+          "status_word",
+          "last_call",
+          "h24",
+          "d7",
+          "hours",
+          "test",
+          "last_test"
+        ],
+        "title": "ApiCardOut",
+        "type": "object"
+      },
+      "ApiDetailOut": {
+        "properties": {
+          "card": {
+            "$ref": "#/components/schemas/ApiCardOut"
+          },
+          "days": {
+            "description": "7 IST days, oldest first",
+            "items": {
+              "$ref": "#/components/schemas/DayBucketOut"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "recent": {
+            "description": "the last 10 calls, newest first",
+            "items": {
+              "$ref": "#/components/schemas/CallOut"
+            },
+            "title": "Recent",
+            "type": "array"
+          },
+          "sample": {
+            "$ref": "#/components/schemas/SampleOut"
+          },
+          "technical": {
+            "$ref": "#/components/schemas/TechnicalOut"
+          }
+        },
+        "required": [
+          "card",
+          "days",
+          "recent",
+          "sample",
+          "technical"
+        ],
+        "title": "ApiDetailOut",
+        "type": "object"
+      },
+      "ApiGroupOut": {
+        "properties": {
+          "cards": {
+            "items": {
+              "$ref": "#/components/schemas/ApiCardOut"
+            },
+            "title": "Cards",
+            "type": "array"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "cards"
+        ],
+        "title": "ApiGroupOut",
+        "type": "object"
+      },
+      "ApiTestInputOut": {
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "values": {
+            "additionalProperties": true,
+            "title": "Values",
+            "type": "object"
+          }
+        },
+        "required": [
+          "label",
+          "values"
+        ],
+        "title": "ApiTestInputOut",
+        "type": "object"
+      },
+      "ApiTestOut": {
+        "description": "One court call's outcome, summarised; the payload is never returned. A court failure is `ok: false`.",
+        "properties": {
+          "answered": {
+            "title": "Answered",
+            "type": "boolean"
+          },
+          "api": {
+            "title": "Api",
+            "type": "string"
+          },
+          "attempts": {
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "called_at": {
+            "format": "date-time",
+            "title": "Called At",
+            "type": "string"
+          },
+          "duration_ms": {
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "error_family": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Family"
+          },
+          "http_status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Http Status"
+          },
+          "input": {
+            "$ref": "#/components/schemas/ApiTestInputOut"
+          },
+          "napix_status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Napix Status"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "remaining": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "warn",
+              "down",
+              "unknown"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/ApiTestSummaryOut"
+          },
+          "token_verified": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Verified"
+          }
+        },
+        "required": [
+          "api",
+          "ok",
+          "answered",
+          "status",
+          "reason",
+          "http_status",
+          "napix_status",
+          "error_family",
+          "duration_ms",
+          "attempts",
+          "called_at",
+          "token_verified",
+          "remaining",
+          "input",
+          "summary"
+        ],
+        "title": "ApiTestOut",
+        "type": "object"
+      },
+      "ApiTestStateOut": {
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "cost": {
+            "description": "court calls one test makes",
+            "title": "Cost",
+            "type": "integer"
+          },
+          "next_allowed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Allowed At"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "available",
+          "reason",
+          "cost",
+          "next_allowed_at"
+        ],
+        "title": "ApiTestStateOut",
+        "type": "object"
+      },
+      "ApiTestSummaryOut": {
+        "properties": {
+          "facts": {
+            "items": {
+              "$ref": "#/components/schemas/FactOut"
+            },
+            "title": "Facts",
+            "type": "array"
+          },
+          "field_names": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Field Names",
+            "type": "array"
+          },
+          "kind": {
+            "enum": [
+              "rows",
+              "record",
+              "pdf"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "row_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Row Count"
+          }
+        },
+        "required": [
+          "kind",
+          "row_count",
+          "field_names",
+          "facts"
+        ],
+        "title": "ApiTestSummaryOut",
+        "type": "object"
+      },
       "ApplicationOut": {
         "properties": {
           "filing_date": {
@@ -1587,6 +1971,87 @@
           "next_cursor"
         ],
         "title": "CallListOut",
+        "type": "object"
+      },
+      "CallOut": {
+        "description": "One `napix_call_log` row as the System health screen shows it: who made it is never a name.",
+        "properties": {
+          "answered": {
+            "title": "Answered",
+            "type": "boolean"
+          },
+          "by": {
+            "enum": [
+              "background",
+              "person",
+              "you"
+            ],
+            "title": "By",
+            "type": "string"
+          },
+          "called_at": {
+            "format": "date-time",
+            "title": "Called At",
+            "type": "string"
+          },
+          "duration_ms": {
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "error_family": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Family"
+          },
+          "http_status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Http Status"
+          },
+          "napix_status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Napix Status"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "called_at",
+          "answered",
+          "ok",
+          "duration_ms",
+          "http_status",
+          "napix_status",
+          "error_family",
+          "reason",
+          "by"
+        ],
+        "title": "CallOut",
         "type": "object"
       },
       "CallRowOut": {
@@ -4683,6 +5148,39 @@
         "title": "CourtSearchPartyIn",
         "type": "object"
       },
+      "CourtSummaryOut": {
+        "properties": {
+          "failing": {
+            "title": "Failing",
+            "type": "integer"
+          },
+          "no_recent": {
+            "title": "No Recent",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "unsteady": {
+            "title": "Unsteady",
+            "type": "integer"
+          },
+          "working": {
+            "title": "Working",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "working",
+          "unsteady",
+          "failing",
+          "no_recent",
+          "total"
+        ],
+        "title": "CourtSummaryOut",
+        "type": "object"
+      },
       "CourtTransferOut": {
         "properties": {
           "from_court_text": {
@@ -6422,6 +6920,47 @@
           "changed_by"
         ],
         "title": "DataLoadSettingsOut",
+        "type": "object"
+      },
+      "DayBucketOut": {
+        "properties": {
+          "answered": {
+            "title": "Answered",
+            "type": "integer"
+          },
+          "avg_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Ms"
+          },
+          "calls": {
+            "title": "Calls",
+            "type": "integer"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "failed": {
+            "title": "Failed",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "date",
+          "calls",
+          "answered",
+          "failed",
+          "avg_ms"
+        ],
+        "title": "DayBucketOut",
         "type": "object"
       },
       "DayTotalsOut": {
@@ -8934,6 +9473,24 @@
         "title": "ExitTargetOut",
         "type": "object"
       },
+      "FactOut": {
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "value"
+        ],
+        "title": "FactOut",
+        "type": "object"
+      },
       "FailureKindOut": {
         "properties": {
           "kind": {
@@ -9714,6 +10271,43 @@
         "title": "HolderDepartmentCountsOut",
         "type": "object"
       },
+      "HourBucketOut": {
+        "properties": {
+          "answered": {
+            "title": "Answered",
+            "type": "integer"
+          },
+          "avg_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Ms"
+          },
+          "failed": {
+            "title": "Failed",
+            "type": "integer"
+          },
+          "hour": {
+            "description": "the IST hour's start",
+            "format": "date-time",
+            "title": "Hour",
+            "type": "string"
+          }
+        },
+        "required": [
+          "hour",
+          "answered",
+          "failed",
+          "avg_ms"
+        ],
+        "title": "HourBucketOut",
+        "type": "object"
+      },
       "InAppPrefIn": {
         "properties": {
           "enabled": {
@@ -10114,6 +10708,37 @@
           "load"
         ],
         "title": "LaneCountsOut",
+        "type": "object"
+      },
+      "LastTestOut": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "by_you": {
+            "title": "By You",
+            "type": "boolean"
+          },
+          "ok": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ok"
+          }
+        },
+        "required": [
+          "at",
+          "ok",
+          "by_you"
+        ],
+        "title": "LastTestOut",
         "type": "object"
       },
       "LinkGraphOut": {
@@ -14077,6 +14702,78 @@
         "title": "OtpVerifyIn",
         "type": "object"
       },
+      "OverallCountsOut": {
+        "properties": {
+          "attention": {
+            "title": "Attention",
+            "type": "integer"
+          },
+          "court_total": {
+            "title": "Court Total",
+            "type": "integer"
+          },
+          "court_working": {
+            "title": "Court Working",
+            "type": "integer"
+          },
+          "not_working": {
+            "title": "Not Working",
+            "type": "integer"
+          },
+          "services_total": {
+            "title": "Services Total",
+            "type": "integer"
+          },
+          "services_working": {
+            "title": "Services Working",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "court_working",
+          "court_total",
+          "services_working",
+          "services_total",
+          "attention",
+          "not_working"
+        ],
+        "title": "OverallCountsOut",
+        "type": "object"
+      },
+      "OverallOut": {
+        "properties": {
+          "counts": {
+            "$ref": "#/components/schemas/OverallCountsOut"
+          },
+          "sentence_key": {
+            "enum": [
+              "everything_working",
+              "need_attention",
+              "not_working",
+              "not_known"
+            ],
+            "title": "Sentence Key",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "warn",
+              "down",
+              "unknown"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "sentence_key",
+          "counts"
+        ],
+        "title": "OverallOut",
+        "type": "object"
+      },
       "OverrideIn": {
         "properties": {
           "effect": {
@@ -14608,6 +15305,7 @@
           "admin.tickets",
           "admin.sourcetrace",
           "admin.data_load",
+          "admin.service_health",
           "cases.view_scope",
           "cases.view_all",
           "cases.search_court",
@@ -15310,6 +16008,101 @@
           "napix_enabled"
         ],
         "title": "QueueStateOut",
+        "type": "object"
+      },
+      "Rate24Out": {
+        "properties": {
+          "answered": {
+            "title": "Answered",
+            "type": "integer"
+          },
+          "calls": {
+            "title": "Calls",
+            "type": "integer"
+          },
+          "failed": {
+            "title": "Failed",
+            "type": "integer"
+          },
+          "p50_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P50 Ms"
+          },
+          "p95_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P95 Ms"
+          },
+          "rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "answered / calls; null without calls",
+            "title": "Rate"
+          }
+        },
+        "required": [
+          "calls",
+          "answered",
+          "failed",
+          "rate",
+          "p50_ms",
+          "p95_ms"
+        ],
+        "title": "Rate24Out",
+        "type": "object"
+      },
+      "Rate7Out": {
+        "properties": {
+          "answered": {
+            "title": "Answered",
+            "type": "integer"
+          },
+          "calls": {
+            "title": "Calls",
+            "type": "integer"
+          },
+          "failed": {
+            "title": "Failed",
+            "type": "integer"
+          },
+          "rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rate"
+          }
+        },
+        "required": [
+          "calls",
+          "answered",
+          "failed",
+          "rate"
+        ],
+        "title": "Rate7Out",
         "type": "object"
       },
       "ReassignedOut": {
@@ -16140,6 +16933,50 @@
         "title": "RuleDiscoveryOut",
         "type": "object"
       },
+      "SampleOut": {
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "values": {
+            "additionalProperties": true,
+            "description": "non-personal values only; never a name",
+            "title": "Values",
+            "type": "object"
+          }
+        },
+        "required": [
+          "available",
+          "label",
+          "values",
+          "reason"
+        ],
+        "title": "SampleOut",
+        "type": "object"
+      },
       "ScoringSettingsHistoryOut": {
         "properties": {
           "items": {
@@ -16472,6 +17309,80 @@
           "total"
         ],
         "title": "SentListOut",
+        "type": "object"
+      },
+      "ServiceCheckOut": {
+        "properties": {
+          "duration_ms": {
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "facts": {
+            "items": {
+              "$ref": "#/components/schemas/FactOut"
+            },
+            "title": "Facts",
+            "type": "array"
+          },
+          "headline": {
+            "title": "Headline",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "warn",
+              "down",
+              "unknown"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "status",
+          "headline",
+          "facts",
+          "duration_ms"
+        ],
+        "title": "ServiceCheckOut",
+        "type": "object"
+      },
+      "ServicesOut": {
+        "description": "`GET /admin/system-health/services`: the ten ASLMS service checks and the overall line. Never calls NAPIX.",
+        "properties": {
+          "checked_at": {
+            "format": "date-time",
+            "title": "Checked At",
+            "type": "string"
+          },
+          "overall": {
+            "$ref": "#/components/schemas/OverallOut"
+          },
+          "services": {
+            "items": {
+              "$ref": "#/components/schemas/ServiceCheckOut"
+            },
+            "title": "Services",
+            "type": "array"
+          }
+        },
+        "required": [
+          "checked_at",
+          "overall",
+          "services"
+        ],
+        "title": "ServicesOut",
         "type": "object"
       },
       "SmsPrefOut": {
@@ -17242,6 +18153,42 @@
         "title": "SuggestOut",
         "type": "object"
       },
+      "SystemHealthOut": {
+        "description": "`GET /admin/system-health` (design `api-health-checker`): the court cards from the call log. Never calls\nNAPIX, never probes services.",
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/ApiGroupOut"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
+          "napix_enabled": {
+            "title": "Napix Enabled",
+            "type": "boolean"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/CourtSummaryOut"
+          },
+          "window": {
+            "$ref": "#/components/schemas/NapixWindowOut"
+          }
+        },
+        "required": [
+          "as_of",
+          "napix_enabled",
+          "window",
+          "groups",
+          "summary"
+        ],
+        "title": "SystemHealthOut",
+        "type": "object"
+      },
       "TakeOverIn": {
         "properties": {
           "expected_officer_user_id": {
@@ -17421,6 +18368,37 @@
           "taken_from"
         ],
         "title": "TakeOverOut",
+        "type": "object"
+      },
+      "TechnicalOut": {
+        "properties": {
+          "input_fields": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Input Fields",
+            "type": "array"
+          },
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "path",
+          "method",
+          "input_fields"
+        ],
+        "title": "TechnicalOut",
         "type": "object"
       },
       "TicketArchiveIn": {
@@ -24406,6 +25384,236 @@
         "summary": "Get Status",
         "tags": [
           "sourcetrace"
+        ]
+      }
+    },
+    "/admin/system-health": {
+      "get": {
+        "description": "The 17 court cards in four groups, read from the call log of the last 7 days, the detected quota window and\nthe summary. Never calls NAPIX and never probes the services.",
+        "operationId": "get_system_health_admin_system_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemHealthOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get System Health",
+        "tags": [
+          "system-health"
+        ]
+      }
+    },
+    "/admin/system-health/napix/{api}": {
+      "get": {
+        "description": "One card with its 7 daily buckets, its last 10 calls, the held sample the test would use (a case is named\nonly when the caller may see it; a name never) and the technical details. 404 for an unknown key. Never calls\nNAPIX.",
+        "operationId": "get_api_detail_admin_system_health_napix__api__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "api",
+            "required": true,
+            "schema": {
+              "title": "Api",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Api Detail",
+        "tags": [
+          "system-health"
+        ]
+      }
+    },
+    "/admin/system-health/napix/{api}/test": {
+      "post": {
+        "description": "ONE court call to this API with an input ASLMS holds (no body: the server picks it), on a fresh client with no\nretry, logged and audited. Refused with no call and nothing written: 404 `not_found`; 409 `napix_off`,\n`no_sample`, `test_running`; 429 `test_too_soon`, `test_limit`, `napix_budget`. The court's own failure is a 200\nwith `ok: false`.",
+        "operationId": "test_api_admin_system_health_napix__api__test_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "api",
+            "required": true,
+            "schema": {
+              "title": "Api",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiTestOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Test Api",
+        "tags": [
+          "system-health"
+        ]
+      }
+    },
+    "/admin/system-health/services": {
+      "get": {
+        "description": "The ten ASLMS service checks (in parallel, each within the probe timeout) and the overall line across the\ncourt cards and the services. Never calls NAPIX; not audited.",
+        "operationId": "get_services_admin_system_health_services_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServicesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Services",
+        "tags": [
+          "system-health"
         ]
       }
     },

@@ -1,0 +1,206 @@
+/* The System health screen (design api-health-checker, decision 15): the Dashboard template's tokens and kit. */
+
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s3);
+  flex-wrap: wrap;
+}
+
+.band {
+  display: flex;
+  align-items: center;
+  gap: var(--s5);
+  flex-wrap: wrap;
+}
+
+.bandBody {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+.ringValue {
+  display: block;
+  font-size: var(--t-2xl);
+}
+
+.sentence {
+  font-size: var(--t-lg);
+  font-weight: 600;
+  margin: 0 0 var(--s3);
+}
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: var(--s3);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--s3);
+}
+
+@media (min-width: 700px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1100px) {
+  .grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding: var(--s4);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  cursor: pointer;
+  transition: box-shadow var(--fast) var(--ease);
+}
+
+.card:hover {
+  box-shadow: var(--shadow-2);
+}
+
+.card[data-status="ok"] {
+  border-left-color: var(--green);
+}
+
+.card[data-status="warn"] {
+  border-left-color: var(--amber);
+}
+
+.card[data-status="down"] {
+  border-left-color: var(--red);
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-width: 0;
+}
+
+.cardName {
+  margin: 0;
+  font-size: var(--t-md);
+  min-width: 0;
+}
+
+.nameButton {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.nameButton:hover {
+  text-decoration: underline;
+}
+
+.muted {
+  color: var(--text-3);
+  font-size: var(--t-sm);
+  margin: 0;
+}
+
+.figures {
+  display: flex;
+  gap: var(--s4);
+  font-size: var(--t-sm);
+  color: var(--text-2);
+  margin: 0;
+}
+
+.testRow {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  flex-wrap: wrap;
+}
+
+.reason {
+  font-size: var(--t-xs);
+  color: var(--text-3);
+}
+
+.services {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.serviceLine b {
+  margin-right: var(--s2);
+}
+
+.ms {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-3);
+  font-size: var(--t-sm);
+  white-space: nowrap;
+}
+
+.testing {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0;
+}
+
+.error {
+  color: var(--red-text);
+  margin: 0;
+}
+
+.resultWord {
+  font-size: var(--t-lg);
+  margin: 0;
+}
+
+.response p {
+  margin: 0 0 var(--s1);
+}
+
+.track {
+  position: relative;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--slate-soft);
+}
+
+.fill {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--accent);
+  animation: response-fill 700ms var(--ease);
+}
+
+@keyframes response-fill {
+  from {
+    width: 0;
+  }
+}
+
+.marker {
+  position: absolute;
+  top: -3px;
+  width: 2px;
+  height: 14px;
+  background: var(--text);
+}

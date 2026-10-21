@@ -60,6 +60,10 @@ PERMISSION_LABELS: dict[P, tuple[str, str]] = {
         "Manage the data load",
         "Start, pause and order the backdated NAPIX load, fetch single cases from the court, and check duplicates",
     ),
+    P.ADMIN_SERVICE_HEALTH: (
+        "System health",
+        "See whether the court APIs and ASLMS's services are working, and test a court API with one live call",
+    ),
     P.CASES_VIEW_SCOPE: ("View cases in scope", "Cases of the offices the user belongs to"),
     P.CASES_VIEW_ALL: ("View all cases", "Every case across all departments"),
     P.CASES_SEARCH_COURT: ("Search the court", "Search NAPIX by case number, party or advocate"),

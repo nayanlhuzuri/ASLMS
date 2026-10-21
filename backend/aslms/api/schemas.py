@@ -3399,3 +3399,197 @@ class DiscoverySummaryOut(BaseModel):
     cases: DiscoveryCaseCountsOut
     last_searched_at: datetime | None
     latest_failures: list[DiscoveryFailureOut]
+
+
+# ------------------------------------------------------------------------------------------------ system health
+
+HealthStatus = Literal["ok", "warn", "down", "unknown"]
+
+
+class FactOut(BaseModel):
+    label: str
+    value: str
+
+
+class CallOut(BaseModel):
+    """One `napix_call_log` row as the System health screen shows it: who made it is never a name."""
+
+    called_at: datetime
+    answered: bool
+    ok: bool
+    duration_ms: int
+    http_status: int | None
+    napix_status: int | None
+    error_family: str | None
+    reason: str
+    by: Literal["background", "person", "you"]
+
+
+class Rate24Out(BaseModel):
+    calls: int
+    answered: int
+    failed: int
+    rate: float | None = Field(description="answered / calls; null without calls")
+    p50_ms: int | None
+    p95_ms: int | None
+
+
+class Rate7Out(BaseModel):
+    calls: int
+    answered: int
+    failed: int
+    rate: float | None
+
+
+class HourBucketOut(BaseModel):
+    hour: datetime = Field(description="the IST hour's start")
+    answered: int
+    failed: int
+    avg_ms: int | None
+
+
+class ApiTestStateOut(BaseModel):
+    available: bool
+    reason: str | None
+    cost: int = Field(description="court calls one test makes")
+    next_allowed_at: datetime | None
+
+
+class LastTestOut(BaseModel):
+    at: datetime
+    ok: bool | None
+    by_you: bool
+
+
+class ApiCardOut(BaseModel):
+    key: str
+    label: str
+    label_key: str
+    group: str
+    status: HealthStatus
+    status_word: str
+    last_call: CallOut | None
+    h24: Rate24Out
+    d7: Rate7Out
+    hours: list[HourBucketOut] = Field(description="24 IST hours, oldest first")
+    test: ApiTestStateOut
+    last_test: LastTestOut | None
+
+
+class ApiGroupOut(BaseModel):
+    key: str
+    label: str
+    cards: list[ApiCardOut]
+
+
+class CourtSummaryOut(BaseModel):
+    working: int
+    unsteady: int
+    failing: int
+    no_recent: int
+    total: int
+
+
+class SystemHealthOut(BaseModel):
+    """`GET /admin/system-health` (design `api-health-checker`): the court cards from the call log. Never calls
+    NAPIX, never probes services."""
+
+    as_of: datetime
+    napix_enabled: bool
+    window: NapixWindowOut
+    groups: list[ApiGroupOut]
+    summary: CourtSummaryOut
+
+
+class DayBucketOut(BaseModel):
+    date: date
+    calls: int
+    answered: int
+    failed: int
+    avg_ms: int | None
+
+
+class SampleOut(BaseModel):
+    available: bool
+    label: str | None
+    values: dict[str, Any] = Field(description="non-personal values only; never a name")
+    reason: str | None
+
+
+class TechnicalOut(BaseModel):
+    name: str
+    path: str
+    method: str
+    input_fields: list[str]
+
+
+class ApiDetailOut(BaseModel):
+    card: ApiCardOut
+    days: list[DayBucketOut] = Field(description="7 IST days, oldest first")
+    recent: list[CallOut] = Field(description="the last 10 calls, newest first")
+    sample: SampleOut
+    technical: TechnicalOut
+
+
+class ApiTestInputOut(BaseModel):
+    label: str
+    values: dict[str, Any]
+
+
+class ApiTestSummaryOut(BaseModel):
+    kind: Literal["rows", "record", "pdf"]
+    row_count: int | None
+    field_names: list[str]
+    facts: list[FactOut]
+
+
+class ApiTestOut(BaseModel):
+    """One court call's outcome, summarised; the payload is never returned. A court failure is `ok: false`."""
+
+    api: str
+    ok: bool
+    answered: bool
+    status: HealthStatus
+    reason: str
+    http_status: int | None
+    napix_status: int | None
+    error_family: str | None
+    duration_ms: int
+    attempts: int
+    called_at: datetime
+    token_verified: bool | None
+    remaining: int | None
+    input: ApiTestInputOut
+    summary: ApiTestSummaryOut
+
+
+class ServiceCheckOut(BaseModel):
+    key: str
+    label: str
+    status: HealthStatus
+    headline: str
+    facts: list[FactOut]
+    duration_ms: int
+
+
+class OverallCountsOut(BaseModel):
+    court_working: int
+    court_total: int
+    services_working: int
+    services_total: int
+    attention: int
+    not_working: int
+
+
+class OverallOut(BaseModel):
+    status: HealthStatus
+    sentence_key: Literal["everything_working", "need_attention", "not_working", "not_known"]
+    counts: OverallCountsOut
+
+
+class ServicesOut(BaseModel):
+    """`GET /admin/system-health/services`: the ten ASLMS service checks and the overall line. Never calls NAPIX."""
+
+    checked_at: datetime
+    overall: OverallOut
+    services: list[ServiceCheckOut]

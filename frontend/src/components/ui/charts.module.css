@@ -1,0 +1,134 @@
+/* Inline-SVG charts (design api-health-checker, decision 15). The global reduced-motion rule stops every animation
+   too; the components also leave out the animated classes under reduced motion. */
+
+.spark {
+  display: block;
+  width: 100%;
+  overflow: visible;
+}
+
+.ok {
+  fill: var(--green);
+}
+
+.bad {
+  fill: var(--red);
+}
+
+.empty {
+  fill: var(--border-strong);
+}
+
+.bar {
+  transform-box: fill-box;
+  transform-origin: bottom;
+}
+
+.animate .bar {
+  animation: bar-grow var(--slow) var(--ease) both;
+}
+
+@keyframes bar-grow {
+  from {
+    transform: scaleY(0);
+  }
+}
+
+.ring {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+}
+
+.ring svg {
+  position: absolute;
+  inset: 0;
+  transform: rotate(-90deg);
+}
+
+.track {
+  fill: none;
+  stroke: var(--slate-soft);
+  stroke-width: 10;
+}
+
+.sweep {
+  fill: none;
+  stroke-width: 10;
+  stroke-linecap: round;
+}
+
+.sweep.animate {
+  animation: ring-sweep 700ms var(--ease) both;
+}
+
+@keyframes ring-sweep {
+  from {
+    stroke-dashoffset: var(--ring-c);
+  }
+}
+
+.tone-ok {
+  stroke: var(--green);
+}
+
+.tone-warn {
+  stroke: var(--amber);
+}
+
+.tone-down {
+  stroke: var(--red);
+}
+
+.tone-unknown {
+  stroke: var(--text-3);
+}
+
+.ringText {
+  position: relative;
+  text-align: center;
+  font-size: var(--t-sm);
+  line-height: 1.2;
+  padding: 0 var(--s3);
+}
+
+.dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+  vertical-align: middle;
+}
+
+.dot-ok {
+  background: var(--green);
+}
+
+.dot-warn {
+  background: var(--amber);
+}
+
+.dot-down {
+  background: var(--red);
+}
+
+.dot-unknown {
+  background: var(--text-3);
+}
+
+.dot-busy {
+  background: var(--accent);
+}
+
+.pulse {
+  animation: dot-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes dot-pulse {
+  50% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+}

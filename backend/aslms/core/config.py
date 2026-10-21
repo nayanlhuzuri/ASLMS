@@ -205,6 +205,18 @@ class Settings(BaseSettings):
     ops_probe_timeout_seconds: float = Field(5.0, gt=0, le=30)
     ops_disk_paths: str = "/data,/backups"
 
+    # --- the System health screen (design api-health-checker, decision 17) -----------------------------
+    # a court API is tested at most once per HEALTH_TEST_API_MIN_SECONDS by anyone; a person makes at most
+    # HEALTH_TEST_PER_USER_HOUR tests an hour; one test waits at most HEALTH_TEST_TIMEOUT_SECONDS for the court. The
+    # pool card reads "connects directly" when DATABASE_URL_SYNC is not HEALTH_POOL_ADDRESS; the direct database card
+    # probes HEALTH_POSTGRES_DIRECT_HOST:PORT without credentials
+    health_test_api_min_seconds: int = Field(60, ge=10, le=3600)
+    health_test_per_user_hour: int = Field(30, ge=1, le=200)
+    health_test_timeout_seconds: float = Field(30.0, gt=0, le=40)
+    health_pool_address: str = "pgbouncer:6432"
+    health_postgres_direct_host: str = "postgres"
+    health_postgres_direct_port: int = Field(5432, ge=1, le=65535)
+
     @model_validator(mode="after")
     def _reserves_ordered(self) -> Settings:
         """Decision 4: searches stop first, then the daily cycle, then the load."""

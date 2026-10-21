@@ -1227,6 +1227,93 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/system-health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get System Health
+         * @description The 17 court cards in four groups, read from the call log of the last 7 days, the detected quota window and
+         *     the summary. Never calls NAPIX and never probes the services.
+         */
+        get: operations["get_system_health_admin_system_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/system-health/napix/{api}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Api Detail
+         * @description One card with its 7 daily buckets, its last 10 calls, the held sample the test would use (a case is named
+         *     only when the caller may see it; a name never) and the technical details. 404 for an unknown key. Never calls
+         *     NAPIX.
+         */
+        get: operations["get_api_detail_admin_system_health_napix__api__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/system-health/napix/{api}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Api
+         * @description ONE court call to this API with an input ASLMS holds (no body: the server picks it), on a fresh client with no
+         *     retry, logged and audited. Refused with no call and nothing written: 404 `not_found`; 409 `napix_off`,
+         *     `no_sample`, `test_running`; 429 `test_too_soon`, `test_limit`, `napix_budget`. The court's own failure is a 200
+         *     with `ok: false`.
+         */
+        post: operations["test_api_admin_system_health_napix__api__test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/system-health/services": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Services
+         * @description The ten ASLMS service checks (in parallel, each within the probe timeout) and the overall line across the
+         *     court cards and the services. Never calls NAPIX; not audited.
+         */
+        get: operations["get_services_admin_system_health_services_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/tickets": {
         parameters: {
             query?: never;
@@ -4132,6 +4219,136 @@ export interface components {
             /** Request */
             request: number;
         };
+        /** ApiCardOut */
+        ApiCardOut: {
+            d7: components["schemas"]["Rate7Out"];
+            /** Group */
+            group: string;
+            h24: components["schemas"]["Rate24Out"];
+            /**
+             * Hours
+             * @description 24 IST hours, oldest first
+             */
+            hours: components["schemas"]["HourBucketOut"][];
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Label Key */
+            label_key: string;
+            last_call: components["schemas"]["CallOut"] | null;
+            last_test: components["schemas"]["LastTestOut"] | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "warn" | "down" | "unknown";
+            /** Status Word */
+            status_word: string;
+            test: components["schemas"]["ApiTestStateOut"];
+        };
+        /** ApiDetailOut */
+        ApiDetailOut: {
+            card: components["schemas"]["ApiCardOut"];
+            /**
+             * Days
+             * @description 7 IST days, oldest first
+             */
+            days: components["schemas"]["DayBucketOut"][];
+            /**
+             * Recent
+             * @description the last 10 calls, newest first
+             */
+            recent: components["schemas"]["CallOut"][];
+            sample: components["schemas"]["SampleOut"];
+            technical: components["schemas"]["TechnicalOut"];
+        };
+        /** ApiGroupOut */
+        ApiGroupOut: {
+            /** Cards */
+            cards: components["schemas"]["ApiCardOut"][];
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+        };
+        /** ApiTestInputOut */
+        ApiTestInputOut: {
+            /** Label */
+            label: string;
+            /** Values */
+            values: {
+                [key: string]: unknown;
+            };
+        };
+        /**
+         * ApiTestOut
+         * @description One court call's outcome, summarised; the payload is never returned. A court failure is `ok: false`.
+         */
+        ApiTestOut: {
+            /** Answered */
+            answered: boolean;
+            /** Api */
+            api: string;
+            /** Attempts */
+            attempts: number;
+            /**
+             * Called At
+             * Format: date-time
+             */
+            called_at: string;
+            /** Duration Ms */
+            duration_ms: number;
+            /** Error Family */
+            error_family: string | null;
+            /** Http Status */
+            http_status: number | null;
+            input: components["schemas"]["ApiTestInputOut"];
+            /** Napix Status */
+            napix_status: number | null;
+            /** Ok */
+            ok: boolean;
+            /** Reason */
+            reason: string;
+            /** Remaining */
+            remaining: number | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "warn" | "down" | "unknown";
+            summary: components["schemas"]["ApiTestSummaryOut"];
+            /** Token Verified */
+            token_verified: boolean | null;
+        };
+        /** ApiTestStateOut */
+        ApiTestStateOut: {
+            /** Available */
+            available: boolean;
+            /**
+             * Cost
+             * @description court calls one test makes
+             */
+            cost: number;
+            /** Next Allowed At */
+            next_allowed_at: string | null;
+            /** Reason */
+            reason: string | null;
+        };
+        /** ApiTestSummaryOut */
+        ApiTestSummaryOut: {
+            /** Facts */
+            facts: components["schemas"]["FactOut"][];
+            /** Field Names */
+            field_names: string[];
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "rows" | "record" | "pdf";
+            /** Row Count */
+            row_count: number | null;
+        };
         /** ApplicationOut */
         ApplicationOut: {
             /** Filing Date */
@@ -4350,6 +4567,36 @@ export interface components {
             items: components["schemas"]["CallRowOut"][];
             /** Next Cursor */
             next_cursor: string | null;
+        };
+        /**
+         * CallOut
+         * @description One `napix_call_log` row as the System health screen shows it: who made it is never a name.
+         */
+        CallOut: {
+            /** Answered */
+            answered: boolean;
+            /**
+             * By
+             * @enum {string}
+             */
+            by: "background" | "person" | "you";
+            /**
+             * Called At
+             * Format: date-time
+             */
+            called_at: string;
+            /** Duration Ms */
+            duration_ms: number;
+            /** Error Family */
+            error_family: string | null;
+            /** Http Status */
+            http_status: number | null;
+            /** Napix Status */
+            napix_status: number | null;
+            /** Ok */
+            ok: boolean;
+            /** Reason */
+            reason: string;
         };
         /** CallRowOut */
         CallRowOut: {
@@ -5277,6 +5524,19 @@ export interface components {
             /** Reg Year */
             reg_year: number;
         };
+        /** CourtSummaryOut */
+        CourtSummaryOut: {
+            /** Failing */
+            failing: number;
+            /** No Recent */
+            no_recent: number;
+            /** Total */
+            total: number;
+            /** Unsteady */
+            unsteady: number;
+            /** Working */
+            working: number;
+        };
         /** CourtTransferOut */
         CourtTransferOut: {
             /** From Court Text */
@@ -5820,6 +6080,22 @@ export interface components {
             reason: string | null;
             /** Version */
             version: number;
+        };
+        /** DayBucketOut */
+        DayBucketOut: {
+            /** Answered */
+            answered: number;
+            /** Avg Ms */
+            avg_ms: number | null;
+            /** Calls */
+            calls: number;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Failed */
+            failed: number;
         };
         /** DayTotalsOut */
         DayTotalsOut: {
@@ -6640,6 +6916,13 @@ export interface components {
             office_code: string;
             role: components["schemas"]["Role"];
         };
+        /** FactOut */
+        FactOut: {
+            /** Label */
+            label: string;
+            /** Value */
+            value: string;
+        };
         /** FailureKindOut */
         FailureKindOut: {
             /** Kind */
@@ -6871,6 +7154,21 @@ export interface components {
             /** Overdue */
             overdue: number;
         };
+        /** HourBucketOut */
+        HourBucketOut: {
+            /** Answered */
+            answered: number;
+            /** Avg Ms */
+            avg_ms: number | null;
+            /** Failed */
+            failed: number;
+            /**
+             * Hour
+             * Format: date-time
+             * @description the IST hour's start
+             */
+            hour: string;
+        };
         /** InAppPrefIn */
         InAppPrefIn: {
             /** Enabled */
@@ -7002,6 +7300,18 @@ export interface components {
             load: number;
             /** Request */
             request: number;
+        };
+        /** LastTestOut */
+        LastTestOut: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** By You */
+            by_you: boolean;
+            /** Ok */
+            ok: boolean | null;
         };
         /** LinkGraphOut */
         LinkGraphOut: {
@@ -8320,6 +8630,35 @@ export interface components {
             /** Device Token */
             device_token?: string | null;
         };
+        /** OverallCountsOut */
+        OverallCountsOut: {
+            /** Attention */
+            attention: number;
+            /** Court Total */
+            court_total: number;
+            /** Court Working */
+            court_working: number;
+            /** Not Working */
+            not_working: number;
+            /** Services Total */
+            services_total: number;
+            /** Services Working */
+            services_working: number;
+        };
+        /** OverallOut */
+        OverallOut: {
+            counts: components["schemas"]["OverallCountsOut"];
+            /**
+             * Sentence Key
+             * @enum {string}
+             */
+            sentence_key: "everything_working" | "need_attention" | "not_working" | "not_known";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "warn" | "down" | "unknown";
+        };
         /** OverrideIn */
         OverrideIn: {
             /**
@@ -8477,7 +8816,7 @@ export interface components {
          *     (`user_permissions`). The part before the dot is the module.
          * @enum {string}
          */
-        Permission: "users.view" | "users.create" | "users.edit" | "users.set_type" | "users.enable_disable" | "users.grant" | "users.reset_password" | "users.propose_head" | "access.manage_types" | "offices.manage" | "admin.counsel_codes" | "admin.keywords" | "admin.watchlist" | "admin.masters_sync" | "admin.napix_refetch" | "admin.config" | "admin.designations" | "admin.scoring" | "admin.tickets" | "admin.sourcetrace" | "admin.data_load" | "cases.view_scope" | "cases.view_all" | "cases.search_court" | "cases.claim" | "cases.dismiss" | "cases.suggest_elsewhere" | "cases.transfer_request" | "cases.transfer_decide" | "cases.allot" | "cases.release" | "cases.take_over" | "custody.move" | "custody.recall" | "custody.track" | "requests.send" | "requests.answer" | "stages.set" | "notes.add" | "notes.view_counsel_shared" | "notes.view_private_office" | "documents.upload" | "documents.view" | "documents.download" | "alerts.acknowledge" | "next_dates.review" | "reports.department" | "reports.state" | "dashboard.state" | "assistant.use" | "audit.view";
+        Permission: "users.view" | "users.create" | "users.edit" | "users.set_type" | "users.enable_disable" | "users.grant" | "users.reset_password" | "users.propose_head" | "access.manage_types" | "offices.manage" | "admin.counsel_codes" | "admin.keywords" | "admin.watchlist" | "admin.masters_sync" | "admin.napix_refetch" | "admin.config" | "admin.designations" | "admin.scoring" | "admin.tickets" | "admin.sourcetrace" | "admin.data_load" | "admin.service_health" | "cases.view_scope" | "cases.view_all" | "cases.search_court" | "cases.claim" | "cases.dismiss" | "cases.suggest_elsewhere" | "cases.transfer_request" | "cases.transfer_decide" | "cases.allot" | "cases.release" | "cases.take_over" | "custody.move" | "custody.recall" | "custody.track" | "requests.send" | "requests.answer" | "stages.set" | "notes.add" | "notes.view_counsel_shared" | "notes.view_private_office" | "documents.upload" | "documents.view" | "documents.download" | "alerts.acknowledge" | "next_dates.review" | "reports.department" | "reports.state" | "dashboard.state" | "assistant.use" | "audit.view";
         /** PermissionOut */
         PermissionOut: {
             code: components["schemas"]["Permission"];
@@ -8666,6 +9005,35 @@ export interface components {
             ref: string;
             /** Status */
             status: string | null;
+        };
+        /** Rate24Out */
+        Rate24Out: {
+            /** Answered */
+            answered: number;
+            /** Calls */
+            calls: number;
+            /** Failed */
+            failed: number;
+            /** P50 Ms */
+            p50_ms: number | null;
+            /** P95 Ms */
+            p95_ms: number | null;
+            /**
+             * Rate
+             * @description answered / calls; null without calls
+             */
+            rate: number | null;
+        };
+        /** Rate7Out */
+        Rate7Out: {
+            /** Answered */
+            answered: number;
+            /** Calls */
+            calls: number;
+            /** Failed */
+            failed: number;
+            /** Rate */
+            rate: number | null;
         };
         /** ReassignedOut */
         ReassignedOut: {
@@ -8985,6 +9353,22 @@ export interface components {
              */
             term_id: string;
         };
+        /** SampleOut */
+        SampleOut: {
+            /** Available */
+            available: boolean;
+            /** Label */
+            label: string | null;
+            /** Reason */
+            reason: string | null;
+            /**
+             * Values
+             * @description non-personal values only; never a name
+             */
+            values: {
+                [key: string]: unknown;
+            };
+        };
         /** ScoringSettingsHistoryOut */
         ScoringSettingsHistoryOut: {
             /** Items */
@@ -9087,6 +9471,38 @@ export interface components {
             items: components["schemas"]["SentItemOut"][];
             /** Total */
             total: number;
+        };
+        /** ServiceCheckOut */
+        ServiceCheckOut: {
+            /** Duration Ms */
+            duration_ms: number;
+            /** Facts */
+            facts: components["schemas"]["FactOut"][];
+            /** Headline */
+            headline: string;
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "warn" | "down" | "unknown";
+        };
+        /**
+         * ServicesOut
+         * @description `GET /admin/system-health/services`: the ten ASLMS service checks and the overall line. Never calls NAPIX.
+         */
+        ServicesOut: {
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            overall: components["schemas"]["OverallOut"];
+            /** Services */
+            services: components["schemas"]["ServiceCheckOut"][];
         };
         /** SmsPrefOut */
         SmsPrefOut: {
@@ -9329,6 +9745,24 @@ export interface components {
             /** Target Already Recommended */
             target_already_recommended: boolean;
         };
+        /**
+         * SystemHealthOut
+         * @description `GET /admin/system-health` (design `api-health-checker`): the court cards from the call log. Never calls
+         *     NAPIX, never probes services.
+         */
+        SystemHealthOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Groups */
+            groups: components["schemas"]["ApiGroupOut"][];
+            /** Napix Enabled */
+            napix_enabled: boolean;
+            summary: components["schemas"]["CourtSummaryOut"];
+            window: components["schemas"]["NapixWindowOut"];
+        };
         /** TakeOverIn */
         TakeOverIn: {
             /** Expected Officer User Id */
@@ -9371,6 +9805,17 @@ export interface components {
             status: string;
             taken_from: components["schemas"]["UserRefOut"] | null;
             unit: components["schemas"]["OfficeRefOut"] | null;
+        };
+        /** TechnicalOut */
+        TechnicalOut: {
+            /** Input Fields */
+            input_fields: string[];
+            /** Method */
+            method: string;
+            /** Name */
+            name: string;
+            /** Path */
+            path: string;
         };
         /** TicketArchiveIn */
         TicketArchiveIn: {
@@ -13368,6 +13813,180 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SourcetraceStatusOut"];
+                };
+            };
+        };
+    };
+    get_system_health_admin_system_health_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemHealthOut"];
+                };
+            };
+        };
+    };
+    get_api_detail_admin_system_health_napix__api__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                api: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiDetailOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    test_api_admin_system_health_napix__api__test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                api: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiTestOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    get_services_admin_system_health_services_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServicesOut"];
                 };
             };
         };
