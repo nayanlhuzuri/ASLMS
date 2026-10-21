@@ -1208,8 +1208,11 @@ def resolve_transfer(session: Session, ref: str) -> OwnershipTransfer:
 def case_ownership_view(session: Session, actor_user: User, case: Case) -> dict:
     """Primary, watchers, recommendations and the open transfer, for a caller who may see them: the caller's
     department owns, watches or has a recommendation for the case, or the case is in the pool and the caller
-    holds `cases.claim`, or the caller holds `cases.view_all`. Other departments' recommendations only with
-    `cases.view_all`. Otherwise NotVisible."""
+    holds `cases.claim`, or the caller holds `cases.view_all`, or a transfer to the caller's department is
+    requested (the A5 `transfer_in` basis of `portal-ui-redesign`: one and the same active membership is in
+    the receiving department, reads the whole department and holds `cases.view_scope`, exactly as
+    `visibility.member_bases`). Other departments' recommendations only with `cases.view_all`. Otherwise
+    NotVisible."""
     view_all = access.has(session, actor_user, Permission.CASES_VIEW_ALL)
     dept_ids = {d.id for d in access.departments(session, actor_user)}
     rows = _active_rows(session, case)
@@ -1227,11 +1230,13 @@ def case_ownership_view(session: Session, actor_user: User, case: Case) -> dict:
         )
     )
     # design portal-ui-redesign, A5: the receiving department's whole-department memberships read the case
-    # while a transfer to it is requested (sight only, like a recommendation)
+    # while a transfer to it is requested (sight only, like a recommendation); design portal-ui-polish,
+    # decision 8: the same membership must also hold `cases.view_scope`, as in `visibility.member_bases`
     transfer_in = open_transfer is not None and any(
         m.department is not None
         and m.department.id == open_transfer.to_office_id
         and whole_department(session, m)
+        and m.holds(Permission.CASES_VIEW_SCOPE)
         for m in access.members(session, actor_user)
     )
     if not (view_all or mine or pool or transfer_in):

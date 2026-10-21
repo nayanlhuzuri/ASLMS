@@ -436,7 +436,11 @@ export function RecallDialog({
   );
 }
 
-/** Send file and Recall on a custody card, by the card's flags, with the notice of the last move. */
+/**
+ * Send file and Recall on a custody card, by the card's flags, with the notice of the last move. Both are secondary:
+ * the card sits on the Custody and stage tab under the case header, which holds the page's one primary (decision 16;
+ * design portal-ui-polish, decision 11).
+ */
 export function CustodyActions({ caseRef, detail, card }: { caseRef: string; detail: CaseDetail; card: CustodyCard }) {
   const [open, setOpen] = useState<"send" | "recall" | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -445,7 +449,11 @@ export function CustodyActions({ caseRef, detail, card }: { caseRef: string; det
     <div className="stack">
       {notice ? <Notice>{notice}</Notice> : null}
       <div className="row">
-        {card.can_send ? <Button onClick={() => setOpen("send")}>{T.wf.send}</Button> : null}
+        {card.can_send ? (
+          <Button variant="secondary" onClick={() => setOpen("send")}>
+            {T.wf.send}
+          </Button>
+        ) : null}
         {card.can_recall ? (
           <Button variant="secondary" onClick={() => setOpen("recall")}>
             {T.wf.recall}

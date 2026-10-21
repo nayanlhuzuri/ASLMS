@@ -1,9 +1,5 @@
 /* Data display (design portal-ui-redesign, decisions 14, 15 and 18). Table cells pad 12/16 px. */
 
-.scroll {
-  overflow-x: auto;
-}
-
 .table {
   width: 100%;
   border-collapse: separate;
@@ -44,8 +40,20 @@
   background: var(--surface-2);
 }
 
-.table tbody tr:last-child td {
+.table tbody tr:last-child td,
+.table tbody tr:last-child th {
   border-bottom: 0;
+}
+
+/* a row header (`rowHeader` column) reads as a cell, not as a column head */
+.table tbody th {
+  background: none;
+  color: inherit;
+  font-size: inherit;
+  font-weight: 500;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: normal;
 }
 
 .table td.num,
@@ -54,20 +62,28 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* never `overflow: hidden`: a column past the box would be cut off. A table too wide for its box is drawn as cards
+   (`data-stacked` below); `auto` only keeps the rounded corners and, should anything still not fit, a scroll the
+   browser check reports rather than a silent cut. */
 .dataWrap {
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
-  overflow: hidden;
+  overflow-x: auto;
   background: var(--surface);
 }
 
-.dataTable td {
+.dataTable td,
+.dataTable tbody th {
   vertical-align: middle;
 }
 
-.dataTable th {
-  overflow: hidden;
-  text-overflow: ellipsis;
+/* column heads wrap between words, so a table of many short columns still fits as a table */
+.dataTable thead th {
+  white-space: normal;
+}
+
+.cellValue {
+  min-width: 0;
 }
 
 .clickable {
@@ -90,13 +106,19 @@
   .dataTable,
   .dataTable tbody,
   .dataTable tr,
-  .dataTable td {
+  .dataTable td,
+  .dataTable tbody th {
     display: block;
     width: 100%;
   }
 
   .dataTable {
     background: transparent;
+  }
+
+  /* a block table would shrink its caption to the longest word */
+  .dataTable caption {
+    display: block;
   }
 
   .dataTable thead {
@@ -107,7 +129,10 @@
     clip: rect(0 0 0 0);
   }
 
+  /* the primary cell on top of the card whatever its column (design portal-ui-polish, decision 15) */
   .dataTable tr {
+    display: flex;
+    flex-direction: column;
     margin-bottom: var(--s3);
     padding: var(--s3) var(--s4);
     background: var(--surface);
@@ -123,6 +148,15 @@
     padding: var(--s1) 0;
     border-bottom: 0;
     text-align: right;
+    overflow-wrap: anywhere;
+  }
+
+  .dataTable td > * {
+    min-width: 0;
+  }
+
+  .dataTable td:not(.primaryCell) > .cellValue {
+    flex: 1 1 auto;
   }
 
   .dataTable td::before {
@@ -134,7 +168,9 @@
     text-align: left;
   }
 
-  .dataTable td.primaryCell {
+  .dataTable td.primaryCell,
+  .dataTable th.primaryCell {
+    order: -1;
     display: block;
     padding-bottom: var(--s2);
     text-align: left;
@@ -148,6 +184,96 @@
   .hideOnPhone {
     display: none !important;
   }
+}
+
+/* wider screens: a table whose columns cannot fit its box is drawn as the same cards (`data-stacked`, set by
+   `DataTable`), so no column is cut off or scrolled to (design portal-ui-polish, review of 21 Oct 2026); the same
+   rules as the phone block above */
+.dataWrap[data-stacked] {
+  border: 0;
+  background: transparent;
+  overflow: visible;
+}
+
+.dataWrap[data-stacked] .dataTable,
+.dataWrap[data-stacked] .dataTable tbody,
+.dataWrap[data-stacked] .dataTable tr,
+.dataWrap[data-stacked] .dataTable td,
+.dataWrap[data-stacked] .dataTable tbody th {
+  display: block;
+  width: 100%;
+}
+
+.dataWrap[data-stacked] .dataTable {
+  background: transparent;
+}
+
+.dataWrap[data-stacked] .dataTable caption {
+  display: block;
+}
+
+.dataWrap[data-stacked] .dataTable thead {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+/* the primary cell on top of the card whatever its column (design portal-ui-polish, decision 15) */
+.dataWrap[data-stacked] .dataTable tr {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: var(--s3);
+  padding: var(--s3) var(--s4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-1);
+}
+
+.dataWrap[data-stacked] .dataTable td {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding: var(--s1) 0;
+  border-bottom: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.dataWrap[data-stacked] .dataTable td > * {
+  min-width: 0;
+}
+
+.dataWrap[data-stacked] .dataTable td:not(.primaryCell) > .cellValue {
+  flex: 1 1 auto;
+}
+
+.dataWrap[data-stacked] .dataTable td::before {
+  content: attr(data-label);
+  flex: none;
+  color: var(--text-3);
+  font-size: var(--t-xs);
+  font-weight: 600;
+  text-align: left;
+}
+
+.dataWrap[data-stacked] .dataTable td.primaryCell,
+.dataWrap[data-stacked] .dataTable th.primaryCell {
+  order: -1;
+  display: block;
+  padding-bottom: var(--s2);
+  text-align: left;
+  font-weight: 500;
+}
+
+.dataWrap[data-stacked] .dataTable td.primaryCell::before {
+  content: none;
+}
+
+.dataWrap[data-stacked] .hideOnPhone {
+  display: none !important;
 }
 
 .pagination {

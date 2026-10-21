@@ -1306,3 +1306,12 @@ Choices made where the note is silent, each the smallest reasonable option:
     300-320 px (`.grid-2`, the case cards) use `minmax(min(…, 100%), 1fr)`; report and audit fields shrink below 12 rem
     on narrow screens; inline spacing styles in Administration and the notification preferences became classes. The
     look at 375, 768 and 1280 px is the owner's browser check (Verification, "After round 5").
+
+### Round 5 follow-up, row 115
+Recorded at row 112's request by `portal-ui-polish` (design `docs/design/portal-ui-polish.md`, decisions 15-17), which
+leaves everything above unchanged: the administration tables that kept sideways scrolling (deviation 5), and every
+other legacy `Table` across the portal (Data collection, Department mapping, the case tabs, the dashboard blocks, the
+audit entry, the files summary, next dates and the profile devices, 26 files), are now `DataTable`s, cards on phones;
+`Table` left the kit. A raw `<table>` stays only in `ReportView` (kept scrollable), the cause list's `EntryTable` and the
+month grids. The server-file guard of deviation 7 now follows the components that server files render. The look at
+375, 768 and 1280 px is checked in a real browser by `uicheck` (that design, decisions 18-22).

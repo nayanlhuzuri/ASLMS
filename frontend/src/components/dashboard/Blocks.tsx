@@ -10,7 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 
-import { Badge, Card, CaseLink, EmptyState, ErrorBanner, Kpi, Loading, numCell, SelectField, Table } from "@/components/ui";
+import { Badge, Card, CaseLink, DataTable, EmptyState, ErrorBanner, Kpi, Loading, SelectField } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { labelOf, useLabels, useMe } from "@/lib/api/hooks";
 import type {
@@ -67,62 +67,46 @@ export function Block({
 export function HearingList({ hearings, caption }: { hearings: DashboardHearings; caption: string }) {
   if (hearings.items.length === 0) return <EmptyState>{T.dash.noHearings}</EmptyState>;
   return (
-    <Table caption={caption}>
-      <thead>
-        <tr>
-          <th scope="col">{T.dash.date}</th>
-          <th scope="col">{T.dash.case}</th>
-          <th scope="col">{T.dash.court}</th>
-          <th scope="col">{T.dash.item}</th>
-          <th scope="col">
-            <span className="visually-hidden">{T.dash.within48}</span>
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {hearings.items.map((h) => (
-          <tr key={`${h.case.id}-${h.date}-${h.item_no ?? ""}`}>
-            <td>{formatDate(h.date)}</td>
-            <td>
-              <CaseRef value={h.case} />
-            </td>
-            <td>{h.court_no ?? "—"}</td>
-            <td>{h.item_no ?? "—"}</td>
-            <td>{h.critical ? <Badge tone="danger">{T.dash.within48}</Badge> : <Badge>{T.dash.thisWeek}</Badge>}</td>
-          </tr>
-        ))}
-      </tbody>
-    </Table>
+    <DataTable
+      caption={caption}
+      rows={hearings.items}
+      rowKey={(h) => `${h.case.id}-${h.date}-${h.item_no ?? ""}`}
+      columns={[
+        { key: "date", header: T.dash.date, cell: (h) => formatDate(h.date) },
+        { key: "case", header: T.dash.case, primary: true, cell: (h) => <CaseRef value={h.case} /> },
+        { key: "court", header: T.dash.court, cell: (h) => h.court_no ?? "—" },
+        { key: "item", header: T.dash.item, cell: (h) => h.item_no ?? "—" },
+        {
+          key: "badge",
+          header: <span className="visually-hidden">{T.dash.within48}</span>,
+          label: T.dash.within48,
+          width: "var(--lead-w)",
+          cell: (h) => (h.critical ? <Badge tone="danger">{T.dash.within48}</Badge> : <Badge>{T.dash.thisWeek}</Badge>),
+        },
+      ]}
+    />
   );
 }
 
 function FileList({ items, caption }: { items: DashboardFile[]; caption: string }) {
   if (items.length === 0) return null;
   return (
-    <Table caption={caption}>
-      <thead>
-        <tr>
-          <th scope="col">{T.dash.case}</th>
-          <th scope="col">{T.dash.action}</th>
-          <th scope="col">{T.dash.due}</th>
-          <th scope="col" className={numCell}>
-            {T.dash.overdueCol}
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {items.map((f) => (
-          <tr key={`${f.case.id}-${f.since}`}>
-            <td>
-              <CaseRef value={f.case} />
-            </td>
-            <td>{f.pending_action}</td>
-            <td>{formatDate(f.due_date)}</td>
-            <td className={numCell}>{f.overdue_days > 0 ? formatNumber(f.overdue_days) : "—"}</td>
-          </tr>
-        ))}
-      </tbody>
-    </Table>
+    <DataTable
+      caption={caption}
+      rows={items}
+      rowKey={(f) => `${f.case.id}-${f.since}`}
+      columns={[
+        { key: "case", header: T.dash.case, primary: true, cell: (f) => <CaseRef value={f.case} /> },
+        { key: "action", header: T.dash.action, cell: (f) => f.pending_action },
+        { key: "due", header: T.dash.due, cell: (f) => formatDate(f.due_date) },
+        {
+          key: "overdue",
+          header: T.dash.overdueCol,
+          align: "right",
+          cell: (f) => (f.overdue_days > 0 ? formatNumber(f.overdue_days) : "—"),
+        },
+      ]}
+    />
   );
 }
 
@@ -206,28 +190,17 @@ export function DepartmentBlock({ data }: { data: DashboardDepartment }) {
             ) : null}
           </ul>
           {att.recent_order_next_dates.length > 0 ? (
-            <Table caption={T.dash.recentOrders}>
-              <thead>
-                <tr>
-                  <th scope="col">{T.dash.case}</th>
-                  <th scope="col">{T.dash.date}</th>
-                  <th scope="col">{T.nd.colSource}</th>
-                  <th scope="col">{T.nd.colStatus}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {att.recent_order_next_dates.map((o) => (
-                  <tr key={`${o.case.id}-${o.next_date}`}>
-                    <td>
-                      <CaseRef value={o.case} />
-                    </td>
-                    <td>{formatDate(o.next_date)}</td>
-                    <td>{sourceLabel(o.source)}</td>
-                    <td>{statusLabel(o.review_status)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
+            <DataTable
+              caption={T.dash.recentOrders}
+              rows={att.recent_order_next_dates}
+              rowKey={(o) => `${o.case.id}-${o.next_date}`}
+              columns={[
+                { key: "case", header: T.dash.case, primary: true, cell: (o) => <CaseRef value={o.case} /> },
+                { key: "date", header: T.dash.date, cell: (o) => formatDate(o.next_date) },
+                { key: "source", header: T.nd.colSource, cell: (o) => sourceLabel(o.source) },
+                { key: "status", header: T.nd.colStatus, cell: (o) => statusLabel(o.review_status) },
+              ]}
+            />
           ) : null}
         </Card>
       </div>
@@ -238,34 +211,26 @@ export function DepartmentBlock({ data }: { data: DashboardDepartment }) {
       ) : null}
       {data.custody_by_office ? (
         <Card title={T.dash.custody}>
-          <Table caption={T.dash.custody}>
-            <thead>
-              <tr>
-                <th scope="col">{T.dash.office}</th>
-                <th scope="col" className={numCell}>
-                  {T.dash.held}
-                </th>
-                <th scope="col" className={numCell}>
-                  {T.dash.withAction}
-                </th>
-                <th scope="col" className={numCell}>
-                  {T.dash.overdueCol}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.custody_by_office.map((o) => (
-                <tr key={o.office_code}>
-                  <td>
+          <DataTable
+            caption={T.dash.custody}
+            rows={data.custody_by_office}
+            rowKey={(o) => o.office_code}
+            columns={[
+              {
+                key: "office",
+                header: T.dash.office,
+                primary: true,
+                cell: (o) => (
+                  <>
                     {o.office_name} <span className="mono muted">{o.office_code}</span>
-                  </td>
-                  <td className={numCell}>{n(o.held)}</td>
-                  <td className={numCell}>{n(o.with_pending_action)}</td>
-                  <td className={numCell}>{n(o.overdue)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </Table>
+                  </>
+                ),
+              },
+              { key: "held", header: T.dash.held, align: "right", cell: (o) => n(o.held) },
+              { key: "action", header: T.dash.withAction, align: "right", cell: (o) => n(o.with_pending_action) },
+              { key: "overdue", header: T.dash.overdueCol, align: "right", cell: (o) => n(o.overdue) },
+            ]}
+          />
         </Card>
       ) : null}
     </Block>
@@ -326,34 +291,26 @@ export function PersonalExtras({ data }: { data: DashboardMe }) {
         ]}
       </Kpis>
       {data.cases.length > 0 ? (
-        <Table caption={T.dash.ownCases}>
-          <thead>
-            <tr>
-              <th scope="col">{T.dash.department}</th>
-              <th scope="col" className={numCell}>
-                {T.dash.allotted}
-              </th>
-              <th scope="col" className={numCell}>
-                {T.dash.disposed}
-              </th>
-              {showCounsel ? (
-                <th scope="col" className={numCell}>
-                  {T.dash.counsel}
-                </th>
-              ) : null}
-            </tr>
-          </thead>
-          <tbody>
-            {data.cases.map((c) => (
-              <tr key={c.department_code}>
-                <td className="mono">{c.department_code}</td>
-                <td className={numCell}>{n(c.allotted_active)}</td>
-                <td className={numCell}>{n(c.allotted_disposed)}</td>
-                {showCounsel ? <td className={numCell}>{n(c.counsel_active)}</td> : null}
-              </tr>
-            ))}
-          </tbody>
-        </Table>
+        <DataTable
+          caption={T.dash.ownCases}
+          rows={data.cases}
+          rowKey={(c) => c.department_code}
+          columns={[
+            { key: "department", header: T.dash.department, primary: true, cell: (c) => <span className="mono">{c.department_code}</span> },
+            { key: "allotted", header: T.dash.allotted, align: "right", cell: (c) => n(c.allotted_active) },
+            { key: "disposed", header: T.dash.disposed, align: "right", cell: (c) => n(c.allotted_disposed) },
+            ...(showCounsel
+              ? [
+                  {
+                    key: "counsel",
+                    header: T.dash.counsel,
+                    align: "right" as const,
+                    cell: (c: DashboardMe["cases"][number]) => n(c.counsel_active),
+                  },
+                ]
+              : []),
+          ]}
+        />
       ) : null}
       <FileList items={data.files.items} caption={T.dash.files} />
       <div id="alerts">
@@ -400,57 +357,53 @@ export function StateBlock({ data }: { data: DashboardState }) {
         ]}
       </Kpis>
       <Card title={T.dash.byDepartment}>
-        <Table caption={T.dash.byDepartment}>
-          <thead>
-            <tr>
-              <th scope="col">{T.dash.department}</th>
-              <th scope="col" className={numCell}>
-                {T.dash.claimedCol}
-              </th>
-              <th scope="col" className={numCell}>
-                {T.dash.recommendedCol}
-              </th>
-              <th scope="col" className={numCell}>
-                {T.dash.hearingsCol}
-              </th>
-              <th scope="col" className={numCell}>
-                {T.dash.pendingCol}
-              </th>
-              <th scope="col" className={numCell}>
-                {T.dash.overdueCol}
-              </th>
-              <th scope="col" className={numCell}>
-                {T.dash.complianceCol}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.by_department.map((d) => (
-              <tr key={d.code}>
-                <td>
-                  {d.name} <span className="mono muted">{d.code}</span>
-                </td>
-                <td className={numCell}>{n(d.claimed_active)}</td>
-                <td className={numCell}>{n(d.recommended_high + d.recommended_medium)}</td>
-                <td className={numCell}>{n(d.hearings_7d)}</td>
-                <td className={numCell}>{n(d.pending_actions)}</td>
-                <td className={numCell}>{n(d.overdue_actions)}</td>
-                <td className={numCell}>
-                  {n(d.compliance_due_soon)} / {n(d.compliance_overdue)}
-                </td>
-              </tr>
-            ))}
-            <tr>
-              <th scope="row">{T.dash.notClaimed}</th>
-              <td className={numCell}>{n(nc.active)}</td>
-              <td className={numCell}>{n(nc.recommended)}</td>
-              <td className={numCell}>{n(nc.hearing_7d)}</td>
-              <td className={numCell}>—</td>
-              <td className={numCell}>—</td>
-              <td className={numCell}>—</td>
-            </tr>
-          </tbody>
-        </Table>
+        <DataTable
+          caption={T.dash.byDepartment}
+          rows={[
+            ...data.by_department.map((d) => ({ key: d.code, d })),
+            { key: "__not_claimed", d: null as DashboardState["by_department"][number] | null },
+          ]}
+          rowKey={(r) => r.key}
+          columns={[
+            {
+              key: "department",
+              header: T.dash.department,
+              primary: true,
+              rowHeader: true,
+              cell: ({ d }) =>
+                d ? (
+                  <>
+                    {d.name} <span className="mono muted">{d.code}</span>
+                  </>
+                ) : (
+                  T.dash.notClaimed
+                ),
+            },
+            { key: "claimed", header: T.dash.claimedCol, align: "right", cell: ({ d }) => n(d ? d.claimed_active : nc.active) },
+            {
+              key: "recommended",
+              header: T.dash.recommendedCol,
+              align: "right",
+              cell: ({ d }) => n(d ? d.recommended_high + d.recommended_medium : nc.recommended),
+            },
+            { key: "hearings", header: T.dash.hearingsCol, align: "right", cell: ({ d }) => n(d ? d.hearings_7d : nc.hearing_7d) },
+            { key: "pending", header: T.dash.pendingCol, align: "right", cell: ({ d }) => (d ? n(d.pending_actions) : "—") },
+            { key: "overdue", header: T.dash.overdueCol, align: "right", cell: ({ d }) => (d ? n(d.overdue_actions) : "—") },
+            {
+              key: "compliance",
+              header: T.dash.complianceCol,
+              align: "right",
+              cell: ({ d }) =>
+                d ? (
+                  <>
+                    {n(d.compliance_due_soon)} / {n(d.compliance_overdue)}
+                  </>
+                ) : (
+                  "—"
+                ),
+            },
+          ]}
+        />
       </Card>
       <div className={s.panels}>
         <Card title={T.dash.stateHearings}>
@@ -464,16 +417,16 @@ export function StateBlock({ data }: { data: DashboardState }) {
                 [T.dash.byOwner, data.overdue_actions.by_owner],
               ] as const
             ).map(([caption, rows]) => (
-              <Table key={caption} caption={caption}>
-                <tbody>
-                  {rows.map((r) => (
-                    <tr key={r.code}>
-                      <td className="mono">{r.code}</td>
-                      <td className={numCell}>{n(r.overdue)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </Table>
+              <DataTable
+                key={caption}
+                caption={caption}
+                rows={[...rows]}
+                rowKey={(r) => r.code}
+                columns={[
+                  { key: "code", header: T.dash.office, primary: true, rowHeader: true, cell: (r) => <span className="mono">{r.code}</span> },
+                  { key: "overdue", header: T.dash.overdueCol, align: "right", cell: (r) => n(r.overdue) },
+                ]}
+              />
             ))}
           </div>
         </Card>
@@ -509,30 +462,26 @@ export function TicketsBlock({ data }: { data: TicketCounts }) {
       {kinds.length > 0 || departments.length > 0 ? (
         <div className={s.panels}>
           {kinds.length > 0 ? (
-            <Table caption={T.dash.ticketsByKind}>
-              <tbody>
-                {kinds.map(([kind, n]) => (
-                  <tr key={kind}>
-                    <th scope="row">{labelOf(labels.data?.ticket_kinds, kind)}</th>
-                    <td className={numCell}>{formatNumber(n)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
+            <DataTable
+              caption={T.dash.ticketsByKind}
+              rows={kinds}
+              rowKey={([kind]) => kind}
+              columns={[
+                { key: "kind", header: T.tickets.kind, primary: true, rowHeader: true, cell: ([kind]) => labelOf(labels.data?.ticket_kinds, kind) },
+                { key: "open", header: T.dash.ticketsOpenCol, align: "right", cell: ([, count]) => formatNumber(count) },
+              ]}
+            />
           ) : null}
           {departments.length > 0 ? (
-            <Table caption={T.dash.ticketsByDepartment}>
-              <tbody>
-                {departments.map(([code, n]) => (
-                  <tr key={code}>
-                    <th scope="row" className="mono">
-                      {code}
-                    </th>
-                    <td className={numCell}>{formatNumber(n)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
+            <DataTable
+              caption={T.dash.ticketsByDepartment}
+              rows={departments}
+              rowKey={([code]) => code}
+              columns={[
+                { key: "department", header: T.dash.department, primary: true, rowHeader: true, cell: ([code]) => <span className="mono">{code}</span> },
+                { key: "open", header: T.dash.ticketsOpenCol, align: "right", cell: ([, count]) => formatNumber(count) },
+              ]}
+            />
           ) : null}
         </div>
       ) : null}

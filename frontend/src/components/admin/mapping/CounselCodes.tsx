@@ -18,8 +18,7 @@ import {
   ErrorBanner,
   Loading,
   Notice,
-  numCell,
-  Table,
+  DataTable,
   TextArea,
   TextField,
 } from "@/components/ui";
@@ -172,59 +171,53 @@ export function CounselCodes() {
         list.data.items.length === 0 ? (
           <EmptyState>{T.mapping.empty}</EmptyState>
         ) : (
-          <Table caption={T.mapping.codes}>
-            <thead>
-              <tr>
-                <th scope="col">{T.mapping.code}</th>
-                <th scope="col">{T.mapping.office}</th>
-                <th scope="col" className={numCell}>
-                  {T.mapping.effectiveWeight}
-                </th>
-                <th scope="col">{T.mapping.generic}</th>
-                <th scope="col">{T.mapping.status}</th>
-                <th scope="col">{T.mapping.notes}</th>
-                <th scope="col">{T.mapping.updated}</th>
-                <th scope="col">{T.mapping.actions}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {list.data.items.map((row) => (
-                <tr key={row.id}>
-                  <td className="mono">{row.code}</td>
-                  <td>
-                    <OfficeCell office={row.office} />
-                  </td>
-                  <td className={numCell}>
-                    <WeightCell effective={row.effective_weight} override={row.weight_override} />
-                  </td>
-                  <td>{row.is_generic_state ? T.yes : "—"}</td>
-                  <td>{row.is_active ? <Badge tone="success">{T.active}</Badge> : <Badge>{T.inactive}</Badge>}</td>
-                  <td>{row.notes ?? "—"}</td>
-                  <td>{formatDateTime(row.updated_at)}</td>
-                  <td>
-                    {!row.is_generic_state || editableGeneric ? (
-                      <div className="actions">
-                        <Button variant="link" aria-label={`${T.edit} ${row.code}`} onClick={() => setEditing(row)}>
-                          {T.edit}
-                        </Button>
-                        <RuleStatusActions<CounselCode>
-                          path={`/admin/counsel-codes/${row.id}`}
-                          active={row.is_active}
-                          label={row.code}
-                          confirmText={T.mapping.ruleConfirm}
-                          onDone={(r) => {
-                            setNotice(T.mapping.appliesWithin(r.applies_within_minutes ?? 15));
-                            void refresh();
-                          }}
-                          onConflict={() => void refresh()}
-                        />
-                      </div>
-                    ) : null}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </Table>
+          <DataTable
+            caption={T.mapping.codes}
+            rows={list.data.items}
+            rowKey={(row) => row.id}
+            columns={[
+              { key: "code", header: T.mapping.code, primary: true, cell: (row) => <span className="mono">{row.code}</span> },
+              { key: "office", header: T.mapping.office, cell: (row) => <OfficeCell office={row.office} /> },
+              {
+                key: "weight",
+                header: T.mapping.effectiveWeight,
+                align: "right",
+                cell: (row) => <WeightCell effective={row.effective_weight} override={row.weight_override} />,
+              },
+              { key: "generic", header: T.mapping.generic, cell: (row) => (row.is_generic_state ? T.yes : "—") },
+              {
+                key: "status",
+                header: T.mapping.status,
+                width: "var(--lead-w)",
+                cell: (row) => (row.is_active ? <Badge tone="success">{T.active}</Badge> : <Badge>{T.inactive}</Badge>),
+              },
+              { key: "notes", header: T.mapping.notes, cell: (row) => row.notes ?? "—" },
+              { key: "updated", header: T.mapping.updated, cell: (row) => formatDateTime(row.updated_at) },
+              {
+                key: "actions",
+                header: T.mapping.actions,
+                cell: (row) =>
+                  !row.is_generic_state || editableGeneric ? (
+                    <div className="actions">
+                      <Button variant="link" aria-label={`${T.edit} ${row.code}`} onClick={() => setEditing(row)}>
+                        {T.edit}
+                      </Button>
+                      <RuleStatusActions<CounselCode>
+                        path={`/admin/counsel-codes/${row.id}`}
+                        active={row.is_active}
+                        label={row.code}
+                        confirmText={T.mapping.ruleConfirm}
+                        onDone={(r) => {
+                          setNotice(T.mapping.appliesWithin(r.applies_within_minutes ?? 15));
+                          void refresh();
+                        }}
+                        onConflict={() => void refresh()}
+                      />
+                    </div>
+                  ) : null,
+              },
+            ]}
+          />
         )
       ) : null}
 
@@ -331,34 +324,26 @@ export function UnmappedCodes({ onMap }: { onMap: (code: string) => void }) {
             list.data.length === 0 ? (
               <EmptyState>{T.mapping.noUnmapped}</EmptyState>
             ) : (
-              <Table caption={T.mapping.unmapped}>
-                <thead>
-                  <tr>
-                    <th scope="col">{T.mapping.code}</th>
-                    <th scope="col" className={numCell}>
-                      {T.mapping.entries}
-                    </th>
-                    <th scope="col">{T.mapping.lastListed}</th>
-                    <th scope="col">{T.mapping.example}</th>
-                    <th scope="col">{T.mapping.actions}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {list.data.map((u) => (
-                    <tr key={u.code}>
-                      <td className="mono">{u.code}</td>
-                      <td className={numCell}>{formatNumber(u.entries)}</td>
-                      <td>{formatDate(u.last_listed)}</td>
-                      <td>{u.example_case_ref ? <SearchLink ref_no={u.example_case_ref} /> : "—"}</td>
-                      <td>
-                        <Button variant="link" aria-label={T.mapping.mapCode(u.code)} onClick={() => onMap(u.code)}>
-                          {T.mapping.map}
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </Table>
+              <DataTable
+                caption={T.mapping.unmapped}
+                rows={list.data}
+                rowKey={(u) => u.code}
+                columns={[
+                  { key: "code", header: T.mapping.code, primary: true, cell: (u) => <span className="mono">{u.code}</span> },
+                  { key: "entries", header: T.mapping.entries, align: "right", cell: (u) => formatNumber(u.entries) },
+                  { key: "last", header: T.mapping.lastListed, cell: (u) => formatDate(u.last_listed) },
+                  { key: "example", header: T.mapping.example, cell: (u) => (u.example_case_ref ? <SearchLink ref_no={u.example_case_ref} /> : "—") },
+                  {
+                    key: "actions",
+                    header: T.mapping.actions,
+                    cell: (u) => (
+                      <Button variant="link" aria-label={T.mapping.mapCode(u.code)} onClick={() => onMap(u.code)}>
+                        {T.mapping.map}
+                      </Button>
+                    ),
+                  },
+                ]}
+              />
             )
           ) : null}
         </>

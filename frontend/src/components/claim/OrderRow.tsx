@@ -13,10 +13,10 @@
  * under the row's summary, always.
  */
 import { useQuery } from "@tanstack/react-query";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import { fileState, fileUrl } from "@/components/case/Orders";
-import { buttonClass, Collapsible, EmptyState, ErrorBanner, Loading } from "@/components/ui";
+import { buttonClass, Collapsible, EmptyState, ErrorBanner, Loading, Pagination } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { caseKey, useMe } from "@/lib/api/hooks";
 import type { Order, OrderList } from "@/lib/api/types";
@@ -24,6 +24,7 @@ import { can } from "@/lib/can";
 import { INLINE_PDF } from "@/lib/documents";
 import { formatDate } from "@/lib/format";
 import { T } from "@/lib/messages";
+import { PAGE } from "@/lib/params";
 import { apiCasePath } from "@/lib/refs";
 
 import s from "./claim.module.css";
@@ -89,20 +90,27 @@ export function OrderRow({
   );
 }
 
-/** The Orders tab of the modal: every order of the case (newest first, as the API orders them) as a collapsible row. */
+/**
+ * The Orders tab of the modal: every order of the case (newest first, as the API orders them) as a collapsible row,
+ * paged by `PAGE` with the kit's `Pagination`, as the case page's Orders tab (design portal-ui-polish, decision 7).
+ */
 export function OrderRows({ caseRef }: { caseRef: string }) {
+  const [offset, setOffset] = useState(0);
   const list = useQuery({
-    queryKey: [...caseKey(caseRef), "orders", "page", 0],
-    queryFn: () => api<OrderList>(`${apiCasePath(caseRef)}/orders`, { query: { limit: 50, offset: 0 } }),
+    queryKey: [...caseKey(caseRef), "orders", "page", offset],
+    queryFn: () => api<OrderList>(`${apiCasePath(caseRef)}/orders`, { query: { limit: PAGE, offset } }),
   });
   if (list.isPending) return <Loading />;
   if (list.error) return <ErrorBanner error={list.error} onRetry={() => list.refetch()} />;
   if (list.data.items.length === 0) return <EmptyState>{T.case.noOrders}</EmptyState>;
   return (
-    <div className={s.orders}>
-      {list.data.items.map((o) => (
-        <OrderRow key={o.id} caseRef={caseRef} order={o} />
-      ))}
+    <div className="stack">
+      <div className={s.orders}>
+        {list.data.items.map((o) => (
+          <OrderRow key={o.id} caseRef={caseRef} order={o} />
+        ))}
+      </div>
+      <Pagination offset={offset} limit={PAGE} total={list.data.total} onChange={setOffset} />
     </div>
   );
 }

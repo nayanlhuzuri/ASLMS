@@ -29,6 +29,28 @@ import s from "./overlays.module.css";
 const FOCUSABLE =
   "a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), iframe, [tabindex]:not([tabindex='-1'])";
 
+const FIELD = "input:not([type='hidden']):not([disabled]), select:not([disabled]), textarea:not([disabled])";
+const CONTROL = `${FIELD}, a[href], button:not([disabled]), [tabindex]:not([tabindex='-1'])`;
+
+/**
+ * Where an overlay's focus goes first (design portal-ui-polish, decision 3): the first field of the body, else the
+ * body's first enabled control, else the footer's first control, else the first control anywhere (the header's
+ * Close only when it is the only control), else the overlay itself. The body and footer are marked
+ * `data-overlay-part`; an overlay without the marks (the phone drawer) is searched as a whole.
+ */
+export function firstFocus(root: HTMLElement): HTMLElement {
+  const body = root.querySelector<HTMLElement>("[data-overlay-part='body']");
+  const foot = root.querySelector<HTMLElement>("[data-overlay-part='footer']");
+  const scope = body ?? (foot ? null : root);
+  return (
+    scope?.querySelector<HTMLElement>(FIELD) ??
+    scope?.querySelector<HTMLElement>(CONTROL) ??
+    foot?.querySelector<HTMLElement>(CONTROL) ??
+    root.querySelector<HTMLElement>(CONTROL) ??
+    root
+  );
+}
+
 /** The open overlays, innermost last: only the innermost one answers Escape and Tab. */
 const stack: symbol[] = [];
 let scrollLocks = 0;
@@ -48,8 +70,7 @@ function lockScroll(): () => void {
 }
 
 /**
- * The shared overlay behaviour on `ref` while `active`: the first field (else the first control) takes the focus,
- * Tab stays inside, Escape calls `onClose`, the page is scroll-locked, and the focus returns where it was.
+ * The shared overlay behaviour on `ref` while `active`: `firstFocus` takes the focus, Tab stays inside, Escape calls `onClose`, the page is scroll-locked, and the focus returns where it was.
  */
 export function useOverlay(
   ref: RefObject<HTMLElement | null>,
@@ -67,8 +88,7 @@ export function useOverlay(
     const id = Symbol("overlay");
     stack.push(id);
     const previous = document.activeElement as HTMLElement | null;
-    const first = ref.current?.querySelector<HTMLElement>("input, select, textarea, button");
-    (first ?? ref.current)?.focus();
+    if (ref.current) firstFocus(ref.current).focus();
     const unlock = lock ? lockScroll() : () => {};
     const onKey = (e: KeyboardEvent) => {
       if (stack[stack.length - 1] !== id) return;
@@ -167,8 +187,14 @@ export function Dialog({
           </div>
           <CloseButton onClose={onClose} />
         </div>
-        <div className={s.dialogBody}>{children}</div>
-        {footer ? <div className={s.dialogFoot}>{footer}</div> : null}
+        <div className={s.dialogBody} data-overlay-part="body">
+          {children}
+        </div>
+        {footer ? (
+          <div className={s.dialogFoot} data-overlay-part="footer">
+            {footer}
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -299,8 +325,14 @@ export function Modal({
           </div>
           {header}
         </div>
-        <div className={s.modalBody}>{children}</div>
-        {footer ? <div className={s.modalFoot}>{footer}</div> : null}
+        <div className={s.modalBody} data-overlay-part="body">
+          {children}
+        </div>
+        {footer ? (
+          <div className={s.modalFoot} data-overlay-part="footer">
+            {footer}
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -344,8 +376,14 @@ export function SidePanel({
           <h2 id={titleId}>{title}</h2>
           <CloseButton onClose={onClose} />
         </div>
-        <div className={s.panelBody}>{children}</div>
-        {footer ? <div className={s.panelFoot}>{footer}</div> : null}
+        <div className={s.panelBody} data-overlay-part="body">
+          {children}
+        </div>
+        {footer ? (
+          <div className={s.panelFoot} data-overlay-part="footer">
+            {footer}
+          </div>
+        ) : null}
       </div>
     </div>
   );

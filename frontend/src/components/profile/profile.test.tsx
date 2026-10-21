@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import type { ProfileOut } from "@/lib/api/types";
 import { nav, resetNav } from "@/test/nav";
-import { browserApi, renderWithClient } from "@/test/render";
+import { browserApi, expectDataTable, renderWithClient } from "@/test/render";
 
 import { ProfilePage } from "./Profile";
 
@@ -73,5 +73,14 @@ describe("My profile on the Settings template (portal-ui-redesign, decision 26)"
     expect(within(select).getAllByRole("option").map((o) => o.textContent)).toEqual(["Details", "Notifications", "Change password", "Devices"]);
     await userEvent.selectOptions(select, "password");
     expect(nav.push).toHaveBeenCalledWith("/profile?group=password");
+  });
+});
+
+describe("lists are DataTables, cards on phones (design portal-ui-polish, decision 15)", () => {
+  it("Profile renders a DataTable with a primary cell", async () => {
+    browserApi({ "GET /me/profile": PROFILE, "GET /me/devices": DEVICES });
+    renderWithClient(<ProfilePage params={{ group: "devices" }} />);
+    await screen.findByText("Firefox on Windows");
+    expectDataTable(screen.getByRole("table", { name: "Devices" }));
   });
 });

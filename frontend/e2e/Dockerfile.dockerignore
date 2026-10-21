@@ -1,0 +1,9 @@
+# The uicheck image needs src (the page list and the API types), openapi.json and the e2e package; nothing else.
+**
+!src/**
+!openapi.json
+!e2e/**
+e2e/node_modules
+e2e/test-results
+**/*.test.ts
+**/*.test.tsx

@@ -8,7 +8,7 @@
  */
 import { useState } from "react";
 
-import { Badge, Button, EmptyState, ErrorBanner, Loading, Notice, Pagination, Table } from "@/components/ui";
+import { Badge, Button, EmptyState, ErrorBanner, Loading, Notice, Pagination, DataTable } from "@/components/ui";
 import { useCase, useCustodyHistory, useStages, useWorkflowCodes } from "@/lib/api/hooks";
 import type { CaseDetail, CustodyCard } from "@/lib/api/types";
 import { formatDate, formatDateTime } from "@/lib/format";
@@ -89,24 +89,18 @@ function Movement({ caseRef, detail }: { caseRef: string; detail: CaseDetail }) 
           <EmptyState>{T.wf.noLegs}</EmptyState>
         ) : (
           <>
-            <Table caption={T.wf.movement}>
-              <thead>
-                <tr>
-                  <th scope="col">{T.wf.seq}</th>
-                  <th scope="col">{T.wf.holderCol}</th>
-                  <th scope="col">{T.wf.reason}</th>
-                  <th scope="col">{T.case.pendingAction}</th>
-                  <th scope="col">{T.case.due}</th>
-                  <th scope="col">{T.wf.started}</th>
-                  <th scope="col">{T.wf.sentByCol}</th>
-                  <th scope="col">{T.wf.remarkCol}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {legs.map((leg) => (
-                  <tr key={leg.seq_no}>
-                    <td className="mono">{leg.seq_no}</td>
-                    <td>
+            <DataTable
+              caption={T.wf.movement}
+              rows={legs}
+              rowKey={(leg) => String(leg.seq_no)}
+              columns={[
+                { key: "seq", header: T.wf.seq, align: "right", cell: (leg) => <span className="mono">{leg.seq_no}</span> },
+                {
+                  key: "holder",
+                  header: T.wf.holderCol,
+                  primary: true,
+                  cell: (leg) => (
+                    <>
                       <span className="mono">{leg.holder_office.code}</span> {leg.holder_office.name}
                       {leg.holder_user ? (
                         <div>
@@ -114,17 +108,21 @@ function Movement({ caseRef, detail }: { caseRef: string; detail: CaseDetail }) 
                           {leg.holder_designation ? `, ${leg.holder_designation}` : ""}
                         </div>
                       ) : null}
-                    </td>
-                    <td>{leg.reason_label}</td>
-                    <td>{leg.pending_action_label}</td>
-                    <td>{formatDate(leg.due_date)}</td>
-                    <td>{formatDateTime(leg.started_at)}</td>
-                    <td>{[leg.actor_name, leg.actor_designation, leg.actor_office_code].filter(Boolean).join(", ") || "—"}</td>
-                    <td>{leg.remark ?? <span className="muted">{T.wf.notShown}</span>}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
+                    </>
+                  ),
+                },
+                { key: "reason", header: T.wf.reason, cell: (leg) => leg.reason_label },
+                { key: "action", header: T.case.pendingAction, cell: (leg) => leg.pending_action_label },
+                { key: "due", header: T.case.due, cell: (leg) => formatDate(leg.due_date) },
+                { key: "started", header: T.wf.started, cell: (leg) => formatDateTime(leg.started_at) },
+                {
+                  key: "by",
+                  header: T.wf.sentByCol,
+                  cell: (leg) => [leg.actor_name, leg.actor_designation, leg.actor_office_code].filter(Boolean).join(", ") || "—",
+                },
+                { key: "remark", header: T.wf.remarkCol, cell: (leg) => leg.remark ?? <span className="muted">{T.wf.notShown}</span> },
+              ]}
+            />
             <Pagination offset={offset} limit={PAGE} total={total} onChange={setOffset} />
           </>
         )}

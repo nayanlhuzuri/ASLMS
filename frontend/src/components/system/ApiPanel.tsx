@@ -50,7 +50,6 @@ export function TestButton({
     <div className={s.testRow}>
       <Button
         variant="secondary"
-        size="sm"
         disabled={!!reason}
         busy={running}
         aria-describedby={reason ? id : undefined}

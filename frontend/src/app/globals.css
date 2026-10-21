@@ -267,7 +267,8 @@ code,
 
 dl.facts {
   display: grid;
-  grid-template-columns: max-content 1fr;
+  /* a long label wraps at half the width on phones instead of pushing the values off screen (portal-ui-polish) */
+  grid-template-columns: fit-content(50%) minmax(0, 1fr);
   gap: var(--s2) var(--s4);
   margin: 0;
 }
@@ -279,6 +280,7 @@ dl.facts dt {
 
 dl.facts dd {
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .tree,

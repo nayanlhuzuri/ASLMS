@@ -18,6 +18,10 @@ merge and the reviewer treats a miss as a blocking finding.
   (`npm run gen:api` leaves no diff), and the integrator runs `docker compose build web`. Every page renders in
   the running Compose `web` service: `backend/tools/portal_smoke.py` passes (HTTP 200 for each page, no error in
   the web log), checked by the tester and again by the integrator.
+- When `frontend/src` changes: after `portal_smoke.py`, the integrator runs the browser check
+  `docker compose --profile uicheck run --rm uicheck` (375, 768 and 1280 px; design `portal-ui-polish`, decision 23);
+  it exits 0 with `findings.json` empty, and the cycle report records the run directory under `./data/uicheck/`,
+  the number of routes and screenshots, and the run time.
 
 **Documents**
 - The decisions log has an entry for the feature: what was built, decisions, deviations from the plan and why.

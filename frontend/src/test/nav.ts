@@ -14,6 +14,9 @@ export const nav = {
 export function resetNav(pathname = "/", search = ""): void {
   nav.push.mockReset();
   nav.replace.mockReset();
+  nav.back.mockReset();
+  // no overlay mark of an earlier test (useUrlOverlay keeps it in history.state)
+  if (typeof window !== "undefined") window.history.replaceState(null, "", window.location.href);
   nav.pathname = pathname;
   nav.search = new URLSearchParams(search);
 }

@@ -43,10 +43,11 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
+/* the modal's tabs wrap to a second line on phones rather than scroll sideways (portal-ui-polish, decision 21) */
 .tablist {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--s1);
-  overflow-x: auto;
   border-bottom: 1px solid var(--border);
   margin-bottom: var(--s4);
 }

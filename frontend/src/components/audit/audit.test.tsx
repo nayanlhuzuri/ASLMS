@@ -6,9 +6,10 @@ import { Sidebar } from "@/components/shell/PortalShell";
 import type { AuditRow, Me, Permission, Role } from "@/lib/api/types";
 import { addDays, istDay } from "@/lib/format";
 import { nav, resetNav } from "@/test/nav";
-import { browserApi, json, labels, makeMe, primaryActions, renderWithClient, type BrowserCall } from "@/test/render";
+import { browserApi, expectDataTable, json, labels, makeMe, primaryActions, renderWithClient, type BrowserCall } from "@/test/render";
 
 import { AuditEntry } from "./AuditEntry";
+import { BeforeAfter } from "./BeforeAfter";
 import { AuditSearch } from "./AuditSearch";
 
 function meWith(role: Role, functions: Permission[], departmentCode: string | null = null): Me {
@@ -417,5 +418,13 @@ describe("the Work list template (design portal-ui-redesign, decision 26)", () =
     expect(nav.push).not.toHaveBeenCalledWith("/audit/r-2");
     expect(screen.getByText("2 entries")).toBeInTheDocument();
     expect(primaryActions(container)).toEqual(["Search"]);
+  });
+});
+
+describe("lists are DataTables, cards on phones (design portal-ui-polish, decision 15)", () => {
+  it("BeforeAfter renders a DataTable with a primary cell", () => {
+    renderWithClient(<BeforeAfter before={{ name: "Old name", notes: null }} after={{ name: "New name", notes: null }} />);
+    const table = expectDataTable(screen.getByRole("table", { name: "Before and after" }));
+    expect(within(table).getByRole("rowheader", { name: "name" }).closest("tr")!.className).toMatch(/changedRow/);
   });
 });

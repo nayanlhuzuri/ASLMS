@@ -8,7 +8,7 @@
  */
 import type { ReactNode } from "react";
 
-import { DefinitionList, Table } from "@/components/ui";
+import { DataTable, DefinitionList } from "@/components/ui";
 import { useCase } from "@/lib/api/hooks";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { T } from "@/lib/messages";
@@ -60,26 +60,17 @@ function ListBlock({ title, rows }: { title: string; rows: Record<string, unknow
       {rows.length === 0 ? (
         <p className="muted">{T.case.none}</p>
       ) : (
-        <Table caption={title}>
-          <thead>
-            <tr>
-              {keys.map((k) => (
-                <th key={k} scope="col">
-                  {fieldLabel(k)}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r, i) => (
-              <tr key={i}>
-                {keys.map((k) => (
-                  <td key={k}>{shown(k, r[k]) ? fieldValue(r[k]) : "—"}</td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </Table>
+        <DataTable
+          caption={title}
+          rows={rows.map((r, i) => ({ r, i }))}
+          rowKey={(row) => String(row.i)}
+          columns={keys.map((k, n) => ({
+            key: k,
+            header: fieldLabel(k),
+            primary: n === 0,
+            cell: (row: { r: Record<string, unknown>; i: number }) => (shown(k, row.r[k]) ? fieldValue(row.r[k]) : "—"),
+          }))}
+        />
       )}
     </section>
   );

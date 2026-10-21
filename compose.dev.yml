@@ -23,3 +23,25 @@ services:
       # the HTTPS proxy does not run in development (it starts only with --profile proxy), so the portal probe
       # through it would raise PortalDown for ever; a blank URL is not probed. web and api are still probed.
       OPS_PROBE_PORTAL_URL: ""
+  uicheck:
+    # the real-browser layout check (design portal-ui-polish, decisions 18-22): Playwright with Chromium at 375, 768
+    # and 1280 px against the running web service, with a synthetic API answered inside the browser. It joins only
+    # the edge network (it reaches http://web:3000 and nothing else), reads no env_file and holds no secret, runs as
+    # the image's non-root pwuser, and writes screenshots, findings.json and index.html to ./data/uicheck (gitignored).
+    # Run: docker compose --profile uicheck run --rm uicheck
+    profiles: ["uicheck"]
+    build:
+      context: ./frontend
+      dockerfile: e2e/Dockerfile
+      args:
+        PLAYWRIGHT_VERSION: "1.64.1"
+    networks:
+      - edge
+    depends_on:
+      web:
+        condition: service_healthy
+    user: pwuser
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - ./data/uicheck:/out

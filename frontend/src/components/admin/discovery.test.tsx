@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { Discovery } from "@/components/data/Discovery";
 import type { DiscoveryCase, DiscoverySummary, DiscoveryTerm, Permission } from "@/lib/api/types";
 import { resetNav } from "@/test/nav";
-import { browserApi, json, makeMe, renderWithClient } from "@/test/render";
+import { browserApi, expectDataTable, json, makeMe, renderWithClient } from "@/test/render";
 
 import { CourtSearch } from "./mapping/CourtSearch";
 import { MappingFrame } from "./mapping/MappingFrame";
@@ -197,5 +197,20 @@ describe("Discovery data tab", () => {
     expect(api.calls.some((c) => c.method === "POST")).toBe(false);
     await userEvent.click(within(dialog).getByRole("button", { name: "Sweep every name now" }));
     expect(await screen.findByText("6 searches queued for 3 name(s).")).toBeInTheDocument();
+  });
+});
+
+describe("lists are DataTables, cards on phones (design portal-ui-polish, decision 15)", () => {
+  it("CourtSearch renders a DataTable with a primary cell", async () => {
+    resetNav("/admin/mapping/court-search");
+    browserApi({
+      "GET /me": makeMe(ADMIN, "dept_admin"),
+      "GET /admin/discovery/terms": { items: [term()], total: 1 },
+      "GET /admin/discovery/terms/t-1/cases": { items: [found(1)], total: 1 },
+    });
+    renderWithClient(<CourtSearch />);
+    expectDataTable(await screen.findByRole("table", { name: "Names searched at the court" }));
+    await userEvent.click(screen.getByRole("button", { name: "Show the cases found for PRITAM SAIKIA" }));
+    expectDataTable(await screen.findByRole("table", { name: "Cases found for PRITAM SAIKIA" }));
   });
 });

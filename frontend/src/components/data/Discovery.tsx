@@ -16,8 +16,7 @@ import {
   ErrorBanner,
   Loading,
   Notice,
-  numCell,
-  Table,
+  DataTable,
   Kpi,
 } from "@/components/ui";
 import { api } from "@/lib/api/client";
@@ -92,39 +91,18 @@ export function Discovery() {
               ? T.discovery.lastSearchedAt(formatDateTime(data.data.last_searched_at))
               : T.discovery.neverSearched}
           </p>
-          <Table caption={T.discovery.queue}>
-            <thead>
-              <tr>
-                <th scope="col">{T.data.kind}</th>
-                <th scope="col" className={numCell}>
-                  {T.data.pending}
-                </th>
-                <th scope="col" className={numCell}>
-                  {T.data.waiting}
-                </th>
-                <th scope="col" className={numCell}>
-                  {T.data.runningCol}
-                </th>
-                <th scope="col" className={numCell}>
-                  {T.data.failed}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {KINDS.map((k) => {
-                const row = data.data.queue.by_kind[k];
-                return (
-                  <tr key={k}>
-                    <td>{T.data.kinds[k] ?? k}</td>
-                    <td className={numCell}>{formatNumber(row.pending)}</td>
-                    <td className={numCell}>{formatNumber(row.waiting)}</td>
-                    <td className={numCell}>{formatNumber(row.running)}</td>
-                    <td className={numCell}>{formatNumber(row.failed)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </Table>
+          <DataTable
+            caption={T.discovery.queue}
+            rows={[...KINDS]}
+            rowKey={(k) => k}
+            columns={[
+              { key: "kind", header: T.data.kind, primary: true, cell: (k) => T.data.kinds[k] ?? k },
+              { key: "pending", header: T.data.pending, align: "right", cell: (k) => formatNumber(data.data.queue.by_kind[k].pending) },
+              { key: "waiting", header: T.data.waiting, align: "right", cell: (k) => formatNumber(data.data.queue.by_kind[k].waiting) },
+              { key: "running", header: T.data.runningCol, align: "right", cell: (k) => formatNumber(data.data.queue.by_kind[k].running) },
+              { key: "failed", header: T.data.failed, align: "right", cell: (k) => formatNumber(data.data.queue.by_kind[k].failed) },
+            ]}
+          />
           {can(me.data, "admin.data_load") ? (
             <div className="row">
               <Button variant="secondary" onClick={() => setConfirm(true)}>
@@ -136,26 +114,17 @@ export function Discovery() {
           {data.data.latest_failures.length === 0 ? (
             <EmptyState>{T.discovery.noFailures}</EmptyState>
           ) : (
-            <Table caption={T.discovery.failures}>
-              <thead>
-                <tr>
-                  <th scope="col">{T.data.kind}</th>
-                  <th scope="col">{T.data.ref}</th>
-                  <th scope="col">{T.data.lastError}</th>
-                  <th scope="col">{T.discovery.finishedAt}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.data.latest_failures.map((f) => (
-                  <tr key={`${f.kind}:${f.ref}`}>
-                    <td>{T.data.kinds[f.kind] ?? f.kind}</td>
-                    <td className="mono">{f.ref}</td>
-                    <td>{f.last_error ?? "—"}</td>
-                    <td>{formatDateTime(f.finished_at)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
+            <DataTable
+              caption={T.discovery.failures}
+              rows={data.data.latest_failures}
+              rowKey={(f) => `${f.kind}:${f.ref}`}
+              columns={[
+                { key: "kind", header: T.data.kind, cell: (f) => T.data.kinds[f.kind] ?? f.kind },
+                { key: "ref", header: T.data.ref, primary: true, cell: (f) => <span className="mono">{f.ref}</span> },
+                { key: "error", header: T.data.lastError, cell: (f) => f.last_error ?? "—" },
+                { key: "at", header: T.discovery.finishedAt, cell: (f) => formatDateTime(f.finished_at) },
+              ]}
+            />
           )}
         </>
       ) : null}

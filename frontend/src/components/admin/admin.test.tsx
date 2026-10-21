@@ -4,10 +4,11 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import type { ExitPreview, MembershipOut, Permission, TicketDetail, UserOut } from "@/lib/api/types";
 import { nav, resetNav } from "@/test/nav";
-import { browserApi, json, labels, makeMe, primaryActions, renderWithClient } from "@/test/render";
+import { browserApi, expectDataTable, json, labels, makeMe, primaryActions, renderWithClient } from "@/test/render";
 
 import { AccessMatrix } from "./Access";
 import { AdminFrame } from "./AdminFrame";
+import { Designations } from "./Designations";
 import { OfficeDetailView } from "./Offices";
 import { TicketView } from "./Tickets";
 import { UserDetail } from "./UserDetail";
@@ -423,5 +424,83 @@ describe("Administration on the Settings template (design portal-ui-redesign, de
     expect(screen.getByRole("button", { name: "Enable login" })).toHaveAttribute("data-variant", "secondary");
     await userEvent.click(screen.getByRole("button", { name: "Edit" }));
     expect(primaryActions(container)).toEqual(["Save"]);
+  });
+});
+
+describe("lists are DataTables, cards on phones (design portal-ui-polish, decision 15)", () => {
+  it("Access renders a DataTable with a primary cell", async () => {
+    browserApi({
+      "GET /me": makeMe(["users.view"], "dept_admin"),
+      "GET /reference/labels": labels(),
+      "GET /admin/access/types": { super_admin: { "users.view": true }, dept_admin: { "users.view": true } },
+      "GET /admin/permissions": [{ code: "users.view", module: "users", label: "View users", description: null, is_active: true }],
+    });
+    renderWithClient(<AccessMatrix />);
+    const table = expectDataTable(await screen.findByRole("table", { name: "users" }));
+    expect(within(table).getByRole("rowheader", { name: /View users/ })).toBeInTheDocument();
+  });
+
+  it("Designations renders a DataTable with a primary cell", async () => {
+    browserApi({
+      "GET /me": makeMe(["users.view", "admin.designations"], "super_admin"),
+      "GET /admin/designations": [{ id: "d-1", code: "US", name: "Under Secretary to the Government of Assam, Education", sort_order: 10, is_active: true }],
+    });
+    renderWithClient(<Designations />);
+    expectDataTable(await screen.findByRole("table", { name: "Designations" }));
+  });
+
+  it("UserDetail renders a DataTable with a primary cell", async () => {
+    userRoutes(makeMe(DEPT_ADMIN, "dept_admin"), {
+      "GET /admin/permissions": [{ code: "users.view", module: "users", label: "View users", description: null, is_active: true }],
+      "GET /admin/users/u-9/memberships/m-9/permissions": {
+        membership_id: "m-9",
+        role: "directorate_user",
+        type_functions: ["users.view"],
+        overrides: [],
+        effective: ["users.view"],
+      },
+      "GET /admin/users/u-9/memberships/m-9/documents": [
+        { id: "doc-1", ref_no: "GO/2026/1", doc_date: "2026-10-01", description: "Posting order", doc_type: "order", archived: false, ticket_ref: null, attached_at: "2026-10-01T05:00:00Z", attached_by: null },
+      ],
+    });
+    renderWithClient(<UserDetail id="u-9" />);
+    expectDataTable(await screen.findByRole("table", { name: "Offices (memberships)" }));
+    await userEvent.click(screen.getByRole("button", { name: "Functions and overrides" }));
+    expectDataTable(await screen.findByRole("table", { name: "Functions" }));
+    await userEvent.click(screen.getByRole("button", { name: "Government orders" }));
+    expectDataTable(await screen.findByRole("table", { name: "Government orders" }));
+  });
+
+  it("Tickets renders a DataTable with a primary cell", async () => {
+    browserApi({
+      "GET /reference/labels": labels(),
+      "GET /admin/tickets/TKT-EDU-2026-0001": {
+        ref_no: "TKT/EDU/2026/0001",
+        kind: "head_change",
+        operation: "replace",
+        status: "open",
+        department_code: "EDU",
+        age_days: 2,
+        created_at: "2026-10-08T05:00:00Z",
+        decided_at: null,
+        decided_by: null,
+        decision_remark: null,
+        request_remark: "order dated 1 Oct",
+        requested_by: { name: "Edu Admin", designation: null, office_code: "EDU" },
+        target: { user_name: "Mira Bora", designation: "Commissioner", role_from: "dept_officer", role_to: "dept_head" },
+        documents: [
+          { id: "doc-1", description: "Government order", original_filename: "go.pdf", doc_type: "order", doc_date: "2026-10-01", archived: false },
+        ],
+        documents_count: 1,
+        payload: {},
+        outgoing_detail: null,
+        result: null,
+        can_approve: false,
+        can_withdraw: false,
+        can_attach: false,
+      } as unknown as TicketDetail,
+    });
+    renderWithClient(<TicketView ticketRef="TKT-EDU-2026-0001" />);
+    expectDataTable(await screen.findByRole("table", { name: "Government orders" }));
   });
 });

@@ -69,7 +69,7 @@ export function LinkGraph({ graph, rootId }: { graph: LinkGraphOut; rootId: stri
   return (
     <figure className="stack">
       <div className={s.graph}>
-        <svg width={width} height={height} role="img" aria-label={T.case.graph}>
+        <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={T.case.graph}>
           {graph.edges.map((e, i) => {
             const a = at.get(e.from);
             const b = at.get(e.to);

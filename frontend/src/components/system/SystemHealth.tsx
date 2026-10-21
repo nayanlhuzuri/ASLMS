@@ -5,13 +5,13 @@
  * overview band (the court cards' 24 h answered rate in a ring, the overall sentence computed by the server and four
  * headline figures), the 17 court API cards in four groups read from the call log, and the ten ASLMS service checks.
  * Reading never calls the court; "Test now" makes one court call (its cost is on the button) and opens the card's
- * panel (`?api=<key>`, so Back closes it) with the test running. The court cards are read again every minute while
+ * panel (`?api=<key>`, so Back closes it; closing goes back when this page opened it: `useUrlOverlay`, design
+ * portal-ui-polish, decision 10) with the test running. The court cards are read again every minute while
  * the page is visible and after each test; the services when the page opens, on "Check services again" (the page's
  * one primary button) and on window focus. People are never named: calls read "background work", "a person" or
  * "your test".
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 
 import {
@@ -34,8 +34,9 @@ import { api } from "@/lib/api/client";
 import type { ApiCard, ApiTest, ServicesHealth, SystemHealth as SystemHealthData } from "@/lib/api/types";
 import { formatNumber, formatTime } from "@/lib/format";
 import { T } from "@/lib/messages";
-import { queryString, type Params } from "@/lib/params";
+import type { Params } from "@/lib/params";
 import { cardsOf, courtTotals, percent, ringTone, toneOf, typicalMs } from "@/lib/systemHealth";
+import { useUrlOverlay } from "@/lib/useUrlOverlay";
 
 import { ApiPanel, TestButton, type TestState } from "./ApiPanel";
 import s from "./system.module.css";
@@ -45,7 +46,7 @@ export const SERVICES_KEY = ["system-health", "services"] as const;
 export const SUMMARY_POLL_MS = 60_000;
 
 export function SystemHealth({ params }: { params: Params }) {
-  const router = useRouter();
+  const overlay = useUrlOverlay("api", params, "/system");
   const qc = useQueryClient();
   const summary = useQuery({
     queryKey: SUMMARY_KEY,
@@ -65,12 +66,10 @@ export function SystemHealth({ params }: { params: Params }) {
   const openCard = cards.find((c) => c.key === openKey) ?? null;
 
   function open(key: string) {
-    router.push("/system" + queryString({ ...params, api: key }));
+    overlay.open(key);
   }
   function close() {
-    const rest: Params = { ...params };
-    delete rest.api;
-    router.replace("/system" + queryString(rest));
+    overlay.close();
   }
   async function runTest(key: string) {
     if (inFlight.current.has(key)) return; // a double click sends one request

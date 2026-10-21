@@ -5,7 +5,7 @@
  * 404 row facts, the collapsible orders with the PDF inline, the old inbox addresses, and the filter bar of each list
  * (the portal-filters tests moved here with Recommended, the pool and Transfers).
  */
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useEffect, useState } from "react";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -196,7 +196,7 @@ describe("the details modal", () => {
     expect(within(why).getByRole("meter", { name: "Match strength" })).toHaveAttribute("aria-valuenow", "0.849");
     expect(within(why).getByText(/never returns to the unclaimed pool/)).toBeInTheDocument();
     // tabs: Parties first; Orders and Linked cases load only when opened
-    expect(await within(dialog).findByText("RAM KUMAR", { selector: "td" })).toBeInTheDocument();
+    expect(await within(dialog).findByText("RAM KUMAR", { selector: "td > div" })).toBeInTheDocument();
     expect(api.calls.some((c) => c.path.startsWith(`${BASE}/orders`))).toBe(false);
     expect(api.calls.some((c) => c.path.startsWith(`${BASE}/links`))).toBe(false);
     await userEvent.click(within(dialog).getByRole("tab", { name: "Orders" }));
@@ -575,5 +575,101 @@ describe("old addresses and the filter bars", () => {
     const dialog = await screen.findByRole("dialog", { name: "WP(C)/1/2026" });
     await within(dialog).findByRole("button", { name: "Claim for EDU" });
     expect(screen.queryByRole("button", { name: /release|return|unclaim|stop watching/i })).toBeNull();
+  });
+});
+
+describe("round 2 advisories (design portal-ui-polish, decisions 6, 7, 9 and 10)", () => {
+  it("a declined From-us row shows its own transfer, not open_transfer", async () => {
+    resetNav("/claim/transfers");
+    const declined = transfer(2, { from_office_code: "FIN", to_office_code: "EDU", status: "declined", case: summary(1) });
+    const open = transfer(3, { from_office_code: "HEALTH", to_office_code: "EDU", status: "requested", case: summary(1) });
+    browserApi(
+      routes({
+        "GET /inbox/transfers": { items: [declined], total: 1 },
+        ...caseRoutes(ownershipView(actions({ withdraw_transfer: true, decide_transfer: true }), { open_transfer: open })),
+      }),
+    );
+    renderWithClient(<Routed tab="transfers" initial={{ direction: "out", status: "all" }} />);
+    await userEvent.click(await screen.findByRole("row", { name: "Open details of WP(C)/1/2026" }));
+    const dialog = await screen.findByRole("dialog", { name: "WP(C)/1/2026" });
+    await within(dialog).findByRole("tablist");
+    expect(within(dialog).getByText("Transfer requested by FIN")).toBeInTheDocument();
+    expect(within(dialog).queryByText("Transfer requested by HEALTH")).toBeNull();
+    // the footer's actions are those of the clicked row's status: a declined transfer offers none
+    expect(within(dialog).queryByRole("button", { name: "Withdraw" })).toBeNull();
+    expect(within(dialog).queryByRole("button", { name: "Accept transfer" })).toBeNull();
+  });
+
+  it("modal Orders pages past 50", async () => {
+    const order = (i: number) => ({
+      id: `o-${i}`,
+      order_no: String(i),
+      order_date: "2026-09-25",
+      kind: "interim",
+      order_details: `Order ${i}`,
+      order_judge_name: null,
+      download_status: "stored",
+      document_id: null,
+      date_judgement_pronounced: null,
+      date_judgement_reserved: null,
+      is_reportable: null,
+    });
+    const api = browserApi(
+      routes({
+        [`GET ${BASE}/orders`]: (call: BrowserCall) => {
+          const offset = Number(new URL(call.url, "http://x").searchParams.get("offset") ?? 0);
+          const n = offset === 0 ? 50 : 3;
+          return { items: Array.from({ length: n }, (_, i) => order(offset + i + 1)), total: 53 };
+        },
+      }),
+    );
+    renderWithClient(<ClaimFrame tab="recommended" params={{ case: REF }} />);
+    const dialog = await screen.findByRole("dialog", { name: "WP(C)/1/2026" });
+    await userEvent.click(await within(dialog).findByRole("tab", { name: "Orders" }));
+    await within(dialog).findByText("Order 50");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Next" }));
+    await within(dialog).findByText("Order 53");
+    const orderCalls = api.calls.filter((c) => c.path.startsWith(`${BASE}/orders`)).map((c) => c.path);
+    expect(orderCalls.some((p) => p.includes("offset=50") && p.includes("limit=50"))).toBe(true);
+  });
+
+  it("double confirm sends one request", async () => {
+    const api = browserApi(
+      routes({
+        ...caseRoutes(ownershipView(actions({ dismiss: true, dismiss_departments: ["EDU"] }))),
+        [`POST ${BASE}/dismiss`]: {},
+      }),
+    );
+    renderWithClient(<ClaimFrame tab="recommended" params={{ department: "EDU", case: REF }} />);
+    const dialog = await screen.findByRole("dialog", { name: "WP(C)/1/2026" });
+    await userEvent.click(await within(dialog).findByRole("button", { name: "Dismiss" }));
+    const step = within(dialog).getByRole("group", { name: "Dismiss this recommendation" });
+    // two submits before the first request resolves
+    fireEvent.submit(step);
+    fireEvent.submit(step);
+    await waitFor(() => expect(posts(api.calls)).toHaveLength(1));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(posts(api.calls)).toHaveLength(1);
+  });
+
+  it("closing a modal opened from a row goes back", async () => {
+    browserApi(routes());
+    renderWithClient(<Routed tab="recommended" initial={{ band: "medium" }} />);
+    await userEvent.click(await screen.findByRole("row", { name: "Open details of WP(C)/1/2026" }));
+    expect(nav.push).toHaveBeenCalledWith(`/claim/recommended?band=medium&case=${REF}`);
+    const dialog = await screen.findByRole("dialog", { name: "WP(C)/1/2026" });
+    await waitFor(() => expect((window.history.state as Record<string, unknown> | null)?.__aslmsOverlay).toBe(`case=${REF}`));
+    await userEvent.click(within(dialog).getAllByRole("button", { name: "Close" })[0]!);
+    expect(nav.back).toHaveBeenCalledTimes(1);
+    expect(nav.replace).not.toHaveBeenCalled();
+  });
+
+  it("closing a modal opened from an address replaces", async () => {
+    browserApi(routes());
+    renderWithClient(<Routed tab="recommended" initial={{ band: "medium", case: REF }} />);
+    const dialog = await screen.findByRole("dialog", { name: "WP(C)/1/2026" });
+    await userEvent.click(within(dialog).getAllByRole("button", { name: "Close" })[0]!);
+    expect(nav.replace).toHaveBeenCalledWith("/claim/recommended?band=medium");
+    expect(nav.back).not.toHaveBeenCalled();
   });
 });

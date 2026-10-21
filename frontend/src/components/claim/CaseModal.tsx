@@ -168,9 +168,10 @@ export function CaseModal({
         ? (view?.recommendations.find((r) => r.office_code === department && r.status === "recommended") ?? null)
         : null;
   const pool = row?.kind === "pool" ? row.item : null;
-  const transfer: Transfer | null =
-    tab === "transfers" ? (view?.open_transfer ?? (row?.kind === "transfer" ? row.transfer : null)) : null;
   const rowTransfer = row?.kind === "transfer" ? row.transfer : null;
+  // the clicked row's transfer (an accepted, declined or withdrawn one under "From us" with status Any); the server's
+  // open transfer only when the modal was opened from an address (design portal-ui-polish, decision 6)
+  const transfer: Transfer | null = tab === "transfers" ? (rowTransfer ?? view?.open_transfer ?? null) : null;
   // the row's summary, else the one the server's recommendation or transfer carries (an address opened directly)
   const summary = summaryOf(row) ?? rec?.case ?? transfer?.case ?? null;
   const label = c?.identity.case_no_text || summary?.case_no_text || c?.ref_no || summary?.ref_no || caseRef;

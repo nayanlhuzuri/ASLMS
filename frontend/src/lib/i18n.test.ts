@@ -43,6 +43,13 @@ describe("the page's language (design portal-ui-redesign, decision 27)", () => {
     expect(messagesFor("en")).toBe(T);
     expect(messagesFor("xx")).toBe(T);
   });
+
+  it("inherited keys fall back to English (design portal-ui-polish, decision 4)", () => {
+    for (const key of ["toString", "constructor", "__proto__", "hasOwnProperty"]) {
+      expect(messagesFor(key)).toBe(T);
+      expect(htmlAttributes(key)).toEqual({ lang: "en", dir: "ltr" });
+    }
+  });
 });
 
 /** Every key path of a catalogue with its kind: a string, a function and its arity, or an object. */

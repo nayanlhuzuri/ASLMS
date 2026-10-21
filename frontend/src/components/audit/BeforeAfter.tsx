@@ -6,7 +6,7 @@
  * indented JSON; a withheld text (`{length, sha256}`) says the text was not kept, with its length and fingerprint;
  * `null` or absent shows "—".
  */
-import { EmptyState, Table } from "@/components/ui";
+import { DataTable, EmptyState } from "@/components/ui";
 import { diffRows, isTextDigest, VALUE_KEY } from "@/lib/audit";
 import { T } from "@/lib/messages";
 
@@ -26,31 +26,27 @@ export function BeforeAfter({ before, after }: { before: unknown; after: unknown
   const rows = diffRows(before, after);
   if (rows.length === 0) return <EmptyState>{T.audit.noValues}</EmptyState>;
   return (
-    <Table caption={T.audit.beforeAfter}>
-      <thead>
-        <tr>
-          <th scope="col">{T.audit.field}</th>
-          <th scope="col">{T.audit.before}</th>
-          <th scope="col">{T.audit.after}</th>
-          <th scope="col">{T.audit.changed}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((r) => (
-          <tr key={r.key} className={r.changed ? s.changedRow : undefined}>
-            <th scope="row" className={s.code}>
-              {r.key === VALUE_KEY ? T.audit.value : r.key}
-            </th>
-            <td>
-              <AuditValue value={r.before} />
-            </td>
-            <td>
-              <AuditValue value={r.after} />
-            </td>
-            <td>{r.changed ? <span className={s.mark}>{T.audit.changed}</span> : null}</td>
-          </tr>
-        ))}
-      </tbody>
-    </Table>
+    <DataTable
+      caption={T.audit.beforeAfter}
+      rows={rows}
+      rowKey={(r) => r.key}
+      rowClassName={(r) => (r.changed ? s.changedRow : undefined)}
+      columns={[
+        {
+          key: "field",
+          header: T.audit.field,
+          primary: true,
+          rowHeader: true,
+          cell: (r) => <span className={s.code}>{r.key === VALUE_KEY ? T.audit.value : r.key}</span>,
+        },
+        { key: "before", header: T.audit.before, cell: (r) => <AuditValue value={r.before} /> },
+        { key: "after", header: T.audit.after, cell: (r) => <AuditValue value={r.after} /> },
+        {
+          key: "changed",
+          header: T.audit.changed,
+          cell: (r) => (r.changed ? <span className={s.mark}>{T.audit.changed}</span> : null),
+        },
+      ]}
+    />
   );
 }

@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { CaseSummary, CustodyCard, CustodySummary, HeldItem, Me, Permission, SentItem } from "@/lib/api/types";
 import { setFlash } from "@/lib/flash";
 import { nav, resetNav } from "@/test/nav";
-import { browserApi, json, makeMe, renderWithClient } from "@/test/render";
+import { browserApi, expectDataTable, json, makeMe, renderWithClient } from "@/test/render";
 
 import { FilesFrame, FilesIndex } from "./FilesFrame";
 import { Held } from "./Held";
@@ -401,5 +401,16 @@ describe("the filter bar on Files (portal-filters)", () => {
     const owner = await screen.findByLabelText("Department");
     await waitFor(() => expect(within(owner).getByRole("option", { name: "HEALTH — Health" })).toBeInTheDocument());
     expect(screen.getByText("Department: HEALTH")).toBeInTheDocument();
+  });
+});
+
+describe("lists are DataTables, cards on phones (design portal-ui-polish, decision 15)", () => {
+  it("TrackingSummary renders a DataTable with a primary cell", async () => {
+    resetNav("/files/department");
+    browserApi({ "GET /custody/held": held([]), "GET /custody/summary": SUMMARY, "GET /custody/recipients": DEPTS });
+    renderWithClient(<Held scope="owned" params={{}} />);
+    const edu = await screen.findByRole("region", { name: "Tracking summary: EDU" });
+    expectDataTable(within(edu).getByRole("table", { name: "By holder department" }));
+    expectDataTable(within(edu).getByRole("table", { name: "By holder" }));
   });
 });

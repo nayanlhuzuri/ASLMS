@@ -198,3 +198,26 @@ def test_the_api_answers_the_headline(world):
     assert body["headline"]["to_claim"] is None
     assert [i["kind"] for i in body["attention"]] == ["overdue_action"]
     assert body["upcoming"][0]["critical"] is True
+
+
+# ------------------------------------------------------------------------ design portal-ui-polish, decision 13
+
+
+def test_attention_lists_a_confirm_case_once(world):
+    """A case with a next date to confirm and a file received within 7 days gives one `confirm_next_date` row
+    and no `file_received` row."""
+    with world.Session() as s:
+        case = _sent(s, world, None, ago_hours=2)
+        next_date(s, case, today() + timedelta(days=20))
+        att = [(i["kind"], i["case"]["id"]) for i in _me(s, world, "edu_off2")["attention"]]
+        assert att == [("confirm_next_date", case.id)]
+
+
+def test_attention_keeps_overdue_and_confirm_on_one_case(world):
+    """An overdue file action and a next date to confirm on the same case are two things to do: both stay; the
+    file received on it gives way."""
+    with world.Session() as s:
+        case = _sent(s, world, -2, ago_hours=2)
+        next_date(s, case, today() + timedelta(days=20))
+        att = [(i["kind"], i["case"]["id"]) for i in _me(s, world, "edu_off2")["attention"]]
+        assert att == [("overdue_action", case.id), ("confirm_next_date", case.id)]

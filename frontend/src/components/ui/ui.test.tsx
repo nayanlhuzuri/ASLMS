@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { act, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -107,6 +107,50 @@ describe("Tabs", () => {
   });
 });
 
+describe("Tabs follow a tab's own width (design portal-ui-polish, decision 1)", () => {
+  it("tab underline re-measures when a tab's width changes", () => {
+    const observers: { cb: ResizeObserverCallback; els: Element[] }[] = [];
+    class FakeResizeObserver {
+      els: Element[] = [];
+      constructor(cb: ResizeObserverCallback) {
+        observers.push({ cb, els: this.els });
+      }
+      observe(el: Element) {
+        this.els.push(el);
+      }
+      unobserve() {}
+      disconnect() {}
+    }
+    vi.stubGlobal("ResizeObserver", FakeResizeObserver);
+    try {
+      renderWithClient(
+        <Tabs
+          label="Case sections"
+          items={[
+            { href: "/a", label: "Overview", active: false },
+            { href: "/b", label: "Orders", active: true },
+          ]}
+        />,
+      );
+      const tab = screen.getByRole("link", { name: "Orders" });
+      const nav = screen.getByRole("navigation", { name: "Case sections" });
+      expect(nav).toHaveAttribute("data-scroll-x");
+      const watcher = observers.find((o) => o.els.includes(tab));
+      expect(watcher).toBeDefined();
+      expect(watcher!.els).toContain(nav);
+      Object.defineProperty(tab, "offsetWidth", { configurable: true, value: 120 });
+      Object.defineProperty(tab, "offsetLeft", { configurable: true, value: 90 });
+      act(() => watcher!.cb([], watcher as unknown as ResizeObserver));
+      expect(screen.getByTestId("tab-ink")).toHaveStyle({ left: "90px", width: "120px" });
+      Object.defineProperty(tab, "offsetWidth", { configurable: true, value: 150 });
+      act(() => watcher!.cb([], watcher as unknown as ResizeObserver));
+      expect(screen.getByTestId("tab-ink")).toHaveStyle({ width: "150px" });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
 describe("Menu", () => {
   it("opens and closes by keyboard, with arrow keys between the items", async () => {
     const onSelect = vi.fn();
@@ -211,6 +255,115 @@ describe.each<Overlay>(["dialog", "modal", "panel"])("%s (the shared overlay beh
   });
 });
 
+describe("an overlay's first focus (design portal-ui-polish, decision 3)", () => {
+  it("overlay focuses the first field, not Close", async () => {
+    function Harness() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <button type="button" onClick={() => setOpen(true)}>
+            Open it
+          </button>
+          <Dialog open={open} title="New user" onClose={() => setOpen(false)} footer={<Button>Save</Button>}>
+            <input type="hidden" name="token" />
+            <p>
+              <a href="/help">Help</a>
+            </p>
+            <TextField label="E-mail" />
+          </Dialog>
+        </>
+      );
+    }
+    renderWithClient(<Harness />);
+    await userEvent.click(screen.getByRole("button", { name: "Open it" }));
+    expect(screen.getByRole("textbox", { name: "E-mail" })).toHaveFocus();
+  });
+
+  it("overlay without fields focuses the body's first control", async () => {
+    function Harness() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <button type="button" onClick={() => setOpen(true)}>
+            Open it
+          </button>
+          <Modal open={open} title="A case" onClose={() => setOpen(false)} footer={<Button>Claim</Button>}>
+            <p>Some facts</p>
+            <button type="button">Parties</button>
+          </Modal>
+        </>
+      );
+    }
+    renderWithClient(<Harness />);
+    await userEvent.click(screen.getByRole("button", { name: "Open it" }));
+    expect(screen.getByRole("button", { name: "Parties" })).toHaveFocus();
+  });
+
+  it("an overlay with nothing in the body focuses the footer's first control, and Close only when alone", async () => {
+    function Harness({ footer }: { footer: boolean }) {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <button type="button" onClick={() => setOpen(true)}>
+            Open it
+          </button>
+          <SidePanel open={open} title="Facts" onClose={() => setOpen(false)} footer={footer ? <Button>Done</Button> : undefined}>
+            <p>Only words</p>
+          </SidePanel>
+        </>
+      );
+    }
+    const first = renderWithClient(<Harness footer />);
+    await userEvent.click(screen.getByRole("button", { name: "Open it" }));
+    expect(screen.getByRole("button", { name: "Done" })).toHaveFocus();
+    first.unmount();
+    renderWithClient(<Harness footer={false} />);
+    await userEvent.click(screen.getByRole("button", { name: "Open it" }));
+    expect(within(screen.getByRole("dialog")).getByRole("button", { name: "Close" })).toHaveFocus();
+  });
+
+  it("Dialog wide adds the wide class", () => {
+    const { rerender } = renderWithClient(
+      <Dialog open title="Plain" onClose={() => {}}>
+        <p>Body</p>
+      </Dialog>,
+    );
+    const plain = screen.getByRole("dialog").className;
+    expect(plain).not.toMatch(/wide/);
+    rerender(
+      <Dialog open title="Wide" onClose={() => {}} wide>
+        <p>Body</p>
+      </Dialog>,
+    );
+    expect(screen.getByRole("dialog").className).toMatch(/wide/);
+  });
+});
+
+describe("Button carries data-ui and data-size (design portal-ui-polish, decision 21)", () => {
+  it("Button carries data-ui and data-size", () => {
+    renderWithClient(
+      <>
+        <Button>Save</Button>
+        <Button size="sm" variant="secondary">
+          Edit
+        </Button>
+        <Button variant="link">More</Button>
+        <TextField label="Name" />
+        <SelectField label="Kind" options={[{ value: "a", label: "A" }]} />
+        <TextArea label="Remark" />
+      </>,
+    );
+    const save = screen.getByRole("button", { name: "Save" });
+    expect(save).toHaveAttribute("data-ui", "button");
+    expect(save).toHaveAttribute("data-size", "md");
+    expect(screen.getByRole("button", { name: "Edit" })).toHaveAttribute("data-size", "sm");
+    expect(screen.getByRole("button", { name: "More" })).not.toHaveAttribute("data-size");
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveAttribute("data-ui", "field");
+    expect(screen.getByRole("combobox", { name: "Kind" })).toHaveAttribute("data-ui", "field");
+    expect(screen.getByRole("textbox", { name: "Remark" })).toHaveAttribute("data-ui", "field");
+  });
+});
+
 describe("DataTable (decision 18)", () => {
   interface Row {
     id: string;
@@ -252,6 +405,49 @@ describe("DataTable (decision 18)", () => {
     expect(open).toHaveBeenCalledWith(rows[1]);
     await userEvent.click(screen.getByText("WP(C)/1/2026"));
     expect(open).toHaveBeenCalledWith(rows[0]);
+  });
+
+  it("becomes cards on a wide screen when its columns cannot fit the box, and a table again when they can (review of 21 Oct 2026)", () => {
+    const observers: { cb: ResizeObserverCallback; els: Element[] }[] = [];
+    class FakeResizeObserver {
+      els: Element[] = [];
+      constructor(cb: ResizeObserverCallback) {
+        observers.push({ cb, els: this.els });
+      }
+      observe(el: Element) {
+        this.els.push(el);
+      }
+      unobserve() {}
+      disconnect() {}
+    }
+    vi.stubGlobal("ResizeObserver", FakeResizeObserver);
+    try {
+      renderWithClient(
+        <DataTable
+          caption="Matrix"
+          rows={rows}
+          rowKey={(r) => r.id}
+          columns={[
+            { key: "no", header: "Case", cell: (r) => r.no, primary: true },
+            { key: "stage", header: "Stage", cell: (r) => r.stage },
+          ]}
+        />,
+      );
+      const table = screen.getByRole("table", { name: "Matrix" });
+      const wrap = table.parentElement!;
+      expect(wrap).not.toHaveAttribute("data-stacked");
+      const watcher = observers.find((o) => o.els.includes(wrap));
+      expect(watcher).toBeDefined();
+      Object.defineProperty(wrap, "clientWidth", { configurable: true, value: 722 });
+      Object.defineProperty(table, "offsetWidth", { configurable: true, value: 1629 });
+      act(() => watcher!.cb([], watcher as unknown as ResizeObserver));
+      expect(wrap).toHaveAttribute("data-stacked");
+      Object.defineProperty(wrap, "clientWidth", { configurable: true, value: 1700 });
+      act(() => watcher!.cb([], watcher as unknown as ResizeObserver));
+      expect(wrap).not.toHaveAttribute("data-stacked");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("shows the empty state instead of an empty table", () => {

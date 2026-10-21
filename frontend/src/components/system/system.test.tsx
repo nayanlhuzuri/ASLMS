@@ -317,9 +317,23 @@ describe("the System health screen", () => {
     // Back: the address loses ?api= and the panel closes
     navigate(view, <SystemHealth params={{}} />);
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    // the close button replaces the address
+    // the close button replaces the address opened directly (a fresh history entry, no mark of this page)
+    window.history.replaceState(null, "", window.location.href);
     navigate(view, <SystemHealth params={{ api: "cnr" }} />);
     await userEvent.click(await screen.findByRole("button", { name: /close/i }));
     expect(nav.replace).toHaveBeenCalledWith("/system");
+  });
+
+  it("closing the API card goes back after opening it (design portal-ui-polish, decision 10)", async () => {
+    routes();
+    const view = renderWithClient(<SystemHealth params={{}} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Case details by CNR: details" }));
+    expect(nav.push).toHaveBeenCalledWith("/system?api=cnr");
+    navigate(view, <SystemHealth params={{ api: "cnr" }} />);
+    const dialog = await screen.findByRole("dialog", { name: "Case details by CNR" });
+    await waitFor(() => expect((window.history.state as Record<string, unknown> | null)?.__aslmsOverlay).toBe("api=cnr"));
+    await userEvent.click(within(dialog).getByRole("button", { name: /close/i }));
+    expect(nav.back).toHaveBeenCalledTimes(1);
+    expect(nav.replace).not.toHaveBeenCalled();
   });
 });

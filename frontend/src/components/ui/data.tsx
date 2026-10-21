@@ -1,12 +1,13 @@
 "use client";
 
 /**
- * Data display of the UI kit (design portal-ui-redesign, decisions 15, 17 and 18): tables, the responsive
- * `DataTable` (a real table on wide screens, the same rows as cards on phones), pagination, definition lists, case
- * links and the alignment rule's fixed leading columns (`Lead`, `DateChip`, `LeadIcon`) composed by `ListRow`.
+ * Data display of the UI kit (design portal-ui-redesign, decisions 15, 17 and 18): the responsive `DataTable` (a real
+ * table on wide screens, the same rows as cards on phones; the plain `Table` left the kit in design portal-ui-polish,
+ * decision 15, so no list scrolls sideways), pagination, definition lists, case links and the alignment rule's fixed
+ * leading columns (`Lead`, `DateChip`, `LeadIcon`) composed by `ListRow`.
  */
 import Link from "next/link";
-import type { KeyboardEvent, ReactNode } from "react";
+import { useCallback, useLayoutEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
 
 import { dayMonth, formatDate, formatNumber } from "@/lib/format";
 import { T } from "@/lib/messages";
@@ -15,18 +16,7 @@ import { casePath } from "@/lib/refs";
 import { Button, cx } from "./controls";
 import s from "./data.module.css";
 
-/** A plain table; on phones it scrolls sideways until its screen's round converts it to a `DataTable`. */
-export function Table({ caption, children }: { caption?: ReactNode; children: ReactNode }) {
-  return (
-    <div className={s.scroll}>
-      <table className={s.table}>
-        {caption ? <caption>{caption}</caption> : null}
-        {children}
-      </table>
-    </div>
-  );
-}
-
+/** The right-aligned tabular-figures cell class, for `ReportView`'s own scrollable table. */
 export const numCell = s.num!;
 
 export interface Column<Row> {
@@ -42,12 +32,49 @@ export interface Column<Row> {
   hideOnPhone?: boolean;
   /** The cell on top of the phone card, without a label. */
   primary?: boolean;
+  /** Drawn as the row's header (`<th scope="row">`), for a primary cell that names the row. */
+  rowHeader?: boolean;
+}
+
+/**
+ * Draws the table as cards (`data-stacked`) when, as a table, it is wider than its box: decided in table form each
+ * time, before paint, so a narrower box or more columns turn it into cards and a wider box back into a table. Below
+ * 820 px the CSS already draws cards and a table never measures wider than its box.
+ */
+export function fitTable(wrap: HTMLElement | null): void {
+  const table = wrap?.querySelector("table");
+  if (!wrap || !table) return;
+  wrap.removeAttribute("data-stacked");
+  if (table.offsetWidth > wrap.clientWidth + 1) wrap.setAttribute("data-stacked", "");
+}
+
+/** `fitTable` after every render (rows or columns may have changed) and whenever the box's width changes. */
+function useFitTable() {
+  const node = useRef<HTMLDivElement | null>(null);
+  const observer = useRef<ResizeObserver | null>(null);
+  useLayoutEffect(() => fitTable(node.current));
+  const ref = useCallback((el: HTMLDivElement | null) => {
+    observer.current?.disconnect();
+    observer.current = null;
+    node.current = el;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    let width = -1;
+    observer.current = new ResizeObserver(() => {
+      if (el.clientWidth === width) return; // a height change (cards ↔ table) is not a reason to measure again
+      width = el.clientWidth;
+      fitTable(el);
+    });
+    observer.current.observe(el);
+    void document.fonts?.ready.then(() => fitTable(node.current));
+  }, []);
+  return ref;
 }
 
 /**
  * One DOM for every width (decision 18): a `<table>` on wide screens; below 820 px CSS turns each row into a card
  * with its primary cell on top and the other cells as label-value lines from each cell's `data-label`. A row with
- * `onRowClick` opens by click or by Enter on the focused row.
+ * `onRowClick` opens by click or by Enter on the focused row. On a wider screen a table whose columns cannot fit its
+ * box becomes the same cards (`fitTable`), so no column is ever cut off or scrolled to.
  */
 export function DataTable<Row>({
   columns,
@@ -56,6 +83,7 @@ export function DataTable<Row>({
   caption,
   onRowClick,
   rowLabel,
+  rowClassName,
   empty,
 }: {
   columns: Column<Row>[];
@@ -65,12 +93,15 @@ export function DataTable<Row>({
   onRowClick?: (row: Row) => void;
   /** The accessible name of a clickable row. */
   rowLabel?: (row: Row) => string;
+  /** An extra class for a row (a changed value on the audit entry). */
+  rowClassName?: (row: Row) => string | undefined;
   /** Shown instead of the table when there are no rows. */
   empty?: ReactNode;
 }) {
+  const wrapRef = useFitTable();
   if (rows.length === 0 && empty) return <>{empty}</>;
   return (
-    <div className={s.dataWrap}>
+    <div className={s.dataWrap} ref={wrapRef}>
       <table className={cx(s.table, s.dataTable)}>
         {caption ? <caption>{caption}</caption> : null}
         <thead>
@@ -93,7 +124,7 @@ export function DataTable<Row>({
             return (
               <tr
                 key={rowKey(row)}
-                className={cx(open && s.clickable)}
+                className={cx(open && s.clickable, rowClassName?.(row))}
                 tabIndex={open ? 0 : undefined}
                 aria-label={open && rowLabel ? rowLabel(row) : undefined}
                 onClick={
@@ -119,14 +150,17 @@ export function DataTable<Row>({
               >
                 {columns.map((c) => {
                   const label = c.label ?? (typeof c.header === "string" ? c.header : undefined);
+                  const Cell = c.rowHeader ? "th" : "td";
                   return (
-                    <td
+                    <Cell
                       key={c.key}
+                      scope={c.rowHeader ? "row" : undefined}
                       className={cx(c.align === "right" && s.num, c.hideOnPhone && s.hideOnPhone, c.primary && s.primaryCell)}
                       data-label={c.hideOnPhone || c.primary ? undefined : label}
                     >
-                      {c.cell(row)}
-                    </td>
+                      {/* one box per cell, so a cell of several lines stays one value on the phone card */}
+                      <div className={s.cellValue}>{c.cell(row)}</div>
+                    </Cell>
                   );
                 })}
               </tr>

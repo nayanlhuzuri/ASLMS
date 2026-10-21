@@ -15,7 +15,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { Badge, CheckField, EmptyState, ErrorBanner, Loading, Pagination, Table } from "@/components/ui";
+import { Badge, CheckField, DataTable, EmptyState, ErrorBanner, Loading, Pagination, type Column } from "@/components/ui";
 import { DocumentActions } from "@/components/workflow/DocumentActions";
 import { UploadPanel } from "@/components/workflow/Upload";
 import { api } from "@/lib/api/client";
@@ -38,54 +38,64 @@ export function sizeText(bytes: number): string {
   return `${formatNumber(bytes)} B`;
 }
 
-function DocRow({
-  caseRef,
-  d,
-  canView,
-  canDownload,
-}: {
-  caseRef: string;
-  d: DocumentItem;
-  canView: boolean;
-  canDownload: boolean;
-}) {
-  return (
-    <tr>
-      <td>
-        <div>{d.doc_type_label}</div>
-        {d.ref_no ? <div className="mono muted">{d.ref_no}</div> : null}
-        {d.archived_at ? <Badge>{T.case.archived}</Badge> : null}
-      </td>
-      <td>{formatDate(d.doc_date)}</td>
-      <td>{d.description ?? d.original_filename ?? "—"}</td>
-      <td>
-        {d.uploaded_by ? (
+/** The columns of a document group (one `DataTable`; cards on phones with the description on top). */
+function docColumns(caseRef: string, canView: boolean, canDownload: boolean): Column<DocumentItem>[] {
+  return [
+    {
+      key: "type",
+      header: T.case.type,
+      cell: (d) => (
+        <>
+          <div>{d.doc_type_label}</div>
+          {d.ref_no ? <div className="mono muted">{d.ref_no}</div> : null}
+          {d.archived_at ? <Badge>{T.case.archived}</Badge> : null}
+        </>
+      ),
+    },
+    { key: "date", header: T.case.orderDate, cell: (d) => formatDate(d.doc_date) },
+    { key: "description", header: T.case.description, primary: true, cell: (d) => d.description ?? d.original_filename ?? "—" },
+    {
+      key: "by",
+      header: T.case.uploadedBy,
+      cell: (d) =>
+        d.uploaded_by ? (
           <>
             {d.uploaded_by.name}
             {d.uploaded_by.office_code ? <span className="muted"> · {d.uploaded_by.office_code}</span> : null}
           </>
         ) : (
           (d.office?.code ?? "—")
-        )}
-      </td>
-      <td>
-        {sizeText(d.size_bytes)}
-        {d.page_count ? <div className="muted">{T.case.pages(d.page_count)}</div> : null}
-      </td>
-      <td>
+        ),
+    },
+    {
+      key: "size",
+      header: T.case.size,
+      align: "right",
+      cell: (d) => (
+        <>
+          {sizeText(d.size_bytes)}
+          {d.page_count ? <div className="muted">{T.case.pages(d.page_count)}</div> : null}
+        </>
+      ),
+    },
+    {
+      key: "visibility",
+      header: T.case.visibility,
+      cell: (d) => (
         <div className="stack">
-          {d.assistant_available ? (
-            <Badge tone="success">{T.case.inAssistant}</Badge>
-          ) : (
-            <Badge>{T.case.notSent}</Badge>
-          )}
+          {d.assistant_available ? <Badge tone="success">{T.case.inAssistant}</Badge> : <Badge>{T.case.notSent}</Badge>}
           <Badge>{T.case.visibilities[d.visibility] ?? d.visibility}</Badge>
           <span className="muted">
             {T.case.textStatus}: {textLabel(d)}
           </span>
         </div>
-      </td>
-      <td>
+      ),
+    },
+    {
+      key: "actions",
+      header: <span className="visually-hidden">{T.inbox.actions}</span>,
+      label: T.inbox.actions,
+      cell: (d) => (
         <div className="row">
           {canView && canViewInline(d.mime) ? (
             <a href={documentUrl(d.id, "inline")} target="_blank" rel="noopener noreferrer">
@@ -100,9 +110,9 @@ function DocRow({
           {canDownload && pdfDownloadOnly(d.mime) ? <span className="muted">{T.case.opensAsDownload}</span> : null}
           <DocumentActions caseRef={caseRef} doc={d} />
         </div>
-      </td>
-    </tr>
-  );
+      ),
+    },
+  ];
 }
 
 type Group = (typeof GROUPS)[number];
@@ -141,26 +151,7 @@ function GroupSection({
     <section aria-label={title}>
       <h2>{title}</h2>
       <p className="muted">{T.case.groupTotal(formatNumber(list.total))}</p>
-      <Table caption={title}>
-        <thead>
-          <tr>
-            <th scope="col">{T.case.type}</th>
-            <th scope="col">{T.case.orderDate}</th>
-            <th scope="col">{T.case.description}</th>
-            <th scope="col">{T.case.uploadedBy}</th>
-            <th scope="col">{T.case.size}</th>
-            <th scope="col">{T.case.visibility}</th>
-            <th scope="col">
-              <span className="visually-hidden">{T.inbox.actions}</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {list.items.map((d) => (
-            <DocRow key={d.id} caseRef={caseRef} d={d} canView={canView} canDownload={canDownload} />
-          ))}
-        </tbody>
-      </Table>
+      <DataTable caption={title} rows={list.items} rowKey={(d) => d.id} columns={docColumns(caseRef, canView, canDownload)} />
       <Pagination offset={offset} limit={PAGE} total={list.total} onChange={onPage} />
     </section>
   );

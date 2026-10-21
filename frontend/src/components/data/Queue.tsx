@@ -9,7 +9,7 @@
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { Button, EmptyState, ErrorBanner, Loading, numCell, Pagination, SelectField, Table, TextField } from "@/components/ui";
+import { Button, DataTable, EmptyState, ErrorBanner, Loading, Pagination, SelectField, TextField } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { useMe } from "@/lib/api/hooks";
 import type { CallList, QueueList } from "@/lib/api/types";
@@ -88,42 +88,31 @@ function QueueRows() {
           <EmptyState>{T.data.noDuplicates}</EmptyState>
         ) : (
           <>
-            <Table caption={T.data.queueRows}>
-              <thead>
-                <tr>
-                  <th scope="col">{T.data.kind}</th>
-                  <th scope="col">{T.data.ref}</th>
-                  <th scope="col">{T.data.lane}</th>
-                  <th scope="col" className={numCell}>{T.data.priority}</th>
-                  <th scope="col">{T.data.status}</th>
-                  <th scope="col" className={numCell}>{T.data.attempts}</th>
-                  <th scope="col">{T.data.lastError}</th>
-                  <th scope="col">
-                    <span className="visually-hidden">{T.data.retry}</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.data.items.map((r) => (
-                  <tr key={r.id}>
-                    <td>{T.data.kinds[r.kind] ?? r.kind}</td>
-                    <td className="mono">{r.ref}</td>
-                    <td>{T.data.lanes[r.lane] ?? r.lane}</td>
-                    <td className={numCell}>{r.priority}</td>
-                    <td>{r.status}</td>
-                    <td className={numCell}>{r.attempts}</td>
-                    <td>{r.last_error ?? "—"}</td>
-                    <td>
-                      {(r.status === "failed" || r.status === "skipped") && mayRetry(r.kind) ? (
-                        <Button variant="link" busy={action.busy} onClick={() => retry(r.id)}>
-                          {T.data.retry}
-                        </Button>
-                      ) : null}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
+            <DataTable
+              caption={T.data.queueRows}
+              rows={rows.data.items}
+              rowKey={(r) => r.id}
+              columns={[
+                { key: "kind", header: T.data.kind, cell: (r) => T.data.kinds[r.kind] ?? r.kind },
+                { key: "ref", header: T.data.ref, primary: true, cell: (r) => <span className="mono">{r.ref}</span> },
+                { key: "lane", header: T.data.lane, cell: (r) => T.data.lanes[r.lane] ?? r.lane },
+                { key: "priority", header: T.data.priority, align: "right", cell: (r) => r.priority },
+                { key: "status", header: T.data.status, width: "var(--lead-w)", cell: (r) => r.status },
+                { key: "attempts", header: T.data.attempts, align: "right", cell: (r) => r.attempts },
+                { key: "error", header: T.data.lastError, cell: (r) => r.last_error ?? "—" },
+                {
+                  key: "retry",
+                  header: <span className="visually-hidden">{T.data.retry}</span>,
+                  label: T.data.retry,
+                  cell: (r) =>
+                    (r.status === "failed" || r.status === "skipped") && mayRetry(r.kind) ? (
+                      <Button variant="link" busy={action.busy} onClick={() => retry(r.id)}>
+                        {T.data.retry}
+                      </Button>
+                    ) : null,
+                },
+              ]}
+            />
             <Pagination offset={offset} limit={LIMIT} total={rows.data.total} onChange={setOffset} />
           </>
         )
@@ -150,34 +139,23 @@ function CallLog() {
         items.length === 0 ? (
           <EmptyState>{T.data.noDuplicates}</EmptyState>
         ) : (
-          <Table caption={T.data.callLog}>
-            <thead>
-              <tr>
-                <th scope="col">{T.data.at}</th>
-                <th scope="col">{T.data.api}</th>
-                <th scope="col">{T.data.lane}</th>
-                {showUsers ? <th scope="col">{T.data.user}</th> : null}
-                <th scope="col">{T.data.ok}</th>
-                <th scope="col" className={numCell}>{T.data.http}</th>
-                <th scope="col" className={numCell}>{T.data.remaining("").trim()}</th>
-                <th scope="col">{T.data.lastError}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((c) => (
-                <tr key={c.id}>
-                  <td>{formatDateTime(c.called_at)}</td>
-                  <td className="mono">{c.api}</td>
-                  <td>{c.lane ? (T.data.lanes[c.lane] ?? c.lane) : T.data.lanes.outside_queue}</td>
-                  {showUsers ? <td>{c.user_name ?? "—"}</td> : null}
-                  <td>{c.ok ? T.yes : T.no}</td>
-                  <td className={numCell}>{c.http_status ?? "—"}</td>
-                  <td className={numCell}>{c.rate_limit_remaining ?? "—"}</td>
-                  <td>{c.error_family ?? "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </Table>
+          <DataTable
+            caption={T.data.callLog}
+            rows={items}
+            rowKey={(c) => c.id}
+            columns={[
+              { key: "at", header: T.data.at, primary: true, cell: (c) => formatDateTime(c.called_at) },
+              { key: "api", header: T.data.api, cell: (c) => <span className="mono">{c.api}</span> },
+              { key: "lane", header: T.data.lane, cell: (c) => (c.lane ? (T.data.lanes[c.lane] ?? c.lane) : T.data.lanes.outside_queue) },
+              ...(showUsers
+                ? [{ key: "user", header: T.data.user, cell: (c: (typeof items)[number]) => c.user_name ?? "—" }]
+                : []),
+              { key: "ok", header: T.data.ok, cell: (c) => (c.ok ? T.yes : T.no) },
+              { key: "http", header: T.data.http, align: "right", cell: (c) => c.http_status ?? "—" },
+              { key: "remaining", header: T.data.remaining("").trim(), align: "right", cell: (c) => c.rate_limit_remaining ?? "—" },
+              { key: "error", header: T.data.lastError, cell: (c) => c.error_family ?? "—" },
+            ]}
+          />
         )
       ) : null}
       {calls.hasNextPage ? (

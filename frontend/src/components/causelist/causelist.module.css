@@ -139,6 +139,14 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--s1);
+  min-width: 0;
+}
+
+/* a badge wrapped in its titled span still truncates inside a narrow card (portal-ui-polish) */
+.badges > span {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
 }
 
 /* phones: each entry becomes a card under its headings */
@@ -189,6 +197,10 @@
     display: flex;
     justify-content: space-between;
     gap: var(--s3);
+  }
+
+  .entry td[data-label] > * {
+    min-width: 0;
   }
 
   .entry td[data-label]::before {

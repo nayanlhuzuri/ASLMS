@@ -405,3 +405,70 @@ None. The decisions that widen row 112's wording were taken within the owner's "
 the owner may narrow them at approval without changing the rest:
 - every legacy table across the portal (15);
 - the definition-of-done line (23).
+
+## Deviations
+Recorded by the developer on 21 Oct 2026.
+
+1. **Decision 8, first test.** A department admin whose only membership lacks `cases.view_scope` is stopped by the
+   router's unchanged login-level `require(cases.view_scope)` (403) before the service runs. The test therefore asserts
+   the service's refusal (`NotVisible`) directly and the API answer as 403 or 404; the 404 `no such case` through the API
+   is the second test (the function held only on another department's membership), as the API section describes.
+2. **`DataTable` (decision 15).** Two small props: `rowHeader` on a column draws its cell as `<th scope="row">` (kept
+   where the old tables had row headers: the access matrix, scoring, the audit entry, the State table and the ticket
+   counts), and `rowClassName` keeps the audit entry's changed-row mark. On phones the primary cell is moved to the top
+   of the card (`order: -1`), long values wrap (`overflow-wrap: anywhere`), and each cell's content sits in one box so a
+   cell of several lines stays one value. Tables that had no header row (the State overdue lists, the ticket counts)
+   gained headers; two new messages: `T.case.partyNo` (the card label of the parties' `#` column) and
+   `T.dash.ticketsOpenCol`. The next-date review row became `reviewColumns` plus a `ReviewActions` cell that holds the
+   row's dialogs.
+3. **First focus (decision 3).** Before the overlay itself, `firstFocus` tries the first control anywhere in the
+   overlay, which is the header's Close when it is the only control, and covers the phone drawer, which has no body or
+   footer marks.
+4. **What the browser check found, fixed here.** The office page's facts list (`dl.facts`) wraps a long label at half
+   the width; the cause-list ownership badges and the link graph (scaled by a `viewBox`) fit a phone card; the claim
+   modal's tab row wraps instead of scrolling (only the two named places carry `data-scroll-x`); System health's "Test
+   now" is a full 36 px button (a 30 px button outside a row on a phone fails decision 21); the next-date review
+   buttons are secondary in every row, and the note composer and upload form on the case page take `secondaryOnly`
+   (primary only in their dialogs), so the case header keeps the page's one primary, as decision 11 does for Send file.
+5. **The browser check's package (decision 19).** `@types/node` is pinned beside `@playwright/test` and `typescript`
+   (the spec reads `src/app` with `node:fs`). Only a few answers are hand-written and typed (`/me` with every function
+   and two memberships with long official names, the dashboard index, inbox counts, System health's cards, the report
+   catalogue and a report, and the empty Alerts, Files sent and Case inbox Working on); every other `GET` is synthesised
+   from `frontend/openapi.json` with the stress values of decision 20, so the image also copies `openapi.json`. A `GET`
+   the API does not have is still answered 404 and fails the run. The image has its own ignore file
+   (`e2e/Dockerfile.dockerignore`); `e2e` is added to `frontend/.dockerignore` and to the portal's ESLint ignores, so the
+   `web` image and the CI frontend job are unchanged. `UICHECK_WORKERS` (default 3) sets the parallel pages.
+6. **Interaction states (decision 20).** The phone drawer is checked at 375 px only; the other four states at all three
+   widths. Redirect pages (13 routes) are recorded in the contact sheet and not screenshotted.
+7. **First Compose run** (21 Oct 2026, `./data/uicheck/20261021-2006`): 77 page routes and 5 states, 205 screenshots,
+   `findings.json` `[]`, 121 s for the checks (2 min 14 s with the container start), exit 0.
+8. **The server-file guard and re-exporting modules (decision 16, review of 21 Oct 2026).** A module counts as a
+   client module when it says `"use client"` or re-exports (`export * from`, `export { … } from`) a client module, as
+   the kit barrel `components/ui/index.tsx` does; without this, a server file taking `buttonClass` from
+   `@/components/ui` passed the walk. The walk also follows re-export lines of server modules. Two tests pin it with
+   the real resolution: the barrel counts as client, and `buttonClass` from `@/components/ui` in `app/not-found.tsx`
+   is reported. Removing `"use client"` from `app/not-found.tsx` now fails the guard.
+9. **Wide tables and the clipping check (decisions 15 and 21, review of 21 Oct 2026).** `.dataWrap` had
+   `overflow: hidden`, so on wide screens the columns past the box were cut off (the access matrix's user types, the
+   scoring History, Latest failures, the Details tab's NAPIX lists), and the check skipped content inside a clipping
+   box. Fixed in three parts:
+   - **`DataTable` stacks when it cannot fit.** On a screen of 820 px or more, `fitTable` measures the table in table
+     form before paint, after every render and whenever the box's width changes; a table wider than its box gets
+     `data-stacked` and is drawn as the same cards as on phones (the phone rules repeated under
+     `.dataWrap[data-stacked]`), and becomes a table again when the box is wide enough. Column heads wrap between
+     words, so tables of many short columns still fit as tables. `.dataWrap` is now `overflow-x: auto`, never
+     `hidden`: it keeps the rounded corners, and anything that still did not fit would be a sideways scroll the check
+     reports, never a silent cut. No new `data-scroll-x` place: the two of decision 21 stay the only ones. In card form
+     (phones and stacked) the caption is a block, so it no longer shrinks to its longest word.
+   - **The check reports clipped content** (`clipped`): an `overflow-x: hidden | clip` box with `scrollWidth >
+     clientWidth + 1`, and a visible element past such a box's right edge, outside a `data-scroll-x` region. Not
+     clippers: visually hidden boxes (2 px or less, or `clip: rect(…)`) and deliberate truncation with
+     `text-overflow: ellipsis` (badges, nav labels: the full text stays the title or accessible name); fixed elements
+     are not taken as clipped by an ancestor. Against the old `web` image the new check failed the run with 24
+     findings (`./data/uicheck/20261021-2227`: 21 tables at 1280 px, 3 remark clamps at 375 px).
+   - **The fixtures name the ten user types** (`/reference/labels`, `/admin/access/types`), so the access matrix is
+     seen at its real width of eleven columns.
+   - Also found by the new check: the files `Remark` clamp, right-aligned as a phone card value, laid its lines past
+     its box in Chromium; a remark now reads from the start of the line and wraps long words.
+   - Run after the fix (`./data/uicheck/20261021-2239`): 77 page routes and 5 states, 205 screenshots, 244 passed,
+     `findings.json` `[]`, exit 0.

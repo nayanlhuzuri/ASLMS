@@ -4,9 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { DashboardDepartment, DashboardMe, DashboardState } from "@/lib/api/types";
 import { nav, resetNav } from "@/test/nav";
-import { browserApi, json, makeMe, renderWithClient } from "@/test/render";
+import { browserApi, expectDataTable, json, makeMe, renderWithClient } from "@/test/render";
 
 import { Dashboard } from "./Dashboard";
+import { dayWords } from "./Headline";
 
 const CASE = { id: "c1", ref_no: "EDU/2026/0001", cnr: "ASHC010012342026", case_no_text: "WP(C)/1234/2026" };
 
@@ -534,5 +535,46 @@ describe("the personal dashboard (portal-ui-redesign, decision 23)", () => {
     expect(await screen.findByRole("table", { name: "Cases by department" })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "State" })).toHaveAttribute("aria-checked", "true");
     expect(screen.queryByRole("region", { name: "My work" })).toBeNull();
+  });
+});
+
+describe("every Upcoming hearings row has a badge (design portal-ui-polish, decision 14)", () => {
+  it("dayWords gives In n days for a hearing in the next calendar week", () => {
+    // Saturday 24 Oct 2026, 11:30 IST: Monday 26 Oct (day 2) and Friday 30 Oct (day 6) fall in the next week
+    const now = new Date("2026-10-24T06:00:00Z");
+    const w = (date: string, critical = false, this_week = false) => dayWords({ date, critical, this_week }, now);
+    expect(w("2026-10-24", true, true)).toEqual({ text: "Today", tone: "danger" });
+    expect(w("2026-10-25", true, true)).toEqual({ text: "Tomorrow", tone: "danger" });
+    expect(w("2026-10-25", false, true)).toEqual({ text: "Tomorrow", tone: undefined });
+    expect(w("2026-10-26", true, false)).toEqual({ text: "In 2 days", tone: "danger" });
+    expect(dayWords({ date: "2026-10-23", critical: false, this_week: true }, new Date("2026-10-21T06:00:00Z"))).toEqual({
+      text: "This week",
+    });
+    expect(w("2026-10-26")).toEqual({ text: "In 2 days" });
+    expect(w("2026-10-30")).toEqual({ text: "In 6 days" });
+  });
+});
+
+describe("lists are DataTables, cards on phones (design portal-ui-polish, decision 15)", () => {
+  it("Blocks renders a DataTable with a primary cell", async () => {
+    browserApi({
+      "GET /me": makeMe(["cases.view_scope"]),
+      "GET /dashboard": { me: false, state: false, departments: [{ code: "EDU", name: "Education" }] },
+      "GET /dashboard/department": department("EDU", "Education"),
+    });
+    const { unmount } = renderWithClient(<Dashboard />);
+    const block = await screen.findByRole("region", { name: "Department: Education" });
+    const tables = within(block).getAllByRole("table");
+    expect(tables.length).toBeGreaterThanOrEqual(2);
+    for (const table of tables) expectDataTable(table);
+    unmount();
+    browserApi({
+      "GET /me": makeMe(["cases.view_all", "dashboard.state"], "state_oversight"),
+      "GET /dashboard": { me: false, departments: [], state: true },
+      "GET /dashboard/state": STATE,
+    });
+    renderWithClient(<Dashboard />);
+    await screen.findByRole("table", { name: "Cases by department" });
+    for (const table of screen.getAllByRole("table")) expectDataTable(table);
   });
 });

@@ -7,7 +7,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { CheckField, EmptyState, ErrorBanner, Loading, Table } from "@/components/ui";
+import { CheckField, DataTable, EmptyState, ErrorBanner, Loading } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { caseKey } from "@/lib/api/hooks";
 import type { Parties as PartiesOut } from "@/lib/api/types";
@@ -33,29 +33,27 @@ export function Parties({ caseRef }: { caseRef: string }) {
             {list.data.parties.length === 0 ? (
               <EmptyState>{T.case.none}</EmptyState>
             ) : (
-              <Table caption={T.case.parties}>
-                <thead>
-                  <tr>
-                    <th scope="col">{T.case.role}</th>
-                    <th scope="col">#</th>
-                    <th scope="col">{T.case.name}</th>
-                    <th scope="col">{T.case.address}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {list.data.parties.map((p) => (
-                    <tr key={`${p.role}-${p.party_no}-${p.name}`}>
-                      <td>{p.role}</td>
-                      <td>{p.party_no}</td>
-                      <td>
+              <DataTable
+                caption={T.case.parties}
+                rows={list.data.parties}
+                rowKey={(p) => `${p.role}-${p.party_no}-${p.name}`}
+                columns={[
+                  { key: "role", header: T.case.role, cell: (p) => p.role },
+                  { key: "no", header: "#", label: T.case.partyNo, align: "right", cell: (p) => p.party_no },
+                  {
+                    key: "name",
+                    header: T.case.name,
+                    primary: true,
+                    cell: (p) => (
+                      <>
                         {p.name}
                         {!p.is_current ? <span className="muted"> ({T.case.former})</span> : null}
-                      </td>
-                      <td>{p.address ?? "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </Table>
+                      </>
+                    ),
+                  },
+                  { key: "address", header: T.case.address, cell: (p) => p.address ?? "—" },
+                ]}
+              />
             )}
           </section>
           <section aria-label={T.case.advocates}>
@@ -63,28 +61,27 @@ export function Parties({ caseRef }: { caseRef: string }) {
             {list.data.advocates.length === 0 ? (
               <EmptyState>{T.case.none}</EmptyState>
             ) : (
-              <Table caption={T.case.advocates}>
-                <thead>
-                  <tr>
-                    <th scope="col">{T.case.side}</th>
-                    <th scope="col">{T.case.name}</th>
-                    <th scope="col">{T.case.counselCodes}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {list.data.advocates.map((a, i) => (
-                    <tr key={`${a.side}-${a.name_as_listed}-${i}`}>
-                      <td>{a.side}</td>
-                      <td>
+              <DataTable
+                caption={T.case.advocates}
+                rows={list.data.advocates.map((a, i) => ({ a, i }))}
+                rowKey={({ a, i }) => `${a.side}-${a.name_as_listed}-${i}`}
+                columns={[
+                  { key: "side", header: T.case.side, cell: ({ a }) => a.side },
+                  {
+                    key: "name",
+                    header: T.case.name,
+                    primary: true,
+                    cell: ({ a }) => (
+                      <>
                         {a.name_as_listed}
                         {a.bar_reg_no ? <span className="muted"> · {a.bar_reg_no}</span> : null}
                         {!a.is_current ? <span className="muted"> ({T.case.former})</span> : null}
-                      </td>
-                      <td className="mono">{a.counsel_code ?? "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </Table>
+                      </>
+                    ),
+                  },
+                  { key: "codes", header: T.case.counselCodes, cell: ({ a }) => <span className="mono">{a.counsel_code ?? "—"}</span> },
+                ]}
+              />
             )}
           </section>
         </>

@@ -189,29 +189,180 @@ describe("every page has at most one primary action (decision 16)", () => {
   });
 });
 
-/** Server files of `src/app` (no "use client"): what they import from the client UI kit. */
-function serverKitImports(): { file: string; names: string[] }[] {
-  const out: { file: string; names: string[] }[] = [];
-  const walk = (dir: string) => {
-    for (const name of readdirSync(dir)) {
-      const path = join(dir, name);
-      if (statSync(path).isDirectory()) walk(path);
-      else if (name.endsWith(".tsx") && !name.endsWith(".test.tsx")) {
-        const text = readFileSync(path, "utf-8");
-        if (/^\s*["']use client["']/.test(text)) continue;
-        for (const m of text.matchAll(/import\s*\{([^}]*)\}\s*from\s*"@\/components\/ui"/g)) {
-          out.push({ file: relative(APP, path), names: m[1]!.split(",").map((n) => n.replace(/^\s*type\s+/, "").trim()).filter(Boolean) });
-        }
-      }
-    }
-  };
-  walk(APP);
+const USE_CLIENT = /^(?:\s|\/\/[^\n]*\n|\/\*[\s\S]*?\*\/)*["']use client["']/;
+
+function isClientText(text: string): boolean {
+  return USE_CLIENT.test(text);
+}
+
+/** The modules a file re-exports from (`export * from`, `export { … } from`), type-only re-exports left out. */
+function reexportsOf(text: string): string[] {
+  const out: string[] = [];
+  const reexport = /^\s*export\s+(type\s+)?(?:\*(?:\s+as\s+\w+)?|\{[^}]*\})\s+from\s+["']([^"']+)["']/gm;
+  for (const m of text.matchAll(reexport)) {
+    if (!m[1]) out.push(m[2]!);
+  }
   return out;
 }
 
-describe("server pages and the client UI kit (portal smoke of 21 Oct 2026)", () => {
-  it("a server file imports only components from the kit, never a function it would call on the server", () => {
-    const bad = serverKitImports().flatMap(({ file, names }) => names.filter((n) => !/^[A-Z]/.test(n)).map((n) => `${file}: ${n}`));
-    expect(bad).toEqual([]);
+/**
+ * Whether a source file is a client module: it says `"use client"`, or it re-exports a client module, as the kit
+ * barrel `components/ui/index.tsx` does (review of 21 Oct 2026: the barrel has no `"use client"` line of its own, and
+ * `buttonClass` reached server files through it). `seen` guards against re-export cycles.
+ */
+function isClientFile(path: string, seen: Set<string> = new Set()): boolean {
+  if (seen.has(path)) return false;
+  seen.add(path);
+  const text = readFileSync(path, "utf-8");
+  if (isClientText(text)) return true;
+  return reexportsOf(text).some((spec) => {
+    const target = resolveImport(path, spec);
+    return target !== null && isClientFile(target, seen);
+  });
+}
+
+/** The source file an import names (`@/…` or relative), or null for a package, a stylesheet or anything unresolved. */
+function resolveImport(from: string, spec: string): string | null {
+  let base: string;
+  if (spec.startsWith("@/")) base = join(SRC, spec.slice(2));
+  else if (spec.startsWith(".")) base = join(from, "..", spec);
+  else return null;
+  if (/\.(css|json|svg|png)$/.test(spec)) return null;
+  for (const candidate of [base, `${base}.tsx`, `${base}.ts`, join(base, "index.tsx"), join(base, "index.ts")]) {
+    try {
+      if (statSync(candidate).isFile() && /\.(ts|tsx)$/.test(candidate)) return candidate;
+    } catch {
+      // try the next shape
+    }
+  }
+  return null;
+}
+
+interface ImportLine {
+  spec: string;
+  /** The value names imported (type-only names left out); `*` for a namespace import. */
+  names: string[];
+}
+
+/** The import statements of a file, with the value names each brings in. */
+function importsOf(text: string): ImportLine[] {
+  const out: ImportLine[] = [];
+  for (const m of text.matchAll(/^\s*import\s+(type\s+)?([^"';]*?)\s+from\s+["']([^"']+)["']/gm)) {
+    if (m[1]) continue; // `import type { … }`
+    const clause = m[2]!.trim();
+    const names: string[] = [];
+    const braces = clause.match(/\{([^}]*)\}/);
+    const outside = clause.replace(/\{[^}]*\}/, "").split(",").map((x) => x.trim()).filter(Boolean);
+    for (const part of outside) names.push(part.startsWith("*") ? "*" : part);
+    if (braces) {
+      for (const raw of braces[1]!.split(",")) {
+        const item = raw.trim();
+        if (!item || item.startsWith("type ")) continue;
+        names.push(item.split(/\s+as\s+/)[0]!.trim());
+      }
+    }
+    out.push({ spec: m[3]!, names });
+  }
+  return out;
+}
+
+/**
+ * The rule of the round 5 smoke (the `buttonClass()` crash): a server file may take from a `"use client"` module
+ * only components (capitalised names) and types, never a function or value it would call on the server.
+ * `isClient` says whether an import (by its specifier) is a client module.
+ */
+function serverImportProblems(file: string, text: string, isClient: (spec: string) => boolean): string[] {
+  const bad: string[] = [];
+  for (const line of importsOf(text)) {
+    if (!isClient(line.spec)) continue;
+    for (const name of line.names) if (!/^[A-Z]/.test(name)) bad.push(`${file}: ${name} from ${line.spec}`);
+  }
+  return bad;
+}
+
+/**
+ * Every server file reached from the server files of `src/app` (design portal-ui-polish, decision 16): the walk follows
+ * `@/` and relative imports through `src/components` and `src/lib`, and stops at `"use client"` files, the client
+ * boundary. Returns the files reached and the problems found.
+ */
+function serverWalk(): { reached: string[]; problems: string[] } {
+  const roots: string[] = [];
+  const collect = (dir: string) => {
+    for (const name of readdirSync(dir)) {
+      const path = join(dir, name);
+      if (statSync(path).isDirectory()) collect(path);
+      else if (/\.(ts|tsx)$/.test(name) && !/\.test\.(ts|tsx)$/.test(name)) {
+        if (!isClientText(readFileSync(path, "utf-8"))) roots.push(path);
+      }
+    }
+  };
+  collect(APP);
+  const seen = new Set<string>();
+  const problems: string[] = [];
+  const queue = [...roots];
+  while (queue.length > 0) {
+    const file = queue.shift()!;
+    if (seen.has(file)) continue;
+    seen.add(file);
+    const text = readFileSync(file, "utf-8");
+    const clientOf = new Map<string, boolean>();
+    for (const line of importsOf(text)) {
+      const target = resolveImport(file, line.spec);
+      if (!target) continue;
+      const client = isClientFile(target);
+      clientOf.set(line.spec, client);
+      if (!client && !target.startsWith(join(SRC, "server"))) queue.push(target);
+    }
+    for (const spec of reexportsOf(text)) {
+      const target = resolveImport(file, spec);
+      if (target && !target.startsWith(join(SRC, "server"))) queue.push(target);
+    }
+    problems.push(...serverImportProblems(relative(SRC, file), text, (spec) => clientOf.get(spec) === true));
+  }
+  return { reached: [...seen].map((f) => relative(SRC, f).split(sep).join("/")).sort(), problems };
+}
+
+describe("server files and client modules (portal smoke of 21 Oct 2026; design portal-ui-polish, decision 16)", () => {
+  it("a server file imports only components and types from a client module, never a function it would call", () => {
+    expect(serverWalk().problems).toEqual([]);
+  });
+
+  it("the guard follows server components rendered by server layouts", () => {
+    const { reached } = serverWalk();
+    expect(reached).toContain("components/auth/AuthFrame.tsx");
+    expect(reached).toContain("app/(public)/layout.tsx");
+  });
+
+  it("the kit barrel, which only re-exports client modules, counts as a client module", () => {
+    expect(isClientText(readFileSync(join(SRC, "components", "ui", "index.tsx"), "utf-8"))).toBe(false);
+    expect(isClientFile(join(SRC, "components", "ui", "index.tsx"))).toBe(true);
+    expect(isClientFile(resolveImport(join(APP, "not-found.tsx"), "@/components/ui")!)).toBe(true);
+    expect(isClientFile(join(SRC, "lib", "messages.ts"))).toBe(false);
+  });
+
+  it("buttonClass from the kit barrel in a server file is caught with the real resolution", () => {
+    const from = join(APP, "not-found.tsx");
+    const fixture = 'import { buttonClass } from "@/components/ui";';
+    const client = (spec: string) => {
+      const target = resolveImport(from, spec);
+      return target !== null && isClientFile(target);
+    };
+    expect(serverImportProblems("app/not-found.tsx", fixture, client)).toEqual([
+      "app/not-found.tsx: buttonClass from @/components/ui",
+    ]);
+  });
+
+  it('a server component importing a lowercase name from a "use client" module fails', () => {
+    const fixture = [
+      'import { Button, buttonClass, type Column } from "@/components/ui";',
+      'import type { Me } from "@/lib/api/types";',
+      'import { T } from "@/lib/messages";',
+      'import Link, * as kit from "@/components/ui/controls";',
+    ].join("\n");
+    const client = (spec: string) => spec.startsWith("@/components/ui");
+    expect(serverImportProblems("app/x/page.tsx", fixture, client)).toEqual([
+      "app/x/page.tsx: buttonClass from @/components/ui",
+      "app/x/page.tsx: * from @/components/ui/controls",
+    ]);
   });
 });

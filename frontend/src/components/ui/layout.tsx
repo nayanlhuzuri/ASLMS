@@ -119,7 +119,9 @@ export interface TabItem {
 /**
  * Tabs as links, one route each (`aria-current` on the current one), with the sliding underline measured from the
  * current tab, a count per tab, and an optional `more` group shown as a "More" menu whose button takes the current
- * tab's label when one of its items is current. Tab rows scroll sideways rather than clip.
+ * tab's label when one of its items is current. Tab rows scroll sideways rather than clip: the row carries
+ * `data-scroll-x`, one of the two places the browser check (`frontend/e2e`, design portal-ui-polish, decision 21)
+ * allows to scroll sideways, because a row of tabs on a phone is better scrolled than wrapped or cut.
  */
 export function Tabs({ items, label, more }: { items: TabItem[]; label: string; more?: TabItem[] }) {
   const nav = useRef<HTMLElement>(null);
@@ -134,20 +136,36 @@ export function Tabs({ items, label, more }: { items: TabItem[]; label: string; 
       setInk(current ? { left: current.offsetLeft, width: current.offsetWidth } : null);
     };
     place();
-    if (typeof ResizeObserver === "undefined") return;
+    // design portal-ui-polish, decision 1: one observer on the row and on every tab, so the underline follows a
+    // tab's own width (a count arriving, Inter loading after first paint); once more when the fonts are ready
+    let live = true;
+    const fonts = typeof document !== "undefined" ? (document as Document & { fonts?: FontFaceSet }).fonts : undefined;
+    fonts?.ready?.then(() => {
+      if (live) place();
+    });
+    if (typeof ResizeObserver === "undefined") {
+      return () => {
+        live = false;
+      };
+    }
     const observer = new ResizeObserver(place);
     observer.observe(el);
-    return () => observer.disconnect();
-  }, [activeKey, items.length]);
+    el.querySelectorAll<HTMLElement>("[data-tab]").forEach((tab) => observer.observe(tab));
+    return () => {
+      live = false;
+      observer.disconnect();
+    };
+  }, [activeKey, items.length, more?.length]);
 
   const moreCurrent = (more ?? []).find((t) => t.active);
   return (
-    <nav aria-label={label} className={s.tabs} ref={nav}>
+    <nav aria-label={label} className={s.tabs} ref={nav} data-scroll-x="">
       {items.map((t) => (
         <Link
           key={t.href}
           href={t.href}
           className={s.tab}
+          data-tab=""
           aria-current={t.active ? "page" : undefined}
           data-tab-current={t.active ? "true" : undefined}
         >
@@ -161,7 +179,7 @@ export function Tabs({ items, label, more }: { items: TabItem[]; label: string; 
         </Link>
       ))}
       {more && more.length > 0 ? (
-        <span className={s.tabMore} data-tab-current={moreCurrent ? "true" : undefined}>
+        <span className={s.tabMore} data-tab="" data-tab-current={moreCurrent ? "true" : undefined}>
           <Menu
             label={moreCurrent ? moreCurrent.label : T.kit.more}
             trigger={

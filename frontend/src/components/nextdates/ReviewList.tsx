@@ -12,7 +12,7 @@ import { useState } from "react";
 
 import { FilterBar } from "@/components/filters/FilterBar";
 import { useFilters } from "@/components/inbox/common";
-import { EmptyState, ErrorBanner, Loading, Notice, Pagination, Table } from "@/components/ui";
+import { DataTable, EmptyState, ErrorBanner, Loading, Notice, Pagination } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { useMe } from "@/lib/api/hooks";
 import type { NextDateReviewItem, NextDateReviewList } from "@/lib/api/types";
@@ -23,7 +23,7 @@ import { offsetOf, PAGE, type Params } from "@/lib/params";
 
 import { NEXT_DATES_KEY } from "./common";
 import type { DialogOutcome } from "./Dialogs";
-import { ReviewItem } from "./ReviewItem";
+import { reviewColumns } from "./ReviewItem";
 
 const KINDS = ["confirm", "enter"] as const;
 
@@ -38,30 +38,12 @@ export function ReviewTable({
   const showDepartment = departmentsOf(me.data).length > 1;
   const canViewOrder = can(me.data, "documents.view");
   return (
-    <Table caption={caption}>
-      <thead>
-        <tr>
-          {showCase ? <th scope="col">{T.nd.case}</th> : null}
-          <th scope="col">{T.nd.order}</th>
-          <th scope="col">{T.nd.says}</th>
-          <th scope="col">{T.nd.nextDate}</th>
-          {showDepartment ? <th scope="col">{T.nd.department}</th> : null}
-          <th scope="col">{T.nd.actions}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {items.map((item) => (
-          <ReviewItem
-            key={`${item.kind}-${item.id}`}
-            item={item}
-            showCase={showCase}
-            showDepartment={showDepartment}
-            canViewOrder={canViewOrder}
-            {...outcome}
-          />
-        ))}
-      </tbody>
-    </Table>
+    <DataTable
+      caption={caption}
+      rows={items}
+      rowKey={(item) => `${item.kind}-${item.id}`}
+      columns={reviewColumns({ showCase, showDepartment, canViewOrder, ...outcome })}
+    />
   );
 }
 

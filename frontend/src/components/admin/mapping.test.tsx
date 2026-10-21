@@ -13,7 +13,7 @@ import type {
   Watch,
 } from "@/lib/api/types";
 import { resetNav } from "@/test/nav";
-import { browserApi, json, makeMe, renderWithClient, type BrowserCall } from "@/test/render";
+import { browserApi, expectDataTable, json, makeMe, renderWithClient, type BrowserCall } from "@/test/render";
 
 import { CounselCodes } from "./mapping/CounselCodes";
 import { KeywordsAndPatterns } from "./mapping/Keywords";
@@ -677,5 +677,71 @@ describe("tester additions", () => {
     await userEvent.selectOptions(await within(form).findByLabelText("Office"), "EDU");
     await userEvent.click(within(form).getByRole("button", { name: "Add a counsel code" }));
     expect((await screen.findAllByText("the office is outside your offices")).length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("lists are DataTables, cards on phones (design portal-ui-polish, decision 15)", () => {
+  it("CounselCodes renders a DataTable with a primary cell", async () => {
+    browserApi({
+      "GET /me": deptAdmin(),
+      "GET /admin/offices": [EDU, DSE],
+      "GET /admin/counsel-codes": { items: [code()], total: 1 },
+      "GET /admin/counsel-codes/unmapped": [
+        { code: "SC, PWD", entries: 124000, last_listed: "2026-10-09", example_case_ref: "ASLMS/GOA/CASE/2026/000042" },
+      ],
+    });
+    renderWithClient(<CounselCodes />);
+    expectDataTable(await screen.findByRole("table", { name: "Counsel codes" }));
+    await userEvent.click(screen.getByRole("button", { name: "Show codes seen in cause lists but not mapped" }));
+    expectDataTable(await screen.findByRole("table", { name: "Codes seen in cause lists but not mapped" }));
+  });
+
+  it("Keywords renders a DataTable with a primary cell", async () => {
+    browserApi({
+      "GET /me": deptAdmin(),
+      "GET /admin/offices": [EDU, DSE],
+      "GET /admin/keywords": { items: [keyword()], total: 1 },
+      "GET /admin/name-patterns": {
+        items: [
+          {
+            id: "np-1",
+            pattern: "DIRECTOR.*EDUCATION",
+            kind: "regex",
+            office: { code: "EDU", name: "Education" },
+            weight_override: null,
+            effective_weight: 0.6,
+            discover: false,
+            discoverable: false,
+            is_active: true,
+            updated_at: "2026-10-01T05:00:00Z",
+          },
+        ],
+        total: 1,
+      },
+    });
+    renderWithClient(<KeywordsAndPatterns />);
+    expectDataTable(await screen.findByRole("table", { name: "Keywords" }));
+    expectDataTable(await screen.findByRole("table", { name: "Name patterns" }));
+  });
+
+  it("Watchlist renders a DataTable with a primary cell", async () => {
+    browserApi({ "GET /me": superAdmin(), "GET /admin/offices": [ROOT, EDU, HEALTH], "GET /admin/watchlist": { items: [watch()], total: 1 } });
+    renderWithClient(<Watchlist />);
+    expectDataTable(await screen.findByRole("table", { name: "Watchlist" }));
+  });
+
+  it("Scoring renders a DataTable with a primary cell", async () => {
+    browserApi({ "GET /me": deptAdmin(["admin.keywords"]), "GET /admin/scoring-settings": settings(3) });
+    const { unmount } = renderWithClient(<Scoring />);
+    const values = expectDataTable(await screen.findByRole("table", { name: "Weights and thresholds" }));
+    expect(within(values).getAllByRole("rowheader").length).toBeGreaterThan(0);
+    unmount();
+    browserApi({
+      "GET /me": superAdmin(),
+      "GET /admin/scoring-settings": settings(3),
+      "GET /admin/scoring-settings/history": { items: [settings(3), settings(2)], total: 2 },
+    });
+    renderWithClient(<Scoring />);
+    expectDataTable(await screen.findByRole("table", { name: "History (2)" }));
   });
 });

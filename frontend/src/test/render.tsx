@@ -129,3 +129,25 @@ export const PRIMARY_SELECTOR = "[data-variant='primary'], .button-link, a[class
 export function primaryActions(root: ParentNode): string[] {
   return [...root.querySelectorAll(PRIMARY_SELECTOR)].map((e) => e.textContent ?? "");
 }
+
+/**
+ * A converted list is a kit `DataTable` (design portal-ui-polish, decision 15): the table carries the `dataTable` class,
+ * one cell per row is the primary cell on top of the phone card, and every other cell carries its `data-label` (or is
+ * left out of the card with `hideOnPhone`, allowed only for a link the card reaches anyway). Returns the table.
+ */
+export function expectDataTable(table: HTMLElement): HTMLElement {
+  if (table.tagName !== "TABLE") throw new Error(`expected a <table>, got <${table.tagName.toLowerCase()}>`);
+  if (!/dataTable/.test(table.className)) throw new Error(`the table "${table.querySelector("caption")?.textContent ?? ""}" is not a DataTable`);
+  const rows = [...table.querySelectorAll("tbody tr")];
+  if (rows.length === 0) throw new Error("the DataTable has no rows");
+  for (const row of rows) {
+    const cells = [...row.children] as HTMLElement[];
+    const primary = cells.filter((c) => /primaryCell/.test(c.className));
+    if (primary.length !== 1) throw new Error(`a row has ${primary.length} primary cells`);
+    for (const cell of cells) {
+      if (/primaryCell|hideOnPhone/.test(cell.className)) continue;
+      if (!cell.getAttribute("data-label")) throw new Error(`a cell has no data-label: "${cell.textContent ?? ""}"`);
+    }
+  }
+  return table;
+}

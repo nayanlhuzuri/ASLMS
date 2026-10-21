@@ -104,13 +104,18 @@ export function HeadlineKpis({ headline }: { headline: DashboardHeadline }) {
   );
 }
 
-/** Today / Tomorrow / In n days (within 48 hours, red) / This week, from IST dates and the API's flags. */
+/**
+ * Today / Tomorrow / In n days (within 48 hours, red) / This week / In n days (neutral), from IST dates and the API's
+ * flags. Every row of the 8-day window gets a badge: the last line covers hearings 2 to 7 days ahead that fall in the
+ * next calendar week (design portal-ui-polish, decision 14). Only a past date (never served) gets none.
+ */
 export function dayWords(item: Pick<DashboardUpcoming, "date" | "critical" | "this_week">, now: Date = new Date()): { text: string; tone?: Tone } | null {
   const days = daysBetween(istDay(now), item.date);
   if (days === 0) return { text: T.dash.today, tone: item.critical ? "danger" : undefined };
   if (days === 1) return { text: T.dash.tomorrow, tone: item.critical ? "danger" : undefined };
   if (item.critical) return { text: T.dash.inDays(days), tone: "danger" };
   if (item.this_week) return { text: T.dash.thisWeek };
+  if (days > 1) return { text: T.dash.inDays(days) };
   return null;
 }
 

@@ -20,7 +20,7 @@ import {
   Loading,
   Notice,
   SelectField,
-  Table,
+  DataTable,
   TextArea,
   TextField,
 } from "@/components/ui";
@@ -239,82 +239,86 @@ function MembershipTable({
   return (
     <>
       <ErrorBanner error={action.error} />
-      <Table caption={T.users.memberships}>
-        <thead>
-          <tr>
-            <th scope="col">{T.offices.name}</th>
-            <th scope="col">{T.users.designation}</th>
-            <th scope="col">{T.users.type}</th>
-            <th scope="col">{T.users.status}</th>
-            <th scope="col">
-              <span className="visually-hidden">{T.users.change}</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {memberships.map((m) => {
-            const active = m.is_active !== false;
-            return (
-              <tr key={m.id}>
-                <td>
-                  {m.office.name} <span className="mono muted">{m.office.code}</span>
-                  {m.is_primary ? (
-                    <>
-                      {" "}
-                      <Badge>{T.shell.primary}</Badge>
-                    </>
+      <DataTable
+        caption={T.users.memberships}
+        rows={memberships}
+        rowKey={(m) => m.id}
+        columns={[
+          {
+            key: "office",
+            header: T.offices.name,
+            primary: true,
+            cell: (m) => (
+              <>
+                {m.office.name} <span className="mono muted">{m.office.code}</span>
+                {m.is_primary ? (
+                  <>
+                    {" "}
+                    <Badge>{T.shell.primary}</Badge>
+                  </>
+                ) : null}
+              </>
+            ),
+          },
+          { key: "designation", header: T.users.designation, cell: (m) => m.designation ?? "—" },
+          { key: "type", header: T.users.type, cell: (m) => labelOf(types, m.role) },
+          {
+            key: "status",
+            header: T.users.status,
+            cell: (m) => (m.is_active !== false ? T.active : `${T.users.ended} ${formatDate(m.valid_to)}`),
+          },
+          {
+            key: "change",
+            header: <span className="visually-hidden">{T.users.change}</span>,
+            label: T.users.change,
+            cell: (m) => {
+              const active = m.is_active !== false;
+              return (
+                <div className="actions">
+                  {active && canAny(me, ["users.edit", "users.set_type"]) ? (
+                    <Button variant="link" onClick={() => setChanging(m)}>
+                      {T.users.change}
+                    </Button>
                   ) : null}
-                </td>
-                <td>{m.designation ?? "—"}</td>
-                <td>{labelOf(types, m.role)}</td>
-                <td>{active ? T.active : `${T.users.ended} ${formatDate(m.valid_to)}`}</td>
-                <td>
-                  <div className="actions">
-                    {active && canAny(me, ["users.edit", "users.set_type"]) ? (
-                      <Button variant="link" onClick={() => setChanging(m)}>
-                        {T.users.change}
-                      </Button>
-                    ) : null}
-                    {active && !m.is_primary && can(me, "users.edit") ? (
-                      <Button variant="link" busy={action.busy} onClick={() => makePrimary(m)}>
-                        {T.users.makePrimary}
-                      </Button>
-                    ) : null}
-                    {active && can(me, "users.enable_disable") ? (
-                      <Button variant="link" onClick={() => setEnding(m)}>
-                        {T.users.end}
-                      </Button>
-                    ) : null}
-                    {!active && can(me, "users.enable_disable") ? (
-                      <Button variant="link" busy={action.busy} onClick={() => reactivate(m)}>
-                        {T.users.reactivate}
-                      </Button>
-                    ) : null}
-                    {can(me, "users.view") ? (
-                      <Button
-                        variant="link"
-                        aria-expanded={functionsOf === m.id}
-                        onClick={() => setFunctionsOf(functionsOf === m.id ? null : m.id)}
-                      >
-                        {T.users.showFunctions}
-                      </Button>
-                    ) : null}
-                    {canAny(me, ["users.propose_head", "admin.tickets"]) ? (
-                      <Button
-                        variant="link"
-                        aria-expanded={documentsOf === m.id}
-                        onClick={() => setDocumentsOf(documentsOf === m.id ? null : m.id)}
-                      >
-                        {T.users.documents}
-                      </Button>
-                    ) : null}
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </Table>
+                  {active && !m.is_primary && can(me, "users.edit") ? (
+                    <Button variant="link" busy={action.busy} onClick={() => makePrimary(m)}>
+                      {T.users.makePrimary}
+                    </Button>
+                  ) : null}
+                  {active && can(me, "users.enable_disable") ? (
+                    <Button variant="link" onClick={() => setEnding(m)}>
+                      {T.users.end}
+                    </Button>
+                  ) : null}
+                  {!active && can(me, "users.enable_disable") ? (
+                    <Button variant="link" busy={action.busy} onClick={() => reactivate(m)}>
+                      {T.users.reactivate}
+                    </Button>
+                  ) : null}
+                  {can(me, "users.view") ? (
+                    <Button
+                      variant="link"
+                      aria-expanded={functionsOf === m.id}
+                      onClick={() => setFunctionsOf(functionsOf === m.id ? null : m.id)}
+                    >
+                      {T.users.showFunctions}
+                    </Button>
+                  ) : null}
+                  {canAny(me, ["users.propose_head", "admin.tickets"]) ? (
+                    <Button
+                      variant="link"
+                      aria-expanded={documentsOf === m.id}
+                      onClick={() => setDocumentsOf(documentsOf === m.id ? null : m.id)}
+                    >
+                      {T.users.documents}
+                    </Button>
+                  ) : null}
+                </div>
+              );
+            },
+          },
+        ]}
+      />
       {functionsOf ? <MembershipFunctionsPanel userId={user.id} membershipId={functionsOf} me={me} /> : null}
       {documentsOf ? <MembershipDocuments userId={user.id} membershipId={documentsOf} /> : null}
       {changing ? (
@@ -476,38 +480,42 @@ export function ExitDialog({
             )}
           </p>
           {items.length > 0 ? (
-            <Table caption={T.exit.title}>
-              <thead>
-                <tr>
-                  <th scope="col">{T.exit.item}</th>
-                  <th scope="col">{T.exit.successor}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((i) => (
-                  <tr key={i.key}>
-                    <td>
+            <DataTable
+              caption={T.exit.title}
+              rows={items}
+              rowKey={(i) => i.key}
+              columns={[
+                {
+                  key: "item",
+                  header: T.exit.item,
+                  primary: true,
+                  cell: (i) => (
+                    <>
                       {i.kind === "file" ? T.exit.file : T.exit.allotment}:{" "}
                       <CaseLink value={{ ref_no: i.case.ref_no, cnr: i.case.cnr, case_no_text: i.case.case_no }} visible={i.case.visible} />
                       {i.pending_action ? <span className="muted"> · {i.pending_action}</span> : null}
                       {i.due_date ? <span className="muted"> · {formatDate(i.due_date)}</span> : null}
-                    </td>
-                    <td>
-                      <SelectField
-                        label={<span className="visually-hidden">{`${T.exit.successor} ${i.case.ref_no}`}</span>}
-                        value={choice[i.key] ?? ""}
-                        placeholder={T.exit.choose}
-                        options={preview.data.targets.map((t) => ({
-                          value: t.membership,
-                          label: `${t.name}${t.designation ? `, ${t.designation}` : ""} (${t.office_code})`,
-                        }))}
-                        onChange={(e) => setChoice({ ...choice, [i.key]: e.target.value })}
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
+                    </>
+                  ),
+                },
+                {
+                  key: "successor",
+                  header: T.exit.successor,
+                  cell: (i) => (
+                    <SelectField
+                      label={<span className="visually-hidden">{`${T.exit.successor} ${i.case.ref_no}`}</span>}
+                      value={choice[i.key] ?? ""}
+                      placeholder={T.exit.choose}
+                      options={preview.data.targets.map((t) => ({
+                        value: t.membership,
+                        label: `${t.name}${t.designation ? `, ${t.designation}` : ""} (${t.office_code})`,
+                      }))}
+                      onChange={(e) => setChoice({ ...choice, [i.key]: e.target.value })}
+                    />
+                  ),
+                },
+              ]}
+            />
           ) : null}
           <TextArea label={T.exit.reason} required value={reason} onChange={(e) => setReason(e.target.value)} rows={2} />
           {missing > 0 ? <p className="muted">{T.exit.missing(missing)}</p> : null}
@@ -560,76 +568,76 @@ export function MembershipFunctionsPanel({ userId, membershipId, me }: { userId:
       <h3>{T.users.functions}</h3>
       {mayGrant ? <TextField label={T.users.reason} value={reason} onChange={(e) => setReason(e.target.value)} /> : null}
       <ErrorBanner error={action.error} />
-      <Table caption={T.users.functions}>
-        <thead>
-          <tr>
-            <th scope="col">{T.access.function}</th>
-            <th scope="col">{T.users.typeFunctions}</th>
-            <th scope="col">{T.users.override}</th>
-            <th scope="col">{T.users.effective}</th>
-            {mayGrant ? (
-              <th scope="col">
-                <span className="visually-hidden">{T.users.change}</span>
-              </th>
-            ) : null}
-          </tr>
-        </thead>
-        <tbody>
-          {(permissions.data ?? [])
-            .filter((p) => p.is_active)
-            .map((p) => {
-              const fromType = data.type_functions.includes(p.code);
+      <DataTable
+        caption={T.users.functions}
+        rows={(permissions.data ?? []).filter((p) => p.is_active)}
+        rowKey={(p) => p.code}
+        columns={[
+          {
+            key: "function",
+            header: T.access.function,
+            primary: true,
+            cell: (p) => (
+              <>
+                {p.label} <span className="mono muted">{p.code}</span>
+              </>
+            ),
+          },
+          { key: "type", header: T.users.typeFunctions, cell: (p) => (data.type_functions.includes(p.code) ? T.yes : T.no) },
+          {
+            key: "override",
+            header: T.users.override,
+            cell: (p) => {
               const override = overrides.get(p.code);
-              const effective = data.effective.includes(p.code);
-              // the API refuses functions the caller does not hold and the reserved admin.tickets
-              const offer = mayGrant && p.code !== "admin.tickets" && can(me, p.code);
-              return (
-                <tr key={p.code}>
-                  <td>
-                    {p.label} <span className="mono muted">{p.code}</span>
-                  </td>
-                  <td>{fromType ? T.yes : T.no}</td>
-                  <td>
-                    {override ? (
-                      <>
-                        <Badge tone={override.effect === "deny" ? "danger" : "success"}>
-                          {override.effect === "deny" ? T.users.deny : T.users.grant}
-                        </Badge>
-                        {override.reason ? <span className="muted"> {override.reason}</span> : null}
-                      </>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                  <td>{effective ? T.yes : T.no}</td>
-                  {mayGrant ? (
-                    <td>
-                      {offer ? (
-                        <div className="actions">
-                          {!fromType && override?.effect !== "grant" ? (
-                            <Button variant="link" busy={action.busy} onClick={() => setOverride(p.code, "grant")}>
-                              {T.users.grant}
-                            </Button>
-                          ) : null}
-                          {fromType && override?.effect !== "deny" ? (
-                            <Button variant="link" busy={action.busy} onClick={() => setOverride(p.code, "deny")}>
-                              {T.users.deny}
-                            </Button>
-                          ) : null}
-                          {override ? (
-                            <Button variant="link" busy={action.busy} onClick={() => setOverride(p.code, null)}>
-                              {T.users.clear}
-                            </Button>
-                          ) : null}
-                        </div>
-                      ) : null}
-                    </td>
-                  ) : null}
-                </tr>
+              return override ? (
+                <>
+                  <Badge tone={override.effect === "deny" ? "danger" : "success"}>
+                    {override.effect === "deny" ? T.users.deny : T.users.grant}
+                  </Badge>
+                  {override.reason ? <span className="muted"> {override.reason}</span> : null}
+                </>
+              ) : (
+                "—"
               );
-            })}
-        </tbody>
-      </Table>
+            },
+          },
+          { key: "effective", header: T.users.effective, cell: (p) => (data.effective.includes(p.code) ? T.yes : T.no) },
+          ...(mayGrant
+            ? [
+                {
+                  key: "change",
+                  header: <span className="visually-hidden">{T.users.change}</span>,
+                  label: T.users.change,
+                  cell: (p: PermissionInfo) => {
+                    const fromType = data.type_functions.includes(p.code);
+                    const override = overrides.get(p.code);
+                    // the API refuses functions the caller does not hold and the reserved admin.tickets
+                    const offer = p.code !== "admin.tickets" && can(me, p.code);
+                    return offer ? (
+                      <div className="actions">
+                        {!fromType && override?.effect !== "grant" ? (
+                          <Button variant="link" busy={action.busy} onClick={() => setOverride(p.code, "grant")}>
+                            {T.users.grant}
+                          </Button>
+                        ) : null}
+                        {fromType && override?.effect !== "deny" ? (
+                          <Button variant="link" busy={action.busy} onClick={() => setOverride(p.code, "deny")}>
+                            {T.users.deny}
+                          </Button>
+                        ) : null}
+                        {override ? (
+                          <Button variant="link" busy={action.busy} onClick={() => setOverride(p.code, null)}>
+                            {T.users.clear}
+                          </Button>
+                        ) : null}
+                      </div>
+                    ) : null;
+                  },
+                },
+              ]
+            : []),
+        ]}
+      />
     </section>
   );
 }
@@ -643,36 +651,37 @@ function MembershipDocuments({ userId, membershipId }: { userId: string; members
   if (documents.error) return <ErrorBanner error={documents.error} onRetry={() => documents.refetch()} />;
   if (!documents.data?.length) return <EmptyState>{T.users.noDocuments}</EmptyState>;
   return (
-    <Table caption={T.users.documents}>
-      <thead>
-        <tr>
-          <th scope="col">{T.tickets.ref}</th>
-          <th scope="col">{T.tickets.docDate}</th>
-          <th scope="col">{T.tickets.description}</th>
-          <th scope="col">{T.tickets.title}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {documents.data.map((d) => (
-          <tr key={d.id}>
-            <td className="mono">{d.ref_no ?? "—"}</td>
-            <td>{formatDate(d.doc_date)}</td>
-            <td>
+    <DataTable
+      caption={T.users.documents}
+      rows={documents.data}
+      rowKey={(d) => d.id}
+      columns={[
+        { key: "ref", header: T.tickets.ref, cell: (d) => <span className="mono">{d.ref_no ?? "—"}</span> },
+        { key: "date", header: T.tickets.docDate, cell: (d) => formatDate(d.doc_date) },
+        {
+          key: "description",
+          header: T.tickets.description,
+          primary: true,
+          cell: (d) => (
+            <>
               {d.description ?? d.doc_type}
               {d.archived ? <Badge>{T.tickets.archived}</Badge> : null}
-            </td>
-            <td>
-              {d.ticket_ref ? (
-                <a href={`/admin/tickets/${d.ticket_ref.replaceAll("/", "-")}`} className="mono">
-                  {d.ticket_ref}
-                </a>
-              ) : (
-                "—"
-              )}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </Table>
+            </>
+          ),
+        },
+        {
+          key: "ticket",
+          header: T.tickets.title,
+          cell: (d) =>
+            d.ticket_ref ? (
+              <a href={`/admin/tickets/${d.ticket_ref.replaceAll("/", "-")}`} className="mono">
+                {d.ticket_ref}
+              </a>
+            ) : (
+              "—"
+            ),
+        },
+      ]}
+    />
   );
 }

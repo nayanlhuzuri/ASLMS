@@ -6,7 +6,7 @@ import type { NextDateReviewItem, Permission } from "@/lib/api/types";
 import { addDays } from "@/lib/format";
 import { todayIst } from "@/lib/workflow";
 import { nav, resetNav } from "@/test/nav";
-import { browserApi, json, makeMe, renderWithClient, type BrowserCall } from "@/test/render";
+import { browserApi, expectDataTable, json, makeMe, renderWithClient, type BrowserCall } from "@/test/render";
 
 import { ReviewList } from "./ReviewList";
 
@@ -284,5 +284,13 @@ describe("the actions (portal-next-dates, decisions 5-7, 9, 16, 17)", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     await waitFor(() => expect(reviewCalls(api.calls).length).toBeGreaterThan(1));
     expect(await screen.findByText(/Nothing to confirm/)).toBeInTheDocument();
+  });
+});
+
+describe("lists are DataTables, cards on phones (design portal-ui-polish, decision 15)", () => {
+  it("ReviewList renders a DataTable with a primary cell", async () => {
+    browserApi(routes([confirmItem(), enterItem()]));
+    renderWithClient(<ReviewList params={{}} />);
+    expectDataTable(await screen.findByRole("table", { name: "Next dates to confirm" }));
   });
 });

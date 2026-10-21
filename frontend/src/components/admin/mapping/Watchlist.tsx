@@ -18,8 +18,7 @@ import {
   ErrorBanner,
   Loading,
   Notice,
-  numCell,
-  Table,
+  DataTable,
   TextArea,
   TextField,
 } from "@/components/ui";
@@ -166,59 +165,52 @@ export function Watchlist() {
         list.data.items.length === 0 ? (
           <EmptyState>{T.mapping.empty}</EmptyState>
         ) : (
-          <Table caption={T.mapping.watchlist}>
-            <thead>
-              <tr>
-                <th scope="col">{T.mapping.cnr}</th>
-                <th scope="col">{T.mapping.case}</th>
-                <th scope="col">{T.mapping.office}</th>
-                <th scope="col">{T.mapping.reason}</th>
-                <th scope="col" className={numCell}>
-                  {T.mapping.effectiveWeight}
-                </th>
-                <th scope="col">{T.mapping.status}</th>
-                <th scope="col">{T.mapping.updated}</th>
-                <th scope="col">{T.mapping.actions}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {list.data.items.map((row) => (
-                <tr key={row.id}>
-                  <td className="mono">{row.cnr}</td>
-                  <td>
-                    <SearchLink ref_no={row.case_ref} />
-                  </td>
-                  <td>
-                    <OfficeCell office={row.office} />
-                  </td>
-                  <td>{row.reason ?? "—"}</td>
-                  <td className={numCell}>
-                    <WeightCell effective={row.effective_weight} override={row.weight_override} />
-                  </td>
-                  <td>{row.is_active ? <Badge tone="success">{T.active}</Badge> : <Badge>{T.inactive}</Badge>}</td>
-                  <td>{formatDateTime(row.updated_at)}</td>
-                  <td>
-                    <div className="actions">
-                      <Button variant="link" aria-label={`${T.edit} ${row.cnr}`} onClick={() => setEditing(row)}>
-                        {T.edit}
-                      </Button>
-                      <RuleStatusActions<Watch>
-                        path={`/admin/watchlist/${row.id}`}
-                        active={row.is_active}
-                        label={row.cnr}
-                        confirmText={T.mapping.watchConfirm}
-                        onDone={(r) => {
-                          setNotice(savedLine(r));
-                          void refresh();
-                        }}
-                        onConflict={() => void refresh()}
-                      />
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </Table>
+          <DataTable
+            caption={T.mapping.watchlist}
+            rows={list.data.items}
+            rowKey={(row) => row.id}
+            columns={[
+              { key: "cnr", header: T.mapping.cnr, primary: true, cell: (row) => <span className="mono">{row.cnr}</span> },
+              { key: "case", header: T.mapping.case, cell: (row) => <SearchLink ref_no={row.case_ref} /> },
+              { key: "office", header: T.mapping.office, cell: (row) => <OfficeCell office={row.office} /> },
+              { key: "reason", header: T.mapping.reason, cell: (row) => row.reason ?? "—" },
+              {
+                key: "weight",
+                header: T.mapping.effectiveWeight,
+                align: "right",
+                cell: (row) => <WeightCell effective={row.effective_weight} override={row.weight_override} />,
+              },
+              {
+                key: "status",
+                header: T.mapping.status,
+                width: "var(--lead-w)",
+                cell: (row) => (row.is_active ? <Badge tone="success">{T.active}</Badge> : <Badge>{T.inactive}</Badge>),
+              },
+              { key: "updated", header: T.mapping.updated, cell: (row) => formatDateTime(row.updated_at) },
+              {
+                key: "actions",
+                header: T.mapping.actions,
+                cell: (row) => (
+                  <div className="actions">
+                    <Button variant="link" aria-label={`${T.edit} ${row.cnr}`} onClick={() => setEditing(row)}>
+                      {T.edit}
+                    </Button>
+                    <RuleStatusActions<Watch>
+                      path={`/admin/watchlist/${row.id}`}
+                      active={row.is_active}
+                      label={row.cnr}
+                      confirmText={T.mapping.watchConfirm}
+                      onDone={(r) => {
+                        setNotice(savedLine(r));
+                        void refresh();
+                      }}
+                      onConflict={() => void refresh()}
+                    />
+                  </div>
+                ),
+              },
+            ]}
+          />
         )
       ) : null}
       {editing ? (

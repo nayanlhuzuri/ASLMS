@@ -47,10 +47,13 @@ export function UploadForm({
   caseRef,
   onUploaded,
   onCancel,
+  secondaryOnly = false,
 }: {
   caseRef: string;
   onUploaded?: (doc: DocumentItem) => void | Promise<void>;
   onCancel?: () => void;
+  /** On the Documents tab, under the case header that holds the one primary (design portal-ui-polish): secondary. */
+  secondaryOnly?: boolean;
 }) {
   const types = useDocumentTypes();
   const refresh = useWorkflowRefresh(caseRef);
@@ -204,7 +207,7 @@ export function UploadForm({
             {T.cancel}
           </Button>
         ) : null}
-        <Button type="submit" busy={action.busy}>
+        <Button type="submit" variant={secondaryOnly ? "secondary" : "primary"} busy={action.busy}>
           {action.busy ? T.wf.uploading : T.wf.uploadButton}
         </Button>
       </div>
@@ -217,7 +220,7 @@ export function UploadPanel({ caseRef }: { caseRef: string }) {
   return (
     <section className="card stack" aria-label={T.wf.upload}>
       <h2>{T.wf.upload}</h2>
-      <UploadForm caseRef={caseRef} />
+      <UploadForm caseRef={caseRef} secondaryOnly />
     </section>
   );
 }

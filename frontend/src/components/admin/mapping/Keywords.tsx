@@ -21,9 +21,8 @@ import {
   ErrorBanner,
   Loading,
   Notice,
-  numCell,
   SelectField,
-  Table,
+  DataTable,
   TextField,
 } from "@/components/ui";
 import { api } from "@/lib/api/client";
@@ -225,64 +224,59 @@ function Keywords() {
         list.data.items.length === 0 ? (
           <EmptyState>{T.mapping.empty}</EmptyState>
         ) : (
-          <Table caption={T.mapping.keywords}>
-            <thead>
-              <tr>
-                <th scope="col">{T.mapping.keyword}</th>
-                <th scope="col">{T.mapping.office}</th>
-                <th scope="col" className={numCell}>
-                  {T.mapping.effectiveWeight}
-                </th>
-                <th scope="col">{T.discovery.searchCourt}</th>
-                <th scope="col">{T.mapping.status}</th>
-                <th scope="col">{T.mapping.updated}</th>
-                <th scope="col">{T.mapping.actions}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {list.data.items.map((row) => (
-                <tr key={row.id}>
-                  <td>{row.keyword}</td>
-                  <td>
-                    <OfficeCell office={row.office} />
-                  </td>
-                  <td className={numCell}>
-                    <WeightCell effective={row.effective_weight} override={row.weight_override} />
-                  </td>
-                  <td>
-                    <DiscoverCell<Keyword>
+          <DataTable
+            caption={T.mapping.keywords}
+            rows={list.data.items}
+            rowKey={(row) => row.id}
+            columns={[
+              { key: "keyword", header: T.mapping.keyword, primary: true, cell: (row) => row.keyword },
+              { key: "office", header: T.mapping.office, cell: (row) => <OfficeCell office={row.office} /> },
+              {
+                key: "weight",
+                header: T.mapping.effectiveWeight,
+                align: "right",
+                cell: (row) => <WeightCell effective={row.effective_weight} override={row.weight_override} />,
+              },
+              {
+                key: "discover",
+                header: T.discovery.searchCourt,
+                cell: (row) => (
+                  <DiscoverCell<Keyword> path={`/admin/keywords/${row.id}`} row={row} label={row.keyword} onDone={() => void refresh()} />
+                ),
+              },
+              {
+                key: "status",
+                header: T.mapping.status,
+                width: "var(--lead-w)",
+                cell: (row) => (row.is_active ? <Badge tone="success">{T.active}</Badge> : <Badge>{T.inactive}</Badge>),
+              },
+              { key: "updated", header: T.mapping.updated, cell: (row) => formatDateTime(row.updated_at) },
+              {
+                key: "actions",
+                header: T.mapping.actions,
+                cell: (row) => (
+                  <div className="actions">
+                    {canScore ? (
+                      <Button variant="link" aria-label={`${T.edit} ${row.keyword}`} onClick={() => setEditing(row)}>
+                        {T.edit}
+                      </Button>
+                    ) : null}
+                    <RuleStatusActions<Keyword>
                       path={`/admin/keywords/${row.id}`}
-                      row={row}
+                      active={row.is_active}
                       label={row.keyword}
-                      onDone={() => void refresh()}
+                      confirmText={T.mapping.ruleConfirm}
+                      onDone={(r) => {
+                        setNotice(T.mapping.appliesWithin(r.applies_within_minutes ?? 15));
+                        void refresh();
+                      }}
+                      onConflict={() => void refresh()}
                     />
-                  </td>
-                  <td>{row.is_active ? <Badge tone="success">{T.active}</Badge> : <Badge>{T.inactive}</Badge>}</td>
-                  <td>{formatDateTime(row.updated_at)}</td>
-                  <td>
-                    <div className="actions">
-                      {canScore ? (
-                        <Button variant="link" aria-label={`${T.edit} ${row.keyword}`} onClick={() => setEditing(row)}>
-                          {T.edit}
-                        </Button>
-                      ) : null}
-                      <RuleStatusActions<Keyword>
-                        path={`/admin/keywords/${row.id}`}
-                        active={row.is_active}
-                        label={row.keyword}
-                        confirmText={T.mapping.ruleConfirm}
-                        onDone={(r) => {
-                          setNotice(T.mapping.appliesWithin(r.applies_within_minutes ?? 15));
-                          void refresh();
-                        }}
-                        onConflict={() => void refresh()}
-                      />
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </Table>
+                  </div>
+                ),
+              },
+            ]}
+          />
         )
       ) : null}
       {editing && canScore ? (
@@ -388,66 +382,65 @@ function NamePatterns() {
         list.data.items.length === 0 ? (
           <EmptyState>{T.mapping.empty}</EmptyState>
         ) : (
-          <Table caption={T.mapping.patterns}>
-            <thead>
-              <tr>
-                <th scope="col">{T.mapping.pattern}</th>
-                <th scope="col">{T.mapping.kind}</th>
-                <th scope="col">{T.mapping.office}</th>
-                <th scope="col" className={numCell}>
-                  {T.mapping.effectiveWeight}
-                </th>
-                <th scope="col">{T.discovery.searchCourt}</th>
-                <th scope="col">{T.mapping.status}</th>
-                <th scope="col">{T.mapping.updated}</th>
-                <th scope="col">{T.mapping.actions}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {list.data.items.map((row) => (
-                <tr key={row.id}>
-                  <td className="mono">{row.pattern}</td>
-                  <td>{T.mapping.kindShort[row.kind] ?? row.kind}</td>
-                  <td>
-                    <OfficeCell office={row.office} />
-                  </td>
-                  <td className={numCell}>
-                    <WeightCell effective={row.effective_weight} override={row.weight_override} />
-                  </td>
-                  <td>
-                    <DiscoverCell<NamePattern>
+          <DataTable
+            caption={T.mapping.patterns}
+            rows={list.data.items}
+            rowKey={(row) => row.id}
+            columns={[
+              { key: "pattern", header: T.mapping.pattern, primary: true, cell: (row) => <span className="mono">{row.pattern}</span> },
+              { key: "kind", header: T.mapping.kind, cell: (row) => T.mapping.kindShort[row.kind] ?? row.kind },
+              { key: "office", header: T.mapping.office, cell: (row) => <OfficeCell office={row.office} /> },
+              {
+                key: "weight",
+                header: T.mapping.effectiveWeight,
+                align: "right",
+                cell: (row) => <WeightCell effective={row.effective_weight} override={row.weight_override} />,
+              },
+              {
+                key: "discover",
+                header: T.discovery.searchCourt,
+                cell: (row) => (
+                  <DiscoverCell<NamePattern>
+                    path={`/admin/name-patterns/${row.id}`}
+                    row={row}
+                    label={row.pattern}
+                    onDone={() => void refresh()}
+                  />
+                ),
+              },
+              {
+                key: "status",
+                header: T.mapping.status,
+                width: "var(--lead-w)",
+                cell: (row) => (row.is_active ? <Badge tone="success">{T.active}</Badge> : <Badge>{T.inactive}</Badge>),
+              },
+              { key: "updated", header: T.mapping.updated, cell: (row) => formatDateTime(row.updated_at) },
+              {
+                key: "actions",
+                header: T.mapping.actions,
+                cell: (row) => (
+                  <div className="actions">
+                    {canScore ? (
+                      <Button variant="link" aria-label={`${T.edit} ${row.pattern}`} onClick={() => setEditing(row)}>
+                        {T.edit}
+                      </Button>
+                    ) : null}
+                    <RuleStatusActions<NamePattern>
                       path={`/admin/name-patterns/${row.id}`}
-                      row={row}
+                      active={row.is_active}
                       label={row.pattern}
-                      onDone={() => void refresh()}
+                      confirmText={T.mapping.ruleConfirm}
+                      onDone={(r) => {
+                        setNotice(T.mapping.appliesWithin(r.applies_within_minutes ?? 15));
+                        void refresh();
+                      }}
+                      onConflict={() => void refresh()}
                     />
-                  </td>
-                  <td>{row.is_active ? <Badge tone="success">{T.active}</Badge> : <Badge>{T.inactive}</Badge>}</td>
-                  <td>{formatDateTime(row.updated_at)}</td>
-                  <td>
-                    <div className="actions">
-                      {canScore ? (
-                        <Button variant="link" aria-label={`${T.edit} ${row.pattern}`} onClick={() => setEditing(row)}>
-                          {T.edit}
-                        </Button>
-                      ) : null}
-                      <RuleStatusActions<NamePattern>
-                        path={`/admin/name-patterns/${row.id}`}
-                        active={row.is_active}
-                        label={row.pattern}
-                        confirmText={T.mapping.ruleConfirm}
-                        onDone={(r) => {
-                          setNotice(T.mapping.appliesWithin(r.applies_within_minutes ?? 15));
-                          void refresh();
-                        }}
-                        onConflict={() => void refresh()}
-                      />
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </Table>
+                  </div>
+                ),
+              },
+            ]}
+          />
         )
       ) : null}
       {editing && canScore ? (

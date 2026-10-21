@@ -4,7 +4,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import type { CaseDetail, CaseOwnershipView, DocumentItem, Note, Ownership, OwnershipActions, Permission } from "@/lib/api/types";
 import { resetNav } from "@/test/nav";
-import { browserApi, json, makeMe, renderWithClient } from "@/test/render";
+import { browserApi, expectDataTable, json, makeMe, PRIMARY_SELECTOR, renderWithClient } from "@/test/render";
+import { CustodyTab } from "@/components/workflow/CustodyTab";
 
 import { CaseFrame } from "./CaseFrame";
 import { Details } from "./Details";
@@ -14,6 +15,7 @@ import { Links } from "./Links";
 import { Notes } from "./Notes";
 import { Orders } from "./Orders";
 import { Overview } from "./Overview";
+import { Parties } from "./Parties";
 import { Timeline } from "./Timeline";
 
 const REF = "ASLMS-GOA-CASE-2026-000001";
@@ -1462,5 +1464,174 @@ describe("the Timeline tab (portal-ui-redesign, decision 15)", () => {
     for (const row of rows) expect(row.firstElementChild).toHaveAttribute("data-lead", "date");
     expect(within(rows[0]!).getByText("File sent")).toBeInTheDocument();
     expect(within(rows[0]!).getByText("12")).toBeInTheDocument();
+  });
+});
+
+describe("round 1 and round 3 advisories (design portal-ui-polish, decisions 2, 11 and 12)", () => {
+  it("header h1 is monospace for a bare ref_no", async () => {
+    const bare = detail({ identity: { ...detail().identity, case_no_text: null } });
+    browserApi({ "GET /me": me(), [`GET ${BASE}`]: bare });
+    const { unmount } = renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
+    const h1 = await screen.findByRole("heading", { level: 1, name: "ASLMS/GOA/CASE/2026/000001" });
+    expect(h1).toHaveClass("mono");
+    expect(h1).not.toHaveClass("cno");
+    unmount();
+    browserApi({ "GET /me": me(), [`GET ${BASE}`]: detail() });
+    renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
+    const numbered = await screen.findByRole("heading", { level: 1, name: "WP(C)/1234/2026" });
+    expect(numbered).toHaveClass("cno");
+    expect(numbered).not.toHaveClass("mono");
+  });
+
+  it("header next hearing shows printed_sr", async () => {
+    browserApi({
+      "GET /me": me(),
+      [`GET ${BASE}`]: detail(),
+      [`GET ${BASE}/listings`]: {
+        items: [{ list_date: "2026-11-20", court_no: "3", sr_no: 14, printed_sr: "14A", list_type: "daily", source: "causelist" }],
+        total: 1,
+      },
+    });
+    renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
+    const header = await screen.findByRole("region", { name: "Case summary" });
+    const fact = () => within(header).getByText("Next hearing", { selector: "dt" }).nextElementSibling as HTMLElement;
+    await waitFor(() => expect(fact()).toHaveTextContent("20 Nov 2026 · Court 3, item 14A"));
+  });
+
+  it("custody tab has one primary", async () => {
+    resetNav(`${BASE}/custody`);
+    const d = detail();
+    browserApi({
+      ...overviewRoutes(d, ownership(actions())),
+      "GET /workflow/codes": { note_kinds: [], pending_actions: [], stages: [], response_modes: [], custody_reasons: [], limits: { note_max_chars: 200, attachments_max_files: 2, note_drafts_max: 20 } },
+      [`GET ${BASE}/custody`]: { card: d.custody, legs: [], total: 0 },
+      [`GET ${BASE}/stages`]: { current: null, history: [], gaps: [] },
+    });
+    const { container } = renderWithClient(
+      <CaseFrame caseRef={REF}>
+        <CustodyTab caseRef={REF} />
+      </CaseFrame>,
+    );
+    const card = await screen.findByRole("region", { name: "Custody" });
+    const send = await within(card).findByRole("button", { name: "Send file" });
+    expect(send).toHaveAttribute("data-variant", "secondary");
+    await screen.findByRole("region", { name: "Case summary" });
+    expect(container.querySelectorAll(PRIMARY_SELECTOR).length).toBe(1);
+  });
+});
+
+describe("lists are DataTables, cards on phones (design portal-ui-polish, decision 15)", () => {
+  it("Details renders a DataTable with a primary cell", async () => {
+    browserApi({ "GET /me": me(), [`GET ${BASE}`]: detail() });
+    renderWithClient(<Details caseRef={REF} />);
+    expectDataTable(await screen.findByRole("table", { name: "Acts and sections" }));
+    expectDataTable(screen.getByRole("table", { name: "Objections" }));
+  });
+
+  it("Documents renders a DataTable with a primary cell", async () => {
+    const doc = {
+      id: "d-1",
+      doc_group: "court_record",
+      doc_type: "order",
+      doc_type_label: "Order",
+      doc_date: "2026-09-01",
+      description: "Order of 1 September",
+      original_filename: "d-1.pdf",
+      mime: "application/pdf",
+      size_bytes: 2048,
+      page_count: 3,
+      uploaded_by: null,
+      office: null,
+      visibility: "case_scope",
+      assistant_available: true,
+      sourcetrace_status: "ingested",
+      text_status: "extracted",
+      archived_at: null,
+    } as unknown as DocumentItem;
+    browserApi({
+      "GET /me": me(),
+      [`GET ${BASE}/documents`]: (call: { url: string }) =>
+        new URL(call.url, "http://x").searchParams.get("group") === "court_record" ? { items: [doc], total: 1 } : { items: [], total: 0 },
+    });
+    renderWithClient(<Documents caseRef={REF} />);
+    expectDataTable(await screen.findByRole("table", { name: "Court orders" }));
+  });
+
+  it("Hearings renders a DataTable with a primary cell", async () => {
+    browserApi({
+      "GET /me": me(),
+      [`GET ${BASE}/hearings`]: {
+        items: [{ business_date: "2026-09-25", hearing_date: "2026-09-25", purpose: "For orders", bench_text: "Single Bench", judge_designation: null, next_date: "2026-11-20", business_text: "Heard", short_order_text: null }],
+        total: 1,
+      },
+      [`GET ${BASE}/listings`]: {
+        items: [{ list_date: "2026-11-20", list_type: "daily", bench_id: 1854, bench_label: "Court 3", court_no: "3", sr_no: 14, printed_sr: "14A", section: null, is_connected: false, counsel_codes: ["SC,EDU"], remarks: null, source: "pdf_parse" }],
+        total: 1,
+      },
+    });
+    renderWithClient(<Hearings caseRef={REF} />);
+    expectDataTable(await screen.findByRole("table", { name: "Hearings" }));
+    expectDataTable(await screen.findByRole("table", { name: "Cause-list appearances" }));
+  });
+
+  it("Links renders a DataTable with a primary cell", async () => {
+    browserApi({
+      "GET /me": me(),
+      [`GET ${BASE}`]: detail(),
+      [`GET ${BASE}/links`]: {
+        items: [{ direction: "out", kind: "appeal", case: null, case_no_text: "WA/2/2026", cnr: null, filing_number_text: null, source: "dossier", visible: false }],
+      },
+      [`GET ${BASE}/links/graph`]: { nodes: [], edges: [], truncated: false },
+    });
+    renderWithClient(<Links caseRef={REF} />);
+    expectDataTable(await screen.findByRole("table", { name: "Linked cases" }));
+  });
+
+  it("Parties renders a DataTable with a primary cell", async () => {
+    browserApi({
+      "GET /me": me(),
+      [`GET ${BASE}/parties`]: {
+        parties: [{ name: "RAM KUMAR", party_no: 1, role: "petitioner", address: null, has_legal_heir: null, is_current: true }],
+        advocates: [{ name_as_listed: "A. Das", side: "petitioner", counsel_code: null, bar_reg_no: null, is_current: true }],
+      },
+    });
+    renderWithClient(<Parties caseRef={REF} />);
+    expectDataTable(await screen.findByRole("table", { name: "Parties" }));
+    expectDataTable(screen.getByRole("table", { name: "Advocates" }));
+  });
+});
+
+describe("the next dates list is a DataTable (design portal-ui-polish, decision 15)", () => {
+  it("CaseNextDate renders a DataTable with a primary cell", async () => {
+    browserApi({
+      "GET /me": me(),
+      [`GET ${BASE}`]: detail(),
+      [`GET ${BASE}/hearings`]: { items: [], total: 0 },
+      [`GET ${BASE}/listings`]: { items: [], total: 0 },
+      [`GET ${BASE}/next-dates`]: {
+        items: [
+          {
+            id: "nd-9",
+            ref_no: "ASLMS-EDU-NXT-2026-000001",
+            next_date: "2026-12-01",
+            source: "manual",
+            confidence: null,
+            needs_review: false,
+            review_status: "not_needed",
+            order: null,
+            note: "Fixed orally",
+            reviewed_by: null,
+            reviewed_at: null,
+            created_by: { name: "Officer One" },
+            created_at: "2026-10-15T05:00:00Z",
+            effective: true,
+          },
+        ],
+        total: 1,
+      },
+    });
+    renderWithClient(<Hearings caseRef={REF} />);
+    const section = await screen.findByRole("region", { name: "Next dates" });
+    expectDataTable(await within(section).findByRole("table", { name: "Next dates" }));
   });
 });

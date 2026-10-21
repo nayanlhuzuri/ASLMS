@@ -6,7 +6,7 @@ import { Documents } from "@/components/case/Documents";
 import { Notes } from "@/components/case/Notes";
 import type { AlertItem, CaseDetail, CustodyCard, DocumentItem, Draft, Note, Permission, WorkflowCodes } from "@/lib/api/types";
 import { nav, resetNav } from "@/test/nav";
-import { browserApi, json, makeMe, renderWithClient } from "@/test/render";
+import { browserApi, expectDataTable, json, makeMe, renderWithClient } from "@/test/render";
 
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -410,6 +410,12 @@ describe("the custody tab", () => {
       ...extra,
     };
   }
+
+  it("CustodyTab renders a DataTable with a primary cell (design portal-ui-polish, decision 15)", async () => {
+    browserApi(routes(detail()));
+    renderWithClient(<CustodyTab caseRef={REF} />);
+    expectDataTable(await screen.findByRole("table", { name: "Movement record" }));
+  });
 
   it("lists the legs, hides a remark the API does not send, and shows the stage gaps", async () => {
     browserApi(routes(detail({ workflow: { note_mode: null, upload: false, set_stage: false, next_dates: false } })));

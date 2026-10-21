@@ -14,7 +14,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 
-import { Badge, Button, Dialog, ErrorBanner, Kpi, Loading, Notice, numCell, Table, TextField } from "@/components/ui";
+import { Badge, Button, DataTable, Dialog, ErrorBanner, Kpi, Loading, Notice, TextField } from "@/components/ui";
 import { api, ApiError } from "@/lib/api/client";
 import { useMe } from "@/lib/api/hooks";
 import type { DataHealth, HealthCheck, NapixHealth, QueueState } from "@/lib/api/types";
@@ -131,26 +131,17 @@ function CallsByUser({ byUser }: { byUser: ByUser }) {
       {ids.length === 0 ? (
         <p className="muted">{T.data.noUserCalls}</p>
       ) : (
-        <Table caption={T.data.byUser}>
-          <thead>
-            <tr>
-              <th scope="col">{T.data.user}</th>
-              <th scope="col" className={numCell}>{T.data.window}</th>
-              <th scope="col" className={numCell}>{T.data.today}</th>
-              <th scope="col" className={numCell}>{T.data.failed}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {ids.map((id) => (
-              <tr key={id}>
-                <td>{names.get(id)}</td>
-                <td className={numCell}>{formatNumber(find(byUser.window, id)?.calls ?? 0)}</td>
-                <td className={numCell}>{formatNumber(find(byUser.today, id)?.calls ?? 0)}</td>
-                <td className={numCell}>{formatNumber(find(byUser.today, id)?.failed ?? 0)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </Table>
+        <DataTable
+          caption={T.data.byUser}
+          rows={ids}
+          rowKey={(id) => id}
+          columns={[
+            { key: "user", header: T.data.user, primary: true, cell: (id) => names.get(id) },
+            { key: "window", header: T.data.window, align: "right", cell: (id) => formatNumber(find(byUser.window, id)?.calls ?? 0) },
+            { key: "today", header: T.data.today, align: "right", cell: (id) => formatNumber(find(byUser.today, id)?.calls ?? 0) },
+            { key: "failed", header: T.data.failed, align: "right", cell: (id) => formatNumber(find(byUser.today, id)?.failed ?? 0) },
+          ]}
+        />
       )}
     </section>
   );
@@ -161,57 +152,35 @@ function SnapshotBlocks({ data }: { data: DataHealth }) {
     <>
       <section className={`stack ${ds.panel} ${ds.wide}`} aria-label={T.data.queue}>
         <h2>{T.data.queue}</h2>
-        <Table caption={T.data.queue}>
-          <thead>
-            <tr>
-              <th scope="col">{T.data.kind}</th>
-              <th scope="col" className={numCell}>{T.data.pending}</th>
-              <th scope="col" className={numCell}>{T.data.lanes.load}</th>
-              <th scope="col" className={numCell}>{T.data.lanes.discovery}</th>
-              <th scope="col" className={numCell}>{T.data.lanes.daily}</th>
-              <th scope="col" className={numCell}>{T.data.lanes.request}</th>
-              <th scope="col" className={numCell}>{T.data.runningCol}</th>
-              <th scope="col" className={numCell}>{T.data.failed}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.queue.by_kind.map((k) => (
-              <tr key={k.kind}>
-                <td>{T.data.kinds[k.kind] ?? k.kind}</td>
-                <td className={numCell}>{formatNumber(k.pending)}</td>
-                <td className={numCell}>{formatNumber(k.by_lane.load)}</td>
-                <td className={numCell}>{formatNumber(k.by_lane.discovery)}</td>
-                <td className={numCell}>{formatNumber(k.by_lane.daily)}</td>
-                <td className={numCell}>{formatNumber(k.by_lane.request)}</td>
-                <td className={numCell}>{formatNumber(k.running)}</td>
-                <td className={numCell}>{formatNumber(k.failed)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </Table>
+        <DataTable
+          caption={T.data.queue}
+          rows={data.queue.by_kind}
+          rowKey={(k) => k.kind}
+          columns={[
+            { key: "kind", header: T.data.kind, primary: true, cell: (k) => T.data.kinds[k.kind] ?? k.kind },
+            { key: "pending", header: T.data.pending, align: "right", cell: (k) => formatNumber(k.pending) },
+            { key: "load", header: T.data.lanes.load, align: "right", cell: (k) => formatNumber(k.by_lane.load) },
+            { key: "discovery", header: T.data.lanes.discovery, align: "right", cell: (k) => formatNumber(k.by_lane.discovery) },
+            { key: "daily", header: T.data.lanes.daily, align: "right", cell: (k) => formatNumber(k.by_lane.daily) },
+            { key: "request", header: T.data.lanes.request, align: "right", cell: (k) => formatNumber(k.by_lane.request) },
+            { key: "running", header: T.data.runningCol, align: "right", cell: (k) => formatNumber(k.running) },
+            { key: "failed", header: T.data.failed, align: "right", cell: (k) => formatNumber(k.failed) },
+          ]}
+        />
       </section>
       <section className={`stack ${ds.panel}`} aria-label={T.data.dailyCycle}>
         <h2>{T.data.dailyCycle}</h2>
-        <Table caption={T.data.dailyCycle}>
-          <thead>
-            <tr>
-              <th scope="col">{T.data.date}</th>
-              <th scope="col">{T.data.status}</th>
-              <th scope="col" className={numCell}>{T.data.lists}</th>
-              <th scope="col" className={numCell}>{T.data.entries}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.daily_cycle.map((d) => (
-              <tr key={d.date}>
-                <td>{formatDate(d.date)}</td>
-                <td>{d.causelist_day?.status ?? "—"}</td>
-                <td className={numCell}>{formatNumber(d.lists_stored)}</td>
-                <td className={numCell}>{formatNumber(d.entries_parsed)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </Table>
+        <DataTable
+          caption={T.data.dailyCycle}
+          rows={data.daily_cycle}
+          rowKey={(d) => d.date}
+          columns={[
+            { key: "date", header: T.data.date, primary: true, cell: (d) => formatDate(d.date) },
+            { key: "status", header: T.data.status, width: "var(--lead-w)", cell: (d) => d.causelist_day?.status ?? "—" },
+            { key: "lists", header: T.data.lists, align: "right", cell: (d) => formatNumber(d.lists_stored) },
+            { key: "entries", header: T.data.entries, align: "right", cell: (d) => formatNumber(d.entries_parsed) },
+          ]}
+        />
       </section>
       <section className={`stack ${ds.panel}`} aria-label={T.data.masters}>
         <h2>{T.data.masters}</h2>
@@ -262,37 +231,21 @@ function DocumentsTextBlock({ data }: { data: DataHealth["documents_text"] }) {
     <section className={`stack ${ds.panel} ${ds.wide}`} aria-label={T.data.documentsText}>
       <h2>{T.data.documentsText}</h2>
       <p className="muted">{T.data.documentsTextNote}</p>
-      <Table caption={T.data.documentsText}>
-        <thead>
-          <tr>
-            <th scope="col">{T.data.docKind}</th>
-            <th scope="col" className={numCell}>{T.data.textPending}</th>
-            <th scope="col" className={numCell}>{T.data.textExtracted}</th>
-            <th scope="col" className={numCell}>{T.data.textFailed}</th>
-            <th scope="col" className={numCell}>{T.data.textScannedPdf}</th>
-            <th scope="col" className={numCell}>{T.data.textImage}</th>
-            <th scope="col" className={numCell}>{T.data.textDoc}</th>
-            <th scope="col" className={numCell}>{T.data.textOther}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {TEXT_KINDS.map((kind) => {
-            const k = data[kind];
-            return (
-              <tr key={kind}>
-                <td>{T.data.docKinds[kind]}</td>
-                <td className={numCell}>{formatNumber(k.pending)}</td>
-                <td className={numCell}>{formatNumber(k.extracted)}</td>
-                <td className={numCell}>{formatNumber(k.failed)}</td>
-                <td className={numCell}>{formatNumber(k.none.scanned_pdf)}</td>
-                <td className={numCell}>{formatNumber(k.none.image)}</td>
-                <td className={numCell}>{formatNumber(k.none.doc)}</td>
-                <td className={numCell}>{formatNumber(k.none.other)}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </Table>
+      <DataTable
+        caption={T.data.documentsText}
+        rows={[...TEXT_KINDS]}
+        rowKey={(kind) => kind}
+        columns={[
+          { key: "kind", header: T.data.docKind, primary: true, cell: (kind) => T.data.docKinds[kind] },
+          { key: "pending", header: T.data.textPending, align: "right", cell: (kind) => formatNumber(data[kind].pending) },
+          { key: "extracted", header: T.data.textExtracted, align: "right", cell: (kind) => formatNumber(data[kind].extracted) },
+          { key: "failed", header: T.data.textFailed, align: "right", cell: (kind) => formatNumber(data[kind].failed) },
+          { key: "scanned", header: T.data.textScannedPdf, align: "right", cell: (kind) => formatNumber(data[kind].none.scanned_pdf) },
+          { key: "image", header: T.data.textImage, align: "right", cell: (kind) => formatNumber(data[kind].none.image) },
+          { key: "doc", header: T.data.textDoc, align: "right", cell: (kind) => formatNumber(data[kind].none.doc) },
+          { key: "other", header: T.data.textOther, align: "right", cell: (kind) => formatNumber(data[kind].none.other) },
+        ]}
+      />
     </section>
   );
 }

@@ -205,12 +205,19 @@
   margin: var(--s2) 0;
 }
 
+/* the graph scales down to the card on phones instead of scrolling sideways (portal-ui-polish, decision 21) */
 .graph {
   max-width: 100%;
-  overflow-x: auto;
+  overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   background: var(--surface);
+}
+
+.graph svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
 }
 
 .graph text {

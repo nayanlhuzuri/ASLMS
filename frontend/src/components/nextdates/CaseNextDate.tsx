@@ -15,7 +15,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { fileUrl } from "@/components/case/Orders";
-import { Badge, Button, EmptyState, ErrorBanner, Loading, Notice, Pagination, Table } from "@/components/ui";
+import { Badge, Button, EmptyState, ErrorBanner, Loading, Notice, Pagination, DataTable } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { caseKey, useCase, useMe } from "@/lib/api/hooks";
 import type { CaseDetail, CaseNextDate, CaseNextDateList, NextDateReviewList } from "@/lib/api/types";
@@ -138,21 +138,17 @@ export function NextDatesSection({ caseRef }: { caseRef: string }) {
           <EmptyState>{T.nd.noNextDates}</EmptyState>
         ) : (
           <>
-            <Table caption={T.nd.section}>
-              <thead>
-                <tr>
-                  <th scope="col">{T.nd.colDate}</th>
-                  <th scope="col">{T.nd.colSource}</th>
-                  <th scope="col">{T.nd.colStatus}</th>
-                  <th scope="col">{T.nd.colOrder}</th>
-                  <th scope="col">{T.nd.colBy}</th>
-                  <th scope="col">{T.nd.colNote}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {list.data.items.map((row) => (
-                  <tr key={row.id}>
-                    <td>
+            <DataTable
+              caption={T.nd.section}
+              rows={list.data.items}
+              rowKey={(row) => row.id}
+              columns={[
+                {
+                  key: "date",
+                  header: T.nd.colDate,
+                  primary: true,
+                  cell: (row) => (
+                    <>
                       <strong>{formatDate(row.next_date)}</strong>
                       {row.ref_no ? <div className="mono">{row.ref_no}</div> : null}
                       {row.effective ? (
@@ -160,33 +156,34 @@ export function NextDatesSection({ caseRef }: { caseRef: string }) {
                           <Badge tone="success">{T.nd.usedForCalendar}</Badge>
                         </div>
                       ) : null}
-                    </td>
-                    <td>{sourceLabel(row.source)}</td>
-                    <td>{statusLabel(row.review_status, { canAct })}</td>
-                    <td>
-                      {row.order ? (
-                        <>
-                          <span className="mono">{row.order.order_no}</span> · {formatDate(row.order.order_date)}
-                          {row.order.document_id && canView ? (
-                            <div>
-                              <a href={fileUrl(caseRef, row.order.id, "inline")} target="_blank" rel="noopener noreferrer">
-                                {T.nd.viewOrder}
-                              </a>
-                            </div>
-                          ) : null}
-                        </>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td>
-                      <By row={row} />
-                    </td>
-                    <td>{row.note ?? "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
+                    </>
+                  ),
+                },
+                { key: "source", header: T.nd.colSource, cell: (row) => sourceLabel(row.source) },
+                { key: "status", header: T.nd.colStatus, cell: (row) => statusLabel(row.review_status, { canAct }) },
+                {
+                  key: "order",
+                  header: T.nd.colOrder,
+                  cell: (row) =>
+                    row.order ? (
+                      <>
+                        <span className="mono">{row.order.order_no}</span> · {formatDate(row.order.order_date)}
+                        {row.order.document_id && canView ? (
+                          <div>
+                            <a href={fileUrl(caseRef, row.order.id, "inline")} target="_blank" rel="noopener noreferrer">
+                              {T.nd.viewOrder}
+                            </a>
+                          </div>
+                        ) : null}
+                      </>
+                    ) : (
+                      "—"
+                    ),
+                },
+                { key: "by", header: T.nd.colBy, cell: (row) => <By row={row} /> },
+                { key: "note", header: T.nd.colNote, cell: (row) => row.note ?? "—" },
+              ]}
+            />
             <Pagination offset={offset} limit={PAGE} total={list.data.total} onChange={setOffset} />
           </>
         )

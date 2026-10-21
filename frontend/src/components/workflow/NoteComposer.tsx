@@ -56,8 +56,12 @@ export function NoteComposer({
   draft,
   onDone,
   onCancel,
+  secondaryOnly = false,
 }: {
   caseRef: string;
+  /** On the case page itself, whose header holds the one primary (decision 16; design portal-ui-polish): the submit is
+   * drawn secondary. In a dialog it stays primary. */
+  secondaryOnly?: boolean;
   /** From the overview's `workflow.note_mode` (a draft being edited is always `draft`). */
   mode: NoteMode;
   /** The note being corrected: its kind and visibility are kept. */
@@ -259,7 +263,7 @@ export function NoteComposer({
             {correcting ? T.wf.cancelCorrection : T.cancel}
           </Button>
         ) : null}
-        <Button type="submit" busy={action.busy}>
+        <Button type="submit" variant={secondaryOnly ? "secondary" : "primary"} busy={action.busy}>
           {draftMode ? T.wf.saveDraft : T.wf.addNote}
         </Button>
       </div>

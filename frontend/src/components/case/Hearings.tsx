@@ -12,7 +12,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { NextDatesSection } from "@/components/nextdates/CaseNextDate";
-import { EmptyState, ErrorBanner, Loading, Pagination, Table } from "@/components/ui";
+import { DataTable, EmptyState, ErrorBanner, Loading, Pagination } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { caseKey } from "@/lib/api/hooks";
 import { causelistHref } from "@/lib/causelist";
@@ -45,38 +45,40 @@ export function Hearings({ caseRef }: { caseRef: string }) {
             <EmptyState>{T.case.noHearings}</EmptyState>
           ) : (
             <>
-              <Table caption={T.case.hearings}>
-                <thead>
-                  <tr>
-                    <th scope="col">{T.case.businessDate}</th>
-                    <th scope="col">{T.case.purposeCol}</th>
-                    <th scope="col">{T.case.bench}</th>
-                    <th scope="col">{T.case.nextDate}</th>
-                    <th scope="col">{T.case.business}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {hearings.data.items.map((h, i) => (
-                    <tr key={i}>
-                      <td>{formatDate(h.business_date ?? h.hearing_date)}</td>
-                      <td>{h.purpose ?? "—"}</td>
-                      <td>
+              <DataTable
+                caption={T.case.hearings}
+                rows={hearings.data.items.map((h, i) => ({ h, i }))}
+                rowKey={(row) => String(row.i)}
+                columns={[
+                  { key: "date", header: T.case.businessDate, primary: true, cell: ({ h }) => formatDate(h.business_date ?? h.hearing_date) },
+                  { key: "purpose", header: T.case.purposeCol, cell: ({ h }) => h.purpose ?? "—" },
+                  {
+                    key: "bench",
+                    header: T.case.bench,
+                    cell: ({ h }) => (
+                      <>
                         {h.bench_text ?? "—"}
                         {h.judge_designation ? <div className="muted">{h.judge_designation}</div> : null}
-                      </td>
-                      <td>{formatDate(h.next_date)}</td>
-                      <td>
+                      </>
+                    ),
+                  },
+                  { key: "next", header: T.case.nextDate, cell: ({ h }) => formatDate(h.next_date) },
+                  {
+                    key: "business",
+                    header: T.case.business,
+                    cell: ({ h }) => (
+                      <>
                         {h.business_text ?? "—"}
                         {h.short_order_text ? (
                           <div className="muted">
                             {T.case.shortOrder}: {h.short_order_text}
                           </div>
                         ) : null}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </Table>
+                      </>
+                    ),
+                  },
+                ]}
+              />
               <Pagination offset={hOffset} limit={PAGE} total={hearings.data.total} onChange={setHOffset} />
             </>
           )
@@ -92,42 +94,42 @@ export function Hearings({ caseRef }: { caseRef: string }) {
             <EmptyState>{T.inbox.empty}</EmptyState>
           ) : (
             <>
-              <Table caption={T.case.listings}>
-                <thead>
-                  <tr>
-                    <th scope="col">{T.case.listDate}</th>
-                    <th scope="col">{T.case.listType}</th>
-                    <th scope="col">{T.case.bench}</th>
-                    <th scope="col">{T.case.court}</th>
-                    <th scope="col">{T.case.item}</th>
-                    <th scope="col">{T.case.section}</th>
-                    <th scope="col">{T.case.counselCodes}</th>
-                    <th scope="col">{T.case.remarks}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {listings.data.items.map((l, i) => (
-                    <tr key={i}>
-                      <td>
+              <DataTable
+                caption={T.case.listings}
+                rows={listings.data.items.map((l, i) => ({ l, i }))}
+                rowKey={(row) => String(row.i)}
+                columns={[
+                  {
+                    key: "date",
+                    header: T.case.listDate,
+                    primary: true,
+                    cell: ({ l }) => (
+                      <>
                         {formatDate(l.list_date)}
                         <div>
                           <Link href={causelistHref(l.list_date, l.bench_id)}>{T.causelist.openCauselist}</Link>
                         </div>
-                      </td>
-                      <td>{l.list_type}</td>
-                      <td>{l.bench_label ?? "—"}</td>
-                      <td>{l.court_no ?? "—"}</td>
-                      <td>
+                      </>
+                    ),
+                  },
+                  { key: "type", header: T.case.listType, cell: ({ l }) => l.list_type },
+                  { key: "bench", header: T.case.bench, cell: ({ l }) => l.bench_label ?? "—" },
+                  { key: "court", header: T.case.court, cell: ({ l }) => l.court_no ?? "—" },
+                  {
+                    key: "item",
+                    header: T.case.item,
+                    cell: ({ l }) => (
+                      <>
                         {l.printed_sr ?? l.sr_no}
                         {l.is_connected ? <span className="muted"> ({T.case.connected})</span> : null}
-                      </td>
-                      <td>{l.section ?? "—"}</td>
-                      <td className="mono">{l.counsel_codes.join("; ") || "—"}</td>
-                      <td>{l.remarks ?? "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </Table>
+                      </>
+                    ),
+                  },
+                  { key: "section", header: T.case.section, cell: ({ l }) => l.section ?? "—" },
+                  { key: "codes", header: T.case.counselCodes, cell: ({ l }) => <span className="mono">{l.counsel_codes.join("; ") || "—"}</span> },
+                  { key: "remarks", header: T.case.remarks, cell: ({ l }) => l.remarks ?? "—" },
+                ]}
+              />
               <Pagination offset={lOffset} limit={PAGE} total={listings.data.total} onChange={setLOffset} />
             </>
           )

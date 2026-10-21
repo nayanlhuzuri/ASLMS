@@ -4,7 +4,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 
-import { Badge, Button, EmptyState, ErrorBanner, Loading, numCell, Table, TextField } from "@/components/ui";
+import { Badge, Button, DataTable, EmptyState, ErrorBanner, Loading, TextField } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { useMe } from "@/lib/api/hooks";
 import type { Designation } from "@/lib/api/types";
@@ -85,79 +85,83 @@ export function Designations() {
         list.data.length === 0 ? (
           <EmptyState>{T.designations.empty}</EmptyState>
         ) : (
-          <Table caption={T.designations.title}>
-            <thead>
-              <tr>
-                <th scope="col">{T.designations.code}</th>
-                <th scope="col">{T.designations.name}</th>
-                <th scope="col" className={numCell}>
-                  {T.designations.order}
-                </th>
-                <th scope="col">{T.users.status}</th>
-                {manage ? (
-                  <th scope="col">
-                    <span className="visually-hidden">{T.edit}</span>
-                  </th>
-                ) : null}
-              </tr>
-            </thead>
-            <tbody>
-              {list.data.map((d) => (
-                <tr key={d.id}>
-                  <td className="mono">{d.code}</td>
-                  <td>
-                    {editing === d.code ? (
-                      <TextField label={T.designations.name} value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} />
-                    ) : (
-                      d.name
-                    )}
-                  </td>
-                  <td className={numCell}>
-                    {editing === d.code ? (
-                      <TextField
-                        label={T.designations.order}
-                        type="number"
-                        value={edit.order}
-                        onChange={(e) => setEdit({ ...edit, order: e.target.value })}
-                      />
-                    ) : (
-                      d.sort_order
-                    )}
-                  </td>
-                  <td>{d.is_active ? <Badge tone="success">{T.active}</Badge> : <Badge>{T.inactive}</Badge>}</td>
-                  {manage ? (
-                    <td>
-                      <div className="actions">
-                        {editing === d.code ? (
-                          <>
-                            <Button variant="link" busy={action.busy} onClick={() => save(d.code)}>
-                              {T.save}
+          <DataTable
+            caption={T.designations.title}
+            rows={list.data}
+            rowKey={(d) => d.id}
+            columns={[
+              { key: "code", header: T.designations.code, cell: (d) => <span className="mono">{d.code}</span> },
+              {
+                key: "name",
+                header: T.designations.name,
+                primary: true,
+                cell: (d) =>
+                  editing === d.code ? (
+                    <TextField label={T.designations.name} value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} />
+                  ) : (
+                    d.name
+                  ),
+              },
+              {
+                key: "order",
+                header: T.designations.order,
+                align: "right",
+                cell: (d) =>
+                  editing === d.code ? (
+                    <TextField
+                      label={T.designations.order}
+                      type="number"
+                      value={edit.order}
+                      onChange={(e) => setEdit({ ...edit, order: e.target.value })}
+                    />
+                  ) : (
+                    d.sort_order
+                  ),
+              },
+              {
+                key: "status",
+                header: T.users.status,
+                width: "var(--lead-w)",
+                cell: (d) => (d.is_active ? <Badge tone="success">{T.active}</Badge> : <Badge>{T.inactive}</Badge>),
+              },
+              ...(manage
+                ? [
+                    {
+                      key: "edit",
+                      header: <span className="visually-hidden">{T.edit}</span>,
+                      label: T.edit,
+                      cell: (d: (typeof list.data)[number]) => (
+                        <div className="actions">
+                          {editing === d.code ? (
+                            <>
+                              <Button variant="link" busy={action.busy} onClick={() => save(d.code)}>
+                                {T.save}
+                              </Button>
+                              <Button variant="link" onClick={() => setEditing(null)}>
+                                {T.cancel}
+                              </Button>
+                            </>
+                          ) : (
+                            <Button
+                              variant="link"
+                              onClick={() => {
+                                setEdit({ name: d.name, order: String(d.sort_order) });
+                                setEditing(d.code);
+                              }}
+                            >
+                              {T.edit}
                             </Button>
-                            <Button variant="link" onClick={() => setEditing(null)}>
-                              {T.cancel}
-                            </Button>
-                          </>
-                        ) : (
-                          <Button
-                            variant="link"
-                            onClick={() => {
-                              setEdit({ name: d.name, order: String(d.sort_order) });
-                              setEditing(d.code);
-                            }}
-                          >
-                            {T.edit}
+                          )}
+                          <Button variant="link" busy={action.busy} onClick={() => setActive(d.code, !d.is_active)}>
+                            {d.is_active ? T.offices.deactivate : T.offices.reactivate}
                           </Button>
-                        )}
-                        <Button variant="link" busy={action.busy} onClick={() => setActive(d.code, !d.is_active)}>
-                          {d.is_active ? T.offices.deactivate : T.offices.reactivate}
-                        </Button>
-                      </div>
-                    </td>
-                  ) : null}
-                </tr>
-              ))}
-            </tbody>
-          </Table>
+                        </div>
+                      ),
+                    },
+                  ]
+                : []),
+            ]}
+          />
         )
       ) : null}
     </section>

@@ -29,15 +29,18 @@ export const CATALOGUES: Record<LocaleCode, Messages> = {
   en: T,
 };
 
-/** A locale's catalogue; an unknown code gets English. */
+/**
+ * A locale's catalogue; an unknown code gets English. Own keys only (`Object.hasOwn`, design portal-ui-polish,
+ * decision 4), so `"toString"` or `"constructor"` never resolves to an inherited property.
+ */
 export function messagesFor(code: string): Messages {
-  return (CATALOGUES as Record<string, Messages>)[code] ?? CATALOGUES[DEFAULT_LOCALE];
+  return Object.hasOwn(CATALOGUES, code) ? CATALOGUES[code as LocaleCode] : CATALOGUES[DEFAULT_LOCALE];
 }
 
-/** A locale by code or as given; anything unknown is English. */
+/** A locale by code or as given; anything unknown (an inherited key included) is English. */
 export function localeOf(locale?: string | LocaleInfo | null): LocaleInfo {
   if (locale && typeof locale === "object") return locale;
-  if (typeof locale === "string" && locale in LOCALES) return LOCALES[locale as LocaleCode];
+  if (typeof locale === "string" && Object.hasOwn(LOCALES, locale)) return LOCALES[locale as LocaleCode];
   return LOCALES[DEFAULT_LOCALE];
 }
 

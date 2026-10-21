@@ -4,7 +4,9 @@
  * Controls of the UI kit (design portal-ui-redesign, decisions 14 and 17): buttons, labelled fields, check and radio
  * fields, the file field, chips, removable filter chips and the two- or three-way switch. One control height
  * (`--control-h`, 36 px) for every button, input and select; the `sm` button (30 px) is only for toolbars inside a
- * row. Keyboard and screen-reader friendly: labels on every field, `aria-live` errors, visible focus.
+ * row. Keyboard and screen-reader friendly: labels on every field, `aria-live` errors, visible focus. A `Button`
+ * carries `data-ui="button"`, `data-variant` and `data-size`, and the text, select and textarea controls carry
+ * `data-ui="field"`, so the browser check can measure them (design portal-ui-polish, decision 21).
  */
 import {
   useId,
@@ -51,7 +53,9 @@ export function Button({ variant = "primary", size = "md", busy, disabled, class
         s[variant],
         className,
       )}
+      data-ui="button"
       data-variant={variant}
+      data-size={variant !== "link" ? size : undefined}
       disabled={disabled || busy}
       aria-busy={busy || undefined}
       {...rest}
@@ -106,6 +110,7 @@ export function TextField({ label, hint, error, id, className, ...rest }: FieldS
     <input
       id={ids.id}
       className={cx(s.input, s.control, isPassword && s.withReveal, className)}
+      data-ui="field"
       aria-invalid={error ? true : undefined}
       aria-describedby={describedBy(ids, hint, error)}
       {...rest}
@@ -154,6 +159,7 @@ export function TextArea({ label, hint, error, id, ...rest }: FieldShell & Texta
       <textarea
         id={ids.id}
         className={cx(s.input, s.textarea)}
+        data-ui="field"
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy(ids, hint, error)}
         {...rest}
@@ -189,6 +195,7 @@ export function SelectField({
       <select
         id={ids.id}
         className={cx(s.input, s.select, s.control)}
+        data-ui="field"
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy(ids, hint, error)}
         {...rest}

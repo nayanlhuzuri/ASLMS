@@ -5,7 +5,8 @@
  * Recommended, Unclaimed pool and Transfers to us, read for one department at a time (`?department=CODE`, sent as
  * `office`; portal-cases decision 4). A tab whose count is `null` in that department's `/inbox/counts` block is not
  * shown (the API's rule). The subtitle keeps the rule's notice: nothing is assigned automatically. A row opens the
- * case details modal, whose address is `?case=<ref in dash form>` (Back closes it, a link reopens it). After an action
+ * case details modal, whose address is `?case=<ref in dash form>` (Back closes it, a link reopens it; closing goes back
+ * when this page opened it, else replaces the address: `useUrlOverlay`, design portal-ui-polish, decision 10). After an action
  * the modal closes, a notice names the action with "Open case page", and the lists, counts and case are read again.
  */
 import Link from "next/link";
@@ -20,6 +21,7 @@ import { T } from "@/lib/messages";
 import { queryString, type Params } from "@/lib/params";
 import { casePath, refPath } from "@/lib/refs";
 import { CLAIM_TABS, type ClaimTab } from "@/lib/routes";
+import { useUrlOverlay } from "@/lib/useUrlOverlay";
 
 import s from "../inbox/inbox.module.css";
 import { CaseModal, type RowContext } from "./CaseModal";
@@ -70,8 +72,8 @@ function useModalCase(params: Params) {
 }
 
 export function ClaimFrame({ tab, params }: { tab: ClaimTab; params: Params }) {
-  const router = useRouter();
   const pathname = usePathname() ?? CLAIM_TABS.find((t) => t.key === tab)!.href;
+  const overlay = useUrlOverlay("case", params, pathname);
   const sel = useInboxSelection(params.department);
   const [row, setRow] = useState<RowContext | null>(null);
   const [done, setDone] = useState<Done | null>(null);
@@ -84,12 +86,10 @@ export function ClaimFrame({ tab, params }: { tab: ClaimTab; params: Params }) {
     const summary = next.kind === "recommended" ? next.rec.case : next.kind === "pool" ? next.item.case : next.transfer.case;
     setRow(next);
     setDone(null);
-    router.push(pathname + queryString({ ...params, case: refPath(summary.ref_no) }));
+    overlay.open(refPath(summary.ref_no));
   }
   function close() {
-    const rest: Params = { ...params };
-    delete rest.case;
-    router.replace(pathname + queryString(rest));
+    overlay.close();
   }
   function finished(kind: ActionKind, label: string, department: string | null) {
     const text =

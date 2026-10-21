@@ -6,9 +6,10 @@ import { Sidebar } from "@/components/shell/PortalShell";
 import type { DataHealth, DataLoad, Duplicates as DuplicatesList, NapixHealth, Permission } from "@/lib/api/types";
 import { formatNumber } from "@/lib/format";
 import { resetNav } from "@/test/nav";
-import { browserApi, json, labels, makeMe, primaryActions, renderWithClient } from "@/test/render";
+import { browserApi, expectDataTable, json, labels, makeMe, primaryActions, renderWithClient } from "@/test/render";
 
 import { DataFrame } from "./DataFrame";
+import { Discovery } from "./Discovery";
 import { Duplicates } from "./Duplicates";
 import { Health } from "./Health";
 import { LoadConsole } from "./LoadConsole";
@@ -699,5 +700,87 @@ describe("the Dashboard template (design portal-ui-redesign, decision 26)", () =
     const group = await screen.findByRole("group", { name: "Duplicates" });
     expect(within(group).getByRole("button", { name: "Needs review" })).toHaveAttribute("aria-pressed", "true");
     expect(primaryActions(container)).toEqual([]);
+  });
+});
+
+describe("lists are DataTables, cards on phones (design portal-ui-polish, decision 15)", () => {
+  it("LoadConsole renders a DataTable with a primary cell", async () => {
+    consoleRoutes(READER);
+    renderWithClient(<LoadConsole />);
+    expectDataTable(await screen.findByRole("table", { name: "Work left" }));
+    expectDataTable(screen.getByRole("table", { name: "Latest failures" }));
+  });
+
+  it("Health renders a DataTable with a primary cell", async () => {
+    browserApi({
+      "GET /me": makeMe(OPERATOR, "central_operator"),
+      "GET /admin/data-health": SNAPSHOT,
+      "GET /admin/napix/health": { ...NAPIX, by_user: BY_USER },
+    });
+    renderWithClient(<Health />);
+    expectDataTable(await screen.findByRole("table", { name: "Calls by user" }));
+    expectDataTable(screen.getByRole("table", { name: "Queue" }));
+    expectDataTable(screen.getByRole("table", { name: "Document text" }));
+  });
+
+  it("Queue renders a DataTable with a primary cell", async () => {
+    browserApi({
+      "GET /me": makeMe(READER, "central_operator"),
+      "GET /admin/napix/queue": { total: 1, items: [{ id: "q-1", ...QUEUED_DAY, last_error: "NapixUnavailable: 503", status: "failed" }] },
+      "GET /admin/napix/calls": {
+        items: [{ id: "k-1", called_at: "2026-10-11T15:10:00+05:30", api: "hc-cnr-api/cnr", http_status: 200, ok: true, lane: "load", user_name: null }],
+        next_cursor: null,
+      },
+    });
+    renderWithClient(<QueueAndCalls />);
+    expectDataTable(await screen.findByRole("table", { name: "Queue rows" }));
+    expectDataTable(await screen.findByRole("table", { name: "Call log" }));
+  });
+
+  it("Duplicates renders a DataTable with a primary cell", async () => {
+    browserApi({
+      "GET /me": makeMe(READER),
+      "GET /admin/data-load/duplicates": {
+        total: 1,
+        items: [
+          {
+            kind: "review",
+            case: { id: "p", ref_no: "ASLMS/GOA/CASE/2026/000009", cnr: null, case_no_text: "WPC/3600/2026" },
+            other: { id: "c", ref_no: "ASLMS/GOA/CASE/2026/000002", cnr: "GAHC010129772026", case_no_text: "WP(C)/3600/2026" },
+            at: "2026-10-11T03:00:00+05:30",
+            reasons: "portal records on the provisional case",
+          },
+        ],
+      },
+    });
+    renderWithClient(<Duplicates />);
+    await screen.findByText("portal records on the provisional case");
+    expectDataTable(screen.getByRole("table"));
+  });
+
+  it("Discovery renders a DataTable with a primary cell", async () => {
+    resetNav("/data/discovery");
+    browserApi({
+      "GET /me": makeMe(["reports.state"], "state_oversight"),
+      "GET /admin/discovery": {
+        settings: { share: 100, from_year: 2025 },
+        window: { status: "current", started_at: null, next_reset_at: null, discovery_calls: 12, share_left: 88 },
+        queue: {
+          by_kind: {
+            party_search: { pending: 4, waiting: 1, running: 0, failed: 1 },
+            dossier: { pending: 3, waiting: 0, running: 1, failed: 0 },
+            order_pdf: { pending: 0, waiting: 0, running: 0, failed: 0 },
+          },
+        },
+        terms: { active: 3, inactive: 1 },
+        cases: { found: 9, created_by_discovery: 4, recommended_from_discovery: 2 },
+        last_searched_at: null,
+        latest_failures: [{ kind: "party_search", ref: "GAHC01|P|2025|PRITAM SAIKIA", last_error: "NapixUnavailable: 503", finished_at: null }],
+      },
+    });
+    renderWithClient(<Discovery />);
+    await screen.findByText("GAHC01|P|2025|PRITAM SAIKIA");
+    for (const table of screen.getAllByRole("table")) expectDataTable(table);
+    expect(screen.getAllByRole("table")).toHaveLength(2);
   });
 });

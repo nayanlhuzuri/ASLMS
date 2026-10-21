@@ -54,6 +54,7 @@ function DraftItem({ caseRef, draft, kindLabel }: { caseRef: string; draft: Draf
       {editing ? (
         <NoteComposer
           caseRef={caseRef}
+          secondaryOnly
           mode="draft"
           draft={draft}
           onCancel={() => setEditing(false)}

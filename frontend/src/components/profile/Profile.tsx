@@ -10,7 +10,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 
 import { PreferenceFields, prefsBody, prefsFrom, type PrefsValue } from "@/components/auth/WelcomeForms";
-import { Badge, Button, ErrorBanner, Loading, Notice, PageHeader, SettingsLayout, Table, TextField } from "@/components/ui";
+import { Badge, Button, ErrorBanner, Loading, Notice, PageHeader, SettingsLayout, DataTable, TextField } from "@/components/ui";
 import { api, session } from "@/lib/api/client";
 import type { DeviceOut, NotificationPreferences, ProfileOut } from "@/lib/api/types";
 import { formatDateTime } from "@/lib/format";
@@ -187,20 +187,17 @@ function DevicesCard() {
       {devices.isPending ? <Loading /> : null}
       <ErrorBanner error={devices.error ?? action.error} onRetry={() => devices.refetch()} />
       {devices.data ? (
-        <Table caption={T.profile.devices}>
-          <thead>
-            <tr>
-              <th scope="col">{T.profile.devices}</th>
-              <th scope="col">{T.profile.lastSeen}</th>
-              <th scope="col">
-                <span className="visually-hidden">{T.profile.signOutDevice}</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {devices.data.map((d) => (
-              <tr key={d.id}>
-                <td>
+        <DataTable
+          caption={T.profile.devices}
+          rows={devices.data}
+          rowKey={(d) => d.id}
+          columns={[
+            {
+              key: "device",
+              header: T.profile.devices,
+              primary: true,
+              cell: (d) => (
+                <>
                   {d.label ?? d.user_agent ?? "—"}
                   {d.current ? (
                     <>
@@ -208,21 +205,25 @@ function DevicesCard() {
                       <Badge>{T.profile.thisDevice}</Badge>
                     </>
                   ) : null}
-                </td>
-                <td>{formatDateTime(d.last_seen_at)}</td>
-                <td>
-                  {d.revoked_at ? (
-                    <span className="muted">{T.profile.revoked}</span>
-                  ) : (
-                    <Button variant="link" busy={action.busy} onClick={() => revoke(d.id)}>
-                      {T.profile.signOutDevice}
-                    </Button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </Table>
+                </>
+              ),
+            },
+            { key: "seen", header: T.profile.lastSeen, cell: (d) => formatDateTime(d.last_seen_at) },
+            {
+              key: "signout",
+              header: <span className="visually-hidden">{T.profile.signOutDevice}</span>,
+              label: T.profile.signOutDevice,
+              cell: (d) =>
+                d.revoked_at ? (
+                  <span className="muted">{T.profile.revoked}</span>
+                ) : (
+                  <Button variant="link" busy={action.busy} onClick={() => revoke(d.id)}>
+                    {T.profile.signOutDevice}
+                  </Button>
+                ),
+            },
+          ]}
+        />
       ) : null}
     </section>
   );

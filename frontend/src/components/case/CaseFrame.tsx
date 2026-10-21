@@ -79,7 +79,8 @@ function NextHearingFact({ caseRef, c }: { caseRef: string; c: CaseDetail }) {
   const badge = hearingBadge(next);
   return (
     <span className={s.factLine}>
-      <span>{T.case.nextAt(formatDate(next), onDay?.court_no ?? null, onDay?.sr_no ?? null)}</span>
+      {/* the item number as printed in the cause list, else the serial (design portal-ui-polish, decision 12) */}
+      <span>{T.case.nextAt(formatDate(next), onDay?.court_no ?? null, onDay ? (onDay.printed_sr ?? onDay.sr_no) : null)}</span>
       {badge === "critical" ? <Badge tone="danger">{T.case.within48}</Badge> : null}
       {badge === "week" ? <Badge>{T.case.thisWeek}</Badge> : null}
     </span>
@@ -240,7 +241,8 @@ export function CaseHeader({ c, caseRef, actions = true }: { c: CaseDetail; case
     <section className={s.header} aria-label={T.case.summary}>
       <Breadcrumb />
       <div className={s.titleRow}>
-        <h1 className={`${s.caseNo} cno`}>{caseName(c)}</h1>
+        {/* a case number is `cno`, a bare ref_no stays monospace (decision 10.1; design portal-ui-polish, decision 2) */}
+        <h1 className={`${s.caseNo} ${c.identity.case_no_text ? "cno" : "mono"}`}>{caseName(c)}</h1>
         <Badge tone={statusTone(c.status.status)}>{T.inbox.statuses[c.status.status] ?? c.status.status}</Badge>
         <OwnerBadge c={c} me={me.data} />
         {actions ? (

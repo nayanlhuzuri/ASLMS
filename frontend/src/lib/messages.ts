@@ -591,6 +591,7 @@ export const T = {
     blockFailed: "This block could not be loaded.",
     tickets: "Tickets awaiting action",
     ticketsOpen: "Open tickets",
+    ticketsOpenCol: "Open",
     ticketsOldest: (d: string) => `Oldest since ${d}`,
     ticketsNone: "No open tickets.",
     ticketsWithoutHead: "Departments without a head",
@@ -1541,6 +1542,7 @@ export const T = {
     side: "Side",
     name: "Name",
     role: "Role",
+    partyNo: "Party no.",
     address: "Address",
     documents: "Documents",
     docGroups: {

@@ -18,10 +18,9 @@ import {
   ErrorBanner,
   Loading,
   Notice,
-  numCell,
   SelectField,
   Kpi,
-  Table,
+  DataTable,
   TextField,
 } from "@/components/ui";
 import { api, ApiError } from "@/lib/api/client";
@@ -149,49 +148,39 @@ function WorkLeftTable({ data, retry }: { data: DataLoad; retry: boolean }) {
       <h2>{T.data.workLeft}</h2>
       <ErrorBanner error={action.error} />
       {message ? <Notice>{message}</Notice> : null}
-      <Table caption={T.data.workLeft}>
-        <thead>
-          <tr>
-            <th scope="col">{T.data.kind}</th>
-            <th scope="col" className={numCell}>{T.data.pending}</th>
-            <th scope="col" className={numCell}>{T.data.runnable}</th>
-            <th scope="col" className={numCell}>{T.data.waiting}</th>
-            <th scope="col" className={numCell}>{T.data.runningCol}</th>
-            <th scope="col" className={numCell}>{T.data.failed}</th>
-            {retry ? (
-              <th scope="col">
-                <span className="visually-hidden">{T.data.retryFailed}</span>
-              </th>
-            ) : null}
-          </tr>
-        </thead>
-        <tbody>
-          {data.work_left.map((w) => (
-            <tr key={w.kind}>
-              <td>{T.data.kinds[w.kind] ?? w.kind}</td>
-              <td className={numCell}>{formatNumber(w.pending)}</td>
-              <td className={numCell}>{formatNumber(w.runnable)}</td>
-              <td className={numCell}>{formatNumber(w.waiting)}</td>
-              <td className={numCell}>{formatNumber(w.running)}</td>
-              <td className={numCell}>{formatNumber(w.failed)}</td>
-              {retry ? (
-                <td>
-                  {w.failed > 0 ? (
-                    <Button
-                      variant="link"
-                      busy={action.busy}
-                      onClick={() => retryKind(w.kind)}
-                      aria-label={`${T.data.retryFailed}: ${T.data.kinds[w.kind] ?? w.kind}`}
-                    >
-                      {T.data.retryFailed}
-                    </Button>
-                  ) : null}
-                </td>
-              ) : null}
-            </tr>
-          ))}
-        </tbody>
-      </Table>
+      <DataTable
+        caption={T.data.workLeft}
+        rows={data.work_left}
+        rowKey={(w) => w.kind}
+        columns={[
+          { key: "kind", header: T.data.kind, primary: true, cell: (w) => T.data.kinds[w.kind] ?? w.kind },
+          { key: "pending", header: T.data.pending, align: "right", cell: (w) => formatNumber(w.pending) },
+          { key: "runnable", header: T.data.runnable, align: "right", cell: (w) => formatNumber(w.runnable) },
+          { key: "waiting", header: T.data.waiting, align: "right", cell: (w) => formatNumber(w.waiting) },
+          { key: "running", header: T.data.runningCol, align: "right", cell: (w) => formatNumber(w.running) },
+          { key: "failed", header: T.data.failed, align: "right", cell: (w) => formatNumber(w.failed) },
+          ...(retry
+            ? [
+                {
+                  key: "retry",
+                  header: <span className="visually-hidden">{T.data.retryFailed}</span>,
+                  label: T.data.retryFailed,
+                  cell: (w: DataLoad["work_left"][number]) =>
+                    w.failed > 0 ? (
+                      <Button
+                        variant="link"
+                        busy={action.busy}
+                        onClick={() => retryKind(w.kind)}
+                        aria-label={`${T.data.retryFailed}: ${T.data.kinds[w.kind] ?? w.kind}`}
+                      >
+                        {T.data.retryFailed}
+                      </Button>
+                    ) : null,
+                },
+              ]
+            : []),
+        ]}
+      />
     </section>
   );
 }
@@ -227,28 +216,18 @@ function FailuresTable({ data }: { data: DataLoad }) {
       {rows.length === 0 ? (
         <EmptyState>{T.data.noFailures}</EmptyState>
       ) : (
-        <Table caption={T.data.failures}>
-          <thead>
-            <tr>
-              <th scope="col">{T.data.kind}</th>
-              <th scope="col">{T.data.ref}</th>
-              <th scope="col" className={numCell}>{T.data.attempts}</th>
-              <th scope="col">{T.data.lastError}</th>
-              <th scope="col">{T.data.at}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id}>
-                <td>{T.data.kinds[r.kind] ?? r.kind}</td>
-                <td className="mono">{r.ref}</td>
-                <td className={numCell}>{r.attempts}</td>
-                <td>{r.last_error ?? "—"}</td>
-                <td>{formatDateTime(r.finished_at)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </Table>
+        <DataTable
+          caption={T.data.failures}
+          rows={rows}
+          rowKey={(r) => r.id}
+          columns={[
+            { key: "kind", header: T.data.kind, cell: (r) => T.data.kinds[r.kind] ?? r.kind },
+            { key: "ref", header: T.data.ref, primary: true, cell: (r) => <span className="mono">{r.ref}</span> },
+            { key: "attempts", header: T.data.attempts, align: "right", cell: (r) => r.attempts },
+            { key: "error", header: T.data.lastError, cell: (r) => r.last_error ?? "—" },
+            { key: "at", header: T.data.at, cell: (r) => formatDateTime(r.finished_at) },
+          ]}
+        />
       )}
     </section>
   );
@@ -281,67 +260,61 @@ function CoverageBlock() {
         coverage.data.months.length === 0 ? (
           <EmptyState>{T.data.noPeriod}</EmptyState>
         ) : (
-          <Table caption={T.data.coverage}>
-            <thead>
-              <tr>
-                <th scope="col">{T.data.month}</th>
-                <th scope="col" className={numCell}>{T.data.daysCovered}</th>
-                <th scope="col" className={numCell}>{T.data.lists}</th>
-                <th scope="col" className={numCell}>{T.data.entries}</th>
-                <th scope="col" className={numCell}>{T.data.cases}</th>
-                <th scope="col" className={numCell}>{T.data.details}</th>
-                <th scope="col" className={numCell}>{T.data.orders}</th>
-                <th scope="col" className={numCell}>{T.data.left}</th>
-                <th scope="col" className={numCell}>{T.data.failed}</th>
-                <th scope="col">
-                  <span className="visually-hidden">{T.data.days}</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {coverage.data.months.map((m) => (
-                <tr key={m.month}>
-                  <td className="mono">{m.month}</td>
-                  <td className={numCell}>{`${m.days_covered_pct}%`}</td>
-                  <td className={numCell}>{formatNumber(m.lists)}</td>
-                  <td className={numCell}>{formatNumber(m.entries)}</td>
-                  <td className={numCell}>{formatNumber(m.cases.listed)}</td>
-                  <td className={numCell}>{m.details_pct === null ? "—" : `${m.details_pct}%`}</td>
-                  <td className={numCell}>{`${formatNumber(m.orders.stored)} / ${formatNumber(m.orders.referenced)}`}</td>
-                  <td className={numCell}>{formatNumber(m.work_left.causelist_day + m.work_left.dossier + m.work_left.order_pdf)}</td>
-                  <td className={numCell}>{formatNumber(m.failed.causelist_day + m.failed.dossier + m.failed.order_pdf)}</td>
-                  <td>
-                    <Button variant="link" onClick={() => setMonth(m.month)} aria-label={`${T.data.days} ${m.month}`}>
-                      {T.data.days}
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </Table>
+          <DataTable
+            caption={T.data.coverage}
+            rows={coverage.data.months}
+            rowKey={(m) => m.month}
+            columns={[
+              { key: "month", header: T.data.month, primary: true, cell: (m) => <span className="mono">{m.month}</span> },
+              { key: "covered", header: T.data.daysCovered, align: "right", cell: (m) => `${m.days_covered_pct}%` },
+              { key: "lists", header: T.data.lists, align: "right", cell: (m) => formatNumber(m.lists) },
+              { key: "entries", header: T.data.entries, align: "right", cell: (m) => formatNumber(m.entries) },
+              { key: "cases", header: T.data.cases, align: "right", cell: (m) => formatNumber(m.cases.listed) },
+              { key: "details", header: T.data.details, align: "right", cell: (m) => (m.details_pct === null ? "—" : `${m.details_pct}%`) },
+              {
+                key: "orders",
+                header: T.data.orders,
+                align: "right",
+                cell: (m) => `${formatNumber(m.orders.stored)} / ${formatNumber(m.orders.referenced)}`,
+              },
+              {
+                key: "left",
+                header: T.data.left,
+                align: "right",
+                cell: (m) => formatNumber(m.work_left.causelist_day + m.work_left.dossier + m.work_left.order_pdf),
+              },
+              {
+                key: "failed",
+                header: T.data.failed,
+                align: "right",
+                cell: (m) => formatNumber(m.failed.causelist_day + m.failed.dossier + m.failed.order_pdf),
+              },
+              {
+                key: "days",
+                header: <span className="visually-hidden">{T.data.days}</span>,
+                label: T.data.days,
+                cell: (m) => (
+                  <Button variant="link" onClick={() => setMonth(m.month)} aria-label={`${T.data.days} ${m.month}`}>
+                    {T.data.days}
+                  </Button>
+                ),
+              },
+            ]}
+          />
         )
       ) : null}
       {month && days.data ? (
-        <Table caption={`${T.data.days} ${month}`}>
-          <thead>
-            <tr>
-              <th scope="col">{T.data.date}</th>
-              <th scope="col">{T.data.status}</th>
-              <th scope="col">{T.data.lane}</th>
-              <th scope="col" className={numCell}>{T.data.attempts}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {days.data.items.map((r) => (
-              <tr key={r.id}>
-                <td className="mono">{r.ref}</td>
-                <td>{r.status}</td>
-                <td>{T.data.lanes[r.lane] ?? r.lane}</td>
-                <td className={numCell}>{r.attempts}</td>
-              </tr>
-            ))}
-          </tbody>
-        </Table>
+        <DataTable
+          caption={`${T.data.days} ${month}`}
+          rows={days.data.items}
+          rowKey={(r) => r.id}
+          columns={[
+            { key: "date", header: T.data.date, primary: true, cell: (r) => <span className="mono">{r.ref}</span> },
+            { key: "status", header: T.data.status, width: "var(--lead-w)", cell: (r) => r.status },
+            { key: "lane", header: T.data.lane, cell: (r) => T.data.lanes[r.lane] ?? r.lane },
+            { key: "attempts", header: T.data.attempts, align: "right", cell: (r) => r.attempts },
+          ]}
+        />
       ) : null}
     </section>
   );
@@ -685,39 +658,40 @@ export function FetchFromCourt() {
           {items.length === 0 ? (
             <EmptyState>{T.data.noDuplicates}</EmptyState>
           ) : (
-            <Table caption={T.data.results}>
-              <thead>
-                <tr>
-                  <th scope="col">
-                    <span className="visually-hidden">{T.data.fetchDetails}</span>
-                  </th>
-                  <th scope="col">{T.data.case}</th>
-                  <th scope="col">{T.data.cnr}</th>
-                  <th scope="col">{T.data.details}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((it) => (
-                  <tr key={it.case.id}>
-                    <td>
-                      <CheckField
-                        label={<span className="visually-hidden">{it.case.ref_no}</span>}
-                        checked={picked.includes(it.case.ref_no)}
-                        onChange={(e) =>
-                          setPicked(e.target.checked ? [...picked, it.case.ref_no] : picked.filter((r) => r !== it.case.ref_no))
-                        }
-                      />
-                    </td>
-                    <td>
+            <DataTable
+              caption={T.data.results}
+              rows={items}
+              rowKey={(it) => it.case.id}
+              columns={[
+                {
+                  key: "pick",
+                  header: <span className="visually-hidden">{T.data.fetchDetails}</span>,
+                  label: T.data.fetchDetails,
+                  cell: (it) => (
+                    <CheckField
+                      label={<span className="visually-hidden">{it.case.ref_no}</span>}
+                      checked={picked.includes(it.case.ref_no)}
+                      onChange={(e) =>
+                        setPicked(e.target.checked ? [...picked, it.case.ref_no] : picked.filter((r) => r !== it.case.ref_no))
+                      }
+                    />
+                  ),
+                },
+                {
+                  key: "case",
+                  header: T.data.case,
+                  primary: true,
+                  cell: (it) => (
+                    <>
                       <span className="mono">{it.case.case_no_text ?? it.case.ref_no}</span>{" "}
                       {!it.visible ? <span className="muted">({T.data.notVisible})</span> : null}
-                    </td>
-                    <td className="mono">{it.case.cnr ?? "—"}</td>
-                    <td>{it.dossier_status}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
+                    </>
+                  ),
+                },
+                { key: "cnr", header: T.data.cnr, cell: (it) => <span className="mono">{it.case.cnr ?? "—"}</span> },
+                { key: "details", header: T.data.details, cell: (it) => it.dossier_status },
+              ]}
+            />
           )}
           {items.length > 0 ? (
             <div>

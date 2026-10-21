@@ -7,13 +7,17 @@ from __future__ import annotations
 
 import pytest
 
+from aslms.domain.cases import Case
+from aslms.domain.org import PermissionEffect
 from aslms.domain.ownership import OwnershipTransfer
+from aslms.domain.reference import Permission, Role
 from aslms.services import ownership as own
 from aslms.services import visibility
 from aslms.services.workflow_common import WorkflowError
 from tests.db import docs_support as ds
 from tests.db import workflow_support as w
-from tests.db.world import make_case
+from tests.db.report_support import override, row_counts
+from tests.db.world import add_membership, make_case
 
 
 @pytest.fixture()
@@ -98,3 +102,45 @@ def test_no_write_through_the_basis(api, world, transfer):
     # the request is still decided through the transfer, not the case basis
     o = api.get(f"/cases/{ref}/ownership", headers=admin).json()["actions"]
     assert o["claim"] is False and o["allot"] is False and o["take_over"] is False
+
+
+# ------------------------------------------------------------------------- design portal-ui-polish, decision 8
+
+
+def test_ownership_view_refuses_transfer_in_without_view_scope(api, world, transfer):
+    """The receiving department admin's membership without `cases.view_scope` (a per-user override) is refused
+    by the service; the login holds the function nowhere else, so the router's login-level check answers first.
+    With the function restored the panel opens."""
+    ref, case_id, _ = transfer
+    with world.Session() as s:
+        override(s, world, "edu_admin", Permission.CASES_VIEW_SCOPE, PermissionEffect.DENY)
+        s.commit()
+    with world.Session() as s:
+        with pytest.raises(own.NotVisible):
+            own.case_ownership_view(s, world.user(s, "edu_admin"), s.get(Case, case_id))
+    headers = w.login(api, "edu_admin")
+    assert api.get(f"/cases/{ref}/ownership", headers=headers).status_code in (403, 404)
+    assert api.get(f"/cases/{ref}", headers=headers).status_code in (403, 404)
+    with world.Session() as s:
+        override(s, world, "edu_admin", Permission.CASES_VIEW_SCOPE, None)
+        s.commit()
+    assert api.get(f"/cases/{ref}/ownership", headers=headers).status_code == 200
+
+
+def test_ownership_view_transfer_in_needs_scope_on_the_same_membership(api, world, transfer):
+    """`cases.view_scope` held only on the login's other membership, in another department, passes the router
+    but does not open the panel: 404, as `GET /cases/{ref}` (this mirrors `visibility.member_bases`)."""
+    ref, _case_id, _ = transfer
+    with world.Session() as s:
+        add_membership(s, world.user(s, "edu_admin"), world.office(s, "FIN"), Role.DEPT_OFFICER)
+        override(s, world, "edu_admin", Permission.CASES_VIEW_SCOPE, PermissionEffect.DENY, office="EDU")
+        s.commit()
+    headers = w.login(api, "edu_admin")
+    with world.Session() as s:
+        writes = row_counts(s)
+    o = api.get(f"/cases/{ref}/ownership", headers=headers)
+    assert o.status_code == 404, o.text
+    assert o.json()["detail"] == "no such case"
+    assert api.get(f"/cases/{ref}", headers=headers).status_code == 404
+    with world.Session() as s:
+        assert row_counts(s) == writes  # a read: no audit row

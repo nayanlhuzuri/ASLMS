@@ -9,7 +9,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
 
-import { Button, Chip, ChipGroup, EmptyState, ErrorBanner, Loading, Notice, Pagination, Table } from "@/components/ui";
+import { Button, Chip, ChipGroup, DataTable, EmptyState, ErrorBanner, Loading, Notice, Pagination } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { useMe } from "@/lib/api/hooks";
 import type { DedupeScan, DuplicateItem, Duplicates as DuplicatesList } from "@/lib/api/types";
@@ -88,26 +88,19 @@ export function Duplicates() {
           <EmptyState>{T.data.noDuplicates}</EmptyState>
         ) : (
           <>
-            <Table caption={T.data.dupKinds[kind]}>
-              <thead>
-                <tr>
-                  <th scope="col">{T.data.case}</th>
-                  <th scope="col">{T.data.other}</th>
-                  <th scope="col">{T.data.at}</th>
-                  {kind === "review" ? <th scope="col">{T.data.reason}</th> : null}
-                </tr>
-              </thead>
-              <tbody>
-                {list.data.items.map((d, i) => (
-                  <tr key={`${d.case?.id ?? i}-${d.other?.id ?? i}`}>
-                    <td>{brief(d.case)}</td>
-                    <td>{brief(d.other)}</td>
-                    <td>{formatDateTime(d.at)}</td>
-                    {kind === "review" ? <td>{d.reasons ?? "—"}</td> : null}
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
+            <DataTable
+              caption={T.data.dupKinds[kind]}
+              rows={list.data.items}
+              rowKey={(d) => `${d.case?.id ?? ""}-${d.other?.id ?? ""}-${d.at}`}
+              columns={[
+                { key: "case", header: T.data.case, primary: true, cell: (d) => brief(d.case) },
+                { key: "other", header: T.data.other, cell: (d) => brief(d.other) },
+                { key: "at", header: T.data.at, cell: (d) => formatDateTime(d.at) },
+                ...(kind === "review"
+                  ? [{ key: "reason", header: T.data.reason, cell: (d: (typeof list.data.items)[number]) => d.reasons ?? "—" }]
+                  : []),
+              ]}
+            />
             <Pagination offset={offset} limit={LIMIT} total={list.data.total} onChange={setOffset} />
           </>
         )

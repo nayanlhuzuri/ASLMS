@@ -6,7 +6,7 @@
  */
 import { useQuery } from "@tanstack/react-query";
 
-import { ErrorBanner, Loading, numCell, Table, Tile } from "@/components/ui";
+import { DataTable, ErrorBanner, Loading, Tile, type Column } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import type { CustodySummary, DepartmentCustodySummary } from "@/lib/api/types";
 import { formatNumber } from "@/lib/format";
@@ -16,30 +16,15 @@ import s from "./files.module.css";
 
 export const TRACK_ERRORS = { forbidden: () => T.files.notTracking };
 
-function CountCells({ row }: { row: { held: number; due_soon: number; overdue: number } }) {
-  return (
-    <>
-      <td className={numCell}>{formatNumber(row.held)}</td>
-      <td className={numCell}>{formatNumber(row.due_soon)}</td>
-      <td className={numCell}>{formatNumber(row.overdue)}</td>
-    </>
-  );
-}
+type Counts = { held: number; due_soon: number; overdue: number };
 
-function CountHeads() {
-  return (
-    <>
-      <th scope="col" className={numCell}>
-        {T.files.held}
-      </th>
-      <th scope="col" className={numCell}>
-        {T.files.dueSoon}
-      </th>
-      <th scope="col" className={numCell}>
-        {T.files.overdue}
-      </th>
-    </>
-  );
+/** The three count columns shared by both tables. */
+function countColumns<Row extends Counts>(): Column<Row>[] {
+  return [
+    { key: "held", header: T.files.held, align: "right", cell: (r) => formatNumber(r.held) },
+    { key: "due_soon", header: T.files.dueSoon, align: "right", cell: (r) => formatNumber(r.due_soon) },
+    { key: "overdue", header: T.files.overdue, align: "right", cell: (r) => formatNumber(r.overdue) },
+  ];
 }
 
 export function DepartmentSummary({ d }: { d: DepartmentCustodySummary }) {
@@ -53,42 +38,26 @@ export function DepartmentSummary({ d }: { d: DepartmentCustodySummary }) {
         <Tile label={T.files.overdue} value={d.overdue} />
       </div>
       <div className={s.columns}>
-        <Table caption={T.files.byHolderDepartment}>
-          <thead>
-            <tr>
-              <th scope="col">{T.files.department}</th>
-              <CountHeads />
-            </tr>
-          </thead>
-          <tbody>
-            {d.by_holder_department.map((r) => (
-              <tr key={r.code}>
-                <td className="mono">{r.code}</td>
-                <CountCells row={r} />
-              </tr>
-            ))}
-          </tbody>
-        </Table>
-        <Table caption={T.files.byHolder}>
-          <thead>
-            <tr>
-              <th scope="col">{T.files.office}</th>
-              <th scope="col">{T.files.officer}</th>
-              <th scope="col">{T.files.designation}</th>
-              <CountHeads />
-            </tr>
-          </thead>
-          <tbody>
-            {d.by_holder.map((r, i) => (
-              <tr key={`${r.office_code}-${r.user_name ?? ""}-${i}`}>
-                <td className="mono">{r.office_code}</td>
-                <td>{r.user_name ?? "—"}</td>
-                <td>{r.designation ?? "—"}</td>
-                <CountCells row={r} />
-              </tr>
-            ))}
-          </tbody>
-        </Table>
+        <DataTable
+          caption={T.files.byHolderDepartment}
+          rows={d.by_holder_department}
+          rowKey={(r) => r.code}
+          columns={[
+            { key: "department", header: T.files.department, primary: true, cell: (r) => <span className="mono">{r.code}</span> },
+            ...countColumns<(typeof d.by_holder_department)[number]>(),
+          ]}
+        />
+        <DataTable
+          caption={T.files.byHolder}
+          rows={d.by_holder.map((r, i) => ({ ...r, key: `${r.office_code}-${r.user_name ?? ""}-${i}` }))}
+          rowKey={(r) => r.key}
+          columns={[
+            { key: "office", header: T.files.office, primary: true, cell: (r) => <span className="mono">{r.office_code}</span> },
+            { key: "officer", header: T.files.officer, cell: (r) => r.user_name ?? "—" },
+            { key: "designation", header: T.files.designation, cell: (r) => r.designation ?? "—" },
+            ...countColumns<(typeof d.by_holder)[number] & { key: string }>(),
+          ]}
+        />
       </div>
     </section>
   );

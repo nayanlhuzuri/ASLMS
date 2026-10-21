@@ -6,7 +6,7 @@
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { ErrorBanner, Loading, Table } from "@/components/ui";
+import { DataTable, ErrorBanner, Loading } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { useLabels, useMe } from "@/lib/api/hooks";
 import type { Permission, PermissionInfo } from "@/lib/api/types";
@@ -54,48 +54,47 @@ export function AccessMatrix() {
       {!editable ? <p className="muted">{T.access.readOnly}</p> : null}
       <ErrorBanner error={action.error} />
       {[...modules.entries()].map(([module, perms]) => (
-        <Table key={module} caption={module}>
-          <thead>
-            <tr>
-              <th scope="col">{T.access.function}</th>
-              {types.map((t) => (
-                <th scope="col" key={t.code} title={t.description ?? undefined}>
-                  {t.label}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {perms.map((p) => (
-              <tr key={p.code}>
-                <th scope="row" style={{ fontWeight: 400 }}>
+        <DataTable
+          key={module}
+          caption={module}
+          rows={perms}
+          rowKey={(p) => p.code}
+          columns={[
+            {
+              key: "function",
+              header: T.access.function,
+              primary: true,
+              rowHeader: true,
+              cell: (p) => (
+                <>
                   {p.label} <span className="mono muted">{p.code}</span>
-                </th>
-                {types.map((t) => {
-                  const on = !!matrix.data[t.code]?.[p.code];
-                  const label = T.access.toggle(p.label, t.label);
-                  return (
-                    <td key={t.code}>
-                      {editable && t.code !== "super_admin" && p.code !== "admin.tickets" ? (
-                        <input
-                          type="checkbox"
-                          aria-label={label}
-                          checked={on}
-                          disabled={action.busy}
-                          onChange={(e) => toggle(t.code, p.code, e.target.checked)}
-                        />
-                      ) : (
-                        <span aria-label={`${label}: ${on ? T.access.on : T.access.off}`} role="img">
-                          {on ? "✓" : "–"}
-                        </span>
-                      )}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </Table>
+                </>
+              ),
+            },
+            ...types.map((t) => ({
+              key: t.code,
+              header: <span title={t.description ?? t.label}>{t.label}</span>,
+              label: t.label,
+              cell: (p: PermissionInfo) => {
+                const on = !!matrix.data[t.code]?.[p.code];
+                const label = T.access.toggle(p.label, t.label);
+                return editable && t.code !== "super_admin" && p.code !== "admin.tickets" ? (
+                  <input
+                    type="checkbox"
+                    aria-label={label}
+                    checked={on}
+                    disabled={action.busy}
+                    onChange={(e) => toggle(t.code, p.code, e.target.checked)}
+                  />
+                ) : (
+                  <span aria-label={`${label}: ${on ? T.access.on : T.access.off}`} role="img">
+                    {on ? "✓" : "–"}
+                  </span>
+                );
+              },
+            })),
+          ]}
+        />
       ))}
     </section>
   );

@@ -18,9 +18,8 @@ import {
   ErrorBanner,
   Loading,
   Notice,
-  numCell,
   Pagination,
-  Table,
+  DataTable,
   TextArea,
   TextField,
 } from "@/components/ui";
@@ -75,27 +74,31 @@ function SettingsFacts({ settings }: { settings: ScoringSettings }) {
 
 function ValuesTable({ settings }: { settings: ScoringSettings }) {
   return (
-    <Table caption={`${T.mapping.weights} and ${T.mapping.thresholds.toLowerCase()}`}>
-      <thead>
-        <tr>
-          <th scope="col">{T.mapping.kind}</th>
-          <th scope="col" className={numCell}>
-            {T.mapping.version} {settings.version}
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {SCORING_FIELDS.map((f) => (
-          <tr key={f}>
-            <th scope="row">
+    <DataTable
+      caption={`${T.mapping.weights} and ${T.mapping.thresholds.toLowerCase()}`}
+      rows={[...SCORING_FIELDS]}
+      rowKey={(f) => f}
+      columns={[
+        {
+          key: "kind",
+          header: T.mapping.kind,
+          primary: true,
+          rowHeader: true,
+          cell: (f) => (
+            <>
               {T.mapping.fields[f]}
               {(THRESHOLDS as readonly string[]).includes(f) ? ` (${T.mapping.thresholds.toLowerCase()})` : ""}
-            </th>
-            <td className={`${numCell} mono`}>{weightText(scoringValue(settings, f))}</td>
-          </tr>
-        ))}
-      </tbody>
-    </Table>
+            </>
+          ),
+        },
+        {
+          key: "value",
+          header: `${T.mapping.version} ${settings.version}`,
+          align: "right",
+          cell: (f) => <span className="mono">{weightText(scoringValue(settings, f))}</span>,
+        },
+      ]}
+    />
   );
 }
 
@@ -289,34 +292,32 @@ function ScoringForm({
         confirmLabel={T.mapping.saveSettings}
       >
         <p>{T.mapping.confirmText}</p>
-        <Table caption={T.mapping.confirmTitle}>
-          <thead>
-            <tr>
-              <th scope="col">{T.mapping.kind}</th>
-              <th scope="col" className={numCell}>
-                {T.mapping.current}
-              </th>
-              <th scope="col" className={numCell}>
-                {T.mapping.new}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {SCORING_FIELDS.map((f) => {
-              const before = scoringValue(settings, f);
-              const after = Number(values[f]);
-              return (
-                <tr key={f}>
-                  <th scope="row">{T.mapping.fields[f]}</th>
-                  <td className={`${numCell} mono`}>{weightText(before)}</td>
-                  <td className={`${numCell} mono`}>
-                    {before !== after ? <span className={s.changed}>{weightText(after)}</span> : weightText(after)}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </Table>
+        <DataTable
+          caption={T.mapping.confirmTitle}
+          rows={[...SCORING_FIELDS]}
+          rowKey={(f) => f}
+          columns={[
+            { key: "kind", header: T.mapping.kind, primary: true, rowHeader: true, cell: (f) => T.mapping.fields[f] },
+            {
+              key: "current",
+              header: T.mapping.current,
+              align: "right",
+              cell: (f) => <span className="mono">{weightText(scoringValue(settings, f))}</span>,
+            },
+            {
+              key: "new",
+              header: T.mapping.new,
+              align: "right",
+              cell: (f) => {
+                const before = scoringValue(settings, f);
+                const after = Number(values[f]);
+                return (
+                  <span className="mono">{before !== after ? <span className={s.changed}>{weightText(after)}</span> : weightText(after)}</span>
+                );
+              },
+            },
+          ]}
+        />
         <p>
           {T.mapping.why}: {reason.trim()}
         </p>
@@ -343,48 +344,35 @@ export function ScoringHistory() {
           <EmptyState>{T.mapping.noHistory}</EmptyState>
         ) : (
           <>
-            <Table caption={`${T.mapping.history} (${history.data.total})`}>
-              <thead>
-                <tr>
-                  <th scope="col">{T.mapping.version}</th>
-                  <th scope="col">{T.mapping.validFrom}</th>
-                  <th scope="col">{T.mapping.validTo}</th>
-                  <th scope="col">{T.mapping.by}</th>
-                  <th scope="col">{T.mapping.why}</th>
-                  {SCORING_FIELDS.map((f) => (
-                    <th key={f} scope="col" className={numCell}>
-                      {T.mapping.fields[f]}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {history.data.items.map((v, i, all) => {
-                  const changed = changedFields(v, all[i + 1]);
-                  return (
-                    <tr key={v.version}>
-                      <td className="mono">{v.version}</td>
-                      <td>{formatDateTime(v.valid_from)}</td>
-                      <td>{formatDateTime(v.valid_to)}</td>
-                      <td>{v.updated_by?.full_name ?? "—"}</td>
-                      <td>{v.reason ?? "—"}</td>
-                      {SCORING_FIELDS.map((f) => (
-                        <td key={f} className={`${numCell} mono`}>
-                          {changed.includes(f) ? (
-                            <span className={s.changed} title={T.mapping.changedMark}>
-                              {weightText(scoringValue(v, f))}
-                              <span className="visually-hidden"> ({T.mapping.changedMark})</span>
-                            </span>
-                          ) : (
-                            weightText(scoringValue(v, f))
-                          )}
-                        </td>
-                      ))}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </Table>
+            <DataTable
+              caption={`${T.mapping.history} (${history.data.total})`}
+              rows={history.data.items.map((v, i, all) => ({ v, changed: changedFields(v, all[i + 1]) }))}
+              rowKey={(r) => String(r.v.version)}
+              columns={[
+                { key: "version", header: T.mapping.version, primary: true, cell: (r) => <span className="mono">{r.v.version}</span> },
+                { key: "from", header: T.mapping.validFrom, cell: (r) => formatDateTime(r.v.valid_from) },
+                { key: "to", header: T.mapping.validTo, cell: (r) => formatDateTime(r.v.valid_to) },
+                { key: "by", header: T.mapping.by, cell: (r) => r.v.updated_by?.full_name ?? "—" },
+                { key: "why", header: T.mapping.why, cell: (r) => r.v.reason ?? "—" },
+                ...SCORING_FIELDS.map((f) => ({
+                  key: f,
+                  header: T.mapping.fields[f],
+                  align: "right" as const,
+                  cell: (r: { v: (typeof history.data.items)[number]; changed: ScoringField[] }) => (
+                    <span className="mono">
+                      {r.changed.includes(f) ? (
+                        <span className={s.changed} title={T.mapping.changedMark}>
+                          {weightText(scoringValue(r.v, f))}
+                          <span className="visually-hidden"> ({T.mapping.changedMark})</span>
+                        </span>
+                      ) : (
+                        weightText(scoringValue(r.v, f))
+                      )}
+                    </span>
+                  ),
+                })),
+              ]}
+            />
             <Pagination offset={offset} limit={HISTORY_PAGE} total={history.data.total} onChange={setOffset} />
           </>
         )

@@ -22,11 +22,10 @@ import {
   ErrorBanner,
   Loading,
   Notice,
-  numCell,
   Pagination,
   ScoreBadge,
   SelectField,
-  Table,
+  DataTable,
   TextField,
 } from "@/components/ui";
 import { api } from "@/lib/api/client";
@@ -70,34 +69,17 @@ export function CourtSearch() {
         terms.data.items.length === 0 ? (
           <EmptyState>{T.discovery.noTerms}</EmptyState>
         ) : (
-          <Table caption={T.discovery.terms}>
-            <thead>
-              <tr>
-                <th scope="col">{T.discovery.term}</th>
-                <th scope="col">{T.discovery.rules}</th>
-                <th scope="col" className={numCell}>
-                  {T.discovery.yearsDone}
-                </th>
-                <th scope="col" className={numCell}>
-                  {T.discovery.yearsWaiting}
-                </th>
-                <th scope="col" className={numCell}>
-                  {T.discovery.yearsFailed}
-                </th>
-                <th scope="col">{T.discovery.lastSearched}</th>
-                <th scope="col" className={numCell}>
-                  {T.discovery.casesFound}
-                </th>
-                <th scope="col" className={numCell}>
-                  {T.discovery.newThisWeek}
-                </th>
-                <th scope="col">{T.mapping.actions}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {terms.data.items.map((t) => (
-                <tr key={t.id}>
-                  <td>
+          <DataTable
+            caption={T.discovery.terms}
+            rows={terms.data.items}
+            rowKey={(t) => t.id}
+            columns={[
+              {
+                key: "term",
+                header: T.discovery.term,
+                primary: true,
+                cell: (t) => (
+                  <>
                     <span className="mono">{t.term}</span>
                     {t.active ? null : (
                       <>
@@ -105,32 +87,40 @@ export function CourtSearch() {
                         <Badge>{T.discovery.inactive}</Badge>
                       </>
                     )}
-                  </td>
-                  <td>
-                    {t.rules
-                      .map((r) => `${T.mapping.kindShort[r.kind] ?? T.mapping.keyword} · ${r.office_code}`)
-                      .join("; ")}
-                  </td>
-                  <td className={numCell}>{formatNumber(t.years.done)}</td>
-                  <td className={numCell}>{formatNumber(t.years.waiting)}</td>
-                  <td className={numCell}>{formatNumber(t.years.failed)}</td>
-                  <td>{t.last_searched_at ? formatDateTime(t.last_searched_at) : T.discovery.notYetSearched}</td>
-                  <td className={numCell}>{formatNumber(t.cases_found)}</td>
-                  <td className={numCell}>{formatNumber(t.found_last_7_days)}</td>
-                  <td>
-                    <Button
-                      variant="link"
-                      aria-label={T.discovery.showCasesFor(t.term)}
-                      aria-pressed={selected?.id === t.id}
-                      onClick={() => setSelected(t)}
-                    >
-                      {T.discovery.showCases}
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </Table>
+                  </>
+                ),
+              },
+              {
+                key: "rules",
+                header: T.discovery.rules,
+                cell: (t) => t.rules.map((r) => `${T.mapping.kindShort[r.kind] ?? T.mapping.keyword} · ${r.office_code}`).join("; "),
+              },
+              { key: "done", header: T.discovery.yearsDone, align: "right", cell: (t) => formatNumber(t.years.done) },
+              { key: "waiting", header: T.discovery.yearsWaiting, align: "right", cell: (t) => formatNumber(t.years.waiting) },
+              { key: "failed", header: T.discovery.yearsFailed, align: "right", cell: (t) => formatNumber(t.years.failed) },
+              {
+                key: "last",
+                header: T.discovery.lastSearched,
+                cell: (t) => (t.last_searched_at ? formatDateTime(t.last_searched_at) : T.discovery.notYetSearched),
+              },
+              { key: "found", header: T.discovery.casesFound, align: "right", cell: (t) => formatNumber(t.cases_found) },
+              { key: "new", header: T.discovery.newThisWeek, align: "right", cell: (t) => formatNumber(t.found_last_7_days) },
+              {
+                key: "actions",
+                header: T.mapping.actions,
+                cell: (t) => (
+                  <Button
+                    variant="link"
+                    aria-label={T.discovery.showCasesFor(t.term)}
+                    aria-pressed={selected?.id === t.id}
+                    onClick={() => setSelected(t)}
+                  >
+                    {T.discovery.showCases}
+                  </Button>
+                ),
+              },
+            ]}
+          />
         )
       ) : null}
       {selected ? <TermCases key={selected.id} term={selected} /> : null}
@@ -234,50 +224,49 @@ function TermCases({ term }: { term: DiscoveryTerm }) {
           <EmptyState>{T.discovery.noCases}</EmptyState>
         ) : (
           <>
-            <Table caption={T.discovery.casesOf(term.term)}>
-              <thead>
-                <tr>
-                  <th scope="col">{T.inbox.case}</th>
-                  <th scope="col" className={numCell}>
-                    {T.discovery.foundYear}
-                  </th>
-                  <th scope="col">{T.discovery.found}</th>
-                  <th scope="col">{T.discovery.owner}</th>
-                  <th scope="col">{T.discovery.recommendation}</th>
-                  <th scope="col">{T.mapping.actions}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {list.data.items.map((item) => (
-                  <tr key={item.case.id}>
-                    <td>
+            <DataTable
+              caption={T.discovery.casesOf(term.term)}
+              rows={list.data.items}
+              rowKey={(item) => item.case.id}
+              columns={[
+                {
+                  key: "case",
+                  header: T.inbox.case,
+                  primary: true,
+                  cell: (item) => (
+                    <>
                       <PartiesLine c={item.case} />
                       <CaseLink value={item.case} />
-                    </td>
-                    <td className={numCell}>{item.reg_year}</td>
-                    <td>{formatDateTime(item.last_found_at)}</td>
-                    <td>{item.owner_office_code ?? "—"}</td>
-                    <td>
-                      {item.recommendation ? (
-                        <>
-                          <ScoreBadge score={item.recommendation.score} band={item.recommendation.band} />{" "}
-                          {item.recommendation.office_code}
-                        </>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td>
-                      {item.claimable ? (
-                        <Button variant="secondary" onClick={() => setClaiming(item.case.ref_no)}>
-                          {T.own.claim}
-                        </Button>
-                      ) : null}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
+                    </>
+                  ),
+                },
+                { key: "year", header: T.discovery.foundYear, align: "right", cell: (item) => item.reg_year },
+                { key: "found", header: T.discovery.found, cell: (item) => formatDateTime(item.last_found_at) },
+                { key: "owner", header: T.discovery.owner, cell: (item) => item.owner_office_code ?? "—" },
+                {
+                  key: "recommendation",
+                  header: T.discovery.recommendation,
+                  cell: (item) =>
+                    item.recommendation ? (
+                      <>
+                        <ScoreBadge score={item.recommendation.score} band={item.recommendation.band} /> {item.recommendation.office_code}
+                      </>
+                    ) : (
+                      "—"
+                    ),
+                },
+                {
+                  key: "actions",
+                  header: T.mapping.actions,
+                  cell: (item) =>
+                    item.claimable ? (
+                      <Button variant="secondary" onClick={() => setClaiming(item.case.ref_no)}>
+                        {T.own.claim}
+                      </Button>
+                    ) : null,
+                },
+              ]}
+            />
             <Pagination offset={offset} limit={LIMIT} total={list.data.total} onChange={setOffset} />
           </>
         )

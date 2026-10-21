@@ -55,6 +55,7 @@ function Writing({
       <NoteComposer
         key={correcting?.id ?? "new"}
         caseRef={caseRef}
+        secondaryOnly
         mode={mode}
         correcting={correcting}
         onCancel={correcting ? onClearCorrection : undefined}

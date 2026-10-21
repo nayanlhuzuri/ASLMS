@@ -7,3 +7,5 @@ npm-debug.log*
 **/*.test.ts
 **/*.test.tsx
 src/test
+# the browser check is its own small package and image (design portal-ui-polish, decision 19)
+e2e

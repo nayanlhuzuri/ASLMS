@@ -20,7 +20,6 @@ import {
   Loading,
   Pagination,
   SelectField,
-  Table,
   Tabs,
   TextArea,
   TextField,
@@ -168,20 +167,17 @@ function DocumentsSection({ ticket, onChanged }: { ticket: TicketDetail; onChang
       {ticket.documents.length === 0 ? (
         <p className="muted">{T.users.noDocuments}</p>
       ) : (
-        <Table caption={T.tickets.documents}>
-          <thead>
-            <tr>
-              <th scope="col">{T.tickets.description}</th>
-              <th scope="col">{T.tickets.docDate}</th>
-              <th scope="col">
-                <span className="visually-hidden">{T.tickets.download}</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {ticket.documents.map((d) => (
-              <tr key={d.id}>
-                <td>
+        <DataTable
+          caption={T.tickets.documents}
+          rows={ticket.documents}
+          rowKey={(d) => d.id}
+          columns={[
+            {
+              key: "description",
+              header: T.tickets.description,
+              primary: true,
+              cell: (d) => (
+                <>
                   {d.description ?? d.original_filename ?? d.doc_type}
                   {d.archived ? (
                     <>
@@ -189,22 +185,27 @@ function DocumentsSection({ ticket, onChanged }: { ticket: TicketDetail; onChang
                       <Badge>{T.tickets.archived}</Badge>
                     </>
                   ) : null}
-                </td>
-                <td>{formatDate(d.doc_date)}</td>
-                <td>
-                  <div className="actions">
-                    <a href={`/api/backend${base}/documents/${d.id}/file?disposition=attachment`}>{T.tickets.download}</a>
-                    {ticket.can_attach && !d.archived ? (
-                      <Button variant="link" onClick={() => setArchiving(d.id)}>
-                        {T.tickets.archive}
-                      </Button>
-                    ) : null}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </Table>
+                </>
+              ),
+            },
+            { key: "date", header: T.tickets.docDate, cell: (d) => formatDate(d.doc_date) },
+            {
+              key: "download",
+              header: <span className="visually-hidden">{T.tickets.download}</span>,
+              label: T.tickets.download,
+              cell: (d) => (
+                <div className="actions">
+                  <a href={`/api/backend${base}/documents/${d.id}/file?disposition=attachment`}>{T.tickets.download}</a>
+                  {ticket.can_attach && !d.archived ? (
+                    <Button variant="link" onClick={() => setArchiving(d.id)}>
+                      {T.tickets.archive}
+                    </Button>
+                  ) : null}
+                </div>
+              ),
+            },
+          ]}
+        />
       )}
       {archiving ? (
         <form className="row" onSubmit={archive}>

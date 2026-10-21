@@ -2191,3 +2191,33 @@ Backlog row 110 `api-health-checker-followups`, branch `feature/api-health-check
 - `_warn_mismatch` warns at most once per API every 10 minutes and counts the suppressed mismatches. Every call still records `token_verified` in `napix_call_log`, so nothing is lost.
 - Tests in `tests/unit/test_napix_client.py`.
 - Whether the gateway's real form is one of these will show in the call log after deployment. If it is neither, the warnings stay throttled. The System health inspector (row 123) will show the check per API.
+
+## Portal UI polish (2026-10-21)
+
+Row 115 `portal-ui-polish`, design `docs/design/portal-ui-polish.md`. No migration, no new endpoint, `frontend/openapi.json` unchanged, `docs/schema/schema.md` unchanged. It bundles the advisories of rows 106, 107, 108, 111 and 112 and adds a real-browser check.
+
+**What was built**
+- Round 1: the tab underline re-measures with a `ResizeObserver` and when fonts load; a bare `ref_no` in the case header stays monospace; an overlay's first focus goes to the first field, not Close; i18n lookups use `Object.hasOwn`.
+- Round 2: the Transfers modal shows the clicked row's transfer; the modal's Orders tab pages past 50; a shared `useUrlOverlay` hook (Claim frame and System health) so closing leaves consistent history; a test for the double-confirm guard.
+- Round 3: Send file on the custody card is secondary; the case header shows the printed item number.
+- Round 4: Needs your attention lists a case once for "File received"; every Upcoming hearings row has a badge.
+- Round 5: every legacy `Table` (26 files) became a `DataTable` and `Table` left the kit; a raw `<table>` stays only in `ReportView`, the cause list `EntryTable` and the month grids, enforced by `tables.test.ts`. The server-file guard in `pages.test.tsx` follows the components that server files render.
+- Two backend reads: `case_ownership_view` needs `cases.view_scope` on the same membership for the `transfer_in` sight (as `visibility.member_bases`); `dashboard.me_block` adds the `confirm_next_date` case to `listed`. Tests in `test_visibility_transfer_in.py` and `test_dashboard_headline.py`.
+- `uicheck`: package `frontend/e2e/` (Playwright, pinned), Compose service `uicheck` in `compose.dev.yml` under profile `uicheck`, run with `docker compose --profile uicheck run --rm uicheck`. It runs against the real `web` service with a dummy session cookie and a synthetic API answered in the browser, at 375, 768 and 1280 px. It fails on page overflow, inner sideways scrolling, clipped content, button and field sizes, lead-column widths, more than one primary, a missing fixture, any non-GET request and console errors. Output goes to `./data/uicheck/<run>/` (screenshots, `findings.json`, `index.html`).
+- `docs/team/definition-of-done.md` gains a line: when `frontend/src` changes the integrator runs `uicheck` after `portal_smoke.py`.
+
+**Decisions and reasons**
+- Synthetic data and no sign-in bypass: the real sign-in needs the e-mailed code, and a token-minting command would be a bypass on a government system. This also keeps real party text out of screenshots.
+- `uicheck` is a separate package so the portal image, its dependencies and the CI frontend job are unchanged. It checks geometry, not pixels (no golden images).
+- Not in CI now: the browser image is about 2 GB (row 123).
+- All legacy tables converted, not only row 112's screens, so no screen scrolls sideways on phones.
+
+**Deviations from the design note** (full text in the note's Deviations, 1 to 9)
+- Decision 8's first test asserts the service's `NotVisible` directly, since the router's login-level check answers 403 first.
+- `DataTable` gained `rowHeader` and `rowClassName`; primary cell moves to the card top; two messages added (`T.case.partyNo`, `T.dash.ticketsOpenCol`).
+- First focus falls back to the first control anywhere in the overlay (covers the phone drawer).
+- The browser check found and fixed layout faults; `@types/node` is pinned; most fixtures are synthesised from `openapi.json`; the drawer is checked at 375 px only; redirect pages are not screenshotted.
+- Review found two gaps, fixed: the guard treats a re-exporting barrel as a client module, and `DataTable` had `overflow: hidden` that cut wide tables on wide screens. `DataTable` now stacks as cards when it cannot fit (`fitTable`, `data-stacked`), `.dataWrap` is `overflow-x: auto`, and `uicheck` reports clipped content. Against the old image the new check gave 24 findings.
+- Runs: first (`./data/uicheck/20261021-2006`) 77 page routes and 5 states, 205 screenshots, no findings, 121 s. After the fix (`./data/uicheck/20261021-2239`) 77 routes and 5 states, 205 screenshots, 244 passed, `findings.json` `[]`, exit 0.
+
+**Left for later**: `uicheck` in CI (row 123); the owner's signed-in browser checklist on real data (row 124).

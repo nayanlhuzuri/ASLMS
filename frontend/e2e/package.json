@@ -1,0 +1,15 @@
+{
+  "name": "aslms-uicheck",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The real-browser layout check of the portal (design portal-ui-polish, decisions 18-22). Runs in Compose: docker compose --profile uicheck run --rm uicheck",
+  "scripts": {
+    "check": "playwright test",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "@types/node": "22.20.5",
+    "typescript": "5.9.3"
+  }
+}

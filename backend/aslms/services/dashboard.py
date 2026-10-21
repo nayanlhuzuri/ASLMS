@@ -375,7 +375,9 @@ def _claim_counts(session: Session, user: User) -> dict[str, int] | None:
 def personal_headline(session: Session, user: User, *, now: datetime, cfg: ReportConfig) -> dict[str, Any]:
     """A7: `headline` (five figures, a null one when its gate fails), `upcoming` (my hearings in the next 7 days)
     and `attention` (overdue files, next dates to confirm, files due soon, files received lately), each list at
-    most `list_size` long."""
+    most `list_size` long. A case shows once as `file_received`: that row leaves out any case already listed as
+    overdue, as a next date to confirm or as due soon (design portal-ui-polish, decision 13); the other kinds
+    may share a case, being different things to do."""
     today = today_ist(now)
     visible = visibility.visible_case_condition(session, user)
     live = Case.merged_into_case_id.is_(None)
@@ -499,6 +501,7 @@ def personal_headline(session: Session, user: User, *, now: datetime, cfg: Repor
                     "next_date_id": nd_id,
                 }
             )
+            listed.add(c.id)
         room = cfg.list_size - len(attention)
 
     for h, c, *_ in file_rows(
