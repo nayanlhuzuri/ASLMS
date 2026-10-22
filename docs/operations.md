@@ -147,7 +147,9 @@ Every container's logs are rotated (`json-file`, 20 MB × 5). The backend image 
 `docker compose up` no longer migrates an existing database. When a build needs a newer schema, `init` exits with
 code 3 and the message "The database is at X; this build needs Y". Nothing else starts. The procedure:
 
-1. `git pull` (or copy the new release), then `docker compose build`.
+1. `git pull` (or copy the new release), then `docker compose build` **and** `docker compose --profile ops build migrate`.
+   A plain `docker compose build` skips services in a profile, so without the second command the upgrade runs an
+   old `migrate` image that knows neither the new migration nor new functions (it happened on 22 Oct 2026; row 133).
 2. `docker compose stop api worker scheduler web pgbouncer`. PgBouncer keeps its own `aslms_app` server connections
    open after the clients stop, so it is stopped too.
 3. `docker compose --profile ops run --rm migrate`. It runs preflight and refuses while an `aslms_app` session is
