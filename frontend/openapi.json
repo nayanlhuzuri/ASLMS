@@ -32604,7 +32604,7 @@
     },
     "/cases/search-court": {
       "post": {
-        "description": "Search the court through NAPIX: by CNR (the dossier is fetched and stored), by case number or filing\nnumber (every row stored, the asked row's dossier fetched; a held case with its dossier answers locally) or\nby party name or advocate name (rows stored, dossiers on demand through `fetch-court`; an advocate search stores\nthe first `NAPIX_ADVOCATE_STORE_NOW` new cases now and the rest in the background, or none beyond them when the\ncourt found more than `NAPIX_ADVOCATE_STORE_MAX`: `court_cases`, `queued`, `not_stored`). Refused when the switch is off (503 `napix_off`), the hourly quota is below the floor (503\n`napix_budget`) or the caller used their hourly searches (429 `search_limit`). Audited.",
+        "description": "Search the court through NAPIX: by CNR (the dossier is fetched and stored), by case number or filing\nnumber (every row stored, the asked row's dossier fetched; a held case with its dossier answers locally) or\nby party name or advocate name (rows stored, dossiers on demand through `fetch-court`; an advocate search stores\nthe first `NAPIX_ADVOCATE_STORE_NOW` new cases now and the rest in the background, or none beyond them when the\ncourt found more than `NAPIX_ADVOCATE_STORE_MAX`: `court_cases`, `queued`, `not_stored`). Refused when the switch is off (503 `napix_off`), the hourly quota is below the floor (503\n`napix_budget`) or the caller used their hourly searches (429 `search_limit`). A CNR, case-number or filing\nsearch that the ASLMS database answers returns `source: \"local\"`, `calls: 0` before any guard: never refused by\nthe switch, the floor or the hourly limit, and not counted (design `ownership-refinements`, decisions 4 to 6).\nAudited.",
         "operationId": "search_court_cases_search_court_post",
         "requestBody": {
           "content": {
@@ -33524,7 +33524,7 @@
     },
     "/cases/{ref}/fetch-court": {
       "post": {
-        "description": "Fetch the dossier of a case that has none (a provisional case is resolved by its number first; the CNR\nalways comes from the court). The case need not be visible: the call only fills court data.",
+        "description": "Fetch the dossier of a case that has none (a provisional case is resolved by its number first; the CNR\nalways comes from the court). The case need not be visible: the call only fills court data. A case that already\nhas its dossier answers 409 `already_fetched` before the guard (design `ownership-refinements`, decision 7).",
         "operationId": "fetch_court_cases__ref__fetch_court_post",
         "parameters": [
           {

@@ -438,3 +438,210 @@ def test_informational_alerts_expire_after_fourteen_days(world):
         s.commit()
         s.refresh(a)
         assert c["closed_info"] == 1 and a.status == AlertStatus.EXPIRED and a.data["closed_reason"] == "aged"
+
+
+# ------------------------------------------------------------------------------------------------ ownership-refinements
+
+
+def _scan(s, minutes: int = 0):
+    c = alerts.scan_events(s, now=h.now_utc() + timedelta(minutes=minutes))
+    s.commit()
+    return c
+
+
+def _health_head_for(s, world, key: str):
+    """The login also heads HEALTH (a `cases.claim` holder there), for the exclusion of the actor."""
+    from aslms.domain.reference import Role
+    from tests.db.world import add_membership
+
+    add_membership(s, world.user(s, key), world.office(s, "HEALTH"), Role.DEPT_HEAD)
+    s.flush()
+
+
+def test_recommendation_closed_notifies_the_closed_departments_claimers(world):
+    with world.Session() as s:
+        _health_head_for(s, world, "edu_admin")
+        case = make_case(s)
+        h.recommend(s, world, case, "EDU")
+        rec = h.recommend(s, world, case, "HEALTH", score=0.6, band=ScoreBand.MEDIUM)
+        h.claim(s, world, "edu_admin", case, office_code="EDU")
+        s.commit()
+        c = _scan(s)
+        (a,) = [x for x in h.alerts_of(s, case) if x.data.get("event") == "recommendation_closed"]
+        assert c["alerts_new"] == 1
+        assert a.kind == AlertKind.OWNERSHIP and a.severity == Severity.NORMAL
+        assert a.office_id == world.offices["HEALTH"].id
+        assert a.data["claimed_by_office_code"] == "EDU" and a.data["actor_name"] == "Edu Admin"
+        assert a.data["recommendation_id"] == str(rec.id)
+        assert a.title.startswith("Claimed by EDU: ")
+        assert a.body == "EDU claimed this case; your department's recommendation is closed."
+        # HEALTH's cases.claim holders minus the claimer (who also heads HEALTH); they cannot see the case
+        assert h.recipient_emails(s, a) == {"admin.health@example.org"}
+        assert alerts.named_recipient_notice(a)
+        assert _scan(s, 1)["alerts_new"] == 0  # idempotent
+
+
+def test_recommendation_closed_closes_the_open_recommendation_alert(world):
+    with world.Session() as s:
+        case = make_case(s)
+        rec = h.recommend(s, world, case, "HEALTH")
+        h.event(
+            s,
+            case,
+            EventType.RECOMMENDATION_MADE,
+            {"recommendation_id": str(rec.id), "office_code": "HEALTH", "score": 0.95, "band": "high"},
+            scoped=True,
+        )
+        s.commit()
+        _scan(s)
+        (strong,) = h.alerts_of(s, case, AlertKind.RECOMMENDATION)
+        assert strong.status == AlertStatus.OPEN
+        h.claim(s, world, "edu_admin", case)
+        s.commit()
+        c = _scan(s, 1)
+        s.refresh(strong)
+        assert strong.status == AlertStatus.DONE
+        assert strong.data["closed_reason"] == "recommendation_claimed_elsewhere"
+        assert c["closed_recommendation"] == 1
+
+
+def test_backfill_events_raise_no_alert(world):
+    with world.Session() as s:
+        case = make_case(s)
+        h.claim(s, world, "edu_admin", case)
+        h.recommend(s, world, case, "HEALTH")
+        s.commit()
+        own.close_claimed_backfill(s, apply=True)
+        s.commit()
+        c = _scan(s)
+        assert c["alerts_new"] == 0 and h.alerts_of(s, case) == []
+
+
+def _suggest(s, world, key, case, to, **kw):
+    actor, user = world.actor(s, key)
+    return own.suggest(s, actor, user, case, office_code=to, reason="this is theirs", **kw)
+
+
+def test_medium_band_suggestion_alerts_the_target(world):
+    with world.Session() as s:
+        case = make_case(s, next_hearing=d(3))
+        h.recommend(s, world, case, "EDU")
+        res = _suggest(s, world, "edu_admin", case, "HEALTH")
+        assert res.target.band == ScoreBand.MEDIUM
+        s.commit()
+        _scan(s)
+        (a,) = h.alerts_of(s, case, AlertKind.RECOMMENDATION)
+        assert a.office_id == world.offices["HEALTH"].id and a.severity == Severity.HIGH  # hearing in 3 days
+        assert a.data["origin"] == "suggestion" and a.data["from_office_code"] == "EDU"
+        assert a.data["recommendation_id"] == str(res.target.id) and a.data["band"] == "medium"
+        assert a.title.startswith("Suggested for HEALTH: ")
+        assert a.body.startswith("EDU suggests this case belongs to your department")
+        assert "this is theirs" not in a.body  # the reason stays in the inbox
+        assert a.dedupe_key.startswith(f"recommendation:{res.target.id}:suggested:")
+        assert h.recipient_emails(s, a) == {"admin.health@example.org"}
+
+
+def test_strong_suggestion_raises_exactly_one_alert(world):
+    from aslms.domain.ownership import CaseOfficeScore
+
+    with world.Session() as s:
+        case = make_case(s)
+        h.recommend(s, world, case, "EDU")
+        s.add(
+            CaseOfficeScore(
+                case_id=case.id,
+                office_id=world.offices["HEALTH"].id,
+                score=0.95,
+                signals=[],
+                engine_version="1.1",
+            )
+        )
+        s.flush()
+        res = _suggest(s, world, "edu_admin", case, "HEALTH")
+        assert res.target.band == ScoreBand.HIGH
+        s.commit()
+        c = _scan(s)
+        (a,) = h.alerts_of(s, case, AlertKind.RECOMMENDATION)
+        assert a.data["origin"] == "suggestion" and c["alerts_new"] == 1
+
+
+def test_suggestion_to_an_already_recommended_department_still_alerts(world):
+    with world.Session() as s:
+        case = make_case(s)
+        h.recommend(s, world, case, "EDU")
+        existing = h.recommend(s, world, case, "HEALTH", score=0.6, band=ScoreBand.MEDIUM)
+        res = _suggest(s, world, "edu_admin", case, "HEALTH")
+        assert res.target_already_recommended and res.target.id == existing.id
+        s.commit()
+        _scan(s)
+        (a,) = h.alerts_of(s, case, AlertKind.RECOMMENDATION)
+        assert a.data["recommendation_id"] == str(existing.id)
+
+
+def test_suggestion_on_an_unclaimed_case_passes_the_owned_filter(world):
+    with world.Session() as s:
+        case = make_case(s, status=CaseStatus.DISPOSED)  # disposed too: a person chose to send it
+        h.recommend(s, world, case, "EDU")
+        _suggest(s, world, "edu_admin", case, "HEALTH")
+        s.commit()
+        c = _scan(s)
+        assert c["skipped_unowned"] == 0 and c["alerts_new"] == 1
+        assert len(h.alerts_of(s, case, AlertKind.RECOMMENDATION)) == 1
+
+
+def test_suggester_is_not_a_recipient(world):
+    with world.Session() as s:
+        _health_head_for(s, world, "edu_admin")
+        case = make_case(s)
+        h.recommend(s, world, case, "EDU")
+        _suggest(s, world, "edu_admin", case, "HEALTH", from_office_code="EDU")
+        s.commit()
+        _scan(s)
+        (a,) = h.alerts_of(s, case, AlertKind.RECOMMENDATION)
+        assert h.recipient_emails(s, a) == {"admin.health@example.org"}
+
+
+def test_engine_medium_recommendation_still_raises_none(world):
+    with world.Session() as s:
+        case = make_case(s)
+        rec = h.recommend(s, world, case, "HEALTH", score=0.6, band=ScoreBand.MEDIUM)
+        h.event(
+            s,
+            case,
+            EventType.RECOMMENDATION_MADE,
+            {
+                "recommendation_id": str(rec.id),
+                "office_code": "HEALTH",
+                "score": 0.6,
+                "band": "medium",
+                "origin": "cause_list",
+            },
+            scoped=True,
+        )
+        s.commit()
+        c = _scan(s)
+        assert c["alerts_new"] == 0 and h.alerts_of(s, case) == []
+
+
+def test_suggestion_event_without_target_or_closed_is_skipped(world):
+    with world.Session() as s:
+        case = make_case(s)
+        h.event(
+            s,
+            case,
+            EventType.SUGGESTED_ELSEWHERE,
+            {"from_office_code": "EDU", "to_office_code": "HEALTH", "reason": "old event"},
+            scoped=True,
+        )
+        rec = h.recommend(s, world, case, "HEALTH")
+        rec.status = RecommendationStatus.DISMISSED
+        h.event(
+            s,
+            case,
+            EventType.SUGGESTED_ELSEWHERE,
+            {"from_office_code": "EDU", "to_office_code": "HEALTH", "target_recommendation_id": str(rec.id)},
+            scoped=True,
+        )
+        s.commit()
+        c = _scan(s)
+        assert c["alerts_new"] == 0 and c["skipped_other"] == 2

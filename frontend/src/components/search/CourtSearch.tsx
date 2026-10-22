@@ -200,6 +200,7 @@ export function CourtSearch({
       <ErrorBanner error={err} />
       {result ? (
         <div className="stack">
+          {result.source === "local" ? <Notice>{T.search.courtLocal}</Notice> : null}
           <Notice>{T.search.courtFound(result.items.length, result.created)}</Notice>
           {result.queued ? <Notice>{T.search.courtQueued(result.queued)}</Notice> : null}
           {result.not_stored ? <Notice>{T.search.courtNotStored(result.court_cases ?? 0, result.created)}</Notice> : null}

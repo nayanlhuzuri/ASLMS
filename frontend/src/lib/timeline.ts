@@ -59,6 +59,12 @@ const DETAIL: Record<string, (p: Payload, l: TimelineLabels) => string | null> =
   claimed: (p) => join([str(p.office_code), str(p.role)]),
   allotted: (p) => join([str(p.office_code), str(p.unit_code)]),
   dismissed: (p) => join([str(p.office_code), str(p.reason)]),
+  // design ownership-refinements, decision 10
+  recommendation_closed: (p) => {
+    const office = str(p.office_code);
+    const by = str(p.claimed_by_office_code);
+    return office && by ? `${office} — claimed by ${by}` : (office ?? null);
+  },
   suggested_elsewhere: (p) => {
     const from = str(p.from_office_code);
     const to = str(p.to_office_code);

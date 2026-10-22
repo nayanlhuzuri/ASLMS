@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  checkChip,
+  checkIsOn,
+  checkValue,
   chipsOf,
   dateModeOf,
   dateParams,
@@ -211,5 +214,33 @@ describe("the date field and chips", () => {
     expect(hasCaseFilter({ status: "all", kind: "workflow" }, "alerts")).toBe(false);
     expect(hasCaseFilter({ year: "2025" }, "alerts")).toBe(true);
     expect(hasCaseFilter({ listed: "today" }, "alerts")).toBe(true);
+  });
+});
+
+describe("the defaultOn check control (ownership-refinements, decision 8)", () => {
+  it("a plain check is ticked only by true and writes true", () => {
+    expect(checkIsOn(undefined)).toBe(false);
+    expect(checkIsOn("true")).toBe(true);
+    expect(checkIsOn("false")).toBe(false);
+    expect(checkValue(true)).toBe("true");
+    expect(checkValue(false)).toBeUndefined();
+  });
+
+  it("a defaultOn check is ticked unless false; unticking writes false and ticking removes the key", () => {
+    expect(checkIsOn(undefined, true)).toBe(true);
+    expect(checkIsOn("true", true)).toBe(true); // an old link
+    expect(checkIsOn("false", true)).toBe(false);
+    expect(checkValue(false, true)).toBe("false");
+    expect(checkValue(true, true)).toBeUndefined();
+  });
+
+  it("the chip shows only the non-default state, with its own label", () => {
+    const plain = { label: "Overdue only" };
+    const on = { label: "Only cases I can open", defaultOn: true, offLabel: "Also cases I cannot open" };
+    expect(checkChip("overdue", "true", plain)).toEqual({ keys: ["overdue"], label: "Overdue only" });
+    expect(checkChip("overdue", undefined, plain)).toBeNull();
+    expect(checkChip("visible_only", undefined, on)).toBeNull();
+    expect(checkChip("visible_only", "true", on)).toBeNull();
+    expect(checkChip("visible_only", "false", on)).toEqual({ keys: ["visible_only"], label: "Also cases I cannot open" });
   });
 });

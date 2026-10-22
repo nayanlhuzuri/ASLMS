@@ -553,3 +553,33 @@ Where the owner's instruction left room, the architect chose. Each choice below 
 - **Decision 12:** post-claim suggestions remain the route to a watcher.
 - **Decision 14:** a one-off command without alerts for cases claimed before the change.
 - **Decision 15:** suggestion alerts also on disposed cases.
+
+## Deviations
+Recorded by the developer during the build (22 Oct 2026); each is the smallest option where the note was silent.
+
+1. **Migration 0021 written by hand.** Autogenerate against the development database found nothing (an added enum
+   value and a reference row are not compared), so the stub was replaced by the reviewed migration of "Data". Its
+   downgrade test cannot delete the `recommendation_closed` events (the `events` table is append-only), so it checks
+   that the reference row stays while an event uses it.
+2. **`court_search.answer_locally` takes `settings=`** (keyword, default `get_settings()`): the court is
+   `settings.napix_est_code`, the same court `search_court` reads from the client, because no client is opened.
+3. **The shared local reads.** The validation is factored into `_check_cnr`, `_check_number` and `_check_filing`;
+   `_local_cnr`, `_local_number` and `_local_filing` validate and read for `answer_locally`, and the NAPIX path keeps
+   `_local_by_number` / `_local_by_filing` after its own validation. The rules are unchanged.
+4. **A malformed CNR answers 422, not 400.** The request schema (`CourtSearchCnrIn`, a 16-character pattern)
+   refuses it before the router runs, so before any guard, as before this change. The 400-before-the-guard test
+   therefore uses an unknown case type (`bad_input`), and the service-level test checks that `answer_locally` raises
+   `CourtSearchError` for a bad CNR and an unknown kind.
+5. **The backfill writes its summary audit row only when it closed something.** A second `--apply` closes 0 and
+   writes no row, so exactly one `recommendation.close_claimed_backfill` row exists after the integrator's run
+   (Verification 3). It closes every open recommendation of another department on a case with an active primary,
+   as decision 14 says, including any human suggestion made after such a claim before this change.
+6. **The 409 also when no department is named.** Dismiss resolves the acting department with "has an open
+   recommendation, or its latest one is `claimed_elsewhere`", and Suggest without `from_office_code` checks the
+   caller's suggesting departments, so a stale press answers 409 `claimed_elsewhere` whether or not the screen sent
+   the department.
+7. **The scan counts the immediate closure** of a closed department's `recommendation` alert under
+   `closed_recommendation` in the `alerts_events` run counters (the sweep's counter of the same name is unchanged).
+8. **The ownership dialogs needed no change.** `useOwnershipCall` already re-reads the inbox, the dashboard and the
+   case after a refusal, and the dialogs' error banner shows the API's message, so the 409 `claimed_elsewhere`
+   message is shown as returned.

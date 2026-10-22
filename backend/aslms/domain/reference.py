@@ -155,6 +155,9 @@ class EventType(enum.StrEnum):
     CASE_MERGED = "case_merged"  # a provisional row merged into the row holding its CNR (data-load-console)
     NEXT_DATE_REVIEWED = "next_date_reviewed"  # confirm / reject of a read next date (next-date-extraction)
     NEXT_DATE_ENTERED = "next_date_entered"  # a manual next date (`NXT`) entered (next-date-extraction)
+    RECOMMENDATION_CLOSED = (
+        "recommendation_closed"  # closed by another department's claim (ownership-refinements)
+    )
 
 
 class Permission(enum.StrEnum):

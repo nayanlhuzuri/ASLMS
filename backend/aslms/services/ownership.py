@@ -12,22 +12,31 @@ another department, allot, take over, stop watching, and transfers.
   it, resolved by the server (`acting_member`): the department named by `office_code`, else the primary
   membership's department when it qualifies (holds the function and, for a case action, relates to the case),
   else the single qualifying membership, else 400 `office_required` with the candidate codes. The function is
-  checked in that membership, so an admin of one department who is an officer of another cannot allot there."""
+  checked in that membership, so an admin of one department who is an officer of another cannot allot there.
+- Design `ownership-refinements` (owner decisions of 21 Oct 2026): a primary claim closes every other department's
+  open recommendation as `claimed_elsewhere` (event `recommendation_closed`, listed in the claim's audit row), and
+  a stale Claim, Dismiss or Suggest of such a department answers 409 `claimed_elsewhere`. A claim (primary or
+  watcher) and an accepted transfer queue a court refresh (`dossier`, lane `request`, priority 30, the person as
+  `requested_by`) when the case has no full court record or one older than `CLAIM_REFRESH_AFTER`; the queue and
+  the worker do the fetch, and the outcome (`court_refresh`) is in the claim's or transfer's audit row. The claim
+  never waits for or fails on the refresh."""
 
 from __future__ import annotations
 
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
+import structlog
 from sqlalchemy import ColumnElement, and_, exists, false, or_, select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from aslms.domain.cases import Case
+from aslms.domain.ops import FetchKind, FetchLane
 from aslms.domain.org import Office, User
 from aslms.domain.ownership import (
     CaseOfficeScore,
@@ -42,7 +51,7 @@ from aslms.domain.ownership import (
     TransferStatus,
 )
 from aslms.domain.reference import EventType, Permission, RecordType
-from aslms.services import access, matching
+from aslms.services import access, matching, napix_window, queue
 from aslms.services import scoring_settings as ss
 from aslms.services.access import DEPARTMENT_TIER_KINDS, Member
 from aslms.services.audit import Actor, snapshot, write_audit
@@ -88,6 +97,12 @@ class _Unset:
 UNSET: Any = _Unset()
 NOT_OFFICERS = access.NOT_OFFICERS
 MAX_REASON = 500
+# design ownership-refinements, decision 1: a claim or an accepted transfer queues a court refresh when the case's
+# full court record is missing or older than this (fixed by the owner; not a setting)
+CLAIM_REFRESH_AFTER = timedelta(hours=24)
+CLAIMED_ELSEWHERE_MESSAGE = "{code} claimed this case; your department's recommendation is closed"
+
+log = structlog.get_logger(__name__)
 
 
 @dataclass
@@ -303,6 +318,119 @@ def _custody_for(session: Session, actor: Actor, case: Case, row: CaseOwnership,
     )
 
 
+def _queue_court_refresh(session: Session, case: Case, requester: User | Member | None) -> str:
+    """Design `ownership-refinements`, decisions 1 to 3: one `dossier` row through the queue (lane `request`, priority
+    30, `requeue`, the person as `requested_by`) when the case has no full court record or one older than
+    `CLAIM_REFRESH_AFTER`. No NAPIX call and no integration client here: the worker fetches the row. Returns `fresh`,
+    `queued` (pending after the call), `in_progress` (being fetched now), `no_reference` (neither a CNR nor a case
+    number) or `failed` (logged with the case `ref_no` and the exception class). Never raises."""
+    from aslms.services import napix_admin  # local: napix_admin reaches services that import this module
+
+    fetched = case.last_full_refresh_at
+    if fetched is not None and fetched >= _now() - CLAIM_REFRESH_AFTER:
+        return "fresh"
+    try:
+        with session.begin_nested():
+            ref = napix_admin.dossier_ref(session, case)
+            pending = queue.enqueue(
+                session,
+                FetchKind.DOSSIER,
+                ref,
+                queue.PRIORITY["request"],
+                requeue=True,
+                lane=FetchLane.REQUEST,
+                requested_by=napix_window.user_id_of(requester),
+            )
+    except napix_admin.NoReference:
+        return "no_reference"
+    except Exception as exc:  # noqa: BLE001 - the claim never fails on the refresh (decision 3)
+        log.warning("ownership.court_refresh_failed", case_ref=case.ref_no, error=exc.__class__.__name__)
+        return "failed"
+    return "queued" if pending else "in_progress"
+
+
+def _primary_code(session: Session, case: Case) -> str | None:
+    row = next((r for r in _active_rows(session, case) if r.role == OwnershipRole.PRIMARY), None)
+    return _code(session, row.office_id) if row is not None else None
+
+
+def closed_by_claim(session: Session, case: Case, dept: Office | None) -> bool:
+    """True when the department has no open recommendation for the case and its latest one is `claimed_elsewhere`
+    (design `ownership-refinements`, decision 11)."""
+    if dept is None or _active_rec(session, case, dept) is not None:
+        return False
+    latest = session.scalar(
+        select(Recommendation.status)
+        .where(Recommendation.case_id == case.id, Recommendation.office_id == dept.id)
+        .order_by(Recommendation.created_at.desc(), Recommendation.id.desc())
+        .limit(1)
+    )
+    return latest is not None and RecommendationStatus(latest) == RecommendationStatus.CLAIMED_ELSEWHERE
+
+
+def _refuse_if_closed(session: Session, case: Case, dept: Office | None) -> None:
+    """409 `claimed_elsewhere` naming the claiming department (decision 11); nothing when not closed."""
+    if closed_by_claim(session, case, dept):
+        raise OwnershipConflict(
+            "claimed_elsewhere",
+            CLAIMED_ELSEWHERE_MESSAGE.format(code=_primary_code(session, case) or "Another department"),
+        )
+
+
+def _close_other_recommendations(session: Session, case: Case, dept: Office) -> list[Recommendation]:
+    """Decision 9: every other department's open recommendation becomes `claimed_elsewhere` (the caller holds the
+    case row lock); returns the closed rows."""
+    rows = list(
+        session.scalars(
+            select(Recommendation)
+            .where(
+                Recommendation.case_id == case.id,
+                Recommendation.office_id != dept.id,
+                Recommendation.status == RecommendationStatus.RECOMMENDED,
+            )
+            .order_by(Recommendation.created_at, Recommendation.id)
+        ).all()
+    )
+    now = _now()
+    for rec in rows:
+        rec.status, rec.acted_at = RecommendationStatus.CLAIMED_ELSEWHERE, now
+        rec.reason = f"claimed by {dept.code}"
+    session.flush()
+    return rows
+
+
+def _closed_event(
+    session: Session,
+    case: Case,
+    rec: Recommendation,
+    *,
+    claimed_by: str | None,
+    ownership_id: uuid.UUID | None,
+    actor_user_id: uuid.UUID | None,
+    backfill: bool = False,
+) -> None:
+    """One `recommendation_closed` event per closed row (decision 10), scoped, deduplicated per recommendation."""
+    payload: dict[str, Any] = {
+        "recommendation_id": str(rec.id),
+        "office_code": _code(session, rec.office_id),
+        "claimed_by_office_code": claimed_by,
+        "ownership_id": str(ownership_id) if ownership_id else None,
+        "origin": RecommendationOrigin(rec.origin).value,
+        "band": ScoreBand(rec.band).value,
+    }
+    if backfill:
+        payload["backfill"] = True
+    emit_event(
+        session,
+        EventType.RECOMMENDATION_CLOSED,
+        case,
+        payload,
+        dedupe=f"recommendation_closed:{rec.id}",
+        scoped=True,
+        actor_user_id=actor_user_id,
+    )
+
+
 # ------------------------------------------------------------------------------------------------ claim
 
 
@@ -318,6 +446,7 @@ def _claim_state(
     if any(r.office_id == dept.id for r in rows):
         raise OwnershipConflict("already_claimed", f"{dept.code} already holds this case")
     if ever_owned(session, case) and rec is None:
+        _refuse_if_closed(session, case, dept)
         raise NotVisible("no such case")
     return rec, rows
 
@@ -376,13 +505,23 @@ def claim(
     if rec is not None:
         rec.status, rec.acted_at = RecommendationStatus.CLAIMED, _now()
     session.flush()
+    # design ownership-refinements, decisions 9 and 1-3: a primary claim closes the others; a court refresh may queue
+    closed = _close_other_recommendations(session, case, dept) if row.role == OwnershipRole.PRIMARY else []
+    court_refresh = _queue_court_refresh(session, case, actor_user)
     write_audit(
         session,
         actor,
         "ownership.claim",
         "case_ownership",
         row.id,
-        after={**ownership_summary(session, row), "note": note},
+        after={
+            **ownership_summary(session, row),
+            "note": note,
+            "closed_recommendations": [
+                {"recommendation_id": str(r.id), "office_code": _code(session, r.office_id)} for r in closed
+            ],
+            "court_refresh": court_refresh,
+        },
         case_id=case.id,
     )
     _event(
@@ -392,6 +531,10 @@ def claim(
         actor,
         {"ownership_id": str(row.id), "office_code": dept.code, "role": OwnershipRole(row.role).value},
     )
+    for r in closed:
+        _closed_event(
+            session, case, r, claimed_by=dept.code, ownership_id=row.id, actor_user_id=actor.user_id
+        )
     _custody_for(session, actor, case, row, "claimed")
     if allot_too:
         _apply_allot(
@@ -433,10 +576,11 @@ def _check_dismiss(
         actor_user,
         _own_department(session, actor_user, office_code),
         Permission.CASES_DISMISS,
-        relation=lambda d: _active_rec(session, case, d) is not None,
+        relation=lambda d: _active_rec(session, case, d) is not None or closed_by_claim(session, case, d),
     )
     rec = _active_rec(session, case, dept)
     if rec is None:
+        _refuse_if_closed(session, case, dept)
         raise NotVisible("no recommendation of your department for this case")
     return member, dept, rec
 
@@ -492,6 +636,7 @@ def _check_suggest_from(
         raise access.Forbidden(f"cases.suggest_elsewhere is not enabled for you in {dept.code}")
     own = _active_rec(session, case, dept)
     if own is None and _active_row(session, case, dept) is None:
+        _refuse_if_closed(session, case, dept)
         raise NotVisible(f"no recommendation or ownership of {dept.code} for this case")
     if target is not None and target.id == dept.id:
         raise OwnershipError("suggest a department other than your own")
@@ -539,6 +684,8 @@ def _check_suggest(
         )
     )
     if not visible:
+        for m in holders:
+            _refuse_if_closed(session, case, m.department)
         raise NotVisible("no such case")
     if target is not None and _active_row(session, case, target) is not None:
         raise OwnershipConflict("target_owns", f"{target.code} already holds this case")
@@ -627,6 +774,7 @@ def suggest(
         {
             "from_office_code": own_dept.code if own_dept else None,
             "to_office_code": target.code,
+            "target_recommendation_id": str(existing.id),  # design ownership-refinements, decision 15
             "reason": reason,
         },
         scoped=True,
@@ -1102,6 +1250,11 @@ def decide_transfer(
     transfer.decision_note = note
     transfer.decided_by_user_id, transfer.decided_at = actor.user_id, now
     session.flush()
+    after = transfer_summary(session, transfer)
+    if (
+        accept
+    ):  # design ownership-refinements, decision 1: the accepter's court refresh (closes no recommendation)
+        after["court_refresh"] = _queue_court_refresh(session, case, actor_user)
     write_audit(
         session,
         actor,
@@ -1109,7 +1262,7 @@ def decide_transfer(
         "ownership_transfer",
         transfer.id,
         before=before,
-        after=transfer_summary(session, transfer),
+        after=after,
         case_id=case.id,
     )
     _event(
@@ -1438,6 +1591,72 @@ def shown_recommendations_condition(session: Session, user: User | Member) -> Co
     if not ids:
         return false()
     return and_(active, Recommendation.office_id.in_(ids))
+
+
+# ------------------------------------------------------------------------------------------------ backfill
+
+BACKFILL_ACTOR = Actor.system("ownership-backfill")
+
+
+def close_claimed_backfill(session: Session, *, apply: bool, now: datetime | None = None) -> dict[str, Any]:
+    """Design `ownership-refinements`, decision 14 (`aslms close-claimed-recommendations`): the open recommendations
+    of other departments on cases that already have an active primary owner. With `apply` each becomes
+    `claimed_elsewhere` (`reason "claimed by <DEPT> (closed on <date>)"`) with a `recommendation_closed` event marked
+    `backfill: true` (the alert scan raises nothing for those), and one summary audit row
+    `recommendation.close_claimed_backfill` is written when anything was closed. A dry run writes nothing and
+    returns the same counts `{closed, cases, by_department}`. Idempotent: a second run closes 0."""
+    from aslms.services.reporting_common import today_ist
+
+    now = now or _now()
+    primary = aliased(CaseOwnership)
+    rows = session.execute(
+        select(Recommendation, primary)
+        .join(
+            primary,
+            and_(
+                primary.case_id == Recommendation.case_id,
+                primary.status == OwnershipStatus.ACTIVE,
+                primary.role == OwnershipRole.PRIMARY,
+            ),
+        )
+        .where(
+            Recommendation.status == RecommendationStatus.RECOMMENDED,
+            Recommendation.office_id != primary.office_id,
+        )
+        .order_by(Recommendation.case_id, Recommendation.created_at, Recommendation.id)
+        .with_for_update(of=Recommendation)
+    ).all()
+    by_department: dict[str, int] = {}
+    cases: set[uuid.UUID] = set()
+    for rec, _row in rows:
+        code = _code(session, rec.office_id) or "?"
+        by_department[code] = by_department.get(code, 0) + 1
+        cases.add(rec.case_id)
+    counts = {"closed": len(rows), "cases": len(cases), "by_department": dict(sorted(by_department.items()))}
+    if not apply or not rows:
+        return counts
+    day = today_ist(now).isoformat()
+    for rec, row in rows:
+        owner = _code(session, row.office_id)
+        rec.status, rec.acted_at = RecommendationStatus.CLAIMED_ELSEWHERE, now
+        rec.reason = f"claimed by {owner} (closed on {day})"
+    session.flush()
+    for rec, row in rows:
+        case = session.get(Case, rec.case_id)
+        _closed_event(
+            session,
+            case,
+            rec,
+            claimed_by=_code(session, row.office_id),
+            ownership_id=row.id,
+            actor_user_id=None,
+            backfill=True,
+        )
+    write_audit(
+        session, BACKFILL_ACTOR, "recommendation.close_claimed_backfill", "recommendation", None, after=counts
+    )
+    session.flush()
+    return counts
 
 
 # ------------------------------------------------------------------------------------------------ the exit step

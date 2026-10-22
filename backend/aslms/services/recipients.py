@@ -36,7 +36,14 @@ from aslms.services.offices import find_office
 # ownership events whose recipient decision 13 names although the case is not (or no longer) visible to
 # them: the officer a case was taken from, the department asked to take it, the department told of the
 # decision (deviation 1 of the design note)
-NAMED_RECIPIENT_EVENTS = frozenset({"case_taken_over", "transfer_requested", "transfer_decided"})
+NAMED_RECIPIENT_EVENTS = frozenset(
+    {
+        "case_taken_over",
+        "transfer_requested",
+        "transfer_decided",
+        "recommendation_closed",  # the closed department lost sight (design ownership-refinements, decision 10)
+    }
+)
 # workflow alerts whose recipient the design names although the case is no longer visible to them: the officer a
 # file was taken from (design custody-workflow, decision 23b)
 NAMED_WORKFLOW_EVENTS = frozenset({"file_recalled"})
@@ -177,7 +184,7 @@ class Resolver:
     def for_ownership_event(self, event_type: str, payload: dict[str, Any]) -> list[User]:
         """Decision 13: `allotted` → the officer, else the unit's users; `case_taken_over` → the previous
         officer; `transfer_requested` → the receiving department's deciders; `transfer_decided` → the
-        requesting department's requesters."""
+        requesting department's requesters; `recommendation_closed` → the closed department's claimers."""
         if event_type == "allotted":
             officer = self.user(payload.get("officer_user_id"))
             if officer is not None:
@@ -200,6 +207,9 @@ class Resolver:
             if t is None:
                 return []
             return self.office_users(t.from_office_id, Permission.CASES_TRANSFER_REQUEST)
+        if event_type == "recommendation_closed":  # design ownership-refinements, decision 10
+            closed = find_office(self.session, payload.get("office_code") or "")
+            return self.office_users(closed, Permission.CASES_CLAIM) if closed is not None else []
         return []
 
     def finalise(

@@ -180,7 +180,7 @@ def test_api_flow_as_aslms_app(world, app_engine, napix, tmp_path):
         alerts.scan_events(s, config=alerts.AlertConfig.from_settings(settings))
         s.commit()
 
-    # a queue-runner pass: a dossier applied, an order PDF stored
+    # a queue-runner pass: a dossier applied, its order PDFs stored
     gw, client, hc = napix
     gw.responses = [_order_router(gw)] * 10_000
     cnr = "GAHC010000000601"
@@ -208,10 +208,12 @@ def test_api_flow_as_aslms_app(world, app_engine, napix, tmp_path):
                 recorder=recorder,
                 reserve=0,
             )
-            return await runner.run(max_items=2, kinds=[FetchKind.DOSSIER, FetchKind.ORDER_PDF])
+            # until the queue is empty: the court refresh the claim above queued (design ownership-refinements,
+            # decision 1) and its order PDFs run too, besides the dossier asked for here and its order PDF
+            return await runner.run(max_items=None, kinds=[FetchKind.DOSSIER, FetchKind.ORDER_PDF])
 
     rep = asyncio.run(go())
-    assert rep.failed == 0 and rep.done == 2, rep.items
+    assert rep.failed == 0 and rep.done >= 3, rep.items
     with AppSession() as s:
         fetched = s.scalar(sa.select(Case).where(Case.cnr == cnr))
         assert fetched is not None and fetched.last_full_refresh_at is not None
@@ -221,7 +223,7 @@ def test_api_flow_as_aslms_app(world, app_engine, napix, tmp_path):
             .join(Document, Document.id == Order.document_id)
             .where(Order.case_id == fetched.id)
         )
-        assert stored == 1
+        assert stored == 3  # the three orders of the dossier
 
     # one run of the background storing of an advocate search's rows
     payload = sample("advocate_name_2026-10-18-p1.json")

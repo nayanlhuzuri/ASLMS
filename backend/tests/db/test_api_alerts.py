@@ -740,3 +740,29 @@ def test_alert_filters_keep_visibility(api, world, alerted):
         body = api.get(f"/alerts?{query}", headers=off1).json()
         assert alerted["health_case"] not in _case_ids(body), query
     assert _case_ids(api.get("/alerts?owner=EDU", headers=off1).json()) == [alerted["edu_case"]]
+
+
+def test_recommendation_closed_notice_case_visible_false(api, world):
+    """Design ownership-refinements, decision 10: the closed department's claimers list the "Claimed by" notice with
+    `case_visible` false; the case itself answers 404."""
+    with world.Session() as s:
+        case = make_case(s)
+        h.recommend(s, world, case, "HEALTH")
+        h.claim(s, world, "edu_admin", case)
+        s.commit()
+        case_id = str(case.id)
+        alerts.scan_events(s, now=h.now_utc())
+        s.commit()
+    headers = login(api, "health_admin")
+    items = api.get("/alerts", headers=headers).json()["items"]
+    (notice,) = [i for i in items if i["data"].get("event") == "recommendation_closed"]
+    assert notice["case"]["id"] == case_id and notice["case_visible"] is False
+    assert notice["title"].startswith("Claimed by EDU: ")
+    assert api.get(f"/alerts/{notice['id']}", headers=headers).status_code == 200
+    assert api.get(f"/cases/{case_id}", headers=headers).status_code == 404
+    # the claimer's own department is not told
+    assert [
+        i
+        for i in api.get("/alerts", headers=login(api, "edu_admin")).json()["items"]
+        if i["data"].get("event") == "recommendation_closed"
+    ] == []

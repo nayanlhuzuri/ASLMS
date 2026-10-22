@@ -1,4 +1,4 @@
-"""`aslms` command line: NAPIX checks and probes, `seed`, `db-check`, `db-roles`, the load pipeline (`load`, `queue-run`, `queue-status`, `queue-retry-failed`, `sync-masters`, `refetch-date`, `refetch-case`), the matching engine (`rescore`, `codes unmapped`), the `cases` group (`reindex-search`, `show`), the `documents` group (`extract`, `scan-check`), the `alerts` group (`run`, `send`, `digest`, `status`, `test-mail`), the `sourcetrace` group (`status`, `run`, `retry`, `check`), the `reports` group (`run`, `dashboard`), the `audit` group (`search`), `data-health`, `system-health`, the `data-load` group (`status`, `coverage`, `start`, `pause`, `resume`, `order`, `dedupe`), the `discovery` group (`status`, `terms`, `sweep`), the `next-dates` group (`read`, `status`, `sample`), the `ops` group (`preflight`, `db-guard`, `role-passwords`, `migrate`, `backup`, `backup-scheduler`, `backup-status`, `restore-check`, `restore`, `repair-jobs`, `load-report`, `sample-cnrs`, `make-cert`, `metrics`), and the `users`, `access` and `offices` administration groups."""
+"""`aslms` command line: NAPIX checks and probes, `seed`, `db-check`, `db-roles`, the load pipeline (`load`, `queue-run`, `queue-status`, `queue-retry-failed`, `sync-masters`, `refetch-date`, `refetch-case`), the matching engine (`rescore`, `codes unmapped`, `close-claimed-recommendations`), the `cases` group (`reindex-search`, `show`), the `documents` group (`extract`, `scan-check`), the `alerts` group (`run`, `send`, `digest`, `status`, `test-mail`), the `sourcetrace` group (`status`, `run`, `retry`, `check`), the `reports` group (`run`, `dashboard`), the `audit` group (`search`), `data-health`, `system-health`, the `data-load` group (`status`, `coverage`, `start`, `pause`, `resume`, `order`, `dedupe`), the `discovery` group (`status`, `terms`, `sweep`), the `next-dates` group (`read`, `status`, `sample`), the `ops` group (`preflight`, `db-guard`, `role-passwords`, `migrate`, `backup`, `backup-scheduler`, `backup-status`, `restore-check`, `restore`, `repair-jobs`, `load-report`, `sample-cnrs`, `make-cert`, `metrics`), and the `users`, `access` and `offices` administration groups."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from aslms.cli.data_load import data_load_app
 from aslms.cli.db import db_check, db_roles, seed
 from aslms.cli.discovery import discovery_app
 from aslms.cli.documents import documents_app
-from aslms.cli.matching import codes_app, rescore
+from aslms.cli.matching import close_claimed_recommendations, codes_app, rescore
 from aslms.cli.napix_check import napix_check
 from aslms.cli.napix_fields import napix_fields
 from aslms.cli.napix_probe import napix_probe_rate
@@ -61,6 +61,7 @@ app.command(name="daily-cycle")(daily_cycle)
 app.command(name="data-health")(data_health_cmd)
 app.command(name="system-health")(system_health_cmd)
 app.command(name="rescore")(rescore)
+app.command(name="close-claimed-recommendations")(close_claimed_recommendations)
 app.add_typer(users_app, name="users")
 app.add_typer(access_app, name="access")
 app.add_typer(offices_app, name="offices")

@@ -2534,7 +2534,10 @@ export interface paths {
          *     by party name or advocate name (rows stored, dossiers on demand through `fetch-court`; an advocate search stores
          *     the first `NAPIX_ADVOCATE_STORE_NOW` new cases now and the rest in the background, or none beyond them when the
          *     court found more than `NAPIX_ADVOCATE_STORE_MAX`: `court_cases`, `queued`, `not_stored`). Refused when the switch is off (503 `napix_off`), the hourly quota is below the floor (503
-         *     `napix_budget`) or the caller used their hourly searches (429 `search_limit`). Audited.
+         *     `napix_budget`) or the caller used their hourly searches (429 `search_limit`). A CNR, case-number or filing
+         *     search that the ASLMS database answers returns `source: "local"`, `calls: 0` before any guard: never refused by
+         *     the switch, the floor or the hourly limit, and not counted (design `ownership-refinements`, decisions 4 to 6).
+         *     Audited.
          */
         post: operations["search_court_cases_search_court_post"];
         delete?: never;
@@ -2751,7 +2754,8 @@ export interface paths {
         /**
          * Fetch Court
          * @description Fetch the dossier of a case that has none (a provisional case is resolved by its number first; the CNR
-         *     always comes from the court). The case need not be visible: the call only fills court data.
+         *     always comes from the court). The case need not be visible: the call only fills court data. A case that already
+         *     has its dossier answers 409 `already_fetched` before the guard (design `ownership-refinements`, decision 7).
          */
         post: operations["fetch_court_cases__ref__fetch_court_post"];
         delete?: never;

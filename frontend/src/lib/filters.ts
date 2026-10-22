@@ -335,3 +335,34 @@ export function chipsOf(params: Params, list: ListKey, texts: ChipTexts): Chip[]
   }
   return out;
 }
+
+// ------------------------------------------------------------------------------------------------ check controls
+
+/**
+ * A list's own check control in the URL (design ownership-refinements, decision 8). A plain check is ticked only when
+ * its value is `"true"`; a `defaultOn` check is ticked unless its value is `"false"` (so an old link's `"true"` also
+ * reads as ticked).
+ */
+export function checkIsOn(value: string | undefined, defaultOn = false): boolean {
+  return defaultOn ? value !== "false" : value === "true";
+}
+
+/** The URL value a check writes: a plain check `"true"` when ticked; a `defaultOn` check `"false"` when unticked and no
+ * key when ticked (the default). */
+export function checkValue(checked: boolean, defaultOn = false): string | undefined {
+  if (defaultOn) return checked ? undefined : "false";
+  return checked ? "true" : undefined;
+}
+
+/** The chip of a check control, or null: a plain check shows its label while ticked; a `defaultOn` check shows only
+ * its non-default (unticked) state, with its own `offLabel`. Removing the chip drops the key, restoring the default. */
+export function checkChip(
+  key: string,
+  value: string | undefined,
+  control: { label: string; defaultOn?: boolean; offLabel?: string },
+): Chip | null {
+  if (control.defaultOn) {
+    return value === "false" ? { keys: [key], label: control.offLabel ?? control.label } : null;
+  }
+  return value === "true" ? { keys: [key], label: control.label } : null;
+}

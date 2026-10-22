@@ -334,3 +334,94 @@ def test_unmapped_codes(world):
         assert [u.code for u in out] == ["SC, REVENUE"]
         assert out[0].entries == 2 and out[0].last_listed == date(2025, 1, 6)
         assert out[0].example_case_ref.startswith("ASLMS/GOA/CASE/")
+
+
+# ------------------------------------------------------------------------------------------------ ownership-refinements
+
+
+def _health_code(world, s, case):
+    s.add(CounselCode(code="SC, HEALTH", office_id=world.offices["HEALTH"].id))
+    s.add(
+        CaseAdvocate(
+            case_id=case.id,
+            side=AdvocateSide.RESPONDENT,
+            name_as_listed="SC, HEALTH",
+            counsel_code="SC, HEALTH",
+        )
+    )
+    s.flush()
+
+
+def test_engine_never_recommends_a_claimed_case(world):
+    """Design ownership-refinements, decision 13: a strong score for another department on a claimed case creates no
+    recommendation and no event."""
+    with world.Session() as s:
+        case = make_case(s)
+        actor, admin = world.actor(s, "edu_admin")
+        ownership.claim(s, actor, admin, case)
+        _health_code(world, s, case)
+        before = len(made_events(s))
+        matching.score_cases(s, [case.id], origin=RecommendationOrigin.RESCORE)
+        assert [r for r in recs(s, case.id) if r.office_id == world.offices["HEALTH"].id] == []
+        assert len(made_events(s)) == before
+
+
+def test_engine_changes_no_band_on_a_claimed_case(world):
+    with world.Session() as s:
+        case = make_case(s)
+        actor, admin = world.actor(s, "edu_admin")
+        ownership.claim(s, actor, admin, case)
+        # an engine row left open on the claimed case (before the change), at a band the score no longer gives
+        rec = Recommendation(
+            case_id=case.id,
+            office_id=world.offices["HEALTH"].id,
+            score=0.6,
+            band=ScoreBand.MEDIUM,
+            origin=RecommendationOrigin.CAUSE_LIST,
+            actor_name="matching",
+        )
+        s.add(rec)
+        _health_code(world, s, case)  # the score is now 0.95 (strong)
+        before = len(made_events(s))
+        matching.score_cases(s, [case.id], origin=RecommendationOrigin.RESCORE)
+        s.refresh(rec)
+        assert rec.band == ScoreBand.MEDIUM and float(rec.score) == 0.6
+        assert rec.status == RecommendationStatus.RECOMMENDED
+        assert len(made_events(s)) == before
+
+
+def test_scores_are_still_written_for_a_claimed_case(world):
+    with world.Session() as s:
+        case = make_case(s)
+        actor, admin = world.actor(s, "edu_admin")
+        ownership.claim(s, actor, admin, case)
+        _health_code(world, s, case)
+        matching.score_cases(s, [case.id], origin=RecommendationOrigin.RESCORE)
+        score = s.scalar(
+            sa.select(CaseOfficeScore).where(
+                CaseOfficeScore.case_id == case.id, CaseOfficeScore.office_id == world.offices["HEALTH"].id
+            )
+        )
+        assert score is not None and float(score.score) == 0.95 and score.signals[0]["kind"] == "counsel_code"
+
+
+def test_claimed_elsewhere_is_never_reopened(world):
+    """A closed engine row is in NEVER_AGAIN; the engine also leaves the expiry of open engine rows as before."""
+    assert RecommendationStatus.CLAIMED_ELSEWHERE in matching.NEVER_AGAIN
+    with world.Session() as s:
+        case = make_case(s)
+        _health_code(world, s, case)
+        matching.score_cases(s, [case.id], origin=RecommendationOrigin.CAUSE_LIST)
+        (rec,) = recs(s, case.id)
+        assert rec.office_id == world.offices["HEALTH"].id
+        actor, admin = world.actor(s, "edu_admin")
+        ownership.claim(s, actor, admin, case)  # a pool claim by EDU closes HEALTH's row
+        s.refresh(rec)
+        assert rec.status == RecommendationStatus.CLAIMED_ELSEWHERE
+        s.commit()
+    matching.rescore_all(world.Session)
+    with world.Session() as s:
+        rows = recs(s, case.id)
+        assert [(r.office_id, r.status) for r in rows] == [
+            (world.offices["HEALTH"].id, RecommendationStatus.CLAIMED_ELSEWHERE)
+        ]

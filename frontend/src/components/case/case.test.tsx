@@ -1635,3 +1635,29 @@ describe("the next dates list is a DataTable (design portal-ui-polish, decision 
     expectDataTable(await within(section).findByRole("table", { name: "Next dates" }));
   });
 });
+
+describe("recommendation statuses in words (ownership-refinements)", () => {
+  it("another department's closed recommendation reads as claimed by another department", async () => {
+    const closed = {
+      id: "r-9",
+      case: {} as CaseOwnershipView["recommendations"][number]["case"],
+      office_code: "HEALTH",
+      score: 0.6,
+      band: "medium",
+      status: "claimed_elsewhere",
+      origin: "cause_list",
+      reason: "claimed by EDU",
+      signals: [],
+      acted_at: "2026-10-21T10:00:00Z",
+      created_at: "2026-10-20T10:00:00Z",
+      current_owner_code: "EDU",
+      suggested_by_office_code: null,
+    } as CaseOwnershipView["recommendations"][number];
+    browserApi(overviewRoutes(detail(), ownership(actions(), { recommendations: [closed] })));
+    renderWithClient(<Overview caseRef={REF} />);
+    await openOwnership();
+    const card = await screen.findByRole("region", { name: "Ownership" });
+    expect(await within(card).findByText("Closed: claimed by another department")).toBeInTheDocument();
+    expect(within(card).queryByText("claimed_elsewhere")).toBeNull();
+  });
+});

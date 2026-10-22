@@ -11,6 +11,10 @@ writes `case_ownership`: a case belongs to a department only after the departmen
   the most specific office of the strongest hit is kept as `suggested_unit`.
 - Engine writes carry the system actor (`matching`) and write no audit rows; their record is the events and the
   score rows. A department that dismissed or claimed a case is never re-recommended by the engine.
+- A case that has ever had a primary owner gets no engine recommendation for any department, and the engine changes
+  no band or score of its open rows (design `ownership-refinements`, decision 13); its scores are still written (the
+  "why suggested" signals and the suggest dialog read them) and engine rows below the band still expire. A
+  `claimed_elsewhere` row is never re-opened.
 
 Matching runs in Python over the loaded rules; no SQL is built from rule text."""
 
@@ -25,7 +29,7 @@ from decimal import Decimal
 from typing import Any
 
 import structlog
-from sqlalchemy import func, or_, select, text
+from sqlalchemy import exists, func, or_, select, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from aslms.domain.cases import Case, CaseAdvocate, CaseLink, CaseParty, FirstSeenSource
@@ -39,6 +43,7 @@ from aslms.domain.ownership import (
     OfficeKeyword,
     OfficeNamePattern,
     OfficeWatchlist,
+    OwnershipRole,
     OwnershipStatus,
     PatternKind,
     Recommendation,
@@ -60,7 +65,12 @@ CNR_RE = re.compile(r"^[A-Z]{4}\d{12}$")
 MATCHING_ACTOR = Actor.system("matching")
 DEPARTMENT_TIER_KINDS = frozenset({OfficeKind.DEPARTMENT, OfficeKind.CENTRAL, OfficeKind.ADVOCATE_GENERAL})
 NEVER_AGAIN = frozenset(
-    {RecommendationStatus.DISMISSED, RecommendationStatus.SUGGESTED_ELSEWHERE, RecommendationStatus.CLAIMED}
+    {
+        RecommendationStatus.DISMISSED,
+        RecommendationStatus.SUGGESTED_ELSEWHERE,
+        RecommendationStatus.CLAIMED,
+        RecommendationStatus.CLAIMED_ELSEWHERE,  # design ownership-refinements, decision 9
+    }
 )
 REGEX_MAX = 300
 
@@ -599,8 +609,20 @@ def apply_scores(
     blocked = {r.office_id for r in recs if r.status in NEVER_AGAIN} | ever_owners
     active = {r.office_id: r for r in recs if r.status == RecommendationStatus.RECOMMENDED}
     actor_cols = snapshot(MATCHING_ACTOR)
+    # design ownership-refinements, decision 13: a case that has ever had a primary owner gets no new engine
+    # recommendation and no band or score change on its open rows (the same `exists` as `ownership.ever_owned`,
+    # which imports this module)
+    claimed = bool(
+        session.scalar(
+            select(
+                exists().where(CaseOwnership.case_id == case.id, CaseOwnership.role == OwnershipRole.PRIMARY)
+            )
+        )
+    )
 
     for office_id, so in scores.items():
+        if claimed:
+            break
         band = band_of(so.score, settings)
         if band is None:
             continue

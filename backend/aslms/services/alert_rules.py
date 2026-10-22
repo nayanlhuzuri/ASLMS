@@ -244,6 +244,13 @@ def render_alert(kind: AlertKind | str, case: Any, data: dict[str, Any]) -> tupl
         when = _d(d.get("due_date"))
         title = (f"Request overdue since {when}: " if overdue else f"Request due {when}: ") + label
         body = f"{d.get('request_kind_label') or 'Request'} from {d.get('from_office') or 'another office'}."
+    elif kind == AlertKind.RECOMMENDATION and d.get("origin") == "suggestion":
+        # design ownership-refinements, decision 15 (the suggestion's reason is shown in the inbox, not here)
+        title = f"Suggested for {d.get('office_code') or 'your department'}: {label}"
+        body = (
+            f"{d.get('from_office_code') or 'Another office'} suggests this case belongs to your department; "
+            "claim or dismiss it in the inbox."
+        )
     elif kind == AlertKind.RECOMMENDATION:
         title = f"Strong match for {d.get('office_code') or 'your department'}: {label}"
         body = f"Recommended with score {d.get('score')}; claim or dismiss it in the inbox."
@@ -261,6 +268,10 @@ def render_alert(kind: AlertKind | str, case: Any, data: dict[str, Any]) -> tupl
         elif sub == "transfer_decided":
             title = f"Transfer {d.get('decision') or 'decided'} by {d.get('to_office_code') or '?'}: {label}"
             body = f"Your transfer request {d.get('ref_no') or ''} was {d.get('decision') or 'decided'}."
+        elif sub == "recommendation_closed":  # design ownership-refinements, decision 10
+            by = d.get("claimed_by_office_code") or "Another department"
+            title = f"Claimed by {by}: {label}"
+            body = f"{by} claimed this case; your department's recommendation is closed."
         else:
             title = f"Ownership change: {label}"
             body = ""

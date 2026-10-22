@@ -2243,3 +2243,25 @@ Row 123, design `docs/design/system-health-inspector.md` (approved 21 Oct 2026),
 
 **Left for later**: the owner-run live check, master switch on for that run only (row 128); a durable token-request record and the quota-counting decision (row 127).
 
+## Ownership refinements (2026-10-22)
+
+Row 120, design `docs/design/ownership-refinements.md` (approved 21 Oct 2026 with the architect's answers (a)-(h)), branch `feature/ownership-refinements`. Migration 0021 (head now 0021).
+
+**Built**
+- Migration 0021 (schema.md first): enum value `recommendation_status` + `claimed_elsewhere` and the `ref_event_type` row `recommendation_closed`. No table or column added; no grant change.
+- A primary claim closes every other department's open recommendation as `claimed_elsewhere` (with `acted_at`, `reason`), writes one `recommendation_closed` event per closed row and lists them in the `ownership.claim` audit row (`closed_recommendations`). A stale Claim, Dismiss or Suggest by a closed department answers 409 `claimed_elsewhere`.
+- A claim (primary or watcher) and an accepted transfer queue a request-lane `dossier` refresh through the queue and worker when the court record is missing or older than 24 h (`CLAIM_REFRESH_AFTER`); the outcome (`fresh`, `queued`, `in_progress`, `no_reference`, `failed`) is in the audit row and a failure never fails the claim.
+- The matching engine never recommends a case that has ever had a primary owner and changes no band on it; `claimed_elsewhere` joins `NEVER_AGAIN`. Watchers arise only through post-claim suggestions or `stay_as_watcher` (plan deviation by owner decision).
+- Court search by CNR, case number and filing number is answered from the ASLMS database before any guard (`court_search.answer_locally`): works with the master switch off, below the quota floor or over the hourly cap, audited as `case.search_court` with `calls` 0 and `source` local. The per-user hourly count leaves out zero-call rows. `fetch-court` answers 409 `already_fetched` before the guard.
+- Alerts: every suggestion alerts the target department's claimers whatever its band (a suggestion raises one alert, not two); the closed department gets a named "Claimed by <DEPT>" ownership notice (`case_visible` false) and its open recommendation alert is closed.
+- `aslms close-claimed-recommendations [--apply]`: one-off backfill, dry run by default, one `recommendation.close_claimed_backfill` audit row, no alerts for backfilled rows.
+- Portal: the Search page ticks "Only cases I can open" by default (chip "Also cases I cannot open"; API default unchanged), the local-answer line "Found in the ASLMS database; the court was not asked.", the timeline line for `recommendation_closed` and recommendation statuses in words on the Ownership card; `schema.d.ts` and `openapi.json` regenerated.
+
+**Decisions**
+- Closing a rival recommendation is a status, never a deletion, so the legal-record history stays; the downgrade of 0021 refuses while any `claimed_elsewhere` row exists.
+- The claim never fails on a refresh problem: the court record is a convenience, the ownership decision is the legal act.
+- Local answers cost no NAPIX quota, so they are exempt from the guards and from the 30-per-hour count, yet still audited.
+
+**Deviations** (eight recorded in the design note, none changes a business rule): migration written by hand because autogenerate cannot see an enum value or a reference row, and its downgrade test checks that the reference row stays while an event uses it (events are append-only); `answer_locally` takes a `settings=` keyword; validation factored into `_check_*` and `_local_*` helpers; a malformed CNR answers 422 from the request schema before any guard, as before; the backfill writes its audit row only when it closed something and closes human suggestions made after a claim as well; the 409 `claimed_elsewhere` also applies when no department is named; the scan counts the immediate closure under `closed_recommendation`; the ownership dialogs needed no change.
+
+**Left for later**: the integrator runs `aslms close-claimed-recommendations` (dry run, then `--apply`) once after merge and migrating.

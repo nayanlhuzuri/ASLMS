@@ -104,3 +104,13 @@ describe("timeline lines", () => {
     }
   });
 });
+
+describe("recommendation_closed (ownership-refinements, decision 10)", () => {
+  it("names the closed department and the claimer", () => {
+    expect(timelineDetail("recommendation_closed", { office_code: "HEALTH", claimed_by_office_code: "EDU" })).toBe(
+      "HEALTH — claimed by EDU",
+    );
+    expect(timelineDetail("recommendation_closed", { office_code: "HEALTH" })).toBe("HEALTH");
+    expect(timelineDetail("recommendation_closed", {})).toBeNull();
+  });
+});

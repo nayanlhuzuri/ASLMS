@@ -159,6 +159,7 @@ DEPARTMENT_EVENTS = (
     EventType.DISMISSED,
     EventType.SUGGESTED_ELSEWHERE,
     EventType.ALERT_RAISED,
+    EventType.RECOMMENDATION_CLOSED,  # design ownership-refinements: to the closed department and State-wide readers
 )
 
 

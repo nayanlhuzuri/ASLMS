@@ -1,6 +1,8 @@
 """`aslms rescore [--all | --case REF]` and `aslms codes unmapped [--limit N]` (design recommend-and-claim,
 decisions 4 and 19): the matching engine by hand, and the report of counsel codes seen in cause lists and
-dossiers that no department has mapped yet. Nothing is mapped automatically."""
+dossiers that no department has mapped yet. Nothing is mapped automatically. `aslms close-claimed-recommendations
+[--apply]` (design ownership-refinements, decision 14): the one-off closure of other departments' open
+recommendations on cases claimed before 21 Oct 2026; a dry run unless `--apply`."""
 
 from __future__ import annotations
 
@@ -10,7 +12,7 @@ from rich.table import Table
 
 from aslms.db.session import get_sessionmaker, session_scope
 from aslms.domain.ownership import RecommendationOrigin
-from aslms.services import matching
+from aslms.services import matching, ownership
 from aslms.services.cases import CaseNotFound, resolve_case_ref
 
 codes_app = typer.Typer(no_args_is_help=True, help="Counsel codes: the unmapped report")
@@ -47,3 +49,28 @@ def unmapped(limit: int = typer.Option(50, "--limit", min=1, max=1000)) -> None:
         table.add_row(r.code, str(r.entries), str(r.last_listed or ""), r.example_case_ref or "")
     rprint(table)
     rprint(f"{len(rows)} unmapped code(s)")
+
+
+def close_claimed_recommendations(
+    apply: bool = typer.Option(
+        False, "--apply", help="write the closures (without it: a dry run, nothing written)"
+    ),
+) -> None:
+    """Close the open recommendations of other departments on cases that already have a primary owner
+    (`claimed_elsewhere`, events marked `backfill`, one summary audit row). A dry run by default; idempotent."""
+    session = get_sessionmaker()()
+    try:
+        counts = ownership.close_claimed_backfill(session, apply=apply)
+        if apply:
+            session.commit()
+        else:
+            session.rollback()
+    except BaseException:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+    mode = "closed" if apply else "would close (dry run; --apply writes)"
+    rprint(f"{mode}: {counts['closed']} recommendation(s) on {counts['cases']} case(s)")
+    for code, n in counts["by_department"].items():
+        rprint(f"  {code}: {n}")

@@ -165,6 +165,7 @@ class RecommendationStatus(enum.StrEnum):
     DISMISSED = "dismissed"
     SUGGESTED_ELSEWHERE = "suggested_elsewhere"
     EXPIRED = "expired"
+    CLAIMED_ELSEWHERE = "claimed_elsewhere"  # design ownership-refinements, decision 9 (migration 0021)
 
 
 class RecommendationOrigin(enum.StrEnum):

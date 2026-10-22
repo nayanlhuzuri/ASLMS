@@ -16,6 +16,9 @@ import { Button, CheckField, SelectField, TextField, type Option } from "@/compo
 import { useBenches, useCaseTypes, useDepartments } from "@/lib/api/hooks";
 import {
   CASE_STATUSES,
+  checkChip,
+  checkIsOn,
+  checkValue,
   chipsOf,
   dateModeOf,
   dateParams,
@@ -39,10 +42,20 @@ import { FilterChips } from "./FilterChips";
 import s from "./filters.module.css";
 
 /** A list's own control, drawn in the same form (decision 9). `more` puts it under "More filters"; `first` draws it
- * right after Words, before the date fields (Department cases' Unit, Officer and Stage). */
+ * right after Words, before the date fields (Department cases' Unit, Officer and Stage). A `defaultOn` check is ticked
+ * unless the URL says `"false"`; its chip shows only the unticked state, as `offLabel` (design ownership-refinements,
+ * decision 8). */
 export type OwnControl =
   | { key: string; kind: "select"; label: string; options: Option[]; placeholder?: string; more?: boolean; first?: boolean }
-  | { key: string; kind: "check"; label: string; more?: boolean; first?: boolean }
+  | {
+      key: string;
+      kind: "check";
+      label: string;
+      more?: boolean;
+      first?: boolean;
+      defaultOn?: boolean;
+      offLabel?: string;
+    }
   | { key: string; kind: "text" | "number" | "date"; label: string; more?: boolean; step?: string; first?: boolean };
 
 export interface FilterBarProps {
@@ -108,11 +121,12 @@ function ownChips(params: Params, own: OwnControl[]): Chip[] {
   const out: Chip[] = [];
   for (const c of own) {
     const v = params[c.key];
-    if (!v) continue;
     if (c.kind === "check") {
-      if (v === "true") out.push({ keys: [c.key], label: c.label });
+      const chip = checkChip(c.key, v, c);
+      if (chip) out.push(chip);
       continue;
     }
+    if (!v) continue;
     const text = c.kind === "select" ? (c.options.find((o) => o.value === v)?.label ?? v) : v;
     out.push({ keys: [c.key], label: `${c.label}: ${text}` });
   }
@@ -211,7 +225,9 @@ function FilterForm({
   const [form, setForm] = useState<Record<string, string>>(() => {
     const out: Record<string, string> = {};
     for (const f of cfg.fields) if (f !== "listed" && f !== "next") out[f] = p[f] ?? "";
-    for (const c of own) out[c.key] = params[c.key] ?? "";
+    for (const c of own) {
+      out[c.key] = c.kind === "check" ? (checkIsOn(params[c.key], c.defaultOn) ? "true" : "") : (params[c.key] ?? "");
+    }
     return out;
   });
   const [dates, setDates] = useState<Record<"listed" | "next", DateValue>>(() => ({
@@ -254,7 +270,7 @@ function FilterForm({
     }
     for (const c of own) {
       const v = (form[c.key] ?? "").trim();
-      updates[c.key] = c.kind === "check" ? (v === "true" ? "true" : undefined) : v || undefined;
+      updates[c.key] = c.kind === "check" ? checkValue(v === "true", c.defaultOn) : v || undefined;
     }
     onApply(updates);
   }

@@ -9,7 +9,8 @@
  * "Order and document text" tab searches stored text. The one filter bar (design portal-filters): the box is its Words
  * field; the shared case filters with the owning department, Status in place of the old Active / Disposed / All
  * control, and "Only cases I can open" with words. Old links' `status=` and `office=` are read as `case_status` and
- * `owner`.
+ * `owner`. "Only cases I can open" is ticked by default (design ownership-refinements, decision 8): the page sends
+ * `visible_only=true` unless the address says `visible_only=false` (unticked); the API's own default stays `false`.
  */
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
@@ -22,7 +23,7 @@ import { api } from "@/lib/api/client";
 import { useMe } from "@/lib/api/hooks";
 import type { CaseSearchList } from "@/lib/api/types";
 import { can } from "@/lib/can";
-import { legacyParams, MIN_WORDS, toApiQuery } from "@/lib/filters";
+import { checkIsOn, legacyParams, MIN_WORDS, toApiQuery } from "@/lib/filters";
 import { formatNumber } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { offsetOf, PAGE, queryString, type Params } from "@/lib/params";
@@ -67,7 +68,7 @@ function CaseSearch({ params }: { params: Params }) {
   // the API's `field` when a link names one (`advocate` also opens the court search on "Advocate name")
   const field = params.field && SEARCH_FIELDS.includes(params.field) ? params.field : undefined;
   const query = words
-    ? { ...shared, q, field, visible_only: params.visible_only === "true" ? true : undefined, limit: PAGE, offset }
+    ? { ...shared, q, field, visible_only: checkIsOn(params.visible_only, true) ? true : undefined, limit: PAGE, offset }
     : { ...shared, limit: PAGE, offset };
   const path = words ? "/cases/search" : "/cases";
   const list = useQuery({
@@ -91,7 +92,19 @@ function CaseSearch({ params }: { params: Params }) {
         list="search"
         params={params}
         wordsLabel={T.search.box}
-        own={words ? [{ key: "visible_only", kind: "check", label: T.search.visibleOnly }] : []}
+        own={
+          words
+            ? [
+                {
+                  key: "visible_only",
+                  kind: "check",
+                  label: T.search.visibleOnly,
+                  defaultOn: true,
+                  offLabel: T.search.alsoNotVisible,
+                },
+              ]
+            : []
+        }
       />
       <ErrorBanner error={list.error} onRetry={() => list.refetch()} />
       {list.isPending || single ? <Loading /> : null}

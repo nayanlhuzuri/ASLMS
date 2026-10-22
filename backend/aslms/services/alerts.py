@@ -17,6 +17,12 @@ reading side with the visibility rule applied in SQL.
 - Next dates (design `next-date-extraction`, decision 13): a `next_date_extracted` event that is a review item raises
   one `next_date_review:<order_id>` alert for a claimed case with a recent order (`high` when the date is within the
   hearing look-ahead); the review actions close it, the sweep expires it once the order has no queue item.
+- Ownership refinements (design `ownership-refinements`, decisions 10 and 15): a `suggested_elsewhere` event raises
+  one `recommendation` alert per suggestion for the target's open recommendation, whatever its band or origin and on
+  a pending or disposed case (a `recommendation_made` of origin `suggestion` is skipped, so a strong suggestion
+  raises one alert); a `recommendation_closed` event (not a backfill) raises one `ownership` notice to the closed
+  department's `cases.claim` holders, listed with `case_visible: false`, and closes that department's open
+  `recommendation` alert for the row (`recommendation_claimed_elsewhere`).
 - `raise_alert` is idempotent through `alerts.dedupe_key` (a number is allocated only for a new key); a
   higher severity notifies the recipients again. Every new alert emits one scoped `alert_raised` event.
 - `acknowledge` / `mark_done` need `alerts.acknowledge` and a recipient or working relation; each writes an
@@ -51,6 +57,7 @@ from aslms.domain.ownership import (
     OwnershipStatus,
     OwnershipTransfer,
     Recommendation,
+    RecommendationOrigin,
     RecommendationStatus,
     ScoreBand,
 )
@@ -106,7 +113,11 @@ HANDLED_EVENTS = OWNERSHIP_EVENTS | {
     EventType.DOCUMENT_UPLOADED,
     EventType.CUSTODY_MOVED,
     EventType.NEXT_DATE_EXTRACTED,  # design next-date-extraction, decision 13: review items only
+    EventType.SUGGESTED_ELSEWHERE,  # design ownership-refinements, decision 15
+    EventType.RECOMMENDATION_CLOSED,  # design ownership-refinements, decision 10
 }
+# events read whether or not the case has an owner (a recommendation or a suggestion is usually on a pool case)
+UNOWNED_EVENTS = frozenset({EventType.RECOMMENDATION_MADE, EventType.SUGGESTED_ELSEWHERE})
 RECEIVED_REASONS = frozenset({"sent", "reassigned_on_exit"})
 TAKEN_REASONS = frozenset({"recalled", "allotted", "taken_over", "transferred"})
 DEFAULT_LIMIT, MAX_LIMIT = 50, 200
@@ -371,7 +382,7 @@ def scan_events(
         session.scalar(
             select(func.count(Event.id)).where(
                 *in_window,
-                Event.type.in_(list(HANDLED_EVENTS - {EventType.RECOMMENDATION_MADE})),
+                Event.type.in_(list(HANDLED_EVENTS - UNOWNED_EVENTS)),
                 ~owned,
             )
         )
@@ -382,7 +393,7 @@ def scan_events(
         .where(
             *in_window,
             Event.type.in_(list(HANDLED_EVENTS)),
-            or_(Event.type == EventType.RECOMMENDATION_MADE, owned),
+            or_(Event.type.in_(list(UNOWNED_EVENTS)), owned),
             _workflow_moves(),
         )
         .order_by(Event.created_at, Event.id)
@@ -534,7 +545,8 @@ def _handle_event(
     elif kind_of_event == EventType.RECOMMENDATION_MADE:
         rec = session.get(Recommendation, _uuid(p.get("recommendation_id")))
         if (
-            rec is None
+            p.get("origin") == RecommendationOrigin.SUGGESTION.value  # alerted by `suggested_elsewhere`
+            or rec is None
             or RecommendationStatus(rec.status) != RecommendationStatus.RECOMMENDED
             or ScoreBand(rec.band) != ScoreBand.HIGH
             or CaseStatus(case.status) != CaseStatus.PENDING
@@ -564,7 +576,11 @@ def _handle_event(
             now=now,
             counters=counters,
         )
-    elif kind_of_event in OWNERSHIP_EVENTS:
+    elif kind_of_event == EventType.SUGGESTED_ELSEWHERE:
+        _suggestion_event(session, resolver, ev, case, p, today=today, cfg=cfg, now=now, counters=counters)
+    elif kind_of_event == EventType.RECOMMENDATION_CLOSED and p.get("backfill"):
+        counters["skipped_other"] += 1  # decision 14: old claims cause no burst of notices
+    elif kind_of_event in OWNERSHIP_EVENTS or kind_of_event == EventType.RECOMMENDATION_CLOSED:
         office = _ownership_office(session, kind_of_event, p)
         if office is None:
             counters["skipped_other"] += 1
@@ -598,6 +614,8 @@ def _handle_event(
             now=now,
             counters=counters,
         )
+        if kind_of_event == EventType.RECOMMENDATION_CLOSED:
+            _close_recommendation_alerts(session, p.get("recommendation_id"), now=now, counters=counters)
     elif kind_of_event == EventType.DOCUMENT_UPLOADED:
         office = office_or_skip()
         if office is None:
@@ -816,11 +834,86 @@ def _next_date_event(
     )
 
 
+def _suggestion_event(
+    session: Session,
+    resolver: Resolver,
+    ev: Event,
+    case: Case,
+    p: dict[str, Any],
+    *,
+    today: date,
+    cfg: AlertConfig,
+    now: datetime,
+    counters: dict[str, Any],
+) -> None:
+    """Design `ownership-refinements`, decision 15: a suggestion always alerts the target department's claimers, for
+    the target's open recommendation, whatever its band or origin and for a pending or disposed case alike; one alert
+    per suggestion (`recommendation:<rec id>:suggested:<event id>`). Skipped for older events without
+    `target_recommendation_id`, a recommendation no longer open, or a merged case."""
+    rec = session.get(Recommendation, _uuid(p.get("target_recommendation_id")))
+    if (
+        rec is None
+        or RecommendationStatus(rec.status) != RecommendationStatus.RECOMMENDED
+        or case.merged_into_case_id is not None
+    ):
+        counters["skipped_other"] += 1
+        return
+    office = session.get(Office, rec.office_id)
+    soon = case.next_hearing_date is not None and today <= case.next_hearing_date <= today + timedelta(
+        days=cfg.hearing_lookahead_days
+    )
+    raise_alert(
+        session,
+        case=case,
+        kind=AlertKind.RECOMMENDATION,
+        key=rules.dedupe_key(AlertKind.RECOMMENDATION, rec.id, "suggested", ev.id),
+        office=office,
+        severity=Severity.HIGH if soon else Severity.NORMAL,
+        due_at=rules.hearing_due_at(case.next_hearing_date, cfg.sitting_time) if soon else None,
+        data={
+            "recommendation_id": rec.id,
+            "office_code": office.code,
+            "from_office_code": p.get("from_office_code"),
+            "origin": "suggestion",
+            "score": float(rec.score),
+            "band": ScoreBand(rec.band).value,
+        },
+        source_event_id=ev.id,
+        recipients=lambda: resolver.finalise(
+            resolver.for_recommendation(rec), case, exclude_user_id=ev.actor_user_id
+        ),
+        now=now,
+        counters=counters,
+    )
+
+
+def _close_recommendation_alerts(
+    session: Session, recommendation_id: Any, *, now: datetime, counters: dict[str, Any]
+) -> None:
+    """Decision 10: the closed department's open `recommendation` alerts for the closed row are done at once
+    (`recommendation_claimed_elsewhere`); the date sweep's closure stays as the fallback."""
+    rec_id = _uuid(recommendation_id)
+    if rec_id is None:
+        return
+    for a in session.scalars(
+        select(Alert)
+        .where(
+            Alert.kind == AlertKind.RECOMMENDATION,
+            Alert.status.in_(list(OPEN_STATUSES)),
+            Alert.data["recommendation_id"].astext == str(rec_id),
+        )
+        .with_for_update()
+    ).all():
+        close_alert(session, a, AlertStatus.DONE, "recommendation_claimed_elsewhere", now=now)
+        counters["closed_recommendation"] = counters.get("closed_recommendation", 0) + 1
+
+
 def _ownership_office(session: Session, kind: EventType, p: dict[str, Any]) -> Office | None:
-    """The office an ownership alert is addressed to (decision 13)."""
+    """The office an ownership alert is addressed to (decision 13; `recommendation_closed`: the closed department,
+    design `ownership-refinements`, decision 10)."""
     from aslms.services.offices import find_office
 
-    if kind in (EventType.ALLOTTED, EventType.CASE_TAKEN_OVER):
+    if kind in (EventType.ALLOTTED, EventType.CASE_TAKEN_OVER, EventType.RECOMMENDATION_CLOSED):
         return find_office(session, p.get("office_code") or "")
     if kind == EventType.TRANSFER_REQUESTED:
         return find_office(session, p.get("to_office_code") or "")

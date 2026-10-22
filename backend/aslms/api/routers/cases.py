@@ -291,9 +291,24 @@ def search_court(
     by party name or advocate name (rows stored, dossiers on demand through `fetch-court`; an advocate search stores
     the first `NAPIX_ADVOCATE_STORE_NOW` new cases now and the rest in the background, or none beyond them when the
     court found more than `NAPIX_ADVOCATE_STORE_MAX`: `court_cases`, `queued`, `not_stored`). Refused when the switch is off (503 `napix_off`), the hourly quota is below the floor (503
-    `napix_budget`) or the caller used their hourly searches (429 `search_limit`). Audited."""
+    `napix_budget`) or the caller used their hourly searches (429 `search_limit`). A CNR, case-number or filing
+    search that the ASLMS database answers returns `source: "local"`, `calls: 0` before any guard: never refused by
+    the switch, the floor or the hourly limit, and not counted (design `ownership-refinements`, decisions 4 to 6).
+    Audited."""
     settings = request.app.state.settings
     actor = actor_of(request, user, session)
+    try:
+        result = court_search.answer_locally(session, actor, user, body.model_dump(), settings=settings)
+    except COURT_HANDLED as exc:
+        raise _court_http(exc) from exc
+    if result is not None:
+        return schemas.CourtSearchOut(
+            source=result.source,
+            calls=0,
+            created=0,
+            items=case_search.items_for(session, user, result.cases, match=body.kind),
+            unmatched=[],
+        )
     try:
         court_search.guard(session, user, settings)
         result = asyncio.run(
@@ -354,10 +369,13 @@ def fetch_court(
     user: User = Depends(require(Permission.CASES_SEARCH_COURT)),
 ) -> schemas.CaseSearchItemOut:
     """Fetch the dossier of a case that has none (a provisional case is resolved by its number first; the CNR
-    always comes from the court). The case need not be visible: the call only fills court data."""
+    always comes from the court). The case need not be visible: the call only fills court data. A case that already
+    has its dossier answers 409 `already_fetched` before the guard (design `ownership-refinements`, decision 7)."""
     settings = request.app.state.settings
     case = _case(session, ref)
     actor = actor_of(request, user, session)
+    if case.last_full_refresh_at is not None:
+        raise _court_http(court_search.AlreadyFetched("the case already has a dossier"))
     try:
         court_search.guard(session, user, settings)
         case = asyncio.run(

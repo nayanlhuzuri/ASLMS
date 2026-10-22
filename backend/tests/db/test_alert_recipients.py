@@ -83,3 +83,18 @@ def test_standing_counsel_never_a_recipient(world):
         # the unit has only the counsel, who is never a recipient; the department's nodal users stand in
         assert recipients(s, case) == {"admin.edu@example.org", "head.edu@example.org"}
         s.rollback()
+
+
+def test_recommendation_closed_goes_to_the_closed_departments_claimers(world):
+    """Design ownership-refinements, decision 10: `recommendation_closed` names the closed department's `cases.claim`
+    holders, who need not see the case."""
+    with world.Session() as s:
+        r = Resolver(s)
+        assert emails(r.for_ownership_event("recommendation_closed", {"office_code": "HEALTH"})) == {
+            "admin.health@example.org"
+        }
+        assert emails(r.for_ownership_event("recommendation_closed", {"office_code": "EDU"})) == {
+            "admin.edu@example.org",
+            "head.edu@example.org",
+        }
+        assert r.for_ownership_event("recommendation_closed", {"office_code": "NOPE"}) == []

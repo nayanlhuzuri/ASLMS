@@ -104,7 +104,7 @@ export function OwnershipCard({
             {otherRecs.map((r) => (
               <li key={r.id}>
                 <span className="mono">{r.office_code}</span> <ScoreBadge score={r.score} band={r.band} />{" "}
-                <span className="muted">{r.status}</span>
+                <span className="muted">{T.case.recommendationStatuses[r.status] ?? r.status}</span>
               </li>
             ))}
           </ul>

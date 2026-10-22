@@ -6,6 +6,11 @@ a dossier the same way whether the queue or a user asked.
   remaining count of the detected quota window, `services/napix_window.py`; design `napix-window`, decision 6) and
   the per-user limit (`NAPIX_SEARCH_PER_USER_HOUR` audit rows `case.search_court` / `case.fetch_court` in the last
   hour).
+- `answer_locally` (design `ownership-refinements`, decisions 4 to 6): runs before the guard for the kinds `cnr`,
+  `case_number` and `filing`; validates as `search_court` does and answers a case held with its dossier with no
+  call (`source: "local"`, `calls: 0`), so the answer works with the switch off, below the quota floor and over the
+  per-user limit. Audited (`case.search_court`, `calls: 0`). A row with `after.calls` = 0 does not count towards the
+  per-user limit: zero calls are free.
 - `search_court`: by CNR (held with a dossier → local, no call; else Search by CNR and the dossier), by case
   number (Search by Case Number, every row stored, the exact row's dossier fetched), by filing number (held with
   a dossier → local; else Search by Filing Number and the asked row's dossier), by party name or advocate name
@@ -161,12 +166,16 @@ def _now() -> datetime:
 
 
 def user_searches_last_hour(session: Session, user: User) -> tuple[int, datetime | None]:
+    """The caller's court searches and fetches of the last hour and the oldest one's time. A row whose `after.calls`
+    is the number 0 is left out: zero calls are free (design `ownership-refinements`, decision 6); a row without
+    `calls` still counts."""
     since = _now() - timedelta(hours=1)
     n, oldest = session.execute(
         select(func.count(), func.min(AuditLog.created_at)).where(
             AuditLog.actor_user_id == user.id,
             AuditLog.action.in_(SEARCH_ACTIONS),
             AuditLog.created_at >= since,
+            func.coalesce(AuditLog.after["calls"].astext, "") != "0",
         )
     ).one()
     return int(n or 0), oldest
@@ -456,7 +465,11 @@ async def search_court(
 
     def done(result: CourtSearchResult) -> CourtSearchResult:
         audit.update(
-            calls=result.calls, results=len(result.cases), created=result.created, outcome=result.outcome
+            calls=result.calls,
+            results=len(result.cases),
+            created=result.created,
+            outcome=result.outcome,
+            source=result.source,
         )
         if kind == "advocate" and result.outcome == "ok":  # design safety-fixes, decision 14
             audit.update(court_cases=result.court_cases, queued=result.queued, not_stored=result.not_stored)
@@ -505,7 +518,13 @@ async def search_court(
         return done(CourtSearchResult("court", recorder.calls - calls_before, 0, [], [], "not_found"))
     except (IntegrationError, TimeoutError) as exc:
         code = _failure_code(exc)
-        audit.update(calls=recorder.calls - calls_before, results=0, created=0, outcome=f"failed:{code}")
+        audit.update(
+            calls=recorder.calls - calls_before,
+            results=0,
+            created=0,
+            outcome=f"failed:{code}",
+            source="court",
+        )
         audit["error"] = str(exc)[:300]
         _finish(
             session,
@@ -524,6 +543,100 @@ async def search_court(
     return done(result)
 
 
+def _check_cnr(cnr: str | None) -> str:
+    value = (cnr or "").strip().upper()
+    if not CNR_RE.match(value):
+        raise CourtSearchError("not a CNR: four letters and twelve digits")
+    return value
+
+
+def _local_cnr(session: Session, cnr: str) -> Case | None:
+    """The case held under the CNR with its dossier, or None (the CNR is validated by the caller)."""
+    case = session.scalar(select(Case).where(Case.cnr == cnr))
+    return case if case is not None and case.last_full_refresh_at is not None else None
+
+
+def _check_number(session: Session, court: Court, request: dict[str, Any]) -> tuple[CaseType, int, int]:
+    ct = _resolve_case_type(session, court, str(request.get("case_type", "")))
+    reg_no, reg_year = as_int(request.get("reg_no")), as_int(request.get("reg_year"))
+    if reg_no is None or reg_year is None or reg_year < MIN_YEAR or reg_year > _now().year + 1:
+        raise CourtSearchError("reg_no and reg_year are required")
+    return ct, reg_no, reg_year
+
+
+def _check_filing(session: Session, court: Court, request: dict[str, Any]) -> tuple[CaseType, int, int]:
+    ct = _resolve_case_type(session, court, str(request.get("case_type", "")))
+    fil_no = as_int(request.get("fil_no"))
+    if fil_no is None or not 1 <= fil_no <= MAX_FIL_NO:
+        raise CourtSearchError(f"fil_no is 1 to {MAX_FIL_NO}")
+    fil_year = _check_year(request.get("fil_year"), "fil_year")
+    return ct, fil_no, fil_year
+
+
+def _local_number(session: Session, court: Court, request: dict[str, Any]) -> Case | None:
+    """Validates a case-number request and returns the case held with its dossier, or None."""
+    ct, reg_no, reg_year = _check_number(session, court, request)
+    return _local_by_number(session, court, ct, reg_no, reg_year)
+
+
+def _local_filing(session: Session, court: Court, request: dict[str, Any]) -> Case | None:
+    """Validates a filing-number request and returns the case held with its dossier, or None."""
+    ct, fil_no, fil_year = _check_filing(session, court, request)
+    return _local_by_filing(session, court, ct, fil_no, fil_year)
+
+
+LOCAL_KINDS = ("cnr", "case_number", "filing")
+
+
+def answer_locally(
+    session: Session,
+    actor: Actor,
+    user: User,
+    request: dict[str, Any],
+    *,
+    settings: Settings | None = None,
+) -> CourtSearchResult | None:
+    """Design `ownership-refinements`, decisions 4 and 5: before any guard and without an integration client. For
+    `cnr`, `case_number` and `filing`: the input is validated as `search_court` does (`CourtSearchError`, 400) and a
+    case held with its dossier is answered with `source: "local"`, `calls: 0` and one `case.search_court` audit row
+    (`calls: 0`, `source: "local"`, the case's id). None when nothing is held, and always for `party` and
+    `advocate`, which need the court. An unknown kind raises `CourtSearchError`."""
+    kind = request.get("kind")
+    if kind not in KINDS:
+        raise CourtSearchError("kind is one of " + ", ".join(KINDS))
+    if kind not in LOCAL_KINDS:
+        return None
+    court = court_for(session, (settings or get_settings()).napix_est_code)
+    if kind == "cnr":
+        case = _local_cnr(session, _check_cnr(request.get("cnr")))
+    elif kind == "case_number":
+        case = _local_number(session, court, request)
+    else:
+        case = _local_filing(session, court, request)
+    if case is None:
+        return None
+    fields = {k: v for k, v in request.items() if k not in ("kind", "force")}
+    write_audit(
+        session,
+        actor,
+        "case.search_court",
+        "napix_search",
+        None,
+        after={
+            "kind": kind,
+            "request": fields,
+            "calls": 0,
+            "results": 1,
+            "created": 0,
+            "outcome": "ok",
+            "source": "local",
+        },
+        case_id=case.id,
+    )
+    session.flush()
+    return CourtSearchResult("local", 0, 0, [case], [], "ok")
+
+
 async def _search_cnr(
     session: Session,
     hc: NapixHighCourt,
@@ -533,11 +646,9 @@ async def _search_cnr(
     force: bool = False,
     origin: QueueOrigin = REQUEST_ORIGIN,
 ) -> CourtSearchResult:
-    cnr = (cnr or "").strip().upper()
-    if not CNR_RE.match(cnr):
-        raise CourtSearchError("not a CNR: four letters and twelve digits")
+    cnr = _check_cnr(cnr)
     case = session.scalar(select(Case).where(Case.cnr == cnr))
-    if case is not None and case.last_full_refresh_at is not None and not force:
+    if not force and _local_cnr(session, cnr) is not None:
         return CourtSearchResult("local", 0, 0, [case], [], "ok")
     existed = case is not None
     fetched = await fetch_dossier(session, hc, court, cnr, source=FirstSeenSource.SEARCH, origin=origin)
@@ -553,10 +664,7 @@ async def _search_case_number(
     force: bool = False,
     origin: QueueOrigin = REQUEST_ORIGIN,
 ) -> CourtSearchResult:
-    ct = _resolve_case_type(session, court, str(request.get("case_type", "")))
-    reg_no, reg_year = as_int(request.get("reg_no")), as_int(request.get("reg_year"))
-    if reg_no is None or reg_year is None or reg_year < MIN_YEAR or reg_year > _now().year + 1:
-        raise CourtSearchError("reg_no and reg_year are required")
+    ct, reg_no, reg_year = _check_number(session, court, request)
     local = _local_by_number(session, court, ct, reg_no, reg_year)
     if local is not None and not force:
         return CourtSearchResult("local", 0, 0, [local], [], "ok")
@@ -805,11 +913,7 @@ async def _search_filing(
     """Decision 5: local first, then Search by Filing Number (every row stored), then the dossier of the case asked
     for when it has none: the row whose `fil_no` / `fil_year` are the request's, else the single valid row. `force`
     skips the local match and re-fetches the asked case's dossier (nothing passes it today)."""
-    ct = _resolve_case_type(session, court, str(request.get("case_type", "")))
-    fil_no = as_int(request.get("fil_no"))
-    if fil_no is None or not 1 <= fil_no <= MAX_FIL_NO:
-        raise CourtSearchError(f"fil_no is 1 to {MAX_FIL_NO}")
-    fil_year = _check_year(request.get("fil_year"), "fil_year")
+    ct, fil_no, fil_year = _check_filing(session, court, request)
     local = _local_by_filing(session, court, ct, fil_no, fil_year)
     if local is not None and not force:
         return CourtSearchResult("local", 0, 0, [local], [], "ok")

@@ -20,6 +20,7 @@ from aslms.domain.courts import CaseType, Court
 from aslms.domain.events import AuditLog
 from aslms.domain.ops import FetchKind, FetchQueueItem
 from aslms.domain.ownership import CaseOfficeScore, OfficeKeyword
+from aslms.services import court_search
 from aslms.services.audit import write_audit
 from aslms.services.cases import apply_dossier
 from tests.db.auth_support import bearer
@@ -660,6 +661,7 @@ def test_advocate_search_stores_rows_without_dossiers(api, world, types):
         "results": 36,
         "created": 36,
         "outcome": "ok",
+        "source": "court",
         "court_cases": 36,
         "queued": 0,
         "not_stored": 0,
@@ -806,6 +808,7 @@ def test_filing_search_fetches_the_asked_case(api, world, types):
         "results": 1,
         "created": 1,
         "outcome": "ok",
+        "source": "court",
     }
     assert rows[0].case_id == case.id
 
@@ -901,7 +904,9 @@ NEW_KINDS = (
 )
 
 
-def test_new_kinds_switch_off_answers_503_without_a_call(world, napix):
+def test_new_kinds_switch_off_answers_503_without_a_call(world, napix, types):
+    """A filing number not held still needs the court, so the switch refuses it (with the case types known: an
+    unknown type answers 400 before the guard, design ownership-refinements, decision 4)."""
     gw, client, hc = napix
     settings = Settings(_env_file=None, aslms_jwt_secret="test-secret-of-at-least-thirty-two-characters")
     app = create_app(settings, world.Session)
@@ -1023,3 +1028,160 @@ def test_fetch_court_call_rows_survive_an_unexpected_error(api, world, types, mo
         assert s.get(Case, case_id).last_full_refresh_at is None
     assert count(world, "case_parties", f"case_id = '{case_id}'") == 0
     assert audits(world, "case.fetch_court") == []
+
+
+# ------------------------------------------------------------------------------------------------ free local answers
+
+
+HELD_CNR = "GAHC010129772026"  # the dossier sample: WP(C) 3600/2026, filing WP(C) 7451/2026
+HELD_BODIES = (
+    {"kind": "cnr", "cnr": HELD_CNR},
+    {"kind": "case_number", "case_type": "WP(C)", "reg_no": 3600, "reg_year": 2026},
+    {"kind": "filing", "case_type": "WP(C)", "fil_no": 7451, "fil_year": 2026},
+)
+
+
+@pytest.fixture()
+def off_api(world, napix):
+    """The switch off (the default settings) and a client factory that must never be called (design
+    ownership-refinements, decision 4: a local answer opens no integration client)."""
+    gw, _client, _hc = napix
+    settings = Settings(_env_file=None, aslms_jwt_secret="test-secret-of-at-least-thirty-two-characters")
+    app = create_app(settings, world.Session)
+    opened: list[int] = []
+
+    def factory():
+        opened.append(1)
+        raise AssertionError("a local answer opens no NAPIX client")
+
+    app.state.napix_factory = factory
+    with TestClient(app) as c:
+        c.gw, c.opened = gw, opened
+        yield c
+
+
+def test_held_cnr_answers_locally_with_the_switch_off(off_api, world, types):
+    _held_with_dossier(world, HELD_CNR)
+    r = off_api.post("/cases/search-court", json=HELD_BODIES[0], headers=login(off_api, "edu_admin"))
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["source"] == "local" and body["calls"] == 0 and body["created"] == 0
+    assert body["items"][0]["case"]["cnr"] == HELD_CNR and body["items"][0]["match"] == "cnr"
+    assert off_api.opened == [] and off_api.gw.seen == [] and count(world, "napix_call_log") == 0
+    (row,) = audits(world, "case.search_court")
+    assert row.after == {
+        "kind": "cnr",
+        "request": {"cnr": HELD_CNR},
+        "calls": 0,
+        "results": 1,
+        "created": 0,
+        "outcome": "ok",
+        "source": "local",
+    }
+    with world.Session() as s:
+        assert row.case_id == s.scalar(sa.select(Case.id).where(Case.cnr == HELD_CNR))
+
+
+def test_held_case_number_and_filing_answer_locally_with_the_switch_off(off_api, world, types):
+    _held_with_dossier(world, HELD_CNR)
+    headers = login(off_api, "edu_admin")
+    for body in HELD_BODIES[1:]:
+        r = off_api.post("/cases/search-court", json=body, headers=headers)
+        assert r.status_code == 200, (body, r.text)
+        assert r.json()["source"] == "local" and r.json()["items"][0]["case"]["cnr"] == HELD_CNR
+    assert off_api.opened == []
+    assert [
+        (a.after["kind"], a.after["source"], a.after["calls"]) for a in audits(world, "case.search_court")
+    ] == [
+        ("case_number", "local", 0),
+        ("filing", "local", 0),
+    ]
+
+
+def test_local_answer_ignores_the_quota_floor(api, world, types):
+    _held_with_dossier(world, HELD_CNR)
+    _call_log(world, remaining=1)  # far below the floor, just now
+    headers = login(api, "edu_admin")
+    for body in HELD_BODIES:
+        r = api.post("/cases/search-court", json=body, headers=headers)
+        assert r.status_code == 200 and r.json()["source"] == "local", r.text
+    r = api.post("/cases/search-court", json={"kind": "cnr", "cnr": "GAHC010000000009"}, headers=headers)
+    assert r.status_code == 503 and r.json()["detail"]["code"] == "napix_budget"
+    assert api.gw.seen == []
+
+
+def test_local_answer_ignores_and_does_not_use_the_hourly_limit(api, world, types):
+    _held_with_dossier(world, HELD_CNR)
+    with world.Session() as s:
+        actor, _ = world.actor(s, "edu_admin")
+        for _ in range(30):  # 30 court searches that made calls
+            write_audit(
+                s, actor, "case.search_court", "napix_search", None, after={"calls": 1, "outcome": "ok"}
+            )
+        s.commit()
+    headers = login(api, "edu_admin")
+    r = api.post("/cases/search-court", json=HELD_BODIES[0], headers=headers)
+    assert r.status_code == 200 and r.json()["source"] == "local"
+    r = api.post("/cases/search-court", json={"kind": "cnr", "cnr": "GAHC010000000003"}, headers=headers)
+    assert r.status_code == 429 and r.json()["detail"]["code"] == "search_limit"
+    # another person: 30 local answers, then a court search is still allowed
+    head = login(api, "edu_head")
+    for _ in range(30):
+        assert api.post("/cases/search-court", json=HELD_BODIES[0], headers=head).status_code == 200
+    with world.Session() as s:
+        n, _oldest = court_search.user_searches_last_hour(s, world.user(s, "edu_head"))
+        assert n == 0
+    r = api.post("/cases/search-court", json={"kind": "cnr", "cnr": "GAHC010000000003"}, headers=head)
+    assert r.status_code == 200 and r.json()["source"] == "court"
+
+
+def test_a_row_without_calls_still_counts(world):
+    with world.Session() as s:
+        actor, user = world.actor(s, "edu_admin")
+        write_audit(s, actor, "case.search_court", "napix_search", None, after={"outcome": "ok"})
+        write_audit(s, actor, "case.fetch_court", "case", None, after={"calls": 0, "outcome": "failed:x"})
+        write_audit(s, actor, "case.search_court", "napix_search", None, after={"calls": 2, "outcome": "ok"})
+        s.flush()
+        n, oldest = court_search.user_searches_last_hour(s, user)
+        assert n == 2 and oldest is not None
+
+
+def test_unheld_cnr_with_the_switch_off_still_answers_503(off_api, world, types):
+    r = off_api.post(
+        "/cases/search-court",
+        json={"kind": "cnr", "cnr": "GAHC010000000001"},
+        headers=login(off_api, "edu_admin"),
+    )
+    assert r.status_code == 503 and r.json()["detail"]["code"] == "napix_off"
+    assert audits(world, "case.search_court") == [] and off_api.opened == []
+
+
+def test_bad_cnr_answers_400_before_the_guard(off_api, world, types):
+    headers = login(off_api, "edu_admin")
+    # the API schema refuses a malformed CNR (422) and the service an unknown case type (400), with the switch off
+    r = off_api.post("/cases/search-court", json={"kind": "cnr", "cnr": "nope"}, headers=headers)
+    assert r.status_code == 422
+    r = off_api.post(
+        "/cases/search-court",
+        json={"kind": "case_number", "case_type": "ZZZ", "reg_no": 1, "reg_year": 2024},
+        headers=headers,
+    )
+    assert r.status_code == 400 and r.json()["detail"]["code"] == "bad_input"
+    with world.Session() as s:
+        actor, user = world.actor(s, "edu_admin")
+        with pytest.raises(court_search.CourtSearchError):
+            court_search.answer_locally(s, actor, user, {"kind": "cnr", "cnr": "GAHC0100"})
+        with pytest.raises(court_search.CourtSearchError):
+            court_search.answer_locally(s, actor, user, {"kind": "nope"})
+        assert (
+            court_search.answer_locally(s, actor, user, {"kind": "party", "name": "X Y Z", "reg_year": 2024})
+            is None
+        )
+    assert audits(world, "case.search_court") == []
+
+
+def test_fetch_court_on_a_fetched_case_answers_409_with_the_switch_off(off_api, world, types):
+    _held_with_dossier(world, HELD_CNR)
+    r = off_api.post(f"/cases/{HELD_CNR}/fetch-court", headers=login(off_api, "edu_admin"))
+    assert r.status_code == 409 and r.json()["detail"]["code"] == "already_fetched"
+    assert off_api.opened == [] and audits(world, "case.fetch_court") == []

@@ -1373,6 +1373,7 @@ export const T = {
     listedFrom: "Listed from",
     listedTo: "Listed to",
     visibleOnly: "Only cases I can open",
+    alsoNotVisible: "Also cases I cannot open",
     caseState: "Cases",
     caseStates: { active: "Active", disposed: "Disposed", all: "All" } as Record<string, string>,
     nextFrom: "Next hearing from",
@@ -1407,6 +1408,8 @@ export const T = {
     pendDispOptions: { P: "Pending", D: "Disposed", both: "Both" } as Record<string, string>,
     courtGo: "Search the court",
     courtFound: (n: number, created: number) => `${n} case(s) found; ${created} new to the portal.`,
+    // design ownership-refinements, decision 4: a CNR, case-number or filing search the database answered
+    courtLocal: "Found in the ASLMS database; the court was not asked.",
     // design safety-fixes, decision 14: a capped advocate search
     courtQueued: (n: number) => `${n} more cases are being added; search the portal again in a minute.`,
     courtNotStored: (found: number, added: number) =>
@@ -1650,6 +1653,15 @@ export const T = {
     claimedOn: (d: string) => `claimed ${d}`,
     recommendation: "Your department's recommendation",
     otherRecommendations: "Other departments' recommendations",
+    // design ownership-refinements: recommendation statuses in words (the raw code is never shown)
+    recommendationStatuses: {
+      recommended: "Recommended",
+      claimed: "Claimed",
+      dismissed: "Dismissed",
+      suggested_elsewhere: "Suggested to another department",
+      expired: "Expired",
+      claimed_elsewhere: "Closed: claimed by another department",
+    } as Record<string, string>,
     openTransfer: "Open transfer",
     noOwner: "No department has claimed this case.",
     hearings: "Hearings",

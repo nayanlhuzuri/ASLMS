@@ -530,3 +530,86 @@ describe("the Work list template on Search (portal-ui-redesign, decision 26)", (
     expect(container.querySelectorAll("[data-variant='primary']").length).toBeLessThanOrEqual(1);
   });
 });
+
+describe("Only cases I can open is ticked by default (ownership-refinements, decision 8)", () => {
+  const routes = {
+    "GET /me": me(READER),
+    "GET /reference/case-types": TYPES,
+    "GET /cases/search": { items: [item(1), item(2)], total: 2 },
+  };
+
+  it('"only cases I can open" is ticked by default and sent', async () => {
+    const api = browserApi(routes);
+    renderWithClient(<Search params={{ q: "RAM KUMAR" }} />);
+    await screen.findByRole("link", { name: "WP(C)/2/2026" });
+    expect(screen.getByRole("checkbox", { name: "Only cases I can open" })).toBeChecked();
+    expect(api.calls.find((c) => c.path.startsWith("/cases/search"))!.url).toContain("visible_only=true");
+    expect(screen.queryByText("Also cases I cannot open")).toBeNull();
+  });
+
+  it("unticking writes visible_only=false and sends no filter", async () => {
+    browserApi(routes);
+    renderWithClient(<Search params={{ q: "RAM KUMAR" }} />);
+    await screen.findByRole("link", { name: "WP(C)/2/2026" });
+    await userEvent.click(screen.getByRole("checkbox", { name: "Only cases I can open" }));
+    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
+    expect(nav.replace).toHaveBeenCalledWith(expect.stringContaining("visible_only=false"));
+    const api = browserApi(routes);
+    renderWithClient(<Search params={{ q: "RAM KUMAR", visible_only: "false" }} />);
+    await waitFor(() => expect(api.calls.some((c) => c.path.startsWith("/cases/search"))).toBe(true));
+    expect(api.calls.find((c) => c.path.startsWith("/cases/search"))!.url).not.toContain("visible_only");
+  });
+
+  it('the chip shows "Also cases I cannot open" and removing it restores the default', async () => {
+    browserApi(routes);
+    renderWithClient(<Search params={{ q: "RAM KUMAR", visible_only: "false" }} />);
+    await screen.findByRole("link", { name: "WP(C)/2/2026" });
+    expect(screen.getByRole("checkbox", { name: "Only cases I can open" })).not.toBeChecked();
+    expect(screen.getByText("Also cases I cannot open")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /Remove filter Also cases I cannot open/ }));
+    expect(nav.replace).toHaveBeenCalledTimes(1);
+    expect(nav.replace.mock.calls[0]?.[0]).not.toContain("visible_only");
+  });
+
+  it("an old link with visible_only=true stays ticked", async () => {
+    const api = browserApi(routes);
+    renderWithClient(<Search params={{ q: "RAM KUMAR", visible_only: "true" }} />);
+    await screen.findByRole("link", { name: "WP(C)/2/2026" });
+    expect(screen.getByRole("checkbox", { name: "Only cases I can open" })).toBeChecked();
+    expect(api.calls.find((c) => c.path.startsWith("/cases/search"))!.url).toContain("visible_only=true");
+  });
+});
+
+describe("a court search the database answered (ownership-refinements, decision 4)", () => {
+  async function runCnr(source: string) {
+    browserApi({
+      "GET /me": me(SEARCHER),
+      "GET /reference/case-types": TYPES,
+      "GET /cases/search": { items: [], total: 0 },
+      "POST /cases/search-court": {
+        source,
+        calls: source === "local" ? 0 : 1,
+        created: 0,
+        items: [item(5, { match: "cnr" })],
+        unmatched: [],
+      },
+    });
+    renderWithClient(<Search params={{ q: "SAIKIA" }} />);
+    const panel = await screen.findByRole("region", { name: "Search the court" });
+    await userEvent.selectOptions(within(panel).getByLabelText("Search by"), "cnr");
+    await userEvent.type(within(panel).getByLabelText("CNR (16 characters)"), "GAHC010129772026");
+    await userEvent.click(within(panel).getByRole("button", { name: "Search the court" }));
+    return panel;
+  }
+
+  it("says the ASLMS database answered and the court was not asked", async () => {
+    const panel = await runCnr("local");
+    expect(await within(panel).findByText("Found in the ASLMS database; the court was not asked.")).toBeInTheDocument();
+  });
+
+  it("says nothing of the kind for a court answer", async () => {
+    const panel = await runCnr("court");
+    expect(await within(panel).findByText("1 case(s) found; 0 new to the portal.")).toBeInTheDocument();
+    expect(within(panel).queryByText(/the court was not asked/)).toBeNull();
+  });
+});
