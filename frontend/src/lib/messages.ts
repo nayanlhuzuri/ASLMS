@@ -36,6 +36,8 @@ const ERRORS: Record<string, (extra: Record<string, unknown>) => string> = {
   session_ended: () => "Your session has ended. Sign in again.",
   refresh_invalid: () => "Your session has ended. Sign in again.",
   csrf: () => "The request was refused because it did not come from the portal. Reload the page.",
+  csrf_origin: (x) =>
+    `This page was opened at a different address from the portal's. Open the portal at ${typeof x.portal === "string" ? x.portal : "its usual address"} and try again.`,
   api_unavailable: () => "The service is not reachable just now. Try again in a moment.",
   network: () => "The portal could not be reached. Check your connection.",
   forbidden: () => "You do not have the function needed for this.",

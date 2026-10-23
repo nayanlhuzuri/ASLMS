@@ -19,6 +19,15 @@ describe("cross-site check", () => {
     expect(r?.status).toBe(403);
   });
 
+  it("names the portal's own address when the page was opened at another one", async () => {
+    const r = csrfRefusal(
+      new Request(PORTAL + "/x", { method: "POST", headers: { "x-aslms-request": "1", origin: "http://127.0.0.1:3000" } }),
+    );
+    const detail = (await r!.json()).detail;
+    expect(detail.code).toBe("csrf_origin");
+    expect(detail.portal).toBe(new URL(PORTAL).origin);
+  });
+
   it("passes the same origin with the header, and a request without Origin", () => {
     expect(
       csrfRefusal(new Request(PORTAL + "/x", { method: "PUT", headers: { "x-aslms-request": "1", origin: PORTAL } })),

@@ -38,6 +38,14 @@ PARTY_API = "hc-party-name-api/partyname"
 THIRD_RESPONDENT = "THE NORTH CACHAR HILLS AUTONOMOUS COUNCIL"  # res_extra_party of the dossier sample
 
 
+def processed(rows: list[FetchQueueItem]) -> FetchQueueItem:
+    """The one row the runner took (max_items=1). Rows queued in one transaction share created_at and priority, so
+    which year the runner takes first is not fixed: find the row that is no longer pending."""
+    taken = [r for r in rows if r.status != FetchStatus.PENDING]
+    assert len(taken) == 1, [(r.ref, r.status) for r in rows]
+    return taken[0]
+
+
 def _runner(Session, hc, tmp_path, recorder, **kw) -> QueueRunner:
     settings = Settings(
         _env_file=None, storage_dir=str(tmp_path / "store"), causelist_dir=str(tmp_path / "lists"), **kw
@@ -88,8 +96,10 @@ def test_a_search_stores_records_and_queues_dossiers(world, napix, tmp_path):
     rep = _run(world.Session, napix, tmp_path, kinds=[FetchKind.PARTY_SEARCH], max_items=1)
     assert rep.done == 1, rep.items
     with world.Session() as s:
-        first = party_rows(s, "JANIFA KAIFEE AHMED")[0]
-        assert first.ref == ref(years()[0], "JANIFA KAIFEE AHMED") and first.status == FetchStatus.DONE
+        first = processed(party_rows(s, "JANIFA KAIFEE AHMED"))
+        assert (
+            first.ref in {ref(y, "JANIFA KAIFEE AHMED") for y in years()} and first.status == FetchStatus.DONE
+        )
         assert (
             first.result["rows"] == 3
             and first.result["created"] == 3
@@ -174,7 +184,7 @@ def test_628_is_an_empty_done_row(world, napix, tmp_path):
     rep = _run(world.Session, napix, tmp_path, kinds=[FetchKind.PARTY_SEARCH], max_items=1)
     assert rep.done == 1, rep.items
     with world.Session() as s:
-        row = party_rows(s, "NOBODY AT ALL")[0]
+        row = processed(party_rows(s, "NOBODY AT ALL"))
         assert row.status == FetchStatus.DONE and row.result["rows"] == 0 and row.result["stored"] == 0
         term = s.scalar(sa.select(DiscoveryTerm))
         assert term.last_searched_at is not None and term.searches_done == 1 and term.cases_found == 0
@@ -226,7 +236,7 @@ def test_a_malformed_cino_is_counted_not_stored(world, napix, tmp_path):
     rep = _run(world.Session, napix, tmp_path, kinds=[FetchKind.PARTY_SEARCH], max_items=1)
     assert rep.done == 1, rep.items
     with world.Session() as s:
-        row = party_rows(s, "SOME OFFICER")[0]
+        row = processed(party_rows(s, "SOME OFFICER"))
         assert (row.result["rows"], row.result["stored"], row.result["unmatched"]) == (2, 1, 1)
         assert s.scalar(sa.select(sa.func.count()).select_from(Case)) == 1
 

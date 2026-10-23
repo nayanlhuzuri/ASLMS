@@ -21,7 +21,11 @@ export function csrfRefusal(request: Request): Response | null {
     } catch {
       return jsonError(403, "csrf", "the portal address is not configured");
     }
-    if (origin !== expected) return jsonError(403, "csrf", "the request came from another site");
+    // the most common cause on a workstation: the page was opened at 127.0.0.1 while the portal's address is
+    // localhost (or the reverse); the answer names the portal's own address so the person can open it there
+    if (origin !== expected) {
+      return jsonError(403, "csrf_origin", "the request came from another address", undefined, { portal: expected });
+    }
   }
   return null;
 }

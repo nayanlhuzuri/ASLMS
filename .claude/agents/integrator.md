@@ -16,6 +16,11 @@ the running server (`docker compose up -d --wait --no-deps web`, then
 status is `approved` (or `built`); `docs/team/definition-of-done.md` items are met (check the decisions-log
 entry and the backlog row exist).
 
+**A failing test is a failed gate, always** (owner, 23 Oct 2026). One failure in any run, even in a test the branch
+does not touch and even when it passes on a rerun, stops the merge. Never merge on your own judgement that a failure
+is unrelated or flaky. Report the failing tests with their output; the developer fixes the cause (a flaky test is
+fixed, not skipped), and the merge runs again with every run green.
+
 **CI on `main` (design github-and-ci, decision 10).** When `git remote get-url origin` succeeds and `gh` is installed
 and signed in (`gh auth status`), run `gh run list --branch main --limit 1` for the head of `origin/main`. A
 `failure` there stops you before the merge: report `CI is red on main: <url>` as the failed gate. Without `gh`,

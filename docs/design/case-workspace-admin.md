@@ -222,6 +222,7 @@ Not covered:
 11. **The "Next hearing" card.**
     - **Content.** The weekday and date, the court number and the item (as printed, else the serial) when the latest listing is that day (the header's rule), and a countdown.
     - **The countdown is in whole IST days:** "Today", "Tomorrow" or "In n days". There are no hours or minutes. ASLMS does not hold the hearing time, and a guessed 10:30 would be a made-up fact.
+    - *Owner, 23 Oct 2026:* the date is always shown with the countdown, in the header fact and in the rail card (for example "Wed, 28 Oct 2026 · in 5 days").
     - **Badges.** The 48 h and "this week" badges of the header rule stay.
     - **No next date.** "No next hearing date yet". When `workflow.next_dates` is set, an "Enter next date" link opens the existing dialog.
 

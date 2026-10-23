@@ -2,10 +2,10 @@
 
 ```
 slug: assistant
-status: awaiting-approval
+status: approved
 author: architect
 date: 2026-10-23
-approved_by:
+approved_by: owner on 2026-10-23, with the recommended defaults (court orders open to standing counsel too; preview refused in prod; no user delete of conversations; 30 questions an hour; another department's order opens only from a citation)
 ```
 
 ## Context

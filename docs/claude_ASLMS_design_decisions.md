@@ -1949,6 +1949,7 @@ Backlog row 15, design `docs/design/github-and-ci.md` (approved by the owner 20 
 - 2026-10-21 — ownership-refinements: approved by the owner with the architect's recommended answers (a)-(h); migration number by build order (0021) (docs/design/ownership-refinements.md).
 - 2026-10-21 — alerts-visibility-roles: approved by the owner with the recommended answers: private documents follow the notes rule; listed-for-tomorrow critical with an immediate e-mail; the listing pass in the hourly sweep from 19:10; migration number by build order (0022) (docs/design/alerts-visibility-roles.md).
 - 2026-10-21 — court-data-freshness: approved by the owner with the recommended answers: (a) the morning recheck of today's lists is ON (CAUSELIST_RECHECK_MORNING defaults to true); (b) no orphaned responses purged; (c) a file-only change is not a new version; (d) 1,000 disposed refreshes a night; migration number by build order (0023) (docs/design/court-data-freshness.md).
+- 2026-10-23 — assistant: approved by the owner with the recommended defaults and the owner's rules on court-public and internal material (docs/design/assistant.md).
 
 ## Portal UI redesign, round 1: design system and shell (2026-10-20)
 Backlog row 101 `portal-ui-foundation`, branch `feature/portal-ui-foundation`; design `docs/design/portal-ui-redesign.md` (approved by the owner; visual reference `docs/design/ui/aslms-ui-direction-v4.html`). Frontend only: no migration, no API change, `docs/schema/schema.md` unchanged.
@@ -2303,3 +2304,15 @@ Row 121, design `docs/design/alerts-visibility-roles.md` (approved 21 Oct 2026 w
   - in a row that holds a labelled field, anything without a label (a button, a link) drops by `--label-offset` so its top meets the boxes' tops.
 - uicheck gained a field-row check: on one line of a row of labelled fields, label tops and box tops must match within 1 px. Against the old portal it flagged the Cause list and four Department mapping tabs (counsel codes, keywords, watchlist, discovery); after the fix it flags none.
 - The owner had asked earlier that nothing be out of line. The polish round's checks measured sizes and leading columns, not label rows, so this was missed.
+
+## 2026-10-23 — Owner decisions: no merge past a failing test; assistant approved; sign-in address error (on `main`)
+
+- **A failing test is a failed gate, always.** The row 121 merge went ahead on the integrator's judgement although one or two discovery tests failed (each passed alone). The owner: "If something fails, correct it and then go ahead. Why go ahead with a failed test?" `.claude/agents/integrator.md` now says that one failure in any run stops the merge, and the developer fixes the cause. A flaky test is fixed, not skipped.
+- The cause of those failures is fixed:
+  - `tests/db/test_discovery_run.py` read `party_rows(...)[0]` as the row the runner took. Rows queued in one transaction share `created_at` and priority, so the runner may take either year first.
+  - A `processed()` helper now finds the one row that is no longer pending. The first test checks that the taken row is one of the queued years, not a particular one.
+  - Three consecutive runs: 10 passed each time.
+- **Case Assistant (row 14) approved** by the owner with the recommended defaults. Court information from NAPIX is open to every assistant user for research. Internal material, including department uploads and uploaded court filings, follows normal visibility and is never sent to SourceTrace.
+- **Sign-in from a different address.** When the page is opened at another address than the portal's (127.0.0.1 instead of localhost), the backend-for-frontend now answers `csrf_origin` with the portal's own address. The portal says "This page was opened at a different address from the portal's. Open the portal at http://localhost:3000 and try again." instead of "did not come from the portal". Test in `server/csrf.test.ts`.
+- **No demo setup command** (owner): demo offices and users are created by hand.
+- **The next hearing always shows its date** with the day count (owner, row 135 design): for example "Wed, 28 Oct 2026 · in 5 days". The final template is `docs/design/ui/aslms-final-template.html`.
