@@ -375,7 +375,9 @@ h1,h2,h3,h4{margin:0}
 .rk.flash{animation:flash 1.6s var(--ease)}
 @keyframes flash{0%,100%{background:transparent}20%,60%{background:var(--amber-soft)}}
 .as-grid{display:grid;grid-template-columns:232px minmax(0,1fr) 280px;gap:var(--s4);align-items:start}
-.thread{display:grid;gap:var(--s3)}
+.thread{display:grid;gap:var(--s3);align-content:start;max-height:min(60vh,560px);overflow-y:auto;overscroll-behavior:contain;scroll-behavior:smooth;padding:var(--s3);border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface-2,#f8fafc)}
+.thread:focus-visible{outline:2px solid var(--accent,#1e3a8a);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){.thread{scroll-behavior:auto}}
 .msg{display:flex;gap:var(--s4);align-items:flex-start}
 .msg .who{flex:none;width:72px;font-size:var(--t-xs);font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);line-height:36px}
 .msg .bubble{flex:1;min-width:0}
@@ -1063,6 +1065,7 @@ function srcHTML(p,k){const o=OR[p.o],pr=o.paras[p.i];return `<button type="butt
 const TH={tab:{msgs:[],sel:-1,scope:"case",th:"#tabThread",src:"#tabSources",st:"#tabSrcTitle"},page:{msgs:[],sel:-1,scope:"all",th:"#pageThread",src:"#pageSources",st:"#pageSrcTitle"}};
 function renderThread(k){const T=TH[k],m=T.msgs;
   $(T.th).innerHTML=m.length?m.map((a,i)=>ansHTML(a,i,i===T.sel)).join(""):'<div class="empty" style="padding:24px"><b style="color:#101828">Ask a question</b><div class="muted">Or pick one of the suggestions below.</div></div>';
+  {const el=$(T.th);el.tabIndex=0;el.setAttribute("aria-label","Conversation");el.scrollTop=el.scrollHeight}
   const a=m[T.sel];$(T.st).textContent="Sources used"+(a&&m.length>1?` · answer ${T.sel+1}`:"");
   $(T.src).innerHTML=a&&a.ps.length?a.ps.map(srcHTML).join(""):'<div class="muted" style="padding:16px 0">No sources yet. Sources appear here with each answer.</div>'}
 let CONVS=[],curConv=null;

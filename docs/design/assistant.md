@@ -234,6 +234,10 @@ Not covered:
      orders**, starting on This case, with a one-line note under the question box naming what is searched. The
      Assistant page in the menu has My cases | All court orders. Switching the scope searches the last question again.
      The visual reference is `docs/design/ui/aslms-final-template.html`.
+   - *Owner, 23 Oct 2026:* the conversation does not grow the page. It sits in a box of fixed height
+     (`min(60vh, 560px)`) with its own vertical scroll bar. The question box and the Sources panel stay in view.
+     A new answer scrolls the box to the newest message; choosing an older answer keeps the position. The box is
+     keyboard-focusable and labelled "Conversation", with no smooth scrolling under reduced motion.
    - A user may hold several conversations per case and per scope ("New conversation"). The Assistant tab opens
      the latest. The title is the first 80 characters of the first question.
    - Messages are append-only, enforced by the trigger `aslms_forbid_change` and by removing UPDATE and DELETE
