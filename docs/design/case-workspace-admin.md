@@ -2,10 +2,10 @@
 
 ```
 slug: case-workspace-admin
-status: awaiting-approval
+status: approved
 author: architect
 date: 2026-10-23
-approved_by: <owner> on <date>
+approved_by: owner on 2026-10-23, with the final template docs/design/ui/aslms-final-template.html and the recommended answers to the five open questions
 ```
 
 ## Context
