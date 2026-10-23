@@ -387,8 +387,9 @@ def test_failures_document_kinds_follow_document_visibility(world, tmp_path):
         assert refs("health_off") == {"not-a-document"}
         # the EDU admin sees the private filing of the EDU office; never the case-less document
         assert refs("edu_admin") == {str(private.id), "not-a-document"}
-        # central operator: State-wide, every document that has a case
-        assert refs("central_op") == {str(private.id), "not-a-document"}
+        # central operator: State-wide, but no private document without `cases.view_private_all`
+        # (design alerts-visibility-roles, decisions 14-15)
+        assert refs("central_op") == {"not-a-document"}
         items, total = data_health.failure_rows(s, world.user(s, "health_off"), kind="text_extraction")
         assert (items, total) == ([], 0)
         s.rollback()

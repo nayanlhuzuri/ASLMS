@@ -125,6 +125,21 @@ def _due(model, now: datetime, max_attempts: int):
     ]
 
 
+def _still_visible(session: Session, user: User, alert: Alert) -> bool:
+    """Design `alerts-visibility-roles`, decision 6: a case alert's mail goes only while the recipient may still read
+    the alert (`alerts.notification_visible_condition`, one query for the alert joined to its case)."""
+    from aslms.services.alerts import notification_visible_condition
+
+    return (
+        session.scalar(
+            select(Alert.id)
+            .join(Case, Case.id == Alert.case_id)
+            .where(Alert.id == alert.id, notification_visible_condition(session, user))
+        )
+        is not None
+    )
+
+
 def send_pending(
     session: Session,
     mailer: Mailer,
@@ -172,6 +187,15 @@ def send_pending(
             n.status, n.error, n.attempts, n.next_attempt_at = (
                 NotificationStatus.FAILED,
                 "recipient or alert no longer available",
+                max_attempts,
+                None,
+            )
+            counters["skipped"] += 1
+            continue
+        if not _still_visible(session, user, alert):  # design alerts-visibility-roles, decision 6
+            n.status, n.error, n.attempts, n.next_attempt_at = (
+                NotificationStatus.FAILED,
+                "no longer visible to the recipient",
                 max_attempts,
                 None,
             )

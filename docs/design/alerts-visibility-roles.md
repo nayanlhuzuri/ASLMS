@@ -547,3 +547,33 @@ the owner can change at approval without redesign:
 - decision 15: private documents follow the notes rule;
 - decision 9: `listed_tomorrow` is `critical`, so it sends an immediate e-mail;
 - decision 8: the listing pass runs at the hourly sweeps from 18:30 IST, first at 19:10.
+
+## Deviations
+Recorded by the developer while building (22 Oct 2026); none changes a decision above.
+1. **Migration number.** 0021 went to `ownership-refinements`, so the migration is
+   `0022_alerts_visibility_roles.py` (revises 0021), as the owner's approval allows ("migration number by build
+   order"). Every "0021" of decision 18 reads "0022": the audit `actor_name` is "migration 0022", `after.migration` is
+   `"0022"` (`"0022-downgrade"` on the downgrade) and the event key is `access_matrix_default:0022:<role>:<permission>`.
+   The test file is `test_migration_0022.py`.
+2. **`.env.example`.** It gains `ALERT_LISTED_FROM=18:30` with a comment (the definition of done asks the example to
+   carry every setting). The default is the same, so no `.env` change is needed.
+3. **OpenAPI.** `Permission` is an enum in the API document, so `frontend/openapi.json` and
+   `frontend/src/lib/api/schema.d.ts` are regenerated (one new value, and the custody card / custody tab descriptions
+   now say "holding `cases.view_private_all`"). No screen changes; `npm run lint`, `typecheck`, `test` and `build`
+   pass.
+4. **Counters.** Outside the window the sweep records `listed_skipped: "before_window"`; it also counts
+   `closed_listed` (listing alerts expired `passed`). `aslms alerts run` with no flag still runs the event scan and the
+   date sweep; `--listed` alone runs only the forced listing pass.
+5. **Rendering details.** The new-note title turns the kind label into "<label> note" when the label does not already
+   say note or noting ("New general note: …", "New hearing note: …"). The body names the author's designation (else
+   the name) and office code, as the design's example; a correction adds "It corrects note <ref>." Listing entries are
+   ordered by list type, then court number in numeric order, then serial number. When more than five entries exist
+   the body ends "; and N more".
+6. **`ref_permission` order.** `cases.view_private_all` sits after `cases.view_all` in `Permission`. On a fresh
+   database the later functions' `sort_order` moves on by 10; on an upgraded database the seed gives the new row the
+   same `sort_order` as `cases.search_court`. Only the display order of the matrix is affected.
+7. **One existing test pinned.** `test_alerts_generate.py::test_hearing_from_cause_list_and_manual_next_date` lists a
+   case for tomorrow and swept at the real time. It now sweeps at 14:30 IST, so a run after 18:30 does not turn its
+   hearing alert into a listing alert.
+8. **Tests.** The two send tests are in a new `test_notifications_send.py`. `test_custody_remark_visibility.py`
+   also checks the custody API answer and that the department head can recall by default.

@@ -26,6 +26,7 @@ INFO_KINDS = frozenset(
         AlertKind.STATUS_CHANGED,
         AlertKind.OWNERSHIP,
         AlertKind.NEW_DOCUMENT,
+        AlertKind.NEW_NOTE,  # design alerts-visibility-roles, decision 7
     }
 )
 CASE_KINDS = INFO_KINDS | {
@@ -33,6 +34,14 @@ CASE_KINDS = INFO_KINDS | {
     AlertKind.COMPLIANCE_DUE,
     AlertKind.WORKFLOW,
     AlertKind.NEXT_DATE_REVIEW,
+    AlertKind.LISTED_TOMORROW,  # design alerts-visibility-roles, decision 12: not informational
+}
+LIST_TYPE_LABELS = {
+    "daily": "daily cause list",
+    "supplementary": "supplementary list",
+    "lawazima": "lawazima list",
+    "vacation": "vacation list",
+    "other": "cause list",
 }
 # workflow alerts that are informational (design custody-workflow, decision 23 a, b): expire with the others
 WORKFLOW_INFO_EVENTS = frozenset({"file_received", "file_recalled"})
@@ -282,10 +291,74 @@ def render_alert(kind: AlertKind | str, case: Any, data: dict[str, Any]) -> tupl
     elif kind == AlertKind.NEW_DOCUMENT:
         title = f"New {d.get('doc_type_label') or d.get('doc_type') or 'document'} uploaded: {label}"
         body = f"A document of type {d.get('doc_type_label') or d.get('doc_type') or 'unknown'} was uploaded by {d.get('office_code') or 'an office'}."
+    elif kind == AlertKind.NEW_NOTE:
+        title, body = render_new_note(d, label)
+    elif kind == AlertKind.LISTED_TOMORROW:
+        title, body = render_listed_tomorrow(d, label)
     else:
         title = f"{kind.value}: {label}"
         body = ""
     return _title(title), body
+
+
+def _note_kind_phrase(kind_label: str) -> str:
+    """ "Hearing note" -> "hearing note", "General" -> "general note"."""
+    words = kind_label.strip().lower() or "case"
+    return words if ("note" in words or "noting" in words) else f"{words} note"
+
+
+def render_new_note(d: dict[str, Any], label: str) -> tuple[str, str]:
+    """A `new_note` alert (design alerts-visibility-roles, decision 5): the note's kind label, `ref_no`, the author's
+    designation (or name) and office code; never the note text."""
+    kind_label = d.get("kind_label") or d.get("kind") or "Note"
+    if d.get("supersedes_ref_no"):
+        title = f"Note corrected: {label}"
+    else:
+        title = f"New {_note_kind_phrase(str(kind_label))}: {label}"
+    who = d.get("author_designation") or d.get("author_name") or "an officer"
+    if d.get("office_code"):
+        who = f"{who}, {d['office_code']}"
+    body = f"Note {d.get('ref_no') or ''} ({kind_label}) by {who}."
+    if d.get("supersedes_ref_no"):
+        body += f" It corrects note {d['supersedes_ref_no']}."
+    body += " Open the case to read it."
+    return title, body
+
+
+def listing_text(entries: list[dict[str, Any]], sep: str = ", ") -> list[str]:
+    """Each listing as printed: "court 3, item 14" (`sep` joins the court and the item; the item is the printed
+    serial number, else the serial number)."""
+    out: list[str] = []
+    for e in entries or []:
+        parts = []
+        if e.get("court_no"):
+            parts.append(f"court {e['court_no']}")
+        if e.get("item_no"):
+            parts.append(f"item {e['item_no']}")
+        out.append(sep.join(parts) or "item not printed")
+    return out
+
+
+def render_listed_tomorrow(d: dict[str, Any], label: str) -> tuple[str, str]:
+    """A `listed_tomorrow` alert (design alerts-visibility-roles, decision 9): the court and the item of each listing
+    of the day, as printed; no party or advocate text."""
+    entries = list(d.get("entries") or [])
+    total = int(d.get("entries_total") or len(entries))
+    when = _d(d.get("hearing_date"))
+    first = listing_text(entries[:1], sep=" ")
+    more = f" +{total - 1} more" if total > 1 else ""
+    title = f"Listed tomorrow, {when}" + (f", {first[0]}" if first else "") + f"{more}: {label}"
+    phrases = []
+    for i, (e, where) in enumerate(zip(entries, listing_text(entries), strict=True)):
+        list_label = LIST_TYPE_LABELS.get(str(e.get("list_type") or ""), "cause list")
+        if i == 0:
+            phrases.append(f"Listed in the {list_label} of {when}: {where}")
+        else:
+            phrases.append(f"{list_label}: {where}")
+    body = "; ".join(phrases) if phrases else f"Listed in the cause list of {when}"
+    if total > len(entries):
+        body += f"; and {total - len(entries)} more"
+    return title, body + "."
 
 
 def render_next_date_review(d: dict[str, Any], label: str) -> tuple[str, str]:

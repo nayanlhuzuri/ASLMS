@@ -6,7 +6,7 @@ the reference numbers (a re-run allocates no serial)."""
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 
 import sqlalchemy as sa
 
@@ -243,7 +243,8 @@ def test_hearing_from_cause_list_and_manual_next_date(world):
         unowned = make_case(s)
         entry_with_codes(s, unowned, ["SC, EDU"], list_date=d(1))
         s.commit()
-        c = alerts.sweep_dates(s, now=NOW)
+        # before the evening listing pass (design alerts-visibility-roles, decision 8), whatever the time of the run
+        c = alerts.sweep_dates(s, now=datetime.combine(TODAY, time(14, 30), tzinfo=rules.IST))
         s.commit()
         assert c["alerts_new"] == 2
         (a,) = h.alerts_of(s, listed)

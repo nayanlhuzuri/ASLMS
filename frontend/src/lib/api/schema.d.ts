@@ -2639,7 +2639,7 @@ export interface paths {
         /**
          * Custody History
          * @description The custody card and the legs in order (the file's movement record); the remark only for callers working
-         *     on the case and State-wide readers.
+         *     on the case and State-wide readers holding `cases.view_private_all`.
          */
         get: operations["custody_history_cases__ref__custody_get"];
         put?: never;
@@ -5939,7 +5939,8 @@ export interface components {
         };
         /**
          * CustodyCardOut
-         * @description Design custody-workflow, decision 25: the remark only for a working basis or a State-wide reader.
+         * @description Design custody-workflow, decision 25: the remark only for a working basis or a State-wide reader holding
+         *     `cases.view_private_all` (design alerts-visibility-roles, decision 16).
          */
         CustodyCardOut: {
             /** Can Recall */
@@ -9472,7 +9473,7 @@ export interface components {
          *     (`user_permissions`). The part before the dot is the module.
          * @enum {string}
          */
-        Permission: "users.view" | "users.create" | "users.edit" | "users.set_type" | "users.enable_disable" | "users.grant" | "users.reset_password" | "users.propose_head" | "access.manage_types" | "offices.manage" | "admin.counsel_codes" | "admin.keywords" | "admin.watchlist" | "admin.masters_sync" | "admin.napix_refetch" | "admin.config" | "admin.designations" | "admin.scoring" | "admin.tickets" | "admin.sourcetrace" | "admin.data_load" | "admin.service_health" | "cases.view_scope" | "cases.view_all" | "cases.search_court" | "cases.claim" | "cases.dismiss" | "cases.suggest_elsewhere" | "cases.transfer_request" | "cases.transfer_decide" | "cases.allot" | "cases.release" | "cases.take_over" | "custody.move" | "custody.recall" | "custody.track" | "requests.send" | "requests.answer" | "stages.set" | "notes.add" | "notes.view_counsel_shared" | "notes.view_private_office" | "documents.upload" | "documents.view" | "documents.download" | "alerts.acknowledge" | "next_dates.review" | "reports.department" | "reports.state" | "dashboard.state" | "assistant.use" | "audit.view";
+        Permission: "users.view" | "users.create" | "users.edit" | "users.set_type" | "users.enable_disable" | "users.grant" | "users.reset_password" | "users.propose_head" | "access.manage_types" | "offices.manage" | "admin.counsel_codes" | "admin.keywords" | "admin.watchlist" | "admin.masters_sync" | "admin.napix_refetch" | "admin.config" | "admin.designations" | "admin.scoring" | "admin.tickets" | "admin.sourcetrace" | "admin.data_load" | "admin.service_health" | "cases.view_scope" | "cases.view_all" | "cases.view_private_all" | "cases.search_court" | "cases.claim" | "cases.dismiss" | "cases.suggest_elsewhere" | "cases.transfer_request" | "cases.transfer_decide" | "cases.allot" | "cases.release" | "cases.take_over" | "custody.move" | "custody.recall" | "custody.track" | "requests.send" | "requests.answer" | "stages.set" | "notes.add" | "notes.view_counsel_shared" | "notes.view_private_office" | "documents.upload" | "documents.view" | "documents.download" | "alerts.acknowledge" | "next_dates.review" | "reports.department" | "reports.state" | "dashboard.state" | "assistant.use" | "audit.view";
         /** PermissionOut */
         PermissionOut: {
             code: components["schemas"]["Permission"];

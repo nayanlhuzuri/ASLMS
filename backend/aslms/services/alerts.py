@@ -23,6 +23,12 @@ reading side with the visibility rule applied in SQL.
   raises one alert); a `recommendation_closed` event (not a backfill) raises one `ownership` notice to the closed
   department's `cases.claim` holders, listed with `case_visible: false`, and closes that department's open
   `recommendation` alert for the row (`recommendation_claimed_elsewhere`).
+- New note and listed for tomorrow (design `alerts-visibility-roles`, decisions 1-12): a `note_added` event of a
+  `source = user` note raises one `new_note:<note id>` alert to the people working on the case who can read the note
+  (the note's author excluded; never the note text); `listed_tomorrow` runs inside the hourly date sweep from
+  `ALERT_LISTED_FROM` (18:30 IST) and raises one `listed_tomorrow:<case>:<date>` alert per owned or watched case on the
+  next day's cause lists, with the court and the item as printed, closing the open `hearing_due` of that date and
+  keeping the hearing loop from raising or upgrading it again.
 - `raise_alert` is idempotent through `alerts.dedupe_key` (a number is allocated only for a new key); a
   higher severity notifies the recipients again. Every new alert emits one scoped `alert_raised` event.
 - `acknowledge` / `mark_done` need `alerts.acknowledge` and a recipient or working relation; each writes an
@@ -48,6 +54,7 @@ from sqlalchemy.orm import Session
 from aslms.core.config import Settings
 from aslms.domain.alerts import Alert, AlertStatus, Notification, NotificationStatus, Severity
 from aslms.domain.cases import Case, CaseObjection, CaseStatus
+from aslms.domain.causelists import Causelist, CauselistEntry, ListType
 from aslms.domain.documents import Order
 from aslms.domain.events import Event
 from aslms.domain.ops import JobRun, JobStatus
@@ -68,12 +75,15 @@ from aslms.domain.reference import (
     RecordType,
     RefAlertKind,
     RefDocType,
+    RefNoteKind,
 )
 from aslms.domain.workflow import (
     CUSTODY_REASON_LABELS,
     PENDING_ACTION_LABELS,
+    CaseNote,
     Custody,
     CustodyHistory,
+    NoteSource,
     PendingAction,
 )
 from aslms.services import access, calendar, case_filters, notifications, visibility
@@ -115,6 +125,7 @@ HANDLED_EVENTS = OWNERSHIP_EVENTS | {
     EventType.NEXT_DATE_EXTRACTED,  # design next-date-extraction, decision 13: review items only
     EventType.SUGGESTED_ELSEWHERE,  # design ownership-refinements, decision 15
     EventType.RECOMMENDATION_CLOSED,  # design ownership-refinements, decision 10
+    EventType.NOTE_ADDED,  # design alerts-visibility-roles, decision 1
 }
 # events read whether or not the case has an owner (a recommendation or a suggestion is usually on a pool case)
 UNOWNED_EVENTS = frozenset({EventType.RECOMMENDATION_MADE, EventType.SUGGESTED_ELSEWHERE})
@@ -138,6 +149,7 @@ class AlertConfig:
     compliance_window_days: int = 7
     request_due_soon_days: int = 2
     next_date_unclear_days: int = 30  # design next-date-extraction: how long an unclear order asks for a date
+    listed_from: str = "18:30"  # design alerts-visibility-roles, decision 8: IST time the listing pass starts
 
     @classmethod
     def from_settings(cls, s: Settings) -> AlertConfig:
@@ -151,6 +163,7 @@ class AlertConfig:
             compliance_expire_days=s.alert_compliance_expire_days,
             request_due_soon_days=s.request_due_soon_days,
             next_date_unclear_days=s.next_date_unclear_days,
+            listed_from=s.alert_listed_from,
         )
 
     def next_dates(self):
@@ -645,6 +658,8 @@ def _handle_event(
         )
     elif kind_of_event == EventType.CUSTODY_MOVED:
         _workflow_event(session, resolver, ev, case, p, today=today, cfg=cfg, now=now, counters=counters)
+    elif kind_of_event == EventType.NOTE_ADDED:
+        _note_event(session, resolver, defaults, ev, case, p, now=now, counters=counters)
     elif kind_of_event == EventType.NEXT_DATE_EXTRACTED:
         _next_date_event(
             session,
@@ -768,6 +783,65 @@ def _workflow_event(
         )
     else:
         counters["skipped_other"] += 1
+
+
+def _note_event(
+    session: Session,
+    resolver: Resolver,
+    defaults: dict[AlertKind, Severity],
+    ev: Event,
+    case: Case,
+    p: dict[str, Any],
+    *,
+    now: datetime,
+    counters: dict[str, Any],
+) -> None:
+    """Design `alerts-visibility-roles`, decisions 1-5: one `new_note:<note id>` alert per permanent `source = user`
+    note (a draft alerts when the file move makes it permanent), addressed to the owning department, to the people
+    working on the case who can read the note; the event's actor (the note's author) is excluded. The alert names the
+    note's kind, `ref_no`, author and office, never its text."""
+    note = session.get(CaseNote, _uuid(p.get("note_id"))) if _uuid(p.get("note_id")) else None
+    if note is None or NoteSource(note.source) != NoteSource.USER or note.case_id != case.id:
+        counters["skipped_other"] += 1
+        return
+    office = owning_office(session, case)
+    if office is None:
+        counters["skipped_unowned"] += 1
+        return
+    kind_value = note.kind.value if hasattr(note.kind, "value") else str(note.kind)
+    kind_row = session.get(RefNoteKind, kind_value)
+    note_office = session.get(Office, note.office_id)
+    original = session.get(CaseNote, note.supersedes_id) if note.supersedes_id else None
+    note_id = note.id
+    raise_alert(
+        session,
+        case=case,
+        kind=AlertKind.NEW_NOTE,
+        key=rules.dedupe_key(AlertKind.NEW_NOTE, note_id),
+        office=office,
+        severity=defaults.get(AlertKind.NEW_NOTE, Severity.NORMAL),
+        data={
+            "note_id": note_id,
+            "ref_no": note.ref_no,
+            "seq_no": note.seq_no,
+            "kind": kind_value,
+            "kind_label": kind_row.label if kind_row is not None else kind_value,
+            "visibility": note.visibility.value
+            if hasattr(note.visibility, "value")
+            else str(note.visibility),
+            "office_code": note_office.code if note_office is not None else p.get("office_code"),
+            "author_name": note.actor_name,
+            "author_designation": note.actor_designation,
+            "supersedes_ref_no": original.ref_no if original is not None else p.get("supersedes_ref_no"),
+            "finalised": bool(p.get("finalised")),
+        },
+        source_event_id=ev.id,
+        recipients=lambda: resolver.finalise(
+            resolver.case_recipients(case), case, exclude_user_id=ev.actor_user_id, note_id=note_id
+        ),
+        now=now,
+        counters=counters,
+    )
 
 
 def _next_date_event(
@@ -934,6 +1008,155 @@ def _open_alerts(session: Session, kind: AlertKind) -> list[Alert]:
     )
 
 
+def in_listed_window(now: datetime, cfg: AlertConfig) -> bool:
+    """Decision 8: the IST time is at or after `ALERT_LISTED_FROM` (to midnight)."""
+    return now.astimezone(rules.IST).time() >= rules.parse_sitting_time(cfg.listed_from)
+
+
+_LIST_TYPE_ORDER = list(ListType)
+
+
+def _list_type_rank(value: Any) -> int:
+    try:
+        return _LIST_TYPE_ORDER.index(ListType(value))
+    except ValueError:
+        return len(_LIST_TYPE_ORDER)
+
+
+def _court_rank(court_no: str | None) -> tuple[int, int, str]:
+    text = (court_no or "").strip()
+    return (0, int(text), "") if text.isdigit() else (1 if text else 2, 0, text)
+
+
+def listed_tomorrow(
+    session: Session,
+    *,
+    now: datetime | None = None,
+    config: AlertConfig | None = None,
+    force: bool = False,
+    counters: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Design `alerts-visibility-roles`, decisions 8-12: one `listed_tomorrow:<case>:<D>` alert per live owned or
+    watched case on the cause lists of D = tomorrow (IST), with every listing of the day (court and item as printed,
+    at most 5 kept plus the total), `critical` within 48 hours of the sitting. A newly raised alert closes the open
+    `hearing_due:<case>:<D>` (`done` / `listed_tomorrow`). Outside the evening window and without `force` nothing is
+    read. A case watched but with no primary owner is counted `skipped_unowned`. `counters` (the sweep's) receives
+    the result under `listed_*` keys."""
+    now = now or _now()
+    cfg = config or AlertConfig()
+    if not force and not in_listed_window(now, cfg):
+        out: dict[str, Any] = {"skipped": "before_window"}
+    else:
+        out = _listed_pass(session, now, cfg)
+    if counters is not None:
+        for k, v in out.items():
+            counters[f"listed_{k}"] = v
+    return out
+
+
+def _listed_pass(session: Session, now: datetime, cfg: AlertConfig) -> dict[str, Any]:
+    list_date = rules.today_ist(now) + timedelta(days=1)
+    out: dict[str, Any] = {
+        "list_date": list_date.isoformat(),
+        "entries_seen": 0,
+        "cases": 0,
+        "alerts_new": 0,
+        "hearing_closed": 0,
+        "skipped_unowned": 0,
+        "alerts_without_recipients": 0,
+        "notifications": 0,
+    }
+    rows = session.execute(
+        select(
+            CauselistEntry.case_id,
+            Causelist.list_type,
+            CauselistEntry.court_no,
+            CauselistEntry.printed_sr_no,
+            CauselistEntry.sr_no,
+            CauselistEntry.bench_text,
+        )
+        .join(Causelist, Causelist.id == CauselistEntry.causelist_id)
+        .join(Case, Case.id == CauselistEntry.case_id)
+        .where(
+            Causelist.list_date == list_date,
+            Case.merged_into_case_id.is_(None),
+            calendar.owned_case_condition(),
+        )
+    ).all()
+    per_case: dict[uuid.UUID, list[Any]] = {}
+    for row in rows:
+        out["entries_seen"] += 1
+        per_case.setdefault(row.case_id, []).append(row)
+    due_at = rules.hearing_due_at(list_date, cfg.sitting_time)
+    severity = rules.severity_for_hearing(due_at, now, cfg.critical_hours)
+    resolver = Resolver(session)
+    for case_id in sorted(per_case, key=str):
+        out["cases"] += 1
+        if severity is None:  # the sitting time has passed: nothing is raised
+            continue
+        case = session.get(Case, case_id)
+        office = owning_office(session, case) if case is not None else None
+        if case is None or office is None:
+            out["skipped_unowned"] += 1
+            continue
+        listings = sorted(
+            per_case[case_id],
+            key=lambda r: (_list_type_rank(r.list_type), _court_rank(r.court_no), r.sr_no),
+        )
+        entries = [
+            {
+                "list_type": ListType(r.list_type).value,
+                "court_no": r.court_no,
+                "item_no": r.printed_sr_no or str(r.sr_no),
+                "bench_text": r.bench_text,
+            }
+            for r in listings
+        ]
+        before = out["alerts_new"]
+        raise_alert(
+            session,
+            case=case,
+            kind=AlertKind.LISTED_TOMORROW,
+            key=rules.dedupe_key(AlertKind.LISTED_TOMORROW, case.id, list_date),
+            office=office,
+            severity=severity,
+            due_at=due_at,
+            data={"hearing_date": list_date, "entries": entries[:5], "entries_total": len(entries)},
+            recipients=lambda case=case: resolver.finalise(resolver.case_recipients(case), case),
+            now=now,
+            counters=out,
+        )
+        if out["alerts_new"] > before:  # decision 11a: one open alert per hearing
+            hearing = session.scalar(
+                select(Alert)
+                .where(
+                    Alert.dedupe_key == rules.dedupe_key(AlertKind.HEARING_DUE, case.id, list_date),
+                    Alert.status.in_(list(OPEN_STATUSES)),
+                )
+                .with_for_update()
+            )
+            if hearing is not None:
+                close_alert(session, hearing, AlertStatus.DONE, "listed_tomorrow", now=now)
+                out["hearing_closed"] += 1
+    return out
+
+
+def _listed_pairs(session: Session, from_: date, to: date) -> set[tuple[str, str]]:
+    """Decision 11b: the (case id, date) pairs with a `listed_tomorrow` alert in any state, over `from_ .. to`."""
+    pairs: set[tuple[str, str]] = set()
+    for key in session.scalars(
+        select(Alert.dedupe_key).where(
+            Alert.kind == AlertKind.LISTED_TOMORROW,
+            Alert.due_at >= rules.hearing_due_at(from_, "00:00"),
+            Alert.due_at < rules.hearing_due_at(to + timedelta(days=1), "00:00"),
+        )
+    ).all():
+        parts = key.split(":")
+        if len(parts) == 3:
+            pairs.add((parts[1], parts[2]))
+    return pairs
+
+
 def sweep_dates(
     session: Session, *, now: datetime | None = None, config: AlertConfig | None = None
 ) -> dict[str, Any]:
@@ -965,6 +1188,10 @@ def sweep_dates(
     def case_recipients(case: Case) -> Callable[[], list[User]]:
         return lambda: resolver.finalise(resolver.case_recipients(case), case)
 
+    # listed for tomorrow, before the hearings (design alerts-visibility-roles, decisions 8 and 11)
+    listed_tomorrow(session, now=now, config=cfg, counters=counters)
+    listed_pairs = _listed_pairs(session, today, today + timedelta(days=cfg.hearing_lookahead_days))
+
     # hearings (decision 6)
     rows = calendar.hearing_rows(
         session,
@@ -977,6 +1204,8 @@ def sweep_dates(
         counters["hearings_seen"] += 1
         key = rules.dedupe_key(AlertKind.HEARING_DUE, r.case_id, r.date)
         current_keys.add(key)
+        if (str(r.case_id), r.date.isoformat()) in listed_pairs:
+            continue  # design alerts-visibility-roles, decision 11b: the listing alert speaks for this hearing
         due_at = rules.hearing_due_at(r.date, cfg.sitting_time)
         severity = rules.severity_for_hearing(due_at, now, cfg.critical_hours)
         if severity is None:
@@ -1011,6 +1240,11 @@ def sweep_dates(
         elif a.dedupe_key not in current_keys:
             close_alert(session, a, AlertStatus.EXPIRED, "date_changed", now=now)
             counters["closed_hearing"] += 1
+    counters["closed_listed"] = 0
+    for a in _open_alerts(session, AlertKind.LISTED_TOMORROW):  # design alerts-visibility-roles, decision 12
+        if a.due_at is not None and rules.hearing_expired(a.due_at, now):
+            close_alert(session, a, AlertStatus.EXPIRED, "passed", now=now)
+            counters["closed_listed"] += 1
 
     # compliance (decision 10)
     for obj, case in session.execute(
@@ -1205,7 +1439,8 @@ def named_recipient_notice(alert: Alert) -> bool:
 def notification_visible_condition(session: Session, user: User):
     """The visibility rule for the caller's own notifications: a visible case, or an ownership notice whose
     recipient the design names (deviation 1: the case may not be visible to them); and, for `new_document`,
-    the document still visible to the caller (deviation 12)."""
+    the document still visible to the caller (deviation 12); for `new_note`, the note readable by the caller (design
+    `alerts-visibility-roles`, decision 4)."""
     case_rule = and_(
         or_(
             visibility.visible_case_condition(session, user),
@@ -1219,6 +1454,7 @@ def notification_visible_condition(session: Session, user: User):
             ),
         ),
         visibility.alert_document_condition(session, user),
+        visibility.alert_note_condition(session, user),
     )
     # a case-less (`admin_ticket`) alert: the caller's own notification is the whole rule (decision 19)
     return or_(and_(Alert.case_id.is_(None), Alert.kind == AlertKind.ADMIN_TICKET), case_rule)
@@ -1245,6 +1481,8 @@ def _may_act_on(session: Session, user: User, alert: Alert) -> Case | None:
     except NotVisibleCase as exc:
         raise AlertNotFound("no such alert") from exc
     if not visibility.can_view_alert_document(session, user, alert):
+        raise AlertNotFound("no such alert")
+    if not visibility.can_view_alert_note(session, user, alert):  # design alerts-visibility-roles, decision 4
         raise AlertNotFound("no such alert")
     if is_recipient(session, user, alert):
         return case
@@ -1569,6 +1807,7 @@ def alerts_for_case(
     conds = [
         Alert.case_id == case.id,
         visibility.alert_document_condition(session, user),
+        visibility.alert_note_condition(session, user),  # design alerts-visibility-roles, decision 4
         visibility.alert_office_condition(session, user),
     ]
     statuses = parse_statuses(status)

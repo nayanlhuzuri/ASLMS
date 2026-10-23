@@ -116,6 +116,8 @@ class AlertKind(enum.StrEnum):
         "workflow"  # file received, file recalled, due / overdue (design custody-workflow, decision 23)
     )
     NEXT_DATE_REVIEW = "next_date_review"  # a next date to confirm or enter (design next-date-extraction)
+    NEW_NOTE = "new_note"  # a permanent note added on the case (design alerts-visibility-roles)
+    LISTED_TOMORROW = "listed_tomorrow"  # on the next day's cause lists (design alerts-visibility-roles)
 
 
 class EventType(enum.StrEnum):
@@ -193,6 +195,9 @@ class Permission(enum.StrEnum):
     # cases and ownership
     CASES_VIEW_SCOPE = "cases.view_scope"
     CASES_VIEW_ALL = "cases.view_all"
+    CASES_VIEW_PRIVATE_ALL = (
+        "cases.view_private_all"  # with view_all: private records too (alerts-visibility-roles)
+    )
     CASES_SEARCH_COURT = "cases.search_court"
     CASES_CLAIM = "cases.claim"
     CASES_DISMISS = "cases.dismiss"

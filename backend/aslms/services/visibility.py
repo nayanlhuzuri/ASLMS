@@ -17,7 +17,8 @@ ownership predicates come from `recommend-and-claim`, decisions 15, 16, 23).
 - Documents (design `documents-uploads`, decision 7): `record_visibility_condition` is the per-record rule
   shared with notes (court records and `counsel_shared` to everyone on the case, `case_scope` to everyone but
   standing counsel, `private_to_office` to the office itself, its department-wide callers and the author;
-  State-wide readers see all); `document_case_condition` is "a visible case the document belongs to, directly
+  a State-wide reader sees every private record only with `cases.view_private_all`, design
+  `alerts-visibility-roles` decisions 13-15); `document_case_condition` is "a visible case the document belongs to, directly
   or through an order"; `document_visible_condition` requires the function, the case and the record rule of
   one and the same membership (OR over memberships);
   `works_on_case` is the upload rule (a working basis, not merely sight).
@@ -30,7 +31,12 @@ ownership predicates come from `recommend-and-claim`, decisions 15, 16, 23).
   `acting_member_for_case` picks the membership that writes on a case (decision 6). Everything stays in SQL.
 - Notes (design `custody-workflow`, decision 17): `note_visible_condition` over `case_notes` — a case visible
   through a membership and `record_visibility_condition` of the same membership, with `notes.view_private_office`
-  and (for standing counsel) `notes.view_counsel_shared` as switches; drafts are never in this rule."""
+  and (for standing counsel) `notes.view_counsel_shared` as switches; drafts are never in this rule.
+- Private records State-wide (design `alerts-visibility-roles`, decisions 13-16): `sees_private_all` is a State-wide
+  membership (super admin or `cases.view_all`) that also holds `cases.view_private_all` (the super admin and, by
+  default, the Auditor). Only such a caller reads every `private_to_office` note and document; State oversight and the
+  central operator read them through the ordinary per-membership record rule (own office or own authorship only).
+  `alert_note_condition` / `can_view_alert_note` hide a `new_note` alert from anyone who cannot read its note."""
 
 from __future__ import annotations
 
@@ -231,6 +237,17 @@ def _state_wide_member(member: Member) -> bool:
     return member.is_super_admin or member.holds(Permission.CASES_VIEW_ALL)
 
 
+def _private_all_member(member: Member) -> bool:
+    """Design `alerts-visibility-roles`, decision 13: a State-wide membership holding `cases.view_private_all`. The
+    function does nothing in a department membership (case sight comes first)."""
+    return _state_wide_member(member) and member.holds(Permission.CASES_VIEW_PRIVATE_ALL)
+
+
+def sees_private_all(session: Session, user: User | Member) -> bool:
+    """Decision 14: any active membership reads every private note, document and custody remark."""
+    return any(_private_all_member(m) for m in access.members(session, user))
+
+
 def member_bases(session: Session, member: Member) -> list[Basis]:
     """Decision 2 of `cases-api`, for one membership: empty without `cases.view_scope` (or outside every
     department); `[("state", true)]` for a State-wide membership."""
@@ -419,7 +436,8 @@ def working_condition_for(
 
 def state_wide(session: Session, user: User | Member) -> bool:
     """A State-wide reader: a membership of the super admin or holding `cases.view_all` (oversight, central
-    operator, auditor). Sees every case and every document, private ones included."""
+    operator, auditor). Sees every case and alerts addressed to any office; private records only with
+    `sees_private_all` (design `alerts-visibility-roles`, decision 14)."""
     return any(_state_wide_member(m) for m in access.members(session, user))
 
 
@@ -459,8 +477,10 @@ def record_visibility_condition(
 ) -> ColumnElement[bool]:
     """Part (c) of the document rule, generic over the record's visibility, office and author columns (notes
     reuse it), OR-ed over the caller's memberships. `group` is the `doc_group` column when the record has one:
-    court records are open to all."""
-    if state_wide(session, user):
+    court records are open to all. Every record only for `sees_private_all` (design `alerts-visibility-roles`,
+    decision 14); a State-wide membership without it passes court records, `counsel_shared`, `case_scope` and the
+    private records of its own office or authorship."""
+    if sees_private_all(session, user):
         return true()
     conds = [
         _record_condition_for(
@@ -517,13 +537,14 @@ def document_visible_condition(
 ) -> ColumnElement[bool]:
     """Decision 7, over `documents`: the OR over the caller's memberships of (a) the function held by that
     membership, (b) a case visible through that membership and (c) the record's setting for that membership
-    (`user-memberships` decision 7, review fix). A State-wide membership holding the function passes every
-    document that has a case."""
+    (`user-memberships` decision 7, review fix). A State-wide membership holding the function and
+    `cases.view_private_all` passes every document that has a case; another State-wide membership goes through the
+    record rule (design `alerts-visibility-roles`, decisions 14-15)."""
     conds: list[ColumnElement[bool]] = []
     for member in access.members(session, user):
         if not member.holds(permission):
             continue
-        if _state_wide_member(member):
+        if _private_all_member(member):
             return _case_of_document(true())
         conds.append(_member_document_condition(session, member))
     if not conds:
@@ -587,9 +608,9 @@ def _member_note_condition(session: Session, member: Member) -> ColumnElement[bo
 
 
 def note_visible_condition(session: Session, user: User | Member) -> ColumnElement[bool]:
-    """Decision 17, over `case_notes`: the OR over the caller's memberships; every note for a State-wide
-    reader. Drafts are never in this rule."""
-    if state_wide(session, user):
+    """Decision 17, over `case_notes`: the OR over the caller's memberships; every note only for a caller who
+    `sees_private_all` (design `alerts-visibility-roles`, decision 14). Drafts are never in this rule."""
+    if sees_private_all(session, user):
         return true()
     conds = [_member_note_condition(session, m) for m in access.members(session, user)]
     if not conds:
@@ -617,6 +638,19 @@ def alert_document_condition(session: Session, user: User | Member) -> ColumnEle
         .where(Document.id == doc_id, document_visible_condition(session, user))
     )
     return or_(Alert.kind != AlertKind.NEW_DOCUMENT, visible_doc)
+
+
+def alert_note_condition(session: Session, user: User | Member) -> ColumnElement[bool]:
+    """Over `alerts` (design `alerts-visibility-roles`, decision 4): any kind but `new_note` passes; a `new_note`
+    alert passes only when the note it names (`data.note_id`) passes `note_visible_condition` for the caller. A
+    missing or unknown note id hides the alert."""
+    note_id = cast(Alert.data["note_id"].astext, PG_UUID(as_uuid=True))
+    visible_note = exists(
+        select(literal(1))
+        .select_from(CaseNote)
+        .where(CaseNote.id == note_id, note_visible_condition(session, user))
+    )
+    return or_(Alert.kind != AlertKind.NEW_NOTE, visible_note)
 
 
 def alert_office_condition(session: Session, user: User | Member) -> ColumnElement[bool]:
@@ -657,3 +691,15 @@ def can_view_alert_document(session: Session, user: User | Member, alert: Alert)
     except ValueError:
         doc_id = None
     return doc_id is not None and can_view_document(session, user, doc_id)
+
+
+def can_view_alert_note(session: Session, user: User | Member, alert: Alert) -> bool:
+    """`alert_note_condition` for one alert, in Python."""
+    if AlertKind(alert.kind) != AlertKind.NEW_NOTE:
+        return True
+    raw = (alert.data or {}).get("note_id")
+    try:
+        note_id = uuid.UUID(str(raw)) if raw else None
+    except ValueError:
+        note_id = None
+    return note_id is not None and can_view_note(session, user, note_id)

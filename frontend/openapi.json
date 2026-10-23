@@ -5818,7 +5818,7 @@
         "type": "object"
       },
       "CustodyCardOut": {
-        "description": "Design custody-workflow, decision 25: the remark only for a working basis or a State-wide reader.",
+        "description": "Design custody-workflow, decision 25: the remark only for a working basis or a State-wide reader holding\n`cases.view_private_all` (design alerts-visibility-roles, decision 16).",
         "properties": {
           "can_recall": {
             "title": "Can Recall",
@@ -16807,6 +16807,7 @@
           "admin.service_health",
           "cases.view_scope",
           "cases.view_all",
+          "cases.view_private_all",
           "cases.search_court",
           "cases.claim",
           "cases.dismiss",
@@ -32936,7 +32937,7 @@
     },
     "/cases/{ref}/custody": {
       "get": {
-        "description": "The custody card and the legs in order (the file's movement record); the remark only for callers working\non the case and State-wide readers.",
+        "description": "The custody card and the legs in order (the file's movement record); the remark only for callers working\non the case and State-wide readers holding `cases.view_private_all`.",
         "operationId": "custody_history_cases__ref__custody_get",
         "parameters": [
           {

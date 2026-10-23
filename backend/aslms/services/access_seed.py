@@ -66,6 +66,10 @@ PERMISSION_LABELS: dict[P, tuple[str, str]] = {
     ),
     P.CASES_VIEW_SCOPE: ("View cases in scope", "Cases of the offices the user belongs to"),
     P.CASES_VIEW_ALL: ("View all cases", "Every case across all departments"),
+    P.CASES_VIEW_PRIVATE_ALL: (
+        "View private records State-wide",
+        "With View all cases: also the notes, documents and file remarks kept private to an office",
+    ),
     P.CASES_SEARCH_COURT: ("Search the court", "Search NAPIX by case number, party or advocate"),
     P.CASES_CLAIM: ("Claim cases", "Claim a recommended or unclaimed case for the department"),
     P.CASES_DISMISS: ("Dismiss recommendations", "Dismiss a recommendation as not ours"),
@@ -148,7 +152,10 @@ _DEPT_ADMIN = {
 DEFAULT_MATRIX: dict[Role, set[P]] = {
     Role.STATE_OVERSIGHT: _READ_CASES
     | {P.CASES_VIEW_ALL, P.DASHBOARD_STATE, P.REPORTS_STATE, P.REPORTS_DEPARTMENT, P.USERS_VIEW},
-    Role.DEPT_HEAD: _CASE_WORK | _OWNERSHIP | {P.REPORTS_DEPARTMENT, P.USERS_VIEW, P.CUSTODY_TRACK},
+    # design alerts-visibility-roles, decision 17: the head recalls files like the department admin
+    Role.DEPT_HEAD: _CASE_WORK
+    | _OWNERSHIP
+    | {P.REPORTS_DEPARTMENT, P.USERS_VIEW, P.CUSTODY_TRACK, P.CUSTODY_RECALL},
     Role.DEPT_ADMIN: _CASE_WORK | _OWNERSHIP | _DEPT_ADMIN | {P.CUSTODY_RECALL, P.CUSTODY_TRACK},
     Role.DEPT_OFFICER: _CASE_WORK,
     Role.DIRECTORATE_USER: _CASE_WORK - {P.CASES_SEARCH_COURT},
@@ -166,7 +173,9 @@ DEFAULT_MATRIX: dict[Role, set[P]] = {
         P.REPORTS_STATE,
         P.USERS_VIEW,
     },
-    Role.AUDITOR: _READ_CASES | {P.CASES_VIEW_ALL, P.AUDIT_VIEW},
+    # design alerts-visibility-roles, decision 17: no Case Assistant; private records State-wide (decision 13)
+    Role.AUDITOR: (_READ_CASES - {P.ASSISTANT_USE})
+    | {P.CASES_VIEW_ALL, P.AUDIT_VIEW, P.CASES_VIEW_PRIVATE_ALL},
 }
 
 

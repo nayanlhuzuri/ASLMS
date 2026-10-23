@@ -990,7 +990,8 @@ class CustodySentByOut(BaseModel):
 
 
 class CustodyCardOut(BaseModel):
-    """Design custody-workflow, decision 25: the remark only for a working basis or a State-wide reader."""
+    """Design custody-workflow, decision 25: the remark only for a working basis or a State-wide reader holding
+    `cases.view_private_all` (design alerts-visibility-roles, decision 16)."""
 
     holder_office: OfficeRefOut | None
     holder_user: CustodyHolderOut | None

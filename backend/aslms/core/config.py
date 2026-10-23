@@ -129,6 +129,7 @@ class Settings(BaseSettings):
     alert_event_overlap_minutes: int = 30  # the event scan re-reads this much of the previous run's window
     alert_info_expire_days: int = 14  # informational alerts expire after this
     alert_compliance_expire_days: int = 30
+    alert_listed_from: str = "18:30"  # IST; the hourly sweep raises listed-for-tomorrow alerts from this time
     request_due_soon_days: int = 2
     notify_max_attempts: int = 3
     notify_batch: int = 200

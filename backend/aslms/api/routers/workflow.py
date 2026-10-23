@@ -179,7 +179,7 @@ def custody_history(
     user: User = Depends(read),
 ) -> schemas.CustodyHistoryOut:
     """The custody card and the legs in order (the file's movement record); the remark only for callers working
-    on the case and State-wide readers."""
+    on the case and State-wide readers holding `cases.view_private_all`."""
     case = _case(session, ref)
     try:
         out = custody_svc.history(session, user, case, limit=limit, offset=offset)

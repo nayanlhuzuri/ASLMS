@@ -38,6 +38,7 @@ from aslms.domain.workflow import CaseNote
 from aslms.services import access, inbox, stages, workflow_actions
 from aslms.services.visibility import (
     alert_document_condition,
+    alert_note_condition,
     claim_departments,
     departments,
     document_visible_condition,
@@ -254,7 +255,8 @@ def _ownership(session: Session, case: Case) -> dict[str, Any]:
 
 
 def _custody(session: Session, user: User, case: Case, basis: list[str]) -> dict[str, Any] | None:
-    """Design custody-workflow, decision 25: the custody card (remark per decision 11)."""
+    """Design custody-workflow, decision 25: the custody card (remark per decision 11, as narrowed by design
+    alerts-visibility-roles, decision 16)."""
     from aslms.services import custody
 
     return custody.card(session, user, case, bases=basis)
@@ -682,7 +684,8 @@ def _note_events(session: Session, user: User | None, *, unrestricted: bool):
 
 def _alert_events_rule(session: Session, user: User | None, *, unrestricted: bool):
     """ANDed onto the department rule: an `alert_raised` row for a `new_document` alert is shown only when the
-    document the alert names is visible to the caller (design alerts-notifications, deviation 12); every
+    document the alert names is visible to the caller (design alerts-notifications, deviation 12), and for a
+    `new_note` alert only when the caller can read the note (design alerts-visibility-roles, decision 4); every
     other row passes; every row when counting unrestricted."""
     if unrestricted:
         return literal(True)
@@ -694,6 +697,7 @@ def _alert_events_rule(session: Session, user: User | None, *, unrestricted: boo
         .where(
             Alert.id == cast(Event.payload["alert_id"].astext, PG_UUID(as_uuid=True)),
             alert_document_condition(session, user),
+            alert_note_condition(session, user),
         )
     )
     return or_(Event.type != EventType.ALERT_RAISED, visible_alert)

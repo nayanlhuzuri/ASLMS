@@ -2265,3 +2265,31 @@ Row 120, design `docs/design/ownership-refinements.md` (approved 21 Oct 2026 wit
 **Deviations** (eight recorded in the design note, none changes a business rule): migration written by hand because autogenerate cannot see an enum value or a reference row, and its downgrade test checks that the reference row stays while an event uses it (events are append-only); `answer_locally` takes a `settings=` keyword; validation factored into `_check_*` and `_local_*` helpers; a malformed CNR answers 422 from the request schema before any guard, as before; the backfill writes its audit row only when it closed something and closes human suggestions made after a claim as well; the 409 `claimed_elsewhere` also applies when no department is named; the scan counts the immediate closure under `closed_recommendation`; the ownership dialogs needed no change.
 
 **Left for later**: the integrator runs `aslms close-claimed-recommendations` (dry run, then `--apply`) once after merge and migrating.
+
+## 2026-10-23 — The developer never migrates the dev database (on the alerts-visibility-roles branch)
+
+- During the row 121 build, the developer ran `alembic upgrade head` against the dev database, as its definition then told it to. Migration 0022 was applied on 22 Oct at 15:39 IST, before review, without the `migrate` step's backup or its `system.migrated` audit row. The next start refused: init's db-guard said the database is newer than the build.
+- 0022's own downgrade was run on 23 Oct to return the dev database to 0021. It reversed the two matrix defaults (both audited) and removed the two alert kinds; no alert of those kinds existed. The services started again, and 0022 is applied by the proper `migrate` step after the merge.
+- `.claude/agents/developer.md` now says to try migrations on a scratch database (`aslms_scratch`) and never to upgrade or downgrade the dev database. Autogenerate still only reads it.
+
+## Alerts, private records and role defaults (2026-10-23)
+
+Row 121, design `docs/design/alerts-visibility-roles.md` (approved 21 Oct 2026 with the architect's answers), branch `feature/alerts-visibility-roles`. Migration 0022 (head now 0022; 0021 went to row 120).
+
+**Built**
+- Two alert kinds, `new_note` ("New note", normal) and `listed_tomorrow` ("Listed for tomorrow", critical, immediate e-mail), added to `ref_alert_kind` by migration 0022 and the seed.
+- `new_note`: one alert per permanent note (a finalised draft when the file moves), to the people working on the case who can read that note, key `new_note:<note id>`. It never carries the note text, and the note rule is applied on every alert reading path.
+- `listed_tomorrow`: raised by the hourly date sweep from `ALERT_LISTED_FROM` (default 18:30 IST) from the next day's cause lists, once per case per date (key `listed_tomorrow:<case id>:<date>`), with court and item as printed (up to 5 entries). It closes and suppresses the `hearing_due` alert of the same case and date.
+- New function `cases.view_private_all` ("View private records State-wide"; 53 functions, 51 active): private-to-office notes, documents and custody remarks are hidden from State oversight and the central operator unless the reader holds it. It is enabled for `auditor` by default, the super admin holds it always, and it takes effect only in a State-wide membership.
+- Role defaults: `dept_head` gains `custody.recall`; `auditor` loses `assistant.use`. Migration 0022 changes a seeded matrix row only while it still holds the old default (`updated_by IS NULL`, no `access.matrix` audit row); each change writes an `access.matrix_default_changed` audit row and an `access_changed` event, a customised row is kept with an `access.matrix_default_kept` audit row. Fresh databases get the new defaults from the seed.
+- `aslms alerts run --listed` runs the listing pass at once whatever the time; `.env.example` gains `ALERT_LISTED_FROM=18:30`. OpenAPI and the generated types regenerated (new `Permission` value); no screen change.
+- Tests: `test_migration_0022.py`, `test_alerts_new_note.py`, `test_alerts_note_reading_paths.py`, `test_alerts_listed_tomorrow.py`, `test_notifications_send.py`, `test_custody_remark_visibility.py`, additions to the note and document visibility tests and the alert-rule and access-seed unit tests.
+
+**Decisions**
+- Private documents follow the notes rule, so no alert, e-mail or count can reveal a record to someone who cannot read it.
+- Claiming a case and setting a stage stay quiet, by the owner's choice.
+- The matrix migration never overwrites an administrator's choice.
+
+**Deviations** (eight recorded in the design note, none changes a decision): migration number 0022 by build order; `.env.example` entry; regenerated OpenAPI; counters `listed_skipped: "before_window"` and `closed_listed`; title and body rendering details; `ref_permission` sort order; one existing test pinned to 14:30 IST; new test files.
+
+**Left for later**: nothing new. The integrator applies 0022 with the proper `migrate` step (see the entry above on the dev database).

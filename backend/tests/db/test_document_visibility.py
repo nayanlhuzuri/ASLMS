@@ -1,7 +1,9 @@
 """The document visibility rule (design documents-uploads, decision 7) and file serving (decisions 11, 14):
 case_scope, counsel_shared, court records and private_to_office for every kind of user; a department that
 loses the case loses its documents; an order PDF shared by connected cases; the one-rule check over every
-endpoint; inline and attachment controls and headers; order files."""
+endpoint; inline and attachment controls and headers; order files. Design alerts-visibility-roles (decisions 14-15):
+private documents follow the notes rule, so State oversight and the central operator no longer list, open, download
+or find `private_to_office` documents; the Auditor and the super admin still do (`cases.view_private_all`)."""
 
 from __future__ import annotations
 
@@ -140,15 +142,66 @@ def test_case_scope_counsel_shared_and_court_records(world, scene):
 
 def test_private_to_office_is_the_office_itself_plus_the_department_tier(world, scene):
     d = scene["docs"]
-    for key in ("dse_user", "dse_user2", "edu_admin", "edu_head", "edu_auditor", "root", "oversight"):
+    for key in ("dse_user", "dse_user2", "edu_admin", "edu_head", "edu_auditor", "root"):
         assert can(world, key, d["dse_private"]), key
-    for key in ("edu_off1", "edu_off2", "dhe_user", "edu_counsel"):
+    for key in ("edu_off1", "edu_off2", "dhe_user", "edu_counsel", "oversight", "central_op"):
         assert not can(world, key, d["dse_private"]), key
     assert can(world, "edu_off1", d["edu_private"])  # the uploader
     for key in ("edu_admin", "edu_head", "edu_auditor", "root"):
         assert can(world, key, d["edu_private"]), key
-    for key in ("edu_off2", "dse_user", "dhe_user", "edu_counsel"):
+    for key in ("edu_off2", "dse_user", "dhe_user", "edu_counsel", "oversight", "central_op"):
         assert not can(world, key, d["edu_private"]), key
+
+
+def test_state_oversight_cannot_list_or_download_private_documents(api, world, scene):
+    d = scene["docs"]
+    private = {d["edu_private"], d["dse_private"]}
+    for key in ("oversight", "central_op"):
+        h = ds.login(api, key)
+        listed = api.get(f"/cases/{scene['case']}/documents?limit=100", headers=h)
+        assert listed.status_code == 200, (key, listed.text)
+        assert not private & {uuid.UUID(i["id"]) for i in listed.json()["items"]}, key
+        for doc_id in private:
+            assert api.get(f"/documents/{doc_id}", headers=h).status_code == 404, key
+            assert api.get(f"/documents/{doc_id}/file", headers=h).status_code == 404, key
+
+
+def test_state_oversight_still_reads_court_records_and_case_scope_documents(api, world, scene):
+    d = scene["docs"]
+    for key in ("oversight", "central_op"):
+        for name in ("order", "case_scope", "counsel_shared", "counsel_case_scope"):
+            assert can(world, key, d[name]), (key, name)
+    h = ds.login(api, "oversight")
+    assert api.get(f"/documents/{d['case_scope']}/file", headers=h).status_code == 200
+
+
+def test_auditor_downloads_private_documents(api, world, scene):
+    d = scene["docs"]
+    for key in ("edu_auditor", "root"):
+        h = ds.login(api, key)
+        for name in ("edu_private", "dse_private"):
+            assert api.get(f"/documents/{d[name]}", headers=h).status_code == 200, (key, name)
+            assert api.get(f"/documents/{d[name]}/file", headers=h).status_code == 200, (key, name)
+
+
+def test_private_document_hidden_from_oversight_content_search(api, world, scene):
+    from aslms.services.storage import LocalStore
+    from aslms.services.text_extract import extract_pending
+
+    with world.Session() as s:
+        extract_pending(s, LocalStore(api.store.root), batch=100)
+        s.commit()
+    d = scene["docs"]
+
+    def found(key: str, q: str) -> set[uuid.UUID]:
+        r = api.get(f"/documents/search?q={q}", headers=ds.login(api, key))
+        assert r.status_code == 200, (key, r.text)
+        return {uuid.UUID(i["document"]["id"]) for i in r.json()["items"]}
+
+    assert d["edu_private"] not in found("oversight", "charlie")
+    assert d["dse_private"] not in found("central_op", "delta")
+    assert d["case_scope"] in found("oversight", "alpha")
+    assert d["edu_private"] in found("edu_auditor", "charlie")
 
 
 def test_a_department_that_loses_the_case_loses_its_documents(api, world, scene):

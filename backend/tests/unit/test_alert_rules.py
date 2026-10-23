@@ -172,3 +172,73 @@ def test_render_mail_and_digest_carry_link_not_text():
     )
     assert "digest - 06 Oct 2026" in subject
     assert "New order (1)" in text and "and 2 more" in text and "Possible matches" in text and ": 4" in text
+
+
+# ------------------------------------------------------------------ design alerts-visibility-roles, decisions 5, 7, 9
+
+
+LISTED_CASE = SimpleNamespace(case_no_text="WP(C)/123/2026", cnr=None, ref_no="ASLMS/GOA/CASE/2026/000001")
+
+
+def test_new_note_text_names_kind_ref_and_author_only():
+    data = {
+        "note_id": "0199",
+        "ref_no": "ASLMS/EDU/NOTE/2026/000042",
+        "seq_no": 4,
+        "kind": "hearing",
+        "kind_label": "Hearing note",
+        "visibility": "case_scope",
+        "office_code": "EDU",
+        "author_name": "Edu Off1",
+        "author_designation": "Under Secretary",
+        "supersedes_ref_no": None,
+        "finalised": False,
+    }
+    title, body = r.render_alert(AlertKind.NEW_NOTE, LISTED_CASE, data)
+    assert title == "New hearing note: WP(C)/123/2026"
+    assert (
+        body
+        == "Note ASLMS/EDU/NOTE/2026/000042 (Hearing note) by Under Secretary, EDU. Open the case to read it."
+    )
+    title, body = r.render_alert(
+        AlertKind.NEW_NOTE, LISTED_CASE, {**data, "supersedes_ref_no": "ASLMS/EDU/NOTE/2026/000040"}
+    )
+    assert title == "Note corrected: WP(C)/123/2026"
+    assert "ASLMS/EDU/NOTE/2026/000040" in body and "Open the case to read it." in body
+    title, _ = r.render_alert(AlertKind.NEW_NOTE, LISTED_CASE, {**data, "kind_label": "General"})
+    assert title == "New general note: WP(C)/123/2026"
+    # the rendering reads only the listed keys: a body planted in data never appears
+    title, body = r.render_alert(AlertKind.NEW_NOTE, LISTED_CASE, {**data, "body": "SECRET-MARKER"})
+    assert "SECRET-MARKER" not in title + body
+
+
+def test_listed_tomorrow_text_lists_court_and_printed_item():
+    one = {
+        "hearing_date": "2026-10-22",
+        "entries": [{"list_type": "daily", "court_no": "3", "item_no": "14", "bench_text": "X"}],
+        "entries_total": 1,
+    }
+    title, body = r.render_alert(AlertKind.LISTED_TOMORROW, LISTED_CASE, one)
+    assert title == "Listed tomorrow, 22 Oct 2026, court 3 item 14: WP(C)/123/2026"
+    assert body == "Listed in the daily cause list of 22 Oct 2026: court 3, item 14."
+    two = {
+        **one,
+        "entries": one["entries"]
+        + [{"list_type": "supplementary", "court_no": "5", "item_no": "2", "bench_text": None}],
+        "entries_total": 2,
+    }
+    title, body = r.render_alert(AlertKind.LISTED_TOMORROW, LISTED_CASE, two)
+    assert title == "Listed tomorrow, 22 Oct 2026, court 3 item 14 +1 more: WP(C)/123/2026"
+    assert body == (
+        "Listed in the daily cause list of 22 Oct 2026: court 3, item 14; supplementary list: court 5, item 2."
+    )
+    many = {**one, "entries": one["entries"] * 5, "entries_total": 7}
+    _, body = r.render_alert(AlertKind.LISTED_TOMORROW, LISTED_CASE, many)
+    assert body.endswith("; and 2 more.")
+    assert r.listing_text([{"court_no": None, "item_no": "9"}]) == ["item 9"]
+    assert r.listing_text([{"court_no": "3", "item_no": "14"}], sep=" ") == ["court 3 item 14"]
+
+
+def test_new_note_is_informational_and_listed_is_not():
+    assert AlertKind.NEW_NOTE in r.INFO_KINDS and AlertKind.NEW_NOTE in r.CASE_KINDS
+    assert AlertKind.LISTED_TOMORROW not in r.INFO_KINDS and AlertKind.LISTED_TOMORROW in r.CASE_KINDS

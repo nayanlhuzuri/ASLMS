@@ -1,4 +1,5 @@
-"""`aslms alerts run [--events] [--dates]` (one pass of the generators), `aslms alerts send` (the e-mail
+"""`aslms alerts run [--events] [--dates] [--listed]` (one pass of the generators; `--listed` runs the
+listed-for-tomorrow pass at once whatever the time, design `alerts-visibility-roles`, decision 8), `aslms alerts send` (the e-mail
 outbox and digests through the configured backend), `aslms alerts digest [--date]` (build the day's digest
 rows), `aslms alerts status` (open alerts by kind and severity, queued and failed e-mails, the last run of
 each job) and `aslms alerts test-mail --to <address>` (one message through the configured backend; prints
@@ -28,12 +29,21 @@ def _config():
 @alerts_app.command("run")
 def run(
     events: bool = typer.Option(False, "--events", help="the event scan"),
-    dates: bool = typer.Option(False, "--dates", help="the date sweep"),
+    dates: bool = typer.Option(
+        False, "--dates", help="the date sweep (the listing pass only from 18:30 IST)"
+    ),
+    listed: bool = typer.Option(
+        False, "--listed", help="the listed-for-tomorrow pass now, whatever the time"
+    ),
 ) -> None:
-    """One pass of the generators (both when neither flag is given)."""
-    if not events and not dates:
+    """One pass of the generators (the event scan and the date sweep when no flag is given)."""
+    if not events and not dates and not listed:
         events = dates = True
     cfg = _config()
+    if listed:
+        with session_scope() as s:
+            counters = alerts.listed_tomorrow(s, config=cfg, force=True)
+        rprint("[bold]listed for tomorrow[/bold]", counters)
     if events:
         with session_scope() as s:
             counters = alerts.scan_events(s, config=cfg)

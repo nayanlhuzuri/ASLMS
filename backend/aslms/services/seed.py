@@ -110,6 +110,8 @@ ALERT_SEVERITY = {
     AlertKind.COMPLIANCE_DUE: "high",
     AlertKind.OWNERSHIP: "normal",
     AlertKind.NEW_DOCUMENT: "normal",
+    AlertKind.NEW_NOTE: "normal",  # design alerts-visibility-roles
+    AlertKind.LISTED_TOMORROW: "critical",
 }
 # labels that differ from the code (design alerts-notifications, decision 13; new databases only)
 ALERT_KIND_LABELS = {
@@ -118,6 +120,8 @@ ALERT_KIND_LABELS = {
     AlertKind.ADMIN_TICKET: "Admin ticket",
     AlertKind.WORKFLOW: "Workflow",
     AlertKind.NEXT_DATE_REVIEW: "Next date to review",  # design next-date-extraction
+    AlertKind.NEW_NOTE: "New note",  # design alerts-visibility-roles
+    AlertKind.LISTED_TOMORROW: "Listed for tomorrow",
 }
 TRACKING_CARD_EVENTS = {
     EventType.CASE_CREATED,

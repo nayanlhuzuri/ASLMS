@@ -7,7 +7,7 @@ holding `cases.allot` receive), the primary owner (the allotted officer; else th
 holding `alerts.acknowledge`; else the department's users holding `cases.allot`) and each watcher (its
 officer, else that department's users holding `cases.allot`). The set is de-duplicated; inactive users, the
 user whose action caused the event, and anyone who cannot see the case (or, for `new_document`, the
-document) are removed. Standing counsel are not recipients. Function checks are per membership (design
+document; for `new_note`, the note: design `alerts-visibility-roles`, decision 3) are removed. Standing counsel are not recipients. Function checks are per membership (design
 `user-memberships`, decision 11): an office's users are the logins with an active membership **at that office**
 whose membership holds the function; cached for the run."""
 
@@ -220,10 +220,11 @@ class Resolver:
         exclude_user_id: Any = None,
         document_id: uuid.UUID | None = None,
         require_case_access: bool = True,
+        note_id: uuid.UUID | None = None,
     ) -> list[User]:
         """The final filter: de-duplicate; drop inactive users, the actor, standing counsel, anyone who
-        cannot see the case (unless the design names them as the recipient) and (for `new_document`) anyone who
-        cannot see the document."""
+        cannot see the case (unless the design names them as the recipient), (for `new_document`) anyone who
+        cannot see the document and (for `new_note`) anyone who cannot read the note."""
         excluded = uuid.UUID(str(exclude_user_id)) if exclude_user_id else None
         seen: set[uuid.UUID] = set()
         out: list[User] = []
@@ -237,6 +238,8 @@ class Resolver:
             if require_case_access and not visibility.can_view_case(self.session, u, case):
                 continue
             if document_id is not None and not visibility.can_view_document(self.session, u, document_id):
+                continue
+            if note_id is not None and not visibility.can_view_note(self.session, u, note_id):
                 continue
             out.append(u)
         return out
