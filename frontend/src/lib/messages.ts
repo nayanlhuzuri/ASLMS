@@ -944,7 +944,17 @@ export const T = {
     reason: "Reason",
     tree: "Office tree",
     detail: "Office",
-    headSection: "First head (optional)",
+    headSection: "Head of the department (required for a department)",
+    headIntro:
+      "The head is named when the department is created. Give the e-mail of an existing ASLMS login, or a new e-mail with the name, a temporary password and a designation: the person changes the password at the first sign-in.",
+    hints: {
+      code: "A short code that never changes: capital letters, digits and hyphens, 2 to 40 characters. For example EDU for a department, EDU-DSE for one of its directorates.",
+      name: "The full official name, for example School Education Department.",
+      kind: "Department: a Secretariat department. Directorate: under a department. Unit: a section or cell under a department or directorate.",
+      parent: "The code of the office above it: GOA (Government of Assam) for a department, the department's code (for example EDU) for a directorate.",
+      validFrom: "The day the office starts. Leave empty for today.",
+      notes: "Optional remarks for administrators. Not shown to other users.",
+    },
     includeInactive: "Show inactive offices",
   },
   designations: {

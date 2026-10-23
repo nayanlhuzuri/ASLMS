@@ -117,6 +117,7 @@ function HeadFields({ value, onChange }: { value: HeadDraft; onChange: (v: HeadD
   return (
     <fieldset className={`stack ${a.fieldset}`}>
       <legend>{T.offices.headSection}</legend>
+      <p className="muted">{T.offices.headIntro}</p>
       <div className="row">
         <TextField label={T.users.email} type="email" required value={value.email} onChange={(e) => onChange({ ...value, email: e.target.value })} />
         <TextField label={T.auth.fullName} value={value.full_name} onChange={(e) => onChange({ ...value, full_name: e.target.value })} />
@@ -167,20 +168,21 @@ export function NewOfficeForm() {
     <form className="card stack" onSubmit={submit} aria-label={T.offices.newOffice}>
       <h2>{T.offices.newOffice}</h2>
       <div className="row">
-        <TextField label={T.offices.code} required value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} />
-        <TextField label={T.offices.name} required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+        <TextField label={T.offices.code} hint={T.offices.hints.code} required value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} />
+        <TextField label={T.offices.name} hint={T.offices.hints.name} required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
         <SelectField
           label={T.offices.kind}
+          hint={T.offices.hints.kind}
           required
           value={form.kind}
           placeholder=""
           options={(labels.data?.office_kinds ?? []).filter((k) => k.code !== "state").map((k) => ({ value: k.code, label: k.label }))}
           onChange={(e) => setForm({ ...form, kind: e.target.value })}
         />
-        <TextField label={T.offices.parent} required value={form.parent} onChange={(e) => setForm({ ...form, parent: e.target.value })} />
-        <TextField label={T.offices.validFrom} type="date" value={form.validFrom} onChange={(e) => setForm({ ...form, validFrom: e.target.value })} />
+        <TextField label={T.offices.parent} hint={T.offices.hints.parent} required value={form.parent} onChange={(e) => setForm({ ...form, parent: e.target.value })} />
+        <TextField label={T.offices.validFrom} hint={T.offices.hints.validFrom} type="date" value={form.validFrom} onChange={(e) => setForm({ ...form, validFrom: e.target.value })} />
       </div>
-      <TextArea label={T.offices.notes} rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+      <TextArea label={T.offices.notes} hint={T.offices.hints.notes} rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
       {needsHead ? <HeadFields value={head} onChange={setHead} /> : null}
       <ErrorBanner error={save.error} />
       <div>
