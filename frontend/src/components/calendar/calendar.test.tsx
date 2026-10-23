@@ -180,7 +180,8 @@ describe("My calendar (portal-ui-redesign, decision 8)", () => {
     for (const button of within(grid).getAllByRole("button")) expect(button).toHaveAccessibleName(/^\w+day, \d+ \w+: /);
     for (const ev of grid.querySelectorAll("[data-kind]")) expect(ev).toHaveAttribute("aria-hidden", "true");
     expect(within(grid).getByRole("button", { name: "Wednesday, 28 October: 1 hearing" })).toBeInTheDocument();
-    expect(within(grid).getByRole("button", { name: "Friday, 23 October: nothing" })).toBeInTheDocument();
+    // a fixed day can be today, when its name ends with " (Today)"
+    expect(within(grid).getByRole("button", { name: /^Friday, 23 October: nothing( \(.+\))?$/ })).toBeInTheDocument();
   });
 
   it("the page has at most one primary button (decision 16)", async () => {
