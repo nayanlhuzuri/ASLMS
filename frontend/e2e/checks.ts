@@ -13,6 +13,9 @@
  * - sizes (decision 14): a kit `Button` not 36 px tall (30 px for `sm`), a kit text input or select not 36 px, and at
  *   375 px any button or link drawn as a button shorter than 36 px except `sm` toolbars inside rows;
  * - alignment (decision 15): within one list, leading elements of one `data-lead` kind of unequal width;
+ * - field rows (owner, 23 Oct 2026): in a flex or grid row holding labelled fields, the items on one line must share
+ *   the top of their labels and the top of their boxes (input, select, textarea, or a bare button beside them), so a
+ *   hint under one field can never push its neighbours out of line;
  * - one primary (decision 16): more than one visible primary outside an open dialog.
  */
 
@@ -177,6 +180,48 @@ export function pageChecks({ width }: CheckArgs): PageFinding[] {
       const widths = items.map((i) => i.w);
       if (Math.max(...widths) - Math.min(...widths) > 0.5) {
         out.push({ kind: "alignment", element: describe(list), detail: `data-lead="${kind}" widths ${widths.map((w) => w.toFixed(1)).join(", ")}` });
+      }
+    }
+  }
+
+  // field rows (owner, 23 Oct 2026): items on one line of a row of labelled fields share label tops and box tops
+  const boxOf = (child: Element): Element | null => {
+    if (child.matches("button, a[data-ui=button]")) return child;
+    const box = child.querySelector("input:not([type=checkbox]):not([type=radio]):not([type=hidden]), select, textarea");
+    return box && visible(box) ? box : null;
+  };
+  const rows = new Set<Element>();
+  for (const label of Array.from(document.querySelectorAll("label"))) {
+    const row = label.parentElement?.parentElement;
+    if (!row || !visible(label)) continue;
+    const display = getComputedStyle(row).display;
+    if (display.includes("flex") || display.includes("grid")) rows.add(row);
+  }
+  for (const row of rows) {
+    const items = Array.from(row.children).filter((c) => visible(c) && boxOf(c));
+    if (items.length < 2) continue;
+    // one visual line = items whose boxes overlap vertically
+    const lines: Element[][] = [];
+    for (const item of items) {
+      const b = boxOf(item)!.getBoundingClientRect();
+      const line = lines.find((l) => {
+        const o = boxOf(l[0]!)!.getBoundingClientRect();
+        return b.top < o.bottom && o.top < b.bottom;
+      });
+      if (line) line.push(item);
+      else lines.push([item]);
+    }
+    for (const line of lines) {
+      if (line.length < 2) continue;
+      const boxTops = line.map((i) => boxOf(i)!.getBoundingClientRect().top);
+      if (Math.max(...boxTops) - Math.min(...boxTops) > 1) {
+        out.push({ kind: "alignment", element: describe(row), detail: `field row: box tops ${boxTops.map((t) => t.toFixed(1)).join(", ")}` });
+        continue;
+      }
+      const labels = line.map((i) => i.querySelector("label")).filter((l): l is HTMLLabelElement => !!l && visible(l));
+      const labelTops = labels.map((l) => l.getBoundingClientRect().top);
+      if (labelTops.length > 1 && Math.max(...labelTops) - Math.min(...labelTops) > 1) {
+        out.push({ kind: "alignment", element: describe(row), detail: `field row: label tops ${labelTops.map((t) => t.toFixed(1)).join(", ")}` });
       }
     }
   }

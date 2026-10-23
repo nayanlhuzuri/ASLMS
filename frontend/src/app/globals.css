@@ -54,6 +54,11 @@
   --t-2xl: 24px;
   --t-3xl: 30px;
 
+  /* field rows: every field label is one fixed line, so a button beside the fields drops by exactly this much and
+     its top meets the boxes' tops, whatever hint or error a field shows underneath */
+  --label-line: 20px;
+  --label-offset: calc(var(--label-line) + var(--s1));
+
   --r-sm: 6px;
   --r-md: 8px;
   --r-lg: 12px;
@@ -211,11 +216,18 @@ code,
   margin-top: var(--s4);
 }
 
+/* a field row (owner, 23 Oct 2026): fields line up by their tops, never their bottoms, so a hint or an error under one
+   field cannot push the others' labels and boxes out of line; anything without a label (a button, a link) drops by
+   the label line so it sits level with the boxes */
 .row {
   display: flex;
   flex-wrap: wrap;
   gap: var(--s3);
-  align-items: flex-end;
+  align-items: flex-start;
+}
+
+.row:has(label) > :not(:has(label)) {
+  margin-top: var(--label-offset);
 }
 
 .grid-2 {

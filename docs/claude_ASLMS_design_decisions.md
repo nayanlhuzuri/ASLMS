@@ -2293,3 +2293,13 @@ Row 121, design `docs/design/alerts-visibility-roles.md` (approved 21 Oct 2026 w
 **Deviations** (eight recorded in the design note, none changes a decision): migration number 0022 by build order; `.env.example` entry; regenerated OpenAPI; counters `listed_skipped: "before_window"` and `closed_listed`; title and body rendering details; `ref_permission` sort order; one existing test pinned to 14:30 IST; new test files.
 
 **Left for later**: nothing new. The integrator applies 0022 with the proper `migrate` step (see the entry above on the dev database).
+
+## 2026-10-23 — Field rows line up by their tops; uicheck checks it (owner, on `main`)
+
+- The owner saw the Cause list filter row out of line: "List type" and "Court number" sat lower than "Words", and Search sat below the boxes. Field rows aligned their items by the bottom (`align-items: flex-end`), so a hint under one field ("At least 3 characters") raised that field's label and pushed the button down. The same rule was in the global `.row`, the shared filter bar (`.row`, `.dateGroup`, `.more`) and the Reports form.
+- The fix, in every field row:
+  - items align by their tops;
+  - field labels are one fixed line (`--label-line`, 20 px);
+  - in a row that holds a labelled field, anything without a label (a button, a link) drops by `--label-offset` so its top meets the boxes' tops.
+- uicheck gained a field-row check: on one line of a row of labelled fields, label tops and box tops must match within 1 px. Against the old portal it flagged the Cause list and four Department mapping tabs (counsel codes, keywords, watchlist, discovery); after the fix it flags none.
+- The owner had asked earlier that nothing be out of line. The polish round's checks measured sizes and leading columns, not label rows, so this was missed.

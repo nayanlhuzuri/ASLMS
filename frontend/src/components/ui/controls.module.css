@@ -108,6 +108,7 @@
 
 .label {
   font-size: var(--t-sm);
+  line-height: var(--label-line);
   font-weight: 500;
   color: var(--text-2);
 }
