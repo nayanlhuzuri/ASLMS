@@ -28,6 +28,7 @@ from aslms.services import ownership as own
 from aslms.services.audit import Actor
 from aslms.services.causelists import store_pdf
 from aslms.services.refno import allocate_ref_no
+from aslms.services.reporting_common import today_ist
 from aslms.services.storage import LocalStore
 from tests.db import docs_support as ds
 from tests.db.conftest import router
@@ -167,7 +168,7 @@ def test_progress_start_pause_order_flow(api, world):
         "/admin/data-load/start", json={"from": "2025-01-02", "to": "2025-01-03", "held": "skip"}, headers=h
     )
     assert r.status_code == 202 and r.json()["held_skipped"] == 2
-    today = date.today()
+    today = today_ist()  # the service's 'today' is the IST date; on a UTC runner after 18:30 they differ
     r = api.post(
         "/admin/data-load/start", json={"from": str(today), "to": str(today), "held": "skip"}, headers=h
     )

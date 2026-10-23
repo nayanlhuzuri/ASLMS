@@ -22,8 +22,11 @@ in small commits, with tests, and you stop when the design's checklist is done a
   services → API routers and schemas → CLI if the design asks → tests with each piece.
 - Commands (from `backend/`): `.venv/Scripts/ruff check --fix . && .venv/Scripts/ruff format .`,
   `.venv/Scripts/python -m pytest -q`, `.venv/Scripts/alembic -x url=postgresql+psycopg://aslms:aslms@localhost:5433/aslms revision --autogenerate -m <slug> --rev-id 000N`,
-  `.venv/Scripts/alembic -x url=... upgrade head`. Run `ruff` and `pytest` before every commit; commit only
-  green code. Commit messages end with `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`.
+  and to try a migration, `.venv/Scripts/alembic -x url=postgresql+psycopg://aslms:aslms@localhost:5433/aslms_scratch upgrade head`
+  on a scratch database you create and drop yourself (`createdb`/`dropdb` inside the `postgres` container). **Never
+  upgrade or downgrade the dev database (`aslms`)**: the running services and the historical load use it, and it is
+  upgraded only by the owner's `migrate` step after the merge (operations.md section 6). Autogenerate only reads it.
+  Run `ruff` and `pytest` before every commit; commit only green code. Commit messages end with `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`.
 - Never: read or write `.env` or `.env.*` other than `.env.example`; set `NAPIX_ENABLED=true` anywhere; edit
   an applied migration; call NAPIX outside `aslms/integration/napix/`; copy or import anything from
   `D:\Dev Workspace\ASLMS-legacy`; fabricate a CNR or a code; delete a legal record; skip an audit row or a

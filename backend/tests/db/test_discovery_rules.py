@@ -57,7 +57,8 @@ def test_save_queues_the_first_sweep(world):
             s, actor, admin, pattern="Pritam Saikia", kind="prefix", office=world.office(s, "EDU")
         )
         rows = party_rows(s, "PRITAM SAIKIA")
-        assert [r.ref for r in rows] == [ref(y, "PRITAM SAIKIA") for y in years()]  # newest year first
+        # one row per year; rows written in one transaction share created_at, so their order is not fixed
+        assert sorted(r.ref for r in rows) == sorted(ref(y, "PRITAM SAIKIA") for y in years())
         assert {(r.lane, r.priority, r.status) for r in rows} == {
             (FetchLane.DISCOVERY, 43, FetchStatus.PENDING)
         }
