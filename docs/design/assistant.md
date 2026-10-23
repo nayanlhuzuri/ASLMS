@@ -230,6 +230,10 @@ Not covered:
    - A conversation belongs to one user. Only that user can list or read it: not the super admin, not the Auditor
      (plan: "visible only to that user"). There is no API for anyone else. The audit trail holds digests only.
    - A case-scope conversation is readable only while the user can still see the case (404 otherwise).
+   - *Owner, 23 Oct 2026:* the case page's Assistant tab has a scope switch **This case | My cases | All court
+     orders**, starting on This case, with a one-line note under the question box naming what is searched. The
+     Assistant page in the menu has My cases | All court orders. Switching the scope searches the last question again.
+     The visual reference is `docs/design/ui/aslms-final-template.html`.
    - A user may hold several conversations per case and per scope ("New conversation"). The Assistant tab opens
      the latest. The title is the first 80 characters of the first question.
    - Messages are append-only, enforced by the trigger `aslms_forbid_change` and by removing UPDATE and DELETE

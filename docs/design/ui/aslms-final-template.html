@@ -597,10 +597,11 @@ mark{background:#FEF0C7;color:inherit;border-radius:2px;padding:0 1px}
 
       <div class="tpane card-body" data-group="a" data-pane="as">
         <div class="notice blue" style="margin-bottom:16px"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" style="flex:none;margin-top:2px"><circle cx="8" cy="8" r="6"/><path d="M8 7v4M8 5h0"/></svg><span class="grow"><b>Preview:</b> passages found in the court records, not an AI answer. AI answers come when SourceTrace is connected.</span></div>
+        <div class="seg2" id="tabScope" role="group" aria-label="Search in" style="margin-bottom:16px"><button type="button" data-s="case" aria-pressed="true">This case</button><button type="button" data-s="mine" aria-pressed="false">My cases</button><button type="button" data-s="all" aria-pressed="false">All court orders</button></div>
         <div class="thread" id="tabThread"></div>
         <div class="chips" id="tabSugg" style="margin:16px 0 12px"></div>
-        <form class="ask-row" id="tabAsk"><input class="input" id="tabQ" placeholder="Ask about this case or search court orders" aria-label="Question"><button class="btn" type="submit">Ask</button></form>
-        <div class="hint" style="margin-top:8px">Searches court orders of all cases for research. Your department's notes and documents are never sent or searched.</div>
+        <form class="ask-row" id="tabAsk"><input class="input" id="tabQ" placeholder="Ask a question" aria-label="Question"><button class="btn" type="submit">Ask</button></form>
+        <div class="hint" style="margin-top:8px" id="tabScopeHint">Searches this case's court orders. Your department's notes and documents are never sent or searched.</div>
         <div class="card" style="box-shadow:none;margin-top:16px"><div class="card-head"><h3 id="tabSrcTitle">Sources used</h3></div><div class="card-body" id="tabSources" style="padding-top:0;padding-bottom:0"></div></div>
       </div>
 
@@ -1045,7 +1046,7 @@ const reEsc=w=>w.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
 function hl(text,words){let h=esc(text);words.forEach(w=>{if(w)h=h.replace(new RegExp("\\b("+reEsc(w)+"\\w*)","gi"),"<mark>$1</mark>")});return h}
 function stems(q){return [...new Set(q.toLowerCase().split(/[^a-z0-9.]+/).map(t=>t.replace(/\.+$/,"")).filter(t=>t.length>2&&!STOP.has(t)).map(t=>t.length>6?t.slice(0,6):t.replace(/(es|s)$/,"")))]}
 function search(q,scope){const ks=stems(q);if(!ks.length)return[];const need=Math.max(1,Math.ceil(ks.length/2)),best={};
-  Object.entries(OR).forEach(([id,o])=>{if(scope==="mine"&&o.scope==="other")return;o.paras.forEach((p,i)=>{const t=p[1].toLowerCase(),hit=ks.filter(k=>new RegExp("\\b"+reEsc(k)).test(t));
+  Object.entries(OR).forEach(([id,o])=>{if(scope==="mine"&&o.scope==="other")return;if(scope==="case"&&o.cno!==CUR)return;o.paras.forEach((p,i)=>{const t=p[1].toLowerCase(),hit=ks.filter(k=>new RegExp("\\b"+reEsc(k)).test(t));
     if(hit.length>=need&&(!best[id]||hit.length>best[id].w.length))best[id]={o:id,i,w:hit}})});
   return Object.values(best).sort((a,b)=>b.w.length-a.w.length||OR[b.o].iso.localeCompare(OR[a.o].iso)).slice(0,6)}
 function answer(q,scope){const c=CANNED[q];if(c)return {q,scope,note:c.note,ps:c.ps.map(([o,i])=>({o,i,w:c.w}))};return {q,scope,ps:search(q,scope)}}
@@ -1053,13 +1054,13 @@ function scopeBadge(o){return o.scope==="other"?'<span class="badge amber nodot"
 function ansHTML(a,ai,sel){const n=a.ps.length,cases=new Set(a.ps.map(p=>OR[p.o].cno)).size;
   return `<div class="msg q"><div class="who">You</div><div class="bubble">${esc(a.q)}</div></div>
   <div class="msg"><div class="who">Preview</div><div class="bubble"><div class="ans${sel?" sel":""}" data-ai="${ai}">
-   <div class="head"><span class="badge nodot">Passages, not an AI answer</span><span>${n?`${n} ${n===1?"passage":"passages"} in ${cases} ${cases===1?"case":"cases"}`:"No passage matches"} · ${a.scope==="mine"?"My cases":"All court orders"}</span></div>
+   <div class="head"><span class="badge nodot">Passages, not an AI answer</span><span>${n?`${n} ${n===1?"passage":"passages"} in ${cases} ${cases===1?"case":"cases"}`:"No passage matches"} · ${a.scope==="case"?"This case":a.scope==="mine"?"My cases":"All court orders"}</span></div>
    ${a.note?`<div class="muted note" style="margin-bottom:4px">${esc(a.note)}</div>`:""}
    ${a.ps.map((p,k)=>{const o=OR[p.o],pr=o.paras[p.i];return `<div class="pas"><div class="pas-h"><button type="button" class="cite" data-src="${p.o}:${p.i}" data-w="${esc(p.w.join("|"))}" aria-label="Open source ${k+1}">[${k+1}]</button><span>Order · ${o.date} · ${o.cno} · page ${pr[0]}</span>${scopeBadge(o)}</div><blockquote>“${hl(pr[1],p.w)}”</blockquote></div>`}).join("")}
    ${n?`<div class="foot"><button type="button" class="btn" data-copy="${ai}">Copy to note</button></div>`:`<div class="muted">Try other words, or switch to All court orders.</div>`}
   </div></div></div>`}
 function srcHTML(p,k){const o=OR[p.o],pr=o.paras[p.i];return `<button type="button" class="src" data-src="${p.o}:${p.i}" data-w="${esc(p.w.join("|"))}"><span class="num">${k+1}</span><span class="grow"><span class="t">Order of ${o.date}</span><span class="muted">${o.cno} · page ${pr[0]}</span><br>${scopeBadge(o)}</span></button>`}
-const TH={tab:{msgs:[],sel:-1,scope:"all",th:"#tabThread",src:"#tabSources",st:"#tabSrcTitle"},page:{msgs:[],sel:-1,scope:"all",th:"#pageThread",src:"#pageSources",st:"#pageSrcTitle"}};
+const TH={tab:{msgs:[],sel:-1,scope:"case",th:"#tabThread",src:"#tabSources",st:"#tabSrcTitle"},page:{msgs:[],sel:-1,scope:"all",th:"#pageThread",src:"#pageSources",st:"#pageSrcTitle"}};
 function renderThread(k){const T=TH[k],m=T.msgs;
   $(T.th).innerHTML=m.length?m.map((a,i)=>ansHTML(a,i,i===T.sel)).join(""):'<div class="empty" style="padding:24px"><b style="color:#101828">Ask a question</b><div class="muted">Or pick one of the suggestions below.</div></div>';
   const a=m[T.sel];$(T.st).textContent="Sources used"+(a&&m.length>1?` · answer ${T.sel+1}`:"");
@@ -1093,7 +1094,11 @@ function openConv(id){curConv=id;const c=CONVS.find(x=>x.id===id);TH.page.msgs=c
 $("#newConv").onclick=()=>{const id="k"+Date.now();CONVS.unshift({id,title:"New conversation",when:"Today",time:"just now",msgs:[]});openConv(id);$("#pageQ").focus()};
 $$("#scopeSeg button").forEach(b=>b.onclick=()=>{const T=TH.page;T.scope=b.dataset.s;$$("#scopeSeg button").forEach(x=>x.setAttribute("aria-pressed",x===b));$("#convScope").textContent=b.textContent;
   const a=T.msgs[T.sel];if(a&&!CANNED[a.q]){T.msgs[T.sel]=answer(a.q,T.scope);renderThread("page");toast("Searched again in "+b.textContent)}});
-function initAssistant(){TH.tab.msgs=[answer(SUGG_TAB[0],"all")];TH.tab.sel=0;renderThread("tab");
+const SCOPE_HINT={case:"Searches this case's court orders.",mine:"Searches the court orders of the cases you work on.",all:"Searches court orders of all cases in ASLMS, for research."};
+$$("#tabScope button").forEach(b=>b.onclick=()=>{const T=TH.tab;T.scope=b.dataset.s;$$("#tabScope button").forEach(x=>x.setAttribute("aria-pressed",x===b));
+  $("#tabScopeHint").textContent=SCOPE_HINT[T.scope]+" Your department's notes and documents are never sent or searched.";
+  const a=T.msgs[T.sel];if(a&&!CANNED[a.q]){T.msgs[T.sel]=answer(a.q,T.scope);renderThread("tab");toast("Searched again in "+b.textContent)}});
+function initAssistant(){TH.tab.msgs=[answer(SUGG_TAB[0],"case")];TH.tab.sel=0;renderThread("tab");
   CONVS=[{id:"k1",title:"Regularisation of contractual teachers",when:"Today",time:"10:12",msgs:[answer("orders on regularisation of contractual teachers","all")]},
    {id:"k2",title:"Next hearing in WP(C)/1234/2026",when:"Today",time:"09:40",msgs:[answer("When is the next hearing and why?","all")]},
    {id:"k3",title:"Transfer in the middle of the session",when:"This week",time:"Tue 20 Oct",msgs:[answer("transfer in the middle of the academic session","all")]},
