@@ -33,7 +33,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Session, aliased
 
 from aslms.domain.cases import Case
-from aslms.domain.causelists import Causelist, CauselistBenchDay, CauselistEntry, ListType
+from aslms.domain.causelists import CURRENT_LIST, Causelist, CauselistBenchDay, CauselistEntry, ListType
 from aslms.domain.documents import DocKind, Document
 from aslms.domain.ops import FetchKind, FetchQueueItem
 from aslms.domain.ops import FetchStatus as QueueStatus
@@ -170,17 +170,19 @@ def _state_of(has_lists: bool, queue_status: Any) -> str:
 
 def day_state(session: Session, list_date: date) -> tuple[str, FetchQueueItem | None]:
     """Decision 4: `held`, `loading`, `no_list`, `failed` or `not_loaded`, with the day's queue row."""
-    has_lists = bool(session.scalar(select(exists().where(Causelist.list_date == list_date))))
+    has_lists = bool(session.scalar(select(exists().where(Causelist.list_date == list_date, CURRENT_LIST))))
     row = _queue_row(session, list_date)
     return _state_of(has_lists, row.status if row is not None else None), row
 
 
 def _default_date(session: Session, today: date) -> date:
     """The first date on or after today with lists, else the latest date with lists, else today."""
-    upcoming = session.scalar(select(func.min(Causelist.list_date)).where(Causelist.list_date >= today))
+    upcoming = session.scalar(
+        select(func.min(Causelist.list_date)).where(Causelist.list_date >= today, CURRENT_LIST)
+    )
     if upcoming is not None:
         return upcoming
-    latest = session.scalar(select(func.max(Causelist.list_date)))
+    latest = session.scalar(select(func.max(Causelist.list_date)).where(CURRENT_LIST))
     return latest or today
 
 
@@ -215,7 +217,7 @@ def dates(
     lists = session.execute(
         select(Causelist.list_date, Causelist.id, Causelist.bench_id, func.coalesce(stored.c.n, 0))
         .outerjoin(stored, stored.c.causelist_id == Causelist.id)
-        .where(Causelist.list_date >= start, Causelist.list_date <= end)
+        .where(Causelist.list_date >= start, Causelist.list_date <= end, CURRENT_LIST)
     ).all()
     bench_days = session.execute(
         select(CauselistBenchDay.list_date, CauselistBenchDay.bench_id).where(
@@ -283,6 +285,13 @@ def _list_out(cl: Causelist, stored: int) -> dict[str, Any]:
         "fetch_status": _value(cl.fetch_status),
         "parse_status": _value(cl.parse_status),
         "has_pdf": cl.document_id is not None,
+        # design court-data-freshness, decision 17: a corrected list and its earlier version
+        "version": cl.version,
+        "supersedes_id": cl.supersedes_id,
+        "superseded_at": to_ist(cl.superseded_at),
+        "superseded": cl.superseded_at is not None,
+        "corrected_at": to_ist(cl.fetched_at) if (cl.version or 1) > 1 else None,
+        "last_checked_at": to_ist(cl.last_checked_at),
     }
 
 
@@ -291,7 +300,9 @@ def day(session: Session, list_date: date) -> dict[str, Any]:
     of `causelist_bench_days` without a list, each court-wide website file as a bench of its own — ordered by
     their smallest court number, then bench id; lists in type order, then NAPIX list id."""
     state, row = day_state(session, list_date)
-    lists = list(session.scalars(select(Causelist).where(Causelist.list_date == list_date)).all())
+    lists = list(
+        session.scalars(select(Causelist).where(Causelist.list_date == list_date, CURRENT_LIST)).all()
+    )
     ids = [cl.id for cl in lists]
     stored: dict[uuid.UUID, int] = {}
     courts: dict[uuid.UUID, set[str]] = {}
@@ -347,9 +358,11 @@ def day(session: Session, list_date: date) -> dict[str, Any]:
         )
     )
     previous_date = session.scalar(
-        select(func.max(Causelist.list_date)).where(Causelist.list_date < list_date)
+        select(func.max(Causelist.list_date)).where(Causelist.list_date < list_date, CURRENT_LIST)
     )
-    next_date = session.scalar(select(func.min(Causelist.list_date)).where(Causelist.list_date > list_date))
+    next_date = session.scalar(
+        select(func.min(Causelist.list_date)).where(Causelist.list_date > list_date, CURRENT_LIST)
+    )
     return {
         "date": list_date,
         "state": state,
@@ -508,7 +521,9 @@ def _place(
     if bench_id is not None:
         conds.append(Causelist.bench_id == bench_id)
     if list_id is not None:
-        conds.append(Causelist.id == list_id)
+        conds.append(Causelist.id == list_id)  # an earlier version can be opened by its id (decision 12)
+    else:
+        conds.append(CURRENT_LIST)
     if list_type is not None:
         conds.append(Causelist.list_type == ListType(list_type))
     if court_no is not None:
@@ -653,7 +668,14 @@ def entries(
                 "claimable": bool(r.claimable),
             }
         )
-    return {"date": list_date, "total": total, "counts": counts, "items": items}
+    named = session.get(Causelist, list_id) if list_id is not None else None
+    return {
+        "date": list_date,
+        "total": total,
+        "counts": counts,
+        "items": items,
+        "list": _list_out(named, counts["entries"]) if named is not None else None,
+    }
 
 
 # ------------------------------------------------------------------------------------------------ the PDF

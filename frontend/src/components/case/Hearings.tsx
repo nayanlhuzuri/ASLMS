@@ -5,7 +5,8 @@
  * business text, short order) and, below, the cause-list appearances (date, list type, bench, court, item, section,
  * connected, counsel codes, remarks), each linking to that day's cause list for its bench (design portal-causelist,
  * decision 12). Between them, "Next dates": every next date of the case with the one used for the calendar (design
- * portal-next-dates, decision 10).
+ * portal-next-dates, decision 10). A row of a list the court replaced by a corrected list is greyed out and says so
+ * (design court-data-freshness, decision 17).
  */
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
@@ -98,6 +99,7 @@ export function Hearings({ caseRef }: { caseRef: string }) {
                 caption={T.case.listings}
                 rows={listings.data.items.map((l, i) => ({ l, i }))}
                 rowKey={(row) => String(row.i)}
+                rowClassName={({ l }) => (l.superseded ? "muted" : undefined)}
                 columns={[
                   {
                     key: "date",
@@ -106,6 +108,7 @@ export function Hearings({ caseRef }: { caseRef: string }) {
                     cell: ({ l }) => (
                       <>
                         {formatDate(l.list_date)}
+                        {l.superseded ? <div className="muted">{T.case.listingReplaced}</div> : null}
                         <div>
                           <Link href={causelistHref(l.list_date, l.bench_id)}>{T.causelist.openCauselist}</Link>
                         </div>

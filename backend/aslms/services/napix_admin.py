@@ -247,12 +247,33 @@ def refetch_day(
     today: date | None = None,
     *,
     force: bool = False,
+    recheck: bool = False,
 ) -> dict[str, Any]:
     """`causelist_day/<date>` at priority 20 in the request lane, as `aslms refetch-date`; not after tomorrow
     (IST). A day already held (done with lists stored, or skipped: the court published none) answers
-    `already_held` without `force`, before anything is written."""
+    `already_held` without `force`, before anything is written.
+
+    With `recheck` (design court-data-freshness, decision 16): `causelist_recheck/<date>` instead, request lane,
+    priority 20, for a date from yesterday to tomorrow (IST) only (`date_out_of_range`); the `already_held` guard does
+    not apply (a recheck is for held lists). Audited `napix.refetch_requested` with `after.kind`."""
     member = acting_member(session, user, Permission.ADMIN_NAPIX_REFETCH)
     today = today or today_ist()
+    if recheck:
+        if not (today - timedelta(days=1) <= list_date <= today + timedelta(days=1)):
+            raise AdminInputError(
+                "date_out_of_range", "held cause lists can be rechecked from yesterday to tomorrow"
+            )
+        return _enqueue(
+            session,
+            actor,
+            member,
+            "napix.refetch_requested",
+            FetchKind.CAUSELIST_RECHECK,
+            list_date.isoformat(),
+            queue.PRIORITY["list_today"],
+            settings,
+            list_date=list_date,
+        )
     if list_date > today + timedelta(days=1):
         raise AdminInputError("date_in_future", "a cause list can be fetched up to tomorrow")
     if not force:
@@ -282,7 +303,10 @@ def day_held(session: Session, list_date: date) -> dict[str, Any] | None:
     status = FetchStatus(_value(row.status))
     stored = int(
         session.scalar(
-            text("SELECT count(*) FROM causelists WHERE list_date = :d AND document_id IS NOT NULL"),
+            text(
+                "SELECT count(*) FROM causelists cl "
+                "WHERE cl.list_date = :d AND cl.document_id IS NOT NULL AND cl.superseded_at IS NULL"
+            ),
             {"d": list_date},
         )
         or 0

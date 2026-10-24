@@ -4339,6 +4339,16 @@
             "title": "Items",
             "type": "array"
           },
+          "list": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CauselistOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "total": {
             "title": "Total",
             "type": "integer"
@@ -4626,6 +4636,18 @@
       },
       "CauselistOut": {
         "properties": {
+          "corrected_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corrected At"
+          },
           "entries_stored": {
             "title": "Entries Stored",
             "type": "integer"
@@ -4657,6 +4679,18 @@
               }
             ],
             "title": "Label"
+          },
+          "last_checked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Checked At"
           },
           "list_type": {
             "title": "List Type",
@@ -4691,6 +4725,40 @@
           "source": {
             "title": "Source",
             "type": "string"
+          },
+          "superseded": {
+            "default": false,
+            "title": "Superseded",
+            "type": "boolean"
+          },
+          "superseded_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Superseded At"
+          },
+          "supersedes_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supersedes Id"
+          },
+          "version": {
+            "default": 1,
+            "title": "Version",
+            "type": "integer"
           }
         },
         "required": [
@@ -6338,6 +6406,11 @@
             "title": "Label",
             "type": "string"
           },
+          "lists_corrected": {
+            "default": 0,
+            "title": "Lists Corrected",
+            "type": "integer"
+          },
           "lists_parse_failed": {
             "title": "Lists Parse Failed",
             "type": "integer"
@@ -6345,6 +6418,16 @@
           "lists_stored": {
             "title": "Lists Stored",
             "type": "integer"
+          },
+          "recheck": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecheckRowOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -7519,6 +7602,16 @@
           },
           "queue": {
             "$ref": "#/components/schemas/QueueDepthsOut"
+          },
+          "retention": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RetentionOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "sourcetrace": {
             "$ref": "#/components/schemas/SourcetraceStatusOut"
@@ -8803,6 +8896,49 @@
           }
         },
         "title": "DismissIn",
+        "type": "object"
+      },
+      "DisposedRefreshOut": {
+        "properties": {
+          "due_now": {
+            "title": "Due Now",
+            "type": "integer"
+          },
+          "eligible": {
+            "title": "Eligible",
+            "type": "integer"
+          },
+          "last_run_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Run At"
+          },
+          "queued_last_run": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Queued Last Run"
+          }
+        },
+        "required": [
+          "eligible",
+          "due_now",
+          "queued_last_run",
+          "last_run_at"
+        ],
+        "title": "DisposedRefreshOut",
         "type": "object"
       },
       "DocLinkOut": {
@@ -10567,7 +10703,8 @@
           "status_batch",
           "order_pdf",
           "party_search",
-          "search_rows"
+          "search_rows",
+          "causelist_recheck"
         ],
         "title": "FetchKind",
         "type": "string"
@@ -12174,6 +12311,11 @@
             "title": "List Type",
             "type": "string"
           },
+          "list_version": {
+            "default": 1,
+            "title": "List Version",
+            "type": "integer"
+          },
           "printed_sr": {
             "anyOf": [
               {
@@ -12214,6 +12356,11 @@
           "sr_no": {
             "title": "Sr No",
             "type": "integer"
+          },
+          "superseded": {
+            "default": false,
+            "title": "Superseded",
+            "type": "boolean"
           }
         },
         "required": [
@@ -17662,6 +17809,83 @@
         "title": "ReassignedOut",
         "type": "object"
       },
+      "RecheckRowOut": {
+        "description": "The date's `causelist_recheck` row (design court-data-freshness, decision 17).",
+        "properties": {
+          "attempts": {
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "called": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Called"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "unparsed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unparsed"
+          },
+          "versions_new": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Versions New"
+          }
+        },
+        "required": [
+          "status",
+          "attempts",
+          "finished_at",
+          "last_error"
+        ],
+        "title": "RecheckRowOut",
+        "type": "object"
+      },
       "RecipientListOut": {
         "properties": {
           "departments": {
@@ -18404,6 +18628,11 @@
             "title": "Key",
             "type": "string"
           },
+          "meta": {
+            "additionalProperties": true,
+            "title": "Meta",
+            "type": "object"
+          },
           "params": {
             "additionalProperties": true,
             "title": "Params",
@@ -18575,6 +18804,84 @@
         "title": "ResetStepOut",
         "type": "object"
       },
+      "RetentionOut": {
+        "description": "Design court-data-freshness, decisions 6, 19 and 21: the call-log rule, its last purge, the two tables'\nsizes and the monthly refresh of disposed cases.",
+        "properties": {
+          "call_log_bytes": {
+            "title": "Call Log Bytes",
+            "type": "integer"
+          },
+          "call_log_keep_days": {
+            "title": "Call Log Keep Days",
+            "type": "integer"
+          },
+          "call_log_oldest_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Call Log Oldest At"
+          },
+          "disposed_refresh": {
+            "$ref": "#/components/schemas/DisposedRefreshOut"
+          },
+          "last_purge_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Purge At"
+          },
+          "last_purge_deleted": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Purge Deleted"
+          },
+          "last_purge_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Purge Status"
+          },
+          "responses_bytes": {
+            "title": "Responses Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "call_log_keep_days",
+          "call_log_oldest_at",
+          "last_purge_at",
+          "last_purge_deleted",
+          "last_purge_status",
+          "call_log_bytes",
+          "responses_bytes",
+          "disposed_refresh"
+        ],
+        "title": "RetentionOut",
+        "type": "object"
+      },
       "RetryFailedIn": {
         "properties": {
           "kind": {
@@ -18585,7 +18892,8 @@
               "status_batch",
               "order_pdf",
               "party_search",
-              "search_rows"
+              "search_rows",
+              "causelist_recheck"
             ],
             "title": "Kind",
             "type": "string"

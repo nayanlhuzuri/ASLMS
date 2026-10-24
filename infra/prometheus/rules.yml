@@ -132,7 +132,7 @@ groups:
           runbook: "docs/operations.md section 17, JobLate"
 
       - alert: JobLate
-        expr: time() - aslms_job_last_success_timestamp{job=~"dedupe-sweep|digests"} > 26 * 3600
+        expr: time() - aslms_job_last_success_timestamp{job=~"dedupe-sweep|digests|disposed-refresh|napix-log-purge"} > 26 * 3600
         for: 5m
         labels:
           severity: warning

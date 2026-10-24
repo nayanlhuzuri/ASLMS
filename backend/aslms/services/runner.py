@@ -35,6 +35,7 @@ import structlog
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
+from aslms.core.clock import today_ist
 from aslms.core.config import Settings, get_settings
 from aslms.core.errors import IntegrationError, NapixInputError, NapixNotFound, NapixUnavailable
 from aslms.domain.cases import Case, FirstSeenSource
@@ -44,7 +45,7 @@ from aslms.integration.napix.client import NapixClient
 from aslms.integration.napix.hc import NapixHighCourt
 from aslms.services import case_dedupe, court_search, discovery, napix_window, queue
 from aslms.services.cases import find_case, get_or_create_case
-from aslms.services.causelists import load_causelist_day
+from aslms.services.causelists import load_causelist_day, recheck_day
 from aslms.services.load_policy import QueueOrigin, current_settings, load_priority
 from aslms.services.masters import sync_masters
 from aslms.services.napix_store import NapixRecorder
@@ -109,7 +110,7 @@ class QueueRunner:
     # ------------------------------------------------------------------ lifecycle
     def start_job(self, job: str) -> uuid.UUID:
         with self.session_factory() as s:
-            run = JobRun(job=job, run_date=date.today())
+            run = JobRun(job=job, run_date=today_ist())
             s.add(run)
             s.commit()
             self.recorder.job_run_id = run.id
@@ -386,6 +387,8 @@ class QueueRunner:
             return await self._masters(s), False
         if kind == FetchKind.CAUSELIST_DAY:
             return await self._causelist_day(s, date.fromisoformat(ref), origin)
+        if kind == FetchKind.CAUSELIST_RECHECK:
+            return await self._causelist_recheck(s, date.fromisoformat(ref), origin)
         if kind == FetchKind.DOSSIER:
             return await self._dossier(s, ref, origin)
         if kind == FetchKind.STATUS_BATCH:
@@ -432,6 +435,26 @@ class QueueRunner:
             origin=origin,
         )
         return rep.as_dict(), rep.skipped_reason is not None
+
+    async def _causelist_recheck(
+        self, s: Session, list_date: date, origin: QueueOrigin
+    ) -> tuple[dict[str, Any], bool]:
+        """Show Cause List again for the date's held NAPIX lists (design court-data-freshness, decision 8); `skipped`
+        when the date has no candidate list."""
+        if self.hc is None:
+            raise RuntimeError("NAPIX is off: cause lists cannot be rechecked")
+        if origin.list_date is None:
+            origin = replace(origin, list_date=list_date)
+        rep = await recheck_day(
+            s,
+            self.hc,
+            self._court(s),
+            list_date,
+            self.store,
+            fresh_minutes=self.settings.causelist_recheck_fresh_minutes,
+            origin=origin,
+        )
+        return rep.as_dict(), rep.candidates == 0
 
     async def _dossier(self, s: Session, ref: str, origin: QueueOrigin) -> tuple[dict[str, Any], bool]:
         """A dossier by CNR, or by `<est>|<case number>` through Search by Case Number; the fetch itself is
@@ -511,7 +534,7 @@ def enqueue_days(
     """One `causelist_day` row per calendar day (the court simply has no list on holidays). Without a lane, days
     from yesterday on belong to the daily cycle (priority 20) and older days to the load (its policy priority, with
     `list_date` = the day). The console's start goes through `services/data_load.py::start`."""
-    today = date.today()
+    today = today_ist()
     settings = current_settings(s)
     n = 0
     d = start

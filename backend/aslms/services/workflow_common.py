@@ -12,6 +12,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from aslms.core import clock
 from aslms.domain.cases import Case
 from aslms.domain.org import User
 from aslms.domain.ownership import CaseOwnership, OwnershipRole, OwnershipStatus
@@ -19,7 +20,6 @@ from aslms.domain.reference import Permission
 from aslms.domain.workflow import PendingAction, ResponseMode
 from aslms.services import access
 from aslms.services.access import Member
-from aslms.services.refno import now_ist
 from aslms.services.visibility import WORKING_BASES, NotVisibleCase, access_basis, acting_member_for_case
 
 MAX_DUE_DAYS = 365
@@ -59,7 +59,7 @@ def value(v: Any) -> Any:
 
 
 def today_ist() -> date:
-    return now_ist().date()
+    return clock.today_ist()
 
 
 def lock_case(session: Session, case: Case) -> None:

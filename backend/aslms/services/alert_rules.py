@@ -11,6 +11,7 @@ from datetime import date, datetime, time, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from aslms.core import clock
 from aslms.domain.alerts import Severity
 from aslms.domain.org import Channel, DigestMode, UserNotificationPreference
 from aslms.domain.reference import AlertKind
@@ -66,7 +67,7 @@ def hearing_due_at(d: date, sitting_time: str | time = "10:30") -> datetime:
 
 
 def today_ist(now: datetime) -> date:
-    return now.astimezone(IST).date()
+    return clock.today_ist(now)
 
 
 def severity_for_hearing(due_at: datetime, now: datetime, critical_hours: int = 48) -> Severity | None:

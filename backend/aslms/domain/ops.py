@@ -79,8 +79,9 @@ class JobRun(CreatedAtMixin, Base):
 
 
 class NapixCallLog(Base):
-    """One row per HTTP attempt (CLAUDE.md: every call is logged). Pruned after the retention period. `called_at`
-    is the attempt's own time (design `napix-window`, decision 7)."""
+    """One row per HTTP attempt (CLAUDE.md: every call is logged). Pruned after `NAPIX_CALL_LOG_KEEP_DAYS` (730) IST
+    days by the daily job `napix-log-purge` (design `court-data-freshness`, decision 19; the one deletion DB_STANDARD
+    §6 allows). `called_at` is the attempt's own time (design `napix-window`, decision 7)."""
 
     __tablename__ = "napix_call_log"
     __table_class__ = TableClass.DERIVED
@@ -163,6 +164,8 @@ class FetchKind(enum.StrEnum):
     PARTY_SEARCH = "party_search"  # design department-discovery, decision 3 (migration 0017)
     # the background storing of an advocate search's rows; no NAPIX call (design safety-fixes, migration 0019)
     SEARCH_ROWS = "search_rows"
+    # the evening recheck of a date's held NAPIX lists, Show Cause List only (design court-data-freshness, 0023)
+    CAUSELIST_RECHECK = "causelist_recheck"
 
 
 class FetchStatus(enum.StrEnum):

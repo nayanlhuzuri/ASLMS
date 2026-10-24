@@ -139,6 +139,11 @@ TRACKING_CARD_EVENTS = {
     EventType.CASE_TAKEN_OVER,
     EventType.NEXT_DATE_REVIEWED,  # design next-date-extraction
     EventType.NEXT_DATE_ENTERED,
+    EventType.LISTING_CHANGED,  # design court-data-freshness: cause-list placement is public court data
+}
+# timeline labels that differ from the label (new rows only)
+EVENT_TIMELINE_LABELS = {
+    EventType.LISTING_CHANGED: "Cause list corrected",  # design court-data-freshness, migration 0023
 }
 
 
@@ -164,7 +169,10 @@ def _extra_columns(model: type, member: enum.Enum) -> dict:
     if model is RefNoteKind and member in NOTE_KIND_LABELS:
         return {"label": NOTE_KIND_LABELS[member]}
     if model is RefEventType:
-        return {"timeline_label": _label(member.value), "is_tracking_card": member in TRACKING_CARD_EVENTS}
+        return {
+            "timeline_label": EVENT_TIMELINE_LABELS.get(member, _label(member.value)),
+            "is_tracking_card": member in TRACKING_CARD_EVENTS,
+        }
     return {}
 
 

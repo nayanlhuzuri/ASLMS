@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session, aliased
 
 from aslms.domain.alerts import NextDate, NextDateSource, ReviewStatus
 from aslms.domain.cases import Case
-from aslms.domain.causelists import Causelist, CauselistEntry
+from aslms.domain.causelists import CURRENT_LIST, Causelist, CauselistEntry
 from aslms.domain.org import Office, User
 from aslms.domain.ownership import CaseOwnership, OwnershipStatus
 from aslms.domain.reference import Permission
@@ -97,7 +97,7 @@ def hearing_rows(
         )
         .join(Causelist, Causelist.id == CauselistEntry.causelist_id)
         .join(Case, Case.id == CauselistEntry.case_id)
-        .where(Causelist.list_date.between(from_, to), live, case_condition)
+        .where(Causelist.list_date.between(from_, to), CURRENT_LIST, live, case_condition)
         .order_by(Causelist.list_date, CauselistEntry.sr_no)
     ).all():
         keep(

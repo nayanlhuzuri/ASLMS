@@ -28,7 +28,7 @@ from sqlalchemy.orm import Session, aliased
 from aslms.core.config import Settings, get_settings
 from aslms.domain.alerts import Alert
 from aslms.domain.cases import Case, CaseHearing, CaseStatus
-from aslms.domain.causelists import Causelist, CauselistEntry
+from aslms.domain.causelists import CURRENT_LIST, Causelist, CauselistEntry
 from aslms.domain.courts import Court
 from aslms.domain.ops import FetchKind, FetchQueueItem, FetchStatus, NapixCallLog, SourceFailure
 from aslms.domain.org import Office, User
@@ -72,8 +72,8 @@ NOT_CLAIMED_RECOMMENDED = ("NC-REC", "Not claimed — recommended")
 NOT_CLAIMED_NONE = ("NC-NONE", "Not claimed — no recommendation")
 NOT_ALLOTTED = ("DEPT", "Department office / not allotted")
 CALL_LOG_NOTE = (
-    "NAPIX call-log rows exist only from the first live call and until the retention pruning, when one is "
-    "introduced."
+    "NAPIX call-log rows exist only from the first live call; calls are kept for NAPIX_CALL_LOG_KEEP_DAYS (2 years by "
+    "default), so earlier days show no call figures."
 )
 
 CATALOGUE: dict[str, dict[str, Any]] = {
@@ -152,6 +152,8 @@ class Report:
     generated_by: dict[str, Any]
     as_of_note: str
     sections: list[Section] = field(default_factory=list)
+    # report-specific facts for the screen (data-health: `calls_kept_from`; design court-data-freshness, decision 20)
+    meta: dict[str, Any] = field(default_factory=dict)
 
     @property
     def rows(self) -> int:
@@ -172,6 +174,7 @@ class Report:
             "generated_by": self.generated_by,
             "as_of_note": self.as_of_note,
             "sections": [s.to_dict() for s in self.sections],
+            "meta": self.meta,
         }
 
 
@@ -317,6 +320,7 @@ def _report(
     params: dict[str, Any],
     as_of_note: str,
     sections: list[Section],
+    meta: dict[str, Any] | None = None,
 ) -> Report:
     return Report(
         key=key,
@@ -328,6 +332,7 @@ def _report(
         generated_by=_generated_by(session, user, scope),
         as_of_note=as_of_note,
         sections=sections,
+        meta=meta or {},
     )
 
 
@@ -581,7 +586,7 @@ def hearings_disposals(
     listed = (
         select(CauselistEntry.case_id.label("case_id"), Causelist.list_date.label("d"))
         .join(Causelist, Causelist.id == CauselistEntry.causelist_id)
-        .where(CauselistEntry.case_id.is_not(None), Causelist.list_date.between(from_, to))
+        .where(CauselistEntry.case_id.is_not(None), Causelist.list_date.between(from_, to), CURRENT_LIST)
         .distinct()
         .subquery("listed")
     )
@@ -1092,7 +1097,8 @@ def data_health(
             .order_by(SourceFailure.kind)
         ).all()
     ]
-    st = sourcetrace_ingest.status(session, settings or get_settings())
+    cfg_settings = settings or get_settings()
+    st = sourcetrace_ingest.status(session, cfg_settings)
     st_cols = [Column("measure", "Measure"), Column("count", "Count", "int")]
     st_rows = [{"measure": f"documents {k}", "count": v} for k, v in st["counts"].items()] + [
         {"measure": "filings waiting for a CNR", "count": st["waiting_cnr"]},
@@ -1128,6 +1134,11 @@ def data_health(
         f"Operations rows dated from {from_.isoformat()} to {to.isoformat()} (IST days); open failures and the "
         f"SourceTrace status as they stand now. {CALL_LOG_NOTE}",
         sections,
+        meta={
+            # the oldest IST day the call-log retention keeps (design court-data-freshness, decision 20)
+            "calls_kept_from": (today or today_ist()) - timedelta(days=cfg_settings.napix_call_log_keep_days),
+            "calls_kept_days": cfg_settings.napix_call_log_keep_days,
+        },
     )
 
 

@@ -25,6 +25,7 @@ from sqlalchemy import and_, exists, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session, aliased, sessionmaker
 
+from aslms.core.clock import today_ist
 from aslms.core.config import Settings
 from aslms.domain.cases import Case
 from aslms.domain.courts import Court
@@ -481,7 +482,7 @@ def run(
     """The sync wrapper for Celery and the CLI: a `job_runs` row (`job = sourcetrace_ingest`), status `partial`
     when anything failed, was retried or was refused by the guard."""
     with Session() as s:
-        job = JobRun(job=JOB, run_date=_now().date())
+        job = JobRun(job=JOB, run_date=today_ist(_now()))
         s.add(job)
         s.commit()
         job_id = job.id

@@ -1230,6 +1230,9 @@ class ListingOut(BaseModel):
     counsel_codes: list[str]
     remarks: str | None
     source: str
+    # design court-data-freshness, decision 17: a row of a list replaced by a corrected list
+    superseded: bool = False
+    list_version: int = 1
 
 
 class ListingListOut(BaseModel):
@@ -2586,6 +2589,8 @@ class ReportOut(BaseModel):
     generated_by: ReportGeneratedByOut
     as_of_note: str
     sections: list[ReportSectionOut]
+    # data-health: `calls_kept_from` and `calls_kept_days` (design court-data-freshness, decision 20)
+    meta: dict[str, Any] = Field(default_factory=dict)
 
 
 # ------------------------------------------------------------------ audit log and data health (audit-screens)
@@ -2741,6 +2746,18 @@ class CauselistDayRowOut(BaseModel):
     last_error: str | None
 
 
+class RecheckRowOut(BaseModel):
+    """The date's `causelist_recheck` row (design court-data-freshness, decision 17)."""
+
+    status: str
+    attempts: int
+    finished_at: datetime | None
+    last_error: str | None
+    called: int | None = None
+    versions_new: int | None = None
+    unparsed: int | None = None
+
+
 class DailyCycleDayOut(BaseModel):
     date: date
     label: str
@@ -2748,6 +2765,8 @@ class DailyCycleDayOut(BaseModel):
     lists_stored: int
     entries_parsed: int
     lists_parse_failed: int
+    lists_corrected: int = 0
+    recheck: RecheckRowOut | None = None
 
 
 class StatusBatchesOut(BaseModel):
@@ -2808,6 +2827,27 @@ class DocumentsTextOut(BaseModel):
     attachment: DocumentsTextKindOut
 
 
+class DisposedRefreshOut(BaseModel):
+    eligible: int
+    due_now: int
+    queued_last_run: int | None
+    last_run_at: datetime | None
+
+
+class RetentionOut(BaseModel):
+    """Design court-data-freshness, decisions 6, 19 and 21: the call-log rule, its last purge, the two tables'
+    sizes and the monthly refresh of disposed cases."""
+
+    call_log_keep_days: int
+    call_log_oldest_at: datetime | None
+    last_purge_at: datetime | None
+    last_purge_deleted: int | None
+    last_purge_status: str | None
+    call_log_bytes: int
+    responses_bytes: int
+    disposed_refresh: DisposedRefreshOut
+
+
 class DataHealthOut(BaseModel):
     as_of: datetime
     napix: NapixHealthOut
@@ -2820,6 +2860,7 @@ class DataHealthOut(BaseModel):
     sourcetrace: SourcetraceStatusOut
     failures: list[FailureKindOut]
     documents_text: DocumentsTextOut
+    retention: RetentionOut | None = None
 
 
 class QueueRowOut(BaseModel):
@@ -2924,7 +2965,14 @@ class RefetchOrderIn(BaseModel):
 
 class RetryFailedIn(BaseModel):
     kind: Literal[
-        "masters", "causelist_day", "dossier", "status_batch", "order_pdf", "party_search", "search_rows"
+        "masters",
+        "causelist_day",
+        "dossier",
+        "status_batch",
+        "order_pdf",
+        "party_search",
+        "search_rows",
+        "causelist_recheck",
     ]
     lane: Literal["request", "daily", "discovery", "load"] | None = None
 
@@ -3231,6 +3279,13 @@ class CauselistOut(BaseModel):
     fetch_status: str
     parse_status: str
     has_pdf: bool
+    # design court-data-freshness, decision 17: a corrected list (version > 1) and its earlier version
+    version: int = 1
+    supersedes_id: uuid.UUID | None = None
+    superseded_at: datetime | None = None
+    superseded: bool = False
+    corrected_at: datetime | None = None
+    last_checked_at: datetime | None = None
 
 
 class CauselistBenchOut(BaseModel):
@@ -3315,6 +3370,8 @@ class CauselistEntriesOut(BaseModel):
     total: int
     counts: CauselistCountsOut
     items: list[CauselistEntryOut]
+    # the list named by `list_id`, a superseded version included (`list.superseded`; court-data-freshness)
+    list_: CauselistOut | None = Field(None, alias="list")
 
 
 # ------------------------------------------------------------------------------------------------ department discovery

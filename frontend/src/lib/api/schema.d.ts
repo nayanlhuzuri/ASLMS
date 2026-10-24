@@ -5433,6 +5433,7 @@ export interface components {
             date: string;
             /** Items */
             items: components["schemas"]["CauselistEntryOut"][];
+            list?: components["schemas"]["CauselistOut"] | null;
             /** Total */
             total: number;
         };
@@ -5502,6 +5503,8 @@ export interface components {
         };
         /** CauselistOut */
         CauselistOut: {
+            /** Corrected At */
+            corrected_at?: string | null;
             /** Entries Stored */
             entries_stored: number;
             /** Entry Count */
@@ -5517,6 +5520,8 @@ export interface components {
             id: string;
             /** Label */
             label: string | null;
+            /** Last Checked At */
+            last_checked_at?: string | null;
             /** List Type */
             list_type: string;
             /** List Type Text */
@@ -5527,6 +5532,20 @@ export interface components {
             parse_status: string;
             /** Source */
             source: string;
+            /**
+             * Superseded
+             * @default false
+             */
+            superseded: boolean;
+            /** Superseded At */
+            superseded_at?: string | null;
+            /** Supersedes Id */
+            supersedes_id?: string | null;
+            /**
+             * Version
+             * @default 1
+             */
+            version: number;
         };
         /** ClaimIn */
         ClaimIn: {
@@ -6085,10 +6104,16 @@ export interface components {
             entries_parsed: number;
             /** Label */
             label: string;
+            /**
+             * Lists Corrected
+             * @default 0
+             */
+            lists_corrected: number;
             /** Lists Parse Failed */
             lists_parse_failed: number;
             /** Lists Stored */
             lists_stored: number;
+            recheck?: components["schemas"]["RecheckRowOut"] | null;
         };
         /** DashboardAlertOut */
         DashboardAlertOut: {
@@ -6489,6 +6514,7 @@ export interface components {
             masters: components["schemas"]["MasterSyncOut"][];
             napix: components["schemas"]["NapixHealthOut"];
             queue: components["schemas"]["QueueDepthsOut"];
+            retention?: components["schemas"]["RetentionOut"] | null;
             sourcetrace: components["schemas"]["SourcetraceStatusOut"];
             status_batches: components["schemas"]["StatusBatchesOut"] | null;
         };
@@ -6909,6 +6935,17 @@ export interface components {
             office_code?: string | null;
             /** Reason */
             reason?: string | null;
+        };
+        /** DisposedRefreshOut */
+        DisposedRefreshOut: {
+            /** Due Now */
+            due_now: number;
+            /** Eligible */
+            eligible: number;
+            /** Last Run At */
+            last_run_at: string | null;
+            /** Queued Last Run */
+            queued_last_run: number | null;
         };
         /** DocLinkOut */
         DocLinkOut: {
@@ -7478,7 +7515,7 @@ export interface components {
          * FetchKind
          * @enum {string}
          */
-        FetchKind: "masters" | "causelist_day" | "dossier" | "status_batch" | "order_pdf" | "party_search" | "search_rows";
+        FetchKind: "masters" | "causelist_day" | "dossier" | "status_batch" | "order_pdf" | "party_search" | "search_rows" | "causelist_recheck";
         /**
          * FetchLane
          * @description Who asked for a queue row (design `data-load-console`, decision 1), in order of precedence: a person's
@@ -7957,6 +7994,11 @@ export interface components {
             list_date: string;
             /** List Type */
             list_type: string;
+            /**
+             * List Version
+             * @default 1
+             */
+            list_version: number;
             /** Printed Sr */
             printed_sr: string | null;
             /** Remarks */
@@ -7967,6 +8009,11 @@ export interface components {
             source: string;
             /** Sr No */
             sr_no: number;
+            /**
+             * Superseded
+             * @default false
+             */
+            superseded: boolean;
         };
         /** LoadFailureKindOut */
         LoadFailureKindOut: {
@@ -9713,6 +9760,26 @@ export interface components {
              */
             to_membership: string;
         };
+        /**
+         * RecheckRowOut
+         * @description The date's `causelist_recheck` row (design court-data-freshness, decision 17).
+         */
+        RecheckRowOut: {
+            /** Attempts */
+            attempts: number;
+            /** Called */
+            called?: number | null;
+            /** Finished At */
+            finished_at: string | null;
+            /** Last Error */
+            last_error: string | null;
+            /** Status */
+            status: string;
+            /** Unparsed */
+            unparsed?: number | null;
+            /** Versions New */
+            versions_new?: number | null;
+        };
         /** RecipientListOut */
         RecipientListOut: {
             /**
@@ -9992,6 +10059,10 @@ export interface components {
             generated_by: components["schemas"]["ReportGeneratedByOut"];
             /** Key */
             key: string;
+            /** Meta */
+            meta?: {
+                [key: string]: unknown;
+            };
             /** Params */
             params: {
                 [key: string]: unknown;
@@ -10055,13 +10126,35 @@ export interface components {
             /** Resend After */
             resend_after: number;
         };
+        /**
+         * RetentionOut
+         * @description Design court-data-freshness, decisions 6, 19 and 21: the call-log rule, its last purge, the two tables'
+         *     sizes and the monthly refresh of disposed cases.
+         */
+        RetentionOut: {
+            /** Call Log Bytes */
+            call_log_bytes: number;
+            /** Call Log Keep Days */
+            call_log_keep_days: number;
+            /** Call Log Oldest At */
+            call_log_oldest_at: string | null;
+            disposed_refresh: components["schemas"]["DisposedRefreshOut"];
+            /** Last Purge At */
+            last_purge_at: string | null;
+            /** Last Purge Deleted */
+            last_purge_deleted: number | null;
+            /** Last Purge Status */
+            last_purge_status: string | null;
+            /** Responses Bytes */
+            responses_bytes: number;
+        };
         /** RetryFailedIn */
         RetryFailedIn: {
             /**
              * Kind
              * @enum {string}
              */
-            kind: "masters" | "causelist_day" | "dossier" | "status_batch" | "order_pdf" | "party_search" | "search_rows";
+            kind: "masters" | "causelist_day" | "dossier" | "status_batch" | "order_pdf" | "party_search" | "search_rows" | "causelist_recheck";
             /** Lane */
             lane?: ("request" | "daily" | "discovery" | "load") | null;
         };

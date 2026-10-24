@@ -40,6 +40,13 @@ export function ReportView({
   const by = report.generated_by;
   const who = [by.name, by.designation, by.office_code].filter(Boolean).join(", ");
   const holder = typeof p.holder_department === "string" && p.holder_department ? p.holder_department : null;
+  // design court-data-freshness, decision 20: a data-health period that starts before the oldest kept call day
+  const meta = (report.meta ?? {}) as Record<string, unknown>;
+  const keptFrom = typeof meta.calls_kept_from === "string" ? meta.calls_kept_from : null;
+  const callsNote =
+    keptFrom && typeof p.from === "string" && p.from < keptFrom
+      ? T.reports.callsKept(Number(meta.calls_kept_days ?? 730))
+      : null;
   return (
     <div className="stack">
       <section className={s.header} aria-label={report.title}>
@@ -59,6 +66,7 @@ export function ReportView({
           {who ? <li>{T.reports.generatedBy(who)}</li> : null}
         </ul>
         <Notice>{report.as_of_note}</Notice>
+        {callsNote ? <Notice tone="warning">{callsNote}</Notice> : null}
       </section>
       {actions}
       {report.sections.map((section) => (

@@ -12,9 +12,10 @@ from typing import Any
 from sqlalchemy import ColumnElement, Date, and_, case, exists, func, literal, or_, select, text
 from sqlalchemy.orm import Session
 
+from aslms.core import clock
 from aslms.core.config import Settings, get_settings
 from aslms.domain.cases import Case
-from aslms.domain.causelists import Causelist
+from aslms.domain.causelists import CURRENT_LIST, Causelist
 from aslms.domain.causelists import ParseStatus as CauselistParseStatus
 from aslms.domain.ops import FetchKind, FetchQueueItem
 from aslms.domain.org import Office
@@ -97,7 +98,7 @@ def now_utc() -> datetime:
 
 
 def today_ist(now: datetime | None = None) -> date:
-    return (now or now_utc()).astimezone(IST).date()
+    return clock.today_ist(now)
 
 
 def ist_date(value: datetime | None) -> date | None:
@@ -236,7 +237,7 @@ def causelist_counts(session: Session, from_: date, to: date) -> dict[date, dict
             func.coalesce(func.sum(Causelist.entry_count), 0),
             func.count().filter(Causelist.parse_status == CauselistParseStatus.FAILED),
         )
-        .where(Causelist.list_date.between(from_, to))
+        .where(Causelist.list_date.between(from_, to), CURRENT_LIST)
         .group_by(Causelist.list_date)
     ).all():
         out[d] = {"lists_stored": int(n), "entries_parsed": int(entries), "lists_parse_failed": int(failed)}

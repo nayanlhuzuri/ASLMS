@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | Owner | Government of Assam |
-| Describes | The system as built on `main`, 21 October 2026 |
+| Describes | The system as built on `main`, 21 October 2026; court data freshness (section 2, items 10 to 12 of section 6) as changed on 24 October 2026 |
 | Readers | The product owner, department and State officials, auditors and anyone asked how ASLMS handles data |
 | Status | Living document: updated when a workflow changes |
 
@@ -162,6 +162,7 @@ NAPIX. All times are Indian Standard Time.
 |---|---|---|---|
 | 06:00 daily | Court masters | Refreshes the court's reference lists: states, districts, benches, case types, acts | Yes |
 | 06:30 and 18:30 daily | Cause lists | Fetches the lists for yesterday, today and tomorrow: benches, list details, the list PDFs. Reads each PDF and records every entry. | Yes |
+| 18:30 daily (and 06:30 for today's lists) | Cause list re-check | Asks the court again for each list already held for today and tomorrow (at 06:30, today only). A list whose entries changed is kept as a new version (section 2.3). | Yes |
 | 20:00 daily | Status refresh | Asks the court for the current status of every case not yet disposed, 250 cases per call | Yes |
 | Every 5 minutes | Order text | Reads the text of newly stored order PDFs and uploads | No |
 | Every 5 minutes | Next dates | Reads "list on…" directions in order text (section 4.5) | No |
@@ -171,6 +172,8 @@ NAPIX. All times are Indian Standard Time.
 | 08:00 daily | Digest | Builds and sends each person's daily summary e-mail | No |
 | Every 15 minutes | Rescore | Recalculates recommendations, but only if mapping rules or scoring settings changed | No |
 | 03:00 daily | Duplicates | Finds and merges duplicate case records | No |
+| 02:30 daily | Disposed cases | Queues a full record for each disposed case within a year of its disposal whose last refresh is more than 28 days old, at most 1,000 a night (section 2.4) | Yes |
+| 03:45 daily | Call log purge | Removes call-log rows older than 2 years (section 2.7) | No |
 | Saturday 02:00 | Discovery | Searches the court by each department's "search the court" keywords (section 2.5) | Yes |
 | Sunday 02:00 | Weekly sweep | Fetches the full record of every case not yet disposed, and of every case never fully fetched; retries missing orders | Yes |
 | 00:30, 06:30, 12:30, 18:30 | Backups | Database dump and a copy of the document store | No |
@@ -214,7 +217,7 @@ What the **full court record** (the "dossier", from NAPIX *Search by CNR*) fills
 | `orders` | Every interim and final order and judgment, linked to its PDF once downloaded |
 | `case_applications`, `case_objections`, `case_transfers`, `case_writ_info`, `case_links`, `case_lower_courts` | Interlocutory applications, registry objections, transfers, writ details, connected cases, lower-court details |
 | `case_snapshots` | Every distinct version of the court record, so changes can be traced |
-| `causelist_entries` | Every cause-list line exactly as printed (kept forever, never changed) |
+| `causelist_entries` | Every cause-list line exactly as printed (kept forever, never changed). A list the court re-issues with different entries is kept as a new version of the list with its own entries; the earlier version is marked replaced, never edited or deleted, and every screen shows the current version. |
 | `documents` + document store | Order PDFs, cause-list PDFs and uploads |
 
 Search results are stored only when they carry a valid CNR. A search row without a CNR is shown to the user but
@@ -257,11 +260,17 @@ In short:
   owners get an alert.
 - **The next hearing date** comes from the court's own field (`date_next_list`) in the status and the full record.
   Dates read from order text are only suggestions until a person confirms them (section 4.5).
+- **Disposed cases:** a case within a year of its disposal is refreshed **monthly**: every day at 02:30 the system
+  queues a full record for those last refreshed more than 28 days ago (at most 1,000 a night, after all live work).
+  A case the court restores to pending rejoins the daily status refresh and the Sunday sweep, and its owners get a
+  "status changed" alert. After a year, a disposed case is no longer refreshed.
+- **Corrected cause lists:** at 18:30 the system asks the court again for each list already held for today and
+  tomorrow, and at 06:30 for today's lists. A list whose entries changed is kept as a new version; a file that differs
+  only in its heading is not. A download that cannot be read never replaces a good list. A case whose listing moved or
+  was removed gets a "Cause list corrected" entry on its timeline, and its hearing and "listed for tomorrow" alerts
+  follow the current list.
 - **A person can ask for a fresh fetch at any time:** "Fetch from court" on a case page, for a case not yet fully
   fetched. Re-fetching a case already fetched is an operator function.
-
-> ⚠️ **Worth a decision:** a case that is **disposed and fully fetched is never refreshed again**. A later order,
-> such as a review or restoration, would be missed unless someone fetches it by hand. (Section 6, item 10.)
 
 > ⚠️ **Worth a decision:** claiming a case does **not** make the system fetch it again or refresh it more often. A
 > claimed case is refreshed exactly like an unclaimed one. (Section 6, item 1.)
@@ -294,10 +303,12 @@ All court work waits in one queue (`fetch_queue`). Each item has a **priority**,
 |---|---|
 | 10 | Court masters |
 | 20 | Cause lists for yesterday, today and tomorrow |
+| 21 | Cause list re-checks |
 | 30 | The daily status refresh, and **requests made by people** |
 | 40 | Full records and orders of live cases |
 | 41–49 | The historical load and discovery |
 | 50 | The weekly sweep |
+| 55 | The monthly refresh of disposed cases |
 | 80 | Order PDFs of disposed cases |
 
 **When an item fails**, it is tried again after 10 minutes, then 1 hour, 6 hours, 24 hours and 72 hours. After six
@@ -312,11 +323,10 @@ court is treated as a temporary fault and retried on the same ladder.
 - **Not used:** the court's *Show Business* API (the daily business text of each hearing) is used only by the
   System health test. *Act Details*, *Neutral Citation* and *Advocate Bar Registration* are not used.
 - **Not stored:** search rows without a valid CNR. Error answers are kept only as short text in the call log.
-- **Retention:** nothing is deleted. Cases, orders, documents, notes, the audit log, the call log and every answer
-  as received are all kept.
-
-> ⚠️ **Worth a decision:** the call log and the answers as received **grow without limit**. A retention period was
-> planned but is not built. (Section 6, item 12.)
+- **Retention:** nothing is deleted except the call log. Cases, orders, documents, notes, the audit log and every
+  answer as received are all kept forever. The **call log is kept for 2 years**: a nightly job at 03:45 removes older
+  rows and records what it removed in the job record and the audit log. The setting is in `.env`.
+- **Dates:** job dates and "today" in the scheduled jobs are Indian Standard Time dates.
 
 ---
 
@@ -758,13 +768,12 @@ design for your approval.
 
 **About court data**
 
-10. **Disposed cases are never refreshed again** once fully fetched. *Option:* refresh disposed cases monthly for
-    one year after disposal.
-11. **A corrected cause list re-issued under the same list number is not fetched again.** *Option:* re-fetch
-    today's and tomorrow's lists at 18:30, even if already read.
-12. **No retention period for the call log and the answers as received.** They grow without limit. *Option:* keep
-    the call log for 2 years and the answers as received for as long as the case lives. Your decision, since it is a
-    records question.
+10. **Done (changed on 24 Oct 2026).** Disposed cases are refreshed monthly for one year after disposal (a daily slice
+    at 02:30).
+11. **Done (changed on 24 Oct 2026).** A corrected cause list re-issued under the same list number is re-checked at
+    18:30 (and at 06:30 for today's lists) and kept as a new version.
+12. **Done (changed on 24 Oct 2026).** The call log is kept for 2 years (nightly purge at 03:45); the answers as
+    received are kept forever.
 
 **About roles**
 
@@ -781,8 +790,7 @@ design for your approval.
 
 - On a busy day the daily status batches can skip or repeat a few cases, because the batches are worked out when they
   run.
-- One diagnostic command (`aslms napix-probe-rate`) does not write its calls to the call log.
-- Job dates use the container's UTC clock, so a 03:00 IST job is dated the previous day.
+- Fixed on 24 Oct 2026: `aslms napix-probe-rate` now writes its calls to the call log, and job dates are IST dates.
 - After the latest change, 15 or more simultaneous court searches could exhaust the API's database connections
   (backlog row 114).
 

@@ -25,6 +25,7 @@ from datetime import UTC, date, datetime
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
+from aslms.core.clock import today_ist
 from aslms.domain.events import Event, EventVisibility
 from aslms.domain.org import Designation, Office, User, UserMembership
 from aslms.domain.ownership import CaseOwnership, OwnershipStatus
@@ -409,7 +410,7 @@ def deactivate_office(session: Session, actor: Actor, actor_user: User, office: 
     before = office_summary(office)
     office.is_active = False
     office.deactivated_at = datetime.now(UTC)
-    office.valid_to = date.today()
+    office.valid_to = today_ist()
     office.updated_by = actor.user_id
     session.flush()
     write_audit(
@@ -609,7 +610,7 @@ def set_designation_active(
     before = designation_summary(designation)
     designation.is_active = enabled
     designation.deactivated_at = None if enabled else datetime.now(UTC)
-    designation.valid_to = None if enabled else date.today()
+    designation.valid_to = None if enabled else today_ist()
     designation.updated_by = actor.user_id
     session.flush()
     write_audit(

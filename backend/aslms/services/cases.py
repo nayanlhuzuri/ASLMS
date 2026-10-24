@@ -16,6 +16,7 @@ from typing import Any
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
+from aslms.core.clock import today_ist
 from aslms.domain.cases import (
     AdvocateSide,
     Case,
@@ -716,6 +717,17 @@ def apply_dossier(session: Session, case: Case, data: dict[str, Any]) -> ApplyRe
             case,
             {"cnr": case.cnr, "disposal_date": case.disposal_date},
             dedupe=f"case_disposed:{case.cnr}:{case.disposal_date}",
+        )
+    elif was_disposed and case.status == CaseStatus.PENDING:
+        # a restored case (design court-data-freshness, decision 4): open again, so the disposal lifecycle mark is
+        # cleared (set again by the next disposal) and owners and watchers hear of it through `status_changed`
+        case.closed_at = None
+        emit_event(
+            session,
+            EventType.STATUS_CHANGED,
+            case,
+            {"cnr": case.cnr, "status": [CaseStatus.DISPOSED.value, CaseStatus.PENDING.value]},
+            dedupe=f"status_changed:{case.cnr}:pending:{today_ist()}",
         )
     session.flush()
     refresh_search_vector(session, [case.id])

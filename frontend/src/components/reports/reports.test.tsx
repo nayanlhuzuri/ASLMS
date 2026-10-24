@@ -474,3 +474,20 @@ describe("the Report template (design portal-ui-redesign, decision 26)", () => {
     expect(screen.queryByRole("group", { name: "Downloads" })).toBeNull();
   });
 });
+
+describe("the data-health call figures (court-data-freshness, decision 20)", () => {
+  it("says calls are kept for 2 years when the period starts before the oldest kept day, and not otherwise", async () => {
+    const { ReportView } = await import("./ReportView");
+    const health = (from: string) =>
+      report("data-health", {
+        title: "Data collection health",
+        params: { department: null, from, to: "2026-10-14" },
+        meta: { calls_kept_from: "2024-10-14", calls_kept_days: 730 },
+      });
+    const { unmount } = renderWithClient(<ReportView report={health("2024-09-01")} departments={[]} />);
+    expect(screen.getByText("Calls are kept for 2 years; earlier days show no call figures.")).toBeInTheDocument();
+    unmount();
+    renderWithClient(<ReportView report={health("2026-10-01")} departments={[]} />);
+    expect(screen.queryByText(/Calls are kept for/)).toBeNull();
+  });
+});

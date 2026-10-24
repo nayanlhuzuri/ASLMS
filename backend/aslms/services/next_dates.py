@@ -54,10 +54,11 @@ from sqlalchemy import text as sql_text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session, aliased
 
+from aslms.core import clock
 from aslms.core.config import Settings, get_settings
 from aslms.domain.alerts import Alert, AlertStatus, NextDate, NextDateSource, ReviewStatus
 from aslms.domain.cases import Case
-from aslms.domain.causelists import Causelist, CauselistEntry
+from aslms.domain.causelists import CURRENT_LIST, Causelist, CauselistEntry
 from aslms.domain.documents import Document, DocumentText, Order, OrderNextDateStatus, TextStatus
 from aslms.domain.ops import JobRun, JobStatus
 from aslms.domain.org import Office, User
@@ -71,7 +72,7 @@ from aslms.services.audit import Actor, write_audit
 from aslms.services.case_filters import CaseFilters
 from aslms.services.cases import emit_event, ref_no_from_url
 from aslms.services.matching import record_failure
-from aslms.services.refno import allocate_ref_no, now_ist
+from aslms.services.refno import allocate_ref_no
 from aslms.services.workflow_common import (
     acting_member,
     bad,
@@ -150,7 +151,7 @@ def _now() -> datetime:
 
 
 def today_ist(now: datetime | None = None) -> date:
-    return (now or now_ist()).astimezone(IST).date()
+    return clock.today_ist(now)
 
 
 def clamp(limit: int | None, offset: int | None) -> tuple[int, int]:
@@ -293,6 +294,7 @@ def court_date_condition(case_id: Any, day: Any) -> ColumnElement[bool]:
             CauselistEntry.case_id == case_id,
             Causelist.id == CauselistEntry.causelist_id,
             Causelist.list_date == day,
+            CURRENT_LIST,
         ),
     )
 

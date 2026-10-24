@@ -1489,6 +1489,12 @@ export const T = {
     download: "Download",
     noPdf: "PDF not available from the court",
     pdfPending: "PDF not fetched yet",
+    corrected: "Corrected list",
+    correctedAt: (when: string) => `received ${when}`,
+    earlierVersion: "Earlier version",
+    earlierBadge: "Earlier version",
+    earlierText: (when: string) => `This list was replaced by a corrected list${when ? ` on ${when}` : ""}.`,
+    currentVersion: "Show the current list",
     filters: "Filters",
     listType: "List type",
     anyListType: "All list types",
@@ -1684,6 +1690,7 @@ export const T = {
     business: "Business",
     shortOrder: "Order",
     listings: "Cause-list appearances",
+    listingReplaced: "Replaced by a corrected list",
     listDate: "Date",
     listType: "List",
     item: "Item",
@@ -1869,6 +1876,8 @@ export const T = {
   },
   reports: {
     title: "Reports",
+    callsKept: (days: number) =>
+      `Calls are kept for ${days === 730 ? "2 years" : `${days} days`}; earlier days show no call figures.`,
     tabs: "Reports sections",
     notAvailable: "This report is not available to you.",
     noReports: "No report is available to you.",
@@ -2084,7 +2093,23 @@ export const T = {
       order_pdf: "Order PDFs",
       party_search: "Party-name searches",
       search_rows: "Advocate search rows",
+      causelist_recheck: "Cause-list rechecks",
     } as Record<string, string>,
+    // design court-data-freshness, decision 17
+    listsCorrected: "Corrected",
+    recheck: "Recheck",
+    recheckCalled: (n: number) => `${n} checked`,
+    retention: "Retention",
+    callLogKept: (days: number, oldest: string) =>
+      `Court call log kept for ${days} days; oldest call kept ${oldest || "none yet"}.`,
+    lastPurge: (when: string, deleted: string, status: string) => `Last clean-up ${when}: ${deleted} calls removed (${status}).`,
+    noPurgeYet: "No clean-up has run yet.",
+    tableSizes: (calls: string, responses: string) => `Call log ${calls}; court answers ${responses} (kept without limit).`,
+    megabytes: (n: string) => `${n} MB`,
+    disposedRefresh: (eligible: string, due: string, last: string) =>
+      `Disposed cases refreshed monthly for a year: ${eligible} in the year, ${due} due now. ${last}`,
+    disposedLastRun: (when: string, queued: string) => `Last run ${when}: ${queued} queued.`,
+    disposedNoRun: "Not run yet.",
     // design document-ocr, decision 4: documents by text status
     documentsText: "Document text",
     documentsTextNote: "Scanned documents, images and old Word files are not read, so they cannot be searched by their content.",

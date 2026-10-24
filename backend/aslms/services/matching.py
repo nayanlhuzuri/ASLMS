@@ -32,8 +32,9 @@ import structlog
 from sqlalchemy import exists, func, or_, select, text
 from sqlalchemy.orm import Session, sessionmaker
 
+from aslms.core.clock import today_ist
 from aslms.domain.cases import Case, CaseAdvocate, CaseLink, CaseParty, FirstSeenSource
-from aslms.domain.causelists import Causelist, CauselistEntry
+from aslms.domain.causelists import CURRENT_LIST, Causelist, CauselistEntry
 from aslms.domain.ops import JobRun, JobStatus
 from aslms.domain.org import Office
 from aslms.domain.ownership import (
@@ -269,7 +270,7 @@ class CaseEvidence:
                 Causelist.list_date,
             )
             .join(Causelist, Causelist.id == CauselistEntry.causelist_id)
-            .where(CauselistEntry.case_id == case.id)
+            .where(CauselistEntry.case_id == case.id, CURRENT_LIST)
             .order_by(Causelist.list_date.desc(), CauselistEntry.sr_no)
         ).all()
         for codes, pet, res, sr_no, list_date in rows:
@@ -753,7 +754,7 @@ def rescore_all(session_factory: sessionmaker[Session], *, batch: int = 500) -> 
     """Rescores every non-merged case in batches (one commit per batch) and expires the active engine
     recommendations of merged cases. One `job_runs` row `rescore` with the counters."""
     with session_factory() as s:
-        run = JobRun(job="rescore", run_date=date.today())
+        run = JobRun(job="rescore", run_date=today_ist())
         s.add(run)
         s.commit()
         run_id = run.id
@@ -848,6 +849,7 @@ def unmapped_codes(session: Session, *, limit: int = 200) -> list[UnmappedCode]:
             FROM causelist_entries e
             JOIN causelists cl ON cl.id = e.causelist_id
             CROSS JOIN LATERAL unnest(e.counsel_codes) AS code
+            WHERE cl.superseded_at IS NULL
             GROUP BY code
             """
         )

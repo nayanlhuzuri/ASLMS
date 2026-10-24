@@ -471,6 +471,45 @@ describe("the health tab", () => {
     expect(within(block).getByRole("columnheader", { name: "Scanned PDFs, not read" })).toBeInTheDocument();
   });
 
+  it("shows the corrected lists, the recheck and the Retention block (court-data-freshness)", async () => {
+    healthRoutes(["reports.state"], {
+      "GET /admin/data-health": {
+        ...SNAPSHOT,
+        daily_cycle: [
+          {
+            date: "2026-10-11",
+            label: "today",
+            causelist_day: { status: "done", attempts: 1, finished_at: null, last_error: null },
+            lists_stored: 40,
+            entries_parsed: 900,
+            lists_parse_failed: 0,
+            lists_corrected: 2,
+            recheck: { status: "done", attempts: 1, finished_at: null, last_error: null, called: 38, versions_new: 2, unparsed: 0 },
+          },
+        ],
+        retention: {
+          call_log_keep_days: 730,
+          call_log_oldest_at: "2026-10-01T10:00:00+05:30",
+          last_purge_at: null,
+          last_purge_deleted: null,
+          last_purge_status: null,
+          call_log_bytes: 5 * 1_048_576,
+          responses_bytes: 120 * 1_048_576,
+          disposed_refresh: { eligible: 2800, due_now: 100, queued_last_run: 100, last_run_at: "2026-10-11T02:30:00+05:30" },
+        },
+      },
+    });
+    renderWithClient(<Health />);
+    const cycle = await screen.findByRole("region", { name: "Daily cycle" });
+    expect(within(cycle).getByRole("columnheader", { name: "Corrected" })).toBeInTheDocument();
+    expect(within(cycle).getByText("done · 38 checked")).toBeInTheDocument();
+    const block = screen.getByRole("region", { name: "Retention" });
+    expect(within(block).getByText(/Court call log kept for 730 days/)).toBeInTheDocument();
+    expect(within(block).getByText(/No clean-up has run yet/)).toBeInTheDocument();
+    expect(within(block).getByText(/Call log 5 MB; court answers 120 MB/)).toBeInTheDocument();
+    expect(within(block).getByText(/100 due now/)).toBeInTheDocument();
+  });
+
   it("links to the period report with reports.state only (portal-reports)", async () => {
     healthRoutes(["reports.state"]);
     const { unmount } = renderWithClient(<Health />);

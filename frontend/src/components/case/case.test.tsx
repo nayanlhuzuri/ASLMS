@@ -1171,6 +1171,38 @@ describe("the Hearings tab (portal-causelist, decision 12)", () => {
       "/causelist?date=2026-10-20",
     ]);
   });
+
+  it("a row of a replaced list is greyed out and says so (court-data-freshness, decision 17)", async () => {
+    const listing = {
+      list_type: "daily",
+      bench_label: "HONOURABLE THE CHIEF JUSTICE",
+      court_no: "10",
+      sr_no: 4,
+      printed_sr: "4",
+      section: "ORDERS",
+      is_connected: false,
+      counsel_codes: [],
+      remarks: null,
+      source: "pdf_parse",
+      list_date: "2026-10-13",
+      bench_id: 1854,
+    };
+    browserApi({
+      "GET /me": me(),
+      [`GET ${BASE}/hearings`]: { items: [], total: 0 },
+      [`GET ${BASE}/listings`]: {
+        items: [
+          { ...listing, court_no: "11", superseded: false, list_version: 2 },
+          { ...listing, superseded: true, list_version: 1 },
+        ],
+        total: 2,
+      },
+    });
+    renderWithClient(<Hearings caseRef={REF} />);
+    const label = await screen.findByText("Replaced by a corrected list");
+    expect(screen.getAllByText("Replaced by a corrected list")).toHaveLength(1);
+    expect(label.closest("tr") ?? label.closest("li") ?? label.parentElement).toBeTruthy();
+  });
 });
 
 describe("the Audit trail link (portal-audit-health, decision 7)", () => {

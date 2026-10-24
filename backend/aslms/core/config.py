@@ -169,6 +169,20 @@ class Settings(BaseSettings):
         548, ge=90, le=1095
     )  # a read or entered date at most this far ahead
 
+    # --- court data freshness (design court-data-freshness, decisions 3, 8, 14 and 19) ------------------
+    # disposed cases: a dossier refresh every EVERY_DAYS for DAYS after disposal, at most DAILY_MAX a night (0 = off)
+    disposed_refresh_days: int = Field(365, ge=90, le=730)
+    disposed_refresh_every_days: int = Field(28, ge=7, le=60)
+    disposed_refresh_daily_max: int = Field(1000, ge=0, le=5000)
+    # the evening recheck of held lists skips a list fetched or checked within this many minutes; the 06:30 run
+    # also rechecks today's lists while CAUSELIST_RECHECK_MORNING is on (owner's answer (a), 21 Oct 2026)
+    causelist_recheck_fresh_minutes: int = Field(180, ge=30, le=720)
+    causelist_recheck_morning: bool = True
+    # napix_call_log retention (owner decision 12): rows older than KEEP_DAYS IST days are deleted nightly in batches
+    napix_call_log_keep_days: int = Field(730, ge=365, le=3650)
+    napix_call_log_purge_batch: int = Field(5000, ge=500, le=50_000)
+    napix_call_log_purge_max_seconds: int = Field(600, ge=60, le=3600)
+
     # --- deployment (design deployment-checklist, decisions 3 and 13) ------------------------
     # read by `aslms ops preflight` only: the cluster superuser, the Redis password and the portal's cookie flag;
     # the api, worker and scheduler get POSTGRES_PASSWORD blanked by Compose
@@ -247,9 +261,9 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def _discovery_year(self) -> Settings:
         """DISCOVERY_FROM_YEAR lies between 1950 and the current year."""
-        from datetime import date
+        from aslms.core.clock import today_ist
 
-        if self.discovery_from_year > date.today().year:
+        if self.discovery_from_year > today_ist().year:
             raise ValueError(
                 f"DISCOVERY_FROM_YEAR must not be after the current year ({self.discovery_from_year})"
             )

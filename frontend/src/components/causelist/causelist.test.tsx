@@ -45,6 +45,8 @@ function list(id: string, list_type: string, has_pdf = true, entries = 2) {
     fetch_status: has_pdf ? "fetched" : "not_available",
     parse_status: "parsed",
     has_pdf,
+    version: 1,
+    superseded: false,
   };
 }
 
@@ -448,5 +450,41 @@ describe("the Work list template (portal-ui-redesign, decision 26)", () => {
     const panel = await screen.findByRole("dialog", { name: "WP(C)/3/2025" });
     expect(within(panel).queryByRole("link")).toBeNull();
     expect(within(panel).getByText("with WP(C) 2087/2025")).toBeInTheDocument();
+  });
+});
+
+describe("corrected lists (court-data-freshness, decision 17)", () => {
+  const OLD = "55555555-5555-4555-8555-555555555555";
+  const corrected = {
+    ...list(DAILY, "daily", true, 51),
+    version: 2,
+    supersedes_id: OLD,
+    corrected_at: "2026-10-12T19:05:00+05:30",
+  };
+  const benches: CauselistBench[] = [{ ...BENCHES[1]!, lists: [corrected] }];
+
+  it("a corrected list carries the badge, the time received and an Earlier version link", async () => {
+    browserApi(routes({ [`GET /causelists/${D}`]: day({ benches }) }));
+    renderWithClient(<CauseList params={{ date: D, bench_id: "1854" }} />);
+    const lists = await screen.findByRole("region", { name: "Lists of this bench" });
+    expect(within(lists).getByText("Corrected list")).toBeInTheDocument();
+    expect(within(lists).getByText(/^received /)).toBeInTheDocument();
+    await userEvent.click(within(lists).getByRole("button", { name: "Earlier version" }));
+    expect(nav.replace).toHaveBeenLastCalledWith(`/causelist?date=${D}&list_id=${OLD}`);
+  });
+
+  it("the earlier version says it was replaced, offers its PDF and a way back to the current list", async () => {
+    const earlier = { ...list(OLD, "daily", true, 4), superseded: true, superseded_at: "2026-10-12T19:05:00+05:30" };
+    browserApi(
+      routes({
+        [`GET /causelists/${D}`]: day({ benches }),
+        [`GET /causelists/${D}/entries`]: { ...page([entry(1)]), list: earlier },
+      }),
+    );
+    renderWithClient(<CauseList params={{ date: D, list_id: OLD }} />);
+    expect(await screen.findByText(/This list was replaced by a corrected list/)).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "View" }).some((a) => a.getAttribute("href")?.includes(OLD))).toBe(true);
+    await userEvent.click(screen.getByRole("button", { name: "Show the current list" }));
+    expect(nav.replace).toHaveBeenLastCalledWith(`/causelist?date=${D}&bench_id=1854`);
   });
 });

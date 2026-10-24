@@ -28,7 +28,10 @@ reading side with the visibility rule applied in SQL.
   (the note's author excluded; never the note text); `listed_tomorrow` runs inside the hourly date sweep from
   `ALERT_LISTED_FROM` (18:30 IST) and raises one `listed_tomorrow:<case>:<date>` alert per owned or watched case on the
   next day's cause lists, with the court and the item as printed, closing the open `hearing_due` of that date and
-  keeping the hearing loop from raising or upgrading it again.
+  keeping the hearing loop from raising or upgrading it again. Every sweep reads open listing alerts against the
+  current list versions (design `court-data-freshness`, decision 13 and deviation 16): a moved listing is refreshed in
+  place, a removed one closes `date_changed` and reopens the hearing alert it had closed if the court still gives
+  the date.
 - `raise_alert` is idempotent through `alerts.dedupe_key` (a number is allocated only for a new key); a
   higher severity notifies the recipients again. Every new alert emits one scoped `alert_raised` event.
 - `acknowledge` / `mark_done` need `alerts.acknowledge` and a recipient or working relation; each writes an
@@ -54,7 +57,7 @@ from sqlalchemy.orm import Session
 from aslms.core.config import Settings
 from aslms.domain.alerts import Alert, AlertStatus, Notification, NotificationStatus, Severity
 from aslms.domain.cases import Case, CaseObjection, CaseStatus
-from aslms.domain.causelists import Causelist, CauselistEntry, ListType
+from aslms.domain.causelists import CURRENT_LIST, Causelist, CauselistEntry, ListType
 from aslms.domain.documents import Order
 from aslms.domain.events import Event
 from aslms.domain.ops import JobRun, JobStatus
@@ -537,11 +540,16 @@ def _handle_event(
         if office is None:
             return
         disposed = new_status == CaseStatus.DISPOSED.value
+        key = rules.dedupe_key(AlertKind.STATUS_CHANGED, case.id, new_status, disposal)
+        if previous == CaseStatus.DISPOSED.value and new_status == CaseStatus.PENDING.value:
+            # a restoration (design court-data-freshness, decision 4): one alert per restoration, so the key carries
+            # the restoration event (the case may be disposed and restored again later)
+            key = rules.dedupe_key(AlertKind.STATUS_CHANGED, case.id, new_status, "restored", ev.id)
         raise_alert(
             session,
             case=case,
             kind=AlertKind.STATUS_CHANGED,
-            key=rules.dedupe_key(AlertKind.STATUS_CHANGED, case.id, new_status, disposal),
+            key=key,
             office=office,
             severity=Severity.HIGH if disposed else Severity.NORMAL,
             data={
@@ -1054,6 +1062,38 @@ def listed_tomorrow(
     return out
 
 
+def _listing_select(list_date: date, *where: Any):
+    """The current-version cause-list rows of `list_date` (design court-data-freshness, decision 12: a withdrawn row raises nothing
+    and is never shown)."""
+    return (
+        select(
+            CauselistEntry.case_id,
+            Causelist.list_type,
+            CauselistEntry.court_no,
+            CauselistEntry.printed_sr_no,
+            CauselistEntry.sr_no,
+            CauselistEntry.bench_text,
+        )
+        .join(Causelist, Causelist.id == CauselistEntry.causelist_id)
+        .join(Case, Case.id == CauselistEntry.case_id)
+        .where(CURRENT_LIST, Causelist.list_date == list_date, *where)
+    )
+
+
+def _listing_entries(rows: Iterable[Any]) -> list[dict[str, Any]]:
+    """Decision 9: each listing of the day, ordered by list type, court and position, court and item as printed."""
+    listings = sorted(rows, key=lambda r: (_list_type_rank(r.list_type), _court_rank(r.court_no), r.sr_no))
+    return [
+        {
+            "list_type": ListType(r.list_type).value,
+            "court_no": r.court_no,
+            "item_no": r.printed_sr_no or str(r.sr_no),
+            "bench_text": r.bench_text,
+        }
+        for r in listings
+    ]
+
+
 def _listed_pass(session: Session, now: datetime, cfg: AlertConfig) -> dict[str, Any]:
     list_date = rules.today_ist(now) + timedelta(days=1)
     out: dict[str, Any] = {
@@ -1067,21 +1107,7 @@ def _listed_pass(session: Session, now: datetime, cfg: AlertConfig) -> dict[str,
         "notifications": 0,
     }
     rows = session.execute(
-        select(
-            CauselistEntry.case_id,
-            Causelist.list_type,
-            CauselistEntry.court_no,
-            CauselistEntry.printed_sr_no,
-            CauselistEntry.sr_no,
-            CauselistEntry.bench_text,
-        )
-        .join(Causelist, Causelist.id == CauselistEntry.causelist_id)
-        .join(Case, Case.id == CauselistEntry.case_id)
-        .where(
-            Causelist.list_date == list_date,
-            Case.merged_into_case_id.is_(None),
-            calendar.owned_case_condition(),
-        )
+        _listing_select(list_date, Case.merged_into_case_id.is_(None), calendar.owned_case_condition())
     ).all()
     per_case: dict[uuid.UUID, list[Any]] = {}
     for row in rows:
@@ -1099,19 +1125,7 @@ def _listed_pass(session: Session, now: datetime, cfg: AlertConfig) -> dict[str,
         if case is None or office is None:
             out["skipped_unowned"] += 1
             continue
-        listings = sorted(
-            per_case[case_id],
-            key=lambda r: (_list_type_rank(r.list_type), _court_rank(r.court_no), r.sr_no),
-        )
-        entries = [
-            {
-                "list_type": ListType(r.list_type).value,
-                "court_no": r.court_no,
-                "item_no": r.printed_sr_no or str(r.sr_no),
-                "bench_text": r.bench_text,
-            }
-            for r in listings
-        ]
+        entries = _listing_entries(per_case[case_id])
         before = out["alerts_new"]
         raise_alert(
             session,
@@ -1144,17 +1158,96 @@ def _listed_pass(session: Session, now: datetime, cfg: AlertConfig) -> dict[str,
 def _listed_pairs(session: Session, from_: date, to: date) -> set[tuple[str, str]]:
     """Decision 11b: the (case id, date) pairs with a `listed_tomorrow` alert in any state, over `from_ .. to`."""
     pairs: set[tuple[str, str]] = set()
-    for key in session.scalars(
-        select(Alert.dedupe_key).where(
+    for key, status, data in session.execute(
+        select(Alert.dedupe_key, Alert.status, Alert.data).where(
             Alert.kind == AlertKind.LISTED_TOMORROW,
             Alert.due_at >= rules.hearing_due_at(from_, "00:00"),
             Alert.due_at < rules.hearing_due_at(to + timedelta(days=1), "00:00"),
         )
     ).all():
+        if _listing_withdrawn(status, data):
+            continue  # a corrected list removed the listing: the hearing alert speaks for the date again
         parts = key.split(":")
         if len(parts) == 3:
             pairs.add((parts[1], parts[2]))
     return pairs
+
+
+LISTING_REMOVED = "date_changed"
+
+
+def _listing_withdrawn(status: Any, data: dict[str, Any] | None) -> bool:
+    """A `listed_tomorrow` alert closed because a corrected list no longer places the case on its date."""
+    return AlertStatus(status) == AlertStatus.EXPIRED and (data or {}).get("closed_reason") == LISTING_REMOVED
+
+
+def _listed_corrections(
+    session: Session, now: datetime, hearing_pairs: set[tuple[str, str]], counters: dict[str, Any]
+) -> None:
+    """Design court-data-freshness, decision 13, for the `listed_tomorrow` alerts: a corrected list (the 18:30 or the
+    06:30 recheck, or a later supplementary list) changes what an open listing alert says.
+    - Still listed: `data.entries` / `entries_total`, title and body follow the current versions in place, with no
+      notification and no severity change (`refreshed_listed`), so the alert never shows an old court or item.
+    - No longer listed: the alert closes `expired` / `date_changed` (`closed_listed_removed`). When the court's
+      records still give that date (`hearing_pairs`), the `hearing_due` alert this listing had closed (`done` /
+      `listed_tomorrow`) is reopened (`reopened_hearing`); the hearing loop then refreshes or closes it as for any
+      hearing.
+    A listing alert whose sitting has passed is left to the `passed` expiry."""
+    counters.setdefault("refreshed_listed", 0)
+    counters.setdefault("closed_listed_removed", 0)
+    counters.setdefault("reopened_hearing", 0)
+    for a in _open_alerts(session, AlertKind.LISTED_TOMORROW):
+        parts = a.dedupe_key.split(":")
+        if a.case_id is None or len(parts) != 3 or a.due_at is None or rules.hearing_expired(a.due_at, now):
+            continue
+        entries = _listing_entries(
+            session.execute(
+                _listing_select(date.fromisoformat(parts[2]), CauselistEntry.case_id == a.case_id)
+            ).all()
+        )
+        if entries:
+            old = a.data or {}
+            fresh = {"entries": entries[:5], "entries_total": len(entries)}
+            if (old.get("entries"), old.get("entries_total")) != (fresh["entries"], fresh["entries_total"]):
+                a.data = {**old, **fresh}
+                a.title, a.body = rules.render_alert(
+                    AlertKind.LISTED_TOMORROW, session.get(Case, a.case_id), a.data
+                )
+                counters["refreshed_listed"] += 1
+            continue
+        close_alert(session, a, AlertStatus.EXPIRED, LISTING_REMOVED, now=now)
+        counters["closed_listed_removed"] += 1
+    # a withdrawn listing whose date the court still gives: the hearing alert closed for it speaks again
+    for a in session.scalars(
+        select(Alert).where(
+            Alert.kind == AlertKind.LISTED_TOMORROW,
+            Alert.status == AlertStatus.EXPIRED,
+            Alert.due_at > now - rules.HEARING_GRACE,
+        )
+    ).all():
+        parts = a.dedupe_key.split(":")
+        if (
+            len(parts) != 3
+            or not _listing_withdrawn(a.status, a.data)
+            or (parts[1], parts[2]) not in hearing_pairs
+        ):
+            continue
+        hearing = session.scalar(
+            select(Alert)
+            .where(
+                Alert.dedupe_key == rules.dedupe_key(AlertKind.HEARING_DUE, parts[1], parts[2]),
+                Alert.status == AlertStatus.DONE,
+            )
+            .with_for_update()
+        )
+        if hearing is None or (hearing.data or {}).get("closed_reason") != "listed_tomorrow":
+            continue
+        hearing.status = AlertStatus.OPEN
+        hearing.closed_at = None
+        hearing.closed_by_user_id = None
+        hearing.data = {k: v for k, v in (hearing.data or {}).items() if k != "closed_reason"}
+        counters["reopened_hearing"] += 1
+    session.flush()
 
 
 def sweep_dates(
@@ -1175,6 +1268,7 @@ def sweep_dates(
         "closed_workflow": 0,
         "closed_compliance": 0,
         "closed_next_date": 0,
+        "refreshed_hearing": 0,
     }
     run = _start_run(session, JOB_DATES, now, counters)
     resolver = Resolver(session)
@@ -1190,15 +1284,17 @@ def sweep_dates(
 
     # listed for tomorrow, before the hearings (design alerts-visibility-roles, decisions 8 and 11)
     listed_tomorrow(session, now=now, config=cfg, counters=counters)
-    listed_pairs = _listed_pairs(session, today, today + timedelta(days=cfg.hearing_lookahead_days))
-
-    # hearings (decision 6)
     rows = calendar.hearing_rows(
         session,
         from_=today,
         to=today + timedelta(days=cfg.hearing_lookahead_days),
         case_condition=calendar.owned_case_condition(),
     )
+    # a corrected list moves or removes a listing (design court-data-freshness, decision 13), every sweep
+    _listed_corrections(session, now, {(str(r.case_id), r.date.isoformat()) for r in rows}, counters)
+    listed_pairs = _listed_pairs(session, today, today + timedelta(days=cfg.hearing_lookahead_days))
+
+    # hearings (decision 6)
     current_keys: set[str] = set()
     for r in rows:
         counters["hearings_seen"] += 1
@@ -1214,7 +1310,14 @@ def sweep_dates(
         office = owning_office(session, case)
         if case is None or office is None:
             continue
-        raise_alert(
+        data = {
+            "hearing_date": r.date,
+            "source": r.source,
+            "court_no": r.court_no,
+            "item_no": r.item_no,
+            "purpose": r.purpose,
+        }
+        alert, changed = raise_alert(
             session,
             case=case,
             kind=AlertKind.HEARING_DUE,
@@ -1222,17 +1325,22 @@ def sweep_dates(
             office=office,
             severity=severity,
             due_at=due_at,
-            data={
-                "hearing_date": r.date,
-                "source": r.source,
-                "court_no": r.court_no,
-                "item_no": r.item_no,
-                "purpose": r.purpose,
-            },
+            data=data,
             recipients=case_recipients(case),
             now=now,
             counters=counters,
         )
+        old = alert.data or {}
+        if (
+            not changed
+            and AlertStatus(alert.status) in OPEN_STATUSES
+            and (old.get("court_no"), old.get("item_no")) != (r.court_no, r.item_no)
+        ):
+            # a listing moved by a corrected list (design court-data-freshness, decision 13): the alert shows the
+            # current court and item, refreshed in place with no notification and no severity change
+            alert.data = {**old, **_jsonable(data)}
+            alert.title, alert.body = rules.render_alert(AlertKind.HEARING_DUE, case, alert.data)
+            counters["refreshed_hearing"] += 1
     for a in _open_alerts(session, AlertKind.HEARING_DUE):
         if a.due_at is not None and rules.hearing_expired(a.due_at, now):
             close_alert(session, a, AlertStatus.EXPIRED, "passed", now=now)

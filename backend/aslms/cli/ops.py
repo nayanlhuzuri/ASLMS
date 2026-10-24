@@ -2,7 +2,7 @@
 
 `preflight`, `store-check` (design pre-pilot-hardening), `db-guard`, `role-passwords`, `migrate`, `backup`,
 `backup-scheduler`, `backup-status`, `restore-check`, `restore`, `repair-jobs`, `load-report`, `sample-cnrs`, `make-cert` and, from Part B, `metrics` (the operations
-exporter). None calls NAPIX; none prints a secret."""
+exporter); from court-data-freshness, `purge-call-log` and `retention-report`. None calls NAPIX; none prints a secret."""
 
 from __future__ import annotations
 
@@ -352,3 +352,61 @@ def metrics_cmd(
         return
     rprint(f"ops metrics on {addr}:{port} (cache {settings.ops_metrics_cache_seconds} s)")
     ops_metrics.serve(settings, port, addr)
+
+
+@ops_app.command("purge-call-log")
+def purge_call_log_cmd(
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="count the rows older than the cut-off; write nothing"
+    ),
+) -> None:
+    """Delete `napix_call_log` rows older than NAPIX_CALL_LOG_KEEP_DAYS IST days, as the 03:45 job does (design
+    court-data-freshness, decision 19): batches committed one by one, a `job_runs` row and, when rows were deleted, an
+    audit row. `--dry-run` counts and writes nothing. No NAPIX call."""
+    from aslms.db.session import get_sessionmaker
+    from aslms.services import retention
+
+    r = retention.purge_call_log(get_sessionmaker(), get_settings(), dry_run=dry_run)
+    verb = "would delete" if dry_run else "deleted"
+    rprint(
+        f"{verb} {r.deleted} call-log row(s) called before {r.cutoff_date().isoformat()} 00:00 IST "
+        f"(keep {r.keep_days} days; cut-off {r.cutoff.isoformat()}); batches {r.batches}; more {r.more}; "
+        f"oldest kept {r.oldest_kept_at.isoformat() if r.oldest_kept_at else '-'}; {r.status}"
+    )
+
+
+@ops_app.command("retention-report")
+def retention_report_cmd(fmt: str = typer.Option("md", "--format", help="md | json")) -> None:
+    """Row counts per API and year and the on-disk size of `napix_call_log` and `napix_responses` (design
+    court-data-freshness, decision 21). Read-only; no NAPIX call."""
+    from aslms.db.session import session_scope
+    from aslms.services import retention
+
+    with session_scope() as s:
+        r = retention.retention_report(s)
+    if fmt == "json":
+        print(json.dumps(r, indent=2, default=str))
+        return
+    lines = [
+        "# NAPIX log retention",
+        "",
+        f"- napix_call_log: {r['call_log']['rows']} rows, {r['call_log']['bytes']:,} bytes on disk, "
+        f"oldest {r['call_log']['oldest_at'] or '-'} (kept {get_settings().napix_call_log_keep_days} days)",
+        f"- napix_responses: {r['responses']['rows']} rows, {r['responses']['bytes']:,} bytes on disk (never purged)",
+        "",
+        "## napix_call_log by API and year",
+        "",
+        "| API | Year | Rows |",
+        "|---|---|---|",
+        *[f"| {x['api']} | {x['year']} | {x['rows']} |" for x in r["call_log"]["by_api_year"]],
+        "",
+        "## napix_responses by API and year",
+        "",
+        "| API | Year | Rows | Payload bytes |",
+        "|---|---|---|---|",
+        *[
+            f"| {x['api']} | {x['year']} | {x['rows']} | {x['payload_bytes']:,} |"
+            for x in r["responses"]["by_api_year"]
+        ],
+    ]
+    print("\n".join(lines))

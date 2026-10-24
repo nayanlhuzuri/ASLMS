@@ -199,10 +199,16 @@ def codes_condition(codes: list[str]) -> ColumnElement[bool]:
         return false()
     entry_cond = exists(
         select(literal(1))
-        .select_from(text("causelist_entries e CROSS JOIN LATERAL unnest(e.counsel_codes) AS c(code)"))
+        .select_from(
+            text(
+                "causelist_entries e JOIN causelists cl ON cl.id = e.causelist_id "
+                "CROSS JOIN LATERAL unnest(e.counsel_codes) AS c(code)"
+            )
+        )
         .where(
             text(
-                f"e.case_id = cases.id AND {NORMALISED_CODE_SQL.format(col='c.code')} = ANY(:codes)"
+                f"e.case_id = cases.id AND cl.superseded_at IS NULL AND "
+                f"{NORMALISED_CODE_SQL.format(col='c.code')} = ANY(:codes)"
             ).bindparams(codes=codes)
         )
     )

@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from aslms.core.config import get_settings
-from aslms.domain.causelists import Causelist, CauselistEntry
+from aslms.domain.causelists import CURRENT_LIST, Causelist, CauselistEntry
 from aslms.domain.courts import CaseType, Court
 from aslms.domain.org import User
 from aslms.domain.reference import (
@@ -101,7 +101,7 @@ def benches(session: Session, *, days: int = BENCH_DAYS_DEFAULT, today: date | N
     window = (
         select(CauselistEntry.court_no, CauselistEntry.bench_text, Causelist.list_date)
         .join(Causelist, Causelist.id == CauselistEntry.causelist_id)
-        .where(Causelist.list_date >= since, Causelist.list_date <= to)
+        .where(Causelist.list_date >= since, Causelist.list_date <= to, CURRENT_LIST)
         .subquery()
     )
     court = func.trim(window.c.court_no)

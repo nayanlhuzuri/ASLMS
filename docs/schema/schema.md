@@ -155,9 +155,46 @@ written from this document plus the approved addendum. **As built (1 Oct 2026):*
 ## Group 4 — Cause lists
 | Table | Columns | Notes |
 |---|---|---|
-| `causelists` | court_id, list_date, bench_id (NAPIX), napix_causelist_id, list_type (`daily` / `supplementary` / `lawazima` / `vacation` / `other`), label, source (`napix` / `ghc_website` / `local_dir`), document_id (stored PDF), fetch_status, parse_status, entry_count, fetched_at, error, raw | Unique (court_id, list_date, bench_id, napix_causelist_id, source). |
+| `causelists` | court_id, list_date, bench_id (NAPIX), napix_causelist_id, list_type (`daily` / `supplementary` / `lawazima` / `vacation` / `other`), label, source (`napix` / `ghc_website` / `local_dir`), document_id (stored PDF), fetch_status, parse_status, entry_count, fetched_at, error, raw | Unique (court_id, list_date, bench_id, napix_causelist_id, source, list_type, version) NULLS NOT DISTINCT, as built by migration 0023 (it was six columns without `version`); see the note below. |
 | `causelist_entries` | causelist_id, sr_no, court_no, cnr (nullable), case_id (nullable until resolved), case_no_text, petitioner_text, respondent_text, pet_advocate_text, res_advocate_text, counsel_codes text[], with_text, remarks, source (`napix_details` / `pdf_parse`), resolution_status, raw | Unique (causelist_id, source, sr_no). Immutable once written, except `case_id`, which is filled on resolution and re-pointed when a provisional case is merged into the row holding its CNR (design `data-load-console`, decision 14). |
 | `causelist_reconciliations` (derived) | causelist_id (CASCADE), cnr, in_napix, in_pdf, mismatch_fields jsonb | Feeds the data-collection-health report. |
+
+> **`causelists`** (transaction; court-data-freshness, migration 0023) gains the following columns:
+> - `version smallint NOT NULL DEFAULT 1`;
+> - `supersedes_id uuid NULL` (→ causelists **RESTRICT**): the version this row replaces;
+> - `superseded_at timestamptz NULL`: set when a later version replaces this row;
+> - `last_checked_at timestamptz NULL`: the latest evening recheck that found the list unchanged or replaced it;
+> - `entries_sha256 varchar(64) NULL`: the fingerprint of the row's entries, written at every parse.
+>
+> As built (migration 0023), the six-column unique constraint `uq_causelists_court_id_list_date_bench_id_napix_causeli_7741`
+> is replaced by the seven-column **unique (court_id, list_date, bench_id, napix_causelist_id, source, list_type,
+> version) NULLS NOT DISTINCT**, named `uq_causelists_court_id_list_date_bench_id_napix_causeli_5f67` (the naming
+> convention truncates it with a hash, as 0001's was). Existing rows become version 1 and current. A partial unique index `ix_causelists_current` on the six identity columns
+> NULLS NOT DISTINCT WHERE `superseded_at IS NULL` allows one current version per list. A partial unique index
+> `ix_causelists_supersedes` (supersedes_id) WHERE `supersedes_id IS NOT NULL` means a version is replaced at most once.
+>
+> CHECKs:
+> - `ck_causelists_version`: `(version = 1) = (supersedes_id IS NULL)`;
+> - `ck_causelists_not_self`: `supersedes_id IS NULL OR supersedes_id <> id`.
+>
+> **How a re-issue is written** (`services/causelists.py`, one transaction): it sets the current row's `superseded_at`,
+> then inserts the new row with `version + 1`, `supersedes_id`, its own document and its own entries. Nothing else on
+> the old row and nothing on its entries changes; neither is deleted. Every reader filters `superseded_at IS NULL`,
+> except the named exceptions of design `court-data-freshness`, decision 12. `aslms_app` grants are unchanged
+> (SELECT / INSERT / UPDATE). `audit_log` is not written: system writes of court data are recorded by events.
+
+> The downgrade of 0023 refuses while any list has a version above 1 or a `causelist_recheck` queue row is pending or
+> running; PostgreSQL cannot drop an enum value, so `causelist_recheck` stays.
+
+> **`causelist_entries`**: unchanged and still immutable. An entry belongs to exactly one version of its list.
+
+> **`ref_event_type`** gains `listing_changed` (label "Listing changed", timeline label "Cause list corrected",
+> `is_tracking_card` true, `sort_order` 380, active), inserted by migration 0023 with `ON CONFLICT (code) DO NOTHING` and by `aslms seed`.
+> Payload `{list_date, bench_id, causelist_id, version_from, version_to, change: added | removed | moved, before,
+> after}`; dedupe `listing_changed:<new list id>:<case id>`.
+
+> **`cases`** (court-data-freshness): no new column. `closed_at` is cleared when a dossier shows a disposed case pending
+> again (restoration), and that change emits `status_changed`.
 
 ## Group 5 — Ownership and matching (recommend and claim)
 As built by `recommend-and-claim` (migration 0004). Index names carry the `ix_` prefix with an explicit suffix
@@ -229,7 +266,7 @@ As built by `alerts-notifications` (migration 0007, 6 Oct 2026): `alerts` gains 
 | Table | Columns | Notes |
 |---|---|---|
 | `job_runs` (derived) | job, run_date, started_at, finished_at, status, counters jsonb, error | |
-| `napix_call_log` (derived) | api, params_sha256, http_status, napix_status (6xx), duration_ms, ok, error, called_at, job_run_id (CASCADE) | Indexed on called_at; pruned after a retention period (the one allowed deletion). |
+| `napix_call_log` (derived) | api, params_sha256, http_status, napix_status (6xx), duration_ms, ok, error, called_at, job_run_id (CASCADE) | Indexed on called_at; pruned after a retention period (the one allowed deletion): 730 IST days by default, job `napix-log-purge` (court-data-freshness). |
 | `source_failures` (derived) | kind, ref, error, first_seen, last_seen, attempts, resolved_at | Read by the administration "needs attention" screen. |
 | `data_load_settings` (master, versioned) | id (uuid v7 PK), version integer NOT NULL UNIQUE, paused boolean NOT NULL default false, load_order (`load_order` enum: `cases_first` / `lists_first` / `cases_with_orders`) NOT NULL default `cases_first`, first_from date NULL, first_to date NULL, reason text NOT NULL, is_current boolean NOT NULL default false, valid_from timestamptz NOT NULL default now(), valid_to timestamptz NULL, created_at, updated_at, created_by, updated_by (→ users SET NULL) | CHECKs `ck_data_load_settings_current` (is_current = (valid_to IS NULL)), `ck_data_load_settings_first` ((first_from IS NULL) = (first_to IS NULL) AND (first_from IS NULL OR first_from <= first_to)). Partial unique `ix_data_load_settings_current` (is_current) WHERE is_current. A pause, resume or order change inserts a new version and closes the previous one; values never updated in place, rows never deleted. Empty table = running, `cases_first`, nothing brought forward. Read by `queue.claim` (pause) and by the load priority policy; written only by `services/data_load.py` (design `data-load-console`, migration 0014). |
 
@@ -317,6 +354,26 @@ As built by `alerts-notifications` (migration 0007, 6 Oct 2026): `alerts` gains 
 > is written when a queue row becomes `failed` (`error`, `error_family`, `attempts + 1`, `last_seen`; `resolved_at`
 > cleared) and resolved (`resolved_at = now()`) when that row later ends `done` or `skipped`. Written only through
 > `services/source_failures.py`.
+
+> (court-data-freshness, migration 0023) **`fetch_kind`** gains `causelist_recheck` (ref `YYYY-MM-DD`): the evening
+> recheck of the held NAPIX lists of a date, making Show Cause List calls only. Lane `daily`, priority 21, or `request`
+> and 20 from `aslms refetch-date --recheck`. The value is added in an autocommit block, as 0017 and 0019 did.
+> Priorities gain 21 (list rechecks) and 55 (dossiers of disposed cases within a year of disposal, lane `daily`).
+>
+> **`source_failures`** gains the kinds `causelist_reissue` (ref `<causelist id>|<sha256 of the new PDF>`: a re-issued
+> PDF that did not parse or had no entries) and `fetch_causelist_recheck` (the queue kind's failure).
+>
+> **`napix_call_log` retention** (owner decision 12, DB_STANDARD §6): rows are kept for `NAPIX_CALL_LOG_KEEP_DAYS`
+> (default 730) IST days. The daily 03:45 IST job `napix-log-purge` deletes rows with `called_at` before the IST
+> midnight of that many days ago, in batches of `NAPIX_CALL_LOG_PURGE_BATCH` (5,000), each committed on its own, for at
+> most `NAPIX_CALL_LOG_PURGE_MAX_SECONDS` (600). It writes a `job_runs` row and, when it deleted rows, one `audit_log`
+> row `napix.call_log_purged` (system actor). This is the only deletion of this table and needs no new grant
+> (`aslms_app` DELETE since 0001).
+>
+> **`napix_responses` retention:** kept without limit and never purged (design `court-data-freshness`, decision 21).
+>
+> **`job_runs.job`** gains the free-text values `disposed-refresh` and `napix-log-purge`. New audit action:
+> `napix.call_log_purged`.
 
 > Roles (DB_STANDARD §8, as built from safety-fixes): the Compose `api`, `worker` and `scheduler` connect as
 > `aslms_app`. `init` connects as `POSTGRES_USER` and runs `alembic upgrade head`, `aslms seed` and `aslms db-roles`.

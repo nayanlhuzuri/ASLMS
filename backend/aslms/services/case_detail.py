@@ -27,7 +27,7 @@ from aslms.domain.cases import (
     CaseTransfer,
     CaseWritInfo,
 )
-from aslms.domain.causelists import Causelist, CauselistEntry
+from aslms.domain.causelists import CURRENT_LIST, Causelist, CauselistEntry
 from aslms.domain.courts import Bench, Court
 from aslms.domain.documents import Document, Order
 from aslms.domain.events import Event
@@ -139,6 +139,7 @@ COURT_EVENTS = (
     EventType.STATUS_CHANGED,
     EventType.ORDER_FOUND,
     EventType.ORDER_STORED,
+    EventType.LISTING_CHANGED,  # design court-data-freshness: cause-list placement is public court data
 )
 OWNERSHIP_EVENTS = (
     EventType.CLAIMED,
@@ -278,7 +279,11 @@ def _counts(session: Session, user: User, case: Case) -> dict[str, int]:
     return {
         "hearings": n(select(CaseHearing.id).where(CaseHearing.case_id == case.id)),
         "orders": n(select(Order.id).where(Order.case_id == case.id)),
-        "listings": n(select(CauselistEntry.id).where(CauselistEntry.case_id == case.id)),
+        "listings": n(
+            select(CauselistEntry.id)
+            .join(Causelist, Causelist.id == CauselistEntry.causelist_id)
+            .where(CauselistEntry.case_id == case.id, CURRENT_LIST)
+        ),
         "links": n(_links_stmt(case)),
         "documents": visible_count(session, user, case),  # visible to the caller, not archived
         "timeline": _count(session, _timeline_stmt(session, None, case, unrestricted=True)),
@@ -474,12 +479,14 @@ def orders(session: Session, user: User, case: Case, *, limit=None, offset=None)
 
 
 def listings(session: Session, user: User, case: Case, *, limit=None, offset=None) -> Page:
+    """Every listing of the case, a row of a list replaced by a corrected list included and flagged `superseded`
+    (design court-data-freshness, decision 12: a deliberate exception to the current-version rule)."""
     require_visible(session, user, case)
     stmt = (
         select(CauselistEntry, Causelist)
         .join(Causelist, Causelist.id == CauselistEntry.causelist_id)
         .where(CauselistEntry.case_id == case.id)
-        .order_by(Causelist.list_date.desc(), CauselistEntry.sr_no)
+        .order_by(Causelist.list_date.desc(), Causelist.version.desc(), CauselistEntry.sr_no)
     )
     limit, offset = inbox.clamp(limit, offset)
     total = _count(session, stmt)
@@ -499,6 +506,8 @@ def listings(session: Session, user: User, case: Case, *, limit=None, offset=Non
                 "counsel_codes": list(e.counsel_codes or []),
                 "remarks": e.remarks,
                 "source": _value(e.source),
+                "superseded": cl.superseded_at is not None,
+                "list_version": cl.version,
             }
             for e, cl in rows
         ],

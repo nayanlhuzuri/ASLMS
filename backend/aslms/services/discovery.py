@@ -28,6 +28,7 @@ from sqlalchemy import and_, exists, false, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
+from aslms.core.clock import today_ist
 from aslms.core.config import Settings
 from aslms.core.errors import NapixInputError, NapixNotFound
 from aslms.domain.cases import Case, FirstSeenSource
@@ -274,7 +275,7 @@ def on_rule_saved(
     n = enqueue_term(
         session,
         term,
-        sweep_years(today or date.today(), cfg.discovery_from_year),
+        sweep_years(today or today_ist(), cfg.discovery_from_year),
         DISCOVERY_FULL,
         settings=cfg,
     )
@@ -295,7 +296,7 @@ def enqueue_weekly(
     """The weekly job: every active term (its row created when missing) searched again for 2025 to the current year
     at priority 42, `done` rows revived. Inactive terms get nothing. Returns counts."""
     cfg = settings or _settings()
-    years = sweep_years(today or date.today(), cfg.discovery_from_year)
+    years = sweep_years(today or today_ist(), cfg.discovery_from_year)
     now = _now()
     terms = rows = 0
     for value in sorted(active_departments(session)):
@@ -335,7 +336,7 @@ def sweep(
     priority 42. Audited `discovery.sweep`."""
     member = _acting(session, user, Permission.ADMIN_DATA_LOAD)
     cfg = settings or _settings()
-    years = sweep_years(today or date.today(), cfg.discovery_from_year)
+    years = sweep_years(today or today_ist(), cfg.discovery_from_year)
     if term_id is not None or term_text is not None:
         if term_id is not None:
             term = session.get(DiscoveryTerm, term_id)
@@ -643,7 +644,7 @@ def request_years(
 
     access.require(session, user, Permission.ADMIN_KEYWORDS)
     member = _acting(session, user, Permission.ADMIN_KEYWORDS)
-    today = today or date.today()
+    today = today or today_ist()
     value = normalise_term(name)
     if not discoverable(value):
         raise DiscoveryError(

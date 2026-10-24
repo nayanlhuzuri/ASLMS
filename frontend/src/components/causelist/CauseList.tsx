@@ -14,7 +14,20 @@ import { useEffect, useState, type FormEvent } from "react";
 
 import { useFilters } from "@/components/inbox/common";
 import { ClaimDialog } from "@/components/inbox/dialogs";
-import { Button, Chip, ChipGroup, EmptyState, ErrorBanner, Loading, PageHeader, Pagination, SelectField, TextField } from "@/components/ui";
+import {
+  Badge,
+  Button,
+  Chip,
+  ChipGroup,
+  EmptyState,
+  ErrorBanner,
+  Loading,
+  Notice,
+  PageHeader,
+  Pagination,
+  SelectField,
+  TextField,
+} from "@/components/ui";
 import {
   CAUSELISTS_KEY,
   useCauselistDates,
@@ -35,14 +48,14 @@ import {
   toApiQuery,
   validDate,
 } from "@/lib/causelist";
-import { formatNumber } from "@/lib/format";
+import { formatDateTime, formatNumber } from "@/lib/format";
 import { T } from "@/lib/messages";
 import type { Params } from "@/lib/params";
 
 import { BenchSelect } from "./BenchSelect";
 import { DayBar } from "./DayBar";
 import { EntryTable } from "./EntryTable";
-import { ListStrip } from "./ListStrip";
+import { ListStrip, listFileUrl } from "./ListStrip";
 import s from "./causelist.module.css";
 
 const COUNTED: Record<string, keyof CauselistCounts | null> = {
@@ -95,6 +108,9 @@ export function CauseList({ params }: { params: Params }) {
   const counts = entries.data?.counts;
   const only = query.only as string | undefined;
   const held = day.data?.state === "held";
+  // an earlier version opened from a corrected list's link (design court-data-freshness, decision 17)
+  const earlier = entries.data?.list?.superseded ? entries.data.list : null;
+  const earlierBench = entries.data?.items[0]?.bench_id;
 
   function onDate(next: string) {
     setFilters({ date: next, bench_id: undefined, list_id: undefined, list_type: undefined, court_no: undefined });
@@ -132,7 +148,38 @@ export function CauseList({ params }: { params: Params }) {
               bench={bench}
               canView={can(me.data, "documents.view")}
               canDownload={can(me.data, "documents.download")}
+              onEarlier={(id) => setFilters({ list_id: id, bench_id: undefined, offset: undefined })}
             />
+          ) : null}
+          {earlier ? (
+            <Notice>
+              <span className="row">
+                <Badge tone="warning">{T.causelist.earlierBadge}</Badge>
+                <span>{T.causelist.earlierText(formatDateTime(earlier.superseded_at))}</span>
+                {earlier.has_pdf && can(me.data, "documents.view") ? (
+                  <a href={listFileUrl(earlier.id, "inline")} target="_blank" rel="noopener noreferrer">
+                    {T.causelist.view}
+                  </a>
+                ) : null}
+                {earlier.has_pdf && can(me.data, "documents.download") ? (
+                  <a href={listFileUrl(earlier.id, "attachment")} download>
+                    {T.causelist.download}
+                  </a>
+                ) : null}
+                <Button
+                  variant="link"
+                  onClick={() =>
+                    setFilters({
+                      list_id: undefined,
+                      bench_id: earlierBench !== null && earlierBench !== undefined ? String(earlierBench) : undefined,
+                      offset: undefined,
+                    })
+                  }
+                >
+                  {T.causelist.currentVersion}
+                </Button>
+              </span>
+            </Notice>
           ) : null}
           {held ? (
             <section className="stack" aria-label={T.causelist.filters}>

@@ -27,7 +27,7 @@ from sqlalchemy import ColumnElement, and_, exists, func, literal, literal_colum
 from sqlalchemy.orm import Session
 
 from aslms.domain.cases import Case, CaseStatus
-from aslms.domain.causelists import Causelist, CauselistEntry
+from aslms.domain.causelists import CURRENT_LIST, Causelist, CauselistEntry
 from aslms.domain.courts import CaseType
 from aslms.domain.ownership import CaseOwnership, OwnershipRole, OwnershipStatus
 from aslms.services.cases import ref_no_from_url
@@ -429,7 +429,7 @@ def listing_condition(
     bench) on the same entry; None when no part is given."""
     if listed_from is None and listed_to is None and court_no is None and bench is None:
         return None
-    conds = [CauselistEntry.case_id == case.id]
+    conds = [CauselistEntry.case_id == case.id, CURRENT_LIST]
     if listed_from is not None:
         conds.append(Causelist.list_date >= listed_from)
     if listed_to is not None:

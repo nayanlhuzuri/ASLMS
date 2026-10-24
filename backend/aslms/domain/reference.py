@@ -160,6 +160,9 @@ class EventType(enum.StrEnum):
     RECOMMENDATION_CLOSED = (
         "recommendation_closed"  # closed by another department's claim (ownership-refinements)
     )
+    LISTING_CHANGED = (
+        "listing_changed"  # a corrected cause list moved, added or removed the case (court-data-freshness)
+    )
 
 
 class Permission(enum.StrEnum):

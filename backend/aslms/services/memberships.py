@@ -25,6 +25,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from aslms.core.clock import today_ist
 from aslms.domain.alerts import Alert, AlertStatus, Notification
 from aslms.domain.cases import Case
 from aslms.domain.courts import Court
@@ -338,7 +339,7 @@ def _close(session: Session, m: UserMembership, reason: str | None) -> None:
     m.is_active = False
     m.is_primary = False
     m.deactivated_at = _now()
-    m.valid_to = date.today()
+    m.valid_to = today_ist()
     m.end_reason = _text(reason, MAX_REASON)
 
 

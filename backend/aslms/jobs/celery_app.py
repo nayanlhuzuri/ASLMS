@@ -16,7 +16,10 @@ minutes, two minutes after `extract-text`) reads the next-date direction of newl
 of `NEXT_DATE_BATCH`, and writes a `job_runs` row `next_dates_read` (design next-date-extraction); no NAPIX or
 SourceTrace call. `store-search-rows` (every 2 minutes, also dispatched by the API after a capped advocate search)
 stores the remaining rows of those searches from the responses kept in `napix_responses` (queue kind `search_rows`,
-design safety-fixes, decision 13); no NAPIX call.
+design safety-fixes, decision 13); no NAPIX call. Design court-data-freshness: the 06:30 and 18:30 list runs also queue
+the rechecks of held lists (`enqueue_morning_lists`, `enqueue_evening_lists`); `disposed-refresh` (02:30 IST) queues the
+monthly dossiers of cases disposed within a year (`job_runs` `disposed-refresh`); `napix-log-purge` (03:45 IST) deletes
+call-log rows older than `NAPIX_CALL_LOG_KEEP_DAYS` (`job_runs` `napix-log-purge`, audit `napix.call_log_purged`).
 Run: `celery -A aslms.jobs.celery_app worker -B --concurrency 1` (the Compose `scheduler` service)."""
 
 from __future__ import annotations
@@ -24,12 +27,13 @@ from __future__ import annotations
 import logging
 import os
 import uuid
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 
 from celery import Celery
 from celery.schedules import crontab
 from celery.signals import worker_ready
 
+from aslms.core.clock import today_ist
 from aslms.core.config import get_settings
 from aslms.db.session import get_sessionmaker, session_scope
 from aslms.domain.ops import JobRun, JobStatus
@@ -57,8 +61,15 @@ app.conf.update(
     worker_hijack_root_logger=False,
     beat_schedule={
         "masters-daily": {"task": "aslms.enqueue_masters", "schedule": crontab(hour=6, minute=0)},
-        "lists-daily": {"task": "aslms.enqueue_daily_lists", "schedule": crontab(hour=6, minute=30)},
-        "lists-evening": {"task": "aslms.enqueue_daily_lists", "schedule": crontab(hour=18, minute=30)},
+        # design court-data-freshness, decisions 8 and 14: the day rows plus the rechecks of held lists
+        "lists-daily": {"task": "aslms.enqueue_morning_lists", "schedule": crontab(hour=6, minute=30)},
+        "lists-evening": {"task": "aslms.enqueue_evening_lists", "schedule": crontab(hour=18, minute=30)},
+        # decision 1: the monthly refresh of cases disposed within a year, a daily slice; decision 19: call-log purge
+        "disposed-refresh": {
+            "task": "aslms.enqueue_disposed_refresh",
+            "schedule": crontab(hour=2, minute=30),
+        },
+        "napix-log-purge": {"task": "aslms.napix_log_purge", "schedule": crontab(hour=3, minute=45)},
         "status-daily": {"task": "aslms.enqueue_daily_status", "schedule": crontab(hour=20, minute=0)},
         "weekly-sweep": {
             "task": "aslms.enqueue_weekly",
@@ -114,6 +125,36 @@ def enqueue_daily_lists() -> int:
         return schedules.enqueue_daily_lists(s)
 
 
+@app.task(name="aslms.enqueue_morning_lists")
+def enqueue_morning_lists() -> dict[str, int]:
+    """06:30 IST: the three list days, and today's recheck while CAUSELIST_RECHECK_MORNING is on."""
+    with session_scope() as s:
+        return schedules.enqueue_morning_lists(s, settings=settings)
+
+
+@app.task(name="aslms.enqueue_evening_lists")
+def enqueue_evening_lists() -> dict[str, int]:
+    """18:30 IST: the three list days and the rechecks of today's and tomorrow's held lists."""
+    with session_scope() as s:
+        return schedules.enqueue_evening_lists(s)
+
+
+@app.task(name="aslms.enqueue_disposed_refresh")
+def enqueue_disposed_refresh() -> dict[str, int]:
+    """02:30 IST: dossier rows for the disposed cases due their monthly refresh; a `job_runs` row `disposed-refresh`."""
+    with session_scope() as s:
+        return schedules.run_disposed_refresh(s, settings)
+
+
+@app.task(name="aslms.napix_log_purge")
+def napix_log_purge() -> dict:
+    """03:45 IST: call-log rows older than NAPIX_CALL_LOG_KEEP_DAYS deleted in batches; `job_runs` `napix-log-purge`
+    and, when rows were deleted, an `audit_log` row `napix.call_log_purged`. No NAPIX call."""
+    from aslms.services import retention
+
+    return retention.purge_call_log(get_sessionmaker(), settings).as_dict()
+
+
 @app.task(name="aslms.enqueue_daily_status")
 def enqueue_daily_status() -> int:
     with session_scope() as s:
@@ -149,7 +190,7 @@ def extract_pending_text() -> dict:
     """A batch of pending documents (`FOR UPDATE SKIP LOCKED`), recorded as a `job_runs` row."""
     store = LocalStore(settings.storage_dir)
     with session_scope() as s:
-        run = JobRun(job="extract_text", run_date=date.today())
+        run = JobRun(job="extract_text", run_date=today_ist())
         s.add(run)
         s.flush()
         try:
@@ -196,7 +237,7 @@ def dedupe_sweep() -> dict:
     from aslms.services.audit import Actor, write_audit
 
     with session_scope() as s:
-        run = JobRun(job="dedupe-sweep", run_date=date.today())
+        run = JobRun(job="dedupe-sweep", run_date=today_ist())
         s.add(run)
         s.flush()
         try:

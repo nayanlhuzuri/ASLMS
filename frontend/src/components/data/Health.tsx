@@ -8,7 +8,9 @@
  * `admin.masters_sync`; the re-fetch buttons `admin.napix_refetch` and warn before queuing data already held ("Fetch
  * anyway" resends with `force`); the connectivity check either function. No GET calls NAPIX. The document text
  * block (design document-ocr, decision 4) counts documents by text status, the ones not read split into scanned PDFs,
- * images and old Word files.
+ * images and old Word files. Design court-data-freshness, decision 17: the daily cycle shows the lists corrected and
+ * the state of the date's recheck; the Retention block shows the call-log rule, its last purge, the two tables' sizes
+ * and the monthly refresh of disposed cases.
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
@@ -179,6 +181,15 @@ function SnapshotBlocks({ data }: { data: DataHealth }) {
             { key: "status", header: T.data.status, width: "var(--lead-w)", cell: (d) => d.causelist_day?.status ?? "—" },
             { key: "lists", header: T.data.lists, align: "right", cell: (d) => formatNumber(d.lists_stored) },
             { key: "entries", header: T.data.entries, align: "right", cell: (d) => formatNumber(d.entries_parsed) },
+            { key: "corrected", header: T.data.listsCorrected, align: "right", cell: (d) => formatNumber(d.lists_corrected ?? 0) },
+            {
+              key: "recheck",
+              header: T.data.recheck,
+              cell: (d) =>
+                d.recheck
+                  ? `${d.recheck.status}${d.recheck.called !== null && d.recheck.called !== undefined ? ` · ${T.data.recheckCalled(d.recheck.called)}` : ""}`
+                  : "—",
+            },
           ]}
         />
       </section>
@@ -219,7 +230,36 @@ function SnapshotBlocks({ data }: { data: DataHealth }) {
         </ul>
       </section>
       <DocumentsTextBlock data={data.documents_text} />
+      {data.retention ? <RetentionBlock data={data.retention} /> : null}
     </>
+  );
+}
+
+/** Design court-data-freshness, decisions 6, 19 and 21: the NAPIX logs kept and the monthly refresh of disposed cases. */
+function RetentionBlock({ data }: { data: NonNullable<DataHealth["retention"]> }) {
+  const mb = (bytes: number) => T.data.megabytes(formatNumber(Math.round(bytes / 1_048_576)));
+  return (
+    <section className={`stack ${ds.panel} ${ds.wide}`} aria-label={T.data.retention}>
+      <h2>{T.data.retention}</h2>
+      <ul>
+        <li>{T.data.callLogKept(data.call_log_keep_days, formatDateTime(data.call_log_oldest_at))}</li>
+        <li>
+          {data.last_purge_at
+            ? T.data.lastPurge(formatDateTime(data.last_purge_at), formatNumber(data.last_purge_deleted ?? 0), data.last_purge_status ?? "—")
+            : T.data.noPurgeYet}
+        </li>
+        <li>{T.data.tableSizes(mb(data.call_log_bytes), mb(data.responses_bytes))}</li>
+        <li>
+          {T.data.disposedRefresh(
+            formatNumber(data.disposed_refresh.eligible),
+            formatNumber(data.disposed_refresh.due_now),
+            data.disposed_refresh.last_run_at
+              ? T.data.disposedLastRun(formatDateTime(data.disposed_refresh.last_run_at), formatNumber(data.disposed_refresh.queued_last_run ?? 0))
+              : T.data.disposedNoRun,
+          )}
+        </li>
+      </ul>
+    </section>
   );
 }
 

@@ -22,12 +22,13 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, replace
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import event, select
 from sqlalchemy.orm import Session, object_session
 
+from aslms.core.clock import today_ist
 from aslms.domain.events import Event, EventVisibility
 from aslms.domain.org import Office, PermissionEffect, RolePermission, User, UserMembership, UserPermission
 from aslms.domain.reference import RETIRED_PERMISSIONS, EventType, OfficeKind, Permission, Role
@@ -202,7 +203,7 @@ def role_functions(session: Session, role: Role | str) -> set[Permission]:
 
 
 def membership_overrides(session: Session, membership: UserMembership) -> dict[Permission, PermissionEffect]:
-    today = date.today()
+    today = today_ist()
     out: dict[Permission, PermissionEffect] = {}
     rows = session.scalars(select(UserPermission).where(UserPermission.membership_id == membership.id)).all()
     for row in rows:
@@ -542,7 +543,7 @@ def set_override(
     if effect is None:
         if row is None:
             return None
-        row.is_active, row.deactivated_at, row.valid_to = False, datetime.now(UTC), date.today()
+        row.is_active, row.deactivated_at, row.valid_to = False, datetime.now(UTC), today_ist()
     else:
         if row is None:
             row = UserPermission(

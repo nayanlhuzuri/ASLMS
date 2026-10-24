@@ -40,7 +40,7 @@ def load(
     from aslms.services import data_load
     from aslms.services.reporting_common import today_ist
 
-    start, end = _date(from_date), _date(to_date) if to_date else date.today()
+    start, end = _date(from_date), _date(to_date) if to_date else today_ist()
     today = today_ist()
     yesterday = today - timedelta(days=1)
     with session_scope() as s:
@@ -155,16 +155,22 @@ def _cli_actor(session):
 def refetch_date(
     list_date: str = typer.Argument(..., help="YYYY-MM-DD"),
     force: bool = typer.Option(False, "--force", help="queue a day already held anyway"),
+    recheck: bool = typer.Option(
+        False,
+        "--recheck",
+        help="recheck the held NAPIX lists of the date (yesterday to tomorrow) for corrections",
+    ),
 ) -> None:
     """Queue a cause-list day again at top priority (audited `napix.refetch_requested`); a day already held needs
-    `--force`."""
+    `--force`. With `--recheck`, queue a `causelist_recheck` of the date instead: Show Cause List again for its held
+    lists, to pick up a corrected list (design court-data-freshness, decision 16)."""
     from aslms.services import napix_admin
 
     d = _date(list_date)
     with session_scope() as s:
         actor, member = _cli_actor(s)
         try:
-            state = napix_admin.refetch_day(s, actor, member, d, get_settings(), force=force)
+            state = napix_admin.refetch_day(s, actor, member, d, get_settings(), force=force, recheck=recheck)
         except (napix_admin.AdminInputError, napix_admin.AdminConflict) as exc:
             raise typer.BadParameter(f"{exc.code}: {exc}") from exc
     rprint(f"queued {d} ({state['status']}, priority {state['priority']})")
@@ -269,10 +275,12 @@ def queue_worker(
 
 
 def daily_cycle(
-    what: str = typer.Argument("all", help="all | masters | lists | status | weekly"),
+    what: str = typer.Argument("all", help="all | masters | lists | status | weekly | disposed"),
 ) -> None:
-    """Enqueue what the scheduler would (for a manual run or a test)."""
+    """Enqueue what the scheduler would (for a manual run or a test). `disposed` queues the monthly dossiers of the
+    cases disposed within a year that are due (design court-data-freshness, decision 3; not part of `all`)."""
     from aslms.services import schedules
+    from aslms.services.tracking import enqueue_disposed_refresh
 
     with session_scope() as s:
         out = {}
@@ -284,4 +292,6 @@ def daily_cycle(
             out["status_batches"] = schedules.enqueue_daily_status(s)
         if what == "weekly":
             out["weekly"] = schedules.enqueue_weekly(s)
+        if what == "disposed":
+            out["disposed"] = enqueue_disposed_refresh(s)
     rprint(out)

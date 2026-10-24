@@ -7,7 +7,19 @@ import enum
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, DateTime, Integer, String, Text, UniqueConstraint, text
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Date,
+    DateTime,
+    Index,
+    Integer,
+    SmallInteger,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -56,19 +68,33 @@ class CauselistBenchDay(CreatedAtMixin, Base):
     raw: Mapped[dict | None] = mapped_column(JSONB)
 
 
+LIST_IDENTITY = ("court_id", "list_date", "bench_id", "napix_causelist_id", "source", "list_type")
+
+
 class Causelist(TimestampMixin, Base):
+    """One version of one list. A corrected list re-issued under the same identity is a new row with `version + 1` and
+    `supersedes_id`; the replaced row only gains `superseded_at` (design `court-data-freshness`, decision 9). Readers
+    take the current version (`superseded_at IS NULL`, `services/causelists.py::CURRENT_LIST`)."""
+
     __tablename__ = "causelists"
     __table_class__ = TableClass.TRANSACTION
     __table_args__ = (
-        UniqueConstraint(
-            "court_id",
-            "list_date",
-            "bench_id",
-            "napix_causelist_id",
-            "source",
-            "list_type",
+        UniqueConstraint(*LIST_IDENTITY, "version", postgresql_nulls_not_distinct=True),
+        Index(
+            "ix_causelists_current",
+            *LIST_IDENTITY,
+            unique=True,
             postgresql_nulls_not_distinct=True,
+            postgresql_where=text("superseded_at IS NULL"),
         ),
+        Index(
+            "ix_causelists_supersedes",
+            "supersedes_id",
+            unique=True,
+            postgresql_where=text("supersedes_id IS NOT NULL"),
+        ),
+        CheckConstraint("(version = 1) = (supersedes_id IS NULL)", name="version"),
+        CheckConstraint("supersedes_id IS NULL OR supersedes_id <> id", name="not_self"),
     )
     id: Mapped[uuid.UUID] = uuid_pk()
     court_id: Mapped[uuid.UUID] = uuid_fk("courts.id")
@@ -91,6 +117,18 @@ class Causelist(TimestampMixin, Base):
     fetched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     error: Mapped[str | None] = mapped_column(Text)
     raw: Mapped[dict | None] = mapped_column(JSONB)
+    # design court-data-freshness, decisions 9-10 (migration 0023)
+    version: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default=text("1"))
+    supersedes_id: Mapped[uuid.UUID | None] = uuid_fk("causelists.id", nullable=True, index=False)
+    superseded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    entries_sha256: Mapped[str | None] = mapped_column(String(64))
+
+
+# the current version of a list (design court-data-freshness, decision 12): every reader adds it, as this expression
+# or as the SQL text `cl.superseded_at IS NULL`, except the named exceptions of the design
+CURRENT_LIST = Causelist.superseded_at.is_(None)
+CURRENT_LIST_SQL = "cl.superseded_at IS NULL"
 
 
 class EntrySource(enum.StrEnum):

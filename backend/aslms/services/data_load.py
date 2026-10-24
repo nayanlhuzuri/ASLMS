@@ -748,7 +748,7 @@ def _case_totals(session: Session, from_: date, to: date) -> dict[str, int]:
             FROM cases c
             WHERE c.merged_into_case_id IS NULL AND c.id IN (
                 SELECT e.case_id FROM causelist_entries e JOIN causelists cl ON cl.id = e.causelist_id
-                WHERE cl.list_date BETWEEN :f AND :t AND e.case_id IS NOT NULL)
+                WHERE cl.list_date BETWEEN :f AND :t AND e.case_id IS NOT NULL AND cl.superseded_at IS NULL)
             """
         ),
         {"f": from_, "t": to},
@@ -946,7 +946,7 @@ def _month_figures(session: Session, m: date) -> dict[str, Any]:
                    count(e.id),
                    count(DISTINCT cl.id) FILTER (WHERE cl.parse_status = 'failed')
             FROM causelists cl LEFT JOIN causelist_entries e ON e.causelist_id = cl.id
-            WHERE cl.list_date BETWEEN :f AND :t
+            WHERE cl.list_date BETWEEN :f AND :t AND cl.superseded_at IS NULL
             """
         ),
         {"f": m, "t": end},

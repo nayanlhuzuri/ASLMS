@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from aslms.core.config import Settings
 from aslms.domain.alerts import Digest, Notification, NotificationStatus
+from aslms.domain.causelists import CURRENT_LIST, Causelist
 from aslms.domain.courts import MasterSyncRun
 from aslms.domain.documents import DocKind, Document, TextStatus
 from aslms.domain.ops import (
@@ -243,8 +244,50 @@ def queue_depths(session: Session, now: datetime | None = None) -> dict[str, Any
     }
 
 
+def _recheck_rows(session: Session, days: list[date]) -> dict[date, FetchQueueItem]:
+    rows = session.scalars(
+        select(FetchQueueItem).where(
+            FetchQueueItem.kind == FetchKind.CAUSELIST_RECHECK,
+            FetchQueueItem.ref.in_([d.isoformat() for d in days]),
+        )
+    ).all()
+    return {date.fromisoformat(r.ref): r for r in rows}
+
+
+def _corrected_counts(session: Session, start: date, end: date) -> dict[date, int]:
+    """Corrected lists (version > 1) still current, per list date (design court-data-freshness, decision 17)."""
+    return {
+        d: int(n)
+        for d, n in session.execute(
+            select(Causelist.list_date, func.count())
+            .where(
+                Causelist.list_date.between(start, end),
+                Causelist.supersedes_id.is_not(None),
+                CURRENT_LIST,
+            )
+            .group_by(Causelist.list_date)
+        ).all()
+    }
+
+
+def _recheck_out(row: FetchQueueItem | None) -> dict[str, Any] | None:
+    if row is None:
+        return None
+    result = row.result or {}
+    return {
+        "status": _value(row.status),
+        "attempts": row.attempts,
+        "finished_at": to_ist(row.finished_at),
+        "last_error": row.last_error,
+        "called": result.get("called"),
+        "versions_new": result.get("versions_new"),
+        "unparsed": result.get("unparsed"),
+    }
+
+
 def daily_cycle(session: Session, now: datetime | None = None) -> list[dict[str, Any]]:
-    """Yesterday, today and tomorrow (IST): the `causelist_day` row and the lists stored and parsed."""
+    """Yesterday, today and tomorrow (IST): the `causelist_day` row and the lists stored and parsed; the lists
+    corrected and the state of the date's `causelist_recheck` row (design court-data-freshness, decision 17)."""
     today = today_ist(_now(now))
     days = [
         (today - timedelta(days=1), "yesterday"),
@@ -253,6 +296,8 @@ def daily_cycle(session: Session, now: datetime | None = None) -> list[dict[str,
     ]
     queue_rows = causelist_day_rows(session, [d for d, _ in days])
     counts = causelist_counts(session, days[0][0], days[-1][0])
+    rechecks = _recheck_rows(session, [d for d, _ in days])
+    corrected = _corrected_counts(session, days[0][0], days[-1][0])
     out = []
     for d, label in days:
         row = queue_rows.get(d)
@@ -272,9 +317,58 @@ def daily_cycle(session: Session, now: datetime | None = None) -> list[dict[str,
                     else None
                 ),
                 **c,
+                "lists_corrected": corrected.get(d, 0),
+                "recheck": _recheck_out(rechecks.get(d)),
             }
         )
     return out
+
+
+def retention(session: Session, settings: Settings, now: datetime | None = None) -> dict[str, Any]:
+    """The retention block (design court-data-freshness, decisions 6, 19 and 21): the call-log rule and its last
+    purge, both tables' sizes on disk, and the monthly refresh of disposed cases."""
+    from aslms.services import tracking
+
+    now = _now(now)
+    oldest, call_bytes, resp_bytes = session.execute(
+        select(
+            func.min(NapixCallLog.called_at),
+            func.pg_total_relation_size(literal("napix_call_log")),
+            func.pg_total_relation_size(literal("napix_responses")),
+        )
+    ).one()
+
+    def last_run(job: str) -> JobRun | None:
+        return session.scalar(
+            select(JobRun).where(JobRun.job == job).order_by(JobRun.started_at.desc()).limit(1)
+        )
+
+    purge = last_run("napix-log-purge")
+    refresh = last_run("disposed-refresh")
+    today = today_ist(now)
+    return {
+        "call_log_keep_days": settings.napix_call_log_keep_days,
+        "call_log_oldest_at": to_ist(oldest),
+        "last_purge_at": to_ist(purge.started_at) if purge is not None else None,
+        "last_purge_deleted": (purge.counters or {}).get("deleted") if purge is not None else None,
+        "last_purge_status": _value(purge.status) if purge is not None else None,
+        "call_log_bytes": int(call_bytes or 0),
+        "responses_bytes": int(resp_bytes or 0),
+        "disposed_refresh": {
+            "eligible": tracking.disposed_eligible_count(
+                session, today, keep_days=settings.disposed_refresh_days
+            ),
+            "due_now": tracking.disposed_due_count(
+                session,
+                today,
+                keep_days=settings.disposed_refresh_days,
+                every_days=settings.disposed_refresh_every_days,
+                now=now,
+            ),
+            "queued_last_run": (refresh.counters or {}).get("queued") if refresh is not None else None,
+            "last_run_at": to_ist(refresh.started_at) if refresh is not None else None,
+        },
+    }
 
 
 def status_batches(session: Session) -> dict[str, Any] | None:
@@ -434,6 +528,7 @@ def snapshot(
         "sourcetrace": sourcetrace_ingest.status(session, settings),
         "failures": failures(session),
         "documents_text": documents_text(session),
+        "retention": retention(session, settings, now),
     }
 
 

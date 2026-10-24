@@ -21,6 +21,7 @@ from sqlalchemy import Select, func, or_, select, text
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
+from aslms.core.clock import today_ist
 from aslms.domain.cases import Case
 from aslms.domain.documents import (
     DocGroup,
@@ -216,7 +217,7 @@ def _group_for(row: RefDocType, doc_group: str | None) -> DocGroup:
 def _doc_date(value: date | None, today: date | None = None) -> date:
     if value is None:
         raise UploadRefused("bad_field", "doc_date is required")
-    today = today or datetime.now(UTC).date()
+    today = today or today_ist()  # the IST calendar date (decision 23 of court-data-freshness)
     if value > today:
         raise UploadRefused("bad_field", "doc_date cannot be in the future")
     if value < EARLIEST_DOC_DATE:
@@ -351,7 +352,7 @@ def upload(
         text_ = _clean_text(description, "description")
         vis = _visibility(visibility)
     if kind == DocKind.ADMIN and doc_date is None:
-        doc_date = datetime.now(UTC).date()
+        doc_date = today_ist()
     when = _doc_date(doc_date)
     name = safe_filename(filename)
     if case is not None:

@@ -29,6 +29,8 @@ SCHEDULER_JOBS = frozenset(
         "digests",
         "sourcetrace_ingest",
         "next_dates_read",
+        "disposed-refresh",  # design court-data-freshness
+        "napix-log-purge",
     }
 )
 # `aslms ops backup-scheduler` (services/backups.py)

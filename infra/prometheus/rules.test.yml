@@ -317,6 +317,10 @@ tests:
         values: "-2000x10"
       - series: 'aslms_job_last_success_timestamp{job="dedupe-sweep"}'
         values: "-100000x10"
+      - series: 'aslms_job_last_success_timestamp{job="disposed-refresh"}'
+        values: "-100000x10"
+      - series: 'aslms_job_last_success_timestamp{job="napix-log-purge"}'
+        values: "-100000x10"
       - series: 'aslms_job_last_success_timestamp{job="queue-run"}'
         values: "-1000000x10"
     alert_rule_test:
@@ -334,6 +338,14 @@ tests:
           - exp_labels: { severity: warning, late_after: 26h, job: dedupe-sweep }
             exp_annotations:
               summary: "job dedupe-sweep has not succeeded for 26 hours"
+              runbook: "docs/operations.md section 17, JobLate"
+          - exp_labels: { severity: warning, late_after: 26h, job: disposed-refresh }
+            exp_annotations:
+              summary: "job disposed-refresh has not succeeded for 26 hours"
+              runbook: "docs/operations.md section 17, JobLate"
+          - exp_labels: { severity: warning, late_after: 26h, job: napix-log-purge }
+            exp_annotations:
+              summary: "job napix-log-purge has not succeeded for 26 hours"
               runbook: "docs/operations.md section 17, JobLate"
 
   - interval: 1m

@@ -79,7 +79,17 @@ def test_dates_day_entries_shapes(api):
         "fetch_status",
         "parse_status",
         "has_pdf",
+        # design court-data-freshness, decision 17
+        "version",
+        "supersedes_id",
+        "superseded_at",
+        "superseded",
+        "corrected_at",
+        "last_checked_at",
     }
+    assert (
+        day["benches"][1]["lists"][0]["version"] == 1 and day["benches"][1]["lists"][0]["superseded"] is False
+    )
     r = api.get(f"/causelists/{D2}/entries?bench_id=1854&only=claimable", headers=h)
     assert r.status_code == 200, r.text
     page = r.json()

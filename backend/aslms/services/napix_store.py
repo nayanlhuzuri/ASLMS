@@ -26,6 +26,26 @@ from aslms.integration.napix.client import NapixResult
 log = get_logger(__name__)
 
 
+class CallLogUnavailable(RuntimeError):
+    """The database cannot be reached, so the run's calls could not be logged: nothing is called."""
+
+
+def require_call_log(command: str = "this command") -> None:
+    """Before the first call of an operator's command (`napix-check`, `napix-probe-rate`; design court-data-freshness,
+    decision 22): the call log must be reachable, or the run would make unlogged calls. Only the exception's class is
+    shown (the URL may carry credentials)."""
+    from aslms.db import session as db_session
+
+    try:
+        with db_session.session_scope() as session:
+            session.execute(text("SELECT 1 FROM napix_call_log LIMIT 0"))
+    except Exception as e:  # noqa: BLE001
+        raise CallLogUnavailable(
+            f"cannot reach the database ({type(e).__name__}); {command} logs every call in napix_call_log "
+            "and does not start without it"
+        ) from None
+
+
 def payload_sha256(data: Any) -> str:
     return hashlib.sha256(
         json.dumps(data, sort_keys=True, separators=(",", ":"), default=str).encode()

@@ -9,6 +9,8 @@ older than the stale limit is re-queued). Kinds and the meaning of `ref`:
 - `status_batch`   ref `<YYYY-MM-DD>:<n>` (the n-th batch of up to 500 non-disposed CNRs for that day)
 - `order_pdf`      ref `<CNR>|<order_no>|<YYYY-MM-DD>`
 - `party_search`   ref `<est_code>|P|<reg_year>|<term>` (department discovery)
+- `causelist_recheck` ref `YYYY-MM-DD`: Show Cause List again for the held NAPIX lists of the date, to catch a
+                   corrected list re-issued under the same number (design `court-data-freshness`, decisions 7-8)
 - `search_rows`    ref `<napix_responses.id>`: the background storing of a capped advocate search's rows; no NAPIX
                    call, claimed only by the Celery task `aslms.store_search_rows` (`LOCAL_KINDS`; design
                    `safety-fixes`, decision 13)
@@ -23,10 +25,11 @@ and the better priority. `list_date` is the cause-list date whose loading queued
 spawns. `claim` skips `load` rows while the current `data_load_settings` version is paused (decision 2). A `request` row
 carries the person who asked for its pending run in `requested_by` (design `napix-window`, decision 10).
 
-Priorities (lower runs first): masters 10; yesterday's, today's and tomorrow's lists 20; status batches and a
-person's requests 30; the daily cycle's new dossiers and live-case order PDFs 40; the backdated load 41-48 by the
-preset and the period brought forward (`services/load_policy.py`); the weekly dossier sweep 50; disposed-case order
-PDFs 80."""
+Priorities (lower runs first): masters 10; yesterday's, today's and tomorrow's lists 20; the evening rechecks of held
+lists 21; status batches and a person's requests 30; the daily cycle's new dossiers and live-case order PDFs 40; the
+backdated load 41-48 by the preset and the period brought forward (`services/load_policy.py`); the weekly dossier
+sweep 50; the monthly dossiers of cases disposed within a year 55 (design `court-data-freshness`, decision 2);
+disposed-case order PDFs 80."""
 
 from __future__ import annotations
 
@@ -43,11 +46,13 @@ from aslms.services import source_failures
 PRIORITY = {
     "masters": 10,
     "list_today": 20,
+    "list_recheck": 21,
     "status": 30,
     "request": 30,
     "dossier_new": 40,
     "order_pdf_live": 40,
     "dossier_refetch": 50,
+    "dossier_disposed": 55,
     "order_pdf": 80,
 }
 # design safety-fixes, decision 6: after the n-th failed attempt the row waits RETRY_LADDER[n-1]; failed after the 6th
@@ -75,6 +80,7 @@ def enqueue(
     lane: FetchLane = FetchLane.DAILY,
     list_date: date | None = None,
     requested_by: uuid.UUID | None = None,
+    as_new: bool = False,
 ) -> bool:
     """Insert or revive a row. Without `requeue`, a `done` row stays done; a `failed` or `skipped` row is
     revived; a `pending` row keeps the better (lower) priority. A pending or revived row takes the
@@ -84,6 +90,9 @@ def enqueue(
     the request lane carries a person: a person with another lane raises `ValueError` before any SQL.
     `not_before` (design `safety-fixes`, decision 7): a pending row keeps its own, except that a `request`-lane call
     on a pending row waiting in the future gives it the caller's (NULL = now); attempts and the ladder are kept.
+    `as_new` (design `court-data-freshness`, decision 2): a revived row (`done` with `requeue`, `failed`, `skipped`)
+    takes the caller's priority and lane and a fresh `created_at`, as an inserted row would, instead of keeping the
+    better priority and its first queueing time; a pending or running row is treated as without it.
     Returns True when the row is pending after the call."""
     if requested_by is not None and FetchLane(lane) != FetchLane.REQUEST:
         raise ValueError("only a request-lane row carries the person who asked for it")
@@ -94,8 +103,19 @@ def enqueue(
             VALUES (CAST(:kind AS fetch_kind), :ref, :priority, :not_before, CAST(:lane AS fetch_lane), :list_date,
                 CAST(:requested_by AS uuid))
             ON CONFLICT (kind, ref) DO UPDATE SET
-                priority = LEAST(fetch_queue.priority, EXCLUDED.priority),
+                priority = CASE
+                    WHEN :as_new AND (fetch_queue.status IN ('failed', 'skipped')
+                        OR (fetch_queue.status = 'done' AND :requeue))
+                    THEN EXCLUDED.priority
+                    ELSE LEAST(fetch_queue.priority, EXCLUDED.priority) END,
+                created_at = CASE
+                    WHEN :as_new AND (fetch_queue.status IN ('failed', 'skipped')
+                        OR (fetch_queue.status = 'done' AND :requeue))
+                    THEN now() ELSE fetch_queue.created_at END,
                 lane = CASE
+                    WHEN :as_new AND (fetch_queue.status IN ('failed', 'skipped')
+                        OR (fetch_queue.status = 'done' AND :requeue))
+                    THEN EXCLUDED.lane
                     WHEN fetch_queue.status IN ('pending', 'failed', 'skipped')
                         OR (fetch_queue.status = 'done' AND :requeue)
                     THEN LEAST(fetch_queue.lane, EXCLUDED.lane) ELSE fetch_queue.lane END,
@@ -133,6 +153,7 @@ def enqueue(
             "list_date": list_date,
             "requested_by": requested_by,
             "request_lane": FetchLane(lane) == FetchLane.REQUEST,
+            "as_new": as_new,
         },
     ).scalar_one()
     return row == "pending"
@@ -186,7 +207,7 @@ def claim(
             WHERE id = (
                 SELECT id FROM fetch_queue
                 WHERE {where}
-                ORDER BY priority, created_at
+                ORDER BY priority, created_at, id
                 FOR UPDATE SKIP LOCKED
                 LIMIT 1
             )

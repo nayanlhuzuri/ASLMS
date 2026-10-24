@@ -75,7 +75,8 @@ function NextHearingFact({ caseRef, c }: { caseRef: string; c: CaseDetail }) {
   const next = c.status.next_hearing_date;
   if (!next) return <span className="muted">{T.case.noNext}</span>;
   const last = listing.data?.items[0];
-  const onDay = last && last.list_date === next ? last : null;
+  // a row of a list replaced by a corrected list no longer places the case (design court-data-freshness, decision 12)
+  const onDay = last && last.list_date === next && !last.superseded ? last : null;
   const badge = hearingBadge(next);
   return (
     <span className={s.factLine}>

@@ -24,8 +24,9 @@ from sqlalchemy import Select, and_, exists, func, or_, select
 from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.orm import Session
 
+from aslms.core.clock import today_ist
 from aslms.domain.cases import Case, CaseStatus
-from aslms.domain.causelists import Causelist, CauselistEntry
+from aslms.domain.causelists import CURRENT_LIST, Causelist, CauselistEntry
 from aslms.domain.org import Office, User
 from aslms.domain.ownership import (
     CaseOfficeScore,
@@ -145,7 +146,7 @@ def _last_listings(session: Session, case_ids: list[uuid.UUID]) -> dict[uuid.UUI
             CauselistEntry.sr_no,
         )
         .join(Causelist, Causelist.id == CauselistEntry.causelist_id)
-        .where(CauselistEntry.case_id.in_(case_ids))
+        .where(CauselistEntry.case_id.in_(case_ids), CURRENT_LIST)
         .ext(distinct_on(CauselistEntry.case_id))
         .order_by(CauselistEntry.case_id, Causelist.list_date.desc(), CauselistEntry.sr_no, CauselistEntry.id)
     ).all()
@@ -767,7 +768,7 @@ def counts(session: Session, user: User, *, office: str | None = None, today: da
     that department. A caller with no department gets one block with `office_code` None (the pool count).
     Shape: `{"departments": [{office_code, ...counts}]}` (design `user-memberships`, flagged shape change)."""
     access.require(session, user, Permission.CASES_VIEW_SCOPE)
-    today = today or date.today()
+    today = today or today_ist()
     view_all = access.has(session, user, Permission.CASES_VIEW_ALL)
     if office:
         o = find_office(session, office)

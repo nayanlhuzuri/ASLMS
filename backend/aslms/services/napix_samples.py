@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session, aliased
 
 from aslms.core.config import Settings
 from aslms.domain.cases import AdvocateSide, Case, CaseAdvocate, CaseHearing, CaseParty, CaseStatus, PartyRole
-from aslms.domain.causelists import Causelist, ListSource
+from aslms.domain.causelists import CURRENT_LIST, Causelist, ListSource
 from aslms.domain.courts import CaseType
 from aslms.domain.documents import Document, Order
 from aslms.domain.org import User
@@ -157,7 +157,7 @@ def _fmt(d: date) -> str:
 def _q_napix_list() -> Select:
     return (
         select(Causelist)
-        .where(Causelist.source == ListSource.NAPIX)
+        .where(Causelist.source == ListSource.NAPIX, CURRENT_LIST)
         .order_by(Causelist.list_date.desc(), Causelist.id.desc())
     )
 
@@ -174,6 +174,7 @@ def _q_stored_list() -> Select:
             Causelist.source == ListSource.NAPIX,
             Causelist.napix_causelist_id.is_not(None),
             Causelist.bench_id.is_not(None),
+            CURRENT_LIST,
         )
         .order_by(Causelist.list_date.desc(), Causelist.id.desc())
     )

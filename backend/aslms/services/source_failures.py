@@ -49,3 +49,19 @@ def resolve(session: Session, kind: str, ref: str) -> int:
         .execution_options(synchronize_session=False)
     ).rowcount
     return n or 0
+
+
+def resolve_prefix(session: Session, kind: str, prefix: str) -> int:
+    """Mark resolved every open failure of `kind` whose ref starts with `prefix` (a list's `causelist_reissue` rows,
+    ref `<causelist id>|<sha256>`; design court-data-freshness, decision 11). The number of rows closed."""
+    n = session.execute(
+        update(SourceFailure)
+        .where(
+            SourceFailure.kind == kind,
+            SourceFailure.ref.startswith(prefix, autoescape=True),
+            SourceFailure.resolved_at.is_(None),
+        )
+        .values(resolved_at=func.now())
+        .execution_options(synchronize_session=False)
+    ).rowcount
+    return n or 0

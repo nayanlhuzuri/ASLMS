@@ -28,22 +28,19 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from aslms.core.clock import today_ist
 from aslms.core.config import get_settings
 from aslms.core.errors import IntegrationError
 from aslms.integration.base import CauseListRef
 from aslms.integration.napix.client import CallHook, NapixClient, NapixResult, nested_list
 from aslms.integration.napix.hc import API, NapixHighCourt
-from aslms.services.napix_store import NapixRecorder
+from aslms.services.napix_store import CallLogUnavailable, NapixRecorder, require_call_log
 
 console = Console()
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_SAMPLES = REPO_ROOT / "docs" / "specs" / "samples"
 MAX_FIL_NO = 9_999_999  # spec §6.6: up to 7 digits
 CASE_STEPS = frozenset({"cnr", "current_status", "order", "show_business", "case_search", "party_name"})
-
-
-class CallLogUnavailable(RuntimeError):
-    """The database cannot be reached, so the run's calls could not be logged: nothing is called."""
 
 
 @dataclass(frozen=True)
@@ -100,19 +97,9 @@ def probe_from_options(
 
 
 def database_ready() -> None:
-    """Before the first call: the call log must be reachable, or the run would make unlogged calls."""
-    from sqlalchemy import text
-
-    from aslms.db.session import session_scope
-
-    try:
-        with session_scope() as session:
-            session.execute(text("SELECT 1 FROM napix_call_log LIMIT 0"))
-    except Exception as e:  # noqa: BLE001 — only the class is shown (the URL may carry credentials)
-        raise CallLogUnavailable(
-            f"cannot reach the database ({type(e).__name__}); napix-check logs every call in napix_call_log "
-            "and does not start without it"
-        ) from None
+    """Before the first call: the call log must be reachable, or the run would make unlogged calls
+    (`napix_store.require_call_log`, shared with `napix-probe-rate`)."""
+    require_call_log("napix-check")
 
 
 def record_calls(recorder: NapixRecorder) -> int:
@@ -372,7 +359,7 @@ def napix_check(
     probe = probe_from_options(advocate, reg_year, pend, filing_type, fil_no, fil_year)
     if max_calls is not None and max_calls < 1:
         raise typer.BadParameter("--max-calls is at least 1")
-    d = parse_cli_date(date_) or (date.today() - timedelta(days=1))
+    d = parse_cli_date(date_) or (today_ist() - timedelta(days=1))
     try:
         failures = asyncio.run(
             run(
