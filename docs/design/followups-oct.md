@@ -2,10 +2,10 @@
 
 ```
 slug: followups-oct
-status: awaiting-approval
+status: approved
 author: architect
 date: 2026-10-24
-approved_by:
+approved_by: owner on 2026-10-24, with the six recommended answers (including the DB_STANDARD.md sentence)
 ```
 
 ## Context
