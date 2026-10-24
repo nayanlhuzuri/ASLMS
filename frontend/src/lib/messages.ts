@@ -324,6 +324,7 @@ export const T = {
     calendar: "My calendar",
     alerts: "Alerts",
     search: "Search",
+    assistant: "Assistant",
     reports: "Reports",
     audit: "Audit log",
     data: "Data collection",
@@ -377,6 +378,7 @@ export const T = {
       notes: "Notes",
       alerts: "Alerts",
       timeline: "Timeline",
+      assistant: "Assistant",
       details: "Details",
     },
     reports: {
@@ -695,6 +697,7 @@ export const T = {
     keywords: "Keywords and name patterns",
     watchlist: "Watchlist",
     scoring: "Scoring",
+    assistant: "Assistant",
   } as Record<string, string>,
   crumbEntry: "Entry",
   // Government of Assam branding (decision 21): a marked placeholder until the official emblem file is supplied
@@ -1959,6 +1962,7 @@ export const T = {
     groups: {
       access: "Access",
       alert: "Alert",
+      assistant: "Case Assistant",
       auth: "Sign-in and password",
       case: "Case",
       counsel_code: "Counsel code",
@@ -2681,6 +2685,127 @@ export const T = {
     dashCount: "Next dates to confirm",
     answerIt: "Answer it",
   },
+  // the Case Assistant (design assistant, decision 14)
+  assistant: {
+    title: "Assistant",
+    subtitle: "Ask about your cases and search the court's orders. Every passage shows where it came from.",
+    tabTitle: "Case Assistant",
+    previewBanner:
+      "Preview: passages found in the court records, not an AI answer. Questions are searched as words; no AI is used.",
+    sourcetraceBanner:
+      "Answers come from SourceTrace. Check every source before relying on it. Do not type note text or internal remarks into a question.",
+    off: "The Case Assistant is not switched on.",
+    searchIn: "Search in",
+    scopes: { case: "This case", my_cases: "My cases", research: "All court orders" } as Record<string, string>,
+    scopeHint: {
+      case: "Searches this case's court orders and the court filings you can open, and court orders of other cases.",
+      my_cases: "Searches the court orders and court filings of the cases you work on.",
+      research: "Searches court orders of all cases in ASLMS, and the court filings you can open, for research.",
+    } as Record<string, string>,
+    neverSent: "Your department's notes and internal documents are never sent or searched. Do not type note text into a question.",
+    conversation: "Conversation",
+    conversations: "Conversations",
+    newConversation: "New conversation",
+    private: "Conversations are private to you and cannot be deleted.",
+    noConversations: "No conversation yet.",
+    backToList: "All conversations",
+    openConversation: (title: string) => `Open conversation: ${title}`,
+    emptyTitle: "Ask a question",
+    emptyText: "Or pick one of the suggestions below.",
+    suggestions: "Suggested questions",
+    suggested: {
+      case: [
+        "What did the last order direct?",
+        "When is the next hearing and why?",
+        "What is the petitioner asking for?",
+        "Has the court asked the State to file anything?",
+      ],
+      my_cases: ["Which of my cases have a direction to file an affidavit?"],
+      research: ["Orders on regularisation of contractual teachers"],
+    } as Record<string, string[]>,
+    question: "Question",
+    composer: "Ask the Case Assistant",
+    questionPlaceholder: "Ask a question about the court records",
+    ask: "Ask",
+    asking: "Searching the court records…",
+    left: (n: number, total: number) => (n === 1 ? `1 question left this hour of ${total}` : `${n} questions left this hour of ${total}`),
+    you: "You",
+    answerBy: { preview: "Preview", sourcetrace: "Assistant" } as Record<string, string>,
+    previewBadge: "Preview",
+    outcomes: {
+      answered: "Answered",
+      no_match: "No passage found",
+      failed: "Not answered",
+    } as Record<string, string>,
+    noAnswer: "No answer was recorded for this question.",
+    hidden: "This answer drew on a document you can no longer see.",
+    sources: "Sources used",
+    sourcesOf: (n: number) => `Sources used · answer ${n}`,
+    noSources: "No sources yet. Sources appear here with each answer.",
+    related: "Related orders in other cases",
+    unavailable: "This source is no longer available to you",
+    openSource: (n: number) => `Open source ${n}`,
+    chooseAnswer: (n: number) => `Show the sources of answer ${n}`,
+    order: "Order",
+    page: (n: number) => `page ${n}`,
+    no: (n: string) => `No. ${n}`,
+    copyToNote: "Copy to note",
+    copyHeading: "From the court records:",
+    copyRef: (n: number, what: string) => `[${n}] ${what}`,
+    otherCase: "Another case",
+    // the court-record view (decision 11)
+    courtRecord: "Court record",
+    courtRecordTitle: (caseNo: string) => `Court record: ${caseNo}`,
+    courtRecordNotice: "This is the court's public record. You cannot open this case in ASLMS.",
+    openOrder: "Open the order",
+    downloadOrder: "Download the order",
+    openCase: "Open the case page",
+    facts: {
+      cnr: "CNR",
+      caseNo: "Case number",
+      filingNo: "Filing number",
+      court: "Court",
+      bench: "Bench",
+      caseType: "Case type",
+      year: "Year",
+      status: "Status",
+      parties: "Parties",
+      advocates: "Advocates",
+      acts: "Acts",
+      lastHearing: "Last hearing",
+      nextHearing: "Next hearing",
+      orderDate: "Order date",
+      orderNo: "Order number",
+      kind: "Kind",
+      judge: "Judge",
+    },
+    orderKinds: { interim: "Interim order", final: "Final order", judgment: "Judgment" } as Record<string, string>,
+    notCited: "This order is not among the sources of your answers.",
+  },
+};
+
+/** The Case Assistant's refusals and failures in words (design assistant, decision 14). */
+export const ASSISTANT_ERRORS: ErrorTexts = {
+  assistant_off: () => "The Case Assistant is not switched on.",
+  bad_question: (x) =>
+    x.reason === "control_characters"
+      ? "The question holds hidden control characters. Type it again without pasting."
+      : "Write a question of 3 to 2,000 characters.",
+  scope_mismatch: () => "This conversation searches somewhere else. Start a new conversation.",
+  conversation_full: () => "This conversation is full. Start a new conversation.",
+  question_in_flight: () => "Your last question is still being answered. Wait for its answer, then ask again.",
+  assistant_limit: (x) => `You have asked the hourly number of questions. Try again in ${wait(x.retry_after)}.`,
+  not_found: () => "Not found, or not visible to you.",
+};
+
+/** The failure families of a stored answer in words (design assistant, decision 14). */
+export const ASSISTANT_FAILURES: Record<string, string> = {
+  unavailable: "The Case Assistant service is unavailable; try again later.",
+  timeout: "No answer came in time. Try more specific words, or try again later.",
+  rejected: "The Case Assistant service refused the question.",
+  protocol: "The Case Assistant service gave an answer that could not be read.",
+  scope: "The answer drew on material outside your reach and was withheld.",
+  error: "The question could not be answered because of an unexpected error.",
 };
 
 /** The shape of a message catalogue (design portal-ui-redesign, decision 27): every locale has these keys. */

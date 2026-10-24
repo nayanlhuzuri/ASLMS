@@ -1,0 +1,360 @@
+/* The Case Assistant (design assistant, decision 14; the template's Assistant tab and page): the conversation in a box
+   of fixed height with its own scroll bar (owner, 23 Oct 2026), answer cards, the "Sources used" side panel from
+   1280 px (under each answer below it), the composer, and on the page the conversation list. */
+
+.workspace {
+  display: grid;
+  gap: var(--s4);
+}
+
+/* the case tab: thread and composer, the sources at the right from 1280 px */
+.caseGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s4);
+  align-items: start;
+}
+
+/* the page: conversations | thread | sources */
+.pageGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s4);
+  align-items: start;
+}
+
+@media (min-width: 900px) {
+  .pageGrid {
+    grid-template-columns: 232px minmax(0, 1fr);
+  }
+}
+
+@media (min-width: 1280px) {
+  .caseGrid {
+    grid-template-columns: minmax(0, 1fr) 280px;
+  }
+
+  .pageGrid {
+    grid-template-columns: 232px minmax(0, 1fr) 280px;
+  }
+}
+
+.column {
+  display: grid;
+  gap: var(--s3);
+  min-width: 0;
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+
+.thread {
+  display: grid;
+  gap: var(--s3);
+  align-content: start;
+  min-height: 160px;
+  max-height: min(60vh, 560px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-behavior: smooth;
+  padding: var(--s3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+}
+
+.thread:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thread {
+    scroll-behavior: auto;
+  }
+}
+
+.empty {
+  display: grid;
+  gap: var(--s1);
+  padding: var(--s5);
+  text-align: center;
+  color: var(--text-3);
+}
+
+.empty b {
+  color: var(--text);
+}
+
+.msg {
+  display: flex;
+  gap: var(--s4);
+  align-items: flex-start;
+}
+
+.who {
+  flex: none;
+  width: 80px;
+  font-size: var(--t-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-3);
+  line-height: 36px;
+}
+
+.bubble {
+  flex: 1;
+  min-width: 0;
+}
+
+.question {
+  background: var(--slate-soft);
+  border-radius: var(--r-lg);
+  padding: var(--s2) var(--s4);
+  font-weight: 500;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.answer {
+  display: grid;
+  gap: var(--s2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: var(--s3) var(--s4);
+  background: var(--surface);
+  transition: border-color var(--fast), box-shadow var(--fast);
+}
+
+.answer[data-selected="true"] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.answerHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  font-size: var(--t-sm);
+  color: var(--text-3);
+}
+
+.choose {
+  margin-left: auto;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: var(--t-sm);
+  padding: 0;
+}
+
+.text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.muted {
+  color: var(--text-3);
+}
+
+.foot {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* sources under the answer below 1280 px; the side panel from 1280 px */
+.inlineSources {
+  display: grid;
+}
+
+.sidePanel {
+  display: none;
+}
+
+@media (min-width: 1280px) {
+  .inlineSources {
+    display: none;
+  }
+
+  .sidePanel {
+    display: block;
+  }
+}
+
+.sources {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.group {
+  margin: var(--s2) 0 0;
+  font-size: var(--t-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-3);
+}
+
+.source {
+  display: flex;
+  gap: var(--s3);
+  align-items: flex-start;
+  padding: var(--s3) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.source:last-child {
+  border-bottom: 0;
+}
+
+.num {
+  flex: none;
+  min-width: 30px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-sm);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: var(--t-xs);
+  font-weight: 600;
+}
+
+.sourceBody {
+  display: grid;
+  gap: var(--s1);
+  flex: 1;
+  min-width: 0;
+}
+
+.sourceTitle {
+  font-weight: 500;
+}
+
+.passage {
+  margin: 0;
+  padding-left: var(--s3);
+  border-left: 3px solid var(--border-strong);
+  font-family: Georgia, "Times New Roman", serif;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.passage mark {
+  background: var(--amber-soft);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+.composer {
+  display: grid;
+  gap: var(--s2);
+}
+
+.composerRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+}
+
+.hint {
+  margin: 0;
+  font-size: var(--t-sm);
+  color: var(--text-3);
+}
+
+.conversations {
+  display: grid;
+  gap: var(--s1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.conv {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: none;
+  padding: var(--s2) var(--s3);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  color: var(--text-2);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.conv:hover {
+  background: var(--slate-soft);
+}
+
+.conv[aria-current="true"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.conv small {
+  display: block;
+  font-size: var(--t-xs);
+  font-weight: 400;
+  color: var(--text-3);
+}
+
+.lockline {
+  margin: 0;
+  font-size: var(--t-xs);
+  color: var(--text-3);
+  line-height: 1.5;
+}
+
+.back {
+  display: none;
+}
+
+/* phones: the list and the thread are separate views, with a back link */
+@media (max-width: 899px) {
+  .pageGrid[data-view="thread"] .listColumn {
+    display: none;
+  }
+
+  .pageGrid[data-view="list"] .threadColumn,
+  .pageGrid[data-view="list"] .sidePanel {
+    display: none;
+  }
+
+  .back {
+    display: inline-flex;
+  }
+}
+
+.facts {
+  display: grid;
+  gap: var(--s4);
+}
+
+@media (max-width: 480px) {
+  .msg {
+    flex-direction: column;
+    gap: var(--s1);
+  }
+
+  .who {
+    width: auto;
+    line-height: 1.5;
+  }
+}

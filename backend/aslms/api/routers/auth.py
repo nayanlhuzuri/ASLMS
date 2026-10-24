@@ -19,6 +19,7 @@ from aslms.api.deps import actor_of, current_user, current_user_pending, get_mai
 from aslms.api.security import revoke_refresh_token
 from aslms.domain.org import Office, User
 from aslms.services import access, auth, memberships, profile
+from aslms.services.assistant import portal_mode
 from aslms.services.audit import write_audit
 from aslms.services.mailer import Mailer
 from aslms.services.otp import OtpError
@@ -251,13 +252,17 @@ def logout(
 
 
 @router.get("/me", response_model=schemas.MeOut)
-def me(session: Session = Depends(get_session), user: User = Depends(current_user_pending)) -> schemas.MeOut:
+def me(
+    request: Request, session: Session = Depends(get_session), user: User = Depends(current_user_pending)
+) -> schemas.MeOut:
     """The caller's own login, each active membership with its functions, and the union (the gate). Empty
-    `memberships` for a login after its last exit (design `user-memberships`, decision 22)."""
+    `memberships` for a login after its last exit (design `user-memberships`, decision 22). `assistant_mode` says
+    whether the portal shows the Case Assistant (design `assistant`, "API")."""
     return schemas.MeOut(
         user=user_out(session, user),
         memberships=membership_list(session, user, functions=True),
         functions=sorted(access.effective_permissions(session, user)),
+        assistant_mode=portal_mode(request.app.state.settings),
     )
 
 

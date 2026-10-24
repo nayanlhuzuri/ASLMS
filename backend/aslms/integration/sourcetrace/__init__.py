@@ -13,12 +13,21 @@ from typing import Literal
 
 from aslms.core.config import Settings
 from aslms.integration.sourcetrace.connector import (
+    Answer,
+    AskRequest,
+    AskScope,
+    AssistantConnector,
+    CaseContext,
+    Citation,
+    FilingRef,
     IngestItem,
     IngestResult,
     SourceTraceConnector,
     SourceTraceError,
+    SourceTraceProtocolError,
     SourceTraceRejected,
     SourceTraceUnavailable,
+    Turn,
 )
 
 log = logging.getLogger(__name__)
@@ -26,14 +35,24 @@ log = logging.getLogger(__name__)
 ConnectorState = Literal["disabled", "not_implemented", "ready"]
 
 __all__ = [
+    "Answer",
+    "AskRequest",
+    "AskScope",
+    "AssistantConnector",
+    "CaseContext",
+    "Citation",
     "ConnectorState",
+    "FilingRef",
     "IngestItem",
     "IngestResult",
     "SourceTraceConnector",
     "SourceTraceError",
+    "SourceTraceProtocolError",
     "SourceTraceRejected",
     "SourceTraceUnavailable",
+    "Turn",
     "connector_state",
+    "get_assistant_connector",
     "get_connector",
 ]
 
@@ -53,4 +72,11 @@ def get_connector(settings: Settings) -> SourceTraceConnector | None:
         log.warning(
             "SOURCETRACE_ENABLED is set but no SourceTrace connector is implemented yet; nothing is sent"
         )
+    return None
+
+
+def get_assistant_connector(settings: Settings) -> AssistantConnector | None:
+    """The real SourceTrace query connector (design `assistant`, decision 2): `None` until row 36 builds it, whatever
+    the settings. Never the fake."""
+    del settings
     return None

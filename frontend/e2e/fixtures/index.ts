@@ -75,6 +75,8 @@ function me(): Me {
     user: { ...base.user, id: SAMPLE.userId, full_name: "Anita Sharma Baruah", role: "super_admin", is_active: true, must_change_password: false, must_confirm_profile: false, memberships: MEMBERSHIPS },
     functions: ALL_FUNCTIONS,
     memberships: MEMBERSHIPS,
+    // the Case Assistant shows only while it is on (design assistant, decision 14)
+    assistant_mode: "preview",
   };
 }
 

@@ -2252,6 +2252,144 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/assistant/ask": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask
+         * @description Ask a question in one of three scopes: `case` (one case the caller can see; court orders of other cases too
+         *     with `include_related`), `my_cases` (the caller's own cases) or `research` (every court order, and the court
+         *     filings the caller may see). Court orders are court-public; court filings follow the document visibility; notes
+         *     and internal documents are never searched or sent. A connector failure is still 200, with `answer.outcome`
+         *     `failed` and `answer.error`. Refused before anything is stored: 503 `assistant_off`; 422 `scope_mismatch` (a
+         *     `case` outside the case scope, refused before the case is looked up, or a scope or case other than the
+         *     conversation's); 404 (a case unknown or not visible, answered alike, or a conversation not the caller's); 422
+         *     `bad_question` (length, control characters with `reason` `control_characters`); 409 `question_in_flight` (one
+         *     unanswered question per user across all conversations) / `conversation_full`; 429 `assistant_limit`. Audited
+         *     without the text.
+         */
+        post: operations["ask_assistant_ask_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/assistant/conversations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Conversations
+         * @description The caller's own conversations, newest first; case conversations of cases the caller can no longer see are
+         *     left out. Nobody reads another user's conversations.
+         */
+        get: operations["list_conversations_assistant_conversations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/assistant/conversations/{conversation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Conversation
+         * @description One of the caller's conversations with its messages, oldest first (the latest `limit` before the message
+         *     `before`). Court-filing citations are re-checked against the caller's current document visibility: one that no
+         *     longer passes shows unavailable and hides its answer's text. 404 when the conversation is not the caller's, or
+         *     is a case conversation whose case they can no longer see. Writes nothing.
+         */
+        get: operations["read_conversation_assistant_conversations__conversation_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/assistant/court-orders/{order_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Court Order
+         * @description The court's public record of a cited order: the order (number, date, kind, judge) and the case's court-public
+         *     facts, whoever owns the case. 404 unless the order is a court record in the assistant's corpus and the caller's
+         *     own answer `message` cites it. Never the owner, custody, stage, notes, documents or `ref_no`. Audited
+         *     (`assistant.court_order_opened`).
+         */
+        get: operations["court_order_assistant_court_orders__order_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/assistant/court-orders/{order_id}/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Court Order File
+         * @description The cited order's PDF from the store, with the headers of the documents file route (`inline` only for PDF).
+         *     The same rule as the court-record view; audited.
+         */
+        get: operations["court_order_file_assistant_court_orders__order_id__file_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/assistant/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Status
+         * @description The mode, the state (`not_implemented` while SourceTrace is chosen and no connector exists), the banner, the
+         *     limits with the caller's questions of the last hour, and the scopes.
+         */
+        get: operations["get_status_assistant_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/audit": {
         parameters: {
             query?: never;
@@ -3651,7 +3789,8 @@ export interface paths {
         /**
          * Me
          * @description The caller's own login, each active membership with its functions, and the union (the gate). Empty
-         *     `memberships` for a login after its last exit (design `user-memberships`, decision 22).
+         *     `memberships` for a login after its last exit (design `user-memberships`, decision 22). `assistant_mode` says
+         *     whether the portal shows the Case Assistant (design `assistant`, "API").
          */
         get: operations["me_me_get"];
         put?: never;
@@ -4587,6 +4726,281 @@ export interface components {
             party_name: string | null;
             /** Status */
             status: string | null;
+        };
+        /** AssistantAskIn */
+        AssistantAskIn: {
+            /**
+             * Case
+             * @description case id, ref_no or CNR; only for scope case
+             */
+            case?: string | null;
+            /** Conversation Id */
+            conversation_id?: string | null;
+            /**
+             * Include Related
+             * @default true
+             */
+            include_related: boolean;
+            /** Question */
+            question: string;
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "case" | "my_cases" | "research";
+        };
+        /** AssistantAskOut */
+        AssistantAskOut: {
+            answer: components["schemas"]["AssistantMessageOut"];
+            conversation: components["schemas"]["AssistantConversationOut"];
+            question: components["schemas"]["AssistantMessageOut"];
+        };
+        /** AssistantCaseBriefOut */
+        AssistantCaseBriefOut: {
+            /** Case No Text */
+            case_no_text: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Ref No */
+            ref_no: string;
+        };
+        /**
+         * AssistantCitationCaseOut
+         * @description `id` only when the reader can open the case; CNR and case number are court-public.
+         */
+        AssistantCitationCaseOut: {
+            /** Case No Text */
+            case_no_text: string | null;
+            /** Cnr */
+            cnr: string | null;
+            /** Id */
+            id: string | null;
+            /** Visible */
+            visible: boolean;
+        };
+        /** AssistantCitationOut */
+        AssistantCitationOut: {
+            /** Available */
+            available: boolean;
+            case: components["schemas"]["AssistantCitationCaseOut"];
+            /** Doc Date */
+            doc_date: string | null;
+            /** Doc Type Label */
+            doc_type_label: string | null;
+            /** Document Id */
+            document_id: string | null;
+            open: components["schemas"]["AssistantOpenOut"] | null;
+            /** Order Id */
+            order_id?: string | null;
+            /** Order No */
+            order_no?: string | null;
+            /** Page */
+            page?: number | null;
+            /** Passage */
+            passage: string | null;
+            /** Related */
+            related: boolean;
+            /**
+             * Source Kind
+             * @enum {string}
+             */
+            source_kind: "court_order" | "court_filing";
+            /**
+             * Unavailable Reason
+             * @description set when the source is no longer available to the reader; every field naming it is then null
+             */
+            unavailable_reason?: string | null;
+        };
+        /** AssistantConversationListOut */
+        AssistantConversationListOut: {
+            /** Items */
+            items: components["schemas"]["AssistantConversationOut"][];
+            /** Total */
+            total: number;
+        };
+        /** AssistantConversationOut */
+        AssistantConversationOut: {
+            case: components["schemas"]["AssistantCaseBriefOut"] | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Last Message At */
+            last_message_at: string | null;
+            /** Message Count */
+            message_count: number;
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "case" | "my_cases" | "research";
+            /** Title */
+            title: string | null;
+        };
+        /**
+         * AssistantCourtCaseOut
+         * @description The court-public facts of the case only: never the owner, recommendations, custody, stage, notes, documents,
+         *     alerts or `ref_no`.
+         */
+        AssistantCourtCaseOut: {
+            /** Acts */
+            acts: string[];
+            /** Advocates */
+            advocates: string[];
+            /** Bench */
+            bench: string | null;
+            /** Case No Text */
+            case_no_text: string | null;
+            /** Case Type */
+            case_type: string | null;
+            /** Cnr */
+            cnr: string | null;
+            /** Court */
+            court: string | null;
+            /** Filing No Text */
+            filing_no_text: string | null;
+            /** Last Hearing Date */
+            last_hearing_date: string | null;
+            /** Next Hearing Date */
+            next_hearing_date: string | null;
+            /** Parties */
+            parties: string[];
+            /** Status */
+            status: string | null;
+            /** Year */
+            year: number | null;
+        };
+        /** AssistantCourtOrderOut */
+        AssistantCourtOrderOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Judge */
+            judge: string | null;
+            /** Kind */
+            kind: string;
+            /**
+             * Order Date
+             * Format: date
+             */
+            order_date: string;
+            /** Order No */
+            order_no: string;
+        };
+        /** AssistantCourtOrderViewOut */
+        AssistantCourtOrderViewOut: {
+            case: components["schemas"]["AssistantCourtCaseOut"];
+            /** Case Visible */
+            case_visible: boolean;
+            order: components["schemas"]["AssistantCourtOrderOut"];
+        };
+        /** AssistantErrorOut */
+        AssistantErrorOut: {
+            /** Family */
+            family: string | null;
+            /** Message */
+            message: string;
+        };
+        /** AssistantLimitsOut */
+        AssistantLimitsOut: {
+            /** Messages Per Conversation */
+            messages_per_conversation: number;
+            /** Question Max Chars */
+            question_max_chars: number;
+            /** Questions Per Hour */
+            questions_per_hour: number;
+            /** Used Last Hour */
+            used_last_hour: number;
+        };
+        /**
+         * AssistantMessageOut
+         * @description `content` null when hidden (`hidden_reason`: an answer that drew on a court filing the reader can no longer
+         *     see). A failed answer carries `error` in words.
+         */
+        AssistantMessageOut: {
+            /** Citations */
+            citations: components["schemas"]["AssistantCitationOut"][];
+            /** Content */
+            content: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            error?: components["schemas"]["AssistantErrorOut"] | null;
+            /** Hidden Reason */
+            hidden_reason?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Mode */
+            mode?: ("preview" | "sourcetrace") | null;
+            /** Outcome */
+            outcome?: ("answered" | "no_match" | "failed") | null;
+            /** Reply To Id */
+            reply_to_id?: string | null;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "user" | "assistant" | "system";
+        };
+        /**
+         * AssistantOpenOut
+         * @description `document`: an API file route (the portal adds its relay prefix and `#page=`); `court_order`: the court-record
+         *     view of a cited order of a case the reader cannot open (`/assistant/court-orders/{id}?message=`).
+         */
+        AssistantOpenOut: {
+            /** Href */
+            href: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "document" | "court_order";
+        };
+        /**
+         * AssistantStatusOut
+         * @description `GET /assistant/status` (design assistant, decision 2): `state` `not_implemented` while `sourcetrace` is
+         *     chosen and no connector exists (row 36); `banner` the notice every Assistant screen shows.
+         */
+        AssistantStatusOut: {
+            /** Banner */
+            banner: string | null;
+            limits: components["schemas"]["AssistantLimitsOut"];
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "off" | "preview" | "sourcetrace";
+            /** Scopes */
+            scopes: ("case" | "my_cases" | "research")[];
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "off" | "preview" | "not_implemented" | "ready";
+        };
+        /** AssistantThreadOut */
+        AssistantThreadOut: {
+            conversation: components["schemas"]["AssistantConversationOut"];
+            /** Has More */
+            has_more: boolean;
+            /** Messages */
+            messages: components["schemas"]["AssistantMessageOut"][];
         };
         /** AuditActionsOut */
         AuditActionsOut: {
@@ -8311,6 +8725,13 @@ export interface components {
         };
         /** MeOut */
         MeOut: {
+            /**
+             * Assistant Mode
+             * @description the Case Assistant's state for the portal (design assistant): off (also while SourceTrace is chosen but not implemented), preview or sourcetrace
+             * @default off
+             * @enum {string}
+             */
+            assistant_mode: "off" | "preview" | "sourcetrace";
             /** Functions */
             functions: components["schemas"]["Permission"][];
             /** Memberships */
@@ -16861,6 +17282,383 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ask_assistant_ask_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssistantAskIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantAskOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    list_conversations_assistant_conversations_get: {
+        parameters: {
+            query?: {
+                scope?: string | null;
+                case?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantConversationListOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    read_conversation_assistant_conversations__conversation_id__get: {
+        parameters: {
+            query?: {
+                before?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantThreadOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    court_order_assistant_court_orders__order_id__get: {
+        parameters: {
+            query?: {
+                message?: string | null;
+            };
+            header?: never;
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantCourtOrderViewOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    court_order_file_assistant_court_orders__order_id__file_get: {
+        parameters: {
+            query?: {
+                message?: string | null;
+                disposition?: string;
+            };
+            header?: never;
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    get_status_assistant_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantStatusOut"];
                 };
             };
         };

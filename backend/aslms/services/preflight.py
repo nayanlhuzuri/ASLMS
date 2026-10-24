@@ -200,6 +200,7 @@ def check(settings: Any, component: str = "init") -> list[Finding]:
         raw.append(mail)
     raw.extend(_monitoring_rules(settings))
     findings = [Finding(level, variable, message) for variable, message in raw]
+    findings.extend(assistant_rules(settings))
     warning = alert_mail_warning(settings)
     if warning:
         findings.append(warning)
@@ -207,6 +208,34 @@ def check(settings: Any, component: str = "init") -> list[Finding]:
     if floor:
         findings.append(floor)
     return findings
+
+
+def assistant_rules(settings: Any) -> list[Finding]:
+    """Design `assistant`, decision 7: `ASSISTANT_MODE=preview` with `APP_ENV=prod` is an error (the preview is a word
+    search for dev and test, never the Case Assistant of the pilot); `sourcetrace` while no SourceTrace connector is
+    ready is a warning at every `APP_ENV` (the assistant stays off)."""
+    mode = (getattr(settings, "assistant_mode", "off") or "off").strip().lower()
+    if mode == "preview" and getattr(settings, "app_env", "dev") == "prod":
+        return [
+            Finding(
+                ERROR,
+                "ASSISTANT_MODE",
+                "is preview, which is for dev and test only (a word search, not the Case Assistant); set off or "
+                "sourcetrace",
+            )
+        ]
+    if mode == "sourcetrace":
+        from aslms.services.assistant import assistant_state
+
+        if assistant_state(settings) != "ready":
+            return [
+                Finding(
+                    WARNING,
+                    "ASSISTANT_MODE",
+                    "is sourcetrace but no SourceTrace connector is ready; the Case Assistant stays off",
+                )
+            ]
+    return []
 
 
 def libpq_floor(version: int | None = None) -> Finding | None:

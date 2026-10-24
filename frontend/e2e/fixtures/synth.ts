@@ -61,6 +61,9 @@ export const SAMPLE = {
   ticketRef: "TKT/EDU/2026/0001",
   ticketRefPath: "TKT-EDU-2026-0001",
   auditId: "0192a3b4-0000-7000-8000-0000000000a1",
+  // the Case Assistant (design assistant): a cited court order and the answer citing it
+  orderId: "0192a3b4-0000-7000-8000-0000000000o1",
+  messageId: "0192a3b4-0000-7000-8000-0000000000m9",
 };
 
 const CODES = ["EDU", "HEALTH", "FIN", "PWD", "HOME"];

@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | Owner | Government of Assam |
-| Describes | The system as built on `main`, 21 October 2026; court data freshness (section 2, items 10 to 12 of section 6) as changed on 24 October 2026 |
+| Describes | The system as built on `main`, 21 October 2026; court data freshness (section 2, items 10 to 12 of section 6) as changed on 24 October 2026; the Case Assistant in preview mode (sections 4.9 and 5), 24 October 2026 |
 | Readers | The product owner, department and State officials, auditors and anyone asked how ASLMS handles data |
 | Status | Living document: updated when a workflow changes |
 
@@ -70,7 +70,7 @@ flowchart LR
 
     NAPIX[(NAPIX<br/>Gauhati High Court data)]
     MAIL[E-mail service]
-    ST[SourceTrace<br/>AI, not connected yet]
+    ST[SourceTrace<br/>AI, not connected yet<br/>Case Assistant in preview, no AI]
 
     U1 & U2 & U3 --> WEB --> API
     API --> DB
@@ -99,7 +99,7 @@ flowchart LR
 | **Notes are append-only** | A note is never edited or deleted. A correction is a new note linked to the old one. |
 | **Legal records are never deleted** | Cases, orders, documents and notes are kept. Documents can be archived, not deleted. |
 | **Everything significant is audited** | Ownership decisions, file movements, notes, uploads, user and configuration changes all write an audit row. |
-| **AI only through SourceTrace** | No other AI service and no local AI model. Only court orders and uploaded court filings may ever go to SourceTrace, never notes or internal documents. It is not connected yet. |
+| **AI only through SourceTrace** | No other AI service and no local AI model. Only court orders and uploaded court filings may ever go to SourceTrace, never notes or internal documents. It is not connected yet (row 36). The Case Assistant is built, but in preview mode it uses no AI: see section 4.9. |
 
 ---
 
@@ -381,8 +381,8 @@ officer, directorate, counsel and reviewer types, and only functions they hold t
 > ⚙️ **You can change this:** the type matrix (Settings → Administration → Access) and per-person grants. Only the
 > super admin changes the matrix.
 
-> ⚠️ **Worth a decision:** by default a **department head cannot recall a file**; only the department admin can.
-> The **Auditor can use the Case Assistant**. (Section 6, items 13 and 15.)
+> ✅ **Changed on 23 Oct 2026 (row 121):** department heads can now recall a case by default, like the department
+> admin, and the Auditor no longer has the Case Assistant. (Section 6, items 13 and 15.)
 
 ### 3.3 Signing in
 
@@ -708,6 +708,54 @@ directions such as "list on 12.11.2026" or "list after four weeks".
 Standing counsel see the cases that carry their department's counsel code, on a cause list or in the advocates. They
 can write notes and upload documents. They see notes and documents marked "shared with counsel", and their own.
 
+### 4.9 The Case Assistant
+
+*Built on 24 October 2026 in **preview mode**. The AI part waits for SourceTrace (row 36).*
+
+**What it is today.** A person with the Case Assistant function asks a question in words and gets back the pages of
+court records that match, shown as excerpts with their page numbers. In preview mode there is **no AI**: the system
+searches the stored court text with PostgreSQL's built-in text search, and the only words it adds are a fixed line,
+"Preview: passages found in the court records, not an AI answer." Nothing leaves ASLMS's server. Preview mode is for
+development and test: in production the setting is refused when the system starts. Once SourceTrace is connected the
+same screens will show SourceTrace's answers, each with its sources, and the preview will be switched off.
+
+**Where it is.** An **Assistant** tab on every case page, and an **Assistant** entry in the menu. Only the people
+holding the function see them, and only while the mode is not off.
+
+**Three scopes** (a switch above the question box, with a one-line note naming what is searched):
+
+| Scope | What is searched |
+|---|---|
+| **This case** (case page only; the starting scope there) | The case's own court orders and the court filings the person may see. Court orders of other cases appear apart, under "Related orders in other cases". |
+| **My cases** | The court orders and visible court filings of the cases the person works on: allotted to them, the file with them, claimed by them, or their counsel codes. Up to 1,000 cases, newest activity first. |
+| **All court orders** | Every court order in ASLMS, whichever department owns the case, plus the court filings the person may see. |
+
+Switching the scope asks the last question again. The conversation sits in a box of fixed height with its own scroll
+bar, so the page does not grow; a new answer scrolls into view.
+
+**Citations.** Every answer lists its sources: the document, its date, the order number, the page and the matching
+excerpt, with the matching words highlighted. A source opens at its page in a new tab. An answer can be **copied into
+a case note** with its references written in words; the person edits it and saves an ordinary note. Each user may
+ask 30 questions an hour, one at a time. A question must be 3 to 2,000 characters and must not contain note text.
+
+**Privacy rules** (enforced on the server):
+- **Court information from NAPIX is open to every Assistant user.** Court orders and judgments of every case may be
+  searched and cited, even for a case the person cannot open. Such a source opens in a read-only court-record page that
+  says "This is the court's public record. You cannot open this case in ASLMS." It shows only public facts (case
+  number, parties, advocates as listed, hearing dates), never the owner, notes, custody or documents, and it opens
+  only from a citation in the person's own answer. Each opening is audited.
+- **Internal material is private and never searched or sent.** Notes, note attachments, internal and admin documents,
+  file remarks, drafts and cause-list files are never in the Assistant's reach. **Department uploads, court filings
+  included, stay private to the department**: they appear only for people who may already see that document, and a
+  filing kept private to an office never appears at all.
+- **Conversations are private to the person.** No one else can read them. A case conversation closes to the person if
+  they lose sight of the case, and a citation of a document they can no longer see is withheld, with its answer.
+- **Audit.** Every question, answer and court-record opening writes an audit row with lengths, fingerprints and ids,
+  never the text.
+
+> **Next step:** the real SourceTrace connector (row 36, blocked on SourceTrace's API documentation) replaces the word
+> search with answers. Until then, nothing in the Assistant is AI.
+
 ---
 
 ## 5. Data handling at a glance
@@ -727,7 +775,8 @@ can write notes and upload documents. They see notes and documents marked "share
 | **Are uploads checked?** | Type checked from content (PDF, Word, images), 20 MB limit, virus scan before anything is stored. |
 | **Is anything deleted?** | No legal record is deleted. Documents can be archived. Corrections to notes are new notes. |
 | **Backups?** | Every 6 hours (database and documents), with a weekly automatic restore test. |
-| **Is any data sent to an AI?** | Not today. When SourceTrace is connected, only court orders and uploaded court filings may be sent: never notes, internal documents, attachments or file remarks. This is enforced in three places, including the database. |
+| **Is any data sent to an AI?** | Not today. Preview mode of the Case Assistant searches stored court text on ASLMS's own server without AI; nothing leaves the server. When SourceTrace is connected, only court orders and uploaded court filings may be sent: never notes, internal documents, attachments, file remarks or department uploads kept private. This is enforced in three places, including the database. |
+| **Who can see the Assistant's conversations?** | Only the person who held them. Not the super admin, not the Auditor. Every question and answer is audited by length and fingerprint, never by text. Conversations are kept and not deleted. |
 | **What do e-mails contain?** | Case numbers, dates and the kind of alert. Never note text or document names. |
 | **Where are secrets kept?** | Only in the server's `.env` file. Never in the code, the database, the logs or the GitHub repository. |
 
@@ -741,29 +790,29 @@ design for your approval.
 
 **About claiming and recommendations**
 
-1. **Claiming does not fetch fresh court data.** A claimed case is not refreshed sooner or more often than any other.
+1. **Done (changed on 22 Oct 2026, row 120).** **Claiming does not fetch fresh court data.** A claimed case is not refreshed sooner or more often than any other.
    *Option:* on claim, queue a full court record at once (request priority) when the case has none or it is more
    than a day old.
 2. **Search does not fall back to the court automatically.** The person chooses "Search the court". *Option:* keep
    it as it is (deliberate calls), or search the court automatically when the local search finds nothing and the
    person holds the function.
-3. **A court search answered from our database still counts** towards the person's 30 per hour, and is refused while
+3. **Done (changed on 22 Oct 2026, row 120).** **A court search answered from our database still counts** towards the person's 30 per hour, and is refused while
    NAPIX is switched off. *Option:* answer held cases even with NAPIX off, without counting them.
-4. **The ASLMS search lists cases the person cannot open**, as public court summaries, unless "Only cases I can open"
+4. **Done (changed on 22 Oct 2026, row 120).** **The ASLMS search lists cases the person cannot open**, as public court summaries, unless "Only cases I can open"
    is ticked. *Option:* tick it by default.
 5. **The unclaimed pool is State-wide.** Every department's head and admin can open every unclaimed case. *Option:*
    limit the pool to cases with some signal for the department, and let the central operator see everything.
-6. **Other departments' recommendations stay open after a claim.** They can still claim and become watchers.
+6. **Done (changed on 22 Oct 2026, row 120).** **Other departments' recommendations stay open after a claim.** They can still claim and become watchers.
    *Option:* expire them on claim and tell those departments.
-7. **Possible matches never raise an alert**, and a suggestion from another department arrives as a possible match,
+7. **Done (changed on 22 Oct 2026, row 120).** **Possible matches never raise an alert**, and a suggestion from another department arrives as a possible match,
    so the suggested department gets no alert. *Option:* alert on human suggestions always.
 
 **About alerts and visibility**
 
-8. **No alert when someone claims a case, adds a note or sets a stage**, and no separate "newly listed" alert (a
+8. **Done (changed on 23 Oct 2026, row 121).** **No alert when someone claims a case, adds a note or sets a stage**, and no separate "newly listed" alert (a
    listing appears as a hearing reminder up to 7 days ahead). *Option:* add a "new note on your case" alert, and a
    "listed for tomorrow" alert from the evening cause list.
-9. **State-wide readers see private-to-office notes and file remarks** of every department. *Option:* hide
+9. **Done (changed on 23 Oct 2026, row 121).** **State-wide readers see private-to-office notes and file remarks** of every department. *Option:* hide
    private-to-office notes from State oversight and the central operator, and keep them for the Auditor.
 
 **About court data**
@@ -777,11 +826,11 @@ design for your approval.
 
 **About roles**
 
-13. **A department head cannot recall a file by default**; only the department admin can. *Option:* give recall to
+13. **Done (changed on 23 Oct 2026, row 121).** **A department head cannot recall a file by default**; only the department admin can. *Option:* give recall to
     the head too.
 14. **Only the super admin can create directorates and units.** *Option:* let the department admin create them
     inside the department.
-15. **The Auditor has the Case Assistant by default.** *Option:* remove it from the Auditor.
+15. **Done (changed on 23 Oct 2026, row 121).** **The Auditor has the Case Assistant by default.** *Option:* remove it from the Auditor.
 16. **Signing out ends the session, but a working token already issued stays valid for up to 30 minutes.** *Option:*
     shorten the working token to 10 minutes, or keep a revocation list. This is technical; I recommend leaving it
     until after the pilot.
@@ -812,5 +861,6 @@ design for your approval.
 | **Membership** | A person's place in one office, with a designation and user type |
 | **Function** | A single permission, such as "claim cases" or "search the court" |
 | **NAPIX** | The official eCourts API gateway through which ASLMS reads High Court data |
-| **SourceTrace** | The AI service for the Case Assistant. Not connected yet. |
+| **SourceTrace** | The AI service for the Case Assistant. Not connected yet; the Assistant runs in preview mode, a word search with no AI, until it is. |
+| **Preview mode** | The Case Assistant's stand-in until SourceTrace is connected: PostgreSQL full-text search over stored court text, showing the matching pages as excerpts. No AI, no generated text. Development and test only; refused in production. |
 | **Hourly allowance** | The number of NAPIX calls ASLMS may make per hour (about 1,000) |

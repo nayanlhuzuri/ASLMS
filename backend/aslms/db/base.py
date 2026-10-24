@@ -66,6 +66,7 @@ APPEND_ONLY_TABLES = (
     "membership_documents",
     "case_note_attachments",
     "sourcetrace_ingestions",  # design sourcetrace-connector, migration 0011
+    "assistant_messages",  # design assistant, migration 0024
 )
 # Tables `aslms_app` may DELETE from although they belong to a case: unfinished drafts, not legal records
 # (design custody-workflow, decisions 12-13; the owner's deviation from DB_STANDARD §6 / §9).

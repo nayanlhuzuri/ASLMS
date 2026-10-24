@@ -64,6 +64,11 @@ class MeOut(BaseModel):
     user: UserOut
     memberships: list[MembershipOut] = Field(default_factory=list)
     functions: list[Permission]
+    assistant_mode: Literal["off", "preview", "sourcetrace"] = Field(
+        "off",
+        description="the Case Assistant's state for the portal (design assistant): off (also while SourceTrace is "
+        "chosen but not implemented), preview or sourcetrace",
+    )
 
 
 class TokenOut(BaseModel):
@@ -4007,3 +4012,155 @@ class ServicesOut(BaseModel):
     checked_at: datetime
     overall: OverallOut
     services: list[ServiceCheckOut]
+
+
+# ------------------------------------------------------------------------------------------------ the Case Assistant
+
+
+class AssistantLimitsOut(BaseModel):
+    questions_per_hour: int
+    used_last_hour: int
+    question_max_chars: int
+    messages_per_conversation: int
+
+
+class AssistantStatusOut(BaseModel):
+    """`GET /assistant/status` (design assistant, decision 2): `state` `not_implemented` while `sourcetrace` is
+    chosen and no connector exists (row 36); `banner` the notice every Assistant screen shows."""
+
+    mode: Literal["off", "preview", "sourcetrace"]
+    state: Literal["off", "preview", "not_implemented", "ready"]
+    banner: str | None
+    limits: AssistantLimitsOut
+    scopes: list[Literal["case", "my_cases", "research"]]
+
+
+class AssistantAskIn(BaseModel):
+    question: str = Field(max_length=4000)
+    scope: Literal["case", "my_cases", "research"]
+    case: str | None = Field(None, max_length=100, description="case id, ref_no or CNR; only for scope case")
+    conversation_id: uuid.UUID | None = None
+    include_related: bool = True
+
+
+class AssistantCaseBriefOut(BaseModel):
+    id: uuid.UUID
+    ref_no: str
+    case_no_text: str | None
+
+
+class AssistantConversationOut(BaseModel):
+    id: uuid.UUID
+    scope: Literal["case", "my_cases", "research"]
+    case: AssistantCaseBriefOut | None
+    title: str | None
+    last_message_at: datetime | None
+    created_at: datetime
+    message_count: int
+
+
+class AssistantConversationListOut(BaseModel):
+    total: int
+    items: list[AssistantConversationOut]
+
+
+class AssistantCitationCaseOut(BaseModel):
+    """`id` only when the reader can open the case; CNR and case number are court-public."""
+
+    id: uuid.UUID | None
+    case_no_text: str | None
+    cnr: str | None
+    visible: bool
+
+
+class AssistantOpenOut(BaseModel):
+    """`document`: an API file route (the portal adds its relay prefix and `#page=`); `court_order`: the court-record
+    view of a cited order of a case the reader cannot open (`/assistant/court-orders/{id}?message=`)."""
+
+    kind: Literal["document", "court_order"]
+    href: str
+
+
+class AssistantCitationOut(BaseModel):
+    document_id: uuid.UUID | None
+    order_id: uuid.UUID | None = None
+    case: AssistantCitationCaseOut
+    source_kind: Literal["court_order", "court_filing"]
+    doc_type_label: str | None
+    doc_date: date | None
+    order_no: str | None = None
+    page: int | None = None
+    passage: str | None
+    related: bool
+    available: bool
+    unavailable_reason: str | None = Field(
+        None,
+        description="set when the source is no longer available to the reader; every field naming it is then null",
+    )
+    open: AssistantOpenOut | None
+
+
+class AssistantErrorOut(BaseModel):
+    family: str | None
+    message: str
+
+
+class AssistantMessageOut(BaseModel):
+    """`content` null when hidden (`hidden_reason`: an answer that drew on a court filing the reader can no longer
+    see). A failed answer carries `error` in words."""
+
+    id: uuid.UUID
+    role: Literal["user", "assistant", "system"]
+    created_at: datetime
+    content: str | None
+    hidden_reason: str | None = None
+    mode: Literal["preview", "sourcetrace"] | None = None
+    outcome: Literal["answered", "no_match", "failed"] | None = None
+    error: AssistantErrorOut | None = None
+    reply_to_id: uuid.UUID | None = None
+    citations: list[AssistantCitationOut]
+
+
+class AssistantAskOut(BaseModel):
+    conversation: AssistantConversationOut
+    question: AssistantMessageOut
+    answer: AssistantMessageOut
+
+
+class AssistantThreadOut(BaseModel):
+    conversation: AssistantConversationOut
+    messages: list[AssistantMessageOut]
+    has_more: bool
+
+
+class AssistantCourtOrderOut(BaseModel):
+    id: uuid.UUID
+    order_no: str
+    order_date: date
+    kind: str
+    judge: str | None
+
+
+class AssistantCourtCaseOut(BaseModel):
+    """The court-public facts of the case only: never the owner, recommendations, custody, stage, notes, documents,
+    alerts or `ref_no`."""
+
+    cnr: str | None
+    case_no_text: str | None
+    filing_no_text: str | None
+    court: str | None
+    bench: str | None
+    case_type: str | None
+    year: int | None
+    status: str | None
+    parties: list[str]
+    advocates: list[str]
+    acts: list[str]
+    last_hearing_date: date | None
+    next_hearing_date: date | None
+
+
+class AssistantCourtOrderViewOut(BaseModel):
+    order: AssistantCourtOrderOut
+    case: AssistantCourtCaseOut
+    case_visible: bool

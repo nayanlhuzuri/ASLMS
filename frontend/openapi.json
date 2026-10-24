@@ -1444,6 +1444,885 @@
         "title": "ApplicationOut",
         "type": "object"
       },
+      "AssistantAskIn": {
+        "properties": {
+          "case": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "case id, ref_no or CNR; only for scope case",
+            "title": "Case"
+          },
+          "conversation_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversation Id"
+          },
+          "include_related": {
+            "default": true,
+            "title": "Include Related",
+            "type": "boolean"
+          },
+          "question": {
+            "maxLength": 4000,
+            "title": "Question",
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "case",
+              "my_cases",
+              "research"
+            ],
+            "title": "Scope",
+            "type": "string"
+          }
+        },
+        "required": [
+          "question",
+          "scope"
+        ],
+        "title": "AssistantAskIn",
+        "type": "object"
+      },
+      "AssistantAskOut": {
+        "properties": {
+          "answer": {
+            "$ref": "#/components/schemas/AssistantMessageOut"
+          },
+          "conversation": {
+            "$ref": "#/components/schemas/AssistantConversationOut"
+          },
+          "question": {
+            "$ref": "#/components/schemas/AssistantMessageOut"
+          }
+        },
+        "required": [
+          "conversation",
+          "question",
+          "answer"
+        ],
+        "title": "AssistantAskOut",
+        "type": "object"
+      },
+      "AssistantCaseBriefOut": {
+        "properties": {
+          "case_no_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Case No Text"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "ref_no": {
+            "title": "Ref No",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "ref_no",
+          "case_no_text"
+        ],
+        "title": "AssistantCaseBriefOut",
+        "type": "object"
+      },
+      "AssistantCitationCaseOut": {
+        "description": "`id` only when the reader can open the case; CNR and case number are court-public.",
+        "properties": {
+          "case_no_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Case No Text"
+          },
+          "cnr": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cnr"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "visible": {
+            "title": "Visible",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "case_no_text",
+          "cnr",
+          "visible"
+        ],
+        "title": "AssistantCitationCaseOut",
+        "type": "object"
+      },
+      "AssistantCitationOut": {
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "case": {
+            "$ref": "#/components/schemas/AssistantCitationCaseOut"
+          },
+          "doc_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Doc Date"
+          },
+          "doc_type_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Doc Type Label"
+          },
+          "document_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Id"
+          },
+          "open": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssistantOpenOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "order_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Id"
+          },
+          "order_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order No"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page"
+          },
+          "passage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Passage"
+          },
+          "related": {
+            "title": "Related",
+            "type": "boolean"
+          },
+          "source_kind": {
+            "enum": [
+              "court_order",
+              "court_filing"
+            ],
+            "title": "Source Kind",
+            "type": "string"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "set when the source is no longer available to the reader; every field naming it is then null",
+            "title": "Unavailable Reason"
+          }
+        },
+        "required": [
+          "document_id",
+          "case",
+          "source_kind",
+          "doc_type_label",
+          "doc_date",
+          "passage",
+          "related",
+          "available",
+          "open"
+        ],
+        "title": "AssistantCitationOut",
+        "type": "object"
+      },
+      "AssistantConversationListOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AssistantConversationOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "items"
+        ],
+        "title": "AssistantConversationListOut",
+        "type": "object"
+      },
+      "AssistantConversationOut": {
+        "properties": {
+          "case": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssistantCaseBriefOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_message_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Message At"
+          },
+          "message_count": {
+            "title": "Message Count",
+            "type": "integer"
+          },
+          "scope": {
+            "enum": [
+              "case",
+              "my_cases",
+              "research"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "id",
+          "scope",
+          "case",
+          "title",
+          "last_message_at",
+          "created_at",
+          "message_count"
+        ],
+        "title": "AssistantConversationOut",
+        "type": "object"
+      },
+      "AssistantCourtCaseOut": {
+        "description": "The court-public facts of the case only: never the owner, recommendations, custody, stage, notes, documents,\nalerts or `ref_no`.",
+        "properties": {
+          "acts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Acts",
+            "type": "array"
+          },
+          "advocates": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Advocates",
+            "type": "array"
+          },
+          "bench": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bench"
+          },
+          "case_no_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Case No Text"
+          },
+          "case_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Case Type"
+          },
+          "cnr": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cnr"
+          },
+          "court": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Court"
+          },
+          "filing_no_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filing No Text"
+          },
+          "last_hearing_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Hearing Date"
+          },
+          "next_hearing_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Hearing Date"
+          },
+          "parties": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Parties",
+            "type": "array"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year"
+          }
+        },
+        "required": [
+          "cnr",
+          "case_no_text",
+          "filing_no_text",
+          "court",
+          "bench",
+          "case_type",
+          "year",
+          "status",
+          "parties",
+          "advocates",
+          "acts",
+          "last_hearing_date",
+          "next_hearing_date"
+        ],
+        "title": "AssistantCourtCaseOut",
+        "type": "object"
+      },
+      "AssistantCourtOrderOut": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "judge": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Judge"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "order_date": {
+            "format": "date",
+            "title": "Order Date",
+            "type": "string"
+          },
+          "order_no": {
+            "title": "Order No",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "order_no",
+          "order_date",
+          "kind",
+          "judge"
+        ],
+        "title": "AssistantCourtOrderOut",
+        "type": "object"
+      },
+      "AssistantCourtOrderViewOut": {
+        "properties": {
+          "case": {
+            "$ref": "#/components/schemas/AssistantCourtCaseOut"
+          },
+          "case_visible": {
+            "title": "Case Visible",
+            "type": "boolean"
+          },
+          "order": {
+            "$ref": "#/components/schemas/AssistantCourtOrderOut"
+          }
+        },
+        "required": [
+          "order",
+          "case",
+          "case_visible"
+        ],
+        "title": "AssistantCourtOrderViewOut",
+        "type": "object"
+      },
+      "AssistantErrorOut": {
+        "properties": {
+          "family": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Family"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "family",
+          "message"
+        ],
+        "title": "AssistantErrorOut",
+        "type": "object"
+      },
+      "AssistantLimitsOut": {
+        "properties": {
+          "messages_per_conversation": {
+            "title": "Messages Per Conversation",
+            "type": "integer"
+          },
+          "question_max_chars": {
+            "title": "Question Max Chars",
+            "type": "integer"
+          },
+          "questions_per_hour": {
+            "title": "Questions Per Hour",
+            "type": "integer"
+          },
+          "used_last_hour": {
+            "title": "Used Last Hour",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "questions_per_hour",
+          "used_last_hour",
+          "question_max_chars",
+          "messages_per_conversation"
+        ],
+        "title": "AssistantLimitsOut",
+        "type": "object"
+      },
+      "AssistantMessageOut": {
+        "description": "`content` null when hidden (`hidden_reason`: an answer that drew on a court filing the reader can no longer\nsee). A failed answer carries `error` in words.",
+        "properties": {
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/AssistantCitationOut"
+            },
+            "title": "Citations",
+            "type": "array"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssistantErrorOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "hidden_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hidden Reason"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "preview",
+                  "sourcetrace"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mode"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "enum": [
+                  "answered",
+                  "no_match",
+                  "failed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "reply_to_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reply To Id"
+          },
+          "role": {
+            "enum": [
+              "user",
+              "assistant",
+              "system"
+            ],
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "role",
+          "created_at",
+          "content",
+          "citations"
+        ],
+        "title": "AssistantMessageOut",
+        "type": "object"
+      },
+      "AssistantOpenOut": {
+        "description": "`document`: an API file route (the portal adds its relay prefix and `#page=`); `court_order`: the court-record\nview of a cited order of a case the reader cannot open (`/assistant/court-orders/{id}?message=`).",
+        "properties": {
+          "href": {
+            "title": "Href",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "document",
+              "court_order"
+            ],
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "href"
+        ],
+        "title": "AssistantOpenOut",
+        "type": "object"
+      },
+      "AssistantStatusOut": {
+        "description": "`GET /assistant/status` (design assistant, decision 2): `state` `not_implemented` while `sourcetrace` is\nchosen and no connector exists (row 36); `banner` the notice every Assistant screen shows.",
+        "properties": {
+          "banner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Banner"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/AssistantLimitsOut"
+          },
+          "mode": {
+            "enum": [
+              "off",
+              "preview",
+              "sourcetrace"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "scopes": {
+            "items": {
+              "enum": [
+                "case",
+                "my_cases",
+                "research"
+              ],
+              "type": "string"
+            },
+            "title": "Scopes",
+            "type": "array"
+          },
+          "state": {
+            "enum": [
+              "off",
+              "preview",
+              "not_implemented",
+              "ready"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode",
+          "state",
+          "banner",
+          "limits",
+          "scopes"
+        ],
+        "title": "AssistantStatusOut",
+        "type": "object"
+      },
+      "AssistantThreadOut": {
+        "properties": {
+          "conversation": {
+            "$ref": "#/components/schemas/AssistantConversationOut"
+          },
+          "has_more": {
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/AssistantMessageOut"
+            },
+            "title": "Messages",
+            "type": "array"
+          }
+        },
+        "required": [
+          "conversation",
+          "messages",
+          "has_more"
+        ],
+        "title": "AssistantThreadOut",
+        "type": "object"
+      },
       "AuditActionsOut": {
         "properties": {
           "actions": {
@@ -13121,6 +14000,17 @@
       },
       "MeOut": {
         "properties": {
+          "assistant_mode": {
+            "default": "off",
+            "description": "the Case Assistant's state for the portal (design assistant): off (also while SourceTrace is chosen but not implemented), preview or sourcetrace",
+            "enum": [
+              "off",
+              "preview",
+              "sourcetrace"
+            ],
+            "title": "Assistant Mode",
+            "type": "string"
+          },
           "functions": {
             "items": {
               "$ref": "#/components/schemas/Permission"
@@ -31459,6 +32349,604 @@
         ]
       }
     },
+    "/assistant/ask": {
+      "post": {
+        "description": "Ask a question in one of three scopes: `case` (one case the caller can see; court orders of other cases too\nwith `include_related`), `my_cases` (the caller's own cases) or `research` (every court order, and the court\nfilings the caller may see). Court orders are court-public; court filings follow the document visibility; notes\nand internal documents are never searched or sent. A connector failure is still 200, with `answer.outcome`\n`failed` and `answer.error`. Refused before anything is stored: 503 `assistant_off`; 422 `scope_mismatch` (a\n`case` outside the case scope, refused before the case is looked up, or a scope or case other than the\nconversation's); 404 (a case unknown or not visible, answered alike, or a conversation not the caller's); 422\n`bad_question` (length, control characters with `reason` `control_characters`); 409 `question_in_flight` (one\nunanswered question per user across all conversations) / `conversation_full`; 429 `assistant_limit`. Audited\nwithout the text.",
+        "operationId": "ask_assistant_ask_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistantAskIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistantAskOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Ask",
+        "tags": [
+          "assistant"
+        ]
+      }
+    },
+    "/assistant/conversations": {
+      "get": {
+        "description": "The caller's own conversations, newest first; case conversations of cases the caller can no longer see are\nleft out. Nobody reads another user's conversations.",
+        "operationId": "list_conversations_assistant_conversations_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(case|my_cases|research)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Scope"
+            }
+          },
+          {
+            "in": "query",
+            "name": "case",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Case"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistantConversationListOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Conversations",
+        "tags": [
+          "assistant"
+        ]
+      }
+    },
+    "/assistant/conversations/{conversation_id}": {
+      "get": {
+        "description": "One of the caller's conversations with its messages, oldest first (the latest `limit` before the message\n`before`). Court-filing citations are re-checked against the caller's current document visibility: one that no\nlonger passes shows unavailable and hides its answer's text. 404 when the conversation is not the caller's, or\nis a case conversation whose case they can no longer see. Writes nothing.",
+        "operationId": "read_conversation_assistant_conversations__conversation_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Conversation Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "before",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Before"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistantThreadOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Read Conversation",
+        "tags": [
+          "assistant"
+        ]
+      }
+    },
+    "/assistant/court-orders/{order_id}": {
+      "get": {
+        "description": "The court's public record of a cited order: the order (number, date, kind, judge) and the case's court-public\nfacts, whoever owns the case. 404 unless the order is a court record in the assistant's corpus and the caller's\nown answer `message` cites it. Never the owner, custody, stage, notes, documents or `ref_no`. Audited\n(`assistant.court_order_opened`).",
+        "operationId": "court_order_assistant_court_orders__order_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Order Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "message",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Message"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistantCourtOrderViewOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Court Order",
+        "tags": [
+          "assistant"
+        ]
+      }
+    },
+    "/assistant/court-orders/{order_id}/file": {
+      "get": {
+        "description": "The cited order's PDF from the store, with the headers of the documents file route (`inline` only for PDF).\nThe same rule as the court-record view; audited.",
+        "operationId": "court_order_file_assistant_court_orders__order_id__file_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Order Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "message",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Message"
+            }
+          },
+          {
+            "in": "query",
+            "name": "disposition",
+            "required": false,
+            "schema": {
+              "default": "inline",
+              "pattern": "^(inline|attachment)$",
+              "title": "Disposition",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Court Order File",
+        "tags": [
+          "assistant"
+        ]
+      }
+    },
+    "/assistant/status": {
+      "get": {
+        "description": "The mode, the state (`not_implemented` while SourceTrace is chosen and no connector exists), the banner, the\nlimits with the caller's questions of the last hour, and the scopes.",
+        "operationId": "get_status_assistant_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistantStatusOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Status",
+        "tags": [
+          "assistant"
+        ]
+      }
+    },
     "/audit": {
       "get": {
         "description": "Newest first; filters AND together; pass `next_cursor` back as `cursor` for the next page (no total).",
@@ -38991,7 +40479,7 @@
     },
     "/me": {
       "get": {
-        "description": "The caller's own login, each active membership with its functions, and the union (the gate). Empty\n`memberships` for a login after its last exit (design `user-memberships`, decision 22).",
+        "description": "The caller's own login, each active membership with its functions, and the union (the gate). Empty\n`memberships` for a login after its last exit (design `user-memberships`, decision 22). `assistant_mode` says\nwhether the portal shows the Case Assistant (design `assistant`, \"API\").",
         "operationId": "me_me_get",
         "responses": {
           "200": {

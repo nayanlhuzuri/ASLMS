@@ -9,7 +9,8 @@ Only court orders and court filings are ever sent, decided by the document's own
 (decision 3): by the claim query, by `assert_sendable` under the row lock just before the bytes leave, and by the
 database CHECKs. Never sent: cause lists, note attachments, admin documents, internal uploads, any note text, the
 uploader's description and original file name (decision 4). System sends write no `audit_log` row (decision 12);
-the human retries do. This is the only service that imports the SourceTrace connector (until row 14)."""
+the human retries do. Apart from the Case Assistant's `services/assistant.py` and `services/assistant_preview.py`
+(design `assistant`), this is the only service that imports the SourceTrace connector."""
 
 from __future__ import annotations
 
@@ -214,28 +215,42 @@ def _has_order():
     return exists(select(Order.id).where(Order.document_id == Document.id))
 
 
+def order_nature():
+    """Decision 3 (a), the order half: an order PDF of the court (`court_record`, scan `skipped`) that an `orders`
+    row points at. Shared with the Case Assistant's court-order corpus (design `assistant`, decision 6)."""
+    return and_(
+        Document.kind == DocKind.ORDER,
+        Document.doc_group == DocGroup.COURT_RECORD,
+        Document.virus_scan_status == ScanStatus.SKIPPED,
+        _has_order(),
+    )
+
+
+def filing_nature():
+    """Decision 3 (a), the filing half: a clean court filing among the uploads. Shared with the Case Assistant's
+    filing corpus (design `assistant`, decision 6)."""
+    return and_(
+        Document.kind == DocKind.UPLOAD,
+        Document.doc_group == DocGroup.COURT_FILING,
+        Document.virus_scan_status == ScanStatus.CLEAN,
+    )
+
+
 def nature_condition():
     """Decision 3 (a) and (b) in SQL: the kinds of documents that may ever be sent."""
     return and_(
-        or_(
-            and_(
-                Document.kind == DocKind.ORDER,
-                Document.doc_group == DocGroup.COURT_RECORD,
-                Document.virus_scan_status == ScanStatus.SKIPPED,
-                _has_order(),
-            ),
-            and_(
-                Document.kind == DocKind.UPLOAD,
-                Document.doc_group == DocGroup.COURT_FILING,
-                Document.virus_scan_status == ScanStatus.CLEAN,
-            ),
-        ),
+        or_(order_nature(), filing_nature()),
         Document.visibility != Visibility.PRIVATE_TO_OFFICE,
     )
 
 
+def has_cnr(case=Case):
+    """The CNR rule of ingestion (decision 8), over `cases` or an alias of it."""
+    return and_(case.cnr.is_not(None), case.cnr != "")
+
+
 def _has_cnr():
-    return and_(Case.cnr.is_not(None), Case.cnr != "")
+    return has_cnr()
 
 
 def _due(now: datetime):

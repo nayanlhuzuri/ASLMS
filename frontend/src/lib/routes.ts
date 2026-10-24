@@ -9,7 +9,7 @@ import { can, canAny, departmentsOf, readsAudit, tracksDepartment } from "./can"
 import { T } from "./messages";
 
 /** What the navigation reads of `/me`: the functions, and the memberships where an entry needs them. */
-export type MeLike = Pick<Me, "functions"> & Partial<Pick<Me, "memberships">>;
+export type MeLike = Pick<Me, "functions"> & Partial<Pick<Me, "memberships" | "assistant_mode">>;
 
 export type NavGroupKey = "work" | "oversight" | "settings";
 
@@ -36,6 +36,14 @@ export interface NavEntry {
  */
 export function showsInbox(me: MeLike): boolean {
   return can(me, "cases.view_all") || departmentsOf(me as Pick<Me, "memberships">).length > 0;
+}
+
+/**
+ * The Case Assistant (design assistant, decision 14): the sidebar entry and the case tab show with `assistant.use`
+ * while `/me.assistant_mode` is not `off` (SourceTrace chosen but not implemented reads `off`). Display only.
+ */
+export function showsAssistant(me: MeLike | null | undefined): boolean {
+  return !!me && can(me, "assistant.use") && !!me.assistant_mode && me.assistant_mode !== "off";
 }
 
 export const CASE_READERS: readonly Permission[] = ["cases.view_scope", "cases.view_all"];
@@ -108,6 +116,16 @@ export const NAV: readonly NavEntry[] = [
   { key: "calendar", label: T.nav.calendar, href: "/calendar", group: "work", functions: CASE_READERS, built: true },
   { key: "alerts", label: T.nav.alerts, href: "/alerts", group: "work", functions: CASE_READERS, built: true, count: "alerts" },
   { key: "search", label: T.nav.search, href: "/search", group: "work", functions: CASE_READERS, built: true },
+  // design assistant, decision 14: after Search, with `assistant.use` while the assistant is on
+  {
+    key: "assistant",
+    label: T.nav.assistant,
+    href: "/assistant",
+    group: "work",
+    functions: ["assistant.use"],
+    built: true,
+    show: showsAssistant,
+  },
   // design portal-reports, decision 2: the tabs inside come from `GET /reports`; the API decides every report
   {
     key: "reports",
@@ -277,6 +295,7 @@ export const AUDIT_ENTRY_CRUMB = T.crumbEntry;
 /** The breadcrumb label of a path (`CRUMB_PATHS` first, then the segment's label, else the segment itself). */
 export function crumbLabel(path: string): string {
   if (/^\/audit\/[^/]+$/.test(path)) return AUDIT_ENTRY_CRUMB;
+  if (/^\/assistant\/orders\/[^/]+$/.test(path)) return T.assistant.courtRecord;
   const part = path.split("/").filter(Boolean).pop() ?? "";
   return CRUMB_PATHS[path] ?? CRUMBS[part] ?? decodeURIComponent(part);
 }
@@ -331,6 +350,8 @@ export const CASE_TABS = [
   { key: "documents", label: T.tabs.case.documents, count: "documents", more: false },
   { key: "notes", label: T.tabs.case.notes, count: "notes", more: false },
   { key: "timeline", label: T.tabs.case.timeline, count: "timeline", more: false },
+  // design assistant, decision 14: after Timeline, shown only by `showsAssistant`
+  { key: "assistant", label: T.tabs.case.assistant, count: null, more: false },
   { key: "parties", label: T.tabs.case.parties, count: null, more: true },
   { key: "links", label: T.tabs.case.links, count: "links", more: true },
   { key: "custody", label: T.tabs.case.custody, count: null, more: true },

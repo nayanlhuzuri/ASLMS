@@ -14,9 +14,9 @@
  *   trail, each by its existing flag or function. The API still decides every call;
  * - the banners for provisional, merged and not-yet-fetched cases;
  * - the tabs, each its own route, with the API's `counts`: Overview, Hearings, Orders, Documents, Notes, Timeline and
- *   More (Parties, Linked cases, Custody and stage, Alerts, Details).
- * A case the API answers 404 shows one neutral message, so the page reveals nothing. The Case Assistant tab comes with
- * row 14.
+ *   More (Parties, Linked cases, Custody and stage, Alerts, Details); the Assistant tab after Timeline with
+ *   `assistant.use` while the assistant is on (design assistant, decision 14).
+ * A case the API answers 404 shows one neutral message, so the page reveals nothing.
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
@@ -39,7 +39,7 @@ import { formatDate, hearingBadge } from "@/lib/format";
 import { NEXT_DATE_ERRORS, T } from "@/lib/messages";
 import { queryString } from "@/lib/params";
 import { apiCasePath, casePath } from "@/lib/refs";
-import { CASE_TABS } from "@/lib/routes";
+import { CASE_TABS, showsAssistant } from "@/lib/routes";
 import { useAction } from "@/lib/useAction";
 
 import s from "./case.module.css";
@@ -341,7 +341,11 @@ export function CaseFrame({ caseRef, children }: { caseRef: string; children: Re
           {can(me.data, "cases.search_court") ? <FetchFromCourt caseRef={caseRef} /> : null}
         </div>
       ) : null}
-      <Tabs label={T.case.tabs} items={CASE_TABS.filter((t) => !t.more).map(tab)} more={CASE_TABS.filter((t) => t.more).map(tab)} />
+      <Tabs
+        label={T.case.tabs}
+        items={CASE_TABS.filter((t) => !t.more && (t.key !== "assistant" || showsAssistant(me.data))).map(tab)}
+        more={CASE_TABS.filter((t) => t.more).map(tab)}
+      />
       {children}
     </div>
   );

@@ -76,7 +76,7 @@ describe("department discovery navigation", () => {
 });
 
 describe("the case page tabs (portal-workflow)", () => {
-  it("six tabs, then Parties, Linked cases, Custody and stage, Alerts and Details under More (portal-ui-redesign, 10.9)", () => {
+  it("six tabs and the Assistant, then Parties, Linked cases, Custody and stage, Alerts and Details under More (portal-ui-redesign, 10.9; assistant, 14)", () => {
     expect(CASE_TABS.filter((t) => !t.more).map((t) => t.label)).toEqual([
       "Overview",
       "Hearings",
@@ -84,6 +84,7 @@ describe("the case page tabs (portal-workflow)", () => {
       "Documents",
       "Notes",
       "Timeline",
+      "Assistant", // shown only with assistant.use while the assistant is on (CaseFrame)
     ]);
     expect(CASE_TABS.filter((t) => t.more).map((t) => t.key)).toEqual(["parties", "links", "custody", "alerts", "details"]);
     expect(CASE_TABS.find((t) => t.key === "custody")!.label).toBe("Custody and stage");

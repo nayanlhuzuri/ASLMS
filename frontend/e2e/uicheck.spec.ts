@@ -35,6 +35,7 @@ function routes(dir = APP): string[] {
         if (parent === "users") return SAMPLE.userId;
         if (parent === "audit") return SAMPLE.auditId;
         if (parent === "offices") return SAMPLE.officeCode;
+        if (parent === "orders") return SAMPLE.orderId;
         return SAMPLE.caseRefPath;
       });
       out.push("/" + filled.join("/"));
@@ -165,6 +166,14 @@ const STATES: State[] = [
     open: async (page) => {
       await page.locator("tbody tr").first().click();
       await page.getByRole("dialog").first().waitFor();
+    },
+  },
+  {
+    // design assistant, decision 11: the court-record view as opened from a citation of the reader's own answer
+    name: `/assistant/orders/${SAMPLE.orderId} (court record from a citation)`,
+    path: `/assistant/orders/${SAMPLE.orderId}?m=${SAMPLE.messageId}`,
+    open: async (page) => {
+      await page.getByRole("link", { name: "Open the order" }).waitFor();
     },
   },
   {

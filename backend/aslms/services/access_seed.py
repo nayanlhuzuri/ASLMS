@@ -108,7 +108,7 @@ PERMISSION_LABELS: dict[P, tuple[str, str]] = {
     P.REPORTS_DEPARTMENT: ("Department reports", "Reports for the user's department"),
     P.REPORTS_STATE: ("State reports", "Reports across all departments"),
     P.DASHBOARD_STATE: ("State dashboard", "State-level dashboards"),
-    P.ASSISTANT_USE: ("Case Assistant", "Ask the Case Assistant (through SourceTrace)"),
+    P.ASSISTANT_USE: ("Case Assistant", "Ask the Case Assistant about cases and court orders"),
     P.AUDIT_VIEW: ("View audit log", "Read the audit log"),
 }
 

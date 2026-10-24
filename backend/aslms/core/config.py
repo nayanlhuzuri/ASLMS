@@ -143,6 +143,20 @@ class Settings(BaseSettings):
     sourcetrace_timeout_seconds: float = Field(60.0, gt=0)  # one send, the document row locked meanwhile
     sourcetrace_max_attempts: int = Field(5, ge=1, le=20)  # then the document is `failed`
 
+    # --- the Case Assistant (design assistant, decisions 2, 5, 6, 7, 8, 9 and 12) ------------------
+    # off: no question is taken; preview: PostgreSQL full-text search over the stored court-record text (dev and
+    # test only, refused in prod); sourcetrace: SourceTrace (not implemented until row 36, so it behaves as off)
+    assistant_mode: Literal["off", "preview", "sourcetrace"] = "off"
+    assistant_questions_per_hour: int = Field(30, ge=1, le=500)  # per user
+    assistant_question_max_chars: int = Field(2000, ge=100, le=2000)
+    assistant_messages_per_conversation: int = Field(200, ge=2, le=2000)
+    assistant_timeout_seconds: float = Field(45.0, gt=0, le=300)  # one question, the person waiting
+    assistant_history_turns: int = Field(6, ge=0, le=50)  # question and answer pairs sent with a question
+    assistant_max_focus_cases: int = Field(1000, ge=1, le=10_000)  # my-cases scope
+    assistant_max_filing_sources: int = Field(1000, ge=1, le=10_000)  # the filing allow-list
+    assistant_preview_passages: int = Field(8, ge=1, le=50)
+    assistant_preview_sql_ms: int = Field(8000, ge=100, le=60_000)  # SET LOCAL statement_timeout
+
     # --- dashboards and reports (design reports-dashboards, decisions 2, 5, 12) ------------------
     report_max_range_days: int = Field(366, ge=1, le=1000)  # hearings-disposals period
     report_health_max_days: int = Field(92, ge=1, le=1000)  # data-health period

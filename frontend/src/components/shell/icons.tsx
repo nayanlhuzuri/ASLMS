@@ -81,6 +81,16 @@ export function SearchIcon({ size = 18 }: { size?: number }) {
   );
 }
 
+/** A speech bubble: the Case Assistant (the template's icon). */
+export function AssistantIcon() {
+  return (
+    <Svg>
+      <path d="M3 3h12v9H8l-4 3v-3H3z" />
+      <path d="M6 7h6" />
+    </Svg>
+  );
+}
+
 export function ReportsIcon() {
   return (
     <Svg>
@@ -151,6 +161,7 @@ export const NAV_ICONS: Record<string, () => ReactNode> = {
   calendar: CalendarIcon,
   alerts: () => <BellIcon />,
   search: () => <SearchIcon />,
+  assistant: AssistantIcon,
   reports: ReportsIcon,
   audit: AuditIcon,
   data: DataIcon,

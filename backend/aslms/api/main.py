@@ -11,6 +11,7 @@ from aslms import __version__
 from aslms.api import metrics as api_metrics
 from aslms.api.routers import access as access_router
 from aslms.api.routers import alerts as alerts_router
+from aslms.api.routers import assistant as assistant_router
 from aslms.api.routers import audit as audit_router
 from aslms.api.routers import auth as auth_router
 from aslms.api.routers import cases as cases_router
@@ -88,6 +89,7 @@ def create_app(settings: Settings | None = None, session_factory=None) -> FastAP
     app.include_router(discovery_router.router)
     app.include_router(next_dates_router.router)
     app.include_router(system_health_router.router)
+    app.include_router(assistant_router.router)
 
     api_metrics.install(app)  # last, so it is the outermost middleware
 

@@ -230,3 +230,15 @@ export type CaseNextDateList = S["CaseNextDateListOut"];
 export type NextDateReviewItem = S["NextDateReviewItemOut"];
 export type NextDateReviewList = S["NextDateReviewListOut"];
 export type NextDateRejectOut = S["NextDateRejectOut"];
+
+// the Case Assistant (design assistant)
+export type AssistantStatus = S["AssistantStatusOut"];
+export type AssistantAskIn = S["AssistantAskIn"];
+export type AssistantAsk = S["AssistantAskOut"];
+export type AssistantConversation = S["AssistantConversationOut"];
+export type AssistantConversationList = S["AssistantConversationListOut"];
+export type AssistantThread = S["AssistantThreadOut"];
+export type AssistantMessage = S["AssistantMessageOut"];
+export type AssistantCitation = S["AssistantCitationOut"];
+export type AssistantCourtOrderView = S["AssistantCourtOrderViewOut"];
+export type AssistantScope = AssistantAskIn["scope"];

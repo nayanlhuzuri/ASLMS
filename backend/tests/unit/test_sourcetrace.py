@@ -212,10 +212,14 @@ ALLOWED = {
     ("services", "sourcetrace_ingest.py"),
     ("jobs", "celery_app.py"),
     ("cli", "sourcetrace.py"),
+    # design assistant: the Case Assistant service, its preview and its CLI
+    ("services", "assistant.py"),
+    ("services", "assistant_preview.py"),
+    ("cli", "assistant.py"),
 }
 
 
-def test_only_ingest_service_imports_the_connector():
+def test_only_listed_modules_import_the_connector():
     offenders = []
     for path in ASLMS.rglob("*.py"):
         rel = path.relative_to(ASLMS)

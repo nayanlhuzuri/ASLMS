@@ -2369,3 +2369,60 @@ Row 122, design `docs/design/court-data-freshness.md` (approved 21 Oct 2026 with
 - Row 139 (advisory of the final review): the runner writes call-log rows only when an item ends, while the recheck commits list results part-way; not new and not made worse by this row.
 - A data-health button for the operator's recheck (CLI only for now), and purging `napix_responses` once the pilot's real sizes are known (`aslms ops retention-report`).
 - Operations: apply 0023 with the `migrate` step before the first 18:30 run; the first real call-log deletion is in October 2028.
+
+## Case Assistant (2026-10-24)
+
+Row 14, design `docs/design/assistant.md` (approved 23 Oct 2026 with the recommended defaults), branch `feature/assistant`. Migration 0024 (revises 0023; head is now 0024). Tests and review passed with no blocking finding; advisories 1 to 8 and 11 were fixed, 9 and 10 are left for later.
+
+**Built**
+- **The query contract on the SourceTrace connector**, separate from ingestion and provider-neutral: `AskRequest`, `AskScope`, `CaseContext`, `Turn`, `Answer`, `Citation` and the protocol `AssistantConnector` (`ask`), the new `SourceTraceProtocolError`, and the fake's `ask` for tests. The nature rule of `sourcetrace_ingest` is split so the assistant and ingestion share one definition of what may be sent.
+- **`ASSISTANT_MODE`** = `off` (default), `preview` or `sourcetrace`. `sourcetrace` stays `not_implemented` until the real connector (row 36); with no connector every question is refused with 503 `assistant_off` before anything is stored. The fake is never returned.
+- **Preview mode**: `services/assistant_preview.py` answers by PostgreSQL full-text search over the stored text of the corpus, with fixed answer wording ("Preview: passages found in the court records, not an AI answer.") and verbatim excerpts with page numbers as citations. All words first, then any word as a fallback for the case and My cases scopes (never for All court orders). No AI and no model of any kind.
+- **Services**: `assistant.py` (conversations, `ask` in three short transactions, reading rules, audit, the court-record view), `assistant_sources.py` (the eligibility rule written once for both modes), `assistant_preview.py`.
+- **API** (`assistant.use` on all): `GET /assistant/status`, `POST /assistant/ask`, `GET /assistant/conversations`, `GET /assistant/conversations/{id}`, `GET /assistant/court-orders/{order_id}` and `/file`; `GET /me` adds `assistant_mode`.
+- **CLI** `aslms assistant status | ask | check`; `ask` is refused in prod. Ten `ASSISTANT_*` settings in `core/config.py` and `.env.example`. Preflight reports `ASSISTANT_MODE=preview` in prod as an ERROR.
+- **Portal**: the case page Assistant tab, the sidebar Assistant page (conversation list and thread), the Sources used panel, suggested questions, the preview banner and badge, Copy to note (`NoteDialog` and `NoteComposer` take `initialBody`), the court-record page `/assistant/orders/[orderId]`, and `uicheck` fixtures.
+- **Audit**: `assistant.asked`, `assistant.answered` and `assistant.court_order_opened`, holding digests, ids and counts, never text.
+- **Database** (migration 0024): the new `assistant_messages` columns, three CHECKs, a partial unique index (one answer per question), the append-only trigger, `my_cases` added to `assistant_scope`, and one CHECK on conversations.
+
+**Owner's decisions (23 Oct 2026)**
+1. **Court information from NAPIX is open to every assistant user, for research.** Court orders and judgments of every case in ASLMS, whoever owns it, may be searched, cited and opened through the assistant with `assistant.use` alone (standing counsel included). The reason is that officers research earlier judgments and similar pending cases, and this material is public on the High Court website. A court order of a case the user cannot see opens only from a citation in the user's own answer, in a read-only court-record view that is audited.
+2. **Internal material is private and never sent to SourceTrace.** Notes, note attachments, internal and admin documents, custody remarks, drafts and department uploads never cross the existing visibility. Department uploads, uploaded court filings included, stay private to the department under the normal document visibility, and a filing kept private to the office is never in the corpus.
+3. **The scope switch This case | My cases | All court orders.** The case tab starts on This case; the Assistant page has My cases and All court orders. Switching asks the last question again. A one-line note under the question box names what is searched.
+4. **A scrolling conversation.** The thread sits in a box of fixed height with its own scroll bar; the question box and the Sources panel stay in view; a new answer scrolls to the newest message.
+5. **Preview mode is full-text search with no model, and is refused in prod.** It lets the owner check the assistant now. `aslms ops preflight` fails `init` in prod, and `assistant_state` answers `off` there.
+
+Other decisions kept from the design: conversations are private to the user (not even the super admin or the Auditor reads them), append-only and never deleted; 30 questions an hour per user; 200 messages per conversation; one unanswered question per user; filing citations are re-checked against the reader's current visibility on every read; what is sent to SourceTrace is fixed now (the question, the last six turns, court-public case facts, the order corpus description and the filing allow-list; never notes, owners, recommendations or the user's identity).
+
+**Deviations from the design note** (full text in the note's Deviations)
+1. Branch based on `feature/court-data-freshness`, so 0024 revises 0023.
+2. 0024 autogenerated against a scratch database at 0023; CHECKs, trigger, grants and enum value written by hand.
+3. `ADD VALUE 'my_cases'` runs last, in an autocommit block.
+4. `case_contexts` returns dictionaries; `assistant.py` builds the `CaseContext`s (import allow-list).
+5. `Citation.rank` added.
+6. `ask` returns ids (`AskResult`); the router and CLI read messages back through `assistant.message`.
+7. Merges hold back a provisional case that has conversations; `case_dedupe` does not re-point them. This corrects the schema's earlier "re-pointing" wording.
+8. Extra ids in `scope_info` and in the audit rows (`orders`, `via`, `conversation_id`, `attempts`), no text.
+9. A per-user advisory lock in transaction A, so two conversations cannot both pass the hourly count.
+10. A failed answer's `content` holds its explanation in words; a stop-word-only preview question gets "Use more specific words".
+11. `CitationOut.open` is null for an unavailable source; the ordinary order file route only when the reader also holds `documents.view`.
+12. The preview takes the best page of every document first, then second pages, so related orders are not crowded out.
+13. Preflight reads `assistant_state` instead of importing the connector.
+14. Setting bounds chosen (the note gave defaults only).
+15. Ask is the one primary of the Assistant page and secondary on the case tab; chips fill the box without asking; switching scope re-asks the last question.
+16. `uicheck` also checks the court-record view with `?m=`; fixtures' `/me` has `assistant_mode: "preview"`.
+17. An unavailable source names nothing (no ids, type, date, page, excerpt or case number).
+18. Court-order citations are re-checked on every read too; they never hide the answer.
+19. The ordinary order link follows the membership that sees the case, not the login's union of functions.
+20. One unanswered question per user across all conversations (409 `question_in_flight`).
+21. A case given outside the case scope is refused (422 `scope_mismatch`) before any lookup; an unseen case answers exactly like an unknown one.
+22. Control characters in a question are refused (422 `bad_question`, reason `control_characters`).
+23. An unexpected connector failure logs the exception class, the conversation id and the question digest only.
+24. The preview's time is one budget; related orders run last in a savepoint and only they are dropped on a timeout or error.
+
+**Left for later**
+- Row 36: the real connector's `ask`, the citation mapping `_map_citations` by `sourcetrace_ref` (review finding 9) and the questions S1 to S5 for SourceTrace, including whether it keeps questions.
+- Row 140 (review finding 10): the CLI `ask --user` check of the named login.
+- Row 141: the owner's browser check at 375, 768 and 1280 px and the dev-database run of the preview.
+- Streaming answers, Acts, rules and policies citations, District Court material and OCR (row 96) stay out.
+- Operations: apply 0024 with the `migrate` step after the merge.

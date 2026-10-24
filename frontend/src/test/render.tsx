@@ -116,6 +116,7 @@ export function makeMe(functions: Permission[], role: Role = "dept_officer", ext
       },
     ],
     functions,
+    assistant_mode: "off",
     ...extra,
   };
 }
