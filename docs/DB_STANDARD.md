@@ -146,6 +146,9 @@ Business columns become `varchar(40) NOT NULL REFERENCES ref_<set>(code)`. The P
 constants (their values are the codes) so type hints and tests are unchanged; `seed` upserts one row per
 member. The remaining 47 enum types (statuses, sources, channels, scan states…) stay native.
 
+A reference-data migration writes its audit rows and events through `aslms/db/migration_audit.py`, so that a
+re-application after a downgrade is recorded once and raises its events again.
+
 ## 8. Roles and grants
 
 | Role | Use | Rights |

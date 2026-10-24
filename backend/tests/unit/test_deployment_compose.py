@@ -111,6 +111,14 @@ def test_compose_init_guards_instead_of_migrating():
     assert "ops migrate" in migrate["command"] and "ops preflight" in migrate["command"]
 
 
+def test_migrate_mounts_the_source_tree_read_only():
+    """Design followups-oct, decision 26: `aslms ops migrate` compares its image with ./backend at /src."""
+    services = _services()
+    assert "./backend:/src:ro" in services["migrate"]["volumes"]
+    for name in ("api", "worker", "scheduler", "init", "backup"):
+        assert not any(str(v).endswith(":/src:ro") for v in services[name].get("volumes", [])), name
+
+
 def test_compose_owner_url_only_in_ops_services():
     for name, svc in _services().items():
         env = _env(svc)

@@ -18,6 +18,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.orm import Session, sessionmaker
 
+from aslms.core import clock
 from aslms.core.config import Settings
 from aslms.domain.org import User
 from aslms.domain.reference import Permission
@@ -178,10 +179,10 @@ def state(
     now: datetime | None = None,
 ) -> dict[str, Any]:
     """`TokenOut`: read when the screen and the modal open; no call, not audited, never the token."""
-    now = now or datetime.now(UTC)
+    now = now or clock.now_utc()
     with_timeout(session, settings.report_statement_timeout_seconds)
     held = cache.state()
-    meta = cache.meta()
+    meta = cache.meta(now)  # `requests_today` by the IST date of the same `now` as the rest of the card
     obtained = _dt(meta.get("obtained_at"))
     accepted, rejected = _accepted_since(session, obtained) if obtained is not None else (None, 0)
     last_ok = None if not meta.get("requested_at") else meta.get("ok") == "1"
@@ -266,8 +267,26 @@ async def check(
     client.tokens = cache
     client.max_attempts = 1
     client.timeout = settings.health_test_timeout_seconds
-    async with client:
-        renewal = await client.renew_token()
+    try:
+        async with client:
+            renewal = await client.renew_token()
+    except Exception as exc:  # ASLMS's own defect: recorded by its class in the audit row, then raised again
+        known = getattr(client, "last_token_request", None)  # the request's outcome, when it got that far
+        audit.write_audit_apart(
+            session_factory,
+            access.actor_as(actor, member),
+            ACTION,
+            "napix",
+            None,
+            after={
+                "ok": False,
+                "http_status": known.http_status if known is not None else None,
+                "error_family": known.error_family if known is not None else None,
+                "duration_ms": known.duration_ms if known is not None else None,
+                "unexpected": type(exc).__name__,  # the class only, never the text (followups-oct, 6)
+            },
+        )
+        raise
     rate = {"limit": renewal.rate_limit[0], "remaining": renewal.rate_limit[1]}
     audit.write_audit_apart(
         session_factory,

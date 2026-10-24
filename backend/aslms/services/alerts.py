@@ -57,7 +57,7 @@ from sqlalchemy.orm import Session
 from aslms.core.config import Settings
 from aslms.domain.alerts import Alert, AlertStatus, Notification, NotificationStatus, Severity
 from aslms.domain.cases import Case, CaseObjection, CaseStatus
-from aslms.domain.causelists import CURRENT_LIST, Causelist, CauselistEntry, ListType
+from aslms.domain.causelists import CURRENT_LIST, Causelist, CauselistEntry, ListSource, ListType
 from aslms.domain.documents import Order
 from aslms.domain.events import Event
 from aslms.domain.ops import JobRun, JobStatus
@@ -931,8 +931,13 @@ def _suggestion_event(
     """Design `ownership-refinements`, decision 15: a suggestion always alerts the target department's claimers, for
     the target's open recommendation, whatever its band or origin and for a pending or disposed case alike; one alert
     per suggestion (`recommendation:<rec id>:suggested:<event id>`). Skipped for older events without
-    `target_recommendation_id`, a recommendation no longer open, or a merged case."""
-    rec = session.get(Recommendation, _uuid(p.get("target_recommendation_id")))
+    `target_recommendation_id`, a recommendation no longer open, or a merged case. No `session.get` with a null key
+    (design followups-oct, decision 17)."""
+    rec_id = _uuid(p.get("target_recommendation_id"))
+    if rec_id is None:
+        counters["skipped_other"] += 1
+        return
+    rec = session.get(Recommendation, rec_id)
     if (
         rec is None
         or RecommendationStatus(rec.status) != RecommendationStatus.RECOMMENDED
@@ -1073,6 +1078,7 @@ def _listing_select(list_date: date, *where: Any):
             CauselistEntry.printed_sr_no,
             CauselistEntry.sr_no,
             CauselistEntry.bench_text,
+            Causelist.source,
         )
         .join(Causelist, Causelist.id == CauselistEntry.causelist_id)
         .join(Case, Case.id == CauselistEntry.case_id)
@@ -1080,9 +1086,37 @@ def _listing_select(list_date: date, *where: Any):
     )
 
 
+# when two sources give the same listing, the copy kept (design followups-oct, decision 20)
+_SOURCE_RANK = {ListSource.NAPIX.value: 0, ListSource.GHC_WEBSITE.value: 1, ListSource.LOCAL_DIR.value: 2}
+
+
+def _one_per_listing(rows: Iterable[Any]) -> list[Any]:
+    """One row per court item (design followups-oct, decision 20): rows are grouped by (list type, trimmed upper-cased
+    court, the item as printed or the serial number, trimmed); of a group the NAPIX copy is kept before the website's
+    before a local file's. A row with no court number is never merged, so a doubtful match never hides a listing."""
+    kept: dict[tuple[str, str, str], Any] = {}
+    loose: list[Any] = []
+    for r in rows:
+        court = (r.court_no or "").strip().upper()
+        if not court:
+            loose.append(r)
+            continue
+        item = (r.printed_sr_no or str(r.sr_no)).strip()
+        key = (str(ListType(r.list_type).value), court, item)
+        held = kept.get(key)
+        rank = _SOURCE_RANK.get(str(getattr(r.source, "value", r.source)), 9)
+        if held is None or rank < _SOURCE_RANK.get(str(getattr(held.source, "value", held.source)), 9):
+            kept[key] = r
+    return [*kept.values(), *loose]
+
+
 def _listing_entries(rows: Iterable[Any]) -> list[dict[str, Any]]:
-    """Decision 9: each listing of the day, ordered by list type, court and position, court and item as printed."""
-    listings = sorted(rows, key=lambda r: (_list_type_rank(r.list_type), _court_rank(r.court_no), r.sr_no))
+    """Decision 9: each listing of the day, once per court item (followups-oct, decision 20), ordered by list type,
+    court and position, court and item as printed."""
+    listings = sorted(
+        _one_per_listing(rows),
+        key=lambda r: (_list_type_rank(r.list_type), _court_rank(r.court_no), r.sr_no),
+    )
     return [
         {
             "list_type": ListType(r.list_type).value,

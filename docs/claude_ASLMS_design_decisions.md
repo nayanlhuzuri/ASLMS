@@ -2426,3 +2426,48 @@ Other decisions kept from the design: conversations are private to the user (not
 - Row 141: the owner's browser check at 375, 768 and 1280 px and the dev-database run of the preview.
 - Streaming answers, Acts, rules and policies citations, District Court material and OCR (row 96) stay out.
 - Operations: apply 0024 with the `migrate` step after the merge.
+
+## October follow-ups (2026-10-24)
+
+Row 137, design `docs/design/followups-oct.md` (approved 24 Oct 2026 by the owner with the six recommended answers, including the DB_STANDARD.md sentence), branch `feature/followups-oct`. It bundles rows 113, 114, 126, 129, 130, 132, 133 and 134, which stay marked "merged into 137". No migration and no table change: `docs/schema/schema.md` is unchanged. Tests and review passed; the final re-check said "may merge"; the full suite after merging `main` gave 2246 passed, 3 skipped.
+
+**Built, by area**
+- **NAPIX connections and call records (114-1).** `db/session.get_apart_engine`: a small engine of its own for apart writes (`DB_APART_POOL_SIZE` 3, `DB_APART_POOL_TIMEOUT_SECONDS` 10, no overflow), used by every `flush_apart`, `write_audit_apart` and request-path `NapixRecorder`. `deps.napix_request` replaces `napix_client` at the five request paths: a per-process semaphore of `NAPIX_REQUEST_SLOTS` (6), a wait of up to `NAPIX_REQUEST_WAIT_SECONDS` (20) with no database connection held (the read-only transaction is committed first, and a session that has written raises `RuntimeError`), the guard run again inside the slot, then 503 `napix_busy` with `Retry-After: 15` when no slot frees. The refusal writes nothing and is not counted against the hourly searches. The main pool's 5 + 10 and 30 s are now explicit constants. `aslms ops preflight` checks the connection budget (slots + 1 worker + 1 scheduler + apart pool + 4 reserve against `PGBOUNCER_DEFAULT_POOL_SIZE`; an error at `APP_ENV=prod`, a warning otherwise). `aslms ops pool-check` is a read-only load check through PgBouncer. The database load test `test_napix_connections_load.py` has a control that reproduces the old starvation.
+- **Audit rows always written (114-2, 114-3, 114-4).** Test now, the console send, Check token and the connectivity check build a minimal `after` first and write their audit row in a `finally`, with `unexpected: <ExceptionClass>` (the class name only) when something unexpected happened, then raise again. An empty `flush_apart` resets `response_ids`.
+- **Renewals are not failures (113).** `domain/ops.py`: `renewal_step()`, `failed_call()` and `COUNTED_CALL_SQL`. The renewal's 401 step stays in every call count and quota count and leaves every failure reading: the data-health screen (today's failed, families, last failure), the data-health report, the quota window card, the per-person failed columns and the Prometheus metric, which gains `outcome="renewal"` (`NapixErrorsHigh` no longer counts renewals; a promtool case covers it). The load report names the step `renewal`.
+- **System health console (129, 134).** The stored answer's size is read before its payload (`response_too_large`, "This answer is too large to outline here."); party names go to 200 characters as `party_name` while `advocate_name` stays 99; each opening of the full answer is fetched again and so audited; a typed value never confirms a hidden sample (`edited: true`). uicheck fixtures for the token card and the CNR console; Copy, Download, Help and Try again at 36 px (`size` props on the kit with unchanged defaults).
+- **Ownership (130).** `close_claimed_backfill` keeps a suggestion made after the claim open (a repeat `--apply` closes 0); `matching.apply_scores` takes the case lock before reading claimed state, in case-id order, with one deadlock retry; `alerts._suggestion_event` returns early on a missing target.
+- **Working bases per membership (134-1).** `visibility.working_names` and `working_condition_any`; `custody.shows_remark`, `works_on_case`, the hearing calendar and `acting_member`'s error choice read every membership, so a login with a State-wide and a department membership sees its working cases' remarks.
+- **Listed-for-tomorrow (134-3).** One listing per court item (list type, court number, printed item), the NAPIX copy preferred over the website list over the local directory; rows with no court number are never merged.
+- **Migration audit helper (134-2).** `aslms/db/migration_audit.py` (`audit_once`, `event_key`, `record_downgrade`, `application_no`) for future reference-data migrations; runbook section 6 says a downgrade of such a migration is a restore. 0022 is not edited.
+- **No local model (132).** The premise was corrected by measurement: PyMuPDF 1.28.2 in the host venv and in the `api` and `worker` images holds no onnxruntime; the telemetry line most likely came from a host process. `tests/unit/test_no_local_model.py` and the preflight check `no_local_model` (fatal at every `APP_ENV`) stop the system if an AI runtime appears. The pin stays `>=1.24,<2`.
+- **`migrate` refuses a stale image (133).** Compose mounts `./backend:/src:ro` into `migrate`; `aslms ops migrate` hashes `/app/aslms` and `/app/migrations` against `/src` and exits 5 on any difference before any backup, or continues with a note when `/src` is empty. `restore` is not gated.
+- **Portal and checks (126, 134-4).** uicheck keeps every non-geometry finding on a redirect (`GEOMETRY_KINDS`, `kept`); `DataTable` measures when its rows or columns change; the two order-sensitive discovery tests were already fixed on `main` (ffc128e).
+
+**The owner's six approved answers**
+1. When every court-search slot is in use, wait up to 20 s without a database connection, then refuse with "Court searches are busy; try again in a few seconds" (503, retry after 15 s); not counted against the hourly searches; six slots per api process.
+2. A listing held on both the website PDF list and the NAPIX list shows once, the NAPIX copy; a row with no court number is never merged.
+3. A future PyMuPDF that brings onnxruntime stops the start at every `APP_ENV`.
+4. `migrate` refuses any difference in `aslms/` or `migrations/`.
+5. Renewals stay in "calls" and leave "failed" everywhere.
+6. One sentence on migration audit rows added to `docs/DB_STANDARD.md` (at the end of section 7, see deviation 12 of the design note).
+
+**Deviations** (the design note's Deviations section lists all 19 with reasons; none changes a business rule or an API field)
+- `renewal_step()` uses `IS NOT DISTINCT FROM 401` so a timeout stays a failure, with a second helper `failed_call()`.
+- The main pool's numbers are constants, not settings; preflight reads `pgbouncer_default_pool_size`.
+- The busy refusal is raised by `deps.napix_request` as the HTTP answer itself; the guard runs again in the slot in the court-search routes and inside the services elsewhere.
+- The deadlock retry is per case inside the case's savepoint, not a rollback of the whole batch.
+- The full-answer query counts openings (`Collapsible onToggle`) because the body stays mounted.
+- `GET /me/calendar` was already correct per membership; the hearing calendar was the one changed.
+- The DB standard sentence sits at the end of section 7, which has the reference data; there is no migrations section.
+- Review fixes: the quota window card, per-person failed columns and load report also leave renewals out; Test now, the console send and Check token keep their audit row when the call itself raises; the load test dropped a pool assertion that could never fail.
+- `next build --webpack` was used in the worktree; the integrator's `docker compose build web` builds with Turbopack.
+
+**Left for later** (follow-up rows 143 to 148)
+- Row 143: the matching engine's deadlock retry only helps inside a case's savepoint; `rescore_all` holds up to 500 locks per batch; no test of the retry path.
+- Row 144: the console's `response_id` still tells the sender that an answer was stored (a residual oracle).
+- Row 145: the preflight `no_local_model` scan takes about 5.7 s on the Windows host venv at every start.
+- Row 146: Check token's audit row loses the token request's outcome when the error is raised inside `token()`.
+- Row 147: a failing `flush_apart` or `write_audit_apart` in a `finally` replaces the call's own exception.
+- Row 148: no test of a call error followed by an enrichment error in `napix_api_check.run`.
+- Operations: after the merge, rebuild with `docker compose build` and `docker compose --profile ops build migrate`; the design's Verification steps 3, 6, 7 and 9 (pool-check numbers, uicheck, the migrate refusal, the onnxruntime log count) are the integrator's. Rows 124, 125 and 128 (owner checks, CI adoption of uicheck) are unchanged.

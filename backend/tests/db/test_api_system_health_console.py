@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 import sqlalchemy as sa
 
+from aslms.core import clock
 from aslms.domain.alerts import Alert
 from aslms.domain.cases import Case, CaseAdvocate, CaseHearing, CaseParty
 from aslms.domain.causelists import Causelist
@@ -623,9 +624,11 @@ def _token(api, h) -> dict:
     return r.json()
 
 
-def _issued(api, minutes_ago: float = 10, ok: bool = True, family: str | None = None) -> None:
+def _issued(
+    api, minutes_ago: float = 10, ok: bool = True, family: str | None = None, at: datetime | None = None
+) -> None:
     cache = TokenCache(redis_client=api.redis)
-    when = datetime.now(UTC) - timedelta(minutes=minutes_ago)
+    when = (at or datetime.now(UTC)) - timedelta(minutes=minutes_ago)
     cache.note_request(
         TokenRenewal(ok=ok, http_status=200 if ok else 401, error_family=family, duration_ms=120,
                      expires_in=3600 if ok else None, token_type="Bearer" if ok else None,
@@ -634,41 +637,47 @@ def _issued(api, minutes_ago: float = 10, ok: bool = True, family: str | None = 
     )  # fmt: skip
 
 
+# the card's clock, pinned: "requests today" counts by the IST date, so a request 10 minutes before a reading just
+# after IST midnight belongs to the day before (the card is right; an unpinned test failed from 00:00 to 00:10 IST)
+CARD_NOW = datetime(2026, 10, 20, 6, 30, tzinfo=UTC)  # 12:00 IST
+
+
 def test_token_card_states(api, world, gw, switch_on, monkeypatch):
     h = ds.login(api, "root")
+    monkeypatch.setattr(clock, "now_utc", lambda: CARD_NOW)
     # nothing held, nothing recorded, switch on: not known yet
     t = _token(api, h)
     assert t["status"] == "unknown" and t["held"] is False and t["shared_store"] is True
     assert t["endpoint"]["url"] == "https://delhigw.napix.gov.in/nic/ecourts//oauth2/token"
     assert "<CLIENT_KEY>:<CLIENT_SECRET>" in t["curl_token"] and t["check"]["allowed"] is True
     # held, not used yet
-    _issued(api, 10)
+    _issued(api, 10, at=CARD_NOW)
     api.redis.set("napix:token", "tok-held", ex=3000)
     t = _token(api, h)
     assert (
         t["status"] == "ok" and t["held"] and 2990 <= t["ttl_seconds"] <= 3000 and t["accepted_since"] is None
     )
     assert t["obtained_at"] and t["expires_at"] and t["token_type"] == "Bearer" and t["scope"] == "napix"
-    assert t["last_request"]["outcome"] == "obtained" and t["requests_today"] >= 1
+    assert t["last_request"]["outcome"] == "obtained" and t["requests_today"] == 1
     # held and accepted since issue
     with world.Session() as s:
-        _log(s, "hc-cnr-api/CNR", 5, http=200)
-        _log(s, "hc-state-api/state", 20, http=200)  # before the issue: not counted
+        _log(s, "hc-cnr-api/CNR", 5, http=200, at=CARD_NOW)
+        _log(s, "hc-state-api/state", 20, http=200, at=CARD_NOW)  # before the issue: not counted
         s.commit()
     t = _token(api, h)
     assert t["status"] == "ok" and t["accepted_since"]["api_label"] == "Case details by CNR"
     assert t["accepted_since"]["http_status"] == 200 and t["rejected_since"] == 0
     # 401 answers since issue with no renewal after them
     with world.Session() as s:
-        _log(s, "hc-cnr-api/CNR", 2, ok=False, http=401)
+        _log(s, "hc-cnr-api/CNR", 2, ok=False, http=401, at=CARD_NOW)
         s.commit()
     t = _token(api, h)
     assert t["status"] == "down" and t["rejected_since"] == 1
     # a renewal after them: the 401 rows are before the new issue
-    _issued(api, 1)
+    _issued(api, 1, at=CARD_NOW)
     assert _token(api, h)["status"] == "ok"
     # the last request failed while a token is still held
-    _issued(api, 0.5, ok=False, family="NapixAuthError")
+    _issued(api, 0.5, ok=False, family="NapixAuthError", at=CARD_NOW)
     t = _token(api, h)
     assert t["status"] == "warn" and t["last_failure"]["family"] == "NapixAuthError"
     assert t["last_request"]["outcome"] == "refused: check NAPIX_CLIENT_ID / SECRET"
@@ -687,6 +696,21 @@ def test_token_card_states(api, world, gw, switch_on, monkeypatch):
     t = _token(api, h)
     assert t["status"] == "unknown" and t["napix_enabled"] is False
     assert gw.token_calls == 0 and gw.seen == []
+
+
+@pytest.mark.parametrize(
+    ("read_at", "expected"),
+    [
+        (datetime(2026, 10, 24, 18, 29, tzinfo=UTC), 1),  # 23:59 IST: the request at 23:50 IST is today's
+        (datetime(2026, 10, 24, 18, 31, tzinfo=UTC), 0),  # 00:01 IST: it was yesterday's
+    ],
+)
+def test_token_card_requests_today_by_the_ist_date(api, world, gw, switch_on, monkeypatch, read_at, expected):
+    h = ds.login(api, "root")
+    monkeypatch.setattr(clock, "now_utc", lambda: read_at)
+    _issued(api, 0, at=datetime(2026, 10, 24, 18, 20, tzinfo=UTC))  # 23:50 IST on 24 Oct
+    t = _token(api, h)
+    assert t["requests_today"] == expected and t["last_request"]["outcome"] == "obtained"
 
 
 def test_no_shared_store_with_a_held_token_is_warn(api, world, gw, switch_on):

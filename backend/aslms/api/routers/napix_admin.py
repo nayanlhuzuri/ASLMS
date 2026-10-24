@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
 from aslms.api import schemas
-from aslms.api.deps import actor_of, get_session, napix_client, require, require_any
+from aslms.api.deps import actor_of, apart_factory, get_session, napix_request, require, require_any
 from aslms.api.errors import detail
 from aslms.domain.cases import Case
 from aslms.domain.ops import FetchKind, FetchLane, FetchStatus
@@ -192,9 +192,11 @@ def health_check(
             session, user, Permission.ADMIN_NAPIX_REFETCH, Permission.ADMIN_MASTERS_SYNC
         )
         napix_admin.check_guard(session, settings)
-        client, hc = napix_client(request)
-        factory = request.app.state.session_factory
-        outcome = asyncio.run(napix_admin.health_check(session, factory, actor, user, settings, client, hc))
+        # health_check runs its guard again inside the slot (design followups-oct, decision 3)
+        with napix_request(request, session) as (client, hc):
+            outcome = asyncio.run(
+                napix_admin.health_check(session, apart_factory(request), actor, user, settings, client, hc)
+            )
     except HANDLED as exc:
         raise _http(exc) from exc
     return schemas.HealthCheckOut(**outcome.to_dict())

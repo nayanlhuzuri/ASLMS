@@ -572,3 +572,97 @@ recommendations unless the owner chooses otherwise, so none of them leaves a dec
    section of `docs/DB_STANDARD.md`: "A reference-data migration writes its audit rows and events through
    `aslms/db/migration_audit.py`, so that a re-application after a downgrade is recorded once and raises its events
    again".
+
+## Deviations
+Recorded by the developer while building (24 Oct 2026). None changes a business rule or an API field.
+
+1. **Decision 8.** `renewal_step()` uses `http_status IS NOT DISTINCT FROM 401`, so the condition is never NULL and its
+   negation keeps a failure with no HTTP status (a timeout). A second helper, `failed_call()` (`ok = false` and not a
+   renewal step), is what the three readers use. The ops metric's `renewal` series counts the `ok = false` renewal steps.
+2. **Decision 6.** When the summary itself fails, the audit row keeps `summary_error` (an existing test reads it) next
+   to the new `unexpected`; both carry the class name only.
+3. **Decisions 2 and 4.** The main pool's 5 + 10 and 30 s are constants in `db/session.py`, not settings. Preflight
+   reads PgBouncer's pool through a new setting `pgbouncer_default_pool_size` (default 20, the `PGBOUNCER_DEFAULT_POOL_SIZE`
+   that `init` already receives from `.env`).
+4. **Decision 3.** The busy refusal is raised by `deps.napix_request` as the HTTP answer itself (503 `napix_busy`,
+   `Retry-After: 15`, built from `court_search.CourtSearchBusy`), so the five routes need no mapping of their own. The
+   guard runs again inside the slot in the court-search routes; the data-load fetch, the connectivity check, Test now,
+   the console send and Check token already run their guard inside their service, which now runs inside the slot.
+5. **Decision 5a.** The scripted gateway holds each call on a `threading.Barrier` with as many parties as there are
+   slots (1 s timeout, mended when a call has no partner left) and counts the calls in flight; the test also asserts
+   that two calls overlapped. The control builds the app with 30 slots (the setting's maximum) and then replaces the
+   semaphore with one of 99, because `NAPIX_REQUEST_SLOTS` is bounded 1 to 30.
+6. **Decision 5b.** `aslms ops pool-check --apart N` is the total over the run, spread evenly; a wait is measured to the
+   end of the `SELECT 1`, so it includes PgBouncer's queue. Errors other than timeouts are reported by class name and
+   also fail the check, as does an apart transaction that never finished.
+7. **Decision 14.** The kit gains optional props with unchanged defaults: `CopyButton size`, `CodeBlock copySize`,
+   `ErrorBanner retrySize` and `Collapsible onToggle`. The Access token card's two code blocks and its Try again use
+   `md` as well, since they are on the same screen and become visible with the new token fixture.
+8. **Decision 11.** `Collapsible` keeps its body mounted after the first opening, so `staleTime: 0` alone would not
+   read again. The full answer counts its openings (`onToggle`), keys its body by the count and puts the count in the
+   query key, with `staleTime: 0` and `gcTime: 0`: one request, and one audit row, per opening.
+9. **Decision 16.** The deadlock retry is per case, inside the case's own savepoint (each case already has one), not a
+   rollback of the whole batch: the savepoint rollback releases what the case locked, and the case is scored once more.
+10. **Decision 18.** `GET /me/calendar` already read `my_cases.my_cases_condition`, which is per membership, so it was
+    correct; `calendar.working_condition` (the hearing calendar) now reads every membership as designed. The hearing
+    calendar's State-wide branch, which needs an `office`, is unchanged (design alerts-notifications, decision 20).
+11. **Decision 19b.** The helper also has `record_downgrade(bind, revision, down_revision)`, which writes the
+    `system.migrated` row of a downgrade past the revision (the last step of such a migration's downgrade), and
+    `application_no(bind, revision)`. Its rows are stamped with `clock_timestamp()`, so their order holds inside the
+    single transaction alembic runs an upgrade in.
+12. **Decision 19c.** `docs/DB_STANDARD.md` has no section headed migrations; the approved sentence is at the end of
+    section 7 (code sets), the reference data such migrations change.
+13. **Decision 21.** Already done on `main` by ffc128e (23 Oct, after this note's code reading): the two tests find the
+    row the runner took (`processed()`, the one row no longer pending) instead of `party_rows(...)[0]`, which is as
+    robust as selecting it by ref. Nothing changed; the two tests passed 20 times in a loop with `-p no:randomly`.
+14. **Decision 25a.** The subprocess test reads `docs/specs/samples/order_2026-09-03.pdf`. The preflight scan reads the
+    installed package in 1 MB chunks with an overlap, so a marker across a chunk boundary is found.
+15. **Decision 26.** The "running code" hashed is the image's `/app/aslms` and `/app/migrations`, the trees the
+    Dockerfile copied and `pip install .` installed from; the site-packages copy holds only what setuptools picks, plus
+    bytecode. Outside the image (a host run, no `/src`) the backend directory of the imported package is used. The
+    Compose check is in `tests/unit/test_deployment_compose.py` (there is no `test_compose.py`).
+16. **Tests.** The design's `data.test.tsx` cases are in `src/components/ui/data.test.tsx` (the kit's) and the console's
+    in `src/components/system/console.test.tsx`. In this worktree `npm run build` (Turbopack) cannot follow the junction
+    to the main `node_modules`; `next build --webpack` passed, and the integrator's `docker compose build web` builds it
+    with Turbopack.
+17. **Decision 8, review fix.** The quota window card (`napix.window.failed`, from `napix_window.calls_since`) and the
+    per-person `failed` columns (`napix_window.by_user`) read `failed_call()` as well. The load report
+    (`aslms ops load-report`) counted a renewal step as an `error` outcome; it now names it `renewal`, like the ops
+    metric's third series. The call list's `ok=false` filter on the data-health screen is a filter on the stored
+    outcome, not a failure count, and still lists renewal steps (their row says `ok = false`, HTTP 401, no family).
+18. **Decision 6, review fix.** Test now and the console's Send (`napix_api_check.run`) and Check token
+    (`napix_token.check`) keep their audit row when the call itself raises an unexpected exception, as the
+    connectivity check does: the row is written with `unexpected: <exception class>` and `ok: false`, then the
+    exception is raised again (500). In `run` nothing of the answer is read after such an exception (no structure,
+    summary or `response_id`), and when a later step fails as well, the call's exception is the one recorded and
+    raised. Check token's row carries the token request's own `http_status`, `error_family` and `duration_ms` when the
+    request got that far, else nulls.
+19. **Tests, review fix.** `test_napix_connections_load.py` no longer asserts `max_out <= 3` on the main pool (3
+    connections, no overflow: it could never fail) and its `PoolWatch` is gone. That no request holds a connection
+    while it waits or calls is shown by every request ending in 200 or 503 within the 3 s pool timeout (a starved pool
+    answers 500, as the control shows) and by `test_slot_refuses_a_session_that_has_written`.
+20. **Merge gate, 25 Oct.** `test_token_card_states` (row 123, on `main` too) failed from 00:00 to 00:10 IST: it
+    recorded a token request 10 minutes before the real clock, so just after IST midnight the request fell on the day
+    before and the card rightly showed `requests_today` 0. The Redis path counts by the IST date on both the write and
+    the read. The test now pins the card's clock (`clock.now_utc`, read by `napix_token.state`) at 12:00 IST and builds
+    its call-log rows and token requests from it; a new test reads the card at 23:59 and 00:01 IST after a 23:50 IST
+    request. Two small application changes came with it: `TokenCache.meta(now)` reads the day of the card's own `now`
+    (and `_ist_date` uses `core/clock.today_ist`), and without a shared store the process copy's `requests_today` now
+    starts again at each IST date instead of counting every request since the process started
+    (`tests/unit/test_napix_token_day.py`, both sides of IST midnight and across UTC midnight).
+
+## Left for later
+Found in review (24 Oct 2026); none blocks this row.
+
+1. **The matching engine's deadlock retry** (decision 16, deviation 9) only helps within a case's savepoint: a
+   deadlock outside one is not retried. `rescore_all` holds up to 500 row locks per batch, which keeps deadlocks with
+   claims possible. There is no test of the retry path.
+2. **A residual match oracle on the console**: whether a send's answer carries a `response_id` still tells the sender
+   that the answer was stored, and so something about held data, beyond what decision 6's visibility hides.
+3. **The preflight no-local-model scan** (decision 25) takes about 5.7 s on the Windows host venv (it reads the
+   installed PyMuPDF in 1 MB chunks); it runs at every start of `init` and the services.
+4. **Check token's audit row** loses the outcome of the token request when the error is raised inside `token()`
+   itself (re-check, 24 Oct 2026).
+5. **`flush_apart` or `write_audit_apart` in a `finally`**, when it fails, replaces the call's own exception, so the
+   first cause is lost (re-check).
+6. **No test covers a call error followed by an enrichment error** in `napix_api_check.run` (re-check).

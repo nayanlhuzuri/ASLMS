@@ -2,7 +2,8 @@
 
 `preflight`, `store-check` (design pre-pilot-hardening), `db-guard`, `role-passwords`, `migrate`, `backup`,
 `backup-scheduler`, `backup-status`, `restore-check`, `restore`, `repair-jobs`, `load-report`, `sample-cnrs`, `make-cert` and, from Part B, `metrics` (the operations
-exporter); from court-data-freshness, `purge-call-log` and `retention-report`. None calls NAPIX; none prints a secret."""
+exporter); from court-data-freshness, `purge-call-log` and `retention-report`; from followups-oct, `pool-check` (the
+connection budget under load, read-only). None calls NAPIX; none prints a secret."""
 
 from __future__ import annotations
 
@@ -121,12 +122,18 @@ def role_passwords_cmd() -> None:
 def migrate_cmd(
     force: bool = typer.Option(False, "--force", help="migrate even while aslms_app sessions are connected"),
 ) -> None:
-    """The explicit upgrade (decision 12): refuse while the application is connected, back up (tag pre-migrate,
-    checked with pg_restore --list), `alembic upgrade head`, seed, and the audit row `system.migrated`."""
+    """The explicit upgrade (decision 12): refuse an image built from other code than ./backend (exit 5; design
+    followups-oct, decision 26), refuse while the application is connected, back up (tag pre-migrate, checked with
+    pg_restore --list), `alembic upgrade head`, seed, and the audit row `system.migrated`."""
     from aslms.cli.db import seed
     from aslms.db.session import session_scope
-    from aslms.services import backups, db_guard
+    from aslms.services import backups, db_guard, source_check
 
+    check = source_check.image_matches_source()
+    if not check.ok:
+        rprint(f"[red]{check.message}[/red]")
+        raise typer.Exit(source_check.EXIT_MISMATCH)
+    rprint(check.message)
     settings = get_settings()
     url = settings.migrate_url
     sessions = db_guard.count_app_sessions(url)
@@ -352,6 +359,42 @@ def metrics_cmd(
         return
     rprint(f"ops metrics on {addr}:{port} (cache {settings.ops_metrics_cache_seconds} s)")
     ops_metrics.serve(settings, port, addr)
+
+
+@ops_app.command("pool-check")
+def pool_check_cmd(
+    holders: int | None = typer.Option(
+        None, "--holders", help="transactions held open like a NAPIX wait (default NAPIX_REQUEST_SLOTS + 2)"
+    ),
+    pages: int = typer.Option(20, "--pages", help="short page transactions per second on the main engine"),
+    apart: int = typer.Option(
+        200, "--apart", help="apart-style transactions over the run, on the apart engine"
+    ),
+    seconds: float = typer.Option(30.0, "--seconds", help="how long the holders sleep and the load runs"),
+) -> None:
+    """The connection budget under load, through PgBouncer (design followups-oct, decision 5b): the api's engines
+    from the same settings, `holders` transactions sleeping in `pg_sleep`, `pages` page transactions per second and
+    `apart` apart writes (`SELECT 1`). Read-only: writes no row. Prints JSON; exit 1 when any apart wait exceeds
+    1 s or any timeout or error occurs."""
+    from aslms.db.session import get_apart_engine, get_engine
+    from aslms.services import ops_pool_check
+
+    s = get_settings()
+    main = get_engine(s.database_url_sync)
+    apart_engine = get_apart_engine(
+        s.database_url_sync, s.db_apart_pool_size, s.db_apart_pool_timeout_seconds
+    )
+    out = ops_pool_check.run(
+        main,
+        apart_engine,
+        holders=s.napix_request_slots + 2 if holders is None else holders,
+        pages=pages,
+        apart_n=apart,
+        seconds=seconds,
+    )
+    print(json.dumps(out, indent=2))
+    if not out["ok"]:
+        raise typer.Exit(1)
 
 
 @ops_app.command("purge-call-log")

@@ -80,6 +80,15 @@ class Settings(BaseSettings):
     # most STORE_MAX the rest are stored in the background, otherwise not at all (design safety-fixes, decision 12)
     napix_advocate_store_now: int = Field(25, ge=1, le=100)
     napix_advocate_store_max: int = Field(300, ge=25, le=2000)
+    # the connection budget (design followups-oct, decisions 2 to 4): the api's apart writes (NAPIX call rows, apart
+    # audit rows) use a small engine of their own; at most NAPIX_REQUEST_SLOTS api requests per process wait on NAPIX
+    # at once, each holding one connection, and a request waits this long for a slot, holding none, before 503
+    # `napix_busy`. Slots + 1 worker + 1 scheduler + apart pool + a reserve of 4 must not exceed PgBouncer's pool.
+    db_apart_pool_size: int = Field(3, ge=1, le=10)
+    db_apart_pool_timeout_seconds: int = Field(10, ge=1, le=60)
+    napix_request_slots: int = Field(6, ge=1, le=30)
+    napix_request_wait_seconds: int = Field(20, ge=0, le=60)
+    pgbouncer_default_pool_size: int = Field(20, ge=1, le=1000)
 
     # --- authentication and the first super admin ------------------------------------------
     aslms_jwt_secret: SecretStr | None = None  # required to issue tokens; the API refuses to start without it

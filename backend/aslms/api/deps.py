@@ -5,11 +5,14 @@ NAPIX client of the integration layer (`app.state.napix_factory` in tests, desig
 
 from __future__ import annotations
 
+import threading
 from collections.abc import Iterator
+from contextlib import contextmanager
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy.orm import Session
+from sqlalchemy import text
+from sqlalchemy.orm import Session, sessionmaker
 
 from aslms.api.security import issued_before, read_access_claims
 from aslms.domain.org import User
@@ -18,6 +21,7 @@ from aslms.integration.napix.client import NapixClient
 from aslms.integration.napix.hc import NapixHighCourt
 from aslms.services import access
 from aslms.services.audit import Actor
+from aslms.services.court_search import CourtSearchBusy
 from aslms.services.mailer import Mailer, MailError, UnconfiguredMailer
 from aslms.services.mailer import get_mailer as _configured_mailer
 from aslms.services.runner import open_hc
@@ -136,8 +140,56 @@ def get_mailer(request: Request) -> Mailer:
 
 def napix_client(request: Request) -> tuple[NapixClient, NapixHighCourt]:
     """The integration-layer client for the court search and the connectivity check: a factory on `app.state`
-    (tests) or the configured one (`runner.open_hc`). NAPIX is reached only through `aslms.integration.napix`."""
+    (tests) or the configured one (`runner.open_hc`). NAPIX is reached only through `aslms.integration.napix`.
+    Routers take it through `napix_request`, never directly."""
     factory = getattr(request.app.state, "napix_factory", None)
     if factory is not None:
         return factory()
     return open_hc(request.app.state.settings)
+
+
+def apart_factory(request: Request) -> sessionmaker[Session]:
+    """The session factory of the apart writes (design followups-oct, decision 2): the app's small apart engine, or
+    the main factory when a test passed only that."""
+    return getattr(request.app.state, "apart_session_factory", None) or request.app.state.session_factory
+
+
+def release_connection(session: Session) -> None:
+    """Gives the request's connection back before a NAPIX slot is waited for, by committing its read-only
+    transaction. A request that has written anything at this point is a defect: `RuntimeError`, never a silent
+    commit of a half-done write (decision 3)."""
+    if session.new or session.deleted or any(session.is_modified(o) for o in session.dirty):
+        raise RuntimeError("napix_request: the request session holds unflushed changes")
+    if not session.in_transaction():
+        return
+    if session.scalar(text("SELECT pg_current_xact_id_if_assigned()")) is not None:
+        raise RuntimeError("napix_request: the request transaction has written")
+    session.commit()
+
+
+def busy_http(exc: CourtSearchBusy | None = None) -> HTTPException:
+    exc = exc or CourtSearchBusy()
+    return HTTPException(
+        exc.http_status,
+        {"code": exc.code, "message": exc.message, "retry_after": exc.retry_after},
+        headers={"Retry-After": str(exc.retry_after)},
+    )
+
+
+@contextmanager
+def napix_request(request: Request, session: Session) -> Iterator[tuple[NapixClient, NapixHighCourt]]:
+    """The one way a router reaches NAPIX (design followups-oct, decision 3): the request's connection is given back
+    first, then one of the process's `NAPIX_REQUEST_SLOTS` is waited for, up to `NAPIX_REQUEST_WAIT_SECONDS`, holding
+    no connection; none frees in time: 503 `napix_busy` with `Retry-After: 15`, nothing written. The caller runs its
+    guard again inside the block (the quota or the person's count may have changed during the wait). The slot is
+    released in the `finally`, after the recorder's last flush inside the block."""
+    release_connection(session)
+    slots: threading.BoundedSemaphore = request.app.state.napix_slots
+    wait = request.app.state.settings.napix_request_wait_seconds
+    got = slots.acquire(timeout=wait) if wait > 0 else slots.acquire(blocking=False)
+    if not got:
+        raise busy_http()
+    try:
+        yield napix_client(request)
+    finally:
+        slots.release()

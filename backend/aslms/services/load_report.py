@@ -15,6 +15,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from aslms.domain.ops import COUNTED_CALL_SQL
 from aslms.services.backups import store_totals
 
 
@@ -95,11 +96,13 @@ def report(
         "SELECT count(*), count(*) FILTER (WHERE called_at >= :since) FROM napix_call_log",
         since=since,
     )
+    # a token renewal's 401 step is its own outcome, never an error (design followups-oct, decision 8)
     by_outcome = {
         str(k): int(n)
         for k, n in session.execute(
             text(
-                """SELECT CASE WHEN ok THEN 'ok' ELSE coalesce(error_family, 'error') END AS outcome, count(*)
+                f"""SELECT CASE WHEN ok THEN 'ok' WHEN NOT {COUNTED_CALL_SQL} THEN 'renewal'
+                               ELSE coalesce(error_family, 'error') END AS outcome, count(*)
                    FROM napix_call_log GROUP BY 1 ORDER BY 1"""
             )
         ).all()

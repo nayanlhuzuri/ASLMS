@@ -48,11 +48,15 @@ export function fitTable(wrap: HTMLElement | null): void {
   if (table.offsetWidth > wrap.clientWidth + 1) wrap.setAttribute("data-stacked", "");
 }
 
-/** `fitTable` after every render (rows or columns may have changed) and whenever the box's width changes. */
-function useFitTable() {
+/**
+ * `fitTable` when the data changes (the `rows` array, stable under React Query's structural sharing while the data is
+ * unchanged, or the column keys), not on every render (design followups-oct, decision 23), and whenever the box's
+ * width changes. Comparing only counts was rejected: a refetch with the same counts and longer text must re-measure.
+ */
+function useFitTable(rows: unknown, columnKeys: string) {
   const node = useRef<HTMLDivElement | null>(null);
   const observer = useRef<ResizeObserver | null>(null);
-  useLayoutEffect(() => fitTable(node.current));
+  useLayoutEffect(() => fitTable(node.current), [rows, columnKeys]);
   const ref = useCallback((el: HTMLDivElement | null) => {
     observer.current?.disconnect();
     observer.current = null;
@@ -98,7 +102,7 @@ export function DataTable<Row>({
   /** Shown instead of the table when there are no rows. */
   empty?: ReactNode;
 }) {
-  const wrapRef = useFitTable();
+  const wrapRef = useFitTable(rows, columns.map((c) => c.key).join("\u0000"));
   if (rows.length === 0 && empty) return <>{empty}</>;
   return (
     <div className={s.dataWrap} ref={wrapRef}>
@@ -330,7 +334,8 @@ export function ListRow({
  * A copy button (design system-health-inspector, decision 14): copies `text` and announces "Copied" to screen readers
  * through a polite live region; a refused clipboard announces that instead.
  */
-export function CopyButton({ text, label = T.copy }: { text: string; label?: string }) {
+/** `size` defaults to `sm`; a toolbar outside a row uses `md` (36 px) so it is never a small button (followups-oct, 14). */
+export function CopyButton({ text, label = T.copy, size = "sm" }: { text: string; label?: string; size?: "sm" | "md" }) {
   const [said, setSaid] = useState("");
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => {
@@ -348,7 +353,7 @@ export function CopyButton({ text, label = T.copy }: { text: string; label?: str
   }
   return (
     <span className={s.copyWrap}>
-      <Button variant="ghost" size="sm" onClick={() => void copy()}>
+      <Button variant="ghost" size={size} onClick={() => void copy()}>
         {label}
       </Button>
       <span className={s.copyStatus} role="status" aria-live="polite">
@@ -362,12 +367,22 @@ export function CopyButton({ text, label = T.copy }: { text: string; label?: str
  * Monospace text in a block that scrolls sideways inside itself, never the page (decision 14), with a copy button.
  * `label` names the block for screen readers.
  */
-export function CodeBlock({ children, label, copy = true }: { children: string; label: string; copy?: boolean }) {
+export function CodeBlock({
+  children,
+  label,
+  copy = true,
+  copySize = "sm",
+}: {
+  children: string;
+  label: string;
+  copy?: boolean;
+  copySize?: "sm" | "md";
+}) {
   return (
     <figure className={s.codeBlock} data-ui="code">
       <figcaption className={s.codeHead}>
         <span className={s.codeLabel}>{label}</span>
-        {copy ? <CopyButton text={children} /> : null}
+        {copy ? <CopyButton text={children} size={copySize} /> : null}
       </figcaption>
       <pre className={s.code} tabIndex={0} aria-label={label}>
         <code>{children}</code>

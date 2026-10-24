@@ -30,6 +30,7 @@ export function ErrorBanner({
   onRetry,
   messages,
   children,
+  retrySize = "sm",
 }: {
   error: unknown;
   onRetry?: () => void;
@@ -37,6 +38,8 @@ export function ErrorBanner({
   messages?: ErrorTexts;
   /** More after the message (a link to an existing document, for example). */
   children?: ReactNode;
+  /** The Try again button's size: `sm` by default; `md` where it stands alone, outside a row (followups-oct, 14). */
+  retrySize?: "sm" | "md";
 }) {
   if (!error) return null;
   return (
@@ -44,7 +47,7 @@ export function ErrorBanner({
       <span>{errorText(error, messages)}</span>
       {children}
       {onRetry ? (
-        <Button variant="secondary" size="sm" onClick={onRetry}>
+        <Button variant="secondary" size={retrySize} onClick={onRetry}>
           {T.retry}
         </Button>
       ) : null}

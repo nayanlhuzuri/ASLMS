@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
 from aslms.api import schemas
-from aslms.api.deps import actor_of, get_session, napix_client, require, require_any
+from aslms.api.deps import actor_of, apart_factory, get_session, napix_request, require, require_any
 from aslms.api.errors import detail
 from aslms.domain.org import User
 from aslms.domain.reference import Permission
@@ -219,13 +219,13 @@ def _held_items(session: Session, user: User, exc: data_load.AlreadyHeld) -> lis
     return out
 
 
-async def _with_napix(request: Request, user_id: uuid.UUID, fn):
-    """The integration client with a recorder carrying the caller's id (design napix-window, decision 9). The
-    recorder commits its call rows and verbatim responses in a session of its own, at every flush and in the
-    `finally`, so an error later in the request cannot roll them back; the case data and the audit row stay in the
-    request transaction (design api-health-checker-followups, decision 11)."""
-    client, hc = napix_client(request)
-    factory = request.app.state.session_factory
+async def _with_napix(request: Request, client, hc, user_id: uuid.UUID, fn):
+    """The integration client (taken through `napix_request`) with a recorder carrying the caller's id (design
+    napix-window, decision 9). The recorder commits its call rows and verbatim responses through the apart engine
+    (design followups-oct, decision 2), at every flush and in the `finally`, so an error later in the request cannot
+    roll them back; the case data and the audit row stay in the request transaction (design
+    api-health-checker-followups, decision 11)."""
+    factory = apart_factory(request)
     recorder = NapixRecorder(user_id=user_id, session_factory=factory)
     client.on_call = recorder.on_call
     try:
@@ -261,15 +261,26 @@ def fetch(
                 )
             if held is not None:
                 raise held
-        result = asyncio.run(
-            _with_napix(
-                request,
-                user.id,
-                lambda hc, recorder: data_load.fetch(
-                    session, actor, user, payload, force=force, hc=hc, recorder=recorder, settings=settings
-                ),
+        # data_load.fetch runs the court-search guard itself, inside the slot (design followups-oct, decision 3)
+        with napix_request(request, session) as (client, hc):
+            result = asyncio.run(
+                _with_napix(
+                    request,
+                    client,
+                    hc,
+                    user.id,
+                    lambda hc, recorder: data_load.fetch(
+                        session,
+                        actor,
+                        user,
+                        payload,
+                        force=force,
+                        hc=hc,
+                        recorder=recorder,
+                        settings=settings,
+                    ),
+                )
             )
-        )
     except HANDLED as exc:
         if isinstance(exc, CourtSearchFailure):
             session.commit()  # the audit row survives the error (the call rows are already committed apart)

@@ -30,7 +30,7 @@ from aslms.domain.alerts import Alert
 from aslms.domain.cases import Case, CaseHearing, CaseStatus
 from aslms.domain.causelists import CURRENT_LIST, Causelist, CauselistEntry
 from aslms.domain.courts import Court
-from aslms.domain.ops import FetchKind, FetchQueueItem, FetchStatus, NapixCallLog, SourceFailure
+from aslms.domain.ops import FetchKind, FetchQueueItem, FetchStatus, NapixCallLog, SourceFailure, failed_call
 from aslms.domain.org import Office, User
 from aslms.domain.ownership import (
     CaseOwnership,
@@ -1003,7 +1003,7 @@ def data_health(
     call_day = _ist_day(NapixCallLog.called_at)
     in_range = and_(NapixCallLog.called_at >= start, NapixCallLog.called_at < end)
     for d, n, failed in session.execute(
-        select(call_day, func.count(), func.count().filter(NapixCallLog.ok.is_(False)))
+        select(call_day, func.count(), func.count().filter(failed_call()))
         .where(in_range)
         .group_by(*_ordinals(1))
     ).all():
@@ -1012,7 +1012,7 @@ def data_health(
     families: dict[date, list[str]] = defaultdict(list)
     for d, family, n in session.execute(
         select(call_day, func.coalesce(NapixCallLog.error_family, "unknown"), func.count())
-        .where(in_range, NapixCallLog.ok.is_(False))
+        .where(in_range, failed_call())
         .group_by(*_ordinals(2))
         .order_by(*_ordinals(1), func.count().desc(), literal_column("2"))
     ).all():
@@ -1073,7 +1073,7 @@ def data_health(
             select(
                 NapixCallLog.api,
                 func.count(),
-                func.count().filter(NapixCallLog.ok.is_(False)),
+                func.count().filter(failed_call()),
                 func.percentile_cont(0.5).within_group(NapixCallLog.duration_ms),
             )
             .where(in_range)

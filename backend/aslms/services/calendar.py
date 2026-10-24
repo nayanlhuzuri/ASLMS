@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import ColumnElement, and_, exists, or_, select
+from sqlalchemy import ColumnElement, and_, exists, select
 from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.orm import Session, aliased
 
@@ -127,12 +127,10 @@ def hearing_rows(
 
 
 def working_condition(session: Session, user: User) -> ColumnElement[bool] | None:
-    """The OR of the caller's working bases (owner, allotted, custody, counsel); None when the
-    caller has none."""
-    conds = [c for name, c in visibility.visibility_bases(session, user) if name in visibility.WORKING_BASES]
-    if not conds:
-        return None
-    return conds[0] if len(conds) == 1 else or_(*conds)
+    """The OR of the caller's working bases (owner, allotted, custody, counsel) over every membership; None when the
+    caller has none. Read per membership, so a State-wide membership does not hide a department's working cases
+    (design followups-oct, decision 18)."""
+    return visibility.working_condition_any(session, user)
 
 
 def flags(d: date, now: datetime, *, critical_hours: int, sitting_time: str) -> tuple[bool, bool]:

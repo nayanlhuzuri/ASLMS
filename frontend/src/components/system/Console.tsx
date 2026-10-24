@@ -59,7 +59,7 @@ export function docHref(doc: string, page: number): string {
 /** The `?` help button: opens the NAPIX document at a page in a new tab (the browser's viewer honours `#page=`). */
 export function HelpLink({ doc, page, label }: { doc: string; page: number; label: string }) {
   return (
-    <a className={buttonClass("ghost", "sm")} href={docHref(doc, page)} target="_blank" rel="noopener noreferrer" aria-label={label} title={label}>
+    <a className={buttonClass("ghost", "md")} href={docHref(doc, page)} target="_blank" rel="noopener noreferrer" aria-label={label} title={label}>
       <span aria-hidden="true">?</span>
     </a>
   );
@@ -177,7 +177,7 @@ function RequestView({
   const last = console.last_send;
   return (
     <div className="stack">
-      <CodeBlock label={C.methodUrl}>{`${request.method} ${request.url}`}</CodeBlock>
+      <CodeBlock label={C.methodUrl} copySize="md">{`${request.method} ${request.url}`}</CodeBlock>
       {request.method_note ? <p className={s.muted}>{request.method_note}</p> : null}
       <section className="stack" aria-label={C.params}>
         <h3>{C.params}</h3>
@@ -221,7 +221,7 @@ function RequestView({
           </div>
         ) : null}
       </section>
-      <CodeBlock label={C.plain}>{request.plain}</CodeBlock>
+      <CodeBlock label={C.plain} copySize="md">{request.plain}</CodeBlock>
       {previewing ? (
         <p className={s.muted} role="status">
           <StatusDot tone="busy" pulse /> {C.checking}
@@ -248,7 +248,7 @@ function RequestView({
       <section className="stack" aria-label={C.templates}>
         <h3>{C.templates}</h3>
         <p className={s.muted}>{request.templates.note}</p>
-        <CodeBlock label={C.curl}>{request.templates.curl}</CodeBlock>
+        <CodeBlock label={C.curl} copySize="md">{request.templates.curl}</CodeBlock>
         <div>
           <Button variant="secondary" onClick={() => void exportPostman()}>
             {C.postman}
@@ -368,13 +368,27 @@ export function InventoryNotice({ diff }: { diff: InventoryDiff }) {
   );
 }
 
-/** The full decrypted answer: fetched when the section is first expanded (each opening is audited by the server). */
-function FullAnswerBody({ apiKey, source, responseId }: { apiKey: string; source: "send" | "latest"; responseId?: string | null }) {
+/**
+ * The full decrypted answer: fetched again on each opening of the section, never from a cache, so every opening reaches
+ * the server and is audited there (design followups-oct, decision 11). `opening` counts the openings.
+ */
+function FullAnswerBody({
+  apiKey,
+  source,
+  responseId,
+  opening,
+}: {
+  apiKey: string;
+  source: "send" | "latest";
+  responseId?: string | null;
+  opening: number;
+}) {
   const qs = source === "send" ? `source=send&response_id=${responseId ?? ""}` : "source=latest";
   const raw = useQuery({
-    queryKey: ["system-health", "raw", apiKey, source, responseId ?? null],
+    queryKey: ["system-health", "raw", apiKey, source, responseId ?? null, opening],
     queryFn: () => api<StoredResponse>(`/admin/system-health/napix/${apiKey}/response?${qs}`),
-    staleTime: Infinity,
+    staleTime: 0,
+    gcTime: 0,
   });
   if (raw.error) return <ErrorBanner error={raw.error} messages={CONSOLE_ERRORS} />;
   if (!raw.data) return <Loading lines={2} />;
@@ -383,8 +397,8 @@ function FullAnswerBody({ apiKey, source, responseId }: { apiKey: string; source
     <div className="stack">
       <p className={s.muted}>{C.fullAnswerAudited}</p>
       <div className={s.rowGap}>
-        <CopyButton text={text} />
-        <Button variant="ghost" size="sm" onClick={() => download(`aslms-napix-${apiKey}-answer.json`, text)}>
+        <CopyButton text={text} size="md" />
+        <Button variant="ghost" size="md" onClick={() => download(`aslms-napix-${apiKey}-answer.json`, text)}>
           {C.download}
         </Button>
       </div>
@@ -408,9 +422,14 @@ function FullAnswer({
   source: "send" | "latest";
   responseId?: string | null;
 }) {
+  const [opening, setOpening] = useState(0);
   return (
-    <Collapsible summary={C.fullAnswer}>
-      {allowed ? <FullAnswerBody apiKey={apiKey} source={source} responseId={responseId} /> : <p>{note}</p>}
+    <Collapsible summary={C.fullAnswer} onToggle={(open) => open && setOpening((n) => n + 1)}>
+      {allowed ? (
+        <FullAnswerBody key={opening} apiKey={apiKey} source={source} responseId={responseId} opening={opening} />
+      ) : (
+        <p>{note}</p>
+      )}
     </Collapsible>
   );
 }
@@ -431,6 +450,7 @@ function ResponseView({
     return (
       <div className="stack">
         <p className={s.muted}>{C.latest(formatDateTime(latest.at), T.system.by[latest.by]?.toLowerCase() ?? latest.by)}</p>
+        {latest.response_too_large ? <p className={s.muted}>{C.tooLarge}</p> : null}
         {latest.structure ? <StructureOutline structure={latest.structure} /> : null}
         {latest.inventory_diff ? <InventoryNotice diff={latest.inventory_diff} /> : null}
         {latest.response_available ? (
@@ -470,8 +490,14 @@ function ResponseView({
       <KvList items={items} />
       <section className="stack" aria-label={C.requestSent}>
         <h3>{C.requestSent}</h3>
-        <CodeBlock label={C.methodUrl}>{`${view.method} ${view.url}`}</CodeBlock>
-        {view.plain != null ? <CodeBlock label={C.plain}>{view.plain}</CodeBlock> : <p className={s.muted}>{nr}</p>}
+        <CodeBlock label={C.methodUrl} copySize="md">{`${view.method} ${view.url}`}</CodeBlock>
+        {view.plain != null ? (
+          <CodeBlock label={C.plain} copySize="md">
+            {view.plain}
+          </CodeBlock>
+        ) : (
+          <p className={s.muted}>{nr}</p>
+        )}
       </section>
       {view.summary && view.summary.facts.length ? (
         <section className="stack" aria-label={C.summary}>
@@ -506,7 +532,7 @@ export function DocsView({ apiKey }: { apiKey: string }) {
     staleTime: Infinity,
   });
   const D = T.system.docs;
-  if (ref.error) return <ErrorBanner error={ref.error} onRetry={() => void ref.refetch()} />;
+  if (ref.error) return <ErrorBanner error={ref.error} onRetry={() => void ref.refetch()} retrySize="md" />;
   if (!ref.data) return <Loading lines={3} />;
   const r = ref.data;
   return (
@@ -737,7 +763,7 @@ export function ConsoleModal({
 
   return (
     <Modal open title={name} onClose={onClose} header={header} footer={footer}>
-      <ErrorBanner error={consoleQuery.error} onRetry={() => void consoleQuery.refetch()} />
+      <ErrorBanner error={consoleQuery.error} onRetry={() => void consoleQuery.refetch()} retrySize="md" />
       {consoleQuery.isPending ? <Loading lines={4} /> : null}
       {data && shown ? (
         <ModalTabs tabs={CONSOLE_TABS} labels={C.tabs} active={tab} onSelect={onTab} label={C.tabsLabel} idPrefix={`console-${apiKey}`}>

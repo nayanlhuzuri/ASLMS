@@ -421,7 +421,9 @@ services:
   migrate:
     # profile `ops`: never started by `up`. The explicit upgrade: preflight, refuse while aslms_app is connected,
     # a `pre-migrate` backup checked with pg_restore --list, `alembic upgrade head`, seed, audit `system.migrated`.
-    # Also the service for `aslms ops restore` (it mounts the store read-write).
+    # Also the service for `aslms ops restore` (it mounts the store read-write). The source tree is mounted read-only
+    # at /src: `aslms ops migrate` refuses (exit 5) an image built from other code than ./backend (design
+    # followups-oct, decision 26; docs/operations.md section 6).
     build: ./backend
     profiles: ["ops"]
     env_file:
@@ -445,6 +447,7 @@ services:
     volumes:
       - ./data:/data
       - ${BACKUP_DIR:-./backups}:/backups
+      - ./backend:/src:ro
     depends_on:
       postgres:
         condition: service_healthy

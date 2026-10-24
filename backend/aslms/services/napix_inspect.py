@@ -47,12 +47,14 @@ FORM_LABEL = "The values in the form"
 NUMBERED = re.compile(r"^[A-Za-z_]+\d+$")  # as `aslms napix-fields` collapses numbered blocks
 MAX_PATH = 120
 PLACEHOLDERS = {
-    "name": "‹type a name›",
+    "party_name": "‹type a name›",
+    "advocate_name": "‹type a name›",
     "cnr": "‹type a CNR›",
     "date": "‹type a date›",
 }
 HINT_HIDDEN = {
-    "name": "Type a name (the held sample belongs to a case you cannot see)",
+    "party_name": "Type a name (the held sample belongs to a case you cannot see)",
+    "advocate_name": "Type a name (the held sample belongs to a case you cannot see)",
     "cnr": "Type a CNR (the held sample belongs to a case you cannot see)",
 }
 HINT_HIDDEN_OTHER = "Type a value (the held sample belongs to a case you cannot see)"
@@ -453,7 +455,13 @@ def _check(
     if rule == "pend_disp":
         v = value.upper()
         return (v, None) if v in ("P", "D") else (v, "P (pending) or D (disposed)")
-    if rule == "name":
+    if rule == "party_name":
+        # the sample picker's cap (no NAPIX limit is documented for party names; court search sends them unbounded),
+        # so a held party sample is sendable unedited (design followups-oct, decision 10)
+        if not napix_samples.name_passes(value, napix_samples.MAX_PARTY):
+            return value, "3 to 200 letters, digits, spaces and . , ' & ( ) / -, not only X"
+        return value, None
+    if rule == "advocate_name":  # HC spec §6.8
         if not napix_samples.name_passes(value, napix_samples.MAX_ADVOCATE):
             return value, "3 to 99 letters, digits, spaces and . , ' & ( ) / -, not only X"
         return value, None
@@ -505,11 +513,18 @@ def validate(
     held: Sample | NoSample | None = None,
 ) -> Sample:
     """The form's values as a `Sample` labelled "The values in the form" (decision 8); `edited` when its plain string
-    differs from the held sample's. An unedited form keeps the held sample's source (its case and stored copy)."""
+    differs from the held sample's. An unedited form keeps the held sample's source (its case and stored copy). The
+    typed form is compared only with a sample whose case the sender may see: against a hidden sample it is always
+    `edited`, with no source case, so neither the answer nor the audit row says whether a guess matched (design
+    followups-oct, decision 12)."""
     typed = check_values(session, settings, key, values)
     e = system_health.entry(key)
     plain = preview(settings, key, e.invoke, typed).plain
-    if isinstance(held, Sample) and preview(settings, key, e.invoke, held.values).plain == plain:
+    if (
+        isinstance(held, Sample)
+        and held.case_visible
+        and preview(settings, key, e.invoke, held.values).plain == plain
+    ):
         return Sample(
             values=typed,
             label=held.label,
@@ -764,10 +779,13 @@ def latest_answer(
     if call is None:
         return None
     ps, called_at, user_id = call
+    # the size first, in the database: the payload is read only when it is within HEALTH_RAW_MAX_BYTES (design
+    # followups-oct, decision 9)
     stored = session.execute(
         text(
             """
-            SELECT id, payload FROM napix_responses WHERE api = :api AND params_sha256 = :ps
+            SELECT id, octet_length(payload::text) AS bytes FROM napix_responses
+            WHERE api = :api AND params_sha256 = :ps
             ORDER BY last_seen_at DESC, id DESC LIMIT 1
             """
         ),
@@ -783,8 +801,20 @@ def latest_answer(
             "inventory_diff": None,
             "response_id": None,
             "response_available": False,
+            "response_too_large": False,
         }
-    rid, payload = stored
+    rid, size = stored
+    if int(size or 0) > settings.health_raw_max_bytes:
+        return {
+            "at": to_ist(called_at),
+            "by": by,
+            "structure": None,
+            "inventory_diff": None,
+            "response_id": rid,
+            "response_available": True,
+            "response_too_large": True,
+        }
+    payload = session.scalar(text("SELECT payload FROM napix_responses WHERE id = :id"), {"id": rid})
     return {
         "at": to_ist(called_at),
         "by": by,
@@ -792,6 +822,7 @@ def latest_answer(
         "inventory_diff": inventory_diff(key, structure_paths(payload)),
         "response_id": rid,
         "response_available": True,
+        "response_too_large": False,
     }
 
 

@@ -516,14 +516,14 @@ def card_summary(session: Session, custody: Custody) -> dict[str, Any]:
     }
 
 
-def shows_remark(session: Session, user: User | Member, bases: list[str] | set[str]) -> bool:
+def shows_remark(session: Session, user: User | Member, case: Case) -> bool:
     """Decision 11 as narrowed by design `alerts-visibility-roles`, decision 16: the remark is shown to callers with a
-    working basis, and to a State-wide reader only when they hold `cases.view_private_all` (the super admin and, by
-    default, the Auditor). State oversight and the central operator see the leg without the remark."""
-    names = set(bases)
-    if names & visibility.WORKING_BASES:
+    working basis through any membership (read per membership, design followups-oct, decision 18), and to a
+    State-wide reader only when they hold `cases.view_private_all` (the super admin and, by default, the Auditor).
+    State oversight and the central operator see the leg without the remark."""
+    if visibility.working_names(session, user, case):
         return True
-    return "state" in names and visibility.sees_private_all(session, user)
+    return visibility.state_wide(session, user) and visibility.sees_private_all(session, user)
 
 
 def _office_ref(o: Office | None) -> dict[str, Any] | None:
@@ -595,7 +595,7 @@ def card(
             else None
         ),
         "reason": leg.reason if leg is not None else None,
-        "remark": leg.remark if leg is not None and shows_remark(session, user, bases) else None,
+        "remark": leg.remark if leg is not None and shows_remark(session, user, case) else None,
         "leg_seq_no": leg.seq_no if leg is not None else None,
         "can_send": controls_custody(session, user, row) is not None,
         "can_recall": recaller is not None and recaller.membership_id != row.holder_membership_id,
@@ -610,7 +610,7 @@ def history(
     limit, offset = inbox.clamp(limit, offset)
     total = int(session.scalar(select(func.count()).select_from(stmt.subquery())) or 0)
     legs = session.scalars(stmt.order_by(CustodyHistory.seq_no).limit(limit).offset(offset)).all()
-    show = shows_remark(session, user, bases)
+    show = shows_remark(session, user, case)
     return {
         "card": card(session, user, case, bases=bases),
         "legs": [leg_out(session, leg, show_remark=show) for leg in legs],

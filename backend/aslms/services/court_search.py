@@ -118,6 +118,19 @@ class SearchLimit(CourtSearchFailure):
         super().__init__("search_limit", "hourly court-search limit reached", retry_after=retry_after)
 
 
+class CourtSearchBusy(CourtSearchFailure):
+    """Every NAPIX request slot of this api process stayed in use for `NAPIX_REQUEST_WAIT_SECONDS` (503 `napix_busy`,
+    retry after 15 s; design followups-oct, decision 3). Like the guard's refusals it writes nothing and is not
+    counted against the person's hourly searches."""
+
+    http_status = 503
+    RETRY_AFTER = 15
+    MESSAGE = "Court searches are busy; try again in a few seconds."
+
+    def __init__(self) -> None:
+        super().__init__("napix_busy", self.MESSAGE, retry_after=self.RETRY_AFTER)
+
+
 class AlreadyFetched(Exception):
     """The case already has a dossier (409 `already_fetched`; re-fetching is `admin.napix_refetch`)."""
 

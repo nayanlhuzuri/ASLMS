@@ -603,7 +603,9 @@ def test_health_check_rows_survive_an_unexpected_error(api, world, gateway, swit
     with world.Session() as s:
         logged = s.scalars(sa.select(NapixCallLog)).all()
     assert [(c.api, c.ok) for c in logged] == [("overview/overview", True)]
-    assert _audits(world, "napix.health_checked") == []
+    # the audit row is written too, naming the class only (design followups-oct, decision 6)
+    (row,) = _audits(world, "napix.health_checked")
+    assert row.after["ok"] is False and row.after["unexpected"] == "RuntimeError"
 
 
 def test_health_check_and_connection_test_exclude_each_other(api, world, gateway, switch_on, engine):

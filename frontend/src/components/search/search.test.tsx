@@ -238,6 +238,21 @@ describe("court search", () => {
     expect(await within(panel).findByText(new RegExp(text.replace(/[.()]/g, "\\$&")))).toBeInTheDocument();
   });
 
+  it("napix_busy shows the busy message with the countdown", async () => {
+    browserApi({
+      "GET /me": me(SEARCHER),
+      "GET /reference/case-types": TYPES,
+      "GET /cases/search": { items: [], total: 0 },
+      "POST /cases/search-court": json(503, {
+        detail: { code: "napix_busy", message: "Court searches are busy; try again in a few seconds.", retry_after: 15 },
+      }),
+    });
+    renderWithClient(<Search params={{ q: "ASHC010099992026" }} />);
+    const panel = await screen.findByRole("region", { name: "Search the court" });
+    await userEvent.click(within(panel).getByRole("button", { name: "Search the court" }));
+    expect(await within(panel).findByText("Court searches are busy; try again in 15 seconds.")).toBeInTheDocument();
+  });
+
   it("the button is disabled while a search runs and the answer lists the cases and unmatched rows", async () => {
     let release: (r: Response) => void = () => undefined;
     const pending = new Promise<Response>((r) => {

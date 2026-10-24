@@ -20,6 +20,9 @@ warning (decision 25). A super admin password still set after the super admin ex
 Two rules are fatal at every `APP_ENV` (design pre-pilot-hardening, decisions 2 and 6): an `APP_ENV` other than `dev`,
 `test` or `prod` (refused when the settings load; `aslms ops preflight` reports it by name), and a libpq older than 17
 (`libpq_floor`: PgBouncer transaction pooling with protocol-level prepared statements needs it; a build defect).
+A third is fatal everywhere too (design followups-oct, decision 25): `no_local_model`, an installed onnxruntime (or a
+PyMuPDF add-on that brings one) or its marker bytes in the installed `pymupdf` package. The connection budget
+(`connection_budget`, decision 4) is an error in prod and a warning otherwise.
 
 A finding names the variable and the rule; it never carries a value."""
 
@@ -204,10 +207,112 @@ def check(settings: Any, component: str = "init") -> list[Finding]:
     warning = alert_mail_warning(settings)
     if warning:
         findings.append(warning)
+    budget = connection_budget(settings)
+    if budget:
+        findings.append(budget)
     floor = libpq_floor()
     if floor:
         findings.append(floor)
+    model = no_local_model()
+    if model:
+        findings.append(model)
     return findings
+
+
+# "no local model" (CLAUDE.md: all AI goes through SourceTrace; design followups-oct, decisions 24 and 25): nothing
+# that brings an onnxruntime may be installed, and the PDF library must not carry one linked into its native code
+MODEL_DISTRIBUTIONS = ("onnxruntime", "pymupdf-layout", "pymupdf4llm")
+MODEL_MARKERS = (b"onnxruntime", b"OrtGetApiBase", b".onnx")
+_CHUNK = 1 << 20
+
+
+def _distribution_names() -> list[str]:
+    from importlib import metadata
+
+    names = []
+    for dist in metadata.distributions():
+        name = (dist.metadata.get("Name") or "").strip().lower().replace("_", "-")
+        if name:
+            names.append(name)
+    return names
+
+
+def model_distributions(names: list[str] | None = None) -> list[str]:
+    """Installed distributions whose name is `onnxruntime*`, `pymupdf-layout` / `pymupdf_layout` or `pymupdf4llm`."""
+    names = _distribution_names() if names is None else [n.lower().replace("_", "-") for n in names]
+    return sorted(n for n in set(names) if n.startswith("onnxruntime") or n in MODEL_DISTRIBUTIONS[1:])
+
+
+def _pymupdf_dir():
+    from importlib.util import find_spec
+    from pathlib import Path
+
+    spec = find_spec("pymupdf")
+    if spec is None or not spec.submodule_search_locations:
+        return None
+    return Path(next(iter(spec.submodule_search_locations)))
+
+
+def file_with_marker(root: Any) -> Any:
+    """The first file under `root` (native libraries included) holding `onnxruntime`, `OrtGetApiBase` or `.onnx`:
+    a runtime linked statically into MuPDF, which a `sys.modules` check cannot see. Read in 1 MB chunks."""
+    from pathlib import Path
+
+    if root is None or not Path(root).is_dir():
+        return None
+    keep = max(len(m) for m in MODEL_MARKERS) - 1
+    for path in sorted(p for p in Path(root).rglob("*") if p.is_file()):
+        tail = b""
+        with path.open("rb") as fh:
+            while chunk := fh.read(_CHUNK):
+                block = tail + chunk
+                if any(m in block for m in MODEL_MARKERS):
+                    return path
+                tail = block[-keep:]
+    return None
+
+
+def no_local_model(names: list[str] | None = None, pymupdf_root: Any = "default") -> Finding | None:
+    """Fatal at every `APP_ENV`, like the libpq floor: an installed onnxruntime (or a PyMuPDF add-on that brings
+    one), or the marker bytes in the installed `pymupdf` package. Names the file or distribution, never a value."""
+    found = model_distributions(names)
+    if found:
+        return Finding(FATAL, "no_local_model", f"onnxruntime found in the installed distribution {found[0]}")
+    hit = file_with_marker(_pymupdf_dir() if pymupdf_root == "default" else pymupdf_root)
+    if hit is not None:
+        return Finding(FATAL, "no_local_model", f"onnxruntime found in {hit}")
+    return None
+
+
+# the connection budget (design followups-oct, decision 4): what can hold a PgBouncer server connection at once
+BUDGET_WORKER = 1
+BUDGET_SCHEDULER = 1
+BUDGET_RESERVE = 4
+
+
+def budget_total(settings: Any) -> int:
+    return (
+        int(settings.napix_request_slots)
+        + BUDGET_WORKER
+        + BUDGET_SCHEDULER
+        + int(settings.db_apart_pool_size)
+        + BUDGET_RESERVE
+    )
+
+
+def connection_budget(settings: Any) -> Finding | None:
+    """NAPIX_REQUEST_SLOTS + 1 worker + 1 scheduler + DB_APART_POOL_SIZE + a reserve of 4 must not exceed
+    PGBOUNCER_DEFAULT_POOL_SIZE: an error at `APP_ENV=prod`, a warning otherwise. Names the variables, never their
+    values."""
+    if budget_total(settings) <= int(settings.pgbouncer_default_pool_size):
+        return None
+    level = ERROR if getattr(settings, "app_env", "dev") == "prod" else WARNING
+    return Finding(
+        level,
+        "connection_budget",
+        "NAPIX_REQUEST_SLOTS + 1 worker + 1 scheduler + DB_APART_POOL_SIZE + a reserve of 4 exceeds "
+        "PGBOUNCER_DEFAULT_POOL_SIZE; raise PgBouncer's pool or lower the slots (docs/operations.md section 18)",
+    )
 
 
 def assistant_rules(settings: Any) -> list[Finding]:

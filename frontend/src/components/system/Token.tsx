@@ -120,7 +120,7 @@ function TokenRequest({ token }: { token: NapixToken }) {
   const e = token.endpoint;
   return (
     <div className="stack">
-      <CodeBlock label={K.method}>{`${e.method} ${e.url}`}</CodeBlock>
+      <CodeBlock label={K.method} copySize="md">{`${e.method} ${e.url}`}</CodeBlock>
       <KvList
         items={[
           [K.body, <span key="b" className={s.mono}>{e.body}</span>],
@@ -128,7 +128,7 @@ function TokenRequest({ token }: { token: NapixToken }) {
           [K.auth, e.auth_note],
         ]}
       />
-      <CodeBlock label={K.curl}>{token.curl_token}</CodeBlock>
+      <CodeBlock label={K.curl} copySize="md">{token.curl_token}</CodeBlock>
     </div>
   );
 }
@@ -180,7 +180,7 @@ export function TokenModal({ tab, onTab, onClose }: { tab: TokenTab; onTab: (tab
   );
   return (
     <Modal open title={K.card} onClose={onClose} header={header} footer={footer}>
-      <ErrorBanner error={token.error} onRetry={() => void token.refetch()} />
+      <ErrorBanner error={token.error} onRetry={() => void token.refetch()} retrySize="md" />
       {token.isPending ? <Loading lines={3} /> : null}
       {t ? (
         <ModalTabs tabs={TOKEN_TABS} labels={K.tabs} active={tab} onSelect={onTab} label={K.card} idPrefix="token">

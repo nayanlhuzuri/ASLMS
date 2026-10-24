@@ -1,8 +1,10 @@
-"""The ASLMS API. `uvicorn aslms.api.main:app` (the Compose `api` service). Settings and the session factory
-live on `app.state` so tests can swap the database."""
+"""The ASLMS API. `uvicorn aslms.api.main:app` (the Compose `api` service). Settings, the session factory, the
+apart-write session factory and the NAPIX request slots live on `app.state` so tests can swap the database (design
+`followups-oct`, decisions 2 and 3)."""
 
 from __future__ import annotations
 
+import threading
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -36,11 +38,11 @@ from aslms.api.routers import workflow as workflow_router
 from aslms.api.security import jwt_secret
 from aslms.core.config import Settings, get_settings
 from aslms.core.logging import configure_logging
-from aslms.db.session import get_sessionmaker
+from aslms.db.session import get_apart_sessionmaker, get_sessionmaker
 from aslms.services.db_guard import refuse_superuser
 
 
-def create_app(settings: Settings | None = None, session_factory=None) -> FastAPI:
+def create_app(settings: Settings | None = None, session_factory=None, apart_session_factory=None) -> FastAPI:
     settings = settings or get_settings()
 
     @asynccontextmanager
@@ -65,6 +67,13 @@ def create_app(settings: Settings | None = None, session_factory=None) -> FastAP
     )
     app.state.settings = settings
     app.state.session_factory = session_factory or get_sessionmaker(settings.database_url_sync)
+    # the apart writes' own small engine; a test that passes only `session_factory` gets that same factory
+    if apart_session_factory is None:
+        apart_session_factory = session_factory or get_apart_sessionmaker(
+            settings.database_url_sync, settings.db_apart_pool_size, settings.db_apart_pool_timeout_seconds
+        )
+    app.state.apart_session_factory = apart_session_factory
+    app.state.napix_slots = threading.BoundedSemaphore(settings.napix_request_slots)
     app.include_router(auth_router.router)
     app.include_router(users_router.router)
     app.include_router(access_router.router)

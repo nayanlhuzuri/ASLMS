@@ -19,7 +19,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, Res
 from sqlalchemy.orm import Session
 
 from aslms.api import schemas
-from aslms.api.deps import actor_of, get_session, napix_client, require
+from aslms.api.deps import actor_of, apart_factory, get_session, napix_request, require
 from aslms.api.errors import detail
 from aslms.domain.org import User
 from aslms.domain.reference import Permission
@@ -133,15 +133,16 @@ def test_api(
     recorded before the error."""
     settings = request.app.state.settings
     actor = actor_of(request, user, session)
-    factory = request.app.state.session_factory
+    factory = apart_factory(request)
     values = body.values if body is not None else None
     try:
         napix_api_check.guard(session, settings, user, api, values=values)
-        client, hc = napix_client(request)
-        client.tokens = token_cache(request)
-        outcome = asyncio.run(
-            napix_api_check.run(session, factory, actor, user, settings, client, hc, api, values)
-        )
+        # run() takes the guard again inside the slot (design followups-oct, decision 3)
+        with napix_request(request, session) as (client, hc):
+            client.tokens = token_cache(request)
+            outcome = asyncio.run(
+                napix_api_check.run(session, factory, actor, user, settings, client, hc, api, values)
+            )
     except HANDLED as exc:
         raise _http(exc) from exc
     return schemas.ApiTestOut(**outcome.to_dict())
@@ -311,12 +312,11 @@ def check_token(
     cache = token_cache(request)
     try:
         napix_token.check_guard(session, settings, user)
-        client, _hc = napix_client(request)
-        out = asyncio.run(
-            napix_token.check(
-                session, request.app.state.session_factory, actor, user, settings, client, cache
+        # check() takes the guard again inside the slot (design followups-oct, decision 3)
+        with napix_request(request, session) as (client, _hc):
+            out = asyncio.run(
+                napix_token.check(session, apart_factory(request), actor, user, settings, client, cache)
             )
-        )
     except HANDLED as exc:
         raise _http(exc) from exc
     token = schemas.NapixTokenOut(**napix_token.state(session, settings, cache, user))

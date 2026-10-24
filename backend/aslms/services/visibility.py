@@ -447,9 +447,32 @@ def state_wide(session: Session, user: User | Member) -> bool:
     return any(_state_wide_member(m) for m in access.members(session, user))
 
 
+def working_names(session: Session, user: User | Member, case: Case | uuid.UUID) -> set[str]:
+    """The working bases (owner, allotted, custody, counsel) any one membership has on `case`, read per membership:
+    the merged `visibility_bases` collapses to `state` as soon as one membership is State-wide, which is right for
+    sight but would hide the working basis of a State-plus-department login (design followups-oct, decision 18)."""
+    return {
+        name
+        for _member, names in basis_by_member(session, user, case)
+        for name in names
+        if name in WORKING_BASES
+    }
+
+
+def working_condition_any(session: Session, user: User | Member) -> ColumnElement[bool] | None:
+    """The OR over every membership of its working bases (`member_working_condition`); None when none has one."""
+    conds = [
+        c for m in access.members(session, user) if (c := member_working_condition(session, m)) is not None
+    ]
+    if not conds:
+        return None
+    return conds[0] if len(conds) == 1 else or_(*conds)
+
+
 def works_on_case(session: Session, user: User | Member, case: Case | uuid.UUID) -> bool:
-    """Decision 5: the case is visible through a working basis (not only `state`, `recommended` or `pool`)."""
-    return bool(WORKING_BASES & set(access_basis(session, user, case)))
+    """Decision 5: the case is visible through a working basis (not only `state`, `recommended` or `pool`) of any
+    membership (design followups-oct, decision 18)."""
+    return bool(working_names(session, user, case))
 
 
 def _record_condition_for(

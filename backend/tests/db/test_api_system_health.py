@@ -186,8 +186,19 @@ def _calls(world) -> list[NapixCallLog]:
 
 
 def _log(
-    s, api: str, minutes_ago: float, *, ok=True, family=None, ms=100, user_id=None, remaining=None, http=None
+    s,
+    api: str,
+    minutes_ago: float,
+    *,
+    ok=True,
+    family=None,
+    ms=100,
+    user_id=None,
+    remaining=None,
+    http=None,
+    at: datetime | None = None,
 ):
+    """One call-log row `minutes_ago` before `at` (default: the current time)."""
     s.add(
         NapixCallLog(
             api=api,
@@ -198,7 +209,7 @@ def _log(
             duration_ms=ms,
             user_id=user_id,
             rate_limit_remaining=remaining,
-            called_at=datetime.now(UTC) - timedelta(minutes=minutes_ago),
+            called_at=(at or datetime.now(UTC)) - timedelta(minutes=minutes_ago),
         )
     )
 

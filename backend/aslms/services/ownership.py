@@ -1622,6 +1622,12 @@ def close_claimed_backfill(session: Session, *, apply: bool, now: datetime | Non
         .where(
             Recommendation.status == RecommendationStatus.RECOMMENDED,
             Recommendation.office_id != primary.office_id,
+            # a suggestion made after the claim stays open for the target to claim as a watcher (ownership-refinements
+            # 12(a)); engine rows created after a claim before row 120 are still closed (design followups-oct, 15)
+            ~and_(
+                Recommendation.origin == RecommendationOrigin.SUGGESTION,
+                Recommendation.created_at >= primary.claimed_at,
+            ),
         )
         .order_by(Recommendation.case_id, Recommendation.created_at, Recommendation.id)
         .with_for_update(of=Recommendation)

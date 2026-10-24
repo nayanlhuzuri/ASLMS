@@ -12,7 +12,7 @@ import { join, relative, sep } from "node:path";
 
 import { pageChecks, type PageFinding } from "./checks";
 import { answer, SAMPLE } from "./fixtures";
-import { runDir, slug, writeResult, type Finding } from "./results";
+import { kept, runDir, slug, writeResult, type Finding } from "./results";
 
 const APP = join(__dirname, "..", "src", "app");
 const PUBLIC = new Set(["/login", "/login/code", "/forgot", "/forgot/code"]);
@@ -120,10 +120,10 @@ test.describe("every page", () => {
       await settle(page);
       const landed = new URL(page.url()).pathname;
       if (landed !== route) redirect = landed + new URL(page.url()).search;
-      const findings = redirect ? visit.findings.filter((f) => f.kind !== "primary") : visit.findings;
+      const findings = kept(visit.findings, redirect !== null);
       const screenshot = redirect ? null : await shoot(page, route, width);
-      writeResult({ name: route, width, screenshot, redirect, findings: redirect ? [] : findings });
-      expect(redirect ? [] : findings, JSON.stringify(findings, null, 2)).toEqual([]);
+      writeResult({ name: route, width, screenshot, redirect, findings });
+      expect(findings, JSON.stringify(findings, null, 2)).toEqual([]);
     });
   }
 });

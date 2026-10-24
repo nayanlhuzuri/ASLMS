@@ -8348,6 +8348,11 @@ export interface components {
             response_available: boolean;
             /** Response Id */
             response_id: string | null;
+            /**
+             * Response Too Large
+             * @default false
+             */
+            response_too_large: boolean;
             structure: components["schemas"]["StructureOut"] | null;
         };
         /** LinkGraphOut */

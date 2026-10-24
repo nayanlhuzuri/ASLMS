@@ -22,10 +22,10 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import quote
-from zoneinfo import ZoneInfo
 
 import httpx
 
+from aslms.core.clock import today_ist
 from aslms.core.config import Settings, get_settings
 from aslms.core.errors import (
     IntegrationError,
@@ -130,7 +130,6 @@ CallHook = Callable[[NapixResult], None]
 META_KEY = "napix:token:meta"
 REQUESTS_KEY = "napix:token:requests:"  # + the IST date
 META_TTL_SECONDS = 8 * 24 * 3600
-IST = ZoneInfo("Asia/Kolkata")
 # the per-request fields of the token metadata: rewritten (blank when absent) on every token request
 REQUEST_FIELDS = (
     "requested_at",
@@ -185,7 +184,8 @@ def _blank(v: Any) -> str:
 
 
 def _ist_date(now: datetime | None = None) -> str:
-    return (now or datetime.now(UTC)).astimezone(IST).date().isoformat()
+    """The IST calendar date of `now` (default: the current time) as text: the token-request day counter's key."""
+    return today_ist(now).isoformat()
 
 
 class TokenCache:
@@ -203,6 +203,7 @@ class TokenCache:
         self._key = key
         self._redis = redis_client
         self._meta: dict[str, str] = {}  # this process's copy when there is no shared store
+        self._meta_day = ""  # the IST date `_meta["requests_today"]` counts (no shared store)
         if redis_client is None and redis_url:
             try:
                 import redis  # optional dependency
@@ -265,14 +266,19 @@ class TokenCache:
             left = int(self._expires_at - time.time()) if self._token else 0
         return TokenState(held=left > 0, ttl_seconds=left if left > 0 else None, shared_store=False)
 
-    def meta(self) -> dict[str, str]:
-        """The metadata hash as text, plus `requests_today` (read-only; {} when nothing is recorded)."""
+    def meta(self, now: datetime | None = None) -> dict[str, str]:
+        """The metadata hash as text, plus `requests_today`: the requests of the IST date of `now` (default: the
+        current time), absent when there were none that day (read-only; {} when nothing is recorded)."""
+        day = _ist_date(now)
         if self._redis is None:
-            return dict(self._meta)
+            out = dict(self._meta)
+            if self._meta_day != day:
+                out.pop("requests_today", None)
+            return out
         try:
             raw = self._redis.hgetall(META_KEY) or {}
             out = {_text(k): _text(v) for k, v in raw.items()}
-            count = self._redis.get(REQUESTS_KEY + _ist_date())
+            count = self._redis.get(REQUESTS_KEY + day)
             if count is not None:
                 out["requests_today"] = _text(count)
             return out
@@ -309,8 +315,10 @@ class TokenCache:
             fields["last_failure_at"] = stamp
             fields["last_failure_family"] = renewal.error_family or ""
         if self._redis is None:
+            day = _ist_date(now)
+            before = int(self._meta.get("requests_today") or 0) if self._meta_day == day else 0
             self._meta.update(fields)
-            self._meta["requests_today"] = str(int(self._meta.get("requests_today") or 0) + 1)
+            self._meta["requests_today"], self._meta_day = str(before + 1), day
             return
         try:
             day = REQUESTS_KEY + _ist_date(now)

@@ -558,6 +558,7 @@ async def health_check(
     error_family: str | None = None
     ok = True
     attempts = []
+    unexpected: Exception | None = None
     try:
         try:
             async with client:
@@ -565,6 +566,11 @@ async def health_check(
         except (IntegrationError, httpx.HTTPError) as exc:
             ok = False
             error_family = type(exc).__name__
+        except (
+            Exception
+        ) as exc:  # ASLMS's own defect: recorded by its class in the audit row, then raised again
+            ok = False
+            unexpected = exc
     finally:
         attempts = list(recorder.pending)
         recorder.flush_apart(session_factory)
@@ -579,12 +585,17 @@ async def health_check(
         token_verified=last.token_verified if last else None,
         remaining=recorder.last_remaining,
     )
+    after: dict[str, Any] = {**outcome.to_dict(), "attempts": len(attempts)}
+    if unexpected is not None:
+        after["unexpected"] = type(unexpected).__name__  # the class only, never the text (followups-oct, 6)
     audit.write_audit_apart(
         session_factory,
         access.actor_as(actor, member),
         "napix.health_checked",
         "napix",
         None,
-        after={**outcome.to_dict(), "attempts": len(attempts)},
+        after=after,
     )
+    if unexpected is not None:
+        raise unexpected
     return outcome

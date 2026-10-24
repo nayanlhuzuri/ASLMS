@@ -18,8 +18,10 @@ court API through the integration layer, with an input ASLMS already holds, run 
   caller's id) is committed in a session of its own in a `finally` as soon as the call ends, and the audit row
   `napix.api_tested` in another after the summary. A test writes one `napix_call_log` row per attempt, at most one
   `napix_responses` row and one audit row; no case data, no master row, no queue row (decision 12). A PDF answer is
-  hashed and discarded. The request transaction itself holds only reads and the advisory locks. When ASLMS's own
-  summary fails, the audit row is still written (`summary: null`, `summary_error`) and the error propagates (500).
+  hashed and discarded. The request transaction itself holds only reads and the advisory locks. The audit row is
+  written in a `finally` from a minimal record built from the attempts (design `followups-oct`, decision 6): when
+  ASLMS's own outcome, structure or summary fails, it carries `unexpected` (the class name only; `summary: null`
+  and `summary_error` when the summary failed) and the error propagates (500).
 - **Summarised, never shown verbatim** (decision 9): the outcome is built from a whitelist of computed facts. The
   payload, the PDF, the raw text, the parameters, the error text and every name stay on the server."""
 
@@ -458,92 +460,120 @@ async def run(
     error_family: str | None = None
     value: Any = None
     attempts: list[NapixResult] = []
+    unexpected: Exception | None = None
     try:
         try:
             async with client:
                 value = await e.invoke(target, sample.values)
         except (IntegrationError, httpx.HTTPError) as exc:
             error_family = type(exc).__name__
+        except (
+            Exception
+        ) as exc:  # ASLMS's own defect in the call: recorded by its class in the audit row, then raised again
+            unexpected = exc
     finally:
         attempts = list(recorder.pending)
         recorder.flush_apart(session_factory)
     last = attempts[-1] if attempts else None  # the client logs a renewal's 401 step first (decision 4)
     family = (last.error_family if last is not None and last.error_family else None) or error_family
-    ok = error_family is None and last is not None and last.ok
-    answered = ok or (last is not None and family in ANSWERED_FAMILIES)
-    napix_status = last.napix_status if last is not None else None
+    ok = unexpected is None and error_family is None and last is not None and last.ok
     http_status = last.http_status if last is not None else None
-    outcome = TestOutcome(
-        api=key,
-        ok=ok,
-        answered=answered,
-        status=_status(ok, answered),
-        reason=system_health.plain_reason(None if ok else family, napix_status, None if ok else http_status),
-        http_status=http_status,
-        napix_status=napix_status,
-        error_family=None if ok else family,
-        duration_ms=sum(a.duration_ms for a in attempts),
-        attempts=len(attempts),
-        called_at=called_at,
-        token_verified=last.token_verified if last is not None else None,
-        remaining=recorder.last_remaining,
-        input={"label": sample.label, "values": sample.public_values()},
-        summary={"kind": e.kind, "row_count": None, "field_names": [], "facts": []},
-        request={
-            "method": request.method,
-            "url": request.url,
-            "plain": request.plain,
-            "envelope": napix_inspect.envelope(settings, request),
-        },
-        edited=sample.edited,
-        rate_limit={
-            "limit": last.rate_limit[0] if last is not None else None,
-            "remaining": last.rate_limit[1] if last is not None else None,
-        },
-        response_id=recorder.response_ids.get((e.path, request.plain_sha256)) if ok else None,
-    )
-    if ok and last is not None and last.pdf is None and last.data is not None:
-        outcome.structure = napix_inspect.structure(last.data)
-        outcome.inventory_diff = napix_inspect.inventory_diff(key, napix_inspect.structure_paths(last.data))
-    failure: Exception | None = None
-    try:
-        if ok and last is not None:
-            outcome.summary = _summary(session, settings, e, sample, last, value)
-    except Exception as exc:  # noqa: BLE001 — ASLMS's own defect: recorded in the audit row, then raised again
-        failure = exc
+    napix_status = last.napix_status if last is not None else None
+    # the minimal audit record, built from the attempts alone right after their rows were committed; everything
+    # below only enriches it, and the row is written in the `finally` whatever happens (design followups-oct, 6)
     after: dict[str, Any] = {
         "api": key,
         "path": e.path,
-        "ok": outcome.ok,
-        "answered": outcome.answered,
-        "http_status": outcome.http_status,
-        "napix_status": outcome.napix_status,
-        "error_family": outcome.error_family,
-        "duration_ms": outcome.duration_ms,
-        "attempts": outcome.attempts,
-        "remaining": outcome.remaining,
-        "sample": _audit_sample(sample),
-        "summary": None if failure is not None else outcome.summary,
-        # the console's facts (design system-health-inspector, decision 5): the plain parameters sent (names
-        # included, as court search audits its query; decision 6 ensures the sender saw or typed them)
-        "params": dict(request.params),
+        "attempts": len(attempts),
+        "http_status": http_status,
+        "napix_status": napix_status,
+        "error_family": None if ok else family,
+        "ok": ok,
         "params_sha256": request.plain_sha256,
-        "edited": sample.edited,
-        "response_id": str(outcome.response_id) if outcome.response_id is not None else None,
-        "token_verified": outcome.token_verified,
-        "rate_limit": outcome.rate_limit,
-        "structure": outcome.structure,
     }
-    if failure is not None:
-        after["summary_error"] = type(failure).__name__
-    audit.write_audit_apart(
-        session_factory,
-        access.actor_as(actor, member),
-        system_health.TEST_ACTION,
-        "napix",
-        None,
-        after=after,
-    )
+    failure: Exception | None = unexpected
+    if unexpected is not None:
+        after["unexpected"] = type(unexpected).__name__  # the class only, never the text (followups-oct, 6)
+    summary_failed = False
+    try:
+        answered = ok or (last is not None and family in ANSWERED_FAMILIES)
+        outcome = TestOutcome(
+            api=key,
+            ok=ok,
+            answered=answered,
+            status=_status(ok, answered),
+            reason=system_health.plain_reason(
+                None if ok else family, napix_status, None if ok else http_status
+            ),
+            http_status=http_status,
+            napix_status=napix_status,
+            error_family=None if ok else family,
+            duration_ms=sum(a.duration_ms for a in attempts),
+            attempts=len(attempts),
+            called_at=called_at,
+            token_verified=last.token_verified if last is not None else None,
+            remaining=recorder.last_remaining,
+            input={"label": sample.label, "values": sample.public_values()},
+            summary={"kind": e.kind, "row_count": None, "field_names": [], "facts": []},
+            request={
+                "method": request.method,
+                "url": request.url,
+                "plain": request.plain,
+                "envelope": napix_inspect.envelope(settings, request),
+            },
+            edited=sample.edited,
+            rate_limit={
+                "limit": last.rate_limit[0] if last is not None else None,
+                "remaining": last.rate_limit[1] if last is not None else None,
+            },
+            response_id=recorder.response_ids.get((e.path, request.plain_sha256)) if ok else None,
+        )
+        after.update(
+            {
+                "answered": outcome.answered,
+                "duration_ms": outcome.duration_ms,
+                "remaining": outcome.remaining,
+                "sample": _audit_sample(sample),
+                "summary": None,
+                # the console's facts (design system-health-inspector, decision 5): the plain parameters sent
+                # (names included, as court search audits its query; decision 6 ensures the sender saw or typed
+                # them)
+                "params": dict(request.params),
+                "edited": sample.edited,
+                "response_id": str(outcome.response_id) if outcome.response_id is not None else None,
+                "token_verified": outcome.token_verified,
+                "rate_limit": outcome.rate_limit,
+                "structure": None,
+            }
+        )
+        if ok and last is not None and last.pdf is None and last.data is not None:
+            outcome.structure = napix_inspect.structure(last.data)
+            outcome.inventory_diff = napix_inspect.inventory_diff(
+                key, napix_inspect.structure_paths(last.data)
+            )
+            after["structure"] = outcome.structure
+        if ok and last is not None:
+            summary_failed = True
+            outcome.summary = _summary(session, settings, e, sample, last, value)
+            summary_failed = False
+        after["summary"] = outcome.summary
+    except (
+        Exception
+    ) as exc:  # ASLMS's own defect: recorded in the audit row by its class only, then raised again
+        if failure is None:  # the call's own defect, when there was one, is the one recorded and raised
+            failure = exc
+            after["unexpected"] = type(exc).__name__
+        if summary_failed:
+            after["summary_error"] = type(exc).__name__
+    finally:
+        audit.write_audit_apart(
+            session_factory,
+            access.actor_as(actor, member),
+            system_health.TEST_ACTION,
+            "napix",
+            None,
+            after=after,
+        )
     if failure is not None:
         raise failure
     return outcome

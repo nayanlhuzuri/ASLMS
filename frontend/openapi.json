@@ -12972,6 +12972,11 @@
             ],
             "title": "Response Id"
           },
+          "response_too_large": {
+            "default": false,
+            "title": "Response Too Large",
+            "type": "boolean"
+          },
           "structure": {
             "anyOf": [
               {

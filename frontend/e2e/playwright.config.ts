@@ -12,7 +12,7 @@ export const WIDTHS = { phone: { width: 375, height: 812 }, tablet: { width: 768
 
 export default defineConfig({
   testDir: ".",
-  testMatch: "uicheck.spec.ts",
+  testMatch: ["uicheck.spec.ts", "uicheck-self.spec.ts"],
   outputDir: join(tmpdir(), "uicheck-artifacts"),
   globalSetup: "./global-setup.ts",
   globalTeardown: "./global-teardown.ts",

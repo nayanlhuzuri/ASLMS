@@ -90,6 +90,8 @@ const ERRORS: Record<string, (extra: Record<string, unknown>) => string> = {
   napix_off: () => "The court gateway is switched off on this server.",
   napix_budget: (x) => `The court gateway's hourly allowance is nearly spent. Try again in ${wait(x.retry_after)}.`,
   search_limit: (x) => `You have used your court searches for this hour. Try again in ${wait(x.retry_after)}.`,
+  // every court-search slot of the server is in use (design followups-oct, decision 3)
+  napix_busy: (x) => `Court searches are busy; try again in ${wait(x.retry_after)}.`,
   napix_unavailable: () => "The court gateway did not answer properly. Try again later.",
   napix_timeout: () => "The court gateway took too long to answer. Try again later.",
   check_too_soon: (x) => `A connectivity check ran a moment ago. Try again in ${wait(x.retry_after)}.`,
@@ -560,6 +562,7 @@ export const T = {
       absentPaths: (n: number) => `Inventory paths not in this answer (${n})`,
       fullAnswer: "Full answer (JSON)",
       fullAnswerAudited: "Opening the full answer is recorded in the audit log.",
+      tooLarge: "This answer is too large to outline here.",
       download: "Download",
       outcome: { ok: "Answered", warn: "Answered, nothing found", down: "Failed", unknown: "Not known" } as Record<string, string>,
     },

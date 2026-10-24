@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
 from aslms.api import schemas
-from aslms.api.deps import actor_of, get_session, napix_client, require, require_any
+from aslms.api.deps import actor_of, apart_factory, get_session, napix_request, require, require_any
 from aslms.api.filters import case_filter_query, search_filter_query, with_legacy
 from aslms.domain.cases import Case
 from aslms.domain.org import User
@@ -261,13 +261,13 @@ def _court_http(exc: Exception) -> HTTPException:
 COURT_HANDLED = (CourtSearchFailure, AlreadyFetched, NotFoundAtCourt, CourtSearchError, ValueError)
 
 
-async def _with_napix(request: Request, user_id: uuid.UUID, fn):
-    """The integration client with a recorder carrying the caller's id (design napix-window, decision 9). The
-    recorder commits its call rows and verbatim responses in a session of its own, at every flush and in the
-    `finally`, so an error later in the request cannot roll them back; the case data and the audit row stay in the
-    request transaction (design api-health-checker-followups, decision 11)."""
-    client, hc = napix_client(request)
-    factory = request.app.state.session_factory
+async def _with_napix(request: Request, client, hc, user_id: uuid.UUID, fn):
+    """The integration client (taken through `napix_request`) with a recorder carrying the caller's id (design
+    napix-window, decision 9). The recorder commits its call rows and verbatim responses through the apart engine
+    (design followups-oct, decision 2), at every flush and in the `finally`, so an error later in the request cannot
+    roll them back; the case data and the audit row stay in the request transaction (design
+    api-health-checker-followups, decision 11)."""
+    factory = apart_factory(request)
     recorder = NapixRecorder(user_id=user_id, session_factory=factory)
     client.on_call = recorder.on_call
     try:
@@ -311,15 +311,21 @@ def search_court(
         )
     try:
         court_search.guard(session, user, settings)
-        result = asyncio.run(
-            _with_napix(
-                request,
-                user.id,
-                lambda hc, recorder: court_search.search_court(
-                    session, actor, user, body.model_dump(), hc=hc, recorder=recorder, settings=settings
-                ),
+        with napix_request(request, session) as (client, hc):
+            court_search.guard(
+                session, user, settings
+            )  # again: the wait may have changed the quota or the count
+            result = asyncio.run(
+                _with_napix(
+                    request,
+                    client,
+                    hc,
+                    user.id,
+                    lambda hc, recorder: court_search.search_court(
+                        session, actor, user, body.model_dump(), hc=hc, recorder=recorder, settings=settings
+                    ),
+                )
             )
-        )
     except COURT_HANDLED as exc:
         session.commit()  # the audit row survives the error (the call rows are already committed apart)
         raise _court_http(exc) from exc
@@ -378,15 +384,21 @@ def fetch_court(
         raise _court_http(court_search.AlreadyFetched("the case already has a dossier"))
     try:
         court_search.guard(session, user, settings)
-        case = asyncio.run(
-            _with_napix(
-                request,
-                user.id,
-                lambda hc, recorder: court_search.fetch_court(
-                    session, actor, user, case, hc=hc, recorder=recorder, settings=settings
-                ),
+        with napix_request(request, session) as (client, hc):
+            court_search.guard(
+                session, user, settings
+            )  # again: the wait may have changed the quota or the count
+            case = asyncio.run(
+                _with_napix(
+                    request,
+                    client,
+                    hc,
+                    user.id,
+                    lambda hc, recorder: court_search.fetch_court(
+                        session, actor, user, case, hc=hc, recorder=recorder, settings=settings
+                    ),
+                )
             )
-        )
     except COURT_HANDLED as exc:
         session.commit()
         raise _court_http(exc) from exc

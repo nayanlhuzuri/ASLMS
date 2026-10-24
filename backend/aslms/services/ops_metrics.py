@@ -48,6 +48,8 @@ from aslms.domain.ops import (
     JobRun,
     JobStatus,
     NapixCallLog,
+    failed_call,
+    renewal_step,
 )
 from aslms.domain.org import Channel
 
@@ -68,7 +70,7 @@ HELP: dict[str, str] = {
         "the queue worker's liveness: the later of the latest queue-run pass start and the latest row it claimed "
         "(0: never)"
     ),
-    "aslms_napix_calls_last_hour": "NAPIX calls in the last hour by outcome (ok, failed)",
+    "aslms_napix_calls_last_hour": "NAPIX calls in the last hour by outcome (ok, failed, renewal)",
     "aslms_napix_window_remaining": "calls left in the detected NAPIX window (NaN: not known)",
     "aslms_napix_switch_on": "1 when NAPIX_ENABLED is true in this process",
     "aslms_source_failures_open": "open source failures by kind",
@@ -202,14 +204,18 @@ def collect_database(
     out.append(Sample("aslms_worker_alive_timestamp", {}, _ts(worker_alive_at(session))))
 
     # NAPIX: the last hour, the detected window, the switch
-    ok_n, failed_n = session.execute(
+    # a token renewal's 401 step is its own series, so `failed` (and NapixErrorsHigh) leaves it out while ok + failed +
+    # renewal stays every call (design followups-oct, decision 8)
+    ok_n, failed_n, renewal_n = session.execute(
         select(
             func.count().filter(NapixCallLog.ok.is_(True)),
-            func.count().filter(NapixCallLog.ok.is_(False)),
+            func.count().filter(failed_call()),
+            func.count().filter(NapixCallLog.ok.is_(False), renewal_step()),
         ).where(NapixCallLog.called_at >= now - timedelta(hours=1))
     ).one()
     out.append(Sample("aslms_napix_calls_last_hour", {"outcome": "ok"}, int(ok_n)))
     out.append(Sample("aslms_napix_calls_last_hour", {"outcome": "failed"}, int(failed_n)))
+    out.append(Sample("aslms_napix_calls_last_hour", {"outcome": "renewal"}, int(renewal_n)))
     window = napix_window.current(session, settings, now)
     out.append(
         Sample(

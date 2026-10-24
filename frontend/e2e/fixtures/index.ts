@@ -125,6 +125,143 @@ function systemHealth(): SystemHealth {
   };
 }
 
+/**
+ * System health's Access token card and the request console of Case details by CNR (design followups-oct, decision
+ * 13): typed from `openapi.json`, synthetic and non-secret values only (no token, a CNR in the synthesiser's made-up
+ * pattern, never a real one).
+ */
+const SYNTH_CNR = `ASHC01${String(12345).padStart(6, "0")}2025`;
+const NAPIX_URL = "https://delhigw.napix.gov.in/nic/ecourts";
+
+function napixToken(): S["NapixTokenOut"] {
+  return {
+    status: "ok",
+    napix_enabled: false,
+    shared_store: true,
+    held: true,
+    ttl_seconds: 2520,
+    renewing_soon: false,
+    valid_until: "2026-10-21T15:20:00+05:30",
+    expires_at: "2026-10-21T15:20:00+05:30",
+    obtained_at: "2026-10-21T14:25:00+05:30",
+    token_type: "Bearer",
+    scope: "napix",
+    accepted_since: { at: "2026-10-21T14:31:00+05:30", api_label: "Case details by CNR", http_status: 200 },
+    rejected_since: 0,
+    last_request: { at: "2026-10-21T14:25:00+05:30", ok: true, outcome: "obtained", http_status: 200, duration_ms: 310, rate_limit: { limit: null, remaining: null } },
+    last_failure: null,
+    requests_today: 3,
+    endpoint: {
+      method: "POST",
+      url: `${NAPIX_URL.replace("/nic/ecourts", "")}/token`,
+      body: "grant_type=client_credentials&scope=napix",
+      content_type: "application/x-www-form-urlencoded",
+      auth_note: "Basic authentication with the client key and secret from .env, not shown",
+    },
+    curl_token: `curl -X POST '${NAPIX_URL.replace("/nic/ecourts", "")}/token' -u '<CLIENT_KEY>:<CLIENT_SECRET>' -d 'grant_type=client_credentials&scope=napix'`,
+    check: { allowed: false, reason: "Court calls are switched off on this server", next_allowed_at: null },
+  };
+}
+
+function napixConsole(api: string): S["ConsoleOut"] {
+  const url = `${NAPIX_URL}/hc-cnr-api/CNR`;
+  const plain = `cino=${SYNTH_CNR}`;
+  const structure: S["StructureOut"] = {
+    paths: [
+      { path: "cino", type: "string", count: 1 },
+      { path: "case_no", type: "string", count: 1 },
+      { path: "pet_name", type: "string", count: 1 },
+      { path: "date_next_list", type: "string", count: 1 },
+    ],
+    total: 4,
+    more: 0,
+    depth_limited: false,
+  };
+  return {
+    api,
+    label: "Case details by CNR",
+    method: "GET",
+    method_note: null,
+    url,
+    plain,
+    plain_sha256: "a".repeat(64),
+    plain_complete: true,
+    no_input_note: null,
+    envelope: [
+      { name: "dept_id", shown: "AS…", note: "Department ID from .env (NAPIX_DEPT_ID), masked", length: null },
+      { name: "request_str", shown: "encrypted, 44 characters, not shown", note: "AES-128-CBC of the plain string", length: 44 },
+      { name: "request_token", shown: "f".repeat(64), note: "HMAC-SHA256 of the plain string", length: null },
+      { name: "version", shown: "v1.0", note: "from NAPIX_VERSION", length: null },
+    ],
+    headers: [
+      { name: "Authorization", shown: "Bearer ‹access token, not shown›" },
+      { name: "Accept", shown: "application/json, application/pdf" },
+    ],
+    request_token: "f".repeat(64),
+    templates: { curl: `# plain string: ${plain}\ncurl -G '${url}' -H 'Authorization: Bearer <ACCESS_TOKEN>'`, note: "These do not run as they are." },
+    fields: [
+      {
+        name: "cino",
+        value: SYNTH_CNR,
+        prefilled: true,
+        source: "held",
+        editable: true,
+        mandatory: true,
+        required: true,
+        format: "16 letters and digits",
+        meaning: "The case's CNR.",
+        hint: null,
+      },
+    ],
+    sample: { available: true, label: `${STRESS.caseNo} (CNR ${SYNTH_CNR})`, reason: null },
+    send: { available: false, reason: "Court calls are switched off on this server", cost: 1, next_allowed_at: null },
+    last_send: {
+      at: "2026-10-21T14:33:00+05:30",
+      by: "person",
+      recorded: true,
+      edited: false,
+      ok: true,
+      answered: true,
+      status: "ok",
+      reason: "The court answered",
+      method: "GET",
+      url,
+      plain,
+      params_sha256: "a".repeat(64),
+      http_status: 200,
+      http_meaning: "Everything is normal",
+      napix_status: null,
+      napix_meaning: null,
+      error_family: null,
+      duration_ms: 800,
+      attempts: 1,
+      remaining: 800,
+      rate_limit: { limit: 1000, remaining: 800 },
+      window_reset_at: "2026-10-21T14:34:00+05:30",
+      token_verified: true,
+      summary: null,
+      structure,
+      inventory_diff: null,
+      response_id: "0192a3b4-0000-7000-8000-0000000000r1",
+      response_available: true,
+      same_plain_as_form: true,
+    },
+    latest_answer: {
+      at: "2026-10-21T14:33:00+05:30",
+      by: "background",
+      structure,
+      inventory_diff: null,
+      response_id: "0192a3b4-0000-7000-8000-0000000000r1",
+      response_available: true,
+      response_too_large: false,
+    },
+    doc: { doc: "hc_spec", page: 12, section: "6.1 Search by CNR API", available: true },
+    full_answer_allowed: true,
+    not_saved_note: "Shown, not saved to cases. Use Search to add a case.",
+    full_answer_note: null,
+  };
+}
+
 const REPORT_KEYS = ["pending-cases", "hearings-disposals", "pending-actions", "data-health"] as const;
 
 function catalogue(): ReportCatalogue {
@@ -218,6 +355,8 @@ const OVERRIDES: [RegExp, Override][] = [
   [/^\/dashboard$/, () => DASHBOARD],
   [/^\/inbox\/counts$/, () => inboxCounts()],
   [/^\/admin\/system-health$/, () => systemHealth()],
+  [/^\/admin\/system-health\/token$/, () => napixToken()],
+  [/^\/admin\/system-health\/napix\/[^/]+\/console$/, (url) => napixConsole(url.pathname.split("/").at(-2)!)],
   [/^\/reference\/labels$/, () => labels()],
   [/^\/admin\/access\/types$/, () => accessMatrix()],
   [/^\/reports$/, () => catalogue()],

@@ -19,8 +19,15 @@
  * - one primary (decision 16): more than one visible primary outside an open dialog.
  */
 
+/**
+ * The kinds the geometry checks raise. A page that redirected is measured on the page it landed on, so only these are
+ * dropped then (design followups-oct, decision 22); `missing-fixture`, `not-get`, `console-error` and `page-error` are
+ * kept. `pageChecks` runs inside the browser and must not read this constant.
+ */
+export const GEOMETRY_KINDS = ["page-overflow", "inner-scroll", "off-screen", "clipped", "size", "alignment", "primary"] as const;
+
 export interface PageFinding {
-  kind: "page-overflow" | "inner-scroll" | "off-screen" | "clipped" | "size" | "alignment" | "primary";
+  kind: (typeof GEOMETRY_KINDS)[number];
   element: string;
   detail: string;
 }

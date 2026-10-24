@@ -20,7 +20,7 @@ from aslms.domain.reference import Permission
 from aslms.domain.workflow import PendingAction, ResponseMode
 from aslms.services import access
 from aslms.services.access import Member
-from aslms.services.visibility import WORKING_BASES, NotVisibleCase, access_basis, acting_member_for_case
+from aslms.services.visibility import NotVisibleCase, access_basis, acting_member_for_case, working_names
 
 MAX_DUE_DAYS = 365
 REMARK_MIN, REMARK_MAX = 3, 2_000
@@ -99,8 +99,9 @@ def acting_member(session: Session, user: User | Member, case: Case, permission:
     member = acting_member_for_case(session, user, case, permission)
     if member is not None:
         return member
-    bases = set(access_basis(session, user, case))
-    if not WORKING_BASES & bases:
+    # read per membership: a State-wide membership must not turn a missing function into "not working" (design
+    # followups-oct, decision 18)
+    if not working_names(session, user, case):
         raise forbidden("not_working_on_case", "your office does not own, hold or appear in this case")
     raise forbidden("forbidden", f"{permission.value} is not enabled for you on this case")
 

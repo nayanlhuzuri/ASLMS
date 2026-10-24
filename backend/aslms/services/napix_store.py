@@ -96,7 +96,9 @@ class NapixRecorder:
     def flush_apart(self, session_factory: sessionmaker[Session]) -> int:
         """The pending attempts in a session of their own, committed at once. When that write fails (the database
         cannot be reached), each attempt is named in a warning by its non-secret fields (never the parameters, the
-        payload or the error text) and the exception propagates; the attempts stay pending."""
+        payload or the error text) and the exception propagates; the attempts stay pending. `response_ids` always
+        names the responses of this flush, so an empty flush leaves it empty (design followups-oct, decision 7)."""
+        self.response_ids = {}
         if not self.pending:
             return 0
         try:

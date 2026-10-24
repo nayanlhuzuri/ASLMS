@@ -2,6 +2,8 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { GEOMETRY_KINDS } from "./checks";
+
 export interface Finding {
   route: string;
   width: number;
@@ -19,6 +21,17 @@ export interface ResultFile {
   /** Where a redirect page went. */
   redirect: string | null;
   findings: Finding[];
+}
+
+const GEOMETRY = new Set<string>(GEOMETRY_KINDS);
+
+/**
+ * The findings a page keeps (design followups-oct, decision 22): on a redirect only the geometry kinds are dropped (they
+ * measured the page it landed on); a missing fixture, a request other than GET, a console or page error raised before
+ * or after the redirect are kept, written to the result file and fail the test. Without a redirect, everything.
+ */
+export function kept(findings: Finding[], redirected: boolean): Finding[] {
+  return redirected ? findings.filter((f) => !GEOMETRY.has(f.kind)) : findings;
 }
 
 export function runDir(): string {

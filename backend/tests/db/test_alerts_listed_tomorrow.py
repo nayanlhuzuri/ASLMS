@@ -40,20 +40,27 @@ AFTERNOON = at(TODAY, 14, 30)
 
 
 def listing(
-    s, case: Case, list_date: date, *, list_type=ListType.DAILY, court_no="3", printed="14", sr_no=None
+    s,
+    case: Case,
+    list_date: date,
+    *,
+    list_type=ListType.DAILY,
+    court_no="3",
+    printed="14",
+    sr_no=None,
+    source=ListSource.GHC_WEBSITE,
+    bench_text="HONOURABLE MR. JUSTICE A",
 ):
     court = s.scalar(sa.select(Court).where(Court.est_code == "GAHC01"))
     cl = s.scalar(
         sa.select(Causelist).where(
             Causelist.list_date == list_date,
             Causelist.list_type == list_type,
-            Causelist.source == ListSource.GHC_WEBSITE,
+            Causelist.source == source,
         )
     )
     if cl is None:
-        cl = Causelist(
-            court_id=court.id, list_date=list_date, list_type=list_type, source=ListSource.GHC_WEBSITE
-        )
+        cl = Causelist(court_id=court.id, list_date=list_date, list_type=list_type, source=source)
         s.add(cl)
         s.flush()
     n = sr_no or int(s.scalar(sa.select(sa.func.count()).select_from(CauselistEntry)) or 0) + 1
@@ -66,7 +73,7 @@ def listing(
             case_id=case.id,
             case_no_text=case.case_no_text,
             court_no=court_no,
-            bench_text="HONOURABLE MR. JUSTICE A",
+            bench_text=bench_text,
             petitioner_text="PARTY-MARKER petitioner",
             pet_advocate_text="ADVOCATE-MARKER",
             source=EntrySource.PDF_PARSE,
@@ -298,3 +305,40 @@ def test_severity_critical_sends_immediate_mail(wide):
         assert mail.subject.startswith("[ASLMS CRITICAL] Listed tomorrow")
         assert "court 3, item 14" in mail.text
         assert "PARTY-MARKER" not in mail.subject + mail.text and "ADVOCATE-MARKER" not in mail.text
+
+
+# ------------------------------------------------------------------------------------------------ followups-oct, decision 20
+
+
+def test_same_listing_from_pdf_and_napix_counted_once_napix_kept(wide):
+    """The website PDF list and the NAPIX list both place the case at court 3 item 14 (court written differently): one
+    listing, the NAPIX copy; a different item of the same court stays a listing of its own."""
+    world = wide
+    with world.Session() as s:
+        case = owned(s, world)
+        listing(s, case, D, court_no="3", printed="14", bench_text="FROM THE WEBSITE PDF")
+        listing(s, case, D, court_no=" 3 ", printed="14 ", source=ListSource.NAPIX, bench_text="FROM NAPIX")
+        listing(s, case, D, court_no="3", printed="15", source=ListSource.NAPIX, bench_text="FROM NAPIX")
+        s.commit()
+        out = run(s)
+        assert out["entries_seen"] == 3 and out["alerts_new"] == 1
+        [a] = listed_alerts(s, case)
+        assert a.data["entries_total"] == 2
+        assert [
+            (e["court_no"].strip(), e["item_no"].strip(), e["bench_text"]) for e in a.data["entries"]
+        ] == [
+            ("3", "14", "FROM NAPIX"),
+            ("3", "15", "FROM NAPIX"),
+        ]
+
+
+def test_rows_without_court_no_are_not_merged(wide):
+    world = wide
+    with world.Session() as s:
+        case = owned(s, world)
+        listing(s, case, D, court_no=None, printed="14")
+        listing(s, case, D, court_no="", printed="14", source=ListSource.NAPIX)
+        s.commit()
+        run(s)
+        [a] = listed_alerts(s, case)
+        assert a.data["entries_total"] == 2, "a doubtful match never hides a listing"

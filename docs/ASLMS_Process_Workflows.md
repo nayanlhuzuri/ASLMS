@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | Owner | Government of Assam |
-| Describes | The system as built on `main`, 21 October 2026; court data freshness (section 2, items 10 to 12 of section 6) as changed on 24 October 2026; the Case Assistant in preview mode (sections 4.9 and 5), 24 October 2026 |
+| Describes | The system as built on `main`, 21 October 2026; the court-call slots, renewals, State-plus-department remarks and the no-local-model guard of row 137, 24 October 2026; court data freshness (section 2, items 10 to 12 of section 6) as changed on 24 October 2026; the Case Assistant in preview mode (sections 4.9 and 5), 24 October 2026 |
 | Readers | The product owner, department and State officials, auditors and anyone asked how ASLMS handles data |
 | Status | Living document: updated when a workflow changes |
 
@@ -99,7 +99,7 @@ flowchart LR
 | **Notes are append-only** | A note is never edited or deleted. A correction is a new note linked to the old one. |
 | **Legal records are never deleted** | Cases, orders, documents and notes are kept. Documents can be archived, not deleted. |
 | **Everything significant is audited** | Ownership decisions, file movements, notes, uploads, user and configuration changes all write an audit row. |
-| **AI only through SourceTrace** | No other AI service and no local AI model. Only court orders and uploaded court filings may ever go to SourceTrace, never notes or internal documents. It is not connected yet (row 36). The Case Assistant is built, but in preview mode it uses no AI: see section 4.9. |
+| **AI only through SourceTrace** | No other AI service and no local AI model, and the system checks this: if an AI runtime (onnxruntime or a PyMuPDF layout package) ever appears in the installed software, the system refuses to start, in every environment. Only court orders and uploaded court filings may ever go to SourceTrace, never notes or internal documents. It is not connected yet (row 36). The Case Assistant is built, but in preview mode it uses no AI: see section 4.9. |
 
 ---
 
@@ -130,7 +130,9 @@ sequenceDiagram
 
 - **Access token.** ASLMS signs in to NAPIX with its own credentials, which are kept only in the server's `.env`
   file. It receives a token that lasts about 55 minutes. One token is shared by every part of ASLMS and renewed
-  shortly before it expires. If NAPIX rejects a token, ASLMS renews it once and repeats the call.
+  shortly before it expires. If NAPIX rejects a token, ASLMS renews it once and repeats the call. A renewal is not
+  a failure: it is kept in the call counts and the hourly allowance, but it is left out of every failure count (the
+  data-health screen, the data-health report and the monitoring alert).
 - **Encryption.** Every request and answer is encrypted the way NAPIX requires.
 - **Retries.** If the court's server is busy, a call is tried up to three times with short pauses. Work that still
   fails goes back to the queue (section 2.6).
@@ -150,8 +152,15 @@ blocked by background work:
 | Fewer than 100 | Nothing from the queue; the worker waits for the reset |
 | Fewer than 50 | A person's court search is refused with "try again shortly" |
 
+**Many searches at once.** ASLMS makes at most 6 court calls at a time for people's requests (the slots). When all
+slots are busy, a person waits up to 20 seconds, and then sees "the court service is busy, try again shortly". That
+refusal writes nothing and is not counted against the person's hourly limit of 30 searches. Waiting holds no
+database connection, and the record of each call is written on a small connection pool of its own, so a burst of
+searches can no longer lose call rows.
+
 > ⚙️ **You can change this:** the reserves (`NAPIX_RATE_RESERVE`, `NAPIX_LIVE_RESERVE`, `NAPIX_SEARCH_FLOOR`) and
-> each person's limit of 30 court searches an hour are settings in `.env`.
+> each person's limit of 30 court searches an hour are settings in `.env`, as are the slots (`NAPIX_REQUEST_SLOTS`)
+> and the wait (`NAPIX_REQUEST_WAIT_SECONDS`).
 
 ### 2.2 The daily and weekly rhythm
 
@@ -451,6 +460,10 @@ Court records (orders, cause lists) are open to everyone who can see the case.
 
 > ⚠️ **Worth a decision:** State-wide readers (State oversight, central operator, Auditor) can read **private-to-office
 > notes and file remarks** of every department. (Section 6, item 9.)
+
+A login that holds both a State-wide membership and a department membership sees the file remarks of the cases it
+works on through the department membership, as a department-only login does; its calendar and working alerts
+include those cases too. Without a working membership, the State-wide rule above applies.
 
 ---
 
@@ -840,8 +853,8 @@ design for your approval.
 - On a busy day the daily status batches can skip or repeat a few cases, because the batches are worked out when they
   run.
 - Fixed on 24 Oct 2026: `aslms napix-probe-rate` now writes its calls to the call log, and job dates are IST dates.
-- After the latest change, 15 or more simultaneous court searches could exhaust the API's database connections
-  (backlog row 114).
+- Fixed on 24 Oct 2026 (row 137): 15 or more simultaneous court searches could exhaust the API's database
+  connections; searches now wait for a slot and the call records use their own pool (section 2.1).
 
 ---
 

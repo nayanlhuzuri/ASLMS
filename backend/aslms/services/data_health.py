@@ -29,6 +29,7 @@ from aslms.domain.ops import (
     JobRun,
     NapixCallLog,
     SourceFailure,
+    failed_call,
 )
 from aslms.domain.org import Channel, User
 from aslms.domain.reference import Permission
@@ -113,7 +114,7 @@ def napix_health(
     t_calls, t_failed, t_unverified = session.execute(
         select(
             func.count(),
-            func.count().filter(NapixCallLog.ok.is_(False)),
+            func.count().filter(failed_call()),
             func.count().filter(NapixCallLog.token_verified.is_(False)),
         ).where(NapixCallLog.called_at >= day_start)
     ).one()
@@ -122,7 +123,7 @@ def napix_health(
         fam: int(n)
         for fam, n in session.execute(
             select(family, func.count())
-            .where(NapixCallLog.called_at >= day_start, NapixCallLog.ok.is_(False))
+            .where(NapixCallLog.called_at >= day_start, failed_call())
             .group_by(family)
             .order_by(func.count().desc(), family)
         ).all()
@@ -131,7 +132,7 @@ def napix_health(
     last_ok_at = session.scalar(select(func.max(NapixCallLog.called_at)).where(NapixCallLog.ok.is_(True)))
     fail = session.scalar(
         select(NapixCallLog)
-        .where(NapixCallLog.ok.is_(False))
+        .where(failed_call())
         .order_by(NapixCallLog.called_at.desc(), NapixCallLog.id.desc())
         .limit(1)
     )

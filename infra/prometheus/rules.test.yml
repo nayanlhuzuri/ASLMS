@@ -402,6 +402,20 @@ tests:
               summary: "more than 100 failed NAPIX calls in the last hour"
               runbook: "docs/operations.md section 17, NapixErrorsHigh"
 
+  # token renewals are their own series: 150 renewal steps and 10 failures do not fire (design followups-oct, 8)
+  - interval: 1m
+    input_series:
+      - series: 'aslms_napix_calls_last_hour{outcome="renewal"}'
+        values: "150x10"
+      - series: 'aslms_napix_calls_last_hour{outcome="failed"}'
+        values: "10x10"
+      - series: 'aslms_napix_calls_last_hour{outcome="ok"}'
+        values: "900x10"
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: NapixErrorsHigh
+        exp_alerts: []
+
   - interval: 1m
     input_series:
       - series: 'aslms_notifications{status="failed"}'

@@ -3823,6 +3823,8 @@ class LatestAnswerOut(BaseModel):
     inventory_diff: InventoryDiffOut | None
     response_id: uuid.UUID | None
     response_available: bool
+    # the stored answer is over HEALTH_RAW_MAX_BYTES: no structure is read (design followups-oct, decision 9)
+    response_too_large: bool = False
 
 
 class DocLinkOut(BaseModel):

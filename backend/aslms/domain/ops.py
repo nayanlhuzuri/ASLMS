@@ -18,10 +18,12 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    and_,
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.sql.elements import ColumnElement
 
 from aslms.db.base import (
     Base,
@@ -112,6 +114,23 @@ class NapixCallLog(Base):
     lane: Mapped[FetchLane | None] = mapped_column(pg_enum(FetchLane, "fetch_lane"))
     # the person whose action caused the call; NULL for daily and load work, probes and CLI checks (napix-window, 0015)
     user_id: Mapped[uuid.UUID | None] = uuid_fk("users.id", nullable=True, index=False)
+
+
+# A token renewal's first step: the gateway answered 401, the client renewed the token and repeated the call; the
+# step is logged (every call is logged) with `http_status` 401 and no error family. It stays in every call count
+# (the quota window and per-person counts) and leaves every failure reading (design `followups-oct`, decision 8).
+# `IS NOT DISTINCT FROM` keeps the condition two-valued, so its negation is safe on a NULL `http_status`.
+COUNTED_CALL_SQL = "(http_status IS DISTINCT FROM 401 OR error_family IS NOT NULL)"
+
+
+def renewal_step() -> ColumnElement[bool]:
+    """The call-log rows that are a token renewal's 401 step (never NULL, so `~renewal_step()` is null-safe)."""
+    return and_(NapixCallLog.http_status.is_not_distinct_from(401), NapixCallLog.error_family.is_(None))
+
+
+def failed_call() -> ColumnElement[bool]:
+    """A failed call for every failure count: `ok = false` and not a renewal step."""
+    return and_(NapixCallLog.ok.is_(False), ~renewal_step())
 
 
 class NapixResponse(CreatedAtMixin, Base):

@@ -25,6 +25,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from aslms.core.config import Settings
+from aslms.domain.ops import COUNTED_CALL_SQL
 from aslms.domain.org import User
 from aslms.integration.base import CauseListRef
 from aslms.integration.napix.hc import API, NapixHighCourt
@@ -208,7 +209,7 @@ _ANSWERED_SQL = "(ok OR error_family IN ('NapixNotFound', 'NapixInputError'))"
 # the rows that are API calls: a token renewal's 401 step (`http_status` 401, no family) is left out of the rates, the
 # percentiles, the last-three rule and the last calls; the quota window and per-person counts keep it (design
 # api-health-checker-followups, decision 5)
-_COUNTED_SQL = "(http_status IS DISTINCT FROM 401 OR error_family IS NOT NULL)"
+_COUNTED_SQL = COUNTED_CALL_SQL
 
 
 def _now(now: datetime | None) -> datetime:

@@ -35,7 +35,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from aslms.core.config import Settings
-from aslms.domain.ops import NapixCallLog
+from aslms.domain.ops import NapixCallLog, failed_call
 from aslms.domain.org import User
 from aslms.integration.napix.hc import API
 from aslms.services.audit_search import to_ist
@@ -259,14 +259,15 @@ def current(session: Session, settings: Settings, now: datetime | None = None) -
 
 def calls_since(session: Session, start: datetime | None, *, lane_split: bool = False) -> dict[str, Any]:
     """Calls and failures since `start` (S; nothing when it is None, as in `reset_due`), split by lane when asked
-    (`outside_queue` = NULL lane: searches, checks and probes)."""
+    (`outside_queue` = NULL lane: searches, checks and probes). A token renewal's 401 step is a call, never a failure
+    (`failed_call()`, design `followups-oct`, decision 8)."""
     out: dict[str, Any] = {"calls": 0, "failed": 0}
     if lane_split:
         out["by_lane"] = {**{lane: 0 for lane in LANES}, "outside_queue": 0}
     if start is None:
         return out
     rows = session.execute(
-        select(NapixCallLog.lane, func.count(), func.count().filter(NapixCallLog.ok.is_(False)))
+        select(NapixCallLog.lane, func.count(), func.count().filter(failed_call()))
         .where(NapixCallLog.called_at >= start)
         .group_by(NapixCallLog.lane)
     ).all()
@@ -280,12 +281,13 @@ def calls_since(session: Session, start: datetime | None, *, lane_split: bool = 
 
 
 def by_user(session: Session, start: datetime | None, limit: int = 10) -> list[dict[str, Any]]:
-    """Calls by the person who caused them since `start`, most calls first: `{user_id, name, calls, failed}`."""
+    """Calls by the person who caused them since `start`, most calls first: `{user_id, name, calls, failed}`. A token
+    renewal's 401 step counts in `calls`, not in `failed` (decision 8)."""
     if start is None:
         return []
     n = func.count()
     rows = session.execute(
-        select(NapixCallLog.user_id, User.full_name, n, func.count().filter(NapixCallLog.ok.is_(False)))
+        select(NapixCallLog.user_id, User.full_name, n, func.count().filter(failed_call()))
         .join(User, User.id == NapixCallLog.user_id)
         .where(NapixCallLog.user_id.isnot(None), NapixCallLog.called_at >= start)
         .group_by(NapixCallLog.user_id, User.full_name)

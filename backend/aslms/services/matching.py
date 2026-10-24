@@ -29,7 +29,9 @@ from decimal import Decimal
 from typing import Any
 
 import structlog
+from psycopg.errors import DeadlockDetected
 from sqlalchemy import exists, func, or_, select, text
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, sessionmaker
 
 from aslms.core.clock import today_ist
@@ -564,9 +566,13 @@ def apply_scores(
     settings: ss.Settings,
     report: ScoreReport | None = None,
 ) -> ScoreReport:
-    """Writes `case_office_scores` and the engine side of the recommendation lifecycle (decision 5)."""
+    """Writes `case_office_scores` and the engine side of the recommendation lifecycle (decision 5). Takes the case
+    row lock first, the lock `ownership._lock` takes, so a claim and an engine pass on one case are serialised: the
+    engine either sees the claim or finishes first and the claim's closing step closes what it opened (design
+    followups-oct, decision 16)."""
     report = report or ScoreReport()
     report.settings_version = settings.version
+    session.execute(select(Case.id).where(Case.id == case.id).with_for_update())
     recs = list(session.scalars(select(Recommendation).where(Recommendation.case_id == case.id)).all())
     if case.merged_into_case_id is not None:
         for rec in recs:
@@ -691,7 +697,8 @@ def score_cases(
     """Scores each case inside its own savepoint; a failure is recorded in `source_failures` (kind
     `scoring`, ref the case `ref_no`) and never propagates."""
     report = ScoreReport()
-    ids = list(dict.fromkeys(i for i in case_ids if i is not None))
+    # in case-id order, so two engine passes take the case locks in one order (design followups-oct, decision 16)
+    ids = sorted(dict.fromkeys(i for i in case_ids if i is not None))
     if not ids:
         return report
     if rules is None:
@@ -703,16 +710,14 @@ def score_cases(
             continue
         ref = case.ref_no
         try:
-            with session.begin_nested():
-                evidence = CaseEvidence.gather(session, case)
-                apply_scores(
-                    session,
-                    case,
-                    score_case(rules, evidence),
-                    origin=origin,
-                    settings=rules.settings,
-                    report=report,
-                )
+            try:
+                _score_one(session, case, rules, origin, report)
+            except OperationalError as exc:
+                if not isinstance(exc.orig, DeadlockDetected):
+                    raise
+                # Postgres's deadlock detector chose this case: its savepoint is rolled back; retried once
+                log.warning("matching.case_deadlock_retried", case_ref=ref)
+                _score_one(session, case, rules, origin, report)
             report.cases += 1
         except Exception as exc:  # noqa: BLE001 — scoring never fails the pipeline item
             report.failed += 1
@@ -723,6 +728,21 @@ def score_cases(
             except Exception:  # noqa: BLE001
                 log.exception("matching.failure_not_recorded", case_ref=ref)
     return report
+
+
+def _score_one(
+    session: Session, case: Case, rules: RuleSet, origin: RecommendationOrigin, report: ScoreReport
+):
+    with session.begin_nested():
+        evidence = CaseEvidence.gather(session, case)
+        apply_scores(
+            session,
+            case,
+            score_case(rules, evidence),
+            origin=origin,
+            settings=rules.settings,
+            report=report,
+        )
 
 
 # ------------------------------------------------------------------------------------------------ batch rescore
@@ -787,6 +807,7 @@ def rescore_all(session_factory: sessionmaker[Session], *, batch: int = 500) -> 
                     Recommendation.status == RecommendationStatus.RECOMMENDED,
                 )
                 .distinct()
+                .order_by(Case.id)
             ).all()
             for case in merged:
                 apply_scores(

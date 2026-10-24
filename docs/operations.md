@@ -160,6 +160,23 @@ code 3 and the message "The database is at X; this build needs Y". Nothing else 
 If `init` exits with code 4 ("The database is newer than this build"), the code is older than the database: deploy
 the matching build, never downgrade by hand.
 
+**A downgrade of a reference-data migration is a restore, not `alembic downgrade`** (design followups-oct, decision
+19). Migrations such as 0016, 0018 and 0022 change rows (codes, access defaults) and write audit rows and events
+about them. Audit is append-only: an `alembic downgrade` followed by a new upgrade writes those audit rows again, and
+0022 then adds no second `access_changed` event while writing a second `access.rule_changed` row, which cannot be
+undone. To go back before such a migration, restore the `pre-migrate` backup that `migrate` wrote (section 10). The
+next reference-data migrations write through `aslms/db/migration_audit.py`, which records a downgrade and writes each
+audit row once per application.
+
+**`migrate` refuses an image built from other code** (design followups-oct, decision 26). Compose mounts `./backend`
+read-only into `migrate` at `/src`. Before any backup or connection check, `aslms ops migrate` hashes the code it runs
+(the `aslms` package and `/app/migrations`) and compares it with `/src/aslms` and `/src/migrations` (`__pycache__` and
+`*.pyc` skipped). On a difference it stops with exit 5 and names both newest migrations, for example: "migrate: this
+image was built from other code than ./backend (image migrations up to 0022, ./backend up to 0023; aslms package
+differs). Build it: `docker compose build && docker compose --profile ops build migrate`, then run migrate again."
+There is no override. When there is no source tree (a pilot loaded with `docker load`), it prints "migrate: no source
+tree to compare; this image's newest migration is 00NN" and continues. `aslms ops restore` is not gated.
+
 **The document store must be writable by uid 10001** (design pre-pilot-hardening, decision 3). `init` runs
 `aslms ops store-check` right after preflight: it creates `/data/store` when missing and writes and removes a probe
 file in the store and in every first-level folder. On success the log shows `store-check: /data/store writable
@@ -299,6 +316,14 @@ backlog row 27) or Mailtrap's sending service with a verified domain. Test with
 
 - **`init` exits with a preflight error:** the message names the variable (never the value). Fix `.env` and run
   `docker compose up -d` again.
+- **`preflight fatal: no_local_model: onnxruntime found in ...`** (design followups-oct, decision 25): a dependency
+  brought an onnxruntime (a neural-network runtime) into the image, or the installed PyMuPDF carries one. ASLMS runs
+  no local model (all AI goes through SourceTrace), so the start is refused at every `APP_ENV`. Pin the dependency
+  back (PyMuPDF stays `>=1.24,<2`) and rebuild. PyMuPDF 1.28.2 carries none (measured 24 Oct 2026); an
+  "onnxruntime ... telemetry" line in a terminal while no container log holds one
+  (`docker compose logs --no-color api worker scheduler | grep -c onnxruntime` prints 0) comes from a host process.
+- **`migrate` exits 5, "this image was built from other code than ./backend":** build both images (section 6, step 1)
+  and run it again.
 - **`init` exits 3, "database behind head":** run the upgrade procedure (section 6).
 - **`init` exits 4, "database newer than this build":** deploy the matching build.
 - **Uploads answer 503:** ClamAV is not ready (`docker compose ps clamav`, `docker compose logs clamav`). See
@@ -497,6 +522,46 @@ docker compose exec postgres psql -U aslms -d aslms -c "select usename, client_a
 ```
 
 `docker compose logs pgbouncer` shows refused logins and pool errors.
+
+### Connection budget
+
+Design followups-oct, decisions 1 to 5 (row 137). A portal request that calls NAPIX (court search, fetch from court,
+the data-load fetch, the connectivity check, System health's Test now, Send and Check token) keeps one connection,
+inside an open transaction, for the whole NAPIX wait. Two rules keep that from starving everything else:
+- **Apart writes have their own small engine.** The NAPIX call rows and the apart audit rows of those requests are
+  written through a pool of `DB_APART_POOL_SIZE` connections (default 3, no overflow, `DB_APART_POOL_TIMEOUT_SECONDS`
+  10), never the request's pool, so a writer never waits behind a request that holds a connection across NAPIX.
+- **At most `NAPIX_REQUEST_SLOTS` requests per api process wait on NAPIX at once** (default 6). A request gives its
+  connection back before it waits for a slot and waits up to `NAPIX_REQUEST_WAIT_SECONDS` (default 20) holding none;
+  when no slot frees it answers 503 `napix_busy` ("Court searches are busy; try again in a few seconds.",
+  `Retry-After: 15`), writes nothing and is not counted against the person's hourly searches. Inside the slot the
+  guard runs again.
+
+The main pool of each process is 5 connections plus 10 overflow with a 30 s wait, set in `db/session.py`.
+
+**The formula**, checked by `aslms ops preflight` (finding `connection_budget`; an error at `APP_ENV=prod`, a warning
+otherwise):
+
+```
+NAPIX_REQUEST_SLOTS + 1 worker + 1 scheduler + DB_APART_POOL_SIZE + 4 (reserve for short page transactions)
+    <= PGBOUNCER_DEFAULT_POOL_SIZE                         (defaults: 6 + 1 + 1 + 3 + 4 = 15 <= 20)
+```
+
+- More uvicorn processes multiply the api terms (slots and the apart pool) by the number of processes.
+- Raise PgBouncer's pool (and keep it under `PG_MAX_CONNECTIONS`) **before** raising the slots.
+- Up to 40 synchronous requests share Starlette's thread pool. A burst of more than 34 simultaneous searches would
+  hold threads while waiting; the per-person hourly limit and the pilot's user count make that unlikely.
+
+**Load check** (read-only, writes no row), next to the running stack:
+
+```
+docker compose exec api aslms ops pool-check --holders 8 --pages 20 --apart 200 --seconds 30
+```
+
+It builds the api's engines from the same settings, holds `--holders` transactions open in `pg_sleep` (default
+`NAPIX_REQUEST_SLOTS + 2`), runs `--pages` page transactions per second and `--apart` apart writes, and prints JSON
+(apart wait p50 and maximum, page wait maximum, timeouts). It exits 1 when an apart wait exceeds 1 s or any timeout
+occurs.
 
 **Deferring PgBouncer** (owner check 7): to run without it, the three services' `DATABASE_URL_SYNC` would point at
 `postgres:5432` again. That is a recorded deviation in the design, never a quiet edit of `compose.yml`.

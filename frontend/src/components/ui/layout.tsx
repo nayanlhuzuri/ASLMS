@@ -274,12 +274,15 @@ export function Collapsible({
   summary,
   after,
   defaultOpen = false,
+  onToggle,
   children,
 }: {
   summary: ReactNode;
   /** Always shown under the summary button, outside it (a row's own facts, which may hold their own controls). */
   after?: ReactNode;
   defaultOpen?: boolean;
+  /** Told each time the section opens or closes (the console's full answer is fetched on each opening). */
+  onToggle?: (open: boolean) => void;
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -293,8 +296,9 @@ export function Collapsible({
         aria-expanded={open}
         aria-controls={bodyId}
         onClick={() => {
-          setOpen((v) => !v);
+          setOpen(!open);
           setOpened(true);
+          onToggle?.(!open);
         }}
       >
         <svg className={s.chev} aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

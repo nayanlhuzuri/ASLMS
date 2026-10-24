@@ -5,6 +5,7 @@ import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { nav, resetNav } from "@/test/nav";
+import { controlClass } from "@/components/ui/controls";
 import { json, renderWithClient } from "@/test/render";
 import { consoleOf, detailOf, referenceOf, routes, sendResult, summary, tokenState } from "@/test/systemFixtures";
 
@@ -356,5 +357,75 @@ describe("the Access token card and modal", () => {
     expect(await within(dialog).findByLabelText("cURL template")).toHaveTextContent("<CLIENT_KEY>:<CLIENT_SECRET>");
     await userEvent.click(within(dialog).getByRole("button", { name: "Check token · 1 token request" }));
     expect(await within(dialog).findByRole("alert")).toHaveTextContent("The token was checked a moment ago. Next check possible in 9 minutes.");
+  });
+});
+
+describe("followups-oct: the full answer, a too-large answer and the button sizes", () => {
+  const LATEST = {
+    at: "2026-10-21T14:33:00+05:30",
+    by: "person" as const,
+    structure: null,
+    inventory_diff: null,
+    response_id: "0192f000-0000-7000-8000-000000000002",
+    response_available: true,
+    response_too_large: false,
+  };
+
+  it("each opening of the full answer fetches again", async () => {
+    const api = consoleRoutes({
+      [`GET ${BASE}/napix/cnr/console`]: consoleOf({ latest_answer: LATEST }),
+      [`GET ${BASE}/napix/cnr/response`]: { ...RAW, source: "latest" },
+    });
+    renderWithClient(<SystemHealth params={{ api: "cnr", tab: "response" }} />);
+    const dialog = await screen.findByRole("dialog", { name: "Case details by CNR" });
+    const section = await within(dialog).findByRole("button", { name: "Full answer (JSON)" });
+    const fetches = () => api.calls.filter((c) => c.path.includes("/response?source=latest")).length;
+    expect(fetches()).toBe(0);
+    await userEvent.click(section);
+    await within(dialog).findByLabelText("Full answer (JSON)");
+    expect(fetches()).toBe(1);
+    await userEvent.click(section); // closed: nothing fetched
+    expect(fetches()).toBe(1);
+    await userEvent.click(section); // opened again: read again, so audited again
+    await waitFor(() => expect(fetches()).toBe(2));
+    expect(await within(dialog).findByLabelText("Full answer (JSON)")).toHaveTextContent('"cino": "GAHC010118832025"');
+  });
+
+  it("too-large answer shows the note", async () => {
+    consoleRoutes({
+      [`GET ${BASE}/napix/cnr/console`]: consoleOf({ latest_answer: { ...LATEST, response_too_large: true } }),
+    });
+    renderWithClient(<SystemHealth params={{ api: "cnr", tab: "response" }} />);
+    const dialog = await screen.findByRole("dialog", { name: "Case details by CNR" });
+    expect(await within(dialog).findByText("This answer is too large to outline here.")).toBeInTheDocument();
+    expect(within(dialog).queryByRole("region", { name: "The structure of the answer" })).toBeNull();
+  });
+
+  it("Copy, Download, Help and Try again are md", async () => {
+    const api = consoleRoutes({
+      [`GET ${BASE}/napix/cnr/console`]: consoleOf({ latest_answer: LATEST }),
+      [`GET ${BASE}/napix/cnr/response`]: { ...RAW, source: "latest" },
+    });
+    const view = renderWithClient(<SystemHealth params={{ api: "cnr", tab: "request" }} />);
+    let dialog = await screen.findByRole("dialog", { name: "Case details by CNR" });
+    await within(dialog).findByRole("textbox", { name: "cino" });
+    const copies = within(dialog).getAllByRole("button", { name: "Copy" });
+    expect(copies.length).toBeGreaterThanOrEqual(3); // method and URL, plain string, cURL
+    for (const b of copies) expect(b).toHaveAttribute("data-size", "md");
+    expect(within(dialog).getByRole("link", { name: "NAPIX documentation for this API" }).className).toContain(controlClass);
+    await userEvent.click(within(dialog).getByRole("tab", { name: "Response" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Full answer (JSON)" }));
+    await within(dialog).findByLabelText("Full answer (JSON)");
+    for (const name of ["Copy", "Download"]) {
+      const toolbar = within(dialog).getAllByRole("button", { name }).at(-1)!;
+      expect(toolbar).toHaveAttribute("data-size", "md");
+    }
+    // the console's error state, in a fresh client (the console above is cached)
+    view.unmount();
+    routes(summary(), { [`GET ${BASE}/napix/cnr/console`]: json(500, { detail: "boom" }) });
+    renderWithClient(<SystemHealth params={{ api: "cnr", tab: "request" }} />);
+    dialog = await screen.findByRole("dialog", { name: "Case details by CNR" });
+    expect(await within(dialog).findByRole("button", { name: "Try again" })).toHaveAttribute("data-size", "md");
+    expect(api.calls.length).toBeGreaterThan(0);
   });
 });
