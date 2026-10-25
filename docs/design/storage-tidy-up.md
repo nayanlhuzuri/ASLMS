@@ -2,10 +2,10 @@
 
 ```
 slug: storage-tidy-up
-status: awaiting-approval
+status: approved
 author: architect
 date: 2026-10-25
-approved_by:
+approved_by: owner on 2026-10-25, with the recommended answers except c: no compression change at all (no lz4 anywhere, no toast target change), because the measured difference is not worth it
 ```
 
 ## Context
@@ -149,7 +149,9 @@ Counts grow while the historical load runs.
    no `response_id`, the writer sets `response_id` and `payload_key` and clears `payload`. This covers rows the
    command could not match. Dev has none, but a database restored from an older dump could.
 
-8. **Compression: lz4 only for `document_text.full_text`, and no `toast_tuple_target` change. This deviates from
+8. *Owner, 25 Oct 2026: **no compression change at all.** The lz4 switch on `document_text.full_text` below is dropped; no column's compression or toast target changes. The measurements below stay for the record.*
+
+   8. **Compression: lz4 only for `document_text.full_text`, and no `toast_tuple_target` change. This deviates from
    the backlog wording, with measurements.**
 
    Real values exported read-only from dev (5,000 cause-list rows, 5,000 order rows, 3,000 dossiers, 150 Current
@@ -269,7 +271,7 @@ Upgrade, one transaction, schema only:
 
    Both CHECKs are valid at once, because every row has a payload.
 2. `DROP INDEX ix_case_snapshots_case_id`; `DROP INDEX ix_case_parties_name_normalised`.
-3. `ALTER TABLE document_text ALTER COLUMN full_text SET COMPRESSION lz4`.
+3. ~~`ALTER TABLE document_text ALTER COLUMN full_text SET COMPRESSION lz4`~~ dropped by the owner (no compression change).
 4. `CREATE TRIGGER napix_responses_frozen BEFORE UPDATE OF api, params_sha256, params, payload_sha256, payload,
    fetched_at ON napix_responses FOR EACH ROW EXECUTE FUNCTION aslms_forbid_change()`.
 5. `COMMENT ON COLUMN cases.raw` and `orders.raw`: "Not written since migration 00NN (design storage-tidy-up); the
