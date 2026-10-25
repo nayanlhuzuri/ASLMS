@@ -2,10 +2,10 @@
 
 ```
 slug: case-ref-court-prefix
-status: awaiting-approval
+status: approved
 author: architect
 date: 2026-10-25
-approved_by:
+approved_by: owner on 2026-10-25 (approved in advance of the note, with the recommended answers a-h: keep year and number; GHC on all four Gauhati High Court establishments; discovery cases on the court; alerts stay on GOA; one summary audit row; office codes may not equal a court code; timeline shows the current number; old numbers looked up)
 ```
 
 ## Context
