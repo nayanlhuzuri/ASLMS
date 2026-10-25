@@ -222,11 +222,12 @@ def test_order_change_reprioritises_pending_load_rows_only(world):
         )
         _put(s, FetchKind.DOSSIER, "GAHC010000032025", FetchStatus.PENDING, lane=FetchLane.DAILY, priority=40)
         settings, n = data_load.set_order(s, actor, user, "lists_first", None, None, "lists first")
-        assert n == 4
+        assert n == 3  # order PDFs do not depend on the preset (owner, 24 Oct 2026)
         prio = {(r.kind, r.ref): r.priority for r in s.scalars(sa.select(FetchQueueItem)).all()}
         assert prio[(FetchKind.CAUSELIST_DAY, "2025-01-10")] == 44
         assert prio[(FetchKind.CAUSELIST_DAY, "2025-01-31")] == 44
         assert prio[(FetchKind.DOSSIER, "GAHC010000012025")] == 46
+        # an order PDF does not depend on the preset: left to `pdfs-after-details`
         assert prio[(FetchKind.ORDER_PDF, "GAHC010000012025|1|2025-01-10")] == 48
         assert prio[(FetchKind.CAUSELIST_DAY, "2025-01-01")] == 46  # done: untouched
         assert prio[(FetchKind.DOSSIER, "GAHC010000022025")] == 44  # running: untouched
@@ -238,7 +239,7 @@ def test_order_change_reprioritises_pending_load_rows_only(world):
         assert prio[(FetchKind.DOSSIER, "GAHC010000012025")] == 41
         assert prio[(FetchKind.CAUSELIST_DAY, "2025-01-10")] == 42
         assert prio[(FetchKind.CAUSELIST_DAY, "2025-01-31")] == 46
-        assert prio[(FetchKind.ORDER_PDF, "GAHC010000012025|1|2025-01-10")] == 48  # list date 20 Jan: outside
+        assert prio[(FetchKind.ORDER_PDF, "GAHC010000012025|1|2025-01-10")] == 48  # not a detail kind
         for ff, ft in (
             (date(2024, 12, 1), date(2025, 1, 5)),
             (date(2025, 1, 5), None),

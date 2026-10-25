@@ -293,7 +293,9 @@ date the operator chooses (2025-01-01 in development):
   each case's full record and its order PDFs.
 - It runs only when there is plenty of hourly allowance (150 or more calls left), so it never slows people down.
 - The operator can **start**, **pause**, **resume** and choose the **order**: cases first, lists first, or cases
-  with their orders.
+  with their orders. Whatever the order, **case details come first and order PDFs later** (owner, 24 Oct 2026):
+  the remaining cause lists and every case's full record are fetched before the order PDFs. "Cases with their
+  orders" now behaves as "cases first".
 - Before re-fetching days already held, it asks whether to skip them or fetch them again.
 
 **Department discovery** finds a department's older cases that will not appear in upcoming cause lists:
@@ -314,11 +316,17 @@ All court work waits in one queue (`fetch_queue`). Each item has a **priority**,
 | 20 | Cause lists for yesterday, today and tomorrow |
 | 21 | Cause list re-checks |
 | 30 | The daily status refresh, and **requests made by people** |
-| 40 | Full records and orders of live cases |
-| 41–49 | The historical load and discovery |
+| 40 | Full records of live cases, and the **order PDFs of a case a person asked for** (a search, a fetch from the court or a claim refresh) |
+| 41–46 | The historical load: cause lists and full records (discovery's records and searches at 41–43) |
 | 50 | The weekly sweep |
 | 55 | The monthly refresh of disposed cases |
+| 60 | Order PDFs of live cases (daily cycle, historical load and discovery) |
 | 80 | Order PDFs of disposed cases |
+
+**Case details first, order PDFs later** (owner, 24 Oct 2026): order PDFs wait behind every cause list and full
+record, so the remaining cause lists and every case's details are completed first. A person's own case still gets
+its orders at once (40). Order PDFs queued before the change are moved once by the operator with
+`aslms data-load pdfs-after-details` (a dry run) and then `--apply`.
 
 **When an item fails**, it is tried again after 10 minutes, then 1 hour, 6 hours, 24 hours and 72 hours. After six
 failures it is marked failed and listed under data health. An operator can put it back in the queue. "Not found" and

@@ -1,5 +1,6 @@
-"""`aslms data-load status | coverage | start | pause | resume | order | dedupe` (design `data-load-console`,
-decision 20). Every action acts as the single active super admin through its super-admin membership (the `system`
+"""`aslms data-load status | coverage | start | pause | resume | order | pdfs-after-details | dedupe` (design
+`data-load-console`, decision 20; `pdfs-after-details`: case details before order PDFs, owner 24 Oct 2026).
+Every action acts as the single active super admin through its super-admin membership (the `system`
 actor before one exists) and is audited, as the API's actions are. `status` and `coverage` read only."""
 
 from __future__ import annotations
@@ -12,7 +13,7 @@ from rich import print as rprint
 from rich.table import Table
 
 from aslms.core.config import get_settings
-from aslms.db.session import session_scope
+from aslms.db.session import get_sessionmaker, session_scope
 from aslms.domain.ops import LoadOrder
 from aslms.services import data_load
 from aslms.services.access import Forbidden
@@ -142,6 +143,43 @@ def order(
         except REFUSED as exc:
             raise _refused(exc) from exc
     rprint(f"{out.load_order} (version {out.version}); {n} pending load rows re-prioritised")
+
+
+@data_load_app.command("pdfs-after-details")
+def pdfs_after_details(
+    apply: bool = typer.Option(
+        False, "--apply", help="move the rows (without it: a dry run, nothing written)"
+    ),
+) -> None:
+    """Case details before order PDFs (owner, 24 Oct 2026): move every order PDF of the daily, load and discovery
+    lanes below 60, in any status but running, to 60 for a pending case and 80 otherwise, in batches and repeated
+    passes; request-lane rows keep their priority. A dry run by default; audited `data_load.pdfs_after_details`;
+    idempotent; safe while the worker runs."""
+    with session_scope() as s:
+        actor, member = _cli_actor(s)
+    try:
+        out = data_load.pdfs_after_details(get_sessionmaker(), actor, member, apply=apply)
+    except REFUSED as exc:
+        raise _refused(exc) from exc
+    found = out["found"]
+    rprint(f"order PDFs ahead of case details: {found['rows']} {found['by_lane']} {found['by_status']}")
+    rprint(f"  to 60: {found['to_60']}, to 80 (case not pending): {found['to_80']}")
+    rprint(f"  running now, not moved: {found['running']}")
+    rprint(f"  request-lane order PDFs kept as they are: {out['request_lane_kept']}")
+    if not apply:
+        rprint("dry run: nothing written (--apply moves them)")
+        return
+    moved = out["moved"]
+    rprint(
+        f"moved: {moved['rows']} {moved['by_lane']} {moved['by_status']} "
+        f"(to 60: {moved['to_60']}, to 80: {moved['to_80']})"
+    )
+    if out["job_run_id"] is not None:
+        rprint(f"job run {out['job_run_id']}, {moved['batches']} batch(es) in {moved['passes']} pass(es)")
+    if moved["left"]:
+        rprint(
+            f"[yellow]{moved['left']} row(s) still below 60 (running or locked): run it again later[/yellow]"
+        )
 
 
 @data_load_app.command("dedupe")

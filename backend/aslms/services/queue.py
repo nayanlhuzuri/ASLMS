@@ -26,10 +26,11 @@ spawns. `claim` skips `load` rows while the current `data_load_settings` version
 carries the person who asked for its pending run in `requested_by` (design `napix-window`, decision 10).
 
 Priorities (lower runs first): masters 10; yesterday's, today's and tomorrow's lists 20; the evening rechecks of held
-lists 21; status batches and a person's requests 30; the daily cycle's new dossiers and live-case order PDFs 40; the
-backdated load 41-48 by the preset and the period brought forward (`services/load_policy.py`); the weekly dossier
-sweep 50; the monthly dossiers of cases disposed within a year 55 (design `court-data-freshness`, decision 2);
-disposed-case order PDFs 80."""
+lists 21; status batches and a person's requests 30; the daily cycle's new dossiers and a person's order PDFs 40; the
+backdated load 41-46 by the preset and the period brought forward, and discovery 41-43 (`services/load_policy.py`);
+the weekly dossier sweep 50; the monthly dossiers of cases disposed within a year 55 (design `court-data-freshness`,
+decision 2); live-case order PDFs of the daily, load and discovery lanes 60, after every detail kind (owner, 24 Oct
+2026: case details first, order PDFs later); disposed-case order PDFs 80."""
 
 from __future__ import annotations
 
@@ -50,7 +51,7 @@ PRIORITY = {
     "status": 30,
     "request": 30,
     "dossier_new": 40,
-    "order_pdf_live": 40,
+    "order_pdf_live": 60,
     "dossier_refetch": 50,
     "dossier_disposed": 55,
     "order_pdf": 80,

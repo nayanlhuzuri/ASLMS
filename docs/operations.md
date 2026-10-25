@@ -273,6 +273,11 @@ empty to signed in in the decisions log.
   `NAPIX_ENABLED=true docker compose up -d` turns both on, and a start without it leaves both off.
 - Pause and resume the backdated load on the portal's Data collection screen (or `aslms data-load pause --reason ...` /
   `resume`). Do not stop the worker for that.
+- Case details before order PDFs (owner, 24 Oct 2026; backlog row 142): once after that change merges, run
+  `docker compose exec api aslms data-load pdfs-after-details` (a dry run that prints the counts), then the same with
+  `--apply`. It is safe while the worker runs (it skips rows the worker holds and repeats its pass until nothing
+  moves; if it reports rows left, run it again later). Let it finish: do not kill it hard, because a hard kill leaves
+  the rows already moved with no audit row and its `job_runs` row `running`.
 - `job_runs` rows left `running` by a restart are marked failed (`interrupted`) when the worker, the scheduler and
   the backup service start (decision 18). Never run `aslms queue-run` by hand during a restart. For an old stuck row:
   `docker compose exec api aslms ops repair-jobs --older-than 6h [--job NAME] [--dry-run]`.

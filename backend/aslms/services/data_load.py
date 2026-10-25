@@ -5,7 +5,11 @@ any call when the data is already held; the duplicate lists and the on-demand sc
 - **Settings** (decision 18): `data_load_settings` is a versioned master. `pause`, `resume` and `set_order` insert a
   new version and close the previous one; each writes one audit row (`data_load.paused`, `data_load.resumed`,
   `data_load.order_changed`). Pausing while paused or resuming while running answers `no_change`. `set_order`
-  rewrites the priority of every pending load row in one statement (decision 3).
+  rewrites the priority of every pending load cause-list day and dossier in one statement (decision 3).
+- **PDFs after details** (owner, 24 Oct 2026): `pdfs_after_details` moves the order PDFs queued before the change
+  (daily, load and discovery rows below 60 in any status but running) to 60 for a pending case, 80 otherwise, in
+  batches and repeated passes under a `job_runs` row; never a request-lane row; audited
+  `data_load.pdfs_after_details`; a dry run by default.
 - **Start** (decision 9): `preview` writes nothing and makes no call. `start` queues each day of the range in the
   `load` lane with its `list_date` and the policy priority; days already held (done with lists, or skipped: the
   court published none) need an explicit `held` choice (`skip` or `refetch`), otherwise `AlreadyHeld` and nothing is
@@ -32,7 +36,7 @@ from typing import Any
 
 from sqlalchemy import and_, func, or_, select, text
 from sqlalchemy.exc import OperationalError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 
 from aslms.core.config import Settings
 from aslms.domain.cases import Case, CaseLink, CaseParty, LinkKind
@@ -44,6 +48,8 @@ from aslms.domain.ops import (
     FetchLane,
     FetchQueueItem,
     FetchStatus,
+    JobRun,
+    JobStatus,
     LoadOrder,
     NapixCallLog,
     SourceFailure,
@@ -58,7 +64,9 @@ from aslms.services.audit_search import to_ist
 from aslms.services.cases import CaseNotFound, normalise_name, resolve_case_ref
 from aslms.services.load_policy import (
     DEFAULTS,
+    DISPOSED_ORDER_PDF,
     FORWARD,
+    LIVE_ORDER_PDF,
     LOAD_KINDS,
     OTHERWISE,
     PRESET_ORDER,
@@ -300,33 +308,27 @@ def resume(
 
 
 def reprioritise(session: Session, settings: LoadSettings) -> int:
-    """Every pending load row takes the policy priority (decision 3), in one statement."""
+    """Every pending load cause-list day and dossier takes the policy priority (decision 3), in one statement.
+    Order PDFs do not depend on the preset (60 / 80 after every detail kind, owner 24 Oct 2026) and are left as they
+    are; `pdfs_after_details` moves the ones queued before that change."""
     k = PRESET_ORDER[LoadOrder(settings.load_order)]
     params: dict[str, Any] = {
         "k1": k[0].value,
-        "k2": k[1].value,
-        "k3": k[2].value,
         "f1": FORWARD[0],
         "f2": FORWARD[1],
-        "f3": FORWARD[2],
         "o1": OTHERWISE[0],
         "o2": OTHERWISE[1],
-        "o3": OTHERWISE[2],
         "ff": settings.first_from,
         "ft": settings.first_to,
     }
-    forward = (
-        "CASE kind WHEN CAST(:k1 AS fetch_kind) THEN :f1 WHEN CAST(:k2 AS fetch_kind) THEN :f2 ELSE :f3 END"
-    )
-    otherwise = (
-        "CASE kind WHEN CAST(:k1 AS fetch_kind) THEN :o1 WHEN CAST(:k2 AS fetch_kind) THEN :o2 ELSE :o3 END"
-    )
+    forward = "CASE kind WHEN CAST(:k1 AS fetch_kind) THEN :f1 ELSE :f2 END"
+    otherwise = "CASE kind WHEN CAST(:k1 AS fetch_kind) THEN :o1 ELSE :o2 END"
     sql = f"""
         UPDATE fetch_queue SET priority = CASE
             WHEN CAST(:ff AS date) IS NOT NULL AND list_date BETWEEN CAST(:ff AS date) AND CAST(:ft AS date)
             THEN {forward} ELSE {otherwise} END
         WHERE lane = 'load' AND status = 'pending'
-          AND kind IN ('causelist_day', 'dossier', 'order_pdf')
+          AND kind IN ('causelist_day', 'dossier')
     """
     return int(session.execute(text(sql), params).rowcount or 0)
 
@@ -379,6 +381,186 @@ def set_order(
         after={**settings_dict(after), "reprioritised": n},
     )
     return after, n
+
+
+# ------------------------------------------------------------------------------------------------ PDFs after details
+
+PDFS_AFTER_DETAILS_JOB = "pdfs-after-details"
+PDFS_AFTER_DETAILS_BATCH = 5000
+PDFS_AFTER_DETAILS_PASSES = 5
+_PDF_LANES = "q.kind = 'order_pdf' AND q.lane IN ('daily', 'load', 'discovery')"
+# the order PDFs queued before the owner's change of 24 Oct 2026 (case details before order PDFs): daily, load and
+# discovery rows still ahead of the detail kinds, in every status but `running` (a pending row runs too early; a
+# failed, skipped or done row would be revived at its old priority by `queue.enqueue`'s LEAST or by
+# `queue-retry-failed`); a request-lane row is never touched
+_PDF_ROWS = f"""
+    FROM fetch_queue q LEFT JOIN cases c ON c.cnr = split_part(q.ref, '|', 1)
+    WHERE {_PDF_LANES} AND q.status <> 'running' AND q.priority < {LIVE_ORDER_PDF}
+"""
+# the enqueue path's rule (`QueueOrigin.order_pdf_priority`): only a pending case's PDF takes 60; a disposed or
+# unknown case, or a row whose case is not held, takes 80
+_PDF_TARGET = f"CASE WHEN c.status = 'pending' THEN {LIVE_ORDER_PDF} ELSE {DISPOSED_ORDER_PDF} END"
+
+
+def _pdf_counts(by: dict[tuple[str, str, int], int]) -> dict[str, Any]:
+    by_lane: dict[str, int] = {}
+    by_status: dict[str, int] = {}
+    for (lane, status, _), n in by.items():
+        by_lane[lane] = by_lane.get(lane, 0) + n
+        by_status[status] = by_status.get(status, 0) + n
+    return {
+        "rows": sum(by.values()),
+        f"to_{LIVE_ORDER_PDF}": sum(n for (_, _, p), n in by.items() if p == LIVE_ORDER_PDF),
+        f"to_{DISPOSED_ORDER_PDF}": sum(n for (_, _, p), n in by.items() if p == DISPOSED_ORDER_PDF),
+        "by_lane": dict(sorted(by_lane.items())),
+        "by_status": dict(sorted(by_status.items())),
+    }
+
+
+def _pdf_running(s: Session) -> int:
+    """Rows of the three lanes below 60 that are running now: not moved; a re-run catches them once they finish."""
+    return int(
+        s.scalar(
+            text(
+                f"SELECT count(*) FROM fetch_queue q WHERE {_PDF_LANES} AND q.status = 'running' "
+                f"AND q.priority < {LIVE_ORDER_PDF}"
+            )
+        )
+        or 0
+    )
+
+
+def _pdf_pass(session_factory: sessionmaker[Session], batch: int) -> tuple[list[tuple[str, str, int]], int]:
+    """One keyset pass over the rows in id order, `batch` at a time, one commit per batch. `SKIP LOCKED`: a row a
+    runner holds is left for the next pass, so the command never waits on the worker."""
+    moved: list[tuple[str, str, int]] = []
+    batches = 0
+    last: uuid.UUID | None = None
+    while True:
+        with session_factory() as s:
+            rows = s.execute(
+                text(
+                    f"""
+                    WITH picked AS (
+                        SELECT q.id, {_PDF_TARGET} AS target
+                        {_PDF_ROWS}
+                          AND (CAST(:last AS uuid) IS NULL OR q.id > CAST(:last AS uuid))
+                        ORDER BY q.id
+                        LIMIT :batch
+                        FOR UPDATE OF q SKIP LOCKED
+                    )
+                    UPDATE fetch_queue f SET priority = picked.target
+                    FROM picked WHERE f.id = picked.id
+                    RETURNING f.id, f.lane, f.status, f.priority
+                    """
+                ),
+                {"last": last, "batch": batch},
+            ).all()
+            s.commit()
+        if not rows:
+            return moved, batches
+        batches += 1
+        moved.extend((str(lane), str(status), int(priority)) for _, lane, status, priority in rows)
+        last = max(r[0] for r in rows)
+
+
+def pdfs_after_details(
+    session_factory: sessionmaker[Session],
+    actor: Actor,
+    user: User | Member | None,
+    *,
+    apply: bool,
+    batch: int = PDFS_AFTER_DETAILS_BATCH,
+    passes: int = PDFS_AFTER_DETAILS_PASSES,
+) -> dict[str, Any]:
+    """`aslms data-load pdfs-after-details` (owner, 24 Oct 2026): every `order_pdf` row of the daily, load and
+    discovery lanes below 60, in any status but `running` (pending, failed, skipped or done, so no old priority
+    survives a later revival), takes its priority under the new policy: 60 for a pending case, 80 otherwise (the
+    enqueue path's rule). A request-lane row is never touched (a person's own case keeps 40). A dry run writes
+    nothing and returns the counts. With `apply` the rows move in keyset passes of batches of `batch` (one commit
+    each, `FOR UPDATE SKIP LOCKED`) under a `job_runs` row `pdfs-after-details`, repeated until a pass moves nothing
+    (at most `passes`), so a row that was running or locked and came back below 60 is caught; `left` counts the rows
+    still below 60 afterwards (running ones: run it again later). One audit row `data_load.pdfs_after_details`
+    records the counts when anything moved. Idempotent: a second run moves nothing. Needs `admin.data_load` (the
+    `system` actor before a super admin)."""
+    with session_factory() as s:
+        member = _member(s, user)
+        who = access.actor_as(actor, member)
+        found = {
+            (str(lane), str(status), int(target)): int(n)
+            for lane, status, target, n in s.execute(
+                text(
+                    f"SELECT q.lane, q.status, {_PDF_TARGET} AS target, count(*) {_PDF_ROWS} GROUP BY 1, 2, 3"
+                )
+            ).all()
+        }
+        running = _pdf_running(s)
+        request_kept = int(
+            s.scalar(
+                text(
+                    "SELECT count(*) FROM fetch_queue "
+                    "WHERE kind = 'order_pdf' AND status <> 'running' AND lane = 'request'"
+                )
+            )
+            or 0
+        )
+    out: dict[str, Any] = {
+        "dry_run": not apply,
+        "found": {**_pdf_counts(found), "running": running},
+        "request_lane_kept": request_kept,
+        "moved": None,
+        "job_run_id": None,
+    }
+    if not apply or not found:
+        if apply:
+            out["moved"] = {**_pdf_counts({}), "batches": 0, "passes": 0, "left": running}
+        return out
+    with session_factory() as s:
+        run = JobRun(job=PDFS_AFTER_DETAILS_JOB, run_date=today_ist(), counters={})
+        s.add(run)
+        s.commit()
+        run_id = run.id
+    moved: dict[tuple[str, str, int], int] = {}
+    batches = done_passes = 0
+    left: int | None = None
+    status, error = JobStatus.FAILED, None
+    try:
+        while done_passes < max(1, passes):
+            rows, n = _pdf_pass(session_factory, batch)
+            done_passes += 1
+            batches += n
+            for key in rows:
+                moved[key] = moved.get(key, 0) + 1
+            if not rows:
+                break
+        with session_factory() as s:
+            left = int(s.scalar(text(f"SELECT count(*) {_PDF_ROWS}")) or 0) + _pdf_running(s)
+        status = JobStatus.SUCCEEDED
+    except Exception as exc:
+        error = f"{exc.__class__.__name__}: {exc}"[:2000]
+        raise
+    finally:
+        counts = {**_pdf_counts(moved), "batches": batches, "passes": done_passes, "left": left}
+        with session_factory() as s:
+            run = s.get(JobRun, run_id)
+            if run is not None:
+                run.finished_at = datetime.now(UTC)
+                run.status = status
+                run.error = error
+                run.counters = counts
+            if moved:
+                write_audit(
+                    s,
+                    who,
+                    "data_load.pdfs_after_details",
+                    "fetch_queue",
+                    None,
+                    after={**counts, "request_lane_kept": request_kept, "job_run_id": str(run_id)},
+                )
+            s.commit()
+    out["moved"] = counts
+    out["job_run_id"] = run_id
+    return out
 
 
 # ------------------------------------------------------------------------------------------------ start

@@ -2184,7 +2184,7 @@ export const T = {
     presets: {
       cases_first: "Case details first",
       lists_first: "Cause lists first",
-      cases_with_orders: "Case details with their orders",
+      cases_with_orders: "Case details, then cause lists (order PDFs always come after details)",
     } as Record<string, string>,
     firstFrom: "Bring forward from",
     firstTo: "Bring forward to",

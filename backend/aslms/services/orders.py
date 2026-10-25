@@ -40,8 +40,8 @@ def order_ref(cnr: str, order: Order) -> str:
 
 def enqueue_order_pdfs(session: Session, case: Case, origin: QueueOrigin | None = None) -> int:
     """Queue the PDFs this case still lacks, in the lane of the work that found them (design `data-load-console`,
-    decisions 1 and 5): the daily cycle puts a pending case's PDFs at 40 and a disposed case's at 80; the load uses
-    its policy; a person's request 40."""
+    decisions 1 and 5): the daily cycle, the load and discovery put a pending case's PDFs at 60, after every detail
+    kind, and a disposed case's at 80 (owner, 24 Oct 2026); a person's request 40."""
     if not case.cnr:
         return 0
     origin = origin or DAILY

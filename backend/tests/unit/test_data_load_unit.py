@@ -29,10 +29,12 @@ def _settings(order: LoadOrder, forward: tuple[date, date] | None = None) -> Loa
 
 
 def test_load_priority_table():
+    """Case details before order PDFs (owner, 24 Oct 2026): the preset ranks the two detail kinds; a load order PDF
+    is 60 in every preset, inside the period brought forward or not."""
     expected = {
-        LoadOrder.CASES_FIRST: {P: (41, 44), D: (42, 46), O: (43, 48)},
-        LoadOrder.LISTS_FIRST: {D: (41, 44), P: (42, 46), O: (43, 48)},
-        LoadOrder.CASES_WITH_ORDERS: {P: (41, 44), O: (42, 46), D: (43, 48)},
+        LoadOrder.CASES_FIRST: {P: (41, 44), D: (42, 46)},
+        LoadOrder.LISTS_FIRST: {D: (41, 44), P: (42, 46)},
+        LoadOrder.CASES_WITH_ORDERS: {P: (41, 44), D: (42, 46)},
     }
     seen = set()
     for order, kinds in expected.items():
@@ -43,20 +45,58 @@ def test_load_priority_table():
             assert load_priority(s, kind, None) == other
             assert load_priority(_settings(order), kind, JAN) == other
             seen.update({fwd, other})
-    assert seen == {41, 42, 43, 44, 46, 48}
+        forward = _settings(order, (date(2025, 1, 1), date(2025, 1, 31)))
+        for s in (forward, _settings(order)):
+            for d in (JAN, MAR, None):
+                assert load_priority(s, O, d) == 60, (order, d)
+    assert seen == {41, 42, 44, 46}
     assert all(40 < p < 50 for p in seen)  # behind today's dossiers (40), ahead of the weekly sweep (50)
     assert load_priority(DEFAULTS, P, JAN) == 44 and load_priority(DEFAULTS, D, JAN) == 46
+    assert load_priority(DEFAULTS, O, JAN) == 60
     with pytest.raises(ValueError):
         load_priority(DEFAULTS, FetchKind.MASTERS, JAN)
 
 
 def test_origin_priorities():
+    """Order PDFs after every detail kind (owner, 24 Oct 2026), except a person's request."""
     assert QueueOrigin().dossier_priority() == 40
-    assert QueueOrigin().order_pdf_priority(True) == 40 and QueueOrigin().order_pdf_priority(False) == 80
+    assert QueueOrigin().order_pdf_priority(True) == 60 and QueueOrigin().order_pdf_priority(False) == 80
     req = QueueOrigin(FetchLane.REQUEST)
-    assert req.dossier_priority() == 30 and req.order_pdf_priority(False) == 40
+    assert req.dossier_priority() == 30
+    assert req.order_pdf_priority(True) == 40 and req.order_pdf_priority(False) == 40
     load = QueueOrigin(FetchLane.LOAD, JAN, _settings(LoadOrder.LISTS_FIRST))
-    assert load.dossier_priority() == 46 and load.order_pdf_priority(True) == 48
+    assert load.dossier_priority() == 46
+    assert load.order_pdf_priority(True) == 60 and load.order_pdf_priority(False) == 80
+    disc = QueueOrigin(FetchLane.DISCOVERY)
+    assert disc.dossier_priority() == 41
+    assert disc.order_pdf_priority(True) == 60 and disc.order_pdf_priority(False) == 80
+    for order in LoadOrder:
+        for forward in (None, (date(2025, 1, 1), date(2025, 1, 31))):
+            o = QueueOrigin(FetchLane.LOAD, JAN, _settings(order, forward))
+            assert o.order_pdf_priority(True) == 60 and o.order_pdf_priority(False) == 80
+            # details ahead of the weekly sweep, the disposed refresh and PDFs
+            assert o.dossier_priority() < 50
+
+
+def test_order_pdfs_after_every_detail_kind():
+    """60 sits after daily dossiers 40, the load 41-46, discovery 41-43, the weekly sweep 50 and the disposed refresh
+    55, and before disposed-case PDFs 80; a person's order PDFs stay at 40."""
+    from aslms.services import queue
+    from aslms.services.load_policy import (
+        DAILY_DOSSIER,
+        DISCOVERY_DOSSIER,
+        DISCOVERY_FULL,
+        DISCOVERY_RECENT,
+        DISPOSED_ORDER_PDF,
+        LIVE_ORDER_PDF,
+        REQUEST_ORDER_PDF,
+    )
+
+    details = [DAILY_DOSSIER, DISCOVERY_DOSSIER, DISCOVERY_RECENT, DISCOVERY_FULL, 41, 42, 44, 46]
+    details += [queue.PRIORITY["dossier_refetch"], queue.PRIORITY["dossier_disposed"]]
+    assert LIVE_ORDER_PDF == 60 and all(p < LIVE_ORDER_PDF for p in details)
+    assert LIVE_ORDER_PDF < DISPOSED_ORDER_PDF == 80
+    assert REQUEST_ORDER_PDF == 40 and queue.PRIORITY["order_pdf_live"] == 60
 
 
 NOW = datetime(2026, 10, 11, 10, 0, tzinfo=UTC)

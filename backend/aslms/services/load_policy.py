@@ -4,14 +4,20 @@ cycle.
 
 - `LoadSettings` and `current_settings`: the current `data_load_settings` version, or the defaults (running,
   `cases_first`, nothing brought forward) when the table is empty.
-- `load_priority(settings, kind, list_date)`: decision 3's table. The preset ranks the three load kinds; the 1st
-  kind runs at 41 inside the period brought forward and 44 outside it, the 2nd at 42 / 46, the 3rd at 43 / 48.
+- `load_priority(settings, kind, list_date)`: decision 3's table for the two detail kinds (cause-list days and
+  dossiers). The preset ranks them; the 1st runs at 41 inside the period brought forward and 44 outside it, the 2nd
+  at 42 / 46. `cases_first` and `cases_with_orders` put dossiers first, `lists_first` cause-list days first.
+- Case details before order PDFs (owner, 24 Oct 2026): an order PDF outside the request lane waits behind every
+  detail kind, whatever the preset: 60 for a pending case (after daily dossiers 40, the load 41-46, discovery 41-43,
+  the weekly sweep 50 and the disposed refresh 55) and 80 for any other case (disposed or unknown).
+  `load_priority` gives a load order PDF 60, so `cases_with_orders` no longer brings PDFs forward; it orders
+  dossiers before cause-list days, as `cases_first` does.
 - `QueueOrigin(lane, list_date)`: who asked for the work a stage is doing; the rows it spawns inherit the lane and
-  the `list_date`. Daily: dossiers 40, order PDFs 40 (pending case) or 80 (disposed). Load: `load_priority`.
-  Request: dossiers 30, order PDFs 40. Discovery (design `department-discovery`, decision 6): dossiers 41, order
-  PDFs 49; its searches 42 (weekly sweep and a user's requested years) and 43 (a new term's first sweep). A request
-  origin also carries `requested_by`, the person who asked (design
-  `napix-window`, decision 9); the rows it spawns inherit it."""
+  the `list_date`. Daily: dossiers 40, order PDFs 60 (pending case) or 80 (disposed). Load: dossiers by
+  `load_priority`, order PDFs 60 / 80. Request: dossiers 30, order PDFs 40, so a person's own case gets its orders
+  quickly. Discovery (design `department-discovery`, decision 6): dossiers 41, order PDFs 60 / 80; its searches 42
+  (weekly sweep and a user's requested years) and 43 (a new term's first sweep). A request origin also carries
+  `requested_by`, the person who asked (design `napix-window`, decision 9); the rows it spawns inherit it."""
 
 from __future__ import annotations
 
@@ -24,25 +30,27 @@ from sqlalchemy.orm import Session
 
 from aslms.domain.ops import DataLoadSettings, FetchKind, FetchLane, LoadOrder
 
-# the order of the three load kinds per preset (decision 3)
-PRESET_ORDER: dict[LoadOrder, tuple[FetchKind, FetchKind, FetchKind]] = {
-    LoadOrder.CASES_FIRST: (FetchKind.DOSSIER, FetchKind.CAUSELIST_DAY, FetchKind.ORDER_PDF),
-    LoadOrder.LISTS_FIRST: (FetchKind.CAUSELIST_DAY, FetchKind.DOSSIER, FetchKind.ORDER_PDF),
-    LoadOrder.CASES_WITH_ORDERS: (FetchKind.DOSSIER, FetchKind.ORDER_PDF, FetchKind.CAUSELIST_DAY),
+# the order of the two detail kinds per preset (decision 3); order PDFs come after both (owner, 24 Oct 2026)
+PRESET_ORDER: dict[LoadOrder, tuple[FetchKind, FetchKind]] = {
+    LoadOrder.CASES_FIRST: (FetchKind.DOSSIER, FetchKind.CAUSELIST_DAY),
+    LoadOrder.LISTS_FIRST: (FetchKind.CAUSELIST_DAY, FetchKind.DOSSIER),
+    LoadOrder.CASES_WITH_ORDERS: (FetchKind.DOSSIER, FetchKind.CAUSELIST_DAY),
 }
-FORWARD = (41, 42, 43)  # rank 1, 2, 3 inside the period brought forward
-OTHERWISE = (44, 46, 48)  # rank 1, 2, 3 otherwise
+FORWARD = (41, 42)  # rank 1, 2 inside the period brought forward
+OTHERWISE = (44, 46)  # rank 1, 2 otherwise
 LOAD_KINDS = (FetchKind.CAUSELIST_DAY, FetchKind.DOSSIER, FetchKind.ORDER_PDF)
 
 REQUEST_PRIORITY = 30
 DAILY_DOSSIER = 40
-LIVE_ORDER_PDF = 40
+# a person's search, fetch from the court or claim refresh: ahead of the queue
+REQUEST_ORDER_PDF = 40
+# a pending case's order PDF in the daily, load and discovery lanes: after every detail kind
+LIVE_ORDER_PDF = 60
 DISPOSED_ORDER_PDF = 80
 # the discovery lane (design department-discovery, decision 6)
 DISCOVERY_DOSSIER = 41
 DISCOVERY_RECENT = 42
 DISCOVERY_FULL = 43
-DISCOVERY_ORDER_PDF = 49
 
 
 @dataclass(frozen=True)
@@ -91,7 +99,7 @@ def current_settings(session: Session) -> LoadSettings:
 
 
 def rank(order: LoadOrder, kind: FetchKind) -> int:
-    """0, 1 or 2: the place of the kind in the preset."""
+    """0 or 1: the place of a detail kind in the preset."""
     return PRESET_ORDER[LoadOrder(order)].index(kind)
 
 
@@ -105,9 +113,12 @@ def brought_forward(settings: LoadSettings, list_date: date | None) -> bool:
 
 
 def load_priority(settings: LoadSettings, kind: FetchKind, list_date: date | None) -> int:
-    """Decision 3's table: 41-43 inside the period brought forward, 44 / 46 / 48 otherwise."""
+    """Decision 3's table: 41 / 42 inside the period brought forward, 44 / 46 otherwise; an order PDF 60 in every
+    preset (a pending case; `QueueOrigin.order_pdf_priority` gives any other case's 80)."""
     if kind not in LOAD_KINDS:
         raise ValueError(f"{kind.value} is not a load kind")
+    if kind == FetchKind.ORDER_PDF:
+        return LIVE_ORDER_PDF
     r = rank(settings.load_order, kind)
     return FORWARD[r] if brought_forward(settings, list_date) else OTHERWISE[r]
 
@@ -131,12 +142,10 @@ class QueueOrigin:
         return DAILY_DOSSIER
 
     def order_pdf_priority(self, pending_case: bool) -> int:
-        if self.lane == FetchLane.LOAD:
-            return load_priority(self.settings or DEFAULTS, FetchKind.ORDER_PDF, self.list_date)
+        """Request 40; every other lane after the detail kinds: 60 for a pending case, 80 for any other (disposed or
+        unknown)."""
         if self.lane == FetchLane.REQUEST:
-            return LIVE_ORDER_PDF
-        if self.lane == FetchLane.DISCOVERY:
-            return DISCOVERY_ORDER_PDF
+            return REQUEST_ORDER_PDF
         return LIVE_ORDER_PDF if pending_case else DISPOSED_ORDER_PDF
 
 

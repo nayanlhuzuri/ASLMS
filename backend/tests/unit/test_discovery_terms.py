@@ -66,8 +66,9 @@ def test_ref_round_trips():
 def test_discovery_lane_priorities():
     origin = QueueOrigin(FetchLane.DISCOVERY)
     assert origin.dossier_priority() == 41
-    assert origin.order_pdf_priority(True) == 49
-    assert origin.order_pdf_priority(False) == 49
+    # order PDFs after every detail kind (owner, 24 Oct 2026): 60 for a pending case, 80 for a disposed one
+    assert origin.order_pdf_priority(True) == 60
+    assert origin.order_pdf_priority(False) == 80
     # the other lanes are unchanged
     assert QueueOrigin(FetchLane.DAILY).dossier_priority() == 40
     assert QueueOrigin(FetchLane.REQUEST).dossier_priority() == 30

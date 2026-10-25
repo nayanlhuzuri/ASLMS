@@ -104,6 +104,14 @@ is also not covered.
    mistake); newest-first or oldest-first ordering of days (rejected: the period brought forward covers "this
    month first" without a second ordering key in the claim query). **Owner check:** the default stays
    `cases_first`.
+   **Amended 24 Oct 2026 (owner: case details first, order PDFs later; decisions log "Case details before order
+   PDFs").** The preset now ranks only the two detail kinds: the 1st at 41 / 44 and the 2nd at 42 / 46;
+   `cases_first` and `cases_with_orders` both put dossiers before cause-list days, `lists_first` cause-list days
+   first. Order PDFs leave the table: in the daily, load and discovery lanes a pending case's order PDF is 60 and any
+   other case's 80, after daily dossiers (40), the load (41-46), discovery (41-43), the weekly sweep (50) and the
+   disposed refresh (55); a person's order PDFs (request lane) stay at 40. `set_order` rewrites only pending load
+   cause-list days and dossiers. The one-off `aslms data-load pdfs-after-details [--apply]` moves the order PDFs
+   queued before the change (in every status but running; the portal relabels `cases_with_orders`).
 4. **The daily cycle keeps its share of the hourly allowance even when the load runs.** The runner claims:
    any lane while the remaining quota is at least `NAPIX_RATE_RESERVE` (150); only `daily` and `request` rows while
    it is between `NAPIX_LIVE_RESERVE` (new, default 100) and 150; nothing below 100, when it sleeps to the next

@@ -319,7 +319,8 @@ Errors use the existing `{code, message}` body. `frontend/openapi.json` and `sch
 
 ## Jobs
 - Queue kind `party_search`, lane `discovery`, ref `<est_code>|P|<reg_year>|<term>`, priority 42 (recent) or 43
-  (full); its spawned dossiers 41 and order PDFs 49, lane `discovery`. Claimed under the reserve band and the share
+  (full); its spawned dossiers 41 and order PDFs 49 (60 for a pending case, 80 otherwise, since the owner's "case details
+  before order PDFs" of 24 Oct 2026), lane `discovery`. Claimed under the reserve band and the share
   (decision 6). Retries as every queue row (5 attempts, 10 minutes after an integration error).
 - Beat `discovery-weekly` (Saturday 02:00 IST, task `aslms.enqueue_discovery`): recent sweep of every active term,
   full sweep of the terms that are due. Only enqueues; the worker does the fetching.

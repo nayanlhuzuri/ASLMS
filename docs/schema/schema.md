@@ -340,6 +340,12 @@ As built by `alerts-notifications` (migration 0007, 6 Oct 2026): `alerts` gains 
 > requested years), 43 (a new term's first sweep), 49 (order PDFs of found cases). The load's pause does not apply
 > to them. `napix_call_log.lane` carries `discovery` for their calls.
 
+> (details-first, 24 Oct 2026, owner; no migration) Case details before order PDFs: `fetch_queue` order PDFs of the
+> `daily`, `load` and `discovery` lanes take priority 60 for a pending case and 80 for any other (disposed or unknown), after every
+> cause-list day and dossier (daily dossiers 40, the load 41-46, discovery 41-43, the weekly sweep 50, the disposed
+> refresh 55); `request`-lane order PDFs stay at 40. The load presets rank only cause-list days and dossiers
+> (41 / 44, 42 / 46). Rows queued before the change are moved by `aslms data-load pdfs-after-details --apply`.
+
 > (safety-fixes, migration 0019) `fetch_kind` gains `search_rows` (ref `<napix_responses.id>`): the background
 > storing of an advocate search's rows beyond the first `NAPIX_ADVOCATE_STORE_NOW`, lane `request`, priority 30,
 > `requested_by` the person. It makes no NAPIX call. Its rows are claimed only by the Celery task

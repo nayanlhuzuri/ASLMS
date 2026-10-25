@@ -1,6 +1,7 @@
 """Queue lanes, the pause and the budget bands (design `data-load-console`, decisions 1, 2, 4, 5 and 7) against the
 test database: the lane precedence on enqueue, spawned rows inheriting the lane and the list date, the pause read by
-the claim query, the runner's bands seeded from the call log, the lane on each logged call, live order PDFs at 40."""
+the claim query, the runner's bands seeded from the call log, the lane on each logged call, live order PDFs at 60
+after every detail kind and a person's at 40 (owner, 24 Oct 2026)."""
 
 from __future__ import annotations
 
@@ -118,7 +119,7 @@ def test_spawned_rows_inherit_lane_and_list_date(clean_db, napix, tmp_path):
     with Session() as s:
         pdfs = s.scalars(sa.select(FetchQueueItem).where(FetchQueueItem.kind == FetchKind.ORDER_PDF)).all()
         assert len(pdfs) == 3
-        assert {(p.lane, p.list_date, p.priority) for p in pdfs} == {(FetchLane.LOAD, DAY, 48)}
+        assert {(p.lane, p.list_date, p.priority) for p in pdfs} == {(FetchLane.LOAD, DAY, 60)}
 
 
 def test_pause_skips_only_load(clean_db):
@@ -241,7 +242,7 @@ def test_call_log_lane_recorded(clean_db, napix, tmp_path):
     assert [lane for api, lane in rows if api == "overview/overview"] == [None]
 
 
-def test_live_order_pdfs_at_40(clean_db):
+def test_live_order_pdfs_at_60_request_at_40(clean_db):
     with clean_db() as s:
         court = s.scalar(sa.select(Court).where(Court.est_code == "GAHC01"))
         case, _ = get_or_create_case(
@@ -251,7 +252,7 @@ def test_live_order_pdfs_at_40(clean_db):
         assert case.status == CaseStatus.PENDING
         assert enqueue_order_pdfs(s, case) == 3
         rows = s.scalars(sa.select(FetchQueueItem).where(FetchQueueItem.kind == FetchKind.ORDER_PDF)).all()
-        assert {(r.lane, r.priority) for r in rows} == {(FetchLane.DAILY, 40)}
+        assert {(r.lane, r.priority) for r in rows} == {(FetchLane.DAILY, 60)}
         s.execute(sa.text("DELETE FROM fetch_queue"))
         case.status = CaseStatus.DISPOSED
         s.flush()
