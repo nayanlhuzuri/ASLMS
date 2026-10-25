@@ -2524,3 +2524,20 @@ Row 135, design `docs/design/case-workspace-admin.md` (approved by the owner 23 
 **Left for later**
 - Office statistics stay out of scope (row 136, the MIS screen).
 - Operations: apply 0025 with the `migrate` step then `init`; rebuild with `docker compose build`; the Compose uicheck run and the design's browser checks (Verification steps 5 and 6) are the integrator's and the owner's.
+
+## 2026-10-25 — Database audit; backups off in development; old folders kept (owner, on `main`)
+
+- **A read-only audit** of the dev database (2.6 GB) and the files (store 12 GB) found nothing big that is unused: the unused tables total under 1 MB. The space goes to:
+  - backups, 18 GB, on the data disk;
+  - NAPIX case data stored three or four times, about 310 MB;
+  - two never-used indexes;
+  - backfill `order_stored` events.
+- **Follow-ups:** row 156 (storage tidy-up, to be designed) and row 155 (act and advocate names never resolved to their masters, 0% filled; the owner will resolve it later).
+- **Backups:** the owner does not need them now.
+  - The backup service is put behind the profile `backup` in `compose.dev.yml`, so development starts without it. The pilot (`compose.yml` alone) keeps it running.
+  - `migrate` still writes its own pre-migrate dump.
+  - The existing 18 GB of dumps and the store mirror are deleted by the owner by hand (the agent was refused the delete).
+- **Old folders are kept:** the owner asked to remove them only if their data is verified elsewhere, and it is not:
+  - `data/causelists`: 1,773 of its 1,775 PDFs are the GHC website copies and are not in the document store;
+  - `data/storage`: 521 of its 522 PDFs, from the pre-reset build, are not in the store.
+

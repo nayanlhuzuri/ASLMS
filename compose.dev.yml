@@ -18,6 +18,11 @@ services:
       TRUST_PROXY_HEADERS: "false"
   proxy:
     profiles: ["proxy"]
+  backup:
+    # development only (owner, 25 Oct 2026): no scheduled backups or store mirror on the owner's machine; start
+    # them with `--profile backup` when wanted. The pilot (compose.yml alone) keeps the backup service running.
+    # `migrate` still writes its own pre-migrate dump.
+    profiles: ["backup"]
   ops-exporter:
     environment:
       # the HTTPS proxy does not run in development (it starts only with --profile proxy), so the portal probe
