@@ -3,9 +3,9 @@
 /**
  * The old inbox addresses (design portal-ui-redesign, decision 10.4): client redirects that keep the query string, so
  * a bookmark or an e-mailed link still lands on the same list (also the old Files addresses, design case-workspace-admin,
- * decision 3). `/inbox/recommended`, `/inbox/pool` and
+ * decision 3, and the old Cases list addresses, design case-inbox-merge, decision 12). `/inbox/recommended`, `/inbox/pool` and
  * `/inbox/transfers` go to Case claim; `/inbox/claimed` goes to Department cases when the API says `whole_department`,
- * else to Working on; `/inbox` opens Working on.
+ * else to Working on; `/inbox` opens the first tab the login may open (`InboxIndex`).
  */
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
@@ -22,7 +22,7 @@ function useReplace(target: string | null) {
   }, [router, target]);
 }
 
-/** `to` with the old address's query string; a query in `to` itself (`/cases/with-me?held=offices`) is kept and wins. */
+/** `to` with the old address's query string; a query in `to` itself (`/inbox/working?held=offices`) is kept and wins. */
 export function redirectTarget(to: string, params: Params): string {
   const [path, query] = to.split("?", 2);
   const own: Params = Object.fromEntries(new URLSearchParams(query ?? ""));

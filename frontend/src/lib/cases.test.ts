@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { CustodyCard, HeldItem, SentItem } from "./api/types";
+import type { CustodyBrief, CustodyCard, HeldItem, MyCase, SentItem } from "./api/types";
 import { cardHolder, cardSender, hearingCountdown, leadBadge, legHolder, withText } from "./cases";
 
 // 25 Oct 2026, 12:00 IST
@@ -80,6 +80,50 @@ describe("leadBadge (case-workspace-admin, decision 19), first match wins", () =
     expect(leadBadge(sentRow(true, null), "sent", NOW)).toEqual({ label: "Waiting" });
     expect(leadBadge(sentRow(false, "2026-10-24"), "sent", NOW)).toBeNull();
     expect(leadBadge(sentRow(null, "2026-10-24"), "sent", NOW)).toBeNull();
+  });
+});
+
+function workingRow(extra: Partial<CustodyBrief> | null): MyCase {
+  return {
+    case: {} as MyCase["case"],
+    owner_code: "EDU",
+    stage: null,
+    allotment: null,
+    reasons: ["file"],
+    custody:
+      extra === null
+        ? null
+        : {
+            holder_office: { code: "EDU", name: "Education" },
+            holder_user: null,
+            with_me: true,
+            pending_action: "examine",
+            pending_action_label: "Examine",
+            since: "2026-10-01T10:00:00Z",
+            due_date: null,
+            overdue: false,
+            overdue_days: 0,
+            due_soon: false,
+            sent_by: null,
+            ...extra,
+          },
+  };
+}
+
+describe("leadBadge on Working on (case-inbox-merge, decision 8): only a case with me", () => {
+  it("Overdue before Due soon before New (48 h boundary)", () => {
+    expect(leadBadge(workingRow({ overdue: true, due_soon: true, since: "2026-10-25T06:00:00Z" }), "working", NOW)).toEqual({
+      label: "Overdue",
+      tone: "danger",
+    });
+    expect(leadBadge(workingRow({ due_soon: true, since: "2026-10-25T06:00:00Z" }), "working", NOW)).toEqual({ label: "Due soon", tone: "warning" });
+    expect(leadBadge(workingRow({ since: "2026-10-23T06:30:00Z" }), "working", NOW)).toEqual({ label: "New", tone: "info" });
+    expect(leadBadge(workingRow({ since: "2026-10-23T06:29:00Z" }), "working", NOW)).toBeNull();
+  });
+
+  it("no badge when the case is not with me, or with no custody row", () => {
+    expect(leadBadge(workingRow({ with_me: false, overdue: true, due_soon: true, since: "2026-10-25T06:00:00Z" }), "working", NOW)).toBeNull();
+    expect(leadBadge(workingRow(null), "working", NOW)).toBeNull();
   });
 });
 

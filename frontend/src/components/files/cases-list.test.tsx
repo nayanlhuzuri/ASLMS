@@ -2,18 +2,12 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { Redirect, redirectTarget } from "@/components/inbox/Redirects";
-import type { CaseSummary, CustodyCard, CustodySummary, HeldItem, Me, Permission, SentItem } from "@/lib/api/types";
-import { setFlash } from "@/lib/flash";
-import { OLD_FILES_REDIRECTS } from "@/lib/routes";
+import type { CaseSummary, CustodyCard, CustodySummary, HeldItem, Me, SentItem } from "@/lib/api/types";
 import { nav, resetNav } from "@/test/nav";
 import { browserApi, expectDataTable, json, makeMe, renderWithClient } from "@/test/render";
 
-import { CasesFrame, CasesIndex } from "./FilesFrame";
 import { Held } from "./Held";
 import { Sent } from "./Sent";
-
-const READER: Permission[] = ["cases.view_scope"];
 
 function summary(id: string, caseNo: string, ref = `ASLMS/GOA/CASE/2026/${id}`): CaseSummary {
   return {
@@ -133,27 +127,34 @@ const headers = (table: HTMLElement) =>
     .map((h) => h.textContent);
 
 beforeEach(() => {
-  resetNav("/cases/with-me");
+  resetNav("/inbox/working");
   sessionStorage.clear();
 });
 
-describe("the Cases list (case-workspace-admin, decisions 17-20)", () => {
-  it("Cases with me calls scope=me; Held by: My offices sends scope=office at once, through the URL", async () => {
+/**
+ * The held and sent lists (design case-workspace-admin, decisions 17-20), now tabs of the Case inbox (design
+ * case-inbox-merge, decisions 7 and 8): Working on's Show "With me" and "With my offices", Sent by me and Pending action.
+ */
+describe("the custody lists of the Case inbox (case-workspace-admin, decisions 17-20)", () => {
+  it("Show: With me calls scope=me; With my offices sends scope=office at once, through the URL; All leaves the list", async () => {
     const api = browserApi({ "GET /custody/held": held([{ case: summary("c1", "WP(C)/1/2026"), card: card() }]) });
-    const { unmount } = renderWithClient(<Held tab="with-me" params={{}} />);
+    const { unmount } = renderWithClient(<Held tab="with-me" params={{ held: "me" }} />);
     expect(await screen.findByRole("link", { name: "WP(C)/1/2026" })).toHaveAttribute("href", "/cases/ASLMS-GOA-CASE-2026-c1");
     const call = api.calls.find((c) => c.path.startsWith("/custody/held"))!;
     expect(call.path).toContain("scope=me");
     expect(call.path).not.toContain("overdue");
-    const heldBy = screen.getByRole("radiogroup", { name: "Held by" });
-    expect(within(heldBy).getByRole("radio", { name: "Me" })).toHaveAttribute("aria-checked", "true");
-    await userEvent.click(within(heldBy).getByRole("radio", { name: "My offices" }));
-    expect(nav.replace).toHaveBeenCalledWith("/cases/with-me?held=offices");
+    const show = screen.getByRole("radiogroup", { name: "Show" });
+    expect(within(show).getAllByRole("radio").map((r) => r.textContent)).toEqual(["All", "With me", "With my offices"]);
+    expect(within(show).getByRole("radio", { name: "With me" })).toHaveAttribute("aria-checked", "true");
+    await userEvent.click(within(show).getByRole("radio", { name: "With my offices" }));
+    expect(nav.replace).toHaveBeenCalledWith("/inbox/working?held=offices");
+    await userEvent.click(within(show).getByRole("radio", { name: "All" }));
+    expect(nav.replace).toHaveBeenLastCalledWith("/inbox/working");
     unmount();
     renderWithClient(<Held tab="with-me" params={{ held: "offices" }} />);
     await waitFor(() => expect(api.calls.some((c) => c.path.includes("scope=office"))).toBe(true));
     expect(await screen.findByRole("table", { name: "Cases with my offices" })).toBeInTheDocument();
-    expect(within(screen.getByRole("radiogroup", { name: "Held by" })).getByRole("radio", { name: "My offices" })).toHaveAttribute(
+    expect(within(screen.getByRole("radiogroup", { name: "Show" })).getByRole("radio", { name: "With my offices" })).toHaveAttribute(
       "aria-checked",
       "true",
     );
@@ -161,7 +162,7 @@ describe("the Cases list (case-workspace-admin, decisions 17-20)", () => {
 
   it("Cases with me: the lead badge, case and parties, action needed, due by, From and the chevron", async () => {
     browserApi({ "GET /custody/held": held([{ case: summary("c1", "WP(C)/1/2026"), card: card() }]) });
-    renderWithClient(<Held tab="with-me" params={{}} />);
+    renderWithClient(<Held tab="with-me" params={{ held: "me" }} />);
     const table = await screen.findByRole("table", { name: "Cases with me" });
     expect(headers(table)).toEqual(["Status", "Case and parties", "Action needed", "Due by", "From", "Case details"]);
     const cells = within(table).getAllByRole("cell");
@@ -175,7 +176,7 @@ describe("the Cases list (case-workspace-admin, decisions 17-20)", () => {
   });
 
   it("Pending action: With the holder, the tracking summary and 'Department it is with'", async () => {
-    resetNav("/cases/pending");
+    resetNav("/inbox/pending");
     const api = browserApi({
       "GET /custody/held": held([{ case: summary("c1", "WP(C)/1/2026"), card: card({ overdue: false, overdue_days: 0, due_date: null }) }]),
       "GET /custody/summary": SUMMARY,
@@ -191,12 +192,12 @@ describe("the Cases list (case-workspace-admin, decisions 17-20)", () => {
     expect(within(table).getByText("Section Officer, Secondary Education")).toHaveAttribute("title", "Officer One");
     expect(within(table).getByText("Waiting")).toBeInTheDocument();
     expect(api.calls.find((c) => c.path.startsWith("/custody/held"))!.path).toContain("scope=owned");
-    expect(screen.queryByRole("radiogroup", { name: "Held by" })).toBeNull();
+    expect(screen.queryByRole("radiogroup", { name: "Show" })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "More filters" }));
     await waitFor(() => expect(screen.getByRole("option", { name: "HEALTH — Health" })).toBeInTheDocument());
     await userEvent.selectOptions(screen.getByLabelText("Department it is with"), "HEALTH");
     await userEvent.click(screen.getByRole("button", { name: "Apply" }));
-    expect(nav.replace).toHaveBeenCalledWith("/cases/pending?holder_department=HEALTH");
+    expect(nav.replace).toHaveBeenCalledWith("/inbox/pending?holder_department=HEALTH");
     unmount();
     renderWithClient(<Held tab="pending" params={{ holder_department: "HEALTH", overdue: "true" }} />);
     await waitFor(() =>
@@ -206,14 +207,14 @@ describe("the Cases list (case-workspace-admin, decisions 17-20)", () => {
 
   it("Overdue only goes to the query string and to the API as overdue=true", async () => {
     const api = browserApi({ "GET /custody/held": held([]) });
-    const { unmount } = renderWithClient(<Held tab="with-me" params={{}} />);
+    const { unmount } = renderWithClient(<Held tab="with-me" params={{ held: "me" }} />);
     expect(await screen.findByText("No case is with you.")).toBeInTheDocument();
     await userEvent.click(screen.getByLabelText("Overdue only"));
     expect(nav.replace).not.toHaveBeenCalled(); // the bar applies with Apply (portal-filters, decision 9)
     await userEvent.click(screen.getByRole("button", { name: "Apply" }));
-    expect(nav.replace).toHaveBeenCalledWith("/cases/with-me?overdue=true");
+    expect(nav.replace).toHaveBeenCalledWith("/inbox/working?held=me&overdue=true");
     unmount();
-    renderWithClient(<Held tab="with-me" params={{ overdue: "true" }} />);
+    renderWithClient(<Held tab="with-me" params={{ held: "me", overdue: "true" }} />);
     await waitFor(() => expect(api.calls.some((c) => c.path.includes("overdue=true"))).toBe(true));
   });
 
@@ -266,7 +267,7 @@ describe("the Cases list (case-workspace-admin, decisions 17-20)", () => {
     });
     renderWithClient(
       <>
-        <Held tab="with-me" params={{}} />
+        <Held tab="with-me" params={{ held: "me" }} />
         <Sent params={{}} />
       </>,
     );
@@ -278,7 +279,7 @@ describe("the Cases list (case-workspace-admin, decisions 17-20)", () => {
   it("a row opens the side panel with the row's facts and the full remark; Close closes it (decision 20)", async () => {
     const long = "Line one of the remark\nline two of the remark\nline three of the remark";
     browserApi({ "GET /custody/held": held([{ case: summary("c1", "WP(C)/1/2026"), card: card({ remark: long }) }]) });
-    renderWithClient(<Held tab="with-me" params={{}} />);
+    renderWithClient(<Held tab="with-me" params={{ held: "me" }} />);
     expect(screen.queryByText(/line three of the remark/)).toBeNull();
     await userEvent.click(await screen.findByRole("row", { name: "Details of WP(C)/1/2026" }));
     const panel = await screen.findByRole("dialog", { name: "Case details" });
@@ -294,7 +295,7 @@ describe("the Cases list (case-workspace-admin, decisions 17-20)", () => {
 
   it("rows become cards on phones: every cell carries its label, the lead badge sits in the fixed column", async () => {
     browserApi({ "GET /custody/held": held([{ case: summary("c1", "WP(C)/1/2026"), card: card() }]) });
-    const { container } = renderWithClient(<Held tab="with-me" params={{}} />);
+    const { container } = renderWithClient(<Held tab="with-me" params={{ held: "me" }} />);
     const table = await screen.findByRole("table", { name: "Cases with me" });
     expectDataTable(table);
     const cells = within(table).getAllByRole("cell");
@@ -307,7 +308,7 @@ describe("the Cases list (case-workspace-admin, decisions 17-20)", () => {
 
   it("a link inside a row opens the case page, not the panel", async () => {
     browserApi({ "GET /custody/held": held([{ case: summary("c1", "WP(C)/1/2026"), card: card() }]) });
-    renderWithClient(<Held tab="with-me" params={{}} />);
+    renderWithClient(<Held tab="with-me" params={{ held: "me" }} />);
     const link = await screen.findByRole("link", { name: "WP(C)/1/2026" });
     link.addEventListener("click", (e) => e.preventDefault());
     await userEvent.click(link);
@@ -321,98 +322,6 @@ describe("the Cases list (case-workspace-admin, decisions 17-20)", () => {
     const panel = await screen.findByRole("dialog", { name: "Case details" });
     expect(within(panel).getByText("for your opinion")).toBeInTheDocument();
     expect(within(panel).queryByRole("link")).toBeNull();
-  });
-});
-
-describe("the Cases frame and the old addresses (decisions 3, 17 and 18)", () => {
-  it("/cases goes to the first tab, and to /search without one", async () => {
-    resetNav("/cases");
-    browserApi({ "GET /me": makeMe(READER) });
-    const { unmount } = renderWithClient(<CasesIndex />);
-    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/cases/with-me"));
-    unmount();
-    resetNav("/cases");
-    browserApi({ "GET /me": makeMe(["users.view"], "dept_admin") });
-    renderWithClient(<CasesIndex />);
-    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/search"));
-  });
-
-  it("three tabs, Pending action only with a tracked department", async () => {
-    browserApi({ "GET /me": makeMe(READER) });
-    const { unmount } = renderWithClient(
-      <CasesFrame>
-        <p>body</p>
-      </CasesFrame>,
-    );
-    const tabs = await screen.findByRole("navigation", { name: "Cases sections" });
-    expect(within(tabs).getAllByRole("link").map((a) => a.textContent)).toEqual(["Cases with me", "Sent by me"]);
-    expect(within(tabs).getByRole("link", { name: "Cases with me" })).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("heading", { level: 1, name: "Cases" })).toBeInTheDocument();
-    unmount();
-    browserApi({ "GET /me": tracker() });
-    renderWithClient(
-      <CasesFrame>
-        <p>body</p>
-      </CasesFrame>,
-    );
-    const tracked = await screen.findByRole("navigation", { name: "Cases sections" });
-    expect(within(tracked).getAllByRole("link").map((a) => a.textContent)).toEqual(["Cases with me", "Sent by me", "Pending action"]);
-    expect(within(tracked).getByRole("link", { name: "Pending action" })).toHaveAttribute("href", "/cases/pending");
-  });
-
-  it("a login without the tab or without case functions sees the neutral not-found text", async () => {
-    resetNav("/cases/pending");
-    browserApi({ "GET /me": makeMe(READER) });
-    const { unmount } = renderWithClient(
-      <CasesFrame>
-        <p>body</p>
-      </CasesFrame>,
-    );
-    expect(await screen.findByText("The page does not exist, or you cannot see it.")).toBeInTheDocument();
-    expect(screen.queryByText("body")).toBeNull();
-    unmount();
-    resetNav("/cases/with-me");
-    browserApi({ "GET /me": makeMe(["users.view"], "dept_admin") });
-    renderWithClient(
-      <CasesFrame>
-        <p>body</p>
-      </CasesFrame>,
-    );
-    expect(await screen.findByText("The page does not exist, or you cannot see it.")).toBeInTheDocument();
-  });
-
-  it("the notice of a case sent away shows once on the frame", async () => {
-    resetNav("/cases/sent");
-    setFlash("Case sent to Health Off. It is no longer with you.");
-    browserApi({ "GET /me": makeMe(READER) });
-    const { unmount } = renderWithClient(
-      <CasesFrame>
-        <p>body</p>
-      </CasesFrame>,
-    );
-    expect(await screen.findByText("Case sent to Health Off. It is no longer with you.")).toBeInTheDocument();
-    expect(sessionStorage.getItem("aslms.flash")).toBeNull();
-    unmount();
-    renderWithClient(
-      <CasesFrame>
-        <p>body</p>
-      </CasesFrame>,
-    );
-    await screen.findByText("body");
-    expect(screen.queryByText(/It is no longer with you/)).toBeNull();
-  });
-
-  it("/files/* and /inbox/files redirect to the Cases list, keeping the query string", async () => {
-    expect(redirectTarget(OLD_FILES_REDIRECTS["/files/mine"]!, { overdue: "true", q: "ram" })).toBe("/cases/with-me?overdue=true&q=ram");
-    expect(redirectTarget(OLD_FILES_REDIRECTS["/files/offices"]!, { overdue: "true" })).toBe("/cases/with-me?overdue=true&held=offices");
-    expect(redirectTarget(OLD_FILES_REDIRECTS["/files/department"]!, { holder_department: "HEALTH" })).toBe(
-      "/cases/pending?holder_department=HEALTH",
-    );
-    expect(redirectTarget(OLD_FILES_REDIRECTS["/files/sent"]!, {})).toBe("/cases/sent");
-    expect(redirectTarget(OLD_FILES_REDIRECTS["/files"]!, {})).toBe("/cases");
-    resetNav("/inbox/files");
-    renderWithClient(<Redirect to={OLD_FILES_REDIRECTS["/inbox/files"]!} params={{ overdue: "true" }} />);
-    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/cases/with-me?overdue=true"));
   });
 });
 
@@ -447,7 +356,7 @@ describe("the filter bar on the Cases list (portal-filters)", () => {
   });
 
   it("Pending action offers only the tracked departments as owner", async () => {
-    resetNav("/cases/pending");
+    resetNav("/inbox/pending");
     browserApi({
       "GET /me": tracker(),
       "GET /custody/held": held([]),
@@ -473,7 +382,7 @@ describe("the filter bar on the Cases list (portal-filters)", () => {
 
 describe("lists are DataTables, cards on phones (design portal-ui-polish, decision 15)", () => {
   it("TrackingSummary renders a DataTable with a primary cell", async () => {
-    resetNav("/cases/pending");
+    resetNav("/inbox/pending");
     browserApi({ "GET /custody/held": held([]), "GET /custody/summary": SUMMARY, "GET /custody/recipients": DEPTS });
     renderWithClient(<Held tab="pending" params={{}} />);
     const edu = await screen.findByRole("region", { name: "Tracking summary: EDU" });

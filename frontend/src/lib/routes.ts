@@ -13,9 +13,9 @@ export type MeLike = Pick<Me, "functions"> & Partial<Pick<Me, "memberships" | "a
 
 export type NavGroupKey = "work" | "oversight" | "settings";
 
-/** The server figure shown in an entry's pill (decision 4): Case inbox (`working`) and Cases (`files`) from
- * `/inbox/mine/counts`, Case claim from `/inbox/counts`, Alerts (`unread`) from `/alerts/counts`. */
-export type NavCount = "alerts" | "inbox" | "claim" | "files";
+/** The server figure shown in an entry's pill (decision 4): Case inbox (`working`) from `/inbox/mine/counts`, Case
+ * claim from `/inbox/counts`, Alerts (`unread`) from `/alerts/counts`. */
+export type NavCount = "alerts" | "inbox" | "claim";
 
 export interface NavEntry {
   key: string;
@@ -30,9 +30,9 @@ export interface NavEntry {
 }
 
 /**
- * The case inbox is read for one department at a time (design portal-cases, decision 3): it shows with
- * `cases.view_all`, or when a membership belongs to a department; standing counsel and other logins without a
- * department use Search, whose default list is their visible cases.
+ * Case claim is read for one department at a time (design portal-cases, decision 3): it shows with `cases.view_all`,
+ * or when a membership belongs to a department. The Case inbox no longer needs it (design case-inbox-merge, decision
+ * 6): Working on, Sent by me and Disposed are for everyone, standing counsel and logins without a department included.
  */
 export function showsInbox(me: MeLike): boolean {
   return can(me, "cases.view_all") || departmentsOf(me as Pick<Me, "memberships">).length > 0;
@@ -94,7 +94,6 @@ export const NAV: readonly NavEntry[] = [
     group: "work",
     functions: CASE_READERS,
     built: true,
-    show: showsInbox,
     count: "inbox",
   },
   // design portal-ui-redesign, decision 6: Case claim, built in round 2 (row 102)
@@ -110,9 +109,6 @@ export const NAV: readonly NavEntry[] = [
   },
   // design portal-causelist, decision 11: the published lists are court-public, read by every reader of cases
   { key: "causelist", label: T.nav.causelist, href: "/causelist", group: "work", functions: CASE_READERS, built: true },
-  // design portal-files-alerts, decision 2: anyone may be sent a case, so Cases shows with `cases.view_scope`; design
-  // case-workspace-admin, decision 21: the Cases list (the key `files` stays), its pill the cases with me
-  { key: "files", label: T.nav.files, href: "/cases", group: "work", functions: ["cases.view_scope"], built: true, count: "files" },
   // design portal-ui-redesign, decision 8: My calendar (round 3, row 103); Alerts is its own entry
   { key: "calendar", label: T.nav.calendar, href: "/calendar", group: "work", functions: CASE_READERS, built: true },
   { key: "alerts", label: T.nav.alerts, href: "/alerts", group: "work", functions: CASE_READERS, built: true, count: "alerts" },
@@ -224,8 +220,9 @@ export function navGroupsFor(me: MeLike | null | undefined): NavGroup[] {
   );
 }
 
-/** The phone bottom bar (decision 18): up to three of the login's entries among Dashboard, Case inbox and Cases. */
-export const BOTTOM_BAR_KEYS: readonly string[] = ["dashboard", "inbox", "files"];
+/** The phone bottom bar (decision 18; design case-inbox-merge, decision 14): up to three of the login's entries among
+ * Dashboard, Case inbox and Alerts. */
+export const BOTTOM_BAR_KEYS: readonly string[] = ["dashboard", "inbox", "alerts"];
 
 export function bottomBarFor(me: MeLike | null | undefined): NavEntry[] {
   return navFor(me)
@@ -245,44 +242,32 @@ export function mappingTabsFor(me: Pick<Me, "functions"> | null | undefined): Ad
   return MAPPING_TABS.filter((tab) => visible(me, tab.functions));
 }
 
-export interface CasesListTab {
-  key: "with-me" | "sent" | "pending";
-  label: string;
-  href: string;
-  functions: readonly Permission[];
-  show?: (me: MeLike) => boolean;
-}
-
 /**
- * The Cases list tabs (design case-workspace-admin, decision 17; it replaces Files), each its own route under
- * `/cases/(list)`. "Pending action" shows only with a department membership holding `custody.track` (the API's
- * tracked-departments rule). "My offices" is the "Held by" control of Cases with me (`?held=offices`).
+ * The static segments that once held the Cases list (design case-workspace-admin, decision 3): they now redirect to the
+ * Case inbox (design case-inbox-merge, decision 12) and stay static, so no case reference (dash-form ref_no, UUID or
+ * CNR) is read as one of them.
  */
-export const CASES_TABS: readonly CasesListTab[] = [
-  { key: "with-me", label: T.tabs.cases["with-me"]!, href: "/cases/with-me", functions: CASE_READERS },
-  { key: "sent", label: T.tabs.cases.sent!, href: "/cases/sent", functions: CASE_READERS },
-  { key: "pending", label: T.tabs.cases.pending!, href: "/cases/pending", functions: [], show: tracksDepartment },
-];
-
-export function casesTabsFor(me: MeLike | null | undefined): CasesListTab[] {
-  if (!me) return [];
-  return CASES_TABS.filter((tab) => (tab.show ? tab.show(me) : visible(me, tab.functions)));
-}
-
-/** The static segments of the Cases list: no case reference (dash-form ref_no, UUID or CNR) equals one of them. */
-export const CASES_LIST_SEGMENTS: readonly string[] = CASES_TABS.map((t) => t.key);
+export const CASES_LIST_SEGMENTS: readonly string[] = ["with-me", "sent", "pending"];
 
 /**
- * The old Files addresses and where they now live (design case-workspace-admin, decision 3; a client redirect keeping
- * the query string, as `OLD_INBOX_REDIRECTS`). `/inbox/files` repeated Cases with me (decision 18).
+ * The old Files addresses and where they now live (design case-workspace-admin, decision 3, re-pointed by
+ * case-inbox-merge, decision 12; a client redirect keeping the query string, as `OLD_INBOX_REDIRECTS`). Every target is
+ * a final address: none is itself in a redirect map.
  */
 export const OLD_FILES_REDIRECTS: Record<string, string> = {
-  "/files": "/cases",
-  "/files/mine": "/cases/with-me",
-  "/files/offices": "/cases/with-me?held=offices",
-  "/files/department": "/cases/pending",
-  "/files/sent": "/cases/sent",
-  "/inbox/files": "/cases/with-me",
+  "/files": "/inbox/working",
+  "/files/mine": "/inbox/working",
+  "/files/offices": "/inbox/working?held=offices",
+  "/files/department": "/inbox/pending",
+  "/files/sent": "/inbox/sent",
+  "/inbox/files": "/inbox/working",
+};
+
+/** The old Cases list addresses (design case-inbox-merge, decision 12): the tabs now live in the Case inbox. */
+export const OLD_CASES_REDIRECTS: Record<string, string> = {
+  "/cases/with-me": "/inbox/working",
+  "/cases/sent": "/inbox/sent",
+  "/cases/pending": "/inbox/pending",
 };
 
 /**
@@ -323,19 +308,40 @@ export function crumbLabel(path: string): string {
 export const CRUMBS: Record<string, string> = T.crumbs;
 
 /**
- * The Case inbox tabs (design portal-ui-redesign, decision 5): the user's own work, each its own route; Department
- * cases only where `/inbox/counts` says `whole_department` for the selected department.
+ * The Case inbox tabs (design portal-ui-redesign, decision 5; case-inbox-merge, decision 7: the Cases list folded in),
+ * in the owner's order, each its own route. Which show is `inboxTabsFor`; the API decides every list.
  */
 export const INBOX_TABS = [
   { key: "working", label: T.tabs.inbox.working, href: "/inbox/working" },
+  { key: "sent", label: T.tabs.inbox.sent, href: "/inbox/sent" },
   { key: "claimed", label: T.tabs.inbox.claimed, href: "/inbox/claimed-by-me" },
   { key: "disposed", label: T.tabs.inbox.disposed, href: "/inbox/disposed" },
   { key: "department", label: T.tabs.inbox.department, href: "/inbox/department" },
+  { key: "pending", label: T.tabs.inbox.pending, href: "/inbox/pending" },
 ] as const;
 
 export type InboxTab = (typeof INBOX_TABS)[number]["key"];
-/** The own-work views of `/inbox/mine`; `files` still feeds the navigation count, its tab moved to the Cases list. */
-export type MyView = Exclude<InboxTab, "department"> | "files";
+export type InboxTabEntry = (typeof INBOX_TABS)[number];
+/** The own-work views of `/inbox/mine` the portal reads (`files` stays in the API, unread by the portal). */
+export type MyView = "working" | "claimed" | "disposed";
+
+/**
+ * Design case-inbox-merge, decision 7 (display only): Working on and Disposed with `cases.view_scope`; Sent by me with
+ * `cases.view_scope` or `cases.view_all`; Claimed by me with `cases.claim`; Department cases with `cases.view_all` or a
+ * `/inbox/counts` block read whole (`whole`); Pending action for a department membership holding `custody.track`.
+ */
+export function inboxTabsFor(me: MeLike | null | undefined, { whole = false }: { whole?: boolean } = {}): InboxTabEntry[] {
+  if (!me) return [];
+  const show: Record<InboxTab, boolean> = {
+    working: can(me, "cases.view_scope"),
+    sent: canAny(me, CASE_READERS),
+    claimed: can(me, "cases.claim"),
+    disposed: can(me, "cases.view_scope"),
+    department: can(me, "cases.view_all") || whole,
+    pending: tracksDepartment(me),
+  };
+  return INBOX_TABS.filter((t) => show[t.key]);
+}
 
 /** Case claim (decision 6): the suggestions to decide on; which tabs show comes from `/inbox/counts`. */
 export const CLAIM_TABS = [

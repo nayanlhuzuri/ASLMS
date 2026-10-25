@@ -1,8 +1,9 @@
 "use client";
 
 /**
- * The Case inbox's own-work views (design portal-ui-redesign, decision 5; API A1): Working on, Files with me, Claimed
- * by me and Disposed, each read from `GET /inbox/mine?view=…` with its filters in the query string. Rows (Work list
+ * The Case inbox's own-work views (design portal-ui-redesign, decision 5; API A1): Claimed by me and Disposed (Working
+ * on has its own list, `WorkingOn.tsx`, design case-inbox-merge, decision 8), each read from `GET /inbox/mine?view=…`
+ * with its filters in the query string. Rows (Work list
  * template): the case number with the parties under it, the stage, the next hearing with its badge, "Your action" (the
  * pending action and due date of a file with me) and a chevron; a row opens the case page by click or Enter. The filter
  * bar: quick chips (Hearing this week, Action overdue), Stage, and "More filters" (words, case type, year, court);

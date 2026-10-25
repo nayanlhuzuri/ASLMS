@@ -428,3 +428,21 @@ None.
 None. Decisions 3 (a disposed case with me in Working on), 4 (the order), 8 (the Show control) and 14 (the third
 bottom-bar entry) go beyond the owner's table. Each keeps something users have today. The owner may override any of
 them at approval. Title Case labels and the multi-level side menu are row 153, after the mockup is approved.
+
+## Deviations
+Written by the developer while building; none changes a business rule, a visibility rule or the API.
+1. **The sidebar's current entry on a case page.** The note is silent. With the Cases entry gone, Case inbox is shown
+   as current on `/cases/<ref>` (and every case tab), matching the "Case inbox" crumb above the case page.
+2. **The Working on side panel for a case not with me.** The facts (With, Action needed, Since, Due by, From) are
+   read from the row's brief whenever the case has a custody row, so the panel says where the case is and what is
+   pending there; the columns stay "—" unless `custody.with_me` (decision 8). The brief already carries these facts
+   for every row; the remark is still read only from the custody card.
+3. **`/inbox` and `/cases` choose the first tab without `/inbox/counts`.** Department cases can never be the first
+   allowed tab (it needs `cases.view_scope` or `cases.view_all`, which open Working on or Sent by me first), so the
+   redirect reads `/me` only.
+4. **`/inbox/mine/counts` is read only with `cases.view_scope`.** The Case inbox entry now shows for every case
+   reader; a login holding only `cases.view_all` no longer gets a 403 banner from the counts it cannot read.
+5. **uicheck has one login.** The fixture login holds every function in two department memberships, so it is a
+   tracker and sees Pending action. "A non-tracker does not see Pending action" is covered by the vitest tests
+   (`inbox.test.tsx`, `routes.test.ts`), not by a second uicheck login.
+6. **The remark request carries `offset=0`.** The side panel reuses `useJourney` (`order=desc&limit=1&offset=0`).

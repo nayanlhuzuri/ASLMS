@@ -239,7 +239,7 @@ describe("dashboard", () => {
     expect(api.calls.some((c) => c.path === "/dashboard")).toBe(false);
   });
 
-  it("links the My alerts heading to /alerts and the Cases with me number to /cases/with-me (case-workspace-admin, decision 21)", async () => {
+  it("links the My alerts heading to /alerts and the Cases with me number to Working on, With me (case-inbox-merge, decision 13)", async () => {
     const hidden = { ...CASE, id: "c9", ref_no: "EDU/2026/0009", case_no_text: "WA/9/2026" };
     browserApi({
       "GET /me": makeMe(["cases.view_scope"]),
@@ -260,7 +260,7 @@ describe("dashboard", () => {
     await screen.findByText(/File recalled/);
     const block = screen.getByRole("region", { name: "My work" });
     expect(within(block).getByRole("link", { name: "My alerts" })).toHaveAttribute("href", "/alerts");
-    for (const link of within(block).getAllByRole("link", { name: "Cases with me: 3" })) expect(link).toHaveAttribute("href", "/cases/with-me");
+    for (const link of within(block).getAllByRole("link", { name: "Cases with me: 3" })) expect(link).toHaveAttribute("href", "/inbox/working?held=me");
     // a visible case is a link; a case the reader can no longer open is text
     expect(within(block).getByRole("link", { name: "WP(C)/1234/2026" })).toHaveAttribute("href", "/cases/EDU-2026-0001");
     expect(within(block).getByText("WA/9/2026").tagName).toBe("SPAN");
@@ -305,6 +305,8 @@ describe("dashboard", () => {
       "href",
       "/reports/pending-cases?department=EDU",
     );
+    // design case-inbox-merge, decision 13: the department's pending figure leads to the Case inbox's Pending action
+    expect(within(block).getByRole("link", { name: "Pending actions: 9" })).toHaveAttribute("href", "/inbox/pending");
     unmount();
     browserApi({ ...routes, "GET /me": makeMe(["cases.view_scope"]) });
     renderWithClient(<Dashboard />);
@@ -409,8 +411,8 @@ describe("the personal dashboard (portal-ui-redesign, decision 23)", () => {
     expect(links.map((l) => [l.getAttribute("aria-label"), l.getAttribute("href")])).toEqual([
       ["Cases to claim: 12", "/claim/recommended"],
       ["Hearings this week: 4", "/calendar"],
-      ["Cases with me: 6", "/cases/with-me"],
-      ["Overdue actions: 3", "/cases/with-me?overdue=true"],
+      ["Cases with me: 6", "/inbox/working?held=me"],
+      ["Overdue actions: 3", "/inbox/working?overdue=true"],
       ["Next dates to confirm: 2", "/alerts/next-dates"],
     ]);
     expect(within(headline).getByText("5 strong · 7 possible")).toBeInTheDocument();

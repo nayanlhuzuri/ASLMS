@@ -322,7 +322,6 @@ export const T = {
     inbox: "Case inbox",
     claim: "Case claim",
     causelist: "Cause list",
-    files: "Cases",
     calendar: "My calendar",
     alerts: "Alerts",
     search: "Search",
@@ -358,16 +357,16 @@ export const T = {
       duplicates: "Duplicates",
       discovery: "Discovery",
     },
-    files: { mine: "Cases with me", offices: "My offices", department: "Pending action", sent: "Sent by me" },
-    cases: { "with-me": "Cases with me", sent: "Sent by me", pending: "Pending action" } as Record<string, string>,
     alerts: { list: "Alerts", nextDates: "Next dates to confirm" },
-    // design portal-ui-redesign, decisions 5 and 6: the Case inbox is the user's own work; Case claim the suggestions
+    // design portal-ui-redesign, decisions 5 and 6: the Case inbox is the user's own work; Case claim the suggestions;
+    // design case-inbox-merge, decision 7: the Cases list folded in (Sent by me, Pending action)
     inbox: {
       working: "Working on",
-      files: "Cases with me",
+      sent: "Sent by me",
       claimed: "Claimed by me",
       disposed: "Disposed",
       department: "Department cases",
+      pending: "Pending action",
     },
     claim: { recommended: "Recommended", pool: "Unclaimed pool", transfers: "Transfers to us" },
     case: {
@@ -637,10 +636,8 @@ export const T = {
   // breadcrumb labels: by full path first, then by path segment
   crumbPaths: {
     "/causelist": "Cause list",
-    "/cases": "Cases",
-    "/cases/with-me": "Cases with me",
-    "/cases/sent": "Sent by me",
-    "/cases/pending": "Pending action",
+    // design case-inbox-merge, decision 12: the crumb above a case page leads to the Case inbox
+    "/cases": "Case inbox",
     "/alerts": "Alerts",
     "/calendar": "My calendar",
     "/alerts/calendar": "Hearing calendar",
@@ -652,9 +649,11 @@ export const T = {
     "/reports/pending-actions": "Pending actions",
     "/reports/data-health": "Data collection health",
     "/inbox/working": "Working on",
+    "/inbox/sent": "Sent by me",
     "/inbox/claimed-by-me": "Claimed by me",
     "/inbox/disposed": "Disposed",
     "/inbox/department": "Department cases",
+    "/inbox/pending": "Pending action",
     "/claim/recommended": "Recommended",
     "/claim/pool": "Unclaimed pool",
     "/claim/transfers": "Transfers to us",
@@ -1279,7 +1278,6 @@ export const T = {
     nothingWaiting: "Nothing waiting",
     emptyViews: {
       working: "Cases allotted to you, and cases sent to you, appear here.",
-      files: "Cases sent to you appear here, with what you are to do and by when.",
       claimed: "Cases you claim for your department, and transfers you accept, appear here.",
       disposed: "Disposed cases from your work appear here.",
       department: "The department's claimed cases appear here.",
@@ -1978,7 +1976,7 @@ export const T = {
     liveHealth: "Live health",
     liveHealthLine: "The live data-health screen shows the state as it is now.",
     departmentFiles: "Pending action",
-    departmentFilesLine: "The live list of your department's pending cases, with remarks, is under Cases:",
+    departmentFilesLine: "The live list of your department's pending cases, with remarks, is under Case inbox:",
     dashboardLink: "Reports",
     departmentReports: "Department reports",
     periodReport: "Period report",
@@ -2321,9 +2319,6 @@ export const T = {
   },
   // design portal-files-alerts: the Files screens (decisions 12-16)
   files: {
-    title: "Cases",
-    subtitle: "Cases sent to you, cases you sent on, and actions still waiting.",
-    tabs: "Cases sections",
     case: "Case and parties",
     action: "Action needed",
     since: "Since",
@@ -2374,9 +2369,11 @@ export const T = {
     inDays: (n: number) => `In ${n} days`,
     lead: { overdue: "Overdue", dueSoon: "Due soon", new: "New", waiting: "Waiting" },
     recalledMark: "Recalled",
-    heldBy: "Held by",
-    heldMe: "Me",
-    heldOffices: "My offices",
+    // design case-inbox-merge, decision 8: the Show control of Working on
+    show: "Show",
+    showAll: "All",
+    showMe: "With me",
+    showOffices: "With my offices",
     leadCol: "Status",
     from: "From",
     with: "With",

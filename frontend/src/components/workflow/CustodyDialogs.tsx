@@ -226,7 +226,7 @@ export function SendDialog({
       setFlash(movedNotice(out.value, T.wf.sentAway(to)));
       reset();
       onClose();
-      router.push("/cases/sent");
+      router.push("/inbox/sent");
       // Mark the case's data stale without refetching: removing it here, while the case page is still mounted,
       // made its observers fetch the case again and show the not-found message before the next page (review of
       // 13 Oct 2026). A later visit fetches afresh.

@@ -2545,3 +2545,29 @@ Row 135, design `docs/design/case-workspace-admin.md` (approved by the owner 23 
   - `data/causelists`: 1,773 of its 1,775 PDFs are the GHC website copies and are not in the document store;
   - `data/storage`: 521 of its 522 PDFs, from the pre-reset build, are not in the store.
 
+## One Case inbox (2026-10-25)
+Row 152, design `docs/design/case-inbox-merge.md` (approved by the owner 25 Oct 2026, including decisions 3, 4, 8 and 14), branch `feature/case-inbox-merge`. No migration, no visibility change.
+
+**Built**
+- **One "Case inbox" menu with six tabs.** Working on, Sent by me, Claimed by me (`cases.claim`), Disposed, Department cases (whole-department and State-wide readers) and Pending action (`custody.track`). The Cases menu is folded in; old `/cases/*`, `/files/*` and `/inbox/files` addresses redirect with the query string. The case page stays at `/cases/<ref>`. The nav pill is the Working on count, the pending figure only for trackers.
+- **Working on** reads `GET /inbox/mine?view=working`, with a Show control (All / With me / With my offices) and a side panel.
+- **API, additive and read-only.** The custody brief gains `due_soon` (same rule and window as the custody card, `request_due_soon_days`) and `sent_by` (`CustodySentByOut`, moved up in `schemas.py`). The `working` view now also lists every case whose custody row the caller holds whatever its status, ordered by the caller's own due date first, then the next hearing. The `files` view stays for compatibility; the portal no longer reads it.
+- **Tests.** `backend/tests/db/test_my_cases.py` (`test_working_includes_disposed_case_with_me`, `test_working_order_my_due_first`, `test_brief_due_soon_window`, `test_brief_sent_by_from_current_leg`, `test_brief_has_no_remark`, `test_working_count_matches_list`, `test_claimed_items_carry_new_brief_fields`, `test_openapi_brief_lists_the_new_fields`); frontend `inbox.test.tsx`, `routes.test.ts`, `shell.test.tsx`, `cases-list.test.tsx`; uicheck routes, states and fixtures for the Case inbox.
+
+**Decisions and reasons**
+1. No combined API: Working on extends `/inbox/mine` because two paged lists cannot be merged and paged correctly in the browser, and the counts would disagree.
+2. A case with me stays in Working on after it is disposed (owner's choice at approval); it also appears under Disposed.
+3. The brief carries no remark; the remark stays on the case's custody card (custody-workflow decision 25).
+
+**Deviations** (the design note's Deviations section lists six with reasons; none changes a business rule, a visibility rule or the API)
+- Case inbox is the current menu entry on every case page.
+- The side panel shows where a case is from the row's brief; the columns stay "-" unless `custody.with_me`.
+- `/inbox` and `/cases` choose the first tab from `/me` alone, without `/inbox/counts`.
+- `/inbox/mine/counts` is read only with `cases.view_scope`, so a login holding only `cases.view_all` gets no 403 banner.
+- uicheck has one login, which is a tracker; "a non-tracker does not see Pending action" is covered by vitest only.
+- The side-panel remark request carries `offset=0`.
+
+**Left for later**
+- Title Case labels and the multi-level menu are row 153, after the owner's mockup.
+- The Compose uicheck run and the design's browser checks are the integrator's and the owner's.
+

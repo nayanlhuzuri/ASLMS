@@ -587,6 +587,12 @@ class CustodyHolderBriefOut(BaseModel):
     designation: str | None = None
 
 
+class CustodySentByOut(BaseModel):
+    name: str | None
+    designation: str | None
+    office_code: str | None
+
+
 class CustodyBriefOut(BaseModel):
     """Where the file is, for a list row (design portal-ui-redesign, A1): no remark (custody-workflow decision 25
     keeps it on the case's custody card). `with_me` is relative to the caller."""
@@ -600,6 +606,14 @@ class CustodyBriefOut(BaseModel):
     due_date: date | None
     overdue: bool
     overdue_days: int
+    due_soon: bool = Field(
+        False,
+        description="not overdue and due within `request_due_soon_days` (IST), the custody card's window "
+        "(design case-inbox-merge, decision 2)",
+    )
+    sent_by: CustodySentByOut | None = Field(
+        None, description="the current leg's actor snapshot: who sent the file (design case-inbox-merge)"
+    )
 
 
 class AllotmentOut(BaseModel):
@@ -1023,12 +1037,6 @@ class CustodyHolderOut(BaseModel):
     id: uuid.UUID
     full_name: str
     designation: str | None = None
-
-
-class CustodySentByOut(BaseModel):
-    name: str | None
-    designation: str | None
-    office_code: str | None
 
 
 class CustodyCardOut(BaseModel):

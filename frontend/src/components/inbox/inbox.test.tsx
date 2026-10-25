@@ -1,21 +1,25 @@
 /**
- * The Case inbox = the user's own work (design portal-ui-redesign, decisions 5 and 10.4; round 2, row 102): the five
- * tabs by `/inbox/mine/counts` and `whole_department`, the own-work rows and their quick chips, Department cases with
- * the full filter bar (Not allotted sends `unallotted=true`), rows opening the case page, and the old addresses.
- * Recommended, the pool and Transfers are tested with Case claim (`components/claim/claim.test.tsx`).
+ * The Case inbox = the user's own work (design portal-ui-redesign, decisions 5 and 10.4; round 2, row 102; design
+ * case-inbox-merge: the Cases list folded in): the six tabs per login with their counts, Working on (the lead badge,
+ * Show, Overdue only and the side panel with the remark), the own-work rows of Claimed by me and Disposed, Department
+ * cases with the full filter bar (Not allotted sends `unallotted=true`), and the old addresses. Recommended, the pool
+ * and Transfers are tested with Case claim (`components/claim/claim.test.tsx`); the held and sent lists in
+ * `components/files/cases-list.test.tsx`.
  */
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import type { Ownership } from "@/lib/api/types";
+import type { CustodyBrief, CustodySummary, Me, Ownership, Permission } from "@/lib/api/types";
+import { setFlash } from "@/lib/flash";
 import { addDays, istDay } from "@/lib/format";
+import { OLD_CASES_REDIRECTS, OLD_FILES_REDIRECTS, OLD_INBOX_REDIRECTS } from "@/lib/routes";
 import { admin, block, membership, myCase, officer, summary } from "@/test/claimFixtures";
 import { nav, resetNav } from "@/test/nav";
-import { browserApi, makeMe, renderWithClient, type BrowserCall } from "@/test/render";
+import { browserApi, expectDataTable, makeMe, renderWithClient, type BrowserCall } from "@/test/render";
 
-import { InboxFrame } from "./InboxFrame";
-import { ClaimedRedirect, Redirect } from "./Redirects";
+import { InboxFrame, InboxIndex } from "./InboxFrame";
+import { ClaimedRedirect, Redirect, redirectTarget } from "./Redirects";
 
 const COUNTS = { working: 5, files: 2, claimed: 7, disposed: 1 };
 
@@ -64,9 +68,43 @@ function ownership(n: number, extra: Partial<Ownership> = {}): Ownership {
       due_date: null,
       overdue: false,
       overdue_days: 0,
+      due_soon: false,
+      sent_by: null,
     },
     ...extra,
   };
+}
+
+/** A custody brief; `with_me` by default. */
+function brief(extra: Partial<CustodyBrief> = {}): CustodyBrief {
+  return {
+    holder_office: { code: "EDU", name: "Education" },
+    holder_user: { full_name: "Anita Sharma", designation: "Under Secretary" },
+    with_me: true,
+    pending_action: "parawise_comments",
+    pending_action_label: "Parawise comments",
+    since: "2026-10-01T10:00:00Z",
+    due_date: "2026-10-10",
+    overdue: true,
+    overdue_days: 3,
+    due_soon: false,
+    sent_by: { name: "Edu Admin", designation: "Joint Secretary", office_code: "EDU" },
+    ...extra,
+  };
+}
+
+const SUMMARY: CustodySummary = {
+  departments: [
+    { code: "EDU", held: 5, due_soon: 2, overdue: 1, by_holder_department: [], by_holder: [] },
+    { code: "FIN", held: 2, due_soon: 0, overdue: 0, by_holder_department: [], by_holder: [] },
+  ],
+};
+
+const HEAD_FNS: Permission[] = ["cases.view_scope", "cases.claim", "cases.allot", "cases.transfer_decide", "custody.track"];
+
+/** A department head: whole department (from `/inbox/counts`), `cases.claim` and `custody.track`. */
+function head(): Me {
+  return admin(HEAD_FNS, { memberships: [membership("EDU", HEAD_FNS)] });
 }
 
 function routes(extra: Record<string, unknown> = {}) {
@@ -78,6 +116,9 @@ function routes(extra: Record<string, unknown> = {}) {
     "GET /inbox/claimed": { items: [ownership(1)], total: 1 },
     "GET /custody/recipients": PEOPLE,
     "GET /workflow/codes": WORKFLOW_CODES,
+    "GET /custody/summary": SUMMARY,
+    "GET /custody/sent": { items: [], total: 0 },
+    "GET /custody/held": { items: [], total: 0 },
     ...extra,
   };
 }
@@ -89,15 +130,83 @@ beforeEach(() => {
 });
 
 describe("tabs", () => {
-  it("a department officer sees Working on, Claimed by me and Disposed with counts, and no Department cases; Cases with me moved to the Cases list", async () => {
-    browserApi(routes({ "GET /me": officer(), "GET /inbox/counts": { departments: [block("EDU", { whole_department: false })] } }));
+  it("a department officer sees Working on, Sent by me and Disposed with counts; no Claimed by me, Department cases or Pending action", async () => {
+    const api = browserApi(routes({ "GET /me": officer(), "GET /inbox/counts": { departments: [block("EDU", { whole_department: false })] } }));
     renderWithClient(<InboxFrame tab="working" params={{}} />);
     const tabs = await screen.findByRole("navigation", { name: "Case inbox sections" });
+    expect(within(tabs).getAllByRole("link").map((a) => a.getAttribute("href"))).toEqual(["/inbox/working", "/inbox/sent", "/inbox/disposed"]);
     expect(within(tabs).getByRole("link", { name: /Working on.*\(5\)/ })).toHaveAttribute("aria-current", "page");
-    expect(within(tabs).queryByRole("link", { name: /Files with me|Cases with me/ })).toBeNull();
-    expect(within(tabs).getByRole("link", { name: /Claimed by me.*\(7\)/ })).toHaveAttribute("href", "/inbox/claimed-by-me");
     expect(within(tabs).getByRole("link", { name: /Disposed.*\(1\)/ })).toBeInTheDocument();
-    expect(within(tabs).queryByRole("link", { name: /Department cases/ })).toBeNull();
+    // Sent by me is a history, not a queue: no count
+    expect(within(tabs).getByRole("link", { name: "Sent by me" })).toBeInTheDocument();
+    expect(within(tabs).queryByRole("link", { name: /Cases with me|Claimed by me|Department cases|Pending action/ })).toBeNull();
+    // no pending figure is asked for by a login that tracks no department
+    expect(api.calls.some((c) => c.path.startsWith("/custody/summary"))).toBe(false);
+  });
+
+  it("an officer with cases.claim also sees Claimed by me", async () => {
+    browserApi(
+      routes({
+        "GET /me": officer(["cases.view_scope", "cases.claim"]),
+        "GET /inbox/counts": { departments: [block("EDU", { whole_department: false })] },
+      }),
+    );
+    renderWithClient(<InboxFrame tab="working" params={{}} />);
+    const tabs = await screen.findByRole("navigation", { name: "Case inbox sections" });
+    expect(within(tabs).getByRole("link", { name: /Claimed by me.*\(7\)/ })).toHaveAttribute("href", "/inbox/claimed-by-me");
+  });
+
+  it("a department head sees all six tabs in order; Pending action counts the held cases of /custody/summary", async () => {
+    const api = browserApi(routes({ "GET /me": head() }));
+    renderWithClient(<InboxFrame tab="working" params={{}} />);
+    const tabs = await screen.findByRole("navigation", { name: "Case inbox sections" });
+    await waitFor(() => expect(within(tabs).getByRole("link", { name: /Pending action.*\(7\)/ })).toHaveAttribute("href", "/inbox/pending"));
+    expect(within(tabs).getAllByRole("link").map((a) => a.getAttribute("href"))).toEqual([
+      "/inbox/working",
+      "/inbox/sent",
+      "/inbox/claimed-by-me",
+      "/inbox/disposed",
+      "/inbox/department",
+      "/inbox/pending",
+    ]);
+    expect(within(tabs).getByRole("link", { name: "Department cases" })).toBeInTheDocument();
+    expect(api.calls.filter((c) => c.path.startsWith("/custody/summary"))).toHaveLength(1);
+  });
+
+  it("a tab the login may not open shows the not-found text", async () => {
+    resetNav("/inbox/pending");
+    browserApi(routes({ "GET /me": officer() }));
+    renderWithClient(<InboxFrame tab="pending" params={{}} />);
+    expect(await screen.findByText("The page does not exist, or you cannot see it.")).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: /Tracking summary/ })).toBeNull();
+  });
+
+  it("Sent by me and Pending action render the existing lists", async () => {
+    resetNav("/inbox/sent");
+    const api = browserApi(routes({ "GET /me": head() }));
+    const { unmount } = renderWithClient(<InboxFrame tab="sent" params={{}} />);
+    expect(await screen.findByText("You have not sent or recalled a case.")).toBeInTheDocument();
+    expect(api.calls.some((c) => c.path.startsWith("/custody/sent"))).toBe(true);
+    unmount();
+    resetNav("/inbox/pending");
+    renderWithClient(<InboxFrame tab="pending" params={{}} />);
+    expect(await screen.findByRole("region", { name: "Tracking summary: EDU" })).toBeInTheDocument();
+    await waitFor(() => expect(api.calls.some((c) => c.path.startsWith("/custody/held") && c.path.includes("scope=owned"))).toBe(true));
+  });
+
+  it("the notice of a case sent away shows once, above the tabs", async () => {
+    resetNav("/inbox/sent");
+    setFlash("Case sent to Health Off. It is no longer with you.");
+    browserApi(routes({ "GET /me": officer() }));
+    const { unmount } = renderWithClient(<InboxFrame tab="sent" params={{}} />);
+    const notice = await screen.findByText("Case sent to Health Off. It is no longer with you.");
+    const tabs = screen.getByRole("navigation", { name: "Case inbox sections" });
+    expect(notice.compareDocumentPosition(tabs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(sessionStorage.getItem("aslms.flash")).toBeNull();
+    unmount();
+    renderWithClient(<InboxFrame tab="sent" params={{}} />);
+    await screen.findByRole("navigation", { name: "Case inbox sections" });
+    expect(screen.queryByText(/It is no longer with you/)).toBeNull();
   });
 
   it("the department admin also gets Department cases (whole_department)", async () => {
@@ -131,59 +240,126 @@ describe("tabs", () => {
   });
 });
 
-describe("own work", () => {
-  it("rows show the case, stage, next hearing badge and my action; a row opens the case page", async () => {
+describe("Working on (case-inbox-merge, decisions 8 and 9)", () => {
+  it("columns: lead badge, case and parties, next hearing, action needed, due by, From and the chevron; only a case with me fills them", async () => {
     const soon = addDays(istDay(), 1);
     const api = browserApi(
       routes({
         "GET /inbox/mine": {
           items: [
-            myCase(1, {
-              case: summary(1, { next_hearing_date: soon }),
-              stage: { stage: "counsel_briefed", label: "Counsel briefed", phase: "main" },
-              custody: {
-                holder_office: { code: "EDU", name: "Education" },
-                holder_user: { full_name: "Anita Sharma", designation: "Under Secretary" },
-                with_me: true,
-                pending_action: "parawise_comments",
-                pending_action_label: "Parawise comments",
-                since: "2026-10-01T10:00:00Z",
-                due_date: "2026-10-10",
-                overdue: true,
-                overdue_days: 3,
-              },
-              reasons: ["allotted", "file"],
+            myCase(1, { case: summary(1, { next_hearing_date: soon }), custody: brief(), reasons: ["allotted", "file"] }),
+            myCase(2, {
+              custody: brief({ with_me: false, holder_user: { full_name: "Health Officer", designation: "Deputy Secretary" }, overdue: true }),
             }),
-            myCase(2),
+            myCase(3),
           ],
-          total: 2,
+          total: 3,
         },
       }),
     );
     renderWithClient(<InboxFrame tab="working" params={{}} />);
-    const row = await screen.findByRole("row", { name: "Open WP(C)/1/2026" });
-    expect(within(row).getByText("Counsel briefed")).toBeInTheDocument();
-    expect(within(row).getByText("48 h")).toBeInTheDocument();
-    expect(within(row).getByText("Parawise comments")).toBeInTheDocument();
-    expect(within(row).getByText("Overdue 3 days")).toBeInTheDocument();
-    expect(within(row).getByText("RAM KUMAR", { exact: false })).toBeInTheDocument();
-    expect(within(screen.getByRole("row", { name: "Open WP(C)/2/2026" })).getByText("No stage set")).toBeInTheDocument();
+    const table = await screen.findByRole("table", { name: "Working on" });
+    expectDataTable(table);
+    expect(within(table).getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
+      "Status",
+      "Case and parties",
+      "Next hearing",
+      "Action needed",
+      "Due by",
+      "From",
+      "Case details",
+    ]);
+    const row1 = screen.getByRole("row", { name: "Details of WP(C)/1/2026" });
+    expect(within(row1).getByRole("link", { name: "WP(C)/1/2026" })).toHaveAttribute("href", "/cases/ASLMS-GOA-CASE-2026-000001");
+    expect(within(row1).getByText("Overdue")).toBeInTheDocument();
+    expect(within(row1).getByText("48 h")).toBeInTheDocument();
+    expect(within(row1).getByText("Parawise comments")).toBeInTheDocument();
+    expect(within(row1).getByText("10 Oct 2026")).toBeInTheDocument();
+    expect(within(row1).getByText("Joint Secretary, EDU")).toHaveAttribute("title", "Edu Admin");
+    // allotted to me, with someone else: no badge, "—" for action, due and From
+    const row2 = screen.getByRole("row", { name: "Details of WP(C)/2/2026" });
+    expect(within(row2).queryByText(/Overdue|Due soon|New/)).toBeNull();
+    expect(within(row2).queryByText("Parawise comments")).toBeNull();
+    expect(within(row2).getAllByText("—").length).toBeGreaterThanOrEqual(3);
     expect(lastUrl(api.calls, "/inbox/mine?")).toContain("view=working");
-    expect(screen.getByText("2 cases")).toBeInTheDocument();
-    await userEvent.click(row);
-    expect(nav.push).toHaveBeenCalledWith("/cases/ASLMS-GOA-CASE-2026-000001");
+    expect(screen.getByText("3 cases")).toBeInTheDocument();
   });
 
-  it("the quick chips write next=n7 and action=overdue; the filtered count reads n of m", async () => {
+  it("a row opens Case details: the brief's facts and the remark read once from the case's custody card", async () => {
+    const api = browserApi(
+      routes({
+        "GET /inbox/mine": { items: [myCase(1, { custody: brief() }), myCase(2)], total: 2 },
+        "GET /cases/ASLMS-GOA-CASE-2026-000001/custody": {
+          card: { remark: "please send parawise comments" },
+          items: [],
+          total: 1,
+          remarks_shown: true,
+        },
+      }),
+    );
+    renderWithClient(<InboxFrame tab="working" params={{}} />);
+    await userEvent.click(await screen.findByRole("row", { name: "Details of WP(C)/1/2026" }));
+    const panel = await screen.findByRole("dialog", { name: "Case details" });
+    expect(await within(panel).findByText("please send parawise comments")).toBeInTheDocument();
+    for (const label of ["With", "Action needed", "Since", "Due by", "From"]) expect(within(panel).getByText(label)).toBeInTheDocument();
+    expect(within(panel).getByText("Under Secretary, Education (you)")).toBeInTheDocument();
+    const custodyCalls = api.calls.filter((c) => c.path.startsWith("/cases/ASLMS-GOA-CASE-2026-000001/custody"));
+    expect(custodyCalls).toHaveLength(1);
+    expect(custodyCalls[0]!.path).toContain("order=desc");
+    expect(custodyCalls[0]!.path).toContain("limit=1");
+    expect(within(panel).queryByRole("button", { name: /send|recall/i })).toBeNull();
+    await userEvent.click(within(panel).getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    // a row with no custody row reads nothing more
+    await userEvent.click(screen.getByRole("row", { name: "Details of WP(C)/2/2026" }));
+    const panel2 = await screen.findByRole("dialog", { name: "Case details" });
+    expect(within(panel2).getByText("No remark.")).toBeInTheDocument();
+    expect(api.calls.some((c) => c.path.startsWith("/cases/ASLMS-GOA-CASE-2026-000002/custody"))).toBe(false);
+  });
+
+  it("Show: With me reads /custody/held?scope=me, With my offices scope=office; All reads /inbox/mine", async () => {
+    const api = browserApi(routes());
+    const { unmount } = renderWithClient(<InboxFrame tab="working" params={{}} />);
+    const show = await screen.findByRole("radiogroup", { name: "Show" });
+    expect(within(show).getByRole("radio", { name: "All" })).toHaveAttribute("aria-checked", "true");
+    await userEvent.click(within(show).getByRole("radio", { name: "With me" }));
+    expect(nav.replace).toHaveBeenCalledWith("/inbox/working?held=me");
+    unmount();
+    const { unmount: u2 } = renderWithClient(<InboxFrame tab="working" params={{ held: "me" }} />);
+    await waitFor(() => expect(lastUrl(api.calls, "/custody/held?")).toContain("scope=me"));
+    u2();
+    renderWithClient(<InboxFrame tab="working" params={{ held: "offices" }} />);
+    await waitFor(() => expect(lastUrl(api.calls, "/custody/held?")).toContain("scope=office"));
+  });
+
+  it("Overdue only: action=overdue under All, overdue=true under With me; an incoming action=overdue reads as overdue=true", async () => {
+    const api = browserApi(routes());
+    const { unmount } = renderWithClient(<InboxFrame tab="working" params={{ overdue: "true" }} />);
+    await waitFor(() => expect(lastUrl(api.calls, "/inbox/mine?")).toContain("action=overdue"));
+    expect(screen.getByLabelText("Overdue only")).toBeChecked();
+    unmount();
+    const { unmount: u2 } = renderWithClient(<InboxFrame tab="working" params={{ held: "me", overdue: "true" }} />);
+    await waitFor(() => expect(lastUrl(api.calls, "/custody/held?")).toContain("overdue=true"));
+    expect(lastUrl(api.calls, "/custody/held?")).not.toContain("action=");
+    u2();
+    // a round-2 bookmark; and an old Cases with me link's `owner` is not sent to the `mine` list
+    renderWithClient(<InboxFrame tab="working" params={{ action: "overdue", owner: "EDU" }} />);
+    await waitFor(() => expect(screen.getByLabelText("Overdue only")).toBeChecked());
+    const url = lastUrl(api.calls, "/inbox/mine?");
+    expect(url).toContain("action=overdue");
+    expect(url).not.toContain("owner=");
+  });
+
+  it("the quick chips write next=n7 and overdue=true; the filtered count reads n of m", async () => {
     const api = browserApi(routes({ "GET /inbox/mine": { items: [myCase(1)], total: 1 } }));
     const { unmount } = renderWithClient(<InboxFrame tab="working" params={{}} />);
     await userEvent.click(await screen.findByRole("button", { name: "Hearing this week" }));
     expect(nav.replace).toHaveBeenCalledWith("/inbox/working?next=n7");
     await userEvent.click(screen.getByRole("button", { name: "Action overdue" }));
-    expect(nav.replace).toHaveBeenCalledWith("/inbox/working?action=overdue");
+    expect(nav.replace).toHaveBeenCalledWith("/inbox/working?overdue=true");
     unmount();
     resetNav("/inbox/working");
-    renderWithClient(<InboxFrame tab="working" params={{ next: "n7", action: "overdue", stage: "none" }} />);
+    renderWithClient(<InboxFrame tab="working" params={{ next: "n7", overdue: "true", stage: "none" }} />);
     expect(await screen.findByText("1 of 5 cases")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Hearing this week" })).toHaveAttribute("aria-pressed", "true");
     const url = lastUrl(api.calls, "/inbox/mine?");
@@ -209,8 +385,43 @@ describe("own work", () => {
   it("the page has at most one primary button (decision 16)", async () => {
     browserApi(routes({ "GET /inbox/mine": { items: [myCase(1)], total: 1 } }));
     const { container } = renderWithClient(<InboxFrame tab="working" params={{}} />);
-    await screen.findByRole("row", { name: "Open WP(C)/1/2026" });
+    await screen.findByRole("row", { name: "Details of WP(C)/1/2026" });
     expect(container.querySelectorAll("[data-variant='primary']").length).toBeLessThanOrEqual(1);
+  });
+});
+
+describe("own work: Claimed by me and Disposed", () => {
+  beforeEach(() => resetNav("/inbox/claimed-by-me"));
+
+  it("rows show the case, stage, next hearing badge and my action; a row opens the case page", async () => {
+    const soon = addDays(istDay(), 1);
+    const api = browserApi(
+      routes({
+        "GET /inbox/mine": {
+          items: [
+            myCase(1, {
+              case: summary(1, { next_hearing_date: soon }),
+              stage: { stage: "counsel_briefed", label: "Counsel briefed", phase: "main" },
+              custody: brief(),
+              reasons: ["claimed", "file"],
+            }),
+            myCase(2),
+          ],
+          total: 2,
+        },
+      }),
+    );
+    renderWithClient(<InboxFrame tab="claimed" params={{}} />);
+    const row = await screen.findByRole("row", { name: "Open WP(C)/1/2026" });
+    expect(within(row).getByText("Counsel briefed")).toBeInTheDocument();
+    expect(within(row).getByText("48 h")).toBeInTheDocument();
+    expect(within(row).getByText("Parawise comments")).toBeInTheDocument();
+    expect(within(row).getByText("Overdue 3 days")).toBeInTheDocument();
+    expect(within(row).getByText("RAM KUMAR", { exact: false })).toBeInTheDocument();
+    expect(within(screen.getByRole("row", { name: "Open WP(C)/2/2026" })).getByText("No stage set")).toBeInTheDocument();
+    expect(lastUrl(api.calls, "/inbox/mine?")).toContain("view=claimed");
+    await userEvent.click(row);
+    expect(nav.push).toHaveBeenCalledWith("/cases/ASLMS-GOA-CASE-2026-000001");
   });
 
   it("an empty view says when items appear", async () => {
@@ -306,10 +517,55 @@ describe("Department cases", () => {
 });
 
 describe("old addresses", () => {
-  it("/inbox opens Working on", async () => {
+  it("/inbox and /cases open the first tab the login may open, keeping the query string, or /search", async () => {
     resetNav("/inbox");
-    renderWithClient(<Redirect to="/inbox/working" params={{}} />);
-    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/inbox/working"));
+    browserApi({ "GET /me": officer() });
+    const { unmount } = renderWithClient(<InboxIndex params={{ q: "ram" }} />);
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/inbox/working?q=ram"));
+    unmount();
+    resetNav("/cases");
+    browserApi({ "GET /me": makeMe(["cases.view_all"], "state_oversight") });
+    const { unmount: u2 } = renderWithClient(<InboxIndex />);
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/inbox/sent"));
+    u2();
+    resetNav("/cases");
+    browserApi({ "GET /me": makeMe(["users.view"], "dept_admin") });
+    renderWithClient(<InboxIndex />);
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/search"));
+  });
+
+  it("the old Cases list addresses land on the Case inbox tabs with the query kept", async () => {
+    expect(redirectTarget(OLD_CASES_REDIRECTS["/cases/with-me"]!, { overdue: "true", q: "ram" })).toBe("/inbox/working?overdue=true&q=ram");
+    expect(redirectTarget(OLD_CASES_REDIRECTS["/cases/with-me"]!, { held: "offices" })).toBe("/inbox/working?held=offices");
+    expect(redirectTarget(OLD_CASES_REDIRECTS["/cases/sent"]!, {})).toBe("/inbox/sent");
+    expect(redirectTarget(OLD_CASES_REDIRECTS["/cases/pending"]!, { holder_department: "HEALTH" })).toBe(
+      "/inbox/pending?holder_department=HEALTH",
+    );
+    resetNav("/cases/with-me");
+    renderWithClient(<Redirect to={OLD_CASES_REDIRECTS["/cases/with-me"]!} params={{ overdue: "true", q: "ram" }} />);
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/inbox/working?overdue=true&q=ram"));
+  });
+
+  it("/files/* and /inbox/files point to final addresses, keeping the query string", async () => {
+    expect(redirectTarget(OLD_FILES_REDIRECTS["/files/mine"]!, { overdue: "true", q: "ram" })).toBe("/inbox/working?overdue=true&q=ram");
+    expect(redirectTarget(OLD_FILES_REDIRECTS["/files/offices"]!, { overdue: "true" })).toBe("/inbox/working?overdue=true&held=offices");
+    expect(redirectTarget(OLD_FILES_REDIRECTS["/files/department"]!, { holder_department: "HEALTH" })).toBe(
+      "/inbox/pending?holder_department=HEALTH",
+    );
+    expect(redirectTarget(OLD_FILES_REDIRECTS["/files/sent"]!, {})).toBe("/inbox/sent");
+    expect(redirectTarget(OLD_FILES_REDIRECTS["/files"]!, {})).toBe("/inbox/working");
+    expect(redirectTarget(OLD_FILES_REDIRECTS["/inbox/files"]!, {})).toBe("/inbox/working");
+    const sources = new Set([
+      ...Object.keys(OLD_FILES_REDIRECTS),
+      ...Object.keys(OLD_CASES_REDIRECTS),
+      ...Object.keys(OLD_INBOX_REDIRECTS),
+      "/cases",
+      "/inbox",
+      "/inbox/claimed",
+    ]);
+    for (const target of [...Object.values(OLD_FILES_REDIRECTS), ...Object.values(OLD_CASES_REDIRECTS)]) {
+      expect(sources.has(target.split("?")[0]!), target).toBe(false);
+    }
   });
 
   it("/inbox/claimed goes to Department cases for a whole-department reader, keeping the query string", async () => {

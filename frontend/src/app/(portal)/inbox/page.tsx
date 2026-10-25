@@ -1,9 +1,9 @@
-import { Redirect } from "@/components/inbox/Redirects";
+import { InboxIndex } from "@/components/inbox/InboxFrame";
 import { plainParams } from "@/lib/params";
 
 type SP = Promise<Record<string, string | string[] | undefined>>;
 
-/** `/inbox`: Working on (design portal-ui-redesign, decision 5). */
+/** `/inbox`: the first tab the login may open, else Search (design case-inbox-merge, decision 7). */
 export default async function Page({ searchParams }: { searchParams: SP }) {
-  return <Redirect to="/inbox/working" params={plainParams(await searchParams)} />;
+  return <InboxIndex params={plainParams(await searchParams)} />;
 }

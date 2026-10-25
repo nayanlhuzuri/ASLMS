@@ -47,16 +47,20 @@ function routes(dir = APP): string[] {
 }
 
 /**
- * The old Files addresses and where they lead (design case-workspace-admin, decision 3; `OLD_FILES_REDIRECTS` in
- * `src/lib/routes.ts`, pinned by `routes.test.ts`): each is checked as a redirect that lands on the Cases list.
+ * The old Files and Cases list addresses and where they lead (design case-workspace-admin, decision 3; case-inbox-merge,
+ * decision 12; `OLD_FILES_REDIRECTS` and `OLD_CASES_REDIRECTS` in `src/lib/routes.ts`, pinned by `routes.test.ts`): each
+ * is checked as a redirect that lands on its Case inbox tab.
  */
 const OLD_FILES: Record<string, string> = {
-  "/files": "/cases/with-me",
-  "/files/mine": "/cases/with-me",
-  "/files/offices": "/cases/with-me?held=offices",
-  "/files/department": "/cases/pending",
-  "/files/sent": "/cases/sent",
-  "/inbox/files": "/cases/with-me",
+  "/files": "/inbox/working",
+  "/files/mine": "/inbox/working",
+  "/files/offices": "/inbox/working?held=offices",
+  "/files/department": "/inbox/pending",
+  "/files/sent": "/inbox/sent",
+  "/inbox/files": "/inbox/working",
+  "/cases/with-me": "/inbox/working",
+  "/cases/sent": "/inbox/sent",
+  "/cases/pending": "/inbox/pending",
 };
 
 interface Visit {
@@ -139,7 +143,7 @@ test.describe("every page", () => {
       const screenshot = redirect ? null : await shoot(page, route, width);
       writeResult({ name: route, width, screenshot, redirect, findings });
       expect(findings, JSON.stringify(findings, null, 2)).toEqual([]);
-      if (OLD_FILES[route]) expect(redirect, `${route} leads to the Cases list`).toBe(OLD_FILES[route]);
+      if (OLD_FILES[route]) expect(redirect, `${route} leads to its Case inbox tab`).toBe(OLD_FILES[route]);
     });
   }
 });
@@ -177,12 +181,21 @@ const STATES: State[] = [
     },
   },
   {
-    // design case-workspace-admin, decision 20: the Cases list's side panel with the full remark
-    name: "/cases/with-me (side panel)",
-    path: "/cases/with-me",
+    // design case-inbox-merge, decision 9: Working on's side panel, the remark read from the case's custody card
+    name: "/inbox/working (side panel)",
+    path: "/inbox/working",
     open: async (page) => {
       await page.locator("tbody tr").first().click();
       await page.getByRole("dialog").first().waitFor();
+    },
+  },
+  {
+    // decision 8: Show "With my offices", the held list inside Working on
+    name: "/inbox/working?held=offices",
+    path: "/inbox/working?held=offices",
+    open: async (page) => {
+      await page.getByRole("radiogroup", { name: "Show" }).waitFor();
+      await page.locator("tbody tr").first().waitFor();
     },
   },
   {

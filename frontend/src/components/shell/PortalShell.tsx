@@ -35,6 +35,8 @@ function isActive(pathname: string, href: string): boolean {
   if (href === "/") return pathname === "/";
   // an entry stays current across its section's tabs (`/data/load` → every `/data/...` page)
   const section = "/" + (href.split("/")[1] ?? "");
+  // design case-inbox-merge, decision 12: the case page sits under the Case inbox, as its crumb says
+  if (section === "/inbox" && (pathname === "/cases" || pathname.startsWith("/cases/"))) return true;
   return pathname === section || pathname.startsWith(section + "/");
 }
 
@@ -44,7 +46,7 @@ function isActive(pathname: string, href: string): boolean {
  */
 function useNavCounts(me: Me): Partial<Record<NavCount, number>> {
   const alerts = useAlertCounts(canAny(me, CASE_READERS));
-  // Case inbox and Files: `/inbox/mine/counts` (A2); Case claim: the sum over the login's departments of the strong
+  // Case inbox: the Working on figure of `/inbox/mine/counts` (A2; design case-inbox-merge, decision 10); Case claim: the sum over the login's departments of the strong
   // and possible recommendations and the open transfers in (`/inbox/counts`)
   const mine = useMyCounts(can(me, "cases.view_scope"));
   const showsClaim = navFor(me).some((e) => e.key === "claim");
@@ -53,7 +55,7 @@ function useNavCounts(me: Me): Partial<Record<NavCount, number>> {
   const claim = inbox.data
     ? blocks.reduce((n, b) => n + (b.recommended_high ?? 0) + (b.recommended_medium ?? 0) + (b.transfers_in_open ?? 0), 0)
     : undefined;
-  return { alerts: alerts.data?.unread, inbox: mine.data?.working, files: mine.data?.files, claim };
+  return { alerts: alerts.data?.unread, inbox: mine.data?.working, claim };
 }
 
 /** Below this width the sidebar is a drawer (decision 18). */

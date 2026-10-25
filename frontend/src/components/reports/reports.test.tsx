@@ -410,7 +410,7 @@ describe("pending actions", () => {
     );
   });
 
-  it("the Pending action link to the Cases list shows only to a tracker (case-workspace-admin, decision 21)", async () => {
+  it("the Pending action link to the Case inbox shows only to a tracker (case-inbox-merge, decision 13)", async () => {
     resetNav("/reports/pending-actions");
     const routes = {
       "GET /reports": catalogue(false),
@@ -426,7 +426,8 @@ describe("pending actions", () => {
     tracker.memberships = (tracker.memberships ?? []).map((m) => ({ ...m, functions: ["custody.track", "reports.department"] }));
     browserApi({ ...routes, "GET /me": tracker });
     renderWithClient(<ReportPage reportKey="pending-actions" params={{ department: "EDU" }} />);
-    expect(await screen.findByRole("link", { name: "Pending action" })).toHaveAttribute("href", "/cases/pending");
+    expect(await screen.findByRole("link", { name: "Pending action" })).toHaveAttribute("href", "/inbox/pending");
+    expect(screen.getByText(/is under Case inbox:/)).toBeInTheDocument();
   });
 });
 

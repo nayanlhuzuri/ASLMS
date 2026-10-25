@@ -8,6 +8,7 @@
 import type { components } from "@/lib/api/schema";
 import type {
   AlertList,
+  CustodyBrief,
   CustodyHistory,
   CustodyLeg,
   DashboardIndex,
@@ -15,6 +16,7 @@ import type {
   InboxCounts,
   Me,
   MembershipOut,
+  MyCaseList,
   Note,
   NoteList,
   Permission,
@@ -450,6 +452,42 @@ function held(): HeldList {
   return { ...base, items, total: items.length };
 }
 
+/**
+ * Working on (design case-inbox-merge, decision 8): one row per lead badge on a case with me (Overdue, Due soon, New),
+ * then a case allotted to me but with someone else (no badge, "—" for action, due and From).
+ */
+function working(): MyCaseList {
+  const base = synthFor("/inbox/mine")!.body as MyCaseList;
+  const first = base.items[0]!;
+  const recent = new Date(Date.now() - 2 * 3600 * 1000).toISOString();
+  const brief: CustodyBrief = {
+    holder_office: { code: "EDU-DSE", name: STRESS.office },
+    holder_user: { full_name: "Anita Sharma Baruah", designation: STRESS.designation },
+    with_me: true,
+    pending_action: "parawise_comments",
+    pending_action_label: "Parawise comments",
+    since: "2026-10-01T05:30:00Z",
+    due_date: "2026-10-12",
+    overdue: false,
+    overdue_days: 0,
+    due_soon: false,
+    sent_by: { name: "Rina Das", designation: "Joint Secretary", office_code: "EDU" },
+  };
+  const variants: Partial<CustodyBrief>[] = [
+    { overdue: true, overdue_days: 12 },
+    { due_date: "2099-01-01", due_soon: true },
+    { due_date: null, since: recent },
+    { with_me: false, holder_user: { full_name: "Rina Das 1", designation: "Section Officer" }, overdue: true, overdue_days: 3 },
+  ];
+  const items = variants.map((v, i) => ({
+    ...first,
+    case: { ...first.case, id: `0192a3b4-0000-7000-8000-00000000050${i}` },
+    reasons: v.with_me === false ? ["allotted"] : ["allotted", "file"],
+    custody: { ...brief, ...v },
+  }));
+  return { ...base, items, total: items.length };
+}
+
 /** Sent by me (decision 20): the current leg, a past leg (muted) and a case the sender can no longer open. */
 function sent(): SentList {
   const base = synthFor("/custody/sent")!.body as SentList;
@@ -530,9 +568,14 @@ const OVERRIDES: [RegExp, Override][] = [
   [/^\/reports\/[^/]+$/, (url) => report(url.pathname.split("/").pop()!)],
   [/^\/alerts$/, () => emptyList<AlertList>("AlertListOut")],
   [/^\/custody\/sent$/, () => sent()],
+  // design case-inbox-merge: the matcher reads `view` (the API's parameter); Disposed is seen empty
   [
     /^\/inbox\/mine$/,
-    (url) => (url.searchParams.get("tab") === "working" ? emptyList<S["MyCaseListOut"]>("MyCaseListOut") : synthFor("/inbox/mine")!.body),
+    (url) => {
+      const view = url.searchParams.get("view");
+      if (view === "working") return working();
+      return view === "disposed" ? emptyList<S["MyCaseListOut"]>("MyCaseListOut") : synthFor("/inbox/mine")!.body;
+    },
   ],
 ];
 

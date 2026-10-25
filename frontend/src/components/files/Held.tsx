@@ -1,9 +1,10 @@
 "use client";
 
 /**
- * The held lists of the Cases list (design case-workspace-admin, decisions 17 and 19; custody-workflow decision 24):
- * Cases with me (`scope=me`, or `scope=office` with "Held by: My offices", `?held=offices`) and Pending action
- * (`scope=owned`, with the tracking summary and "Department it is with"). The API's order (due date, then since), paged
+ * The held lists (design case-workspace-admin, decisions 17 and 19; custody-workflow decision 24), now tabs of the Case
+ * inbox (design case-inbox-merge, decisions 7 and 8): Working on's "Show: With me" (`scope=me`, `?held=me`) and "With
+ * my offices" (`scope=office`, `?held=offices`), and Pending action (`scope=owned`, with the tracking summary and
+ * "Department it is with"). The API's order (due date, then since), paged
  * by 50 in the query string. No action buttons: sending and recalling happen on the case page, where the card's flags
  * are current. The one filter bar (design portal-filters): the shared case filters with the owning department (on
  * Pending action only the departments the login tracks), Overdue only and the list's own controls. On the Work list
@@ -20,7 +21,7 @@ import { Badge, CaseLink, DataTable, EmptyState, ErrorBanner, Lead, Loading, Pag
 import { api } from "@/lib/api/client";
 import { useDepartments, useMe } from "@/lib/api/hooks";
 import type { HeldItem, HeldList, Me } from "@/lib/api/types";
-import { cardHolder, cardSender, leadBadge, withText, type CasesTab, type WithParty } from "@/lib/cases";
+import { cardHolder, cardSender, leadBadge, withText, type WithParty } from "@/lib/cases";
 import { toApiQuery } from "@/lib/filters";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { T } from "@/lib/messages";
@@ -94,7 +95,7 @@ export function trackedDepartments(me: Me | undefined): { value: string; label: 
   return out;
 }
 
-export function Held({ tab, params }: { tab: Exclude<CasesTab, "sent">; params: Params }) {
+export function Held({ tab, params }: { tab: "with-me" | "pending"; params: Params }) {
   const setFilters = useFilters(params);
   const me = useMe();
   const meId = me.data?.user.id ?? null;
@@ -132,13 +133,15 @@ export function Held({ tab, params }: { tab: Exclude<CasesTab, "sent">; params: 
           },
         ]
       : [
+          // design case-inbox-merge, decision 8: Working on's Show control; All leaves for `/inbox/mine`
           {
             key: "held",
             kind: "segmented",
-            label: T.cases.heldBy,
+            label: T.cases.show,
             options: [
-              { value: "", label: T.cases.heldMe },
-              { value: "offices", label: T.cases.heldOffices },
+              { value: "", label: T.cases.showAll },
+              { value: "me", label: T.cases.showMe },
+              { value: "offices", label: T.cases.showOffices },
             ],
             first: true,
           },

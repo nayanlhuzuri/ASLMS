@@ -2,6 +2,10 @@
 Working on, Files with me, Claimed by me and Disposed, their counts, and the batched row facts (stage, file holder,
 allotment, owner) shared with the department's Claimed list (A3).
 
+Working on (design `case-inbox-merge`, decisions 3 and 4) is the active cases allotted to the caller, and every
+case whose custody row the caller holds whatever its status; it is ordered by the caller's own due date, then the
+next hearing. The `files` view stays for compatibility; the portal no longer reads it.
+
 Three sets over `cases`, each a condition (correlated `EXISTS`):
 - allotted (A): for each active membership with a department, the Claimed-tab rule for the membership itself
   (`visibility.claimed_conditions(..., whole=False)`): the officer is the person, or, for a membership below the
@@ -25,6 +29,7 @@ from sqlalchemy import ColumnElement, Select, and_, exists, false, or_, select
 from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.orm import Session, aliased
 
+from aslms.core.config import get_settings
 from aslms.domain.cases import Case, CaseStatus
 from aslms.domain.org import Office, User, UserMembership
 from aslms.domain.ownership import (
@@ -178,9 +183,14 @@ def holder_condition(raw: str | None, department: Office) -> ColumnElement[bool]
 # ------------------------------------------------------------------------------------------------ the views
 
 
+def _active() -> ColumnElement[bool]:
+    return Case.status.in_([CaseStatus.PENDING, CaseStatus.UNKNOWN])
+
+
 def _state(view: str) -> ColumnElement[bool] | None:
-    if view in ("working", "claimed"):
-        return Case.status.in_([CaseStatus.PENDING, CaseStatus.UNKNOWN])
+    """The status rule of a view; Working on carries its own inside `_view_set` (decision 3)."""
+    if view == "claimed":
+        return _active()
     if view == "disposed":
         return Case.status == CaseStatus.DISPOSED
     return None
@@ -188,7 +198,8 @@ def _state(view: str) -> ColumnElement[bool] | None:
 
 def _view_set(c: MyConditions, view: str) -> ColumnElement[bool]:
     if view == "working":
-        return or_(c.allotted, c.file)
+        # design case-inbox-merge, decision 3: a case with me stays whatever its status
+        return or_(and_(c.allotted, _active()), c.file)
     if view == "files":
         return c.file
     if view == "claimed":
@@ -251,6 +262,23 @@ def mine(
     if view == "files":
         since = select(_DUE.since).where(_DUE.case_id == Case.id).scalar_subquery()
         order = [due.asc().nulls_last(), since, Case.id]
+    elif view == "working":
+        # design case-inbox-merge, decision 4: my own due date first (overdue first), then the next hearing
+        my_due = (
+            select(_DUE.due_date)
+            .where(
+                _DUE.case_id == Case.id,
+                _DUE.holder_user_id == user.id,
+                _DUE.pending_action != PendingAction.NONE,
+            )
+            .scalar_subquery()
+        )
+        order = [
+            my_due.asc().nulls_last(),
+            Case.next_hearing_date.asc().nulls_last(),
+            Case.case_no_text,
+            Case.id,
+        ]
     else:
         order = [
             Case.next_hearing_date.asc().nulls_last(),
@@ -324,6 +352,9 @@ def _custody_briefs(
             holder.full_name,
             leg.holder_designation,
             UserMembership.designation,
+            leg.actor_name,
+            leg.actor_designation,
+            leg.actor_office_code,
         )
         .join(Office, Office.id == Custody.holder_office_id)
         .outerjoin(holder, holder.id == Custody.holder_user_id)
@@ -332,10 +363,15 @@ def _custody_briefs(
         .where(Custody.case_id.in_(case_ids))
     ).all()
     today = today_ist()
+    soon_until = today + timedelta(days=get_settings().request_due_soon_days)
     out: dict[uuid.UUID, dict[str, Any]] = {}
-    for cid, holder_id, action, since, due, code, name, full_name, leg_desig, m_desig in rows:
+    for row in rows:
+        cid, holder_id, action, since, due, code, name, full_name, leg_desig, m_desig = row[:10]
+        actor_name, actor_desig, actor_office = row[10:]
         act = PendingAction(action)
         overdue = due is not None and due < today and act != PendingAction.NONE
+        # design case-inbox-merge, decision 2: the custody card's window (`request_due_soon_days`)
+        due_soon = due is not None and not overdue and today <= due <= soon_until
         out[cid] = {
             "holder_office": {"code": code, "name": name},
             "holder_user": (
@@ -350,6 +386,12 @@ def _custody_briefs(
             "due_date": due,
             "overdue": overdue,
             "overdue_days": (today - due).days if overdue else 0,
+            "due_soon": due_soon,
+            "sent_by": (
+                {"name": actor_name, "designation": actor_desig, "office_code": actor_office}
+                if actor_name
+                else None
+            ),
         }
     return out
 

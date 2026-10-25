@@ -3,11 +3,12 @@
  * case-workspace-admin, decisions 11, 13 and 19):
  * - `withText`: who a case is with, "<designation>, <office>" with "(you)" for the caller; the person's name only when
  *   the membership has no designation, and always as the title attribute;
- * - `leadBadge`: the Cases list's lead badge, one pure rule per tab (first match wins);
+ * - `leadBadge`: the lead badge of the custody lists, one pure rule per list (first match wins); Working on reads the
+ *   row's custody brief only when the case is with the caller (design case-inbox-merge, decision 8);
  * - `hearingCountdown`: whole IST days to a hearing ("Today", "Tomorrow", "In n days"), never hours, since ASLMS does
  *   not hold the hearing time.
  */
-import type { CustodyCard, CustodyLeg, HeldItem, SentItem } from "./api/types";
+import type { CustodyCard, CustodyLeg, HeldItem, MyCase, SentItem } from "./api/types";
 import { addDays, daysBetween, istDay } from "./format";
 import { T } from "./messages";
 
@@ -69,7 +70,7 @@ export function legActor(leg: CustodyLeg): WithParty | null {
   return { designation: leg.actor_designation, office: leg.actor_office_code, name: leg.actor_name };
 }
 
-export type CasesTab = "with-me" | "pending" | "sent";
+export type CasesTab = "with-me" | "pending" | "sent" | "working";
 
 export interface LeadBadge {
   label: string;
@@ -81,8 +82,22 @@ export const SENT_DUE_SOON_DAYS = 2;
 
 const NEW_MS = 48 * 3600 * 1000;
 
+function isNew(since: string | null | undefined, now: Date): boolean {
+  const t = since ? Date.parse(since) : NaN;
+  return Number.isFinite(t) && now.getTime() - t <= NEW_MS && now.getTime() >= t;
+}
+
 /** Decision 19's table, first match wins; null leaves the 96 px column empty. */
-export function leadBadge(row: HeldItem | SentItem, tab: CasesTab, now: Date = new Date()): LeadBadge | null {
+export function leadBadge(row: HeldItem | SentItem | MyCase, tab: CasesTab, now: Date = new Date()): LeadBadge | null {
+  if (tab === "working") {
+    // design case-inbox-merge, decision 8: only a case with me carries a badge
+    const brief = (row as MyCase).custody;
+    if (!brief?.with_me) return null;
+    if (brief.overdue) return { label: T.cases.lead.overdue, tone: "danger" };
+    if (brief.due_soon) return { label: T.cases.lead.dueSoon, tone: "warning" };
+    if (isNew(brief.since, now)) return { label: T.cases.lead.new, tone: "info" };
+    return null;
+  }
   if (tab === "sent") {
     const item = row as SentItem;
     if (item.current !== true) return null;
@@ -95,13 +110,7 @@ export function leadBadge(row: HeldItem | SentItem, tab: CasesTab, now: Date = n
   const card = (row as HeldItem).card;
   if (card?.overdue) return { label: T.cases.lead.overdue, tone: "danger" };
   if (card?.due_soon) return { label: T.cases.lead.dueSoon, tone: "warning" };
-  if (tab === "with-me") {
-    const since = card?.since ? Date.parse(card.since) : NaN;
-    if (Number.isFinite(since) && now.getTime() - since <= NEW_MS && now.getTime() >= since) {
-      return { label: T.cases.lead.new, tone: "info" };
-    }
-    return null;
-  }
+  if (tab === "with-me") return isNew(card?.since, now) ? { label: T.cases.lead.new, tone: "info" } : null;
   return { label: T.cases.lead.waiting };
 }
 

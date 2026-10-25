@@ -193,15 +193,16 @@ describe("every page has at most one primary action (decision 16)", () => {
     if (EXPECTED[route]) expect(primaries).toEqual(EXPECTED[route]);
   });
 
-  it("the Cases list's static segments are their own pages, never read as a case reference (case-workspace-admin, decision 3)", () => {
+  it("the old Cases list segments are their own (redirect) pages, never read as a case reference (case-workspace-admin, decision 3; case-inbox-merge, decision 12)", () => {
     const routes = PAGES.map(routeOf);
     for (const seg of ["with-me", "sent", "pending"]) {
       expect(routes).toContain(`/cases/${seg}`);
       const file = PAGES.find((p) => routeOf(p) === `/cases/${seg}`)!;
-      // the list's own layout, not the case page's frame
+      // a static segment outside the case page's frame
+      expect(file).toContain("(list)");
       expect(layoutsOf(file).some((l) => l.includes("[ref]"))).toBe(false);
-      expect(layoutsOf(file).some((l) => l.includes("(list)"))).toBe(true);
     }
+    expect(routes).toEqual(expect.arrayContaining(["/inbox/sent", "/inbox/pending"]));
   });
 
   it("the not-found page renders too", async () => {

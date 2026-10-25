@@ -116,7 +116,8 @@ def mine(
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
 ) -> schemas.MyCaseListOut:
-    """The caller's own cases (design portal-ui-redesign, A1): `working` (allotted to me or my file, active),
+    """The caller's own cases (design portal-ui-redesign, A1): `working` (active cases allotted to me, and every
+    case whose file I hold whatever its status, my own due date first: design case-inbox-merge, decisions 3 and 4),
     `files` (every file I hold), `claimed` (active cases I claimed or whose transfer I accepted), `disposed`
     (disposed cases of the three sets). Visibility applies; nothing is written."""
     try:

@@ -251,7 +251,7 @@ describe("Send case and Recall case", () => {
     await userEvent.click(within(dialog).getByRole("button", { name: "Send case" }));
   }
 
-  it("a card: null answer goes to Cases → Sent by me with the notice and the finalised notes", async () => {
+  it("a card: null answer goes to Case inbox → Sent by me with the notice and the finalised notes", async () => {
     browserApi({
       "GET /workflow/codes": CODES,
       "GET /custody/recipients": (call: { url: string }) => (call.url.includes("department=HEALTH") ? HEALTH_PEOPLE : DEPTS),
@@ -260,13 +260,13 @@ describe("Send case and Recall case", () => {
     renderWithClient(<CustodyActions caseRef={REF} detail={detail()} card={card()} />);
     await userEvent.click(screen.getByRole("button", { name: "Send case" }));
     await fillAndSend(screen.getByRole("dialog", { name: "Send the case" }));
-    await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/cases/sent"));
+    await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/inbox/sent"));
     expect(sessionStorage.getItem("aslms.flash")).toBe(
       "Case sent to Health Off, Under Secretary, HEALTH. It is no longer with you. Made permanent: ASLMS/HEALTH/NOTE/2026/000001",
     );
   });
 
-  it("sending the case away does not fetch it again before Cases → Sent by me (no not-found flash)", async () => {
+  it("sending the case away does not fetch it again before Case inbox → Sent by me (no not-found flash)", async () => {
     const calls = browserApi({
       "GET /workflow/codes": CODES,
       "GET /custody/recipients": (call: { url: string }) => (call.url.includes("department=HEALTH") ? HEALTH_PEOPLE : DEPTS),
@@ -293,7 +293,7 @@ describe("Send case and Recall case", () => {
     expect(await screen.findByText("case loaded")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Send case" }));
     await fillAndSend(screen.getByRole("dialog", { name: "Send the case" }));
-    await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/cases/sent"));
+    await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/inbox/sent"));
     await new Promise((r) => setTimeout(r, 50));
     expect(calls.calls.filter((c) => c.method === "GET" && c.path === BASE)).toHaveLength(1);
     expect(screen.getByText("case loaded")).toBeInTheDocument();

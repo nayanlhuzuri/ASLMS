@@ -3736,7 +3736,8 @@ export interface paths {
         };
         /**
          * Mine
-         * @description The caller's own cases (design portal-ui-redesign, A1): `working` (allotted to me or my file, active),
+         * @description The caller's own cases (design portal-ui-redesign, A1): `working` (active cases allotted to me, and every
+         *     case whose file I hold whatever its status, my own due date first: design case-inbox-merge, decisions 3 and 4),
          *     `files` (every file I hold), `claimed` (active cases I claimed or whose transfer I accepted), `disposed`
          *     (disposed cases of the three sets). Visibility applies; nothing is written.
          */
@@ -6403,6 +6404,12 @@ export interface components {
         CustodyBriefOut: {
             /** Due Date */
             due_date: string | null;
+            /**
+             * Due Soon
+             * @description not overdue and due within `request_due_soon_days` (IST), the custody card's window (design case-inbox-merge, decision 2)
+             * @default false
+             */
+            due_soon: boolean;
             holder_office: components["schemas"]["OfficeRefOut"] | null;
             holder_user: components["schemas"]["CustodyHolderBriefOut"] | null;
             /** Overdue */
@@ -6413,6 +6420,8 @@ export interface components {
             pending_action: string;
             /** Pending Action Label */
             pending_action_label: string;
+            /** @description the current leg's actor snapshot: who sent the file (design case-inbox-merge) */
+            sent_by?: components["schemas"]["CustodySentByOut"] | null;
             /**
              * Since
              * Format: date-time

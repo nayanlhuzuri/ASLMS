@@ -9,18 +9,20 @@ import {
   alertsTabsFor,
   AUDIT_ENTRY_CRUMB,
   CASE_TABS,
+  BOTTOM_BAR_KEYS,
   CASES_LIST_SEGMENTS,
-  casesTabsFor,
   CRUMB_PATHS,
   crumbLabel,
   CRUMBS,
   DATA_TABS,
   dataTabsFor,
+  inboxTabsFor,
   MAPPING_FUNCTIONS,
   MAPPING_TABS,
   mappingTabsFor,
   NAV,
   navFor,
+  OLD_CASES_REDIRECTS,
   OLD_FILES_REDIRECTS,
   PEOPLE_ADMIN_FUNCTIONS,
 } from "./routes";
@@ -118,33 +120,55 @@ describe("Files, My calendar and Alerts navigation (portal-files-alerts; portal-
     expect(navFor({ functions: ["users.view"] }).map((e) => e.key)).not.toContain("alerts");
   });
 
-  it("Cases shows with cases.view_scope, after Cause list, and leads to /cases (case-workspace-admin, decision 21)", () => {
-    const keys = navFor({ functions: ["cases.view_scope"], memberships: [] }).map((e) => e.key);
-    expect(keys.indexOf("files")).toBe(keys.indexOf("causelist") + 1);
-    const entry = navFor({ functions: ["cases.view_scope"] }).find((e) => e.key === "files")!;
-    expect(entry.label).toBe("Cases");
-    expect(entry.href).toBe("/cases");
-    expect(navFor({ functions: ["users.view"] }).map((e) => e.key)).not.toContain("files");
+  it("one Case inbox entry and no Cases entry; it shows for a standing counsel without a department (case-inbox-merge, decision 6)", () => {
+    expect(NAV.map((e) => e.key)).not.toContain("files");
+    const reader = navFor({ functions: ["cases.view_scope"], memberships: [] });
+    expect(reader.map((e) => e.key)).not.toContain("files");
+    const counsel = navFor({
+      functions: ["cases.view_scope"],
+      memberships: [{ ...membership(null, ["cases.view_scope"], "standing_counsel"), office: { code: "AG", name: "Advocate General", kind: "office" } }],
+    });
+    const inbox = counsel.find((e) => e.key === "inbox")!;
+    expect(inbox.label).toBe("Case inbox");
+    expect(inbox.href).toBe("/inbox");
+    expect(inbox.count).toBe("inbox");
+    expect(counsel.map((e) => e.key)).not.toContain("claim");
+    expect(navFor({ functions: ["users.view"] }).map((e) => e.key)).not.toContain("inbox");
   });
 
-  it("three tabs; Pending action needs a department membership holding custody.track (decision 17)", () => {
-    const officer = { functions: ["cases.view_scope"] as Permission[], memberships: [membership("EDU", ["cases.view_scope"])] };
-    expect(keys(casesTabsFor(officer))).toEqual(["with-me", "sent"]);
-    const tracker = {
-      functions: ["cases.view_scope", "custody.track"] as Permission[],
-      memberships: [membership("EDU", ["cases.view_scope", "custody.track"])],
+  it("the phone bottom bar is Dashboard, Case inbox and Alerts (case-inbox-merge, decision 14)", () => {
+    expect(BOTTOM_BAR_KEYS).toEqual(["dashboard", "inbox", "alerts"]);
+  });
+
+  it("the Case inbox tabs per login (case-inbox-merge, decision 7)", () => {
+    const officer = { functions: ["cases.view_scope"] as Permission[], memberships: [membership("EDU", ["cases.view_scope"], "dept_officer")] };
+    expect(keys(inboxTabsFor(officer))).toEqual(["working", "sent", "disposed"]);
+    const claimer = {
+      functions: ["cases.view_scope", "cases.claim"] as Permission[],
+      memberships: [membership("EDU", ["cases.view_scope", "cases.claim"], "dept_officer")],
     };
-    expect(keys(casesTabsFor(tracker))).toEqual(["with-me", "sent", "pending"]);
-    expect(casesTabsFor(tracker).map((t) => t.label)).toEqual(["Cases with me", "Sent by me", "Pending action"]);
-    expect(casesTabsFor(tracker).map((t) => t.href)).toEqual(["/cases/with-me", "/cases/sent", "/cases/pending"]);
-    expect(tracksDepartment(tracker)).toBe(true);
-    // the super admin's State membership has no department: no Pending action tab
-    const root = {
+    expect(keys(inboxTabsFor(claimer))).toEqual(["working", "sent", "claimed", "disposed"]);
+    const headFns: Permission[] = ["cases.view_scope", "cases.claim", "cases.allot", "custody.track"];
+    const head = { functions: headFns, memberships: [membership("EDU", headFns)] };
+    const all = inboxTabsFor(head, { whole: true });
+    expect(keys(all)).toEqual(["working", "sent", "claimed", "disposed", "department", "pending"]);
+    expect(all.map((t) => t.label)).toEqual(["Working on", "Sent by me", "Claimed by me", "Disposed", "Department cases", "Pending action"]);
+    expect(all.map((t) => t.href)).toEqual([
+      "/inbox/working",
+      "/inbox/sent",
+      "/inbox/claimed-by-me",
+      "/inbox/disposed",
+      "/inbox/department",
+      "/inbox/pending",
+    ]);
+    expect(tracksDepartment(head)).toBe(true);
+    // State oversight: Department cases, no Pending action (its State membership has no department)
+    const state = {
       functions: ["cases.view_scope", "cases.view_all", "custody.track"] as Permission[],
-      memberships: [membership(null, ["cases.view_scope", "cases.view_all", "custody.track"], "super_admin")],
+      memberships: [membership(null, ["cases.view_scope", "cases.view_all", "custody.track"], "state_oversight")],
     };
-    expect(keys(casesTabsFor(root))).toEqual(["with-me", "sent"]);
-    expect(casesTabsFor(null)).toEqual([]);
+    expect(keys(inboxTabsFor(state))).toEqual(["working", "sent", "disposed", "department"]);
+    expect(inboxTabsFor(null)).toEqual([]);
   });
 
   it("no case reference can equal a Cases list segment (decision 3)", () => {
@@ -159,14 +183,19 @@ describe("Files, My calendar and Alerts navigation (portal-files-alerts; portal-
     }
   });
 
-  it("the old Files addresses and /inbox/files lead to the Cases list (decisions 3 and 18)", () => {
+  it("the old Files and Cases list addresses lead to the Case inbox tabs (case-inbox-merge, decision 12)", () => {
     expect(OLD_FILES_REDIRECTS).toEqual({
-      "/files": "/cases",
-      "/files/mine": "/cases/with-me",
-      "/files/offices": "/cases/with-me?held=offices",
-      "/files/department": "/cases/pending",
-      "/files/sent": "/cases/sent",
-      "/inbox/files": "/cases/with-me",
+      "/files": "/inbox/working",
+      "/files/mine": "/inbox/working",
+      "/files/offices": "/inbox/working?held=offices",
+      "/files/department": "/inbox/pending",
+      "/files/sent": "/inbox/sent",
+      "/inbox/files": "/inbox/working",
+    });
+    expect(OLD_CASES_REDIRECTS).toEqual({
+      "/cases/with-me": "/inbox/working",
+      "/cases/sent": "/inbox/sent",
+      "/cases/pending": "/inbox/pending",
     });
   });
 
@@ -185,15 +214,18 @@ describe("Files, My calendar and Alerts navigation (portal-files-alerts; portal-
   });
 
   it("CRUMB_PATHS names the screens by path, while the segments keep their meaning", () => {
-    expect(crumbLabel("/cases/with-me")).toBe("Cases with me");
-    expect(crumbLabel("/cases/sent")).toBe("Sent by me");
-    expect(crumbLabel("/cases/pending")).toBe("Pending action");
+    expect(crumbLabel("/inbox/sent")).toBe("Sent by me");
+    expect(crumbLabel("/inbox/pending")).toBe("Pending action");
+    expect(crumbLabel("/inbox/working")).toBe("Working on");
+    expect(CRUMB_PATHS["/cases/with-me"]).toBeUndefined();
     expect(crumbLabel("/admin/offices")).toBe("Offices");
     expect(crumbLabel("/alerts")).toBe("Alerts");
     expect(crumbLabel("/calendar")).toBe("My calendar");
     expect(crumbLabel("/cases/x/alerts")).toBe("Alerts");
     expect(crumbLabel("/alerts/calendar")).toBe("Hearing calendar");
-    expect(CRUMB_PATHS["/cases"]).toBe("Cases");
+    // the crumb above a case page leads to the Case inbox (case-inbox-merge, decision 12)
+    expect(CRUMB_PATHS["/cases"]).toBe("Case inbox");
+    expect(crumbLabel("/cases")).toBe("Case inbox");
   });
 });
 

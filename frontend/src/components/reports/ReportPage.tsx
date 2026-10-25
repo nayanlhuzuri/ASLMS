@@ -118,7 +118,7 @@ export function ReportPage({ reportKey, params }: { reportKey: ReportKey; params
       ) : null}
       {reportKey === "pending-actions" && tracksDepartment(me.data) ? (
         <p>
-          {T.reports.departmentFilesLine} <Link href="/cases/pending">{T.reports.departmentFiles}</Link>
+          {T.reports.departmentFilesLine} <Link href="/inbox/pending">{T.reports.departmentFiles}</Link>
         </p>
       ) : null}
     </div>

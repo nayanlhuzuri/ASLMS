@@ -63,11 +63,20 @@ export function DepartmentSummary({ d }: { d: DepartmentCustodySummary }) {
   );
 }
 
-export function TrackingSummary() {
-  const summary = useQuery({
+/**
+ * `GET /custody/summary`, shared by the tracking summary and the Pending action count of the Case inbox (design
+ * case-inbox-merge, decision 10); `enabled` only for a login tracking a department, so no one else gets a 403.
+ */
+export function useCustodySummary(enabled = true) {
+  return useQuery({
     queryKey: ["files", "summary"],
     queryFn: () => api<CustodySummary>("/custody/summary"),
+    enabled,
   });
+}
+
+export function TrackingSummary() {
+  const summary = useCustodySummary();
   if (summary.isPending) return <Loading />;
   if (summary.error) {
     return <ErrorBanner error={summary.error} onRetry={() => summary.refetch()} messages={TRACK_ERRORS} />;
