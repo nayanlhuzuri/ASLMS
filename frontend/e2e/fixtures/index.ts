@@ -8,15 +8,22 @@
 import type { components } from "@/lib/api/schema";
 import type {
   AlertList,
+  CustodyHistory,
+  CustodyLeg,
   DashboardIndex,
+  HeldList,
   InboxCounts,
   Me,
   MembershipOut,
+  Note,
+  NoteList,
   Permission,
+  PermissionInfo,
   Report,
   ReportCatalogue,
   SentList,
   SystemHealth,
+  UserOut,
 } from "@/lib/api/types";
 
 import { SAMPLE, STRESS, synth, synthFor } from "./synth";
@@ -336,9 +343,161 @@ function labels(): S["ReferenceLabelsOut"] {
   };
 }
 
+/**
+ * The functions with their plain-language groups (design case-workspace-admin, decision 26), as `GET /admin/permissions`
+ * answers: every function the API knows, grouped as the server's `PERMISSION_GROUPS` does, the retired requests
+ * functions without a group; the first description is a long one (the stress row).
+ */
+const GROUPS: [string, string, RegExp][] = [
+  ["people", "People and access", /^(users|access|offices)\.|^admin\.designations$/],
+  ["cases", "Cases and ownership", /^cases\./],
+  ["case_work", "Case work", /^(custody|stages|notes|assistant)\./],
+  ["documents", "Documents", /^documents\./],
+  ["alerts", "Alerts", /^(alerts|next_dates)\./],
+  ["reports", "Reports", /^(reports|dashboard|audit)\./],
+  ["administration", "Administration", /^admin\./],
+];
+
+function permissions(): PermissionInfo[] {
+  const counters = new Map<string, number>();
+  return ALL_FUNCTIONS.map((code, i) => {
+    const group = code.startsWith("requests.") ? null : (GROUPS.find(([, , re]) => re.test(code)) ?? null);
+    const sort = group ? (counters.get(group[0]) ?? 0) + 1 : null;
+    if (group) counters.set(group[0], sort!);
+    const words = code.split(".")[1]!.replace(/_/g, " ");
+    return {
+      code,
+      module: code.split(".")[0]!,
+      label: words.charAt(0).toUpperCase() + words.slice(1),
+      description: i === 0 ? "See the people of the offices you look after, with their posts, user types and sign-in state." : "Switch this on for the type.",
+      is_active: group !== null,
+      group: group ? group[0] : null,
+      group_label: group ? group[1] : null,
+      sort_in_group: sort,
+    } as PermissionInfo;
+  });
+}
+
 function accessMatrix(): Record<string, Record<string, boolean>> {
-  const perms = (synthFor("/admin/permissions")?.body ?? []) as { code: string }[];
-  return Object.fromEntries(USER_TYPES.map(([code], i) => [code, Object.fromEntries(perms.map((p, j) => [p.code, (i + j) % 2 === 0]))]));
+  const perms = permissions().filter((p) => p.is_active);
+  return Object.fromEntries(
+    USER_TYPES.map(([code], i) => [code, Object.fromEntries(perms.map((p, j) => [p.code, code === "super_admin" || (i + j) % 2 === 0]))]),
+  );
+}
+
+/** The seed's defaults: the matrix with a few functions flipped, so "Changed from default" shows. */
+function accessDefaults(): Record<string, Record<string, boolean>> {
+  const m = accessMatrix();
+  return Object.fromEntries(
+    Object.entries(m).map(([role, row]) => [
+      role,
+      Object.fromEntries(Object.entries(row).map(([code, on], j) => [code, role !== "super_admin" && j % 7 === 0 ? !on : on])),
+    ]),
+  );
+}
+
+function accessOverview(): S["UserTypeCardOut"][] {
+  const m = accessMatrix();
+  const d = accessDefaults();
+  return USER_TYPES.map(([code], i) => {
+    const row = m[code]!;
+    const codes = Object.keys(row);
+    return {
+      code,
+      users: i === 4 ? STRESS.count : i + 1,
+      functions_on: codes.filter((c) => row[c]).length,
+      functions_total: codes.length,
+      changed_from_default: codes.filter((c) => row[c] !== d[code]![c]).length,
+    };
+  });
+}
+
+/** The Users list with each status (design case-workspace-admin, decision 23): active, not signed in yet, off. */
+function users(): UserOut[] {
+  const base = (synthFor("/admin/users")!.body as UserOut[])[0]!;
+  const membership = MEMBERSHIPS[0]!;
+  const row = (i: number, extra: Partial<UserOut>): UserOut => ({
+    ...base,
+    id: i === 0 ? SAMPLE.userId : `0192a3b4-0000-7000-8000-00000000010${i}`,
+    full_name: i === 0 ? "Anita Sharma Baruah" : `Rina Das ${i}`,
+    email: `officer${i}@assam.gov.in`,
+    memberships: i === 0 ? MEMBERSHIPS : [{ ...membership, id: `m-${i}`, role: "dept_officer", designation: "Section Officer" }],
+    ...extra,
+  });
+  return [
+    row(0, { is_active: true, last_login_at: "2026-10-21T05:30:00Z" }),
+    row(1, { is_active: true, last_login_at: null }),
+    row(2, { is_active: false, last_login_at: "2026-09-01T05:30:00Z" }),
+  ];
+}
+
+/** Cases with me and Pending action (design case-workspace-admin, decision 19): one row per lead badge. */
+function held(): HeldList {
+  const base = synthFor("/custody/held")!.body as HeldList;
+  const first = base.items[0]!;
+  const card = first.card!;
+  const recent = new Date(Date.now() - 2 * 3600 * 1000).toISOString();
+  const variants: Partial<NonNullable<typeof card>>[] = [
+    { overdue: true, overdue_days: 12, due_soon: false },
+    { overdue: false, overdue_days: 0, due_soon: true },
+    { overdue: false, overdue_days: 0, due_soon: false, since: recent },
+    { overdue: false, overdue_days: 0, due_soon: false, due_date: null },
+  ];
+  const items = variants.map((v, i) => {
+    const item = base.items[i % base.items.length]!;
+    return { ...item, case: { ...item.case, id: `0192a3b4-0000-7000-8000-00000000020${i}` }, card: { ...card, ...v } };
+  });
+  return { ...base, items, total: items.length };
+}
+
+/** Sent by me (decision 20): the current leg, a past leg (muted) and a case the sender can no longer open. */
+function sent(): SentList {
+  const base = synthFor("/custody/sent")!.body as SentList;
+  const item = base.items[0]!;
+  const rows: Partial<typeof item>[] = [
+    { visible: true, current: true },
+    { visible: true, current: false, leg: { ...item.leg, reason: "recalled", reason_label: "Recalled" } },
+    { visible: false, current: null },
+  ];
+  const items = rows.map((r, i) => ({ ...item, ...r, case: { ...item.case, id: `0192a3b4-0000-7000-8000-00000000030${i}` } }));
+  return { ...base, items, total: items.length };
+}
+
+/** The journey and the remarks history (decisions 14 and 15): five movements, newest first, with remarks shown. */
+function custodyHistory(url: URL): CustodyHistory {
+  const base = synthFor(url.pathname.replace(/^\/api\/backend/, ""))!.body as CustodyHistory;
+  const leg = base.legs[0]!;
+  const reasons: [string, string][] = [
+    ["sent", "Sent"],
+    ["recalled", "Recalled"],
+    ["sent", "Sent"],
+    ["allotted", "Allotted"],
+    ["claimed", "Claimed"],
+  ];
+  const legs: CustodyLeg[] = reasons.map(([reason, label], i) => ({
+    ...leg,
+    seq_no: 5 - i,
+    reason,
+    reason_label: label,
+    remark: i === 0 ? `${STRESS.sentence}\n${STRESS.sentence}\n${STRESS.sentence}` : i === 3 ? null : "Seen; put up with the counsel's opinion.",
+    started_at: new Date(Date.UTC(2026, 9, 21 - i * 3, 5, 30)).toISOString().replace(".000Z", "Z"),
+  }));
+  const limit = Number(url.searchParams.get("limit") ?? 50);
+  return { ...base, legs: url.searchParams.get("order") === "desc" ? legs.slice(0, limit) : [...legs].reverse().slice(0, limit), total: legs.length, remarks_shown: true };
+}
+
+/** The notes trail with a correction and the note it corrects (decision 15). */
+function notes(): NoteList {
+  const base = synthFor("/cases/x/notes")!.body as NoteList;
+  const n = base.items[0]!;
+  const ref = (seq: number) => `ASLMS/EDU/NOTE/2026/00000${seq}`;
+  const note = (seq: number, extra: Partial<Note>): Note => ({ ...n, id: `0192a3b4-0000-7000-8000-00000000040${seq}`, seq_no: seq, ref_no: ref(seq), draft: false, ...extra });
+  const items = [
+    note(1, { body: STRESS.sentence, superseded_by: { ref_no: ref(3), seq_no: 3 }, supersedes: null }),
+    note(2, { body: "Seen; put up with the counsel's opinion.", supersedes: null, superseded_by: null }),
+    note(3, { body: `${STRESS.sentence} (corrected)`, supersedes: { ref_no: ref(1), seq_no: 1 }, superseded_by: null }),
+  ];
+  return { ...base, items, total: items.length };
 }
 
 /** Lists seen empty, so the empty states are checked too (decision 20). */
@@ -359,10 +518,18 @@ const OVERRIDES: [RegExp, Override][] = [
   [/^\/admin\/system-health\/napix\/[^/]+\/console$/, (url) => napixConsole(url.pathname.split("/").at(-2)!)],
   [/^\/reference\/labels$/, () => labels()],
   [/^\/admin\/access\/types$/, () => accessMatrix()],
+  [/^\/admin\/access\/types\/[^/]+$/, (url) => accessMatrix()[url.pathname.split("/").pop()!] ?? {}],
+  [/^\/admin\/access\/defaults$/, () => accessDefaults()],
+  [/^\/admin\/access\/overview$/, () => accessOverview()],
+  [/^\/admin\/permissions$/, () => permissions()],
+  [/^\/admin\/users$/, () => users()],
+  [/^\/custody\/held$/, () => held()],
+  [/^\/cases\/[^/]+\/custody$/, (url) => custodyHistory(url)],
+  [/^\/cases\/[^/]+\/notes$/, () => notes()],
   [/^\/reports$/, () => catalogue()],
   [/^\/reports\/[^/]+$/, (url) => report(url.pathname.split("/").pop()!)],
   [/^\/alerts$/, () => emptyList<AlertList>("AlertListOut")],
-  [/^\/custody\/sent$/, () => emptyList<SentList>("SentListOut")],
+  [/^\/custody\/sent$/, () => sent()],
   [
     /^\/inbox\/mine$/,
     (url) => (url.searchParams.get("tab") === "working" ? emptyList<S["MyCaseListOut"]>("MyCaseListOut") : synthFor("/inbox/mine")!.body),

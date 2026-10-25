@@ -18,6 +18,7 @@ import type {
   DocumentTypes,
   DraftList,
   InboxCountsList,
+  ListingList,
   Me,
   MyCaseCounts,
   OfficeOut,
@@ -212,6 +213,19 @@ export function useCustodyHistory(ref: string, offset = 0, limit = 50) {
   });
 }
 
+/**
+ * The latest movements of a case, newest first (`GET /cases/{ref}/custody?order=desc`; design case-workspace-admin,
+ * decision 14): the rail's journey (4) and the remarks history (pages of 50). `total` counts every movement and
+ * `remarks_shown` says whether the legs carry their remark for the caller.
+ */
+export function useJourney(ref: string, limit = 4, offset = 0, enabled = true) {
+  return useQuery({
+    queryKey: [...caseKey(ref), "custody", "desc", limit, offset],
+    queryFn: () => api<CustodyHistory>(apiCasePath(ref, "custody"), { query: { order: "desc", limit, offset } }),
+    enabled,
+  });
+}
+
 /** The caller's own drafts on a case (`GET /cases/{ref}/notes/drafts`). */
 export function useDrafts(ref: string, enabled = true) {
   return useQuery({
@@ -290,5 +304,16 @@ export function useAuditActions(enabled = true) {
     staleTime: 10 * 60_000,
     retry: (count, error) => !(error instanceof ApiError && error.status === 403) && count < 2,
     enabled,
+  });
+}
+
+/**
+ * The case's latest listing (`GET /cases/{ref}/listings?limit=1`): the header's Next hearing fact and the rail's Next
+ * hearing card place the case at its court and item when that listing is the next hearing day (one shared query).
+ */
+export function useLatestListing(ref: string) {
+  return useQuery({
+    queryKey: [...caseKey(ref), "listings", 1],
+    queryFn: () => api<ListingList>(`${apiCasePath(ref)}/listings`, { query: { limit: 1 } }),
   });
 }

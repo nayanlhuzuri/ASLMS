@@ -64,6 +64,8 @@ export const SAMPLE = {
   // the Case Assistant (design assistant): a cited court order and the answer citing it
   orderId: "0192a3b4-0000-7000-8000-0000000000o1",
   messageId: "0192a3b4-0000-7000-8000-0000000000m9",
+  // the user-type page (design case-workspace-admin, decision 25)
+  userType: "dept_officer",
 };
 
 const CODES = ["EDU", "HEALTH", "FIN", "PWD", "HOME"];

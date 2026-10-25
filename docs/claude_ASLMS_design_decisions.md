@@ -2493,3 +2493,33 @@ Row 137, design `docs/design/followups-oct.md` (approved 24 Oct 2026 by the owne
 - Row 147: a failing `flush_apart` or `write_audit_apart` in a `finally` replaces the call's own exception.
 - Row 148: no test of a call error followed by an enrichment error in `napix_api_check.run`.
 - Operations: after the merge, rebuild with `docker compose build` and `docker compose --profile ops build migrate`; the design's Verification steps 3, 6, 7 and 9 (pool-check numbers, uicheck, the migrate refusal, the onnxruntime log count) are the integrator's. Rows 124, 125 and 128 (owner checks, CI adoption of uicheck) are unchanged.
+
+## Case workspace and Administration hub (2026-10-25)
+Row 135, design `docs/design/case-workspace-admin.md` (approved by the owner 23 Oct 2026 with the recommended answers to its five open questions), branch `feature/case-workspace-admin`. Migration 0025 (revises 0024; head is now 0025). Tests and review passed.
+
+**Built**
+- **Plain case vocabulary.** No eOffice words in the portal, alerts, e-mails and user documents ("Files" becomes "Cases", Send case and Recall case, "With: <designation>", Case received and Case recalled). Code names, API paths and JSON fields are unchanged; `/files/*` routes redirect. Wording guard tests in both suites (`tests/unit/test_wording_guard.py`, `frontend/src/lib/wording.test.ts`) with allow-lists for the computer-file sense and the legal verb.
+- **Case page.** Template A with a sticky action rail (Your task with the latest remark, "See all remarks (n)", next hearing countdown in days, quick actions, the case's journey) and a remarks and notes history panel (`Rail.tsx`, `Remarks.tsx`).
+- **Cases list.** Cases with me, Sent by me and Pending action with lead badges and a "Held by" control; `/cases/with-me`, `/cases/sent`, `/cases/pending`.
+- **Administration.** Template A with the Users side panel (status filter) and user types as cards opening grouped plain-language switches with a batch Save and a leave guard.
+- **API (all additive and read-only except one write).** `GET /cases/{ref}/custody` takes `order` and returns `remarks_shown`; `CustodyCardOut.due_soon`; `SentItemOut.current`; `PermissionOut` group fields; `GET /admin/access/defaults` and `/overview` (`users.view`); `GET /admin/users?status=`; `PUT /admin/access/types/{role}` (`access.manage_types`; 1 to 60 changes, 400 `reserved` or `retired`, nothing saved on refusal, audit `access.matrix` per changed function).
+- **Migration 0025.** A reference-data migration: `ref_note_kind` `file_noting` becomes "Office note" and `ref_event_type` `custody_moved` becomes "Case moved", only where the seeded text is still held. Seed matches (`NOTE_KIND_LABELS`, `EVENT_TIMELINE_LABELS`).
+- **Tests.** `test_migration_0025`, `test_access_matrix_batch`, `test_access_defaults_overview`, `test_custody_card_due_soon`, `test_custody_history_order`, `test_custody_sent_current`, `test_users_status_filter`, `test_permission_groups`, `test_wording_guard`; frontend `rail.test`, `remarks.test`, `cases-list.test` (renamed from `files.test`), `cases.test`, `wording.test`, `routes.test`; uicheck fixtures, routes and states.
+
+**Decisions and reasons**
+1. The migration writes no audit row, as 0016 did, because it changes the seed's own labels; each label changes only while unedited, so an administrator's change is kept.
+2. Alerts already stored with old titles are left as sent (open question 5), so the record of what was sent is not rewritten.
+3. The batch save refuses `admin.tickets` and retired functions as a whole, so no partial matrix is ever saved.
+4. User-type cards count users through the same scope function as the Users list (`access.user_scope_roots`), so the numbers agree.
+
+**Deviations** (the design note's Deviations section lists 13 with reasons; none changes a business rule, a function or an API field)
+- The rail sits beside the tabs only from 1100 px and while the workspace is at least 936 px wide (measured); the main column minimum is 600 px, not 640.
+- A sent leg has no `due_soon`, so Sent by me uses the default 2-day window (`SENT_DUE_SOON_DAYS`).
+- Remarks and Notes are in-panel tabs, not URL parameters; only `?remarks=all` is in the address.
+- The browser's Back button is not caught by the leave guard (only links, close and reload).
+- Two Case Assistant buttons that were 30 px on phones are now normal size (uicheck size rule).
+- A local uicheck run passed this item's routes at 375, 768 and 1280 px; it also reported the System health code blocks scrolling sideways and the court-record view never reaching network idle, neither touched here.
+
+**Left for later**
+- Office statistics stay out of scope (row 136, the MIS screen).
+- Operations: apply 0025 with the `migrate` step then `init`; rebuild with `docker compose build`; the Compose uicheck run and the design's browser checks (Verification steps 5 and 6) are the integrator's and the owner's.

@@ -1,9 +1,10 @@
 "use client";
 
 /**
- * "Files" (design portal-files-alerts, decisions 1, 12-14; plan §5.7, the eOffice view of custody-workflow decision 24):
- * up to four tabs — With me, My offices, Department files (only for a login tracking a department) and Sent — with
- * the one-time notice of a file just sent away above them. Showing a tab is convenience only: the API decides.
+ * "Cases", the Cases list (design case-workspace-admin, decision 17; it replaces Files of portal-files-alerts): three
+ * tabs — Cases with me, Sent by me and Pending action (only for a login tracking a department) — with the one-time
+ * notice of a case just sent away above them. Showing a tab is convenience only: the API decides. The internal names
+ * (`components/files/*`) stay (decision 2).
  */
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
@@ -12,17 +13,17 @@ import { EmptyState, Loading, PageHeader, Tabs } from "@/components/ui";
 import { FlashNotice } from "@/components/workflow/common";
 import { useMe } from "@/lib/api/hooks";
 import { T } from "@/lib/messages";
-import { filesTabsFor } from "@/lib/routes";
+import { casesTabsFor } from "@/lib/routes";
 
-export function FilesFrame({ children }: { children: ReactNode }) {
+export function CasesFrame({ children }: { children: ReactNode }) {
   const me = useMe();
-  const pathname = usePathname() ?? "/files";
+  const pathname = usePathname() ?? "/cases";
   if (me.isPending) return <Loading />;
-  const tabs = filesTabsFor(me.data);
-  const allowed = pathname === "/files" || tabs.some((t) => pathname === t.href || pathname.startsWith(t.href + "/"));
+  const tabs = casesTabsFor(me.data);
+  const allowed = tabs.some((t) => pathname === t.href || pathname.startsWith(t.href + "/"));
   return (
     <div className="stack">
-      <PageHeader title={T.files.title} />
+      <PageHeader title={T.files.title} subtitle={T.files.subtitle} />
       <FlashNotice />
       {tabs.length > 0 ? (
         <Tabs
@@ -39,14 +40,14 @@ export function FilesFrame({ children }: { children: ReactNode }) {
   );
 }
 
-/** `/files`: the first tab the login may open. */
-export function FilesIndex() {
+/** `/cases`: the first tab the login may open; with none, Search (which `/cases` showed until now). */
+export function CasesIndex() {
   const me = useMe();
   const router = useRouter();
-  const first = filesTabsFor(me.data)[0];
+  const first = casesTabsFor(me.data)[0];
+  const target = me.isPending ? null : (first?.href ?? "/search");
   useEffect(() => {
-    if (first) router.replace(first.href);
-  }, [first, router]);
-  if (me.isPending || first) return <Loading />;
-  return <EmptyState>{T.notFoundText}</EmptyState>;
+    if (target) router.replace(target);
+  }, [target, router]);
+  return <Loading />;
 }

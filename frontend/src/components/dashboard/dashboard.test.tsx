@@ -148,7 +148,7 @@ describe("dashboard", () => {
     const block = await screen.findByRole("region", { name: "Department: Education" });
     expect(within(block).queryByText("Recommendations awaiting review")).toBeNull();
     expect(within(block).queryByText("Pending actions")).toBeNull();
-    expect(within(block).queryByText("Files by office")).toBeNull();
+    expect(within(block).queryByText("Cases by office")).toBeNull();
     expect(within(block).queryByText("Open transfers")).toBeNull();
     expect(within(block).queryByText("Next dates to confirm")).toBeNull();
     expect(within(block).getByText("Hearings in 7 days")).toBeInTheDocument();
@@ -239,7 +239,7 @@ describe("dashboard", () => {
     expect(api.calls.some((c) => c.path === "/dashboard")).toBe(false);
   });
 
-  it("links the My alerts heading to /alerts and the Files I hold number to /files/mine (portal-files-alerts)", async () => {
+  it("links the My alerts heading to /alerts and the Cases with me number to /cases/with-me (case-workspace-admin, decision 21)", async () => {
     const hidden = { ...CASE, id: "c9", ref_no: "EDU/2026/0009", case_no_text: "WA/9/2026" };
     browserApi({
       "GET /me": makeMe(["cases.view_scope"]),
@@ -260,7 +260,7 @@ describe("dashboard", () => {
     await screen.findByText(/File recalled/);
     const block = screen.getByRole("region", { name: "My work" });
     expect(within(block).getByRole("link", { name: "My alerts" })).toHaveAttribute("href", "/alerts");
-    expect(within(block).getByRole("link", { name: "Files I hold: 3" })).toHaveAttribute("href", "/files/mine");
+    for (const link of within(block).getAllByRole("link", { name: "Cases with me: 3" })) expect(link).toHaveAttribute("href", "/cases/with-me");
     // a visible case is a link; a case the reader can no longer open is text
     expect(within(block).getByRole("link", { name: "WP(C)/1234/2026" })).toHaveAttribute("href", "/cases/EDU-2026-0001");
     expect(within(block).getByText("WA/9/2026").tagName).toBe("SPAN");
@@ -409,8 +409,8 @@ describe("the personal dashboard (portal-ui-redesign, decision 23)", () => {
     expect(links.map((l) => [l.getAttribute("aria-label"), l.getAttribute("href")])).toEqual([
       ["Cases to claim: 12", "/claim/recommended"],
       ["Hearings this week: 4", "/calendar"],
-      ["Files with me: 6", "/inbox/files"],
-      ["Overdue actions: 3", "/inbox/files?action=overdue"],
+      ["Cases with me: 6", "/cases/with-me"],
+      ["Overdue actions: 3", "/cases/with-me?overdue=true"],
       ["Next dates to confirm: 2", "/alerts/next-dates"],
     ]);
     expect(within(headline).getByText("5 strong · 7 possible")).toBeInTheDocument();

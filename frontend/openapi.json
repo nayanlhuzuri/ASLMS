@@ -6787,6 +6787,12 @@
             ],
             "title": "Due Date"
           },
+          "due_soon": {
+            "default": false,
+            "description": "not overdue and due within `request_due_soon_days` (IST), the window of `/custody/summary` (design case-workspace-admin, decision 19)",
+            "title": "Due Soon",
+            "type": "boolean"
+          },
           "holder_office": {
             "anyOf": [
               {
@@ -6909,6 +6915,12 @@
             },
             "title": "Legs",
             "type": "array"
+          },
+          "remarks_shown": {
+            "default": false,
+            "description": "whether the legs carry their remark for this caller (a working basis, or a State-wide reader holding `cases.view_private_all`); design case-workspace-admin, decision 16",
+            "title": "Remarks Shown",
+            "type": "boolean"
           },
           "total": {
             "title": "Total",
@@ -13990,6 +14002,42 @@
         "title": "MasterSyncOut",
         "type": "object"
       },
+      "MatrixBatchIn": {
+        "description": "Design case-workspace-admin, decision 27: 1 to 60 changes of one user type, no permission twice.",
+        "properties": {
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/MatrixChangeIn"
+            },
+            "maxItems": 60,
+            "minItems": 1,
+            "title": "Changes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "changes"
+        ],
+        "title": "MatrixBatchIn",
+        "type": "object"
+      },
+      "MatrixChangeIn": {
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "permission": {
+            "$ref": "#/components/schemas/Permission"
+          }
+        },
+        "required": [
+          "permission",
+          "enabled"
+        ],
+        "title": "MatrixChangeIn",
+        "type": "object"
+      },
       "MatrixEntryIn": {
         "properties": {
           "enabled": {
@@ -17898,6 +17946,29 @@
             ],
             "title": "Description"
           },
+          "group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the plain-language group of the user-type page (design case-workspace-admin, decision 26)",
+            "title": "Group"
+          },
+          "group_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Label"
+          },
           "is_active": {
             "title": "Is Active",
             "type": "boolean"
@@ -17909,6 +17980,18 @@
           "module": {
             "title": "Module",
             "type": "string"
+          },
+          "sort_in_group": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "1-based place in the group; null for a retired function",
+            "title": "Sort In Group"
           }
         },
         "required": [
@@ -20225,6 +20308,18 @@
         "properties": {
           "case": {
             "$ref": "#/components/schemas/CaseSummaryOut"
+          },
+          "current": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the leg is the case's current leg; null when `visible` is false (design case-workspace-admin, decision 20)",
+            "title": "Current"
           },
           "leg": {
             "$ref": "#/components/schemas/CustodyLegOut"
@@ -23122,6 +23217,41 @@
         "title": "UserRefOut",
         "type": "object"
       },
+      "UserTypeCardOut": {
+        "description": "Design case-workspace-admin, decisions 24 and 27: a user type's card; labels come from `/reference/labels`.",
+        "properties": {
+          "changed_from_default": {
+            "title": "Changed From Default",
+            "type": "integer"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "functions_on": {
+            "title": "Functions On",
+            "type": "integer"
+          },
+          "functions_total": {
+            "title": "Functions Total",
+            "type": "integer"
+          },
+          "users": {
+            "description": "logins with an active membership of the type in the caller's scope",
+            "title": "Users",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "users",
+          "functions_on",
+          "functions_total",
+          "changed_from_default"
+        ],
+        "title": "UserTypeCardOut",
+        "type": "object"
+      },
       "UserTypeLabelOut": {
         "properties": {
           "assignable": {
@@ -23536,6 +23666,71 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/admin/access/defaults": {
+      "get": {
+        "description": "The seed's default functions per user type over the active functions (the super admin all on): what \"Changed\nfrom default\" and \"Reset to default\" measure against (design case-workspace-admin, decision 27).",
+        "operationId": "get_defaults_admin_access_defaults_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "additionalProperties": {
+                      "type": "boolean"
+                    },
+                    "type": "object"
+                  },
+                  "title": "Response Get Defaults Admin Access Defaults Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Defaults",
+        "tags": [
+          "access"
+        ]
+      }
+    },
+    "/admin/access/overview": {
+      "get": {
+        "description": "Per user type: the logins with an active membership of the type in the caller's scope (as `GET /admin/users`),\nthe functions on, the active functions in all and how many differ from the defaults.",
+        "operationId": "get_overview_admin_access_overview_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/UserTypeCardOut"
+                  },
+                  "title": "Response Get Overview Admin Access Overview Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Overview",
+        "tags": [
+          "access"
+        ]
+      }
+    },
     "/admin/access/types": {
       "get": {
         "operationId": "get_matrix_admin_access_types_get",
@@ -23614,6 +23809,85 @@
           }
         ],
         "summary": "Get Role Matrix",
+        "tags": [
+          "access"
+        ]
+      },
+      "put": {
+        "description": "Several functions of one user type in one transaction (design case-workspace-admin, decision 27): each changed\nfunction writes its own `access.matrix` audit row and `access_changed` event; unchanged entries are skipped; a\nrefusal (the super admin type 403, `admin.tickets` or a retired function 400) saves nothing.",
+        "operationId": "set_role_functions_admin_access_types__role__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "role",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MatrixBatchIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Set Role Functions Admin Access Types  Role  Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Set Role Functions",
         "tags": [
           "access"
         ]
@@ -30241,7 +30515,7 @@
     },
     "/admin/users": {
       "get": {
-        "description": "Logins with an active membership in the caller's scope (optionally under `office`), each with all of its\nmemberships (decision 8). Design `portal-shell`, decision 16b: `q` (2+ characters, name or e-mail), `role`\n(of an active membership in scope), `include_ended` (State-wide scope only: logins with no active membership\ntoo), `limit` (1-200) and `offset`; `X-Total-Count` counts the same filters. Without `limit` every row.",
+        "description": "Logins with an active membership in the caller's scope (optionally under `office`), each with all of its\nmemberships (decision 8). Design `portal-shell`, decision 16b: `q` (2+ characters, name or e-mail), `role`\n(of an active membership in scope), `include_ended` (State-wide scope only: logins with no active membership\ntoo), `limit` (1-200) and `offset`; `X-Total-Count` counts the same filters. Without `limit` every row.\nDesign case-workspace-admin, decision 23: `status` — `active` (sign-in on and signed in at least once),\n`not_signed_in` (on, never signed in) or `off` (sign-in turned off).",
         "operationId": "list_users_admin_users_get",
         "parameters": [
           {
@@ -30290,6 +30564,27 @@
                 }
               ],
               "title": "Role"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "active",
+                    "not_signed_in",
+                    "off"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
             }
           },
           {
@@ -34738,7 +35033,7 @@
     },
     "/cases/{ref}/custody": {
       "get": {
-        "description": "The custody card and the legs in order (the file's movement record); the remark only for callers working\non the case and State-wide readers holding `cases.view_private_all`.",
+        "description": "The custody card and the legs by `seq_no` (the case's movement record), oldest first or with\n`order=desc` newest first; the remark only for callers working on the case and State-wide readers holding\n`cases.view_private_all`, which `remarks_shown` states.",
         "operationId": "custody_history_cases__ref__custody_get",
         "parameters": [
           {
@@ -34768,6 +35063,20 @@
               "default": 0,
               "title": "Offset",
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "order",
+            "required": false,
+            "schema": {
+              "default": "asc",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "title": "Order",
+              "type": "string"
             }
           }
         ],

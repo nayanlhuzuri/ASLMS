@@ -7,7 +7,7 @@ import uuid
 from datetime import date, datetime
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from aslms.domain.reference import OfficeKind, Permission, Role
 
@@ -138,10 +138,47 @@ class PermissionOut(BaseModel):
     label: str
     description: str | None
     is_active: bool
+    group: str | None = Field(
+        None,
+        description="the plain-language group of the user-type page (design case-workspace-admin, decision 26)",
+    )
+    group_label: str | None = None
+    sort_in_group: int | None = Field(
+        None, description="1-based place in the group; null for a retired function"
+    )
 
 
 class MatrixEntryIn(BaseModel):
     enabled: bool
+
+
+class MatrixChangeIn(BaseModel):
+    permission: Permission
+    enabled: bool
+
+
+class MatrixBatchIn(BaseModel):
+    """Design case-workspace-admin, decision 27: 1 to 60 changes of one user type, no permission twice."""
+
+    changes: list[MatrixChangeIn] = Field(min_length=1, max_length=60)
+
+    @field_validator("changes")
+    @classmethod
+    def _no_duplicates(cls, value: list[MatrixChangeIn]) -> list[MatrixChangeIn]:
+        seen = [c.permission for c in value]
+        if len(seen) != len(set(seen)):
+            raise ValueError("a function appears more than once")
+        return value
+
+
+class UserTypeCardOut(BaseModel):
+    """Design case-workspace-admin, decisions 24 and 27: a user type's card; labels come from `/reference/labels`."""
+
+    code: str
+    users: int = Field(description="logins with an active membership of the type in the caller's scope")
+    functions_on: int
+    functions_total: int
+    changed_from_default: int
 
 
 class UserTypeLabelOut(BaseModel):
@@ -1006,6 +1043,11 @@ class CustodyCardOut(BaseModel):
     due_date: date | None
     overdue: bool
     overdue_days: int
+    due_soon: bool = Field(
+        False,
+        description="not overdue and due within `request_due_soon_days` (IST), the window of `/custody/summary` "
+        "(design case-workspace-admin, decision 19)",
+    )
     sent_by: CustodySentByOut | None
     reason: str | None
     remark: str | None
@@ -2047,6 +2089,11 @@ class CustodyHistoryOut(BaseModel):
     card: CustodyCardOut | None
     legs: list[CustodyLegOut]
     total: int
+    remarks_shown: bool = Field(
+        False,
+        description="whether the legs carry their remark for this caller (a working basis, or a State-wide reader "
+        "holding `cases.view_private_all`); design case-workspace-admin, decision 16",
+    )
 
 
 class DepartmentRefOut(BaseModel):
@@ -2105,6 +2152,11 @@ class SentItemOut(BaseModel):
     case: CaseSummaryOut
     leg: CustodyLegOut
     visible: bool  # design portal-workflow, decision 20g: the caller can open the case now
+    current: bool | None = Field(
+        None,
+        description="the leg is the case's current leg; null when `visible` is false (design case-workspace-admin, "
+        "decision 20)",
+    )
 
 
 class SentListOut(BaseModel):

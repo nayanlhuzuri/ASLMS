@@ -917,7 +917,9 @@ def _validate_assignments(
         out[key] = (a, target)
     missing = [k for k in current if k not in out]
     if missing:
-        raise Conflict("unassigned_items", "every allotted case and held file needs a target", items=missing)
+        raise Conflict(
+            "unassigned_items", "every allotted case and case with them needs a target", items=missing
+        )
     return out
 
 

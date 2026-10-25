@@ -41,7 +41,7 @@
 
 .facts {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: var(--s4);
   margin: 0;
   padding-top: var(--s4);
@@ -147,7 +147,11 @@
   .facts {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
 
+/* design case-workspace-admin, decision 8: the Overview's two columns stack by the tabs card's width, not the
+   viewport's, so they stack beside the rail too */
+@container case-main (max-width: 859px) {
   .caseGrid {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -158,6 +162,38 @@
     margin-left: 0;
     width: 100%;
   }
+
+  /* decision 9: on phones the status badge stays and the Status fact is hidden */
+  .factStatus {
+    display: none;
+  }
+}
+
+/* design case-workspace-admin, decision 8 (template A, "Workspace with action rail"): from 1100 px the tabs card and
+   a sticky 320 px rail; below, the rail's cards come first (under the header, above the tabs) in one column */
+.workspace {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.main {
+  container: case-main / inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  min-width: 0;
+}
+
+.workspace[data-layout="rail"] {
+  display: grid;
+  grid-template-columns: minmax(600px, 1fr) var(--rail-w);
+  align-items: start;
+}
+
+.railColumn {
+  position: sticky;
+  top: calc(var(--header-h) + var(--s4));
 }
 
 .banner {

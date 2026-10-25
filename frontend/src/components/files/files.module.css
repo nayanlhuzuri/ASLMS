@@ -1,4 +1,4 @@
-/* The Files screens (design portal-files-alerts, decision 12). */
+/* The Cases list (design portal-files-alerts, decision 12; case-workspace-admin, decisions 17-20). */
 
 .clamp {
   display: -webkit-box;
@@ -58,4 +58,22 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--s2);
+}
+
+/* a small label under the case number ("Recalled" on Sent by me) */
+.mark {
+  font-size: var(--t-xs);
+  font-weight: 500;
+  color: var(--text-3);
+}
+
+/* an overdue due date */
+.danger {
+  color: var(--red-text);
+  font-weight: 500;
+}
+
+/* a leg that is no longer the case's current leg (Sent by me, decision 20) */
+.mutedRow {
+  color: var(--text-3);
 }

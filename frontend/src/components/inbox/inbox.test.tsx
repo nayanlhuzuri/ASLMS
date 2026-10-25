@@ -89,12 +89,12 @@ beforeEach(() => {
 });
 
 describe("tabs", () => {
-  it("a department officer sees Working on, Files with me, Claimed by me and Disposed with counts, and no Department cases", async () => {
+  it("a department officer sees Working on, Claimed by me and Disposed with counts, and no Department cases; Cases with me moved to the Cases list", async () => {
     browserApi(routes({ "GET /me": officer(), "GET /inbox/counts": { departments: [block("EDU", { whole_department: false })] } }));
     renderWithClient(<InboxFrame tab="working" params={{}} />);
     const tabs = await screen.findByRole("navigation", { name: "Case inbox sections" });
     expect(within(tabs).getByRole("link", { name: /Working on.*\(5\)/ })).toHaveAttribute("aria-current", "page");
-    expect(within(tabs).getByRole("link", { name: /Files with me.*\(2\)/ })).toHaveAttribute("href", "/inbox/files");
+    expect(within(tabs).queryByRole("link", { name: /Files with me|Cases with me/ })).toBeNull();
     expect(within(tabs).getByRole("link", { name: /Claimed by me.*\(7\)/ })).toHaveAttribute("href", "/inbox/claimed-by-me");
     expect(within(tabs).getByRole("link", { name: /Disposed.*\(1\)/ })).toBeInTheDocument();
     expect(within(tabs).queryByRole("link", { name: /Department cases/ })).toBeNull();
@@ -176,18 +176,18 @@ describe("own work", () => {
 
   it("the quick chips write next=n7 and action=overdue; the filtered count reads n of m", async () => {
     const api = browserApi(routes({ "GET /inbox/mine": { items: [myCase(1)], total: 1 } }));
-    const { unmount } = renderWithClient(<InboxFrame tab="files" params={{}} />);
+    const { unmount } = renderWithClient(<InboxFrame tab="working" params={{}} />);
     await userEvent.click(await screen.findByRole("button", { name: "Hearing this week" }));
     expect(nav.replace).toHaveBeenCalledWith("/inbox/working?next=n7");
     await userEvent.click(screen.getByRole("button", { name: "Action overdue" }));
     expect(nav.replace).toHaveBeenCalledWith("/inbox/working?action=overdue");
     unmount();
-    resetNav("/inbox/files");
-    renderWithClient(<InboxFrame tab="files" params={{ next: "n7", action: "overdue", stage: "none" }} />);
-    expect(await screen.findByText("1 of 2 cases")).toBeInTheDocument();
+    resetNav("/inbox/working");
+    renderWithClient(<InboxFrame tab="working" params={{ next: "n7", action: "overdue", stage: "none" }} />);
+    expect(await screen.findByText("1 of 5 cases")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Hearing this week" })).toHaveAttribute("aria-pressed", "true");
     const url = lastUrl(api.calls, "/inbox/mine?");
-    for (const part of ["view=files", "action=overdue", "stage=none", `next_from=${istDay()}`]) expect(url).toContain(part);
+    for (const part of ["view=working", "action=overdue", "stage=none", `next_from=${istDay()}`]) expect(url).toContain(part);
   });
 
   it("Stage is on the first row; words, case type, year and court are under More filters", async () => {
@@ -241,9 +241,9 @@ describe("Department cases", () => {
       "Next 30 days",
       "Choose dates…",
     ]);
-    expect(screen.queryByLabelText("File is with")).toBeNull();
+    expect(screen.queryByLabelText("With")).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "More filters" }));
-    for (const label of ["Case type", "Year", "Court", "File is with", "Action"]) expect(screen.getByLabelText(label)).toBeInTheDocument();
+    for (const label of ["Case type", "Year", "Court", "With", "Action"]) expect(screen.getByLabelText(label)).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "Active" })).toHaveAttribute("aria-checked", "true");
   });
 
@@ -266,7 +266,7 @@ describe("Department cases", () => {
     expect(url).not.toContain("officer_user_id");
     const chips = screen.getByRole("list", { name: "Applied filters" });
     expect(within(chips).getByText("Officer: Not allotted")).toBeInTheDocument();
-    expect(within(chips).getByText("File is with: Another department")).toBeInTheDocument();
+    expect(within(chips).getByText("With: Another department")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Remove filter Officer: Not allotted" }));
     expect(nav.replace).toHaveBeenLastCalledWith("/inbox/department?next=n7&holder=elsewhere&action=overdue");
   });

@@ -338,18 +338,23 @@ export function Modal({
   );
 }
 
-/** The side panel: a 480 px drawer from the right (full width on phones) for details on demand. */
+/**
+ * The side panel: a 480 px drawer from the right (full width on phones) for details on demand; `wide` makes it 760 px
+ * (the remarks history and a user's details, design case-workspace-admin, decisions 15 and 23).
+ */
 export function SidePanel({
   open,
   title,
   onClose,
   footer,
+  wide,
   children,
 }: {
   open: boolean;
   title: ReactNode;
   onClose: () => void;
   footer?: ReactNode;
+  wide?: boolean;
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -366,7 +371,8 @@ export function SidePanel({
     >
       <div
         ref={ref}
-        className={cx(s.panel, closing && s.closing)}
+        className={cx(s.panel, wide && s.panelWide, closing && s.closing)}
+        data-panel={wide ? "wide" : undefined}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}

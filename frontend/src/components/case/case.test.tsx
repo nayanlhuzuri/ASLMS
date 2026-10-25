@@ -283,7 +283,7 @@ describe("the frame", () => {
     expect(screen.queryByRole("button", { name: "Fetch from the court" })).toBeNull();
   });
 
-  it("six tabs with counts and More (Parties, Linked cases, Custody and stage, Alerts, Details); no Case Assistant", async () => {
+  it("six tabs with counts and More (Parties, Linked cases, Journey and stage, Alerts, Details); no Case Assistant", async () => {
     browserApi({ "GET /me": me(), [`GET ${BASE}`]: detail() });
     renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
     const tabs = await screen.findByRole("navigation", { name: "Case sections" });
@@ -293,17 +293,17 @@ describe("the frame", () => {
     expect(within(tabs).getByRole("link", { name: "Documents (2)" })).toBeInTheDocument();
     expect(within(tabs).getByRole("link", { name: "Notes (4)" })).toBeInTheDocument();
     expect(within(tabs).getByRole("link", { name: "Timeline (12)" })).toBeInTheDocument();
-    expect(within(tabs).queryByRole("link", { name: "Custody and stage" })).toBeNull();
+    expect(within(tabs).queryByRole("link", { name: "Journey and stage" })).toBeNull();
     await userEvent.click(within(tabs).getByRole("button", { name: "More" }));
     const more = within(tabs).getByRole("menu");
     expect(within(more).getAllByRole("menuitem").map((m) => m.textContent)).toEqual([
       "Parties",
       "Linked cases",
-      "Custody and stage",
+      "Journey and stage",
       "Alerts",
       "Details",
     ]);
-    expect(within(more).getByRole("menuitem", { name: "Custody and stage" })).toHaveAttribute("href", `${BASE}/custody`);
+    expect(within(more).getByRole("menuitem", { name: "Journey and stage" })).toHaveAttribute("href", `${BASE}/custody`);
     expect(within(more).getByRole("menuitem", { name: "Alerts" })).toHaveAttribute("href", `${BASE}/alerts`);
     expect(within(tabs).queryByRole("link", { name: /Assistant/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /Hand over|Assistant/ })).toBeNull();
@@ -315,11 +315,11 @@ describe("the frame", () => {
     browserApi({ "GET /me": me(), [`GET ${BASE}`]: detail() });
     renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
     const tabs = await screen.findByRole("navigation", { name: "Case sections" });
-    expect(within(tabs).getByRole("button", { name: "Custody and stage" })).toHaveAttribute("aria-haspopup", "menu");
+    expect(within(tabs).getByRole("button", { name: "Journey and stage" })).toHaveAttribute("aria-haspopup", "menu");
     expect(within(tabs).getByRole("link", { name: "Overview" })).not.toHaveAttribute("aria-current");
   });
 
-  it("the summary header shows the four facts and the badges (portal-ui-redesign, decision 24)", async () => {
+  it("the summary header shows the five facts and the badges (case-workspace-admin, decision 9)", async () => {
     const c = detail({
       custody: { ...detail().custody!, holder_user: { id: "u-1", full_name: "Anita Sharma", designation: "Under Secretary" } },
       status: { ...detail().status, next_hearing_date: "2026-11-20" },
@@ -334,17 +334,43 @@ describe("the frame", () => {
     });
     renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
     const header = await screen.findByRole("region", { name: "Case summary" });
-    expect(within(header).getByText("Pending")).toBeInTheDocument();
-    expect(within(header).getByText("Your department")).toBeInTheDocument();
+    // the status label is the badge and the Status fact (hidden on phones)
+    expect(within(header).getAllByText("Pending")).toHaveLength(2);
+    expect(await within(header).findByText("Your department")).toBeInTheDocument();
+    // the case is with the caller and overdue: "Overdue since <date>" in danger
+    expect(await within(header).findByText("Overdue since 10 Oct 2026")).toBeInTheDocument();
     expect(within(header).getByText(/RAM KUMAR/)).toBeInTheDocument();
     const fact = (label: string) => within(header).getByText(label, { selector: "dt" }).nextElementSibling as HTMLElement;
-    await waitFor(() => expect(fact("Next hearing")).toHaveTextContent("20 Nov 2026 · Court 3, item 14"));
-    expect(fact("File is with")).toHaveTextContent("You · Under Secretary");
+    // the date always shows with the whole-day countdown (owner, 23 Oct 2026)
+    await waitFor(() => expect(fact("Next hearing")).toHaveTextContent(/^Fri, 20 Nov 2026( · (today|tomorrow|in [0-9]+ days))? · Court 3, item 14/));
+    expect(fact("With")).toHaveTextContent("Under Secretary, Secondary Education (you)");
     expect(fact("Stage")).toHaveTextContent("Reply due");
-    expect(fact("Owner")).toHaveTextContent("Education");
+    expect(fact("Owner department")).toHaveTextContent("Education");
+    expect(fact("Status")).toHaveTextContent("Pending");
+    expect(within(header).getByText("Status", { selector: "dt" }).parentElement).toHaveAttribute("data-fact", "status");
+    expect(within(header).queryByText("File is with")).toBeNull();
   });
 
-  it("another department's owner shows its code; a colleague holds the file; no owner says Not claimed", async () => {
+  it("Action due shows only when the case is with the caller and has a due date (decision 9)", async () => {
+    const mine = { ...detail().custody!, holder_user: { id: "u-1", full_name: "Anita Sharma", designation: "Under Secretary" } };
+    browserApi({ "GET /me": me(), [`GET ${BASE}`]: detail({ custody: { ...mine, overdue: false, overdue_days: 0, due_date: "2099-01-05" } }) });
+    let view = renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
+    let header = await screen.findByRole("region", { name: "Case summary" });
+    expect(await within(header).findByText("Action due 5 Jan 2099")).toBeInTheDocument();
+    view.unmount();
+    browserApi({ "GET /me": me(), [`GET ${BASE}`]: detail({ custody: { ...mine, due_date: null, overdue: false } }) });
+    view = renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
+    header = await screen.findByRole("region", { name: "Case summary" });
+    expect(within(header).queryByText(/Action due|Overdue since/)).toBeNull();
+    view.unmount();
+    // with a colleague: no badge
+    browserApi({ "GET /me": me(), [`GET ${BASE}`]: detail() });
+    renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
+    header = await screen.findByRole("region", { name: "Case summary" });
+    expect(within(header).queryByText(/Action due|Overdue since/)).toBeNull();
+  });
+
+  it("another department's owner shows its code; the case is with a colleague; no owner says Not claimed", async () => {
     browserApi({
       "GET /me": me(),
       [`GET ${BASE}`]: detail({
@@ -356,33 +382,34 @@ describe("the frame", () => {
     expect(within(header).getByText("HEALTH")).toBeInTheDocument();
     expect(within(header).queryByText("Your department")).toBeNull();
     const fact = (label: string) => within(header).getByText(label, { selector: "dt" }).nextElementSibling as HTMLElement;
-    expect(fact("File is with")).toHaveTextContent("Officer One · SO");
+    expect(fact("With")).toHaveTextContent("SO, Secondary Education");
+    expect(fact("With").firstElementChild).toHaveAttribute("title", "Officer One");
     unmount();
     browserApi({ "GET /me": me(), [`GET ${BASE}`]: detail({ ownership: { primary: null, watchers: [] }, custody: null, stage: null }) });
     renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
     const bare = await screen.findByRole("region", { name: "Case summary" });
     const fact2 = (label: string) => within(bare).getByText(label, { selector: "dt" }).nextElementSibling as HTMLElement;
-    expect(fact2("Owner")).toHaveTextContent("Not claimed");
+    expect(fact2("Owner department")).toHaveTextContent("Not claimed");
     expect(fact2("Stage")).toHaveTextContent("No stage set.");
-    expect(fact2("File is with")).toHaveTextContent("—");
+    expect(fact2("With")).toHaveTextContent("—");
   });
 
-  it("one primary action, picked from the flags: Send file, else Claim, else Accept transfer", async () => {
+  it("one primary action, picked from the flags: Send case, else Claim, else Accept transfer", async () => {
     const primaries = () => document.querySelectorAll("[data-variant='primary']");
-    // Send file by custody.can_send; Recall in More actions by can_recall
+    // Send case by custody.can_send; Recall case in More actions by can_recall
     browserApi({ "GET /me": me(), [`GET ${BASE}`]: detail(), [`GET ${BASE}/ownership`]: ownership(actions({ claim: true, claim_departments: ["EDU"] })) });
     let view = renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
     let group = await screen.findByRole("group", { name: "Case actions" });
-    expect(within(group).getByRole("button", { name: "Send file" })).toBeInTheDocument();
+    expect(within(group).getByRole("button", { name: "Send case" })).toBeInTheDocument();
     expect(within(group).queryByRole("button", { name: "Claim" })).toBeNull();
     await waitFor(() => expect(within(group).getByRole("button", { name: "More actions" })).toBeInTheDocument());
     await userEvent.click(within(group).getByRole("button", { name: "More actions" }));
-    expect(within(group).getByRole("menuitem", { name: "Recall" })).toBeInTheDocument();
+    expect(within(group).getByRole("menuitem", { name: "Recall case" })).toBeInTheDocument();
     // the claim that is not primary waits in the menu
     await waitFor(() => expect(within(group).getByRole("menuitem", { name: "Claim" })).toBeInTheDocument());
     expect(primaries()).toHaveLength(1);
     view.unmount();
-    // no file to send: Claim is the primary
+    // nothing to send: Claim is the primary
     const noSend = { ...detail().custody!, can_send: false, can_recall: false };
     browserApi({
       "GET /me": me(),
@@ -392,7 +419,7 @@ describe("the frame", () => {
     view = renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
     group = await screen.findByRole("group", { name: "Case actions" });
     expect(await within(group).findByRole("button", { name: "Claim" })).toBeInTheDocument();
-    expect(within(group).queryByRole("button", { name: "Send file" })).toBeNull();
+    expect(within(group).queryByRole("button", { name: "Send case" })).toBeNull();
     view.unmount();
     // nothing else: Accept transfer by decide_transfer
     browserApi({
@@ -414,7 +441,7 @@ describe("the frame", () => {
     expect(within(group).queryAllByRole("button")).toHaveLength(0);
   });
 
-  it("Add note shows by note_mode and opens the composer; Set stage, Upload and Enter next date sit in More actions by their flags", async () => {
+  it("Add note, Upload and Set stage are the rail's Quick actions only; Enter next date sits in More actions (case-workspace-admin, decisions 9 and 12)", async () => {
     const noSend = { ...detail().custody!, can_send: false, can_recall: false };
     browserApi({
       "GET /me": me(),
@@ -423,14 +450,15 @@ describe("the frame", () => {
     });
     const view = renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
     const group = await screen.findByRole("group", { name: "Case actions" });
+    expect(within(group).queryByRole("button", { name: "Add note" })).toBeNull();
     await userEvent.click(within(group).getByRole("button", { name: "More actions" }));
-    expect(within(group).getAllByRole("menuitem").map((m) => m.textContent)).toEqual([
-      "Set stage",
-      "Upload a document",
-      "Enter next date",
-    ]);
+    expect(within(group).getAllByRole("menuitem").map((m) => m.textContent)).toEqual(["Enter next date"]);
     await userEvent.keyboard("{Escape}");
-    await userEvent.click(within(group).getByRole("button", { name: "Add note" }));
+    // below 1100 px the Quick actions card is closed, its title line saying how many actions it holds
+    const quick = screen.getByRole("region", { name: "Quick actions" });
+    await userEvent.click(within(quick).getByRole("button", { name: /Quick actions\s*3 actions/ }));
+    expect(within(quick).getAllByRole("button").slice(1).map((b) => b.textContent)).toEqual(["Add note", "Upload a document", "Set stage"]);
+    await userEvent.click(within(quick).getByRole("button", { name: "Add note" }));
     const dialog = screen.getByRole("dialog", { name: "Add a note" });
     expect(within(dialog).getByText("WP(C)/1234/2026")).toBeInTheDocument();
     expect(within(dialog).getByText(/becomes part of the case record at once/)).toBeInTheDocument();
@@ -438,7 +466,8 @@ describe("the frame", () => {
     browserApi({ "GET /me": me(), [`GET ${BASE}`]: detail({ custody: noSend }) });
     renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
     const none = await screen.findByRole("group", { name: "Case actions" });
-    expect(within(none).queryByRole("button", { name: "Add note" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add note" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Quick actions" })).toBeNull();
     expect(within(none).queryByRole("button", { name: "More actions" })).toBeNull();
   });
 });
@@ -1132,8 +1161,8 @@ describe("documents paging and inline viewing (portal-cases-followups)", () => {
     renderWithClient(<Notes caseRef={REF} />);
     const item = (name: string) => screen.getByText(name, { exact: false }).closest("li")!;
     await screen.findByText("with files");
+    expect(await within(item("a-word")).findByRole("link", { name: "Download" })).toBeInTheDocument();
     expect(within(item("a-word")).queryByRole("link", { name: "View" })).toBeNull();
-    expect(within(item("a-word")).getByRole("link", { name: "Download" })).toBeInTheDocument();
     expect(within(item("a-pdf")).getByRole("link", { name: "View" })).toHaveAttribute("href", "/api/backend/documents/a-pdf/file?disposition=inline");
     expect(within(item("a-img")).getByRole("link", { name: "View" })).toBeInTheDocument();
   });
@@ -1527,7 +1556,7 @@ describe("round 1 and round 3 advisories (design portal-ui-polish, decisions 2, 
     renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
     const header = await screen.findByRole("region", { name: "Case summary" });
     const fact = () => within(header).getByText("Next hearing", { selector: "dt" }).nextElementSibling as HTMLElement;
-    await waitFor(() => expect(fact()).toHaveTextContent("20 Nov 2026 · Court 3, item 14A"));
+    await waitFor(() => expect(fact()).toHaveTextContent(/20 Nov 2026.* · Court 3, item 14A/));
   });
 
   it("custody tab has one primary", async () => {
@@ -1544,8 +1573,8 @@ describe("round 1 and round 3 advisories (design portal-ui-polish, decisions 2, 
         <CustodyTab caseRef={REF} />
       </CaseFrame>,
     );
-    const card = await screen.findByRole("region", { name: "Custody" });
-    const send = await within(card).findByRole("button", { name: "Send file" });
+    const card = await screen.findByRole("region", { name: "Journey" });
+    const send = await within(card).findByRole("button", { name: "Send case" });
     expect(send).toHaveAttribute("data-variant", "secondary");
     await screen.findByRole("region", { name: "Case summary" });
     expect(container.querySelectorAll(PRIMARY_SELECTOR).length).toBe(1);

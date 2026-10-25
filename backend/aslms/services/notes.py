@@ -209,7 +209,7 @@ def add_note(
     draft = _is_holder(custody, member)
     if draft and files:
         raise bad(
-            "the holder's notes are drafts and take links only: upload the file to the case first",
+            "while the case is with you, notes are drafts and take links only: upload the document to the case first",
             "drafts_take_links_only",
         )
     original = _correction_target(session, user, case, supersedes, kind, vis) if supersedes else None
@@ -370,7 +370,7 @@ def _save_draft(
     )
     if count >= max_drafts:
         raise conflict(
-            "too_many_drafts", f"at most {max_drafts} drafts per case; send the file or delete one"
+            "too_many_drafts", f"at most {max_drafts} drafts per case; send the case or delete one"
         )
     draft = CaseNoteDraft(
         case_id=case.id,
@@ -437,7 +437,7 @@ def _relock_draft(session: Session, user: User | Member, draft: CaseNoteDraft) -
         select(Custody).where(Custody.case_id == case.id).execution_options(populate_existing=True)
     ).scalar_one_or_none()
     if fresh is None or custody is None or custody.holder_membership_id != membership_id:
-        raise conflict("draft_finalised", "the file has moved; the draft is now a permanent note")
+        raise conflict("draft_finalised", "the case has moved; the draft is now a permanent note")
     member = next((m for m in access.members(session, user) if m.membership_id == membership_id), None)
     if member is None:
         raise conflict("draft_finalised", "the membership that wrote the draft no longer acts")

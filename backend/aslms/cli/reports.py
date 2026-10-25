@@ -47,7 +47,7 @@ def run(
     from_: str | None = typer.Option(None, "--from", help="period start, YYYY-MM-DD"),
     to: str | None = typer.Option(None, "--to", help="period end, YYYY-MM-DD"),
     holder_department: str | None = typer.Option(None, "--holder-department", help="pending-actions only"),
-    include_cases: bool = typer.Option(False, "--include-cases", help="pending-actions: one row per file"),
+    include_cases: bool = typer.Option(False, "--include-cases", help="pending-actions: one row per case"),
     fmt: str = typer.Option("json", "--format", help="json, xlsx or pdf"),
     out: Path | None = typer.Option(None, "--out", help="write the file here (required for xlsx and pdf)"),
 ) -> None:
@@ -113,7 +113,7 @@ def dashboard_cmd(
                 h = block["hearings"]
                 rprint(f"  hearings in 7 days {h['total']} (critical {h['critical']})")
                 rprint(
-                    f"  overdue files {block['overdue_actions']['total']}  compliance {block['compliance']}"
+                    f"  overdue cases {block['overdue_actions']['total']}  compliance {block['compliance']}"
                 )
             if department:
                 office, _m = dashboard.resolve_department(s, user, department)

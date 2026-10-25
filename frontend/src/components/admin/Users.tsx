@@ -1,18 +1,24 @@
 "use client";
 
 /**
- * Users (design portal-shell, decision 15): the list by name or e-mail, office subtree and user type, 50 at a time
- * (`GET /admin/users` with `X-Total-Count`); the super admin can include logins without an active office. New
- * user: an exact e-mail lookup first, which offers "add a membership to this person" instead of a duplicate.
+ * Users on the Settings hub (design portal-shell, decision 15; case-workspace-admin, decision 23, template A): the
+ * list by name or e-mail (2 or more characters), user type, office subtree and status ("Active", "Not signed in yet",
+ * "Off"), 50 at a time (`GET /admin/users` with `X-Total-Count`); the super admin can include logins without an
+ * active office. Each row (initials in a fixed lead, the name over the post, the user-type badges, the status) opens
+ * a wide side panel on `?user=<id>` with the existing user sections and "Open full page"; "Add user", the page's one
+ * primary, opens the new-user flow in the same panel (`?user=new`): an exact e-mail lookup first, which offers "add a
+ * membership to this person" instead of a duplicate. Every rule stays on the server.
  */
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
+import { Chevron } from "@/components/inbox/rows";
 import {
   Badge,
   Button,
+  buttonClass,
   CheckField,
   DataTable,
   EmptyState,
@@ -20,6 +26,7 @@ import {
   Loading,
   Pagination,
   SelectField,
+  SidePanel,
   TextField,
 } from "@/components/ui";
 import { api, apiPage, ApiError } from "@/lib/api/client";
@@ -27,9 +34,12 @@ import { labelOf, useLabels, useMe } from "@/lib/api/hooks";
 import type { Designation, MembershipOut, Role, UserLookup, UserOut, UserTypeLabel } from "@/lib/api/types";
 import { can, isSuperAdmin } from "@/lib/can";
 import { T } from "@/lib/messages";
+import type { Params } from "@/lib/params";
 import { useAction } from "@/lib/useAction";
+import { useUrlOverlay } from "@/lib/useUrlOverlay";
 
 import a from "./admin.module.css";
+import { UserDetail } from "./UserDetail";
 
 export const PAGE_SIZE = 50;
 
@@ -51,11 +61,94 @@ export function MembershipSummary({ memberships, types }: { memberships: Members
   );
 }
 
-export function UsersList() {
+export type UserStatus = "active" | "not_signed_in" | "off";
+
+/** Decision 23: "Active" (on and signed in), "Not signed in yet" (on, never signed in) or "Off" (sign-in turned off). */
+export function userStatus(u: Pick<UserOut, "is_active" | "last_login_at">): UserStatus {
+  if (!u.is_active) return "off";
+  return u.last_login_at ? "active" : "not_signed_in";
+}
+
+const STATUS_TONE: Record<UserStatus, "success" | "danger" | undefined> = { active: "success", not_signed_in: undefined, off: "danger" };
+
+export function StatusBadge({ user }: { user: Pick<UserOut, "is_active" | "last_login_at"> }) {
+  const status = userStatus(user);
+  return <Badge tone={STATUS_TONE[status]}>{T.users.statuses[status]}</Badge>;
+}
+
+/** The initials of a name, at most two letters. */
+export function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? "") : "")).toUpperCase() || "?";
+}
+
+/** The primary active membership, else the first active one. */
+function primaryMembership(u: UserOut): MembershipOut | undefined {
+  const active = (u.memberships ?? []).filter((m) => m.is_active !== false);
+  return active.find((m) => m.is_primary) ?? active[0];
+}
+
+/** Decision 23: one badge per active membership's type, at most two and "+n". */
+export function TypeBadges({ user, types }: { user: UserOut; types?: UserTypeLabel[] }) {
+  const roles = [...new Set((user.memberships ?? []).filter((m) => m.is_active !== false).map((m) => m.role))];
+  if (roles.length === 0) return <span className="muted">{T.users.noMembership}</span>;
+  return (
+    <span className={a.types}>
+      {roles.slice(0, 2).map((r) => (
+        <Badge key={r} tone="info">
+          {labelOf(types, r)}
+        </Badge>
+      ))}
+      {roles.length > 2 ? <Badge>{T.users.moreTypes(roles.length - 2)}</Badge> : null}
+    </span>
+  );
+}
+
+/**
+ * The user's side panel on `?user=<id>` (decision 23): the existing `UserDetail` sections, unchanged, with "Open full
+ * page" in the footer; `?user=new` holds the new-user flow (e-mail lookup first).
+ */
+function UserPanel({
+  value,
+  onClose,
+  onCreated,
+}: {
+  value: string | null;
+  onClose: () => void;
+  onCreated: (id: string) => void;
+}) {
+  const isNew = value === "new";
+  const user = useQuery({
+    queryKey: ["admin", "user", value ?? ""],
+    queryFn: () => api<UserOut>(`/admin/users/${value}`),
+    enabled: !!value && !isNew,
+  });
+  const title = isNew ? T.users.addUser : (user.data?.full_name ?? T.users.title);
+  return (
+    <SidePanel
+      open={value !== null}
+      title={title}
+      onClose={onClose}
+      wide
+      footer={
+        value && !isNew ? (
+          <Link href={`/admin/users/${value}`} className={buttonClass("secondary")} data-variant="secondary">
+            {T.users.openFullPage}
+          </Link>
+        ) : null
+      }
+    >
+      {isNew ? <NewUserForm onDone={onCreated} /> : value ? <UserDetail id={value} /> : null}
+    </SidePanel>
+  );
+}
+
+export function UsersList({ params = {} }: { params?: Params }) {
   const me = useMe();
-  const router = useRouter();
   const labels = useLabels();
-  const [draft, setDraft] = useState({ q: "", office: "", role: "", includeEnded: false });
+  const pathname = usePathname() ?? "/admin/users";
+  const overlay = useUrlOverlay("user", params, pathname);
+  const [draft, setDraft] = useState({ q: "", office: "", role: "", status: "", includeEnded: false });
   const [filters, setFilters] = useState(draft);
   const [offset, setOffset] = useState(0);
   const [shortQuery, setShortQuery] = useState(false);
@@ -67,12 +160,14 @@ export function UsersList() {
           q: filters.q.trim() || undefined,
           office: filters.office.trim() || undefined,
           role: filters.role || undefined,
+          status: filters.status || undefined,
           include_ended: filters.includeEnded || undefined,
           limit: PAGE_SIZE,
           offset,
         },
       }),
   });
+  const types = labels.data?.user_types;
 
   function apply(e: FormEvent) {
     e.preventDefault();
@@ -88,12 +183,12 @@ export function UsersList() {
   return (
     <section className="stack" aria-label={T.users.title}>
       <div className={a.groupHead}>
-        <h2>{T.users.title}</h2>
-        {can(me.data, "users.create") ? (
-          <Link href="/admin/users/new" className="button-link">
-            {T.users.newUser}
-          </Link>
-        ) : null}
+        <div>
+          <h2>{T.users.title}</h2>
+          <p className="muted">{T.users.subtitle}</p>
+        </div>
+        {/* the page's one primary (decision 28) */}
+        {can(me.data, "users.create") ? <Button onClick={() => overlay.open("new")}>{T.users.addUser}</Button> : null}
       </div>
       <form className="row" onSubmit={apply} role="search">
         <TextField
@@ -102,13 +197,20 @@ export function UsersList() {
           error={shortQuery ? T.users.shortQuery : undefined}
           onChange={(e) => setDraft({ ...draft, q: e.target.value })}
         />
-        <TextField label={T.users.office} value={draft.office} onChange={(e) => setDraft({ ...draft, office: e.target.value })} />
         <SelectField
           label={T.users.type}
           value={draft.role}
           placeholder={T.users.anyType}
-          options={(labels.data?.user_types ?? []).map((t) => ({ value: t.code, label: t.label }))}
+          options={(types ?? []).map((t) => ({ value: t.code, label: t.label }))}
           onChange={(e) => setDraft({ ...draft, role: e.target.value })}
+        />
+        <TextField label={T.users.office} value={draft.office} onChange={(e) => setDraft({ ...draft, office: e.target.value })} />
+        <SelectField
+          label={T.users.statusFilter}
+          value={draft.status}
+          placeholder={T.users.anyStatus}
+          options={(["active", "not_signed_in", "off"] as const).map((s) => ({ value: s, label: T.users.statuses[s]! }))}
+          onChange={(e) => setDraft({ ...draft, status: e.target.value })}
         />
         {isSuperAdmin(me.data) ? (
           <CheckField
@@ -132,27 +234,44 @@ export function UsersList() {
               caption={T.users.title}
               rows={users.data.items}
               rowKey={(u) => u.id}
-              rowLabel={(u) => u.full_name}
-              onRowClick={(u) => router.push(`/admin/users/${u.id}`)}
+              rowLabel={(u) => T.users.openUser(u.full_name)}
+              onRowClick={(u) => overlay.open(u.id)}
               columns={[
                 {
-                  key: "name",
-                  header: T.users.name,
+                  key: "avatar",
+                  header: <span className="visually-hidden">{T.users.avatar}</span>,
+                  label: T.users.avatar,
+                  width: "var(--s7)",
+                  cell: (u) => (
+                    <span className={a.avatar} data-lead="avatar" aria-hidden="true">
+                      {initials(u.full_name)}
+                    </span>
+                  ),
+                },
+                {
+                  key: "person",
+                  header: T.users.person,
                   primary: true,
-                  cell: (u) => <Link href={`/admin/users/${u.id}`}>{u.full_name}</Link>,
+                  cell: (u) => {
+                    const m = primaryMembership(u);
+                    const post = [m?.designation ?? u.designation, m?.office.name ?? u.office?.name].filter(Boolean).join(", ");
+                    return (
+                      <span className={a.person}>
+                        <span>{u.full_name}</span>
+                        <span className="muted">{post || u.email}</span>
+                      </span>
+                    );
+                  },
                 },
-                { key: "email", header: T.users.email, cell: (u) => u.email },
+                { key: "types", header: T.users.types, cell: (u) => <TypeBadges user={u} types={types} /> },
+                { key: "status", header: T.users.status, width: "var(--lead-w)", cell: (u) => <StatusBadge user={u} /> },
                 {
-                  key: "offices",
-                  header: T.users.offices,
-                  cell: (u) => <MembershipSummary memberships={u.memberships ?? []} types={labels.data?.user_types} />,
-                },
-                {
-                  key: "status",
-                  header: T.users.status,
-                  width: "var(--lead-w)",
-                  cell: (u) =>
-                    u.is_active ? <Badge tone="success">{T.active}</Badge> : <Badge tone="danger">{T.users.disabled}</Badge>,
+                  key: "open",
+                  header: <span className="visually-hidden">{T.users.openFullPage}</span>,
+                  label: T.users.openFullPage,
+                  hideOnPhone: true,
+                  width: "var(--s6)",
+                  cell: () => <Chevron />,
                 },
               ]}
             />
@@ -160,6 +279,7 @@ export function UsersList() {
           </>
         )
       ) : null}
+      <UserPanel value={overlay.value} onClose={overlay.close} onCreated={(id) => overlay.open(id)} />
     </section>
   );
 }
@@ -217,7 +337,8 @@ export function MembershipFields({
   );
 }
 
-export function NewUserForm() {
+/** `onDone` (the side panel): open the person's panel; without it the full page, as before. */
+export function NewUserForm({ onDone }: { onDone?: (id: string) => void } = {}) {
   const router = useRouter();
   const labels = useLabels();
   const [email, setEmail] = useState("");
@@ -228,6 +349,7 @@ export function NewUserForm() {
   const [membership, setMembership] = useState<MembershipDraft>({ office: "", designation: "", role: "" });
   const lookup = useAction();
   const save = useAction();
+  const done = (id: string) => (onDone ? onDone(id) : router.push(`/admin/users/${id}`));
 
   async function check(e: FormEvent) {
     e.preventDefault();
@@ -255,7 +377,7 @@ export function NewUserForm() {
         },
       }),
     );
-    if (out.ok) router.push(`/admin/users/${found.id}`);
+    if (out.ok) done(found.id);
   }
 
   async function create(e: FormEvent) {
@@ -274,7 +396,7 @@ export function NewUserForm() {
         },
       }),
     );
-    if (out.ok) router.push(`/admin/users/${out.value.id}`);
+    if (out.ok) done(out.value.id);
   }
 
   return (

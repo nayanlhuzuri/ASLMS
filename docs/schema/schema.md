@@ -406,6 +406,8 @@ As built by `alerts-notifications` (migration 0007, 6 Oct 2026): `alerts` gains 
 
 As built by `assistant` (migration 0024, 24 Oct 2026; revises 0023): `assistant_messages` gains `reply_to_id`, `mode`, `connector`, `outcome`, `error_family`, `duration_ms`, `scope_info`, `citations`, `model_info`, `response` and the three CHECKs, the partial unique index, the append-only trigger and the removal of UPDATE and DELETE from `aslms_app`; `assistant_conversations` gains the CHECK `ck_assistant_conversations_case_scope`, the index swap and the enum value `my_cases` (added last, in an autocommit block, and not removable by the downgrade). The upgrade stops if any `assistant_messages` row exists; the downgrade stops if any message exists or a conversation has scope `my_cases`. `assistant_messages` joins `APPEND_ONLY_TABLES` and stays in `CASCADE_TABLES`. No new `ref_*` code set and no new function.
 
+As built by `case-workspace-admin` (migration 0025, 25 Oct 2026; revises 0024): no table, column, type or grant changes; a reference-data migration only. `ref_note_kind.label` for `file_noting` changes from "File noting" to "Office note", and `ref_event_type.timeline_label` for `custody_moved` from "Custody moved" to "Case moved", each only while it still holds the seeded text; the downgrade reverses each under the mirror condition. No `audit_log` row (the 0016 precedent). `aslms seed` carries the same labels for fresh databases.
+
 Still deferred: district-court rows in `courts` and the NAPIX DC integration (Phase 3; no DC API specification in
 the repository yet); PostgreSQL schemas per bounded context (DB_STANDARD §9, revisited with Phase 3).
 

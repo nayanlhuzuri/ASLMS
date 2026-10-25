@@ -88,7 +88,7 @@ def _report(rows: int = 3, truncated: bool = False, office: str = "Office <A> & 
             ),
             Section(
                 "files",
-                "Files with a pending action",
+                "Cases with a pending action",
                 cols,
                 data,
                 total_rows=rows + 5 if truncated else rows,

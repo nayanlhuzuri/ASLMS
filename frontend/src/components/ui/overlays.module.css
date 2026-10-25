@@ -205,6 +205,10 @@
   animation: slide-in var(--slow) var(--ease);
 }
 
+.panelWide {
+  width: min(760px, 100%);
+}
+
 .panel.closing {
   animation: slide-out var(--slow) var(--ease) forwards;
 }

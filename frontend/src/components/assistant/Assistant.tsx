@@ -541,12 +541,12 @@ function Workspace({
     <div className={cx(s.column, s.threadColumn)}>
       <div className={s.head}>
         {screen === "page" ? (
-          <Button variant="ghost" size="sm" className={s.back} onClick={() => setView("list")}>
+          <Button variant="ghost" className={s.back} onClick={() => setView("list")}>
             {A.backToList}
           </Button>
         ) : null}
         <h2 className="h3">{thread.data?.conversation.title ?? A.conversation}</h2>
-        <Button variant="secondary" size="sm" onClick={newConversation} disabled={pending !== null}>
+        <Button variant="secondary" onClick={newConversation} disabled={pending !== null}>
           {A.newConversation}
         </Button>
       </div>

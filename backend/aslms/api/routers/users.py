@@ -7,8 +7,9 @@ goes through `services/access.py` or `services/memberships.py`, which enforce th
 from __future__ import annotations
 
 import uuid
+from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
@@ -27,10 +28,8 @@ router = APIRouter(prefix="/admin/users", tags=["users"])
 
 def _scope_roots(session: Session, user: User) -> list[Office] | None:
     """None = everything (super admin or State-wide view); else the offices of the caller's memberships that
-    hold `users.view`."""
-    if access.is_super_admin(user) or access.has(session, user, Permission.CASES_VIEW_ALL):
-        return None
-    return [m.office for m in access.holders_in(session, user, Permission.USERS_VIEW)]
+    hold `users.view` (`access.user_scope_roots`, shared with the user-type cards' counts)."""
+    return access.user_scope_roots(session, user)
 
 
 def _in_roots(office: Office, roots: list[Office] | None) -> bool:
@@ -90,6 +89,7 @@ def list_users(
     office: str | None = None,
     q: str | None = None,
     role: Role | None = None,
+    status_: Literal["active", "not_signed_in", "off"] | None = Query(None, alias="status"),
     include_ended: bool = False,
     limit: int | None = None,
     offset: int = 0,
@@ -99,7 +99,9 @@ def list_users(
     """Logins with an active membership in the caller's scope (optionally under `office`), each with all of its
     memberships (decision 8). Design `portal-shell`, decision 16b: `q` (2+ characters, name or e-mail), `role`
     (of an active membership in scope), `include_ended` (State-wide scope only: logins with no active membership
-    too), `limit` (1-200) and `offset`; `X-Total-Count` counts the same filters. Without `limit` every row."""
+    too), `limit` (1-200) and `offset`; `X-Total-Count` counts the same filters. Without `limit` every row.
+    Design case-workspace-admin, decision 23: `status` — `active` (sign-in on and signed in at least once),
+    `not_signed_in` (on, never signed in) or `off` (sign-in turned off)."""
     if q is not None and len(q.strip()) < 2:
         raise _bad_field("q needs at least 2 characters")
     if limit is not None and not 1 <= limit <= 200:
@@ -139,6 +141,12 @@ def list_users(
     if q is not None:
         pattern = _like(q.strip())
         stmt = stmt.where(User.full_name.ilike(pattern, escape="\\") | User.email.ilike(pattern, escape="\\"))
+    if status_ == "active":
+        stmt = stmt.where(User.is_active.is_(True), User.last_login_at.is_not(None))
+    elif status_ == "not_signed_in":
+        stmt = stmt.where(User.is_active.is_(True), User.last_login_at.is_(None))
+    elif status_ == "off":
+        stmt = stmt.where(User.is_active.is_(False))
     total = session.scalar(select(func.count()).select_from(stmt.subquery()))
     response.headers["X-Total-Count"] = str(total)
     stmt = stmt.order_by(User.email, User.id)

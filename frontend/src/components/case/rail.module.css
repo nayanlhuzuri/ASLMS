@@ -1,0 +1,227 @@
+/* The case page's action rail (design case-workspace-admin, decisions 8 and 10-14; template A). From 1100 px a sticky
+   320 px column beside the tabs; below, the same cards under the header as collapsibles. */
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.card {
+  padding: var(--s4) var(--s5);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-1);
+  animation: rail-in var(--med) var(--ease);
+}
+
+@keyframes rail-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.cardTitle {
+  margin: 0 0 var(--s3);
+  color: var(--text-3);
+  font-size: var(--t-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.summary {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s2) var(--s3);
+}
+
+.summary .cardTitle {
+  margin: 0;
+}
+
+.fact {
+  color: var(--text-2);
+  font-size: var(--t-sm);
+  font-weight: 500;
+}
+
+.task {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.eyebrow {
+  color: var(--accent);
+  font-size: var(--t-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.taskAction {
+  font-size: var(--t-xl);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.kv {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--s1) var(--s3);
+  margin: 0;
+  font-size: var(--t-sm);
+}
+
+.kv dt {
+  color: var(--text-3);
+}
+
+.kv dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.danger {
+  color: var(--red-text);
+  font-weight: 600;
+}
+
+.remark {
+  text-align: start;
+}
+
+.clamp6,
+.clamp2 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.clamp6 {
+  -webkit-line-clamp: 6;
+  line-clamp: 6;
+}
+
+.clamp2 {
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.full {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+.hint {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--t-sm);
+}
+
+.hearing {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+}
+
+.hearingDate {
+  font-size: var(--t-lg);
+  font-weight: 600;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin-top: var(--s2);
+}
+
+.quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+.journey {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.trail {
+  position: relative;
+  margin: 0;
+  padding: 0 0 0 var(--s5);
+  list-style: none;
+}
+
+.trail::before {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  background: var(--border);
+}
+
+.leg {
+  position: relative;
+  padding-bottom: var(--s3);
+  font-size: var(--t-sm);
+}
+
+.leg::before {
+  content: "";
+  position: absolute;
+  left: -22px;
+  top: 5px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--border-strong);
+}
+
+.now::before {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.when {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  color: var(--text-3);
+  font-size: var(--t-xs);
+}
+
+.nowMark {
+  padding: 0 var(--s1);
+  border-radius: var(--r-sm);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.who {
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}

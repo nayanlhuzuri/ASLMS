@@ -12,7 +12,7 @@
 import { Fragment, useId, useState, type ReactNode } from "react";
 
 import { useFilters } from "@/components/inbox/common";
-import { Button, CheckField, SelectField, TextField, type Option } from "@/components/ui";
+import { Button, CheckField, SegmentedField, SelectField, TextField, type Option } from "@/components/ui";
 import { useBenches, useCaseTypes, useDepartments } from "@/lib/api/hooks";
 import {
   CASE_STATUSES,
@@ -56,7 +56,9 @@ export type OwnControl =
       defaultOn?: boolean;
       offLabel?: string;
     }
-  | { key: string; kind: "text" | "number" | "date"; label: string; more?: boolean; step?: string; first?: boolean };
+  | { key: string; kind: "text" | "number" | "date"; label: string; more?: boolean; step?: string; first?: boolean }
+  /** A choice applied at once, without a chip (design case-workspace-admin, decision 17); "" is the default. */
+  | { key: string; kind: "segmented"; label: string; options: Option[]; more?: boolean; first?: boolean };
 
 export interface FilterBarProps {
   list: ListKey;
@@ -126,7 +128,7 @@ function ownChips(params: Params, own: OwnControl[]): Chip[] {
       if (chip) out.push(chip);
       continue;
     }
-    if (!v) continue;
+    if (!v || c.kind === "segmented") continue;
     const text = c.kind === "select" ? (c.options.find((o) => o.value === v)?.label ?? v) : v;
     out.push({ keys: [c.key], label: `${c.label}: ${text}` });
   }
@@ -283,6 +285,20 @@ function FilterForm({
     current && !options.some((o) => o.value === current) ? [...options, { value: current, label: current }] : options;
 
   const ownControl = (c: OwnControl) => {
+    if (c.kind === "segmented") {
+      return (
+        <SegmentedField
+          key={c.key}
+          label={c.label}
+          options={c.options}
+          value={form[c.key] ?? ""}
+          onChange={(v) => {
+            set(c.key, v);
+            onApply({ [c.key]: v || undefined });
+          }}
+        />
+      );
+    }
     if (c.kind === "check") {
       return (
         <CheckField

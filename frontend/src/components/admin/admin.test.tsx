@@ -6,7 +6,6 @@ import type { ExitPreview, MembershipOut, Permission, TicketDetail, UserOut } fr
 import { nav, resetNav } from "@/test/nav";
 import { browserApi, expectDataTable, json, labels, makeMe, primaryActions, renderWithClient } from "@/test/render";
 
-import { AccessMatrix } from "./Access";
 import { AdminFrame } from "./AdminFrame";
 import { Designations } from "./Designations";
 import { OfficeDetailView } from "./Offices";
@@ -180,37 +179,100 @@ describe("new user", () => {
   });
 });
 
-describe("type matrix", () => {
-  const matrix = { super_admin: { "users.view": true }, dept_admin: { "users.view": true }, dept_officer: { "users.view": false } };
-  const perms = [{ code: "users.view", module: "users", label: "View users", description: null, is_active: true }];
+describe("the Users list on the Settings hub (case-workspace-admin, decision 23)", () => {
+  const OFF: UserOut = { ...USER, id: "u-10", full_name: "Off Person", email: "off@example.org", is_active: false, last_login_at: null };
+  const ACTIVE: UserOut = {
+    ...USER,
+    id: "u-11",
+    full_name: "Mira Bora",
+    email: "mira@example.org",
+    last_login_at: "2026-10-20T10:00:00Z",
+    memberships: [
+      { ...MEMBERSHIP, id: "m-11", role: "dept_officer", designation: "Under Secretary", office: { code: "EDU", name: "Education", kind: "department" } },
+      { ...MEMBERSHIP, id: "m-12", role: "standing_counsel", is_primary: false },
+      { ...MEMBERSHIP, id: "m-13", role: "referral_reviewer", is_primary: false },
+    ],
+  };
 
-  it("is read-only without access.manage_types", async () => {
+  it("rows show the initials, the name over the post, the type badges with +n and the status", async () => {
     browserApi({
-      "GET /me": makeMe(["users.view"], "dept_admin"),
+      "GET /me": makeMe(DEPT_ADMIN, "dept_admin"),
       "GET /reference/labels": labels(),
-      "GET /admin/access/types": matrix,
-      "GET /admin/permissions": perms,
+      "GET /admin/users": () => json(200, [USER, OFF, ACTIVE], { "x-total-count": "3" }),
     });
-    renderWithClient(<AccessMatrix />);
-    expect(await screen.findByText("You can read the matrix; only the super admin changes it.")).toBeInTheDocument();
-    expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
-    expect(screen.getByRole("img", { name: "View users for Dept officer: not enabled" })).toBeInTheDocument();
+    renderWithClient(<UsersList />);
+    const table = await screen.findByRole("table", { name: "Users" });
+    const row = (name: string) => within(table).getByText(name).closest("tr")!;
+    expect(within(row("Ravi Das")).getByText("RD")).toHaveAttribute("data-lead", "avatar");
+    expect(within(row("Ravi Das")).getByText("Section Officer, Secondary Education")).toBeInTheDocument();
+    expect(within(row("Ravi Das")).getByText("Not signed in yet")).toBeInTheDocument();
+    expect(within(row("Off Person")).getByText("Off")).toBeInTheDocument();
+    expect(within(row("Mira Bora")).getByText("Active")).toBeInTheDocument();
+    expect(within(row("Mira Bora")).getByText("Under Secretary, Education")).toBeInTheDocument();
+    expect(within(row("Mira Bora")).getByText("Dept officer")).toBeInTheDocument();
+    expect(within(row("Mira Bora")).getByText("Standing counsel")).toBeInTheDocument();
+    expect(within(row("Mira Bora")).getByText("+1")).toBeInTheDocument();
+    expectDataTable(table);
   });
 
-  it("can be switched with access.manage_types", async () => {
+  it("the Status filter sends status and the other filters stay as they were", async () => {
     const api = browserApi({
-      "GET /me": makeMe(["users.view", "access.manage_types"], "super_admin"),
+      "GET /me": makeMe(DEPT_ADMIN, "dept_admin"),
       "GET /reference/labels": labels(),
-      "GET /admin/access/types": matrix,
-      "GET /admin/permissions": perms,
-      "PUT /admin/access/types/dept_officer/users.view": { "users.view": true },
+      "GET /admin/users": () => json(200, [USER], { "x-total-count": "1" }),
     });
-    renderWithClient(<AccessMatrix />);
-    const box = await screen.findByRole("checkbox", { name: "View users for Dept officer" });
-    expect(box).not.toBeChecked();
-    await userEvent.click(box);
-    await waitFor(() => expect(api.calls.some((c) => c.method === "PUT")).toBe(true));
-    expect(api.calls.find((c) => c.method === "PUT")!.body).toEqual({ enabled: true });
+    renderWithClient(<UsersList />);
+    await screen.findByRole("table", { name: "Users" });
+    const status = screen.getByLabelText("Status");
+    expect(within(status).getAllByRole("option").map((o) => o.textContent)).toEqual(["Any status", "Active", "Not signed in yet", "Off"]);
+    await userEvent.selectOptions(status, "not_signed_in");
+    await userEvent.type(screen.getByLabelText("Name or e-mail"), "ra");
+    await userEvent.click(screen.getByRole("button", { name: "Search" }));
+    await waitFor(() => expect(api.calls.some((c) => c.path.includes("status=not_signed_in"))).toBe(true));
+    const url = api.calls.filter((c) => c.path.startsWith("/admin/users?")).pop()!.path;
+    expect(url).toContain("q=ra");
+    expect(url).toContain("limit=50");
+  });
+
+  it("a row opens the side panel on ?user=<id> with the user's sections and Open full page", async () => {
+    userRoutes(makeMe(DEPT_ADMIN, "dept_admin"), { "GET /admin/users": () => json(200, [USER], { "x-total-count": "1" }) });
+    const { unmount } = renderWithClient(<UsersList />);
+    await userEvent.click(await screen.findByRole("row", { name: "Open Ravi Das" }));
+    expect(nav.push).toHaveBeenCalledWith("/admin/users?user=u-9");
+    unmount();
+    resetNav("/admin/users", "user=u-9");
+    userRoutes(makeMe(DEPT_ADMIN, "dept_admin"), { "GET /admin/users": () => json(200, [USER], { "x-total-count": "1" }) });
+    renderWithClient(<UsersList params={{ user: "u-9" }} />);
+    const panel = await screen.findByRole("dialog", { name: "Ravi Das" });
+    expect(panel).toHaveAttribute("data-panel", "wide");
+    expect(await within(panel).findByRole("region", { name: "Offices (memberships)" })).toBeInTheDocument();
+    expect(within(panel).getByRole("link", { name: "Open full page" })).toHaveAttribute("href", "/admin/users/u-9");
+    await userEvent.click(within(panel).getByRole("button", { name: "Close" }));
+    expect(nav.replace).toHaveBeenCalledWith("/admin/users");
+  });
+
+  it("Add user opens the new-user flow in the panel; a created login opens its own panel", async () => {
+    const api = userRoutes(makeMe(DEPT_ADMIN, "dept_admin"), {
+      "GET /admin/users": () => json(200, [USER], { "x-total-count": "1" }),
+      "GET /admin/users/lookup": json(404, { detail: "no such user" }),
+      "POST /admin/users": { ...USER, id: "u-20" },
+    });
+    const { unmount } = renderWithClient(<UsersList />);
+    await userEvent.click(await screen.findByRole("button", { name: "Add user" }));
+    expect(nav.push).toHaveBeenCalledWith("/admin/users?user=new");
+    unmount();
+    resetNav("/admin/users", "user=new");
+    renderWithClient(<UsersList params={{ user: "new" }} />);
+    const panel = await screen.findByRole("dialog", { name: "Add user" });
+    await userEvent.type(within(panel).getByLabelText("E-mail"), "new@example.org");
+    await userEvent.click(within(panel).getByRole("button", { name: "Check e-mail" }));
+    await userEvent.type(await within(panel).findByLabelText("Full name"), "New Person");
+    await userEvent.type(within(panel).getByLabelText("Temporary password"), "Str0ng!Passw0rd");
+    await userEvent.type(within(panel).getByLabelText("Office code"), "EDU");
+    await userEvent.selectOptions(within(panel).getByLabelText("User type"), "dept_officer");
+    await userEvent.click(within(panel).getByRole("button", { name: "Create user" }));
+    await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/admin/users?user=u-20"));
+    expect(api.calls.some((c) => c.method === "POST" && c.path === "/admin/users")).toBe(true);
   });
 });
 
@@ -405,15 +467,15 @@ describe("Administration on the Settings template (design portal-ui-redesign, de
     expect(screen.queryByRole("navigation", { name: "Administration sections" })).toBeNull();
   });
 
-  it("the users group keeps one primary (New user); the filter's Search is secondary", async () => {
+  it("the users group keeps one primary (Add user); the filter's Search is secondary", async () => {
     browserApi({
       "GET /me": makeMe(DEPT_ADMIN, "dept_admin"),
       "GET /reference/labels": labels(),
       "GET /admin/users": () => json(200, [USER], { "x-total-count": "1" }),
     });
     const { container } = renderWithClient(<UsersList />);
-    await screen.findByRole("link", { name: "Ravi Das" });
-    expect(primaryActions(container)).toEqual(["New user"]);
+    await screen.findByRole("row", { name: "Open Ravi Das" });
+    expect(primaryActions(container)).toEqual(["Add user"]);
     expect(screen.getByRole("button", { name: "Search" })).toHaveAttribute("data-variant", "secondary");
   });
 
@@ -428,17 +490,6 @@ describe("Administration on the Settings template (design portal-ui-redesign, de
 });
 
 describe("lists are DataTables, cards on phones (design portal-ui-polish, decision 15)", () => {
-  it("Access renders a DataTable with a primary cell", async () => {
-    browserApi({
-      "GET /me": makeMe(["users.view"], "dept_admin"),
-      "GET /reference/labels": labels(),
-      "GET /admin/access/types": { super_admin: { "users.view": true }, dept_admin: { "users.view": true } },
-      "GET /admin/permissions": [{ code: "users.view", module: "users", label: "View users", description: null, is_active: true }],
-    });
-    renderWithClient(<AccessMatrix />);
-    const table = expectDataTable(await screen.findByRole("table", { name: "users" }));
-    expect(within(table).getByRole("rowheader", { name: /View users/ })).toBeInTheDocument();
-  });
 
   it("Designations renders a DataTable with a primary cell", async () => {
     browserApi({

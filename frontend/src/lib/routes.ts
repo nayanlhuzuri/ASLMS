@@ -13,7 +13,7 @@ export type MeLike = Pick<Me, "functions"> & Partial<Pick<Me, "memberships" | "a
 
 export type NavGroupKey = "work" | "oversight" | "settings";
 
-/** The server figure shown in an entry's pill (decision 4): Case inbox (`working`) and Files (`files`) from
+/** The server figure shown in an entry's pill (decision 4): Case inbox (`working`) and Cases (`files`) from
  * `/inbox/mine/counts`, Case claim from `/inbox/counts`, Alerts (`unread`) from `/alerts/counts`. */
 export type NavCount = "alerts" | "inbox" | "claim" | "files";
 
@@ -110,8 +110,9 @@ export const NAV: readonly NavEntry[] = [
   },
   // design portal-causelist, decision 11: the published lists are court-public, read by every reader of cases
   { key: "causelist", label: T.nav.causelist, href: "/causelist", group: "work", functions: CASE_READERS, built: true },
-  // design portal-files-alerts, decision 2: anyone may be sent a file, so Files shows with `cases.view_scope`
-  { key: "files", label: T.nav.files, href: "/files", group: "work", functions: ["cases.view_scope"], built: true, count: "files" },
+  // design portal-files-alerts, decision 2: anyone may be sent a case, so Cases shows with `cases.view_scope`; design
+  // case-workspace-admin, decision 21: the Cases list (the key `files` stays), its pill the cases with me
+  { key: "files", label: T.nav.files, href: "/cases", group: "work", functions: ["cases.view_scope"], built: true, count: "files" },
   // design portal-ui-redesign, decision 8: My calendar (round 3, row 103); Alerts is its own entry
   { key: "calendar", label: T.nav.calendar, href: "/calendar", group: "work", functions: CASE_READERS, built: true },
   { key: "alerts", label: T.nav.alerts, href: "/alerts", group: "work", functions: CASE_READERS, built: true, count: "alerts" },
@@ -223,7 +224,7 @@ export function navGroupsFor(me: MeLike | null | undefined): NavGroup[] {
   );
 }
 
-/** The phone bottom bar (decision 18): up to three of the login's entries among Dashboard, Case inbox and Files. */
+/** The phone bottom bar (decision 18): up to three of the login's entries among Dashboard, Case inbox and Cases. */
 export const BOTTOM_BAR_KEYS: readonly string[] = ["dashboard", "inbox", "files"];
 
 export function bottomBarFor(me: MeLike | null | undefined): NavEntry[] {
@@ -244,8 +245,8 @@ export function mappingTabsFor(me: Pick<Me, "functions"> | null | undefined): Ad
   return MAPPING_TABS.filter((tab) => visible(me, tab.functions));
 }
 
-export interface FilesTab {
-  key: "mine" | "offices" | "department" | "sent";
+export interface CasesListTab {
+  key: "with-me" | "sent" | "pending";
   label: string;
   href: string;
   functions: readonly Permission[];
@@ -253,20 +254,36 @@ export interface FilesTab {
 }
 
 /**
- * The Files tabs (design portal-files-alerts, decisions 12 and 13), each its own route. "Department files" shows only
- * with a department membership holding `custody.track` (the API's tracked-departments rule).
+ * The Cases list tabs (design case-workspace-admin, decision 17; it replaces Files), each its own route under
+ * `/cases/(list)`. "Pending action" shows only with a department membership holding `custody.track` (the API's
+ * tracked-departments rule). "My offices" is the "Held by" control of Cases with me (`?held=offices`).
  */
-export const FILES_TABS: readonly FilesTab[] = [
-  { key: "mine", label: T.tabs.files.mine, href: "/files/mine", functions: CASE_READERS },
-  { key: "offices", label: T.tabs.files.offices, href: "/files/offices", functions: CASE_READERS },
-  { key: "department", label: T.tabs.files.department, href: "/files/department", functions: [], show: tracksDepartment },
-  { key: "sent", label: T.tabs.files.sent, href: "/files/sent", functions: CASE_READERS },
+export const CASES_TABS: readonly CasesListTab[] = [
+  { key: "with-me", label: T.tabs.cases["with-me"]!, href: "/cases/with-me", functions: CASE_READERS },
+  { key: "sent", label: T.tabs.cases.sent!, href: "/cases/sent", functions: CASE_READERS },
+  { key: "pending", label: T.tabs.cases.pending!, href: "/cases/pending", functions: [], show: tracksDepartment },
 ];
 
-export function filesTabsFor(me: MeLike | null | undefined): FilesTab[] {
+export function casesTabsFor(me: MeLike | null | undefined): CasesListTab[] {
   if (!me) return [];
-  return FILES_TABS.filter((tab) => (tab.show ? tab.show(me) : visible(me, tab.functions)));
+  return CASES_TABS.filter((tab) => (tab.show ? tab.show(me) : visible(me, tab.functions)));
 }
+
+/** The static segments of the Cases list: no case reference (dash-form ref_no, UUID or CNR) equals one of them. */
+export const CASES_LIST_SEGMENTS: readonly string[] = CASES_TABS.map((t) => t.key);
+
+/**
+ * The old Files addresses and where they now live (design case-workspace-admin, decision 3; a client redirect keeping
+ * the query string, as `OLD_INBOX_REDIRECTS`). `/inbox/files` repeated Cases with me (decision 18).
+ */
+export const OLD_FILES_REDIRECTS: Record<string, string> = {
+  "/files": "/cases",
+  "/files/mine": "/cases/with-me",
+  "/files/offices": "/cases/with-me?held=offices",
+  "/files/department": "/cases/pending",
+  "/files/sent": "/cases/sent",
+  "/inbox/files": "/cases/with-me",
+};
 
 /**
  * The Alerts tabs (design portal-ui-redesign, decision 8: the calendar moved to My calendar): the alerts show to case
@@ -296,6 +313,8 @@ export const AUDIT_ENTRY_CRUMB = T.crumbEntry;
 export function crumbLabel(path: string): string {
   if (/^\/audit\/[^/]+$/.test(path)) return AUDIT_ENTRY_CRUMB;
   if (/^\/assistant\/orders\/[^/]+$/.test(path)) return T.assistant.courtRecord;
+  // design case-workspace-admin, decision 25: one user type's page (its label is the page's own title)
+  if (/^\/admin\/access\/[^/]+$/.test(path)) return T.access.typeCrumb;
   const part = path.split("/").filter(Boolean).pop() ?? "";
   return CRUMB_PATHS[path] ?? CRUMBS[part] ?? decodeURIComponent(part);
 }
@@ -309,14 +328,14 @@ export const CRUMBS: Record<string, string> = T.crumbs;
  */
 export const INBOX_TABS = [
   { key: "working", label: T.tabs.inbox.working, href: "/inbox/working" },
-  { key: "files", label: T.tabs.inbox.files, href: "/inbox/files" },
   { key: "claimed", label: T.tabs.inbox.claimed, href: "/inbox/claimed-by-me" },
   { key: "disposed", label: T.tabs.inbox.disposed, href: "/inbox/disposed" },
   { key: "department", label: T.tabs.inbox.department, href: "/inbox/department" },
 ] as const;
 
 export type InboxTab = (typeof INBOX_TABS)[number]["key"];
-export type MyView = Exclude<InboxTab, "department">;
+/** The own-work views of `/inbox/mine`; `files` still feeds the navigation count, its tab moved to the Cases list. */
+export type MyView = Exclude<InboxTab, "department"> | "files";
 
 /** Case claim (decision 6): the suggestions to decide on; which tabs show comes from `/inbox/counts`. */
 export const CLAIM_TABS = [

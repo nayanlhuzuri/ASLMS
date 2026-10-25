@@ -68,8 +68,43 @@ function Writing({
   );
 }
 
-export function Notes({ caseRef }: { caseRef: string }) {
+/**
+ * A note's attachments with View (only for types a browser shows itself) and Download, each by its function; shared
+ * with the remarks history (design case-workspace-admin, decision 15).
+ */
+export function NoteAttachments({ note }: { note: Note }) {
   const me = useMe();
+  const canView = can(me.data, "documents.view");
+  const canDownload = can(me.data, "documents.download");
+  if (note.attachments.length === 0) return null;
+  return (
+    <div>
+      <span className="muted">{T.case.attachments}:</span>
+      <ul>
+        {note.attachments.map((a) => (
+          <li key={a.id}>
+            {a.original_filename ?? a.ref_no ?? a.doc_type} <span className="muted">({sizeText(a.size_bytes)})</span>{" "}
+            {canView && canViewInline(a.mime) ? (
+              <a href={documentUrl(a.id, "inline")} target="_blank" rel="noopener noreferrer">
+                {T.case.view}
+              </a>
+            ) : null}{" "}
+            {canDownload ? (
+              <a href={documentUrl(a.id, "attachment")} download>
+                {T.case.download}
+              </a>
+            ) : null}
+            {canDownload && pdfDownloadOnly(a.mime) ? <span className="muted"> {T.case.opensAsDownload}</span> : null}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+export function Notes({ caseRef }: { caseRef: string }) {
+  // read `/me` with the trail, so the attachments' View and Download links come with the notes
+  useMe();
   const detail = useCase(caseRef);
   const [hide, setHide] = useState(false);
   const [offset, setOffset] = useState(0);
@@ -83,8 +118,6 @@ export function Notes({ caseRef }: { caseRef: string }) {
         query: { include_superseded: hide ? false : undefined, limit: PAGE, offset },
       }),
   });
-  const canView = can(me.data, "documents.view");
-  const canDownload = can(me.data, "documents.download");
   return (
     <div className="stack">
       {showDrafts ? <DraftsPanel caseRef={caseRef} /> : null}
@@ -144,31 +177,7 @@ export function Notes({ caseRef }: { caseRef: string }) {
                       </Button>
                     </div>
                   ) : null}
-                  {n.attachments.length > 0 ? (
-                    <div>
-                      <span className="muted">{T.case.attachments}:</span>
-                      <ul>
-                        {n.attachments.map((a) => (
-                          <li key={a.id}>
-                            {a.original_filename ?? a.ref_no ?? a.doc_type} <span className="muted">({sizeText(a.size_bytes)})</span>{" "}
-                            {canView && canViewInline(a.mime) ? (
-                              <a href={documentUrl(a.id, "inline")} target="_blank" rel="noopener noreferrer">
-                                {T.case.view}
-                              </a>
-                            ) : null}{" "}
-                            {canDownload ? (
-                              <a href={documentUrl(a.id, "attachment")} download>
-                                {T.case.download}
-                              </a>
-                            ) : null}
-                            {canDownload && pdfDownloadOnly(a.mime) ? (
-                              <span className="muted"> {T.case.opensAsDownload}</span>
-                            ) : null}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : null}
+                  <NoteAttachments note={n} />
                 </li>
               ))}
             </ol>

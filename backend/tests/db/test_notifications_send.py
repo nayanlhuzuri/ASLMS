@@ -72,4 +72,4 @@ def test_named_recipient_notice_still_mailed(world):
         mailer = RecordingMailer()
         notif.send_pending(s, mailer, now=h.now_utc() + timedelta(minutes=1))
         s.commit()
-        assert [m for m in mailer.sent if m.to == w.email_of("fin_off") and "File taken back" in m.subject]
+        assert [m for m in mailer.sent if m.to == w.email_of("fin_off") and "Case recalled" in m.subject]

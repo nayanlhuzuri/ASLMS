@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * The side panel of a Files row (design portal-ui-redesign, decision 26, Work list template): the row's card details
- * and the full remark, with "Open case page" when the caller can open the case. Nothing here acts on the file:
- * sending and recalling stay on the case page, where the card's flags are current (portal-files-alerts, decision 12).
+ * The side panel of a Cases list row, "Case details" (design case-workspace-admin, decision 20; Work list template):
+ * the row's facts and the full remark, with "Open case page" when the caller can open the case. It never acts:
+ * sending and recalling stay on the case page, where the card's flags are current.
  */
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -27,11 +27,10 @@ export function FilePanel({
   remark: string | null | undefined;
   onClose: () => void;
 }) {
-  const title = caseRef ? caseRef.case_no_text || caseRef.ref_no : T.files.details;
   return (
     <SidePanel
       open={caseRef !== null}
-      title={title}
+      title={T.files.details}
       onClose={onClose}
       footer={
         caseRef && visible ? (

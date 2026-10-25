@@ -102,6 +102,7 @@ DOC_TYPE_LABELS = {
 NOTE_KIND_LABELS = {
     NoteKind.HEARING: "Hearing note",
     NoteKind.HAND_OVER: "Hand-over",
+    NoteKind.FILE_NOTING: "Office note",  # design case-workspace-admin, decision 4 (migration 0025)
 }
 ALERT_SEVERITY = {
     AlertKind.HEARING_DUE: "high",
@@ -144,6 +145,7 @@ TRACKING_CARD_EVENTS = {
 # timeline labels that differ from the label (new rows only)
 EVENT_TIMELINE_LABELS = {
     EventType.LISTING_CHANGED: "Cause list corrected",  # design court-data-freshness, migration 0023
+    EventType.CUSTODY_MOVED: "Case moved",  # design case-workspace-admin, decision 4 (migration 0025)
 }
 
 
@@ -209,7 +211,8 @@ def _retire_codes(session: Session, report: SeedReport) -> None:
 
 
 def _relabel_note_kinds(session: Session, report: SeedReport) -> None:
-    """`hearing` reads "Hearing note" (plan §5.8) unless an administrator already changed its label."""
+    """`hearing` reads "Hearing note" (plan §5.8) and `file_noting` "Office note" (design case-workspace-admin)
+    unless an administrator already changed the label."""
     for member, label in NOTE_KIND_LABELS.items():
         row = session.get(RefNoteKind, member.value)
         if row is not None and row.label == _label(member.value) and row.label != label:

@@ -22,5 +22,5 @@ def test_default_matrix_head_recalls_auditor_has_no_assistant_and_private_sight(
     holders = {role for role, functions in DEFAULT_MATRIX.items() if P.CASES_VIEW_PRIVATE_ALL in functions}
     assert holders == {Role.AUDITOR}
     label, description = PERMISSION_LABELS[P.CASES_VIEW_PRIVATE_ALL]
-    assert label == "View private records State-wide" and P.CASES_VIEW_PRIVATE_ALL.module == "cases"
-    assert description.startswith("With View all cases")
+    assert label == "See private records too" and P.CASES_VIEW_PRIVATE_ALL.module == "cases"
+    assert description.startswith("With See all cases")

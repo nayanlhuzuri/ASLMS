@@ -24,3 +24,221 @@
   border: 1px solid var(--border);
   border-radius: var(--r-md);
 }
+
+.groupHead h2,
+.groupHead p {
+  margin: 0;
+}
+
+/* design case-workspace-admin, decision 23: the Users list's avatar in a fixed lead, the person's post under the name */
+.avatar {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: var(--t-sm);
+  font-weight: 600;
+}
+
+.person {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.person > span {
+  overflow-wrap: anywhere;
+}
+
+.types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1);
+}
+
+/* decision 24: one card per user type */
+.typeCards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(250px, 100%), 1fr));
+  gap: var(--s4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.typeCards > li {
+  display: flex;
+}
+
+.typeCard {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--s2);
+  padding: var(--s4) var(--s5);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  color: inherit;
+  text-decoration: none;
+  transition:
+    transform var(--med) var(--ease),
+    box-shadow var(--med) var(--ease),
+    border-color var(--med) var(--ease);
+}
+
+.typeCard:hover {
+  transform: translateY(-2px);
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-2);
+}
+
+.typeCard h3 {
+  margin: 0;
+  font-size: var(--t-lg);
+  font-weight: 600;
+}
+
+.typeCard p {
+  margin: 0;
+  min-height: 40px;
+  color: var(--text-3);
+  font-size: var(--t-sm);
+}
+
+.typeFoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2) var(--s4);
+  margin-top: auto;
+  padding-top: var(--s2);
+  border-top: 1px solid var(--border);
+  color: var(--text-2);
+  font-size: var(--t-sm);
+}
+
+/* decision 25: the switch rows of a group; on phones the description stays under the label */
+.fnList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fnRow {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s4);
+  padding: var(--s3) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.fnRow:last-child {
+  border-bottom: 0;
+}
+
+.fnText {
+  flex: 1;
+  min-width: 0;
+}
+
+.fnName {
+  font-weight: 500;
+}
+
+.fnDesc {
+  color: var(--text-3);
+  font-size: var(--t-sm);
+}
+
+.fnMark {
+  display: flex;
+  flex: none;
+  justify-content: flex-end;
+  min-width: 168px;
+}
+
+/* the sticky Save bar, the page's one primary on its right */
+.saveBar {
+  position: sticky;
+  bottom: var(--s4);
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: var(--savebar-h);
+  padding: var(--s3) var(--s3) var(--s3) var(--s5);
+  border-radius: var(--r-lg);
+  background: #0b1220;
+  color: #fff;
+  box-shadow: var(--shadow-3);
+}
+
+.saveText {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--s2);
+  min-width: 0;
+  font-size: var(--t-sm);
+}
+
+.saveCount {
+  display: inline-grid;
+  place-items: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 var(--s1);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-size: var(--t-xs);
+  font-weight: 700;
+}
+
+.saveBar:not([data-count="0"]) .saveCount {
+  background: #fec84b;
+  color: #0b1220;
+}
+
+.saveBar button[data-variant="ghost"] {
+  color: #cbd5e1;
+}
+
+.bump {
+  animation: save-bump var(--med) var(--ease);
+}
+
+@keyframes save-bump {
+  50% {
+    transform: scale(1.2);
+  }
+}
+
+@media (max-width: 819px) {
+  .fnRow {
+    flex-wrap: wrap;
+  }
+
+  .fnMark {
+    min-width: 0;
+    width: 100%;
+    justify-content: flex-start;
+    padding-left: calc(var(--s7) + var(--s1));
+  }
+
+  /* the Save bar spans the width above the phone's bottom bar */
+  .saveBar {
+    bottom: calc(var(--s7) + var(--s4));
+    flex-wrap: wrap;
+    padding-left: var(--s4);
+  }
+
+  .saveText {
+    flex-basis: 100%;
+  }
+}

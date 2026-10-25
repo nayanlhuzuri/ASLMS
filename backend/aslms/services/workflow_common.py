@@ -145,7 +145,7 @@ def pending_action(raw: str | PendingAction | None) -> PendingAction:
     except ValueError as exc:
         raise bad(f"unknown pending_action {raw!r}") from exc
     if action == PendingAction.NONE:
-        raise bad("pending_action cannot be none when the file is sent")
+        raise bad("pending_action cannot be none when the case is sent")
     return action
 
 

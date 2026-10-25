@@ -643,6 +643,96 @@ def set_matrix(
     return row
 
 
+def defaults() -> dict[str, dict[str, bool]]:
+    """Design case-workspace-admin, decision 27: the seed's `DEFAULT_MATRIX` over the active functions, in the
+    matrix's shape; the super admin's row is all on."""
+    from aslms.services.access_seed import DEFAULT_MATRIX
+
+    active = sorted(ACTIVE_FUNCTIONS, key=lambda p: p.value)
+    out = {role.value: {p.value: p in enabled for p in active} for role, enabled in DEFAULT_MATRIX.items()}
+    out[Role.SUPER_ADMIN.value] = {p.value: True for p in active}
+    return out
+
+
+def user_scope_roots(session: Session, user: User | Member) -> list[Office] | None:
+    """The offices whose subtrees bound the people a caller may list (`GET /admin/users`): None = everyone (the
+    super admin and State-wide readers holding `cases.view_all`); else the offices of the caller's memberships that
+    hold `users.view`."""
+    if is_super_admin(user) or has(session, user, Permission.CASES_VIEW_ALL):
+        return None
+    return [m.office for m in holders_in(session, user, Permission.USERS_VIEW)]
+
+
+def overview(session: Session, user: User | Member) -> list[dict[str, Any]]:
+    """Design case-workspace-admin, decision 27: per user type (in `ref_role` order), the distinct logins with an
+    active membership of that type in the caller's scope (the roots of `user_scope_roots`), the functions on, the
+    active functions in all and how many differ from the defaults. Reads only."""
+    from sqlalchemy import func, or_
+
+    from aslms.domain.reference import RefRole
+
+    roots = user_scope_roots(session, user)
+    counts: dict[str, int] = {}
+    if roots is None or roots:
+        stmt = (
+            select(UserMembership.role, func.count(func.distinct(UserMembership.user_id)))
+            .join(User, User.id == UserMembership.user_id)
+            .join(Office, Office.id == UserMembership.office_id)
+            .where(UserMembership.is_active.is_(True))
+            .group_by(UserMembership.role)
+        )
+        if roots is not None:
+            stmt = stmt.where(or_(*[(Office.id == r.id) | Office.path.like(r.path + "/%") for r in roots]))
+        counts = {_as_role(r).value: int(n) for r, n in session.execute(stmt).all()}
+    current = matrix(session)
+    base = defaults()
+    active = [p.value for p in ACTIVE_FUNCTIONS]
+    order = {r.code: r.sort_order for r in session.scalars(select(RefRole)).all()}
+    out = []
+    for role in sorted(Role, key=lambda r: (order.get(r.value, 10_000), r.value)):
+        row = current.get(role.value, {})
+        dflt = base.get(role.value, {})
+        out.append(
+            {
+                "code": role.value,
+                "users": counts.get(role.value, 0),
+                "functions_on": sum(1 for p in active if row.get(p, False)),
+                "functions_total": len(active),
+                "changed_from_default": sum(1 for p in active if row.get(p, False) != dflt.get(p, False)),
+            }
+        )
+    return out
+
+
+def set_matrix_batch(
+    session: Session,
+    actor: Actor,
+    actor_user: User | Member,
+    role: Role | str,
+    changes: list[tuple[Permission | str, bool]],
+) -> dict[str, bool]:
+    """Design case-workspace-admin, decision 27: every change is checked first with `set_matrix`'s refusals (the
+    super admin type, `admin.tickets`, a retired function), so a refusal saves nothing; then `set_matrix` runs for
+    each change that differs from the current value (its own `access.matrix` audit row and `access_changed` event);
+    an entry equal to the current value is skipped. One transaction: the caller's session. Returns the role's row."""
+    require(session, actor_user, Permission.ACCESS_MANAGE_TYPES)
+    role = _as_role(role)
+    if role == Role.SUPER_ADMIN:
+        raise Forbidden("the super admin type always has every function")
+    wanted = [(_as_perm(p), bool(enabled)) for p, enabled in changes]
+    for permission, _ in wanted:
+        if permission in RESERVED_FUNCTIONS:
+            raise ReservedFunction(f"{permission.value} is reserved for the super admin")
+        if permission in RETIRED_PERMISSIONS:
+            raise RetiredFunction(f"{permission.value} is retired")
+    current = matrix(session, role).get(role.value, {})
+    for permission, enabled in wanted:
+        if current.get(permission.value) is enabled:
+            continue
+        set_matrix(session, actor, actor_user, role, permission, enabled)
+    return matrix(session, role).get(role.value, {})
+
+
 def actor_for(
     user: User, office: Office | None = None, *, ip: str | None = None, user_agent: str | None = None
 ) -> Actor:

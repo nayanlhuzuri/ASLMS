@@ -80,6 +80,9 @@
   --lead-w: 96px;
   --date-w: 48px;
   --icon-w: 20px;
+  /* design case-workspace-admin, decision 28: the case page's action rail and the user-type page's Save bar */
+  --rail-w: 320px;
+  --savebar-h: 64px;
 }
 
 /* decision 13: under reduced motion the durations become 0 ms and every animation and transition is off */

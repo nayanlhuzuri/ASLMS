@@ -9,17 +9,19 @@ import {
   alertsTabsFor,
   AUDIT_ENTRY_CRUMB,
   CASE_TABS,
+  CASES_LIST_SEGMENTS,
+  casesTabsFor,
   CRUMB_PATHS,
   crumbLabel,
   CRUMBS,
   DATA_TABS,
   dataTabsFor,
-  filesTabsFor,
   MAPPING_FUNCTIONS,
   MAPPING_TABS,
   mappingTabsFor,
   NAV,
   navFor,
+  OLD_FILES_REDIRECTS,
   PEOPLE_ADMIN_FUNCTIONS,
 } from "./routes";
 
@@ -76,7 +78,7 @@ describe("department discovery navigation", () => {
 });
 
 describe("the case page tabs (portal-workflow)", () => {
-  it("six tabs and the Assistant, then Parties, Linked cases, Custody and stage, Alerts and Details under More (portal-ui-redesign, 10.9; assistant, 14)", () => {
+  it("six tabs and the Assistant, then Parties, Linked cases, Journey and stage, Alerts and Details under More (portal-ui-redesign, 10.9; assistant, 14; case-workspace-admin, open question 3)", () => {
     expect(CASE_TABS.filter((t) => !t.more).map((t) => t.label)).toEqual([
       "Overview",
       "Hearings",
@@ -87,9 +89,9 @@ describe("the case page tabs (portal-workflow)", () => {
       "Assistant", // shown only with assistant.use while the assistant is on (CaseFrame)
     ]);
     expect(CASE_TABS.filter((t) => t.more).map((t) => t.key)).toEqual(["parties", "links", "custody", "alerts", "details"]);
-    expect(CASE_TABS.find((t) => t.key === "custody")!.label).toBe("Custody and stage");
+    expect(CASE_TABS.find((t) => t.key === "custody")!.label).toBe("Journey and stage");
     expect(CASE_TABS.find((t) => t.key === "alerts")!.count).toBeNull();
-    expect(CRUMBS.custody).toBe("Custody and stage");
+    expect(CRUMBS.custody).toBe("Journey and stage");
     expect(CRUMBS.alerts).toBe("Alerts");
   });
 
@@ -116,28 +118,56 @@ describe("Files, My calendar and Alerts navigation (portal-files-alerts; portal-
     expect(navFor({ functions: ["users.view"] }).map((e) => e.key)).not.toContain("alerts");
   });
 
-  it("Files shows with cases.view_scope, after Search and Cause list", () => {
+  it("Cases shows with cases.view_scope, after Cause list, and leads to /cases (case-workspace-admin, decision 21)", () => {
     const keys = navFor({ functions: ["cases.view_scope"], memberships: [] }).map((e) => e.key);
     expect(keys.indexOf("files")).toBe(keys.indexOf("causelist") + 1);
+    const entry = navFor({ functions: ["cases.view_scope"] }).find((e) => e.key === "files")!;
+    expect(entry.label).toBe("Cases");
+    expect(entry.href).toBe("/cases");
     expect(navFor({ functions: ["users.view"] }).map((e) => e.key)).not.toContain("files");
   });
 
-  it("the Department files tab needs a department membership holding custody.track", () => {
+  it("three tabs; Pending action needs a department membership holding custody.track (decision 17)", () => {
     const officer = { functions: ["cases.view_scope"] as Permission[], memberships: [membership("EDU", ["cases.view_scope"])] };
-    expect(keys(filesTabsFor(officer))).toEqual(["mine", "offices", "sent"]);
+    expect(keys(casesTabsFor(officer))).toEqual(["with-me", "sent"]);
     const tracker = {
       functions: ["cases.view_scope", "custody.track"] as Permission[],
       memberships: [membership("EDU", ["cases.view_scope", "custody.track"])],
     };
-    expect(keys(filesTabsFor(tracker))).toEqual(["mine", "offices", "department", "sent"]);
+    expect(keys(casesTabsFor(tracker))).toEqual(["with-me", "sent", "pending"]);
+    expect(casesTabsFor(tracker).map((t) => t.label)).toEqual(["Cases with me", "Sent by me", "Pending action"]);
+    expect(casesTabsFor(tracker).map((t) => t.href)).toEqual(["/cases/with-me", "/cases/sent", "/cases/pending"]);
     expect(tracksDepartment(tracker)).toBe(true);
-    // the super admin's State membership has no department: no Department files tab
+    // the super admin's State membership has no department: no Pending action tab
     const root = {
       functions: ["cases.view_scope", "cases.view_all", "custody.track"] as Permission[],
       memberships: [membership(null, ["cases.view_scope", "cases.view_all", "custody.track"], "super_admin")],
     };
-    expect(keys(filesTabsFor(root))).toEqual(["mine", "offices", "sent"]);
-    expect(filesTabsFor(null)).toEqual([]);
+    expect(keys(casesTabsFor(root))).toEqual(["with-me", "sent"]);
+    expect(casesTabsFor(null)).toEqual([]);
+  });
+
+  it("no case reference can equal a Cases list segment (decision 3)", () => {
+    expect(CASES_LIST_SEGMENTS).toEqual(["with-me", "sent", "pending"]);
+    // a ref_no in the dash form starts with letters and a year (CASE-2026-000001), a CNR is 16 characters of letters
+    // and digits, an id is a UUID: none is a lower-case word with a dash and no digit
+    const refs = ["CASE-2026-000001", "ASGH010012342026", "0192f0e4-5b7a-7c3d-9e1f-123456789abc"];
+    for (const seg of CASES_LIST_SEGMENTS) {
+      expect(/[0-9]/.test(seg)).toBe(false);
+      expect(refs).not.toContain(seg);
+      expect(seg).toMatch(/^[a-z]+(-[a-z]+)?$/);
+    }
+  });
+
+  it("the old Files addresses and /inbox/files lead to the Cases list (decisions 3 and 18)", () => {
+    expect(OLD_FILES_REDIRECTS).toEqual({
+      "/files": "/cases",
+      "/files/mine": "/cases/with-me",
+      "/files/offices": "/cases/with-me?held=offices",
+      "/files/department": "/cases/pending",
+      "/files/sent": "/cases/sent",
+      "/inbox/files": "/cases/with-me",
+    });
   });
 
   it("the Alerts frame has the alerts tab for case readers (the calendar moved to My calendar)", () => {
@@ -155,13 +185,15 @@ describe("Files, My calendar and Alerts navigation (portal-files-alerts; portal-
   });
 
   it("CRUMB_PATHS names the screens by path, while the segments keep their meaning", () => {
-    expect(crumbLabel("/files/offices")).toBe("My offices");
+    expect(crumbLabel("/cases/with-me")).toBe("Cases with me");
+    expect(crumbLabel("/cases/sent")).toBe("Sent by me");
+    expect(crumbLabel("/cases/pending")).toBe("Pending action");
     expect(crumbLabel("/admin/offices")).toBe("Offices");
     expect(crumbLabel("/alerts")).toBe("Alerts");
     expect(crumbLabel("/calendar")).toBe("My calendar");
     expect(crumbLabel("/cases/x/alerts")).toBe("Alerts");
     expect(crumbLabel("/alerts/calendar")).toBe("Hearing calendar");
-    expect(CRUMB_PATHS["/files"]).toBe("Files");
+    expect(CRUMB_PATHS["/cases"]).toBe("Cases");
   });
 });
 

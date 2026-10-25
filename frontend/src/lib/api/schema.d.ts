@@ -4,6 +4,48 @@
  */
 
 export interface paths {
+    "/admin/access/defaults": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Defaults
+         * @description The seed's default functions per user type over the active functions (the super admin all on): what "Changed
+         *     from default" and "Reset to default" measure against (design case-workspace-admin, decision 27).
+         */
+        get: operations["get_defaults_admin_access_defaults_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/access/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Overview
+         * @description Per user type: the logins with an active membership of the type in the caller's scope (as `GET /admin/users`),
+         *     the functions on, the active functions in all and how many differ from the defaults.
+         */
+        get: operations["get_overview_admin_access_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/access/types": {
         parameters: {
             query?: never;
@@ -30,7 +72,13 @@ export interface paths {
         };
         /** Get Role Matrix */
         get: operations["get_role_matrix_admin_access_types__role__get"];
-        put?: never;
+        /**
+         * Set Role Functions
+         * @description Several functions of one user type in one transaction (design case-workspace-admin, decision 27): each changed
+         *     function writes its own `access.matrix` audit row and `access_changed` event; unchanged entries are skipped; a
+         *     refusal (the super admin type 403, `admin.tickets` or a retired function 400) saves nothing.
+         */
+        put: operations["set_role_functions_admin_access_types__role__put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1719,6 +1767,8 @@ export interface paths {
          *     memberships (decision 8). Design `portal-shell`, decision 16b: `q` (2+ characters, name or e-mail), `role`
          *     (of an active membership in scope), `include_ended` (State-wide scope only: logins with no active membership
          *     too), `limit` (1-200) and `offset`; `X-Total-Count` counts the same filters. Without `limit` every row.
+         *     Design case-workspace-admin, decision 23: `status` — `active` (sign-in on and signed in at least once),
+         *     `not_signed_in` (on, never signed in) or `off` (sign-in turned off).
          */
         get: operations["list_users_admin_users_get"];
         put?: never;
@@ -2776,8 +2826,9 @@ export interface paths {
         };
         /**
          * Custody History
-         * @description The custody card and the legs in order (the file's movement record); the remark only for callers working
-         *     on the case and State-wide readers holding `cases.view_private_all`.
+         * @description The custody card and the legs by `seq_no` (the case's movement record), oldest first or with
+         *     `order=desc` newest first; the remark only for callers working on the case and State-wide readers holding
+         *     `cases.view_private_all`, which `remarks_shown` states.
          */
         get: operations["custody_history_cases__ref__custody_get"];
         put?: never;
@@ -6382,6 +6433,12 @@ export interface components {
             can_send: boolean;
             /** Due Date */
             due_date: string | null;
+            /**
+             * Due Soon
+             * @description not overdue and due within `request_due_soon_days` (IST), the window of `/custody/summary` (design case-workspace-admin, decision 19)
+             * @default false
+             */
+            due_soon: boolean;
             holder_office: components["schemas"]["OfficeRefOut"] | null;
             holder_user: components["schemas"]["CustodyHolderOut"] | null;
             /** Leg Seq No */
@@ -6410,6 +6467,12 @@ export interface components {
             card: components["schemas"]["CustodyCardOut"] | null;
             /** Legs */
             legs: components["schemas"]["CustodyLegOut"][];
+            /**
+             * Remarks Shown
+             * @description whether the legs carry their remark for this caller (a working basis, or a State-wide reader holding `cases.view_private_all`); design case-workspace-admin, decision 16
+             * @default false
+             */
+            remarks_shown: boolean;
             /** Total */
             total: number;
         };
@@ -8723,6 +8786,20 @@ export interface components {
             /** Row Count */
             row_count: number;
         };
+        /**
+         * MatrixBatchIn
+         * @description Design case-workspace-admin, decision 27: 1 to 60 changes of one user type, no permission twice.
+         */
+        MatrixBatchIn: {
+            /** Changes */
+            changes: components["schemas"]["MatrixChangeIn"][];
+        };
+        /** MatrixChangeIn */
+        MatrixChangeIn: {
+            /** Enabled */
+            enabled: boolean;
+            permission: components["schemas"]["Permission"];
+        };
         /** MatrixEntryIn */
         MatrixEntryIn: {
             /** Enabled */
@@ -9952,12 +10029,24 @@ export interface components {
             code: components["schemas"]["Permission"];
             /** Description */
             description: string | null;
+            /**
+             * Group
+             * @description the plain-language group of the user-type page (design case-workspace-admin, decision 26)
+             */
+            group?: string | null;
+            /** Group Label */
+            group_label?: string | null;
             /** Is Active */
             is_active: boolean;
             /** Label */
             label: string;
             /** Module */
             module: string;
+            /**
+             * Sort In Group
+             * @description 1-based place in the group; null for a retired function
+             */
+            sort_in_group?: number | null;
         };
         /** PoolCaseOut */
         PoolCaseOut: {
@@ -10721,6 +10810,11 @@ export interface components {
         /** SentItemOut */
         SentItemOut: {
             case: components["schemas"]["CaseSummaryOut"];
+            /**
+             * Current
+             * @description the leg is the case's current leg; null when `visible` is false (design case-workspace-admin, decision 20)
+             */
+            current?: boolean | null;
             leg: components["schemas"]["CustodyLegOut"];
             /** Visible */
             visible: boolean;
@@ -11641,6 +11735,25 @@ export interface components {
              */
             id: string;
         };
+        /**
+         * UserTypeCardOut
+         * @description Design case-workspace-admin, decisions 24 and 27: a user type's card; labels come from `/reference/labels`.
+         */
+        UserTypeCardOut: {
+            /** Changed From Default */
+            changed_from_default: number;
+            /** Code */
+            code: string;
+            /** Functions On */
+            functions_on: number;
+            /** Functions Total */
+            functions_total: number;
+            /**
+             * Users
+             * @description logins with an active membership of the type in the caller's scope
+             */
+            users: number;
+        };
         /** UserTypeLabelOut */
         UserTypeLabelOut: {
             /** Assignable */
@@ -11775,6 +11888,50 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    get_defaults_admin_access_defaults_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: {
+                            [key: string]: boolean;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    get_overview_admin_access_overview_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserTypeCardOut"][];
+                };
+            };
+        };
+    };
     get_matrix_admin_access_types_get: {
         parameters: {
             query?: never;
@@ -11819,6 +11976,61 @@ export interface operations {
                     "application/json": {
                         [key: string]: boolean;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_role_functions_admin_access_types__role__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                role: components["schemas"]["Role"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MatrixBatchIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: boolean;
+                    };
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
                 };
             };
             /** @description Validation Error */
@@ -16219,6 +16431,7 @@ export interface operations {
                 office?: string | null;
                 q?: string | null;
                 role?: components["schemas"]["Role"] | null;
+                status?: ("active" | "not_signed_in" | "off") | null;
                 include_ended?: boolean;
                 limit?: number | null;
                 offset?: number;
@@ -18450,6 +18663,7 @@ export interface operations {
             query?: {
                 limit?: number;
                 offset?: number;
+                order?: "asc" | "desc";
             };
             header?: never;
             path: {

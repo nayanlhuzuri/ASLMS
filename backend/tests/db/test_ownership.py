@@ -420,7 +420,7 @@ def test_seed_has_the_new_functions_and_event(world):
             ).all()
         )
         assert labels == {
-            "admin.scoring": "Scoring settings",
+            "admin.scoring": "Scoring weights and bands",
             "cases.take_over": "Take over a case",
             "cases.release": "Stop watching",
         }

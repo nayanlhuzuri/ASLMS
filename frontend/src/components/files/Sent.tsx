@@ -1,12 +1,13 @@
 "use client";
 
 /**
- * "Sent" (design portal-files-alerts, decision 12; custody-workflow decision 24): the legs the caller wrote, sends and
- * recalls, newest first. The case is a link only when the API says the caller can open it (`visible`); otherwise its
- * number is text, never a link to a 404. The remark is the caller's own. The one filter bar (design portal-filters):
- * the shared case filters with the owning department; they match the facts the row already shows. On the Work list
- * template (design portal-ui-redesign, decision 26): the day it was sent in the fixed leading column, cards on phones,
- * and the leg's details with the full remark in a side panel opened by the row.
+ * "Sent by me" (design case-workspace-admin, decisions 17, 19 and 20; custody-workflow decision 24): the legs the caller
+ * wrote, sends and recalls, newest first. The case is a link only when the API says the caller can open it (`visible`);
+ * otherwise its number is text, never a link to a 404. A leg that is no longer the case's current leg is muted
+ * (`current` false); for a case the caller can no longer open `current` is null and the row says nothing about where
+ * the case went. The remark is the caller's own. The one filter bar (design portal-filters): the shared case filters
+ * with the owning department. Work list template: the lead badge (Overdue, Due soon or Waiting while the leg is
+ * current), case and parties ("Recalled" under the number for a recall), action needed, due by, Sent to and the chevron.
  */
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -14,26 +15,21 @@ import { useState } from "react";
 import { FilterBar } from "@/components/filters/FilterBar";
 import { useFilters } from "@/components/inbox/common";
 import { Chevron } from "@/components/inbox/rows";
-import { CaseLink, DataTable, DateChip, EmptyState, ErrorBanner, Loading, Pagination, type Column } from "@/components/ui";
+import { DataTable, EmptyState, ErrorBanner, Loading, Pagination, type Column } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import type { SentItem, SentList } from "@/lib/api/types";
+import { leadBadge, legHolder } from "@/lib/cases";
 import { toApiQuery } from "@/lib/filters";
-import { formatDate, formatDateTime } from "@/lib/format";
+import { formatDate, formatDateTime, istDay } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { offsetOf, PAGE, type Params } from "@/lib/params";
 
 import { FilePanel } from "./FilePanel";
+import { CaseCell, DueCell, LeadCell, WithCell } from "./Held";
+import s from "./files.module.css";
 
-function SentTo({ item }: { item: SentItem }) {
-  const leg = item.leg;
-  return (
-    <>
-      {leg.holder_user ? <div>{[leg.holder_user.full_name, leg.holder_designation].filter(Boolean).join(", ")}</div> : null}
-      <div>
-        <span className="mono">{leg.holder_office.code}</span> {leg.holder_office.name}
-      </div>
-    </>
-  );
+function overdue(item: SentItem): boolean {
+  return item.current === true && !!item.leg.due_date && item.leg.due_date < istDay();
 }
 
 export function Sent({ params }: { params: Params }) {
@@ -47,12 +43,22 @@ export function Sent({ params }: { params: Params }) {
     placeholderData: keepPreviousData,
   });
   const columns: Column<SentItem>[] = [
-    { key: "when", header: T.files.when, width: "calc(var(--date-w) + var(--s6))", cell: (r) => <DateChip date={r.leg.started_at} /> },
-    { key: "case", header: T.files.case, primary: true, cell: (r) => <CaseLink value={r.case} visible={r.visible} /> },
-    { key: "reason", header: T.files.reason, cell: (r) => r.leg.reason_label },
-    { key: "to", header: T.files.sentTo, cell: (r) => <SentTo item={r} /> },
+    {
+      key: "lead",
+      header: <span className="visually-hidden">{T.cases.leadCol}</span>,
+      label: T.cases.leadCol,
+      width: "var(--lead-w)",
+      cell: (r) => <LeadCell badge={leadBadge(r, "sent")} />,
+    },
+    {
+      key: "case",
+      header: T.files.case,
+      primary: true,
+      cell: (r) => <CaseCell c={r.case} visible={r.visible} mark={r.leg.reason === "recalled" ? T.cases.recalledMark : null} />,
+    },
     { key: "action", header: T.files.action, cell: (r) => r.leg.pending_action_label },
-    { key: "due", header: T.files.due, hideOnPhone: true, cell: (r) => (r.leg.due_date ? formatDate(r.leg.due_date) : "—") },
+    { key: "due", header: T.files.due, cell: (r) => <DueCell date={r.leg.due_date} overdue={overdue(r)} /> },
+    { key: "to", header: T.cases.sentTo, cell: (r) => <WithCell party={legHolder(r.leg)} /> },
     { key: "open", header: <span className="visually-hidden">{T.files.details}</span>, hideOnPhone: true, width: "var(--s6)", cell: () => <Chevron /> },
   ];
   const leg = open?.leg;
@@ -70,6 +76,7 @@ export function Sent({ params }: { params: Params }) {
             rowKey={(r) => `${r.case.id}-${r.leg.seq_no}`}
             onRowClick={setOpen}
             rowLabel={(r) => T.files.openFile(r.case.case_no_text || r.case.ref_no)}
+            rowClassName={(r) => (r.current === false ? s.mutedRow : undefined)}
             empty={<EmptyState>{T.files.emptySent}</EmptyState>}
           />
           {list.data.items.length > 0 ? (
@@ -83,11 +90,11 @@ export function Sent({ params }: { params: Params }) {
         onClose={() => setOpen(null)}
         remark={leg?.remark}
         facts={[
-          [T.files.when, formatDateTime(leg?.started_at)],
-          [T.files.reason, leg?.reason_label ?? null],
-          [T.files.sentTo, open ? <SentTo item={open} /> : null],
+          [T.cases.sentTo, open ? <WithCell party={legHolder(open.leg)} /> : null],
           [T.files.action, leg?.pending_action_label ?? null],
+          [T.files.since, formatDateTime(leg?.started_at)],
           [T.files.due, leg?.due_date ? formatDate(leg.due_date) : null],
+          [T.files.reason, leg?.reason_label ?? null],
         ]}
       />
     </div>

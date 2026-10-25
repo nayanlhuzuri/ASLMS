@@ -11,7 +11,7 @@ draft by its author (the owner's rule of 7 Oct 2026)."""
 from __future__ import annotations
 
 import uuid
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import Response
@@ -175,14 +175,16 @@ def custody_history(
     ref: str,
     limit: int = 50,
     offset: int = 0,
+    order: Literal["asc", "desc"] = "asc",
     session: Session = Depends(get_session),
     user: User = Depends(read),
 ) -> schemas.CustodyHistoryOut:
-    """The custody card and the legs in order (the file's movement record); the remark only for callers working
-    on the case and State-wide readers holding `cases.view_private_all`."""
+    """The custody card and the legs by `seq_no` (the case's movement record), oldest first or with
+    `order=desc` newest first; the remark only for callers working on the case and State-wide readers holding
+    `cases.view_private_all`, which `remarks_shown` states."""
     case = _case(session, ref)
     try:
-        out = custody_svc.history(session, user, case, limit=limit, offset=offset)
+        out = custody_svc.history(session, user, case, limit=limit, offset=offset, order=order)
     except HANDLED as exc:
         raise _http(exc) from exc
     return schemas.CustodyHistoryOut(**out)

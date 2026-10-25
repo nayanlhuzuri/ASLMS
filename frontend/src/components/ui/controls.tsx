@@ -419,3 +419,61 @@ export function SegmentedSwitch({
     </div>
   );
 }
+
+/**
+ * A labelled `SegmentedSwitch` for a field row (design case-workspace-admin, decision 17: "Held by: Me / My offices"):
+ * the label on the fields' label line, so its top meets the other labels and the switch's top meets the boxes.
+ */
+export function SegmentedField({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: Option[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const id = useId();
+  return (
+    <div className={s.field} data-ui="segmented-field">
+      <label className={s.label} id={id}>
+        {label}
+      </label>
+      <SegmentedSwitch label={label} options={options} value={value} onChange={onChange} />
+    </div>
+  );
+}
+
+/**
+ * An on/off switch (`role="switch"`, design case-workspace-admin, decision 25): a button whose `aria-checked` is the
+ * state; Space and Enter toggle it as any button. `label` is its accessible name, `describedBy` the line under it.
+ */
+export function Switch({
+  checked,
+  onChange,
+  label,
+  describedBy,
+  disabled,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  label: string;
+  describedBy?: string;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      aria-describedby={describedBy}
+      disabled={disabled}
+      className={s.switch}
+      data-ui="switch"
+      onClick={() => onChange(!checked)}
+    />
+  );
+}

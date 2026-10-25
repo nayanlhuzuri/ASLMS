@@ -748,3 +748,49 @@ The status is `awaiting-approval` because each point below has a recommended ans
 5. **Alerts already stored with "File received" titles.**
    - **Recommended:** leave them as they were shown and e-mailed.
    - Other option: a one-off command to rewrite stored titles. Not recommended, because it changes the record of what was sent.
+
+## Deviations
+Recorded by the developer while building (24-25 Oct 2026). None changes a business rule, a function or an API field.
+
+1. **Decision 8, the rail's breakpoint.** The rail sits beside the tabs from 1100 px *and* only while the case workspace
+   itself is at least 936 px wide (a 600 px main column, the 16 px gap and the 320 px rail), measured with a
+   `ResizeObserver`; otherwise its cards stack above the tabs. With the 248 px sidebar and the page padding a 1280 px
+   window leaves a 968 px workspace, so the 640 px minimum could not hold beside a 320 px rail; the main column's
+   minimum is 600 px. Where the width cannot be measured (tests, old browsers) the 1100 px media query alone decides.
+2. **Decision 11, the countdown.** The date and the whole-day countdown are one line ("Fri, 20 Nov 2026 · in 26 days"),
+   in the header fact, the rail card and the closed card's title line, as the owner's note of 23 Oct asks; the 48 h and
+   "this week" badges stay as badges. The court and item line reads "Court 3 · Item 14" in the rail.
+3. **Decision 19, "Due soon" on Sent by me.** A sent leg carries no `due_soon` flag (decision 23 adds it to the card
+   only), so `leadBadge` uses the server's default window, 2 days (`SENT_DUE_SOON_DAYS`, equal to
+   `request_due_soon_days`'s default). Cases with me and Pending action use the server's `card.due_soon`.
+4. **Decision 15, the panel's tabs.** "Remarks (n)" and "Notes (m)" are tabs inside the panel (`role="tab"`, arrow keys),
+   not URL parameters; only `?remarks=all` is in the address. The Notes tab reads the trail only once it is opened.
+   Before the first page arrives the Notes count is the overview's `counts.notes`.
+5. **Kit additions.** `SidePanel` takes `wide` (760 px; the remarks history and the user panel). The kit gains `Switch`
+   (`role="switch"`) and `SegmentedField` (the labelled "Held by" control on the field row). `useLatestListing` moved to
+   `lib/api/hooks.ts`, shared by the header and the rail; `NoteAttachments` is shared by the Notes tab and the panel.
+6. **Decision 23, the Users list.** The row opens the panel, so the name is no longer a link; the panel's title is the
+   person's name ("Add user" for `?user=new`). A login created from the panel opens its own panel (`?user=<id>`); from
+   the old `/admin/users/new` page it still goes to the full page. The Office filter stays the office code (subtree),
+   as before. Status tones: Active green, Not signed in yet neutral, Off red.
+7. **Decision 25, the super admin type.** Its page shows the line, every switch on and disabled, and no Save bar or
+   "Reset to default", since nothing can change. "Reset to default" leaves the locked `admin.tickets` as it is, so a
+   reset never asks the API for a refused change. A 400 refusal reads "Nothing was saved. <function label>: <message>".
+   The breadcrumb of a type's page reads "User type".
+8. **Decision 25, the leave guard.** In-app links are caught on the document before the router sees them; the browser's
+   own Back button is not intercepted (Next.js gives no hook for it), only links and closing or reloading the tab.
+9. **Decision 21, Reports.** The Reports form's "Holder department" field keeps its label, as the backend's report
+   columns do; only the Pending action list's filter is "Department it is with".
+10. **Decision 6, the allow-lists.** Beyond the listed entries, the backend guard allows "write the file here" (the CLI's
+    `--out`, an exported report file) and the frontend guard allows "is already on the ticket" (an uploaded ticket
+    document) and "to file their / its / a / the / anything" (the legal verb in the Case Assistant's sample questions).
+    Every entry is the computer-file sense or the legal verb.
+11. **Services.** The users-in-scope roots of `GET /admin/users` moved to `access.user_scope_roots`, so the user-type
+    cards count users in exactly the same scope; the router calls it.
+12. **uicheck.** Two buttons of the Case Assistant (row 14) that stood alone on phones were `sm` (30 px) and are now the
+    normal size, as the size rule asks. A local run of the full check (Windows, the built portal on port 3100,
+    25 Oct 2026) passed every route and state of this item at 375, 768 and 1280 px; it also reported the System
+    health console's code blocks scrolling sideways and the court-record view never reaching network idle, neither
+    touched here. The Compose run (`docker compose --profile uicheck run --rm uicheck`) is the integrator's step.
+13. **Tests.** The design's `files.test.tsx` is renamed `cases-list.test.tsx`. The Notes tab reads `/me` with the trail
+    so the attachment links come with the notes.

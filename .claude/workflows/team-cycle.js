@@ -219,7 +219,7 @@ const docs = await agent(
 // ------------------------------------------------------------------ Merge
 phase('Merge')
 const merge = await agent(
-  `Run the gates on branch feature/${slug} (including the CI-on-main check when a remote exists), squash-merge into main, tag, set the backlog row to done, write docs/reports/${today}-${slug}.md, then push main and the tag when a remote exists (fast-forward only; return pushed, pushNote and ciRun). Work in the main project folder, never in a folder under .claude/worktrees/. Number any follow-up backlog row after the highest row number in docs/backlog.md on main. Review findings and how they were closed:\n${JSON.stringify(reviewHistory.map((r) => r.findings).flat(), null, 2)}`,
+  `Run the gates on branch feature/${slug} (including the CI-on-main check when a remote exists), squash-merge into main, tag, set the backlog row to done, write docs/reports/${today}-${slug}.md, then push main and the tag when a remote exists (fast-forward only; return pushed, pushNote and ciRun). Work in the main project folder, never in a folder under .claude/worktrees/. Number any follow-up backlog row after the highest row number in docs/backlog.md on main. Before merging, check git log main..feature/${slug}: if it holds commits of another feature that is not yet on main (another item's slug in the messages), stop and report that the other item must merge first. Review findings and how they were closed:\n${JSON.stringify(reviewHistory.map((r) => r.findings).flat(), null, 2)}`,
   { label: `integrator: ${slug}`, agentType: 'integrator', schema: MERGE },
 )
 

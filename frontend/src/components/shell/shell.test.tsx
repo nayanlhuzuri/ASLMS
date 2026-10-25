@@ -37,16 +37,16 @@ beforeEach(() => {
 });
 
 describe("navigation by functions", () => {
-  it("Work lists Cause list, Files, My calendar, Alerts and Search in order for a case reader (portal-ui-redesign)", () => {
+  it("Work lists Cause list, Cases, My calendar, Alerts and Search in order for a case reader (portal-ui-redesign; case-workspace-admin, decision 21)", () => {
     browserApi({ "GET /reference/labels": labels() });
     renderWithClient(<Sidebar me={makeMe(OFFICER)} />);
     const nav = screen.getByRole("navigation", { name: "Main navigation" });
     const names = within(nav)
       .getAllByRole("link")
       .map((a) => a.textContent);
-    expect(names).toEqual(["Dashboard", "Case inbox", "Cause list", "Files", "My calendar", "Alerts", "Search"]);
+    expect(names).toEqual(["Dashboard", "Case inbox", "Cause list", "Cases", "My calendar", "Alerts", "Search"]);
     expect(within(nav).getByRole("link", { name: "Cause list" })).toHaveAttribute("href", "/causelist");
-    expect(within(nav).getByRole("link", { name: "Files" })).toHaveAttribute("href", "/files");
+    expect(within(nav).getByRole("link", { name: "Cases" })).toHaveAttribute("href", "/cases");
     expect(within(nav).getByRole("link", { name: "My calendar" })).toHaveAttribute("href", "/calendar");
     expect(within(nav).getByRole("link", { name: "Alerts" })).toHaveAttribute("href", "/alerts");
   });
@@ -101,12 +101,12 @@ describe("navigation by functions", () => {
     expect(within(nav).getByRole("link", { name: "Reports" })).toHaveAttribute("href", "/reports");
   });
 
-  it("Files stays current across its tabs", () => {
-    resetNav("/files/sent");
+  it("Cases stays current across its tabs", () => {
+    resetNav("/cases/sent");
     browserApi({ "GET /reference/labels": labels() });
     renderWithClient(<Sidebar me={makeMe(OFFICER)} />);
     const nav = screen.getByRole("navigation", { name: "Main navigation" });
-    expect(within(nav).getByRole("link", { name: "Files" })).toHaveAttribute("aria-current", "page");
+    expect(within(nav).getByRole("link", { name: "Cases" })).toHaveAttribute("aria-current", "page");
   });
 
   it("an officer sees no Administration and no unbuilt entries", () => {
@@ -287,10 +287,11 @@ describe("header and sidebar foot", () => {
     expect(await screen.findByRole("link", { name: "7 unread alerts" })).toHaveAttribute("href", "/alerts");
   });
 
-  it("the breadcrumb names the Files and Alerts screens by path, the case tab by segment", () => {
+  it("the breadcrumb names the Cases and Alerts screens by path, the case tab by segment", () => {
     for (const [path, last] of [
-      ["/files/offices", "My offices"],
-      ["/files/mine", "With me"],
+      ["/cases/with-me", "Cases with me"],
+      ["/cases/pending", "Pending action"],
+      ["/cases/sent", "Sent by me"],
       ["/alerts", "Alerts"],
       ["/calendar", "My calendar"],
       ["/alerts/calendar", "Hearing calendar"],
@@ -305,9 +306,9 @@ describe("header and sidebar foot", () => {
       expect(within(crumbs).getByText(last, { selector: "[aria-current=page]" })).toBeInTheDocument();
       unmount();
     }
-    resetNav("/files/offices");
+    resetNav("/cases/with-me");
     renderWithClient(<Breadcrumb />);
-    expect(screen.getByRole("link", { name: "Files" })).toHaveAttribute("href", "/files");
+    expect(screen.getByRole("link", { name: "Cases" })).toHaveAttribute("href", "/cases");
   });
 
   it("no bell for a login without case functions", () => {
@@ -508,7 +509,7 @@ describe("header, brand, drawer and bottom bar (portal-ui-redesign, decisions 18
       within(bar)
         .getAllByRole("link")
         .map((a) => a.textContent),
-    ).toEqual(["Dashboard", "Case inbox", "Files"]);
+    ).toEqual(["Dashboard", "Case inbox", "Cases"]);
     const more = within(bar).getByRole("button", { name: "More" });
     await userEvent.click(more);
     expect(screen.getByRole("dialog", { name: "Main navigation" })).toBeInTheDocument();
@@ -522,13 +523,13 @@ describe("header, brand, drawer and bottom bar (portal-ui-redesign, decisions 18
   });
 
   it("the breadcrumb renders inside the page header, above the title", () => {
-    resetNav("/files/offices");
-    renderWithClient(<PageHeader title="Files" />);
+    resetNav("/cases/with-me");
+    renderWithClient(<PageHeader title="Cases" />);
     const header = screen.getByRole("banner");
     const crumbs = within(header).getByRole("navigation", { name: "Breadcrumb" });
-    const title = within(header).getByRole("heading", { level: 1, name: "Files" });
+    const title = within(header).getByRole("heading", { level: 1, name: "Cases" });
     expect(crumbs.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(within(crumbs).getByText("My offices", { selector: "[aria-current=page]" })).toBeInTheDocument();
+    expect(within(crumbs).getByText("Cases with me", { selector: "[aria-current=page]" })).toBeInTheDocument();
   });
 
   it("the drawer state resets when the window grows past 820 px (review of round 1)", async () => {
@@ -593,7 +594,7 @@ describe("navigation counts (portal-ui-redesign, decision 4; round 2)", () => {
       ],
     });
 
-  it("Case inbox and Files show their counts from /inbox/mine/counts; Case claim the sum over the departments", async () => {
+  it("Case inbox and Cases show their counts from /inbox/mine/counts; Case claim the sum over the departments", async () => {
     const block = (code: string, high: number, medium: number, transfers: number | null) => ({
       office_code: code,
       recommended_high: high,
@@ -612,7 +613,7 @@ describe("navigation counts (portal-ui-redesign, decision 4; round 2)", () => {
     });
     renderWithClient(<Sidebar me={claimer()} />);
     expect(await screen.findByRole("link", { name: "Case inbox, 5" })).toHaveAttribute("href", "/inbox");
-    expect(await screen.findByRole("link", { name: "Files, 2" })).toHaveAttribute("href", "/files");
+    expect(await screen.findByRole("link", { name: "Cases, 2" })).toHaveAttribute("href", "/cases");
     expect(await screen.findByRole("link", { name: "Case claim, 8" })).toHaveAttribute("href", "/claim");
   });
 

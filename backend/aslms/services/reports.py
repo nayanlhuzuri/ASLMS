@@ -692,7 +692,7 @@ ACTION_COLUMNS = [
     Column("office_name", "Holder office"),
     Column("officer", "Officer"),
     Column("designation", "Designation"),
-    Column("held", "Files with a pending action", "int"),
+    Column("held", "Cases with a pending action", "int"),
     Column("due_soon", "Due soon", "int"),
     Column("overdue", "Overdue", "int"),
     Column("no_due_date", "No due date", "int"),
@@ -839,14 +839,14 @@ def pending_actions(
     sections = [
         Section(
             "by_holder",
-            "Files with a pending action by holder",
+            "Cases with a pending action, by who has them",
             ACTION_COLUMNS,
             action_rows,
             totals=action_totals,
             note=(
-                f"Due soon: due within {cfg.due_soon_days} days (IST); overdue: due before today. Files of the "
-                "scope's cases wherever they are held"
-                + (f"; held in {hdept.code} only." if hdept is not None else ".")
+                f"Due soon: due within {cfg.due_soon_days} days (IST); overdue: due before today. The "
+                "scope's cases, whoever has them"
+                + (f"; with {hdept.code} only." if hdept is not None else ".")
             ),
         ),
         Section(
@@ -894,7 +894,7 @@ def pending_actions(
         sections.append(
             Section(
                 "files",
-                "Files with a pending action",
+                "Cases with a pending action",
                 CASE_COLUMNS,
                 rows_out,
                 note=(f"First {len(rows_out)} of {total} rows. " if truncated else "")
@@ -913,7 +913,7 @@ def pending_actions(
             "include_cases": bool(include_cases),
             "as_of": today,
         },
-        f"Files and alerts as they stand on {today.isoformat()} (IST); each case is counted for the department "
+        f"Cases and alerts as they stand on {today.isoformat()} (IST); each case is counted for the department "
         "that owns it now (its current primary owner).",
         sections,
     )

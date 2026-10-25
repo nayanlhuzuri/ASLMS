@@ -65,7 +65,7 @@ function layoutsOf(file: string): string[] {
   return out;
 }
 
-const SAMPLE: Record<string, string> = { ref: "ASLMS-GOA-CASE-2026-000001", id: "u-9", code: "EDU" };
+const SAMPLE: Record<string, string> = { ref: "ASLMS-GOA-CASE-2026-000001", id: "u-9", code: "EDU", role: "dept_officer" };
 const PARAMS = { params: Promise.resolve(SAMPLE), searchParams: Promise.resolve({}) };
 
 type Component = (props: Record<string, unknown>) => ReactNode | Promise<ReactNode>;
@@ -132,6 +132,16 @@ function fakeApi() {
     "GET /admin/offices/tree": [],
     "GET /admin/designations": [],
     "GET /admin/tickets": { items: [], total: 0, counts: { open: 0 } },
+    // design case-workspace-admin: the user-type pages and the Cases list
+    "GET /admin/permissions": [
+      { code: "users.view", module: "users", label: "See users", description: "See people.", is_active: true, group: "people", group_label: "People and access", sort_in_group: 1 },
+    ],
+    "GET /admin/access/defaults": { dept_officer: { "users.view": true } },
+    "GET /admin/access/overview": [{ code: "dept_officer", users: 3, functions_on: 1, functions_total: 1, changed_from_default: 0 }],
+    "GET /admin/access/types/dept_officer": { "users.view": true },
+    "GET /custody/held": { items: [], total: 0 },
+    "GET /custody/sent": { items: [], total: 0 },
+    "GET /custody/summary": { departments: [] },
   });
 }
 
@@ -151,7 +161,8 @@ const EXPECTED: Record<string, string[]> = {
   "/forgot": ["Send code"],
   "/reports/pending-cases": ["Show report"],
   "/audit": ["Search"],
-  "/admin/users": ["New user"],
+  "/admin/users": ["Add user"],
+  "/admin/access/dept_officer": ["Save changes"],
   "/admin/offices": ["New office"],
   "/admin/tickets": ["Propose a head change"],
 };
@@ -180,6 +191,17 @@ describe("every page has at most one primary action (decision 16)", () => {
     const primaries = primaryActions(container);
     expect(primaries.length, `${route}: ${primaries.join(", ")}`).toBeLessThanOrEqual(1);
     if (EXPECTED[route]) expect(primaries).toEqual(EXPECTED[route]);
+  });
+
+  it("the Cases list's static segments are their own pages, never read as a case reference (case-workspace-admin, decision 3)", () => {
+    const routes = PAGES.map(routeOf);
+    for (const seg of ["with-me", "sent", "pending"]) {
+      expect(routes).toContain(`/cases/${seg}`);
+      const file = PAGES.find((p) => routeOf(p) === `/cases/${seg}`)!;
+      // the list's own layout, not the case page's frame
+      expect(layoutsOf(file).some((l) => l.includes("[ref]"))).toBe(false);
+      expect(layoutsOf(file).some((l) => l.includes("(list)"))).toBe(true);
+    }
   });
 
   it("the not-found page renders too", async () => {

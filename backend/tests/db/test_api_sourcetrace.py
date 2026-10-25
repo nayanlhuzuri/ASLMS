@@ -155,7 +155,7 @@ def test_seed_adds_admin_sourcetrace(world):
         assert s.scalar(sa.text("select count(*) from ref_permission")) == 53
         assert s.scalar(sa.text("select count(*) from ref_permission where is_active")) == 51
         label = s.scalar(sa.text("select label from ref_permission where code = 'admin.sourcetrace'"))
-        assert label == "SourceTrace ingestion"
+        assert label == "Case Assistant intake"
         rows = s.scalars(
             sa.select(RolePermission).where(RolePermission.permission == Permission.ADMIN_SOURCETRACE)
         ).all()

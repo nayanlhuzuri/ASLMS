@@ -1,14 +1,14 @@
 "use client";
 
 /**
- * The held-files lists of "Files" (design portal-files-alerts, decision 12; custody-workflow decision 24):
- * With me (`scope=me`), My offices (`scope=office`) and Department files (`scope=owned`, with the tracking summary
- * and the holder-department filter). The API's order (due date, then since), paged by 50 in the query string. No
- * action buttons: sending and recalling happen on the case page, where the card's flags are current. The one filter bar
- * (design portal-filters): the shared case filters with the owning department (on Department files only the
- * departments the login tracks), Overdue only and, on Department files, the holder department. On the Work list
- * template (design portal-ui-redesign, decision 26): the due date in the fixed leading column, cards on phones, and
- * the card details with the full remark in a side panel opened by the row.
+ * The held lists of the Cases list (design case-workspace-admin, decisions 17 and 19; custody-workflow decision 24):
+ * Cases with me (`scope=me`, or `scope=office` with "Held by: My offices", `?held=offices`) and Pending action
+ * (`scope=owned`, with the tracking summary and "Department it is with"). The API's order (due date, then since), paged
+ * by 50 in the query string. No action buttons: sending and recalling happen on the case page, where the card's flags
+ * are current. The one filter bar (design portal-filters): the shared case filters with the owning department (on
+ * Pending action only the departments the login tracks), Overdue only and the list's own controls. On the Work list
+ * template: the lead badge in a 96 px `Lead`, case and parties, action needed, due by, From (Cases with me) or With
+ * (Pending action), and the chevron; cards on phones; the row opens the side panel with the full remark.
  */
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -16,11 +16,11 @@ import { useState } from "react";
 import { FilterBar, type OwnControl } from "@/components/filters/FilterBar";
 import { useFilters } from "@/components/inbox/common";
 import { Chevron } from "@/components/inbox/rows";
-import { Badge, CaseLink, DataTable, DateChip, EmptyState, ErrorBanner, Loading, Pagination, type Column } from "@/components/ui";
+import { Badge, CaseLink, DataTable, EmptyState, ErrorBanner, Lead, Loading, Pagination, type Column } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { useDepartments, useMe } from "@/lib/api/hooks";
-import type { HeldItem, HeldList } from "@/lib/api/types";
-import type { Me } from "@/lib/api/types";
+import type { HeldItem, HeldList, Me } from "@/lib/api/types";
+import { cardHolder, cardSender, leadBadge, withText, type CasesTab, type WithParty } from "@/lib/cases";
 import { toApiQuery } from "@/lib/filters";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { T } from "@/lib/messages";
@@ -44,54 +44,31 @@ const CAPTION: Record<HeldScope, string> = {
   owned: T.files.captionDepartment,
 };
 
-function sentByText(item: HeldItem): string | null {
-  const by = item.card?.sent_by;
-  if (!by) return null;
-  return [by.name, by.designation].filter(Boolean).join(", ") || by.office_code || null;
+/** "With …" text with the name as the title (decision 13). */
+export function WithCell({ party, meId }: { party: WithParty | null; meId?: string | null }) {
+  if (!party) return <span className="muted">—</span>;
+  const w = withText(party, meId);
+  return <span title={w.title}>{w.text}</span>;
 }
 
-function SentBy({ item }: { item: HeldItem }) {
-  const by = item.card?.sent_by;
-  if (!by || (!by.name && !by.office_code)) return <span className="muted">—</span>;
-  return (
-    <>
-      <div>{[by.name, by.designation].filter(Boolean).join(", ") || "—"}</div>
-      {by.office_code ? <div className="mono muted">{by.office_code}</div> : null}
-    </>
-  );
+export function LeadCell({ badge }: { badge: ReturnType<typeof leadBadge> }) {
+  return <Lead>{badge ? <Badge tone={badge.tone}>{badge.label}</Badge> : null}</Lead>;
 }
 
-function HolderCell({ item }: { item: HeldItem }) {
-  const card = item.card;
-  if (!card) return <span className="muted">—</span>;
-  return (
-    <>
-      {card.holder_office ? (
-        <div>
-          <span className="mono">{card.holder_office.code}</span> {card.holder_office.name}
-        </div>
-      ) : null}
-      {card.holder_user ? <div>{[card.holder_user.full_name, card.holder_user.designation].filter(Boolean).join(", ")}</div> : null}
-    </>
-  );
-}
-
-function ActionCell({ item }: { item: HeldItem }) {
-  const card = item.card;
-  if (!card) return <span className="muted">—</span>;
-  return (
-    <span className={s.action}>
-      <span>{card.pending_action_label ?? "—"}</span>
-      {card.overdue ? <Badge tone="danger">{T.files.overdueBy(card.overdue_days)}</Badge> : null}
-    </span>
-  );
-}
-
-function CaseCell({ item }: { item: HeldItem }) {
-  const c = item.case;
+/** The number over "petitioner vs respondent", with an optional small label under the number. */
+export function CaseCell({
+  c,
+  visible = true,
+  mark,
+}: {
+  c: HeldItem["case"];
+  visible?: boolean;
+  mark?: string | null;
+}) {
   return (
     <div className={s.caseCell}>
-      <CaseLink value={c} />
+      <CaseLink value={c} visible={visible} />
+      {mark ? <span className={s.mark}>{mark}</span> : null}
       {c.petitioner_summary || c.respondent_summary ? (
         <span className="muted">
           {c.petitioner_summary ?? "—"} {T.vs} {c.respondent_summary ?? "—"}
@@ -101,7 +78,12 @@ function CaseCell({ item }: { item: HeldItem }) {
   );
 }
 
-/** The departments the login tracks (`custody.track` in a department membership): Department files holds no other. */
+export function DueCell({ date, overdue }: { date: string | null | undefined; overdue: boolean }) {
+  if (!date) return <span className="muted">—</span>;
+  return <span className={overdue ? s.danger : undefined}>{formatDate(date)}</span>;
+}
+
+/** The departments the login tracks (`custody.track` in a department membership): Pending action holds no other. */
 export function trackedDepartments(me: Me | undefined): { value: string; label: string }[] {
   const out: { value: string; label: string }[] = [];
   for (const m of me?.memberships ?? []) {
@@ -112,10 +94,12 @@ export function trackedDepartments(me: Me | undefined): { value: string; label: 
   return out;
 }
 
-export function Held({ scope, params }: { scope: HeldScope; params: Params }) {
+export function Held({ tab, params }: { tab: Exclude<CasesTab, "sent">; params: Params }) {
   const setFilters = useFilters(params);
   const me = useMe();
+  const meId = me.data?.user.id ?? null;
   const [open, setOpen] = useState<HeldItem | null>(null);
+  const scope: HeldScope = tab === "pending" ? "owned" : params.held === "offices" ? "office" : "me";
   const offset = offsetOf(params);
   const overdue = params.overdue === "true";
   const holderDepartment = scope === "owned" ? params.holder_department || undefined : undefined;
@@ -134,10 +118,10 @@ export function Held({ scope, params }: { scope: HeldScope; params: Params }) {
     queryFn: () => api<HeldList>("/custody/held", { query }),
     placeholderData: keepPreviousData,
   });
-  const own: OwnControl[] = [
-    { key: "overdue", kind: "check", label: T.files.overdueOnly },
-    ...(scope === "owned"
+  const own: OwnControl[] =
+    scope === "owned"
       ? [
+          { key: "overdue", kind: "check", label: T.files.overdueOnly },
           {
             key: "holder_department",
             kind: "select" as const,
@@ -147,21 +131,33 @@ export function Held({ scope, params }: { scope: HeldScope; params: Params }) {
             more: true,
           },
         ]
-      : []),
-  ];
-  const showHolder = scope !== "me";
+      : [
+          {
+            key: "held",
+            kind: "segmented",
+            label: T.cases.heldBy,
+            options: [
+              { value: "", label: T.cases.heldMe },
+              { value: "offices", label: T.cases.heldOffices },
+            ],
+            first: true,
+          },
+          { key: "overdue", kind: "check", label: T.files.overdueOnly },
+        ];
+  const who = (r: HeldItem): WithParty | null => (scope === "owned" ? cardHolder(r.card) : cardSender(r.card));
+  const whoHeader = scope === "owned" ? T.cases.with : T.cases.from;
   const columns: Column<HeldItem>[] = [
     {
-      key: "due",
-      header: T.files.due,
-      width: "calc(var(--date-w) + var(--s6))",
-      cell: (r) => <DateChip date={r.card?.due_date} hot={!!r.card?.overdue} />,
+      key: "lead",
+      header: <span className="visually-hidden">{T.cases.leadCol}</span>,
+      label: T.cases.leadCol,
+      width: "var(--lead-w)",
+      cell: (r) => <LeadCell badge={leadBadge(r, tab)} />,
     },
-    { key: "case", header: T.files.case, primary: true, cell: (r) => <CaseCell item={r} /> },
-    ...(showHolder ? [{ key: "holder", header: T.files.holder, cell: (r: HeldItem) => <HolderCell item={r} /> }] : []),
-    { key: "action", header: T.files.action, cell: (r) => <ActionCell item={r} /> },
-    { key: "since", header: T.files.since, hideOnPhone: true, cell: (r) => formatDateTime(r.card?.since) },
-    { key: "sent", header: T.files.sentBy, hideOnPhone: true, cell: (r) => <SentBy item={r} /> },
+    { key: "case", header: T.files.case, primary: true, cell: (r) => <CaseCell c={r.case} /> },
+    { key: "action", header: T.files.action, cell: (r) => r.card?.pending_action_label ?? "—" },
+    { key: "due", header: T.files.due, cell: (r) => <DueCell date={r.card?.due_date} overdue={!!r.card?.overdue} /> },
+    { key: "who", header: whoHeader, cell: (r) => <WithCell party={who(r)} meId={meId} /> },
     { key: "open", header: <span className="visually-hidden">{T.files.details}</span>, hideOnPhone: true, width: "var(--s6)", cell: () => <Chevron /> },
   ];
   const card = open?.card;
@@ -199,7 +195,7 @@ export function Held({ scope, params }: { scope: HeldScope; params: Params }) {
         onClose={() => setOpen(null)}
         remark={card?.remark}
         facts={[
-          [T.files.holder, open ? <HolderCell item={open} /> : null],
+          [T.files.holder, open ? <WithCell party={cardHolder(open.card)} meId={meId} /> : null],
           [T.files.action, card?.pending_action_label ?? null],
           [T.files.since, formatDateTime(card?.since)],
           [
@@ -211,7 +207,7 @@ export function Held({ scope, params }: { scope: HeldScope; params: Params }) {
               </span>
             ) : null,
           ],
-          [T.files.sentBy, open ? sentByText(open) : null],
+          [T.files.from, open ? <WithCell party={cardSender(open.card)} /> : null],
         ]}
       />
     </div>

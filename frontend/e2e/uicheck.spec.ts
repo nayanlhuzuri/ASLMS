@@ -36,6 +36,8 @@ function routes(dir = APP): string[] {
         if (parent === "audit") return SAMPLE.auditId;
         if (parent === "offices") return SAMPLE.officeCode;
         if (parent === "orders") return SAMPLE.orderId;
+        // design case-workspace-admin, decision 25: one user type's page
+        if (parent === "access") return SAMPLE.userType;
         return SAMPLE.caseRefPath;
       });
       out.push("/" + filled.join("/"));
@@ -43,6 +45,19 @@ function routes(dir = APP): string[] {
   }
   return out.sort();
 }
+
+/**
+ * The old Files addresses and where they lead (design case-workspace-admin, decision 3; `OLD_FILES_REDIRECTS` in
+ * `src/lib/routes.ts`, pinned by `routes.test.ts`): each is checked as a redirect that lands on the Cases list.
+ */
+const OLD_FILES: Record<string, string> = {
+  "/files": "/cases/with-me",
+  "/files/mine": "/cases/with-me",
+  "/files/offices": "/cases/with-me?held=offices",
+  "/files/department": "/cases/pending",
+  "/files/sent": "/cases/sent",
+  "/inbox/files": "/cases/with-me",
+};
 
 interface Visit {
   findings: Finding[];
@@ -124,6 +139,7 @@ test.describe("every page", () => {
       const screenshot = redirect ? null : await shoot(page, route, width);
       writeResult({ name: route, width, screenshot, redirect, findings });
       expect(findings, JSON.stringify(findings, null, 2)).toEqual([]);
+      if (OLD_FILES[route]) expect(redirect, `${route} leads to the Cases list`).toBe(OLD_FILES[route]);
     });
   }
 });
@@ -161,8 +177,9 @@ const STATES: State[] = [
     },
   },
   {
-    name: "/files/mine (side panel)",
-    path: "/files/mine",
+    // design case-workspace-admin, decision 20: the Cases list's side panel with the full remark
+    name: "/cases/with-me (side panel)",
+    path: "/cases/with-me",
     open: async (page) => {
       await page.locator("tbody tr").first().click();
       await page.getByRole("dialog").first().waitFor();
@@ -177,11 +194,52 @@ const STATES: State[] = [
     },
   },
   {
-    name: `/cases/${SAMPLE.caseRefPath} (send file, step 1)`,
+    name: `/cases/${SAMPLE.caseRefPath} (send case, step 1)`,
     path: `/cases/${SAMPLE.caseRefPath}`,
     open: async (page) => {
-      await page.getByRole("button", { name: "Send file" }).first().click();
+      await page.getByRole("button", { name: "Send case" }).first().click();
       await page.getByRole("dialog").first().waitFor();
+    },
+  },
+  {
+    // design case-workspace-admin, decision 15: the remarks history on its own address
+    name: `/cases/${SAMPLE.caseRefPath}?remarks=all (remarks panel)`,
+    path: `/cases/${SAMPLE.caseRefPath}?remarks=all`,
+    open: async (page) => {
+      await page.getByRole("dialog", { name: "Remarks and notes" }).waitFor();
+      await page.getByText("Sent by", { exact: false }).first().waitFor();
+    },
+  },
+  {
+    // decision 8: below 1100 px the rail's cards sit under the header as collapsibles; every one opened
+    name: `/cases/${SAMPLE.caseRefPath} (rail cards open)`,
+    path: `/cases/${SAMPLE.caseRefPath}`,
+    widths: [375, 768],
+    open: async (page) => {
+      const closed = page.locator("[data-rail='stacked'] button[aria-expanded='false']");
+      await page.locator("[data-rail='stacked']").waitFor();
+      for (let i = 0; i < 6 && (await closed.count()) > 0; i += 1) await closed.first().click();
+    },
+  },
+  {
+    // decision 23: a user's details in the wide side panel
+    name: "/admin/users?user=<id> (side panel)",
+    path: `/admin/users?user=${SAMPLE.userId}`,
+    open: async (page) => {
+      await page.getByRole("dialog").first().waitFor();
+      await page.getByRole("link", { name: "Open full page" }).waitFor();
+    },
+  },
+  {
+    // decision 25: two switches changed, so the Save bar counts them
+    name: `/admin/access/${SAMPLE.userType} (two switches changed, Save bar)`,
+    path: `/admin/access/${SAMPLE.userType}`,
+    open: async (page) => {
+      const switches = page.locator("button[role='switch']:not([disabled])");
+      await switches.first().waitFor();
+      await switches.nth(0).click();
+      await switches.nth(1).click();
+      await page.getByText("2 unsaved changes").waitFor();
     },
   },
 ];

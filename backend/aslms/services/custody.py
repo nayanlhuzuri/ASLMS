@@ -28,6 +28,7 @@ from typing import Any
 from sqlalchemy import Select, exists, false, func, or_, select
 from sqlalchemy.orm import Session, aliased
 
+from aslms.core.config import get_settings
 from aslms.domain.cases import Case
 from aslms.domain.org import Office, User, UserMembership
 from aslms.domain.ownership import CaseOwnership, OwnershipRole, OwnershipStatus
@@ -66,6 +67,7 @@ from aslms.services.workflow_common import (
 REASONS = frozenset(CUSTODY_REASONS)
 SENT_LIST_REASONS = ("sent", "recalled")
 HELD_SCOPES = ("me", "office", "owned")
+HISTORY_ORDERS = ("asc", "desc")
 DEFAULT_DUE_SOON_DAYS = 2
 
 
@@ -397,13 +399,13 @@ def send(
     if sender is None:
         raise forbidden(
             "not_in_control",
-            "only the holder of the file (or, for a file held by an office, its controller) may send it",
+            "only the officer the case is with (or, for a case with an office, its controller) may send it",
         )
     target = _membership_ref(session, to_membership)
     if not eligible_target(session, target):
         raise bad("to_membership is not an active officer of a department", "bad_target")
     if target.id == custody.holder_membership_id:
-        raise conflict("unchanged", "the file is already with that officer")
+        raise conflict("unchanged", "the case is already with that officer")
     if stage_ref is not None and not sender.holds(Permission.STAGES_SET):
         raise forbidden("forbidden", "stages.set is not enabled for you; send without a stage")
     actor = access.actor_as(actor, sender)
@@ -468,7 +470,7 @@ def recall(
             "custody.recall works only in a membership of the department that owns the case",
         )
     if custody.holder_membership_id == recaller.membership_id:
-        raise conflict("unchanged", "you already hold this file")
+        raise conflict("unchanged", "this case is already with you")
     actor = access.actor_as(actor, recaller)
     before = card_summary(session, custody)
     leg = move_custody(
@@ -573,6 +575,12 @@ def card(
     action = PendingAction(row.pending_action)
     today = today_ist()
     overdue = row.due_date is not None and row.due_date < today
+    # design case-workspace-admin, decision 19: the same window as `summary` (`request_due_soon_days`)
+    due_soon = (
+        not overdue
+        and row.due_date is not None
+        and row.due_date <= today + timedelta(days=get_settings().request_due_soon_days)
+    )
     recaller = recaller_member(session, user, case)
     return {
         "holder_office": _office_ref(office),
@@ -585,6 +593,7 @@ def card(
         "due_date": row.due_date,
         "overdue": overdue,
         "overdue_days": (today - row.due_date).days if overdue else 0,
+        "due_soon": due_soon,
         "sent_by": (
             {
                 "name": leg.actor_name,
@@ -603,18 +612,31 @@ def card(
 
 
 def history(
-    session: Session, user: User | Member, case: Case, *, limit: int | None = None, offset: int | None = None
+    session: Session,
+    user: User | Member,
+    case: Case,
+    *,
+    limit: int | None = None,
+    offset: int | None = None,
+    order: str = "asc",
 ) -> dict[str, Any]:
+    """The card and the legs by `seq_no`, oldest first (`order="asc"`) or newest first (`"desc"`, design
+    `case-workspace-admin`: the rail's journey and the remarks history page from the newest). `remarks_shown`
+    tells whether the legs carry their remark for this caller (`shows_remark`), so the portal never infers it."""
+    if order not in HISTORY_ORDERS:
+        raise bad("order must be asc or desc")
     bases = visibility.require_visible(session, user, case)
     stmt = select(CustodyHistory).where(CustodyHistory.case_id == case.id)
     limit, offset = inbox.clamp(limit, offset)
     total = int(session.scalar(select(func.count()).select_from(stmt.subquery())) or 0)
-    legs = session.scalars(stmt.order_by(CustodyHistory.seq_no).limit(limit).offset(offset)).all()
+    by = CustodyHistory.seq_no.desc() if order == "desc" else CustodyHistory.seq_no
+    legs = session.scalars(stmt.order_by(by).limit(limit).offset(offset)).all()
     show = shows_remark(session, user, case)
     return {
         "card": card(session, user, case, bases=bases),
         "legs": [leg_out(session, leg, show_remark=show) for leg in legs],
         "total": total,
+        "remarks_shown": show,
     }
 
 
@@ -725,6 +747,15 @@ def sent(
     ).all()
     summaries = inbox.summaries(session, [c for _, c in rows])
     ids = list({c.id for _, c in rows})
+    current_legs = (
+        dict(
+            session.execute(
+                select(Custody.case_id, Custody.current_leg_id).where(Custody.case_id.in_(ids))
+            ).all()
+        )
+        if ids
+        else {}
+    )
     seen = (
         set(
             session.scalars(
@@ -736,7 +767,13 @@ def sent(
     )
     return inbox.Page(
         [
-            {"case": summaries[c.id], "leg": leg_out(session, leg, show_remark=True), "visible": c.id in seen}
+            {
+                "case": summaries[c.id],
+                "leg": leg_out(session, leg, show_remark=True),
+                "visible": c.id in seen,
+                # design case-workspace-admin, decision 20: null when the sender can no longer open the case
+                "current": (current_legs.get(c.id) == leg.id) if c.id in seen else None,
+            }
             for leg, c in rows
         ],
         total,

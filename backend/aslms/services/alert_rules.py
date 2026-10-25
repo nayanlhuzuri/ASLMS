@@ -392,14 +392,14 @@ def render_workflow(d: dict[str, Any], label: str) -> tuple[str, str]:
     action = d.get("pending_action_label") or d.get("pending_action") or "action"
     due = f", due {_d(d.get('due_date'))}" if d.get("due_date") else ""
     if event == "file_received":
-        title = f"File received from {d.get('from_office_code') or 'another office'}: {label}"
+        title = f"Case received from {d.get('from_office_code') or 'another office'}: {label}"
         body = f"Sent to {_holder(d)} for {action}{due}."
     elif event == "file_recalled":
-        title = f"File taken back by {d.get('holder_office_code') or 'the owning department'}: {label}"
-        body = f"The file you held is now with {_holder(d)} ({d.get('reason_label') or d.get('reason') or 'moved'})."
+        title = f"Case recalled by {d.get('holder_office_code') or 'the owning department'}: {label}"
+        body = f"The case you had is now with {_holder(d)} ({d.get('reason_label') or d.get('reason') or 'moved'})."
     elif event == "due":
         when = _d(d.get("due_date"))
-        title = (f"File overdue since {when}: " if d.get("overdue") else f"File due {when}: ") + label
+        title = (f"Case overdue since {when}: " if d.get("overdue") else f"Case due {when}: ") + label
         body = f"{action} pending with {_holder(d)}."
     else:
         title, body = f"Workflow: {label}", ""

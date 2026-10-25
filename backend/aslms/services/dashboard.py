@@ -342,7 +342,7 @@ def me_block(
 ATTENTION_KINDS = ("overdue_action", "confirm_next_date", "due_soon", "file_received")
 RECEIVED_DAYS = 7
 CONFIRM_TITLE = "Next date to confirm"
-RECEIVED_TITLE = "File received"
+RECEIVED_TITLE = "Case received"
 
 
 def _due_words(days: int) -> str:
