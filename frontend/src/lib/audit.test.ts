@@ -16,10 +16,10 @@ import {
 import { istDay } from "./format";
 
 describe("auditParams", () => {
-  it("passes the ten names unchanged, omits empty values and drops unknown names", () => {
+  it("passes the eleven names unchanged (office_subtree since portal-ui-polish-2), omits empty values and drops unknown names", () => {
     const all = Object.fromEntries(AUDIT_PARAMS.map((n) => [n, `v-${n}`]));
     expect(auditParams(all)).toEqual(all);
-    expect(AUDIT_PARAMS).toHaveLength(10);
+    expect(AUDIT_PARAMS).toHaveLength(11);
     expect(auditParams({ user: "", actor: "  ", case: " GHC-1 ", offset: "50", cursor: "x", limit: "200" })).toEqual({
       case: "GHC-1",
     });

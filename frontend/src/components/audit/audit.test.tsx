@@ -70,6 +70,16 @@ const EDU_PEOPLE = {
   ],
 };
 
+const CHOICES = {
+  purpose: "audit",
+  items: [
+    { code: "GOA", name: "Government of Assam", kind: "state", tier: "state", depth: 0, parent_code: null, ancestors: [], is_active: true },
+    { code: "EDU", name: "Education", kind: "department", tier: "department", depth: 1, parent_code: "GOA", ancestors: ["Government of Assam"], is_active: true },
+    { code: "EDU-ACC", name: "Accounts", kind: "unit", tier: "directorate", depth: 2, parent_code: "EDU", ancestors: ["Government of Assam", "Education"], is_active: true },
+    { code: "OLD-OFFICE", name: "Old Office", kind: "unit", tier: "directorate", depth: 2, parent_code: "EDU", ancestors: ["Government of Assam", "Education"], is_active: false },
+  ],
+};
+
 function recipients(call: BrowserCall) {
   return call.url.includes("department=EDU") ? EDU_PEOPLE : DEPARTMENTS;
 }
@@ -88,6 +98,7 @@ function routes(page: unknown = { items: [row("r-1")], next_cursor: null }, extr
     "GET /audit": page,
     "GET /audit/actions": ACTIONS,
     "GET /custody/recipients": recipients,
+    "GET /admin/offices/choices": CHOICES,
     ...extra,
   });
 }
@@ -227,24 +238,47 @@ describe("the search", () => {
     expect(nav.push).toHaveBeenLastCalledWith("/audit?action=custody.");
   });
 
-  it("the unit select appears after a department is chosen and sends the unit's code", async () => {
+  it("the Office Picker (purpose audit) lists inactive offices and sends office_subtree=false when Include Sub-offices is cleared", async () => {
+    const api = routes();
+    renderWithClient(<AuditSearch params={{}} />);
+    const box = await screen.findByRole("combobox", { name: "Office" });
+    await userEvent.click(box);
+    const list = await screen.findByRole("listbox");
+    expect(within(within(list).getByText("Old Office").closest("li")!).getByText("Inactive")).toBeInTheDocument();
+    await userEvent.click(within(list).getByText("Education"));
+    expect(screen.getByText("+ sub")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Search" }));
+    expect(nav.push).toHaveBeenLastCalledWith("/audit?office=EDU");
+    await userEvent.click(screen.getByLabelText("Include Sub-offices"));
+    await userEvent.click(screen.getByRole("button", { name: "Search" }));
+    expect(nav.push).toHaveBeenLastCalledWith("/audit?office=EDU&office_subtree=false");
+    expect(api.calls.some((c) => c.path === "/admin/offices/choices?purpose=audit")).toBe(true);
+  });
+
+  it("office_subtree from the address is sent to the API and unticks the box", async () => {
+    const api = routes();
+    renderWithClient(<AuditSearch params={{ office: "EDU", office_subtree: "false" }} />);
+    await waitFor(() => expect(auditCalls(api).length).toBeGreaterThan(0));
+    expect(queryOf(auditCalls(api)[0]!)).toMatchObject({ office: "EDU", office_subtree: "false" });
+    expect(screen.getByLabelText("Include Sub-offices")).not.toBeChecked();
+  });
+
+  it("the unit select still appears after a department is chosen and sends the unit's code", async () => {
     routes();
     renderWithClient(<AuditSearch params={{}} />);
-    await screen.findByRole("option", { name: "Education (EDU)" });
     expect(screen.queryByLabelText("Unit")).toBeNull();
-    await userEvent.selectOptions(screen.getByLabelText("Office"), "EDU");
+    await userEvent.click(await screen.findByRole("combobox", { name: "Office" }));
+    await userEvent.click(within(await screen.findByRole("listbox")).getByText("Education"));
     await screen.findByRole("option", { name: "Accounts (EDU-ACC)" });
     await userEvent.selectOptions(screen.getByLabelText("Unit"), "EDU-ACC");
     await userEvent.click(screen.getByRole("button", { name: "Search" }));
     expect(nav.push).toHaveBeenLastCalledWith("/audit?office=EDU-ACC");
   });
 
-  it("an office code the lists do not hold is kept and shown as its code", async () => {
+  it("an inactive office from the address is shown by its name", async () => {
     routes();
     renderWithClient(<AuditSearch params={{ office: "OLD-OFFICE" }} />);
-    await screen.findByRole("option", { name: "Education (EDU)" });
-    expect(screen.getByLabelText("Office")).toHaveValue("OLD-OFFICE");
-    expect(screen.getByRole("option", { name: "OLD-OFFICE" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Office" })).toHaveValue("Old Office"));
   });
 
   it.each([

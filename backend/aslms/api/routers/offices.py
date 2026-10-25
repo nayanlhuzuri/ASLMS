@@ -7,6 +7,8 @@ is created and reactivated with its head, has at most one admin (`POST .../admin
 
 from __future__ import annotations
 
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -156,6 +158,33 @@ def office_tree(
     return [
         _node(n) for n in offices.office_tree(session, _scope_roots(session, user), include_inactive=inactive)
     ]
+
+
+ChoicePurpose = Literal[
+    "users", "membership", "office_parent", "counsel_codes", "keywords", "watchlist", "audit"
+]
+
+
+@router.get("/offices/choices", response_model=schemas.OfficeChoicesOut)
+def office_choices(
+    purpose: ChoicePurpose,
+    include_inactive: bool = False,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> schemas.OfficeChoicesOut:
+    """The offices one Office Picker may offer (design `portal-ui-polish-2`, decision 29), in tree order: `users`
+    (`users.view`, the scope of `GET /admin/users`), `membership` (`users.create`), `office_parent`
+    (`offices.manage`), `counsel_codes` / `keywords` / `watchlist` (that mapping function), each the subtrees of
+    the caller's memberships holding the function (everything for the super admin), active only; `audit`
+    (`audit.view` in a State-wide membership, else 403 `audit_scope`): every office, inactive ones included.
+    `include_inactive=true` needs `offices.manage` and widens `users` only. Reads only."""
+    try:
+        items = offices.choices(session, user, purpose, include_inactive=include_inactive)
+    except HANDLED as exc:
+        raise _http(exc) from exc
+    return schemas.OfficeChoicesOut(
+        purpose=purpose, items=[schemas.OfficeChoiceOut(**vars(i)) for i in items]
+    )
 
 
 @router.post("/offices", response_model=schemas.OfficeDetailOut, status_code=status.HTTP_201_CREATED)

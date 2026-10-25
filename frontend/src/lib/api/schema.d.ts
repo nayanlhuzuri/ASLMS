@@ -1058,6 +1058,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/offices/choices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Office Choices
+         * @description The offices one Office Picker may offer (design `portal-ui-polish-2`, decision 29), in tree order: `users`
+         *     (`users.view`, the scope of `GET /admin/users`), `membership` (`users.create`), `office_parent`
+         *     (`offices.manage`), `counsel_codes` / `keywords` / `watchlist` (that mapping function), each the subtrees of
+         *     the caller's memberships holding the function (everything for the super admin), active only; `audit`
+         *     (`audit.view` in a State-wide membership, else 403 `audit_scope`): every office, inactive ones included.
+         *     `include_inactive=true` needs `offices.manage` and widens `users` only. Reads only.
+         */
+        get: operations["office_choices_admin_offices_choices_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/offices/tree": {
         parameters: {
             query?: never;
@@ -1791,7 +1816,8 @@ export interface paths {
          *     (of an active membership in scope), `include_ended` (State-wide scope only: logins with no active membership
          *     too), `limit` (1-200) and `offset`; `X-Total-Count` counts the same filters. Without `limit` every row.
          *     Design case-workspace-admin, decision 23: `status` — `active` (sign-in on and signed in at least once),
-         *     `not_signed_in` (on, never signed in) or `off` (sign-in turned off).
+         *     `not_signed_in` (on, never signed in) or `off` (sign-in turned off). Design `portal-ui-polish-2`, decision 30:
+         *     `subtree=false` narrows `office` to that office exactly (default `true`, its whole subtree).
          */
         get: operations["list_users_admin_users_get"];
         put?: never;
@@ -9632,6 +9658,38 @@ export interface components {
             /** Seq */
             seq: number;
         };
+        /**
+         * OfficeChoiceOut
+         * @description One office an Office Picker may offer (design `portal-ui-polish-2`, decision 29).
+         */
+        OfficeChoiceOut: {
+            /** Ancestors */
+            ancestors: string[];
+            /** Code */
+            code: string;
+            /** Depth */
+            depth: number;
+            /** Is Active */
+            is_active: boolean;
+            /** Kind */
+            kind: string;
+            /** Name */
+            name: string;
+            /** Parent Code */
+            parent_code: string | null;
+            /** Tier */
+            tier: string;
+        };
+        /** OfficeChoicesOut */
+        OfficeChoicesOut: {
+            /** Items */
+            items: components["schemas"]["OfficeChoiceOut"][];
+            /**
+             * Purpose
+             * @enum {string}
+             */
+            purpose: "users" | "membership" | "office_parent" | "counsel_codes" | "keywords" | "watchlist" | "audit";
+        };
         /** OfficeCountsOut */
         OfficeCountsOut: {
             /** Children */
@@ -15048,6 +15106,38 @@ export interface operations {
             };
         };
     };
+    office_choices_admin_offices_choices_get: {
+        parameters: {
+            query: {
+                purpose: "users" | "membership" | "office_parent" | "counsel_codes" | "keywords" | "watchlist" | "audit";
+                include_inactive?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OfficeChoicesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     office_tree_admin_offices_tree_get: {
         parameters: {
             query?: {
@@ -16540,6 +16630,8 @@ export interface operations {
         parameters: {
             query?: {
                 office?: string | null;
+                /** @description false: members of `office` itself, without its sub-offices */
+                subtree?: boolean;
                 q?: string | null;
                 role?: components["schemas"]["Role"] | null;
                 status?: ("active" | "not_signed_in" | "off") | null;
@@ -18005,6 +18097,8 @@ export interface operations {
                 case?: string | null;
                 /** @description actor office code (its subtree) */
                 office?: string | null;
+                /** @description false: the office alone, without its sub-offices */
+                office_subtree?: boolean;
                 /** @description exact code, or a prefix ending in '.' */
                 action?: string | null;
                 entity_type?: string | null;

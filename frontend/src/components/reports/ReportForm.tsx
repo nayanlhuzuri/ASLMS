@@ -8,8 +8,8 @@
  */
 import { useState, type FormEvent } from "react";
 
-import { Button, CheckField, SelectField, TextField } from "@/components/ui";
-import type { ReportCatalogueItem, ReportDepartment } from "@/lib/api/types";
+import { Button, CheckField, OfficePicker, SelectField, TextField } from "@/components/ui";
+import type { OfficeChoice, ReportCatalogueItem, ReportDepartment } from "@/lib/api/types";
 import { T } from "@/lib/messages";
 import type { Params } from "@/lib/params";
 import {
@@ -23,6 +23,20 @@ import {
 } from "@/lib/reports";
 
 import s from "./reports.module.css";
+
+/** The departments as Office Picker options: one level, no call (departments only). */
+export function holderChoices(holders: { code: string; name: string; kind?: string | null }[]): OfficeChoice[] {
+  return holders.map((d) => ({
+    code: d.code,
+    name: d.name,
+    kind: d.kind ?? "department",
+    tier: "department",
+    depth: 1,
+    parent_code: null,
+    ancestors: [],
+    is_active: true,
+  }));
+}
 
 export function ReportForm({
   reportKey,
@@ -139,14 +153,13 @@ export function ReportForm({
       ) : null}
       {reportKey === "pending-actions" ? (
         <>
-          <SelectField
+          {/* design portal-ui-polish-2, decision 30: the Office Picker over the departments the page already holds */}
+          <OfficePicker
             label={T.reports.holder}
-            value={holder}
-            onChange={(e) => setHolder(e.target.value)}
-            options={[
-              { value: "", label: T.reports.allHolders },
-              ...holders.map((d) => ({ value: d.code, label: `${d.name} (${d.code})` })),
-            ]}
+            options={holderChoices(holders)}
+            placeholder={T.reports.allHoldersPlaceholder}
+            value={holder || null}
+            onChange={(code) => setHolder(code ?? "")}
             hint={T.reports.holderHint}
           />
           <div>

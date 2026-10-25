@@ -16617,6 +16617,95 @@
         "title": "ObjectionOut",
         "type": "object"
       },
+      "OfficeChoiceOut": {
+        "description": "One office an Office Picker may offer (design `portal-ui-polish-2`, decision 29).",
+        "properties": {
+          "ancestors": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Ancestors",
+            "type": "array"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "depth": {
+            "title": "Depth",
+            "type": "integer"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "parent_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Code"
+          },
+          "tier": {
+            "title": "Tier",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "kind",
+          "tier",
+          "depth",
+          "parent_code",
+          "ancestors",
+          "is_active"
+        ],
+        "title": "OfficeChoiceOut",
+        "type": "object"
+      },
+      "OfficeChoicesOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OfficeChoiceOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "purpose": {
+            "enum": [
+              "users",
+              "membership",
+              "office_parent",
+              "counsel_codes",
+              "keywords",
+              "watchlist",
+              "audit"
+            ],
+            "title": "Purpose",
+            "type": "string"
+          }
+        },
+        "required": [
+          "purpose",
+          "items"
+        ],
+        "title": "OfficeChoicesOut",
+        "type": "object"
+      },
       "OfficeCountsOut": {
         "properties": {
           "children": {
@@ -28355,6 +28444,73 @@
         ]
       }
     },
+    "/admin/offices/choices": {
+      "get": {
+        "description": "The offices one Office Picker may offer (design `portal-ui-polish-2`, decision 29), in tree order: `users`\n(`users.view`, the scope of `GET /admin/users`), `membership` (`users.create`), `office_parent`\n(`offices.manage`), `counsel_codes` / `keywords` / `watchlist` (that mapping function), each the subtrees of\nthe caller's memberships holding the function (everything for the super admin), active only; `audit`\n(`audit.view` in a State-wide membership, else 403 `audit_scope`): every office, inactive ones included.\n`include_inactive=true` needs `offices.manage` and widens `users` only. Reads only.",
+        "operationId": "office_choices_admin_offices_choices_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "purpose",
+            "required": true,
+            "schema": {
+              "enum": [
+                "users",
+                "membership",
+                "office_parent",
+                "counsel_codes",
+                "keywords",
+                "watchlist",
+                "audit"
+              ],
+              "title": "Purpose",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_inactive",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Inactive",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfficeChoicesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Office Choices",
+        "tags": [
+          "offices"
+        ]
+      }
+    },
     "/admin/offices/tree": {
       "get": {
         "description": "The caller's scope as a tree: the root office(s) for a State-wide view, else the caller's own office.",
@@ -30671,7 +30827,7 @@
     },
     "/admin/users": {
       "get": {
-        "description": "Logins with an active membership in the caller's scope (optionally under `office`), each with all of its\nmemberships (decision 8). Design `portal-shell`, decision 16b: `q` (2+ characters, name or e-mail), `role`\n(of an active membership in scope), `include_ended` (State-wide scope only: logins with no active membership\ntoo), `limit` (1-200) and `offset`; `X-Total-Count` counts the same filters. Without `limit` every row.\nDesign case-workspace-admin, decision 23: `status` — `active` (sign-in on and signed in at least once),\n`not_signed_in` (on, never signed in) or `off` (sign-in turned off).",
+        "description": "Logins with an active membership in the caller's scope (optionally under `office`), each with all of its\nmemberships (decision 8). Design `portal-shell`, decision 16b: `q` (2+ characters, name or e-mail), `role`\n(of an active membership in scope), `include_ended` (State-wide scope only: logins with no active membership\ntoo), `limit` (1-200) and `offset`; `X-Total-Count` counts the same filters. Without `limit` every row.\nDesign case-workspace-admin, decision 23: `status` — `active` (sign-in on and signed in at least once),\n`not_signed_in` (on, never signed in) or `off` (sign-in turned off). Design `portal-ui-polish-2`, decision 30:\n`subtree=false` narrows `office` to that office exactly (default `true`, its whole subtree).",
         "operationId": "list_users_admin_users_get",
         "parameters": [
           {
@@ -30688,6 +30844,18 @@
                 }
               ],
               "title": "Office"
+            }
+          },
+          {
+            "description": "false: members of `office` itself, without its sub-offices",
+            "in": "query",
+            "name": "subtree",
+            "required": false,
+            "schema": {
+              "default": true,
+              "description": "false: members of `office` itself, without its sub-offices",
+              "title": "Subtree",
+              "type": "boolean"
             }
           },
           {
@@ -33498,6 +33666,18 @@
               ],
               "description": "actor office code (its subtree)",
               "title": "Office"
+            }
+          },
+          {
+            "description": "false: the office alone, without its sub-offices",
+            "in": "query",
+            "name": "office_subtree",
+            "required": false,
+            "schema": {
+              "default": true,
+              "description": "false: the office alone, without its sub-offices",
+              "title": "Office Subtree",
+              "type": "boolean"
             }
           },
           {

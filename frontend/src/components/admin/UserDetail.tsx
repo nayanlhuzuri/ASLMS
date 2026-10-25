@@ -1,31 +1,33 @@
 "use client";
 
 /**
- * User detail (design portal-shell, decision 15): the login (name, e-mail correction, mobile), enable / disable, a
- * temporary password, the memberships (add, change designation or type, make primary, end with the exit dialog,
- * reactivate), each membership's functions with grant / deny overrides and the orders linked to a membership. Each
- * action shows only with its function; the API decides (scope, delegation, reserved functions).
+ * The parts of a user's details (design portal-shell, decision 15), recomposed by the User Details modal (design
+ * portal-ui-polish-2, decisions 31-38): the login fields (name, e-mail correction, mobile) in Edit Profile, the
+ * temporary password, the change of a membership's designation or type, a new membership (its office from the Office
+ * Picker), the exit dialog that ends a membership, a membership's functions with grant / deny overrides and the orders
+ * linked to it. Each action shows only with its function; the API decides (scope, delegation, reserved functions).
+ * Their calls and rules are those of the earlier full page, unchanged.
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import Link from "next/link";
 import { useState, type FormEvent } from "react";
 
 import {
   Badge,
   Button,
   CaseLink,
+  ConfirmDialog,
+  DataTable,
   Dialog,
   EmptyState,
   ErrorBanner,
   Loading,
   Notice,
   SelectField,
-  DataTable,
   TextArea,
   TextField,
 } from "@/components/ui";
 import { api } from "@/lib/api/client";
-import { labelOf, useLabels, useMe } from "@/lib/api/hooks";
+import { labelOf } from "@/lib/api/hooks";
 import type {
   ExitPreview,
   Me,
@@ -38,298 +40,101 @@ import type {
   UserOut,
   UserTypeLabel,
 } from "@/lib/api/types";
-import { can, canAny, readsAudit } from "@/lib/can";
-import { formatDate, formatDateTime } from "@/lib/format";
+import { can } from "@/lib/can";
+import { formatDate } from "@/lib/format";
 import { T } from "@/lib/messages";
-import { queryString } from "@/lib/params";
 import { useAction } from "@/lib/useAction";
-
-import a from "./admin.module.css";
 
 import { assignableOptions, DesignationInput, MembershipFields, type MembershipDraft } from "./Users";
 
-function userKey(id: string) {
+export function userKey(id: string) {
   return ["admin", "user", id] as const;
 }
 
-export function UserDetail({ id }: { id: string }) {
-  const me = useMe();
-  const labels = useLabels();
-  const user = useQuery({ queryKey: userKey(id), queryFn: () => api<UserOut>(`/admin/users/${id}`) });
-  const memberships = useQuery({
-    queryKey: [...userKey(id), "memberships"],
-    queryFn: () => api<MembershipOut[]>(`/admin/users/${id}/memberships`, { query: { include_ended: true } }),
-  });
-  if (user.isPending || me.isPending) return <Loading />;
-  if (user.error || !user.data || !me.data) return <ErrorBanner error={user.error ?? me.error} onRetry={() => user.refetch()} />;
-  return (
-    <div className="stack">
-      <LoginCard user={user.data} me={me.data} />
-      <section className="card stack" aria-label={T.users.memberships}>
-        <h2>{T.users.memberships}</h2>
-        {memberships.isPending ? <Loading /> : null}
-        <ErrorBanner error={memberships.error} onRetry={() => memberships.refetch()} />
-        {memberships.data ? (
-          <MembershipTable user={user.data} memberships={memberships.data} me={me.data} types={labels.data?.user_types} />
-        ) : null}
-        {can(me.data, "users.create") ? <AddMembership userId={id} types={labels.data?.user_types} /> : null}
-      </section>
-    </div>
-  );
-}
-
-function useRefreshUser(id: string) {
+export function useRefreshUser(id: string) {
   const queryClient = useQueryClient();
-  return () => queryClient.invalidateQueries({ queryKey: userKey(id) });
+  return () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: userKey(id) }),
+      // the list behind the modal shows the same person
+      queryClient.invalidateQueries({ queryKey: ["admin", "users"] }),
+    ]);
 }
 
-function LoginCard({ user, me }: { user: UserOut; me: Me }) {
+/** Edit Profile (decision 32): the login fields of the earlier page in a dialog; only changed fields are sent. */
+export function EditProfileDialog({ user, onClose }: { user: UserOut; onClose: () => void }) {
   const refresh = useRefreshUser(user.id);
-  const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ full_name: user.full_name, email: user.email, mobile: user.mobile ?? "" });
-  const [passwordOpen, setPasswordOpen] = useState(false);
-  const [password, setPassword] = useState("");
   const save = useAction();
-  const toggle = useAction();
-  const reset = useAction();
 
-  async function submit(e: FormEvent) {
-    e.preventDefault();
+  async function submit() {
     const body: Record<string, string | null> = {};
     if (form.full_name.trim() !== user.full_name) body.full_name = form.full_name.trim();
     if (form.email.trim().toLowerCase() !== user.email) body.email = form.email.trim();
     if ((form.mobile.trim() || null) !== (user.mobile ?? null)) body.mobile = form.mobile.trim() || null;
+    if (Object.keys(body).length === 0) {
+      onClose();
+      return;
+    }
     const out = await save.run(() => api<UserOut>(`/admin/users/${user.id}`, { method: "PATCH", body }));
     if (out.ok) {
-      setEditing(false);
       await refresh();
+      onClose();
     }
   }
 
-  async function setEnabled(enabled: boolean) {
-    const out = await toggle.run(() =>
-      api<UserOut>(`/admin/users/${user.id}/${enabled ? "enable" : "disable"}`, { method: "POST" }),
-    );
-    if (out.ok) await refresh();
-  }
-
-  async function setTemporary(e: FormEvent) {
-    e.preventDefault();
-    const out = await reset.run(() => api(`/admin/users/${user.id}/password`, { method: "POST", body: { password } }));
-    if (out.ok) setPassword("");
-  }
-
   return (
-    <section className="card stack" aria-label={T.users.login}>
-      <div className={a.groupHead}>
-        <h2>{user.full_name}</h2>
-        {user.is_active ? <Badge tone="success">{T.active}</Badge> : <Badge tone="danger">{T.users.disabled}</Badge>}
-      </div>
-      {editing ? (
-        <form className="stack" onSubmit={submit}>
-          <div className="row">
-            <TextField label={T.auth.fullName} value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} />
-            <TextField label={T.users.email} type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-            <TextField label={T.users.mobile} type="tel" value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} />
-          </div>
-          <ErrorBanner error={save.error} />
-          <div className="actions">
-            <Button type="submit" busy={save.busy}>
-              {T.save}
-            </Button>
-            <Button variant="secondary" onClick={() => setEditing(false)}>
-              {T.cancel}
-            </Button>
-          </div>
-        </form>
-      ) : (
-        <dl className="facts">
-          <dt>{T.users.email}</dt>
-          <dd>{user.email}</dd>
-          <dt>{T.users.mobile}</dt>
-          <dd>{user.mobile ?? "—"}</dd>
-          <dt>{T.users.lastLogin}</dt>
-          <dd>{formatDateTime(user.last_login_at)}</dd>
-        </dl>
-      )}
-      {readsAudit(me) ? (
-        // design portal-audit-health, decision 7: audit readers only; the API re-checks
-        <nav className="actions" aria-label={T.audit.links}>
-          <Link href={`/audit${queryString({ user: user.id })}`}>{T.audit.byUser}</Link>
-          <Link href={`/audit${queryString({ about_user: user.id })}`}>{T.audit.aboutThisUser}</Link>
-        </nav>
-      ) : null}
-      <ErrorBanner error={toggle.error} />
-      <div className="actions">
-        {can(me, "users.edit") && !editing ? (
-          <Button variant="secondary" onClick={() => setEditing(true)}>
-            {T.edit}
-          </Button>
-        ) : null}
-        {can(me, "users.enable_disable") ? (
-          user.is_active ? (
-            <Button variant="danger" busy={toggle.busy} onClick={() => setEnabled(false)}>
-              {T.users.disable}
-            </Button>
-          ) : (
-            <Button variant="secondary" busy={toggle.busy} onClick={() => setEnabled(true)}>
-              {T.users.enable}
-            </Button>
-          )
-        ) : null}
-        {can(me, "users.reset_password") ? (
-          <Button variant="secondary" onClick={() => setPasswordOpen(true)}>
-            {T.users.setPassword}
-          </Button>
-        ) : null}
-      </div>
-      <Dialog open={passwordOpen} title={T.users.setPassword} onClose={() => setPasswordOpen(false)}>
-        <form className="stack" onSubmit={setTemporary}>
-          <TextField
-            label={T.users.tempPassword}
-            type="password"
-            autoComplete="new-password"
-            hint={T.users.tempPasswordHint}
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-          <ErrorBanner error={reset.error} />
-          {reset.done ? <Notice>{T.users.passwordSet}</Notice> : null}
-          <Button type="submit" busy={reset.busy}>
-            {T.save}
-          </Button>
-        </form>
-      </Dialog>
-    </section>
+    <ConfirmDialog
+      open
+      title={T.userDetails.editProfileButton}
+      subtitle={user.full_name}
+      onClose={onClose}
+      onConfirm={() => void submit()}
+      busy={save.busy}
+      error={save.error}
+      confirmLabel={T.save}
+    >
+      <TextField label={T.auth.fullName} value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} />
+      <TextField label={T.users.email} type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+      <TextField label={T.users.mobile} type="tel" value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} />
+    </ConfirmDialog>
   );
 }
 
-function MembershipTable({
-  user,
-  memberships,
-  me,
-  types,
-}: {
-  user: UserOut;
-  memberships: MembershipOut[];
-  me: Me;
-  types: UserTypeLabel[] | undefined;
-}) {
-  const refresh = useRefreshUser(user.id);
-  const [changing, setChanging] = useState<MembershipOut | null>(null);
-  const [ending, setEnding] = useState<MembershipOut | null>(null);
-  const [functionsOf, setFunctionsOf] = useState<string | null>(null);
-  const [documentsOf, setDocumentsOf] = useState<string | null>(null);
-  const action = useAction();
-  if (memberships.length === 0) return <EmptyState>{T.users.noMembership}</EmptyState>;
-
-  async function makePrimary(m: MembershipOut) {
-    const out = await action.run(() =>
-      api(`/admin/users/${user.id}/primary-membership`, { method: "PUT", body: { membership: m.id } }),
-    );
-    if (out.ok) await refresh();
-  }
-
-  async function reactivate(m: MembershipOut) {
-    const out = await action.run(() => api(`/admin/users/${user.id}/memberships/${m.id}/reactivate`, { method: "POST" }));
-    if (out.ok) await refresh();
-  }
-
+/** Reset Password (decision 32): a temporary password the person must change at the next sign-in. */
+export function PasswordDialog({ user, onClose }: { user: UserOut; onClose: () => void }) {
+  const [password, setPassword] = useState("");
+  const reset = useAction();
   return (
-    <>
-      <ErrorBanner error={action.error} />
-      <DataTable
-        caption={T.users.memberships}
-        rows={memberships}
-        rowKey={(m) => m.id}
-        columns={[
-          {
-            key: "office",
-            header: T.offices.name,
-            primary: true,
-            cell: (m) => (
-              <>
-                {m.office.name} <span className="mono muted">{m.office.code}</span>
-                {m.is_primary ? (
-                  <>
-                    {" "}
-                    <Badge>{T.shell.primary}</Badge>
-                  </>
-                ) : null}
-              </>
-            ),
-          },
-          { key: "designation", header: T.users.designation, cell: (m) => m.designation ?? "—" },
-          { key: "type", header: T.users.type, cell: (m) => labelOf(types, m.role) },
-          {
-            key: "status",
-            header: T.users.status,
-            cell: (m) => (m.is_active !== false ? T.active : `${T.users.ended} ${formatDate(m.valid_to)}`),
-          },
-          {
-            key: "change",
-            header: <span className="visually-hidden">{T.users.change}</span>,
-            label: T.users.change,
-            cell: (m) => {
-              const active = m.is_active !== false;
-              return (
-                <div className="actions">
-                  {active && canAny(me, ["users.edit", "users.set_type"]) ? (
-                    <Button variant="link" onClick={() => setChanging(m)}>
-                      {T.users.change}
-                    </Button>
-                  ) : null}
-                  {active && !m.is_primary && can(me, "users.edit") ? (
-                    <Button variant="link" busy={action.busy} onClick={() => makePrimary(m)}>
-                      {T.users.makePrimary}
-                    </Button>
-                  ) : null}
-                  {active && can(me, "users.enable_disable") ? (
-                    <Button variant="link" onClick={() => setEnding(m)}>
-                      {T.users.end}
-                    </Button>
-                  ) : null}
-                  {!active && can(me, "users.enable_disable") ? (
-                    <Button variant="link" busy={action.busy} onClick={() => reactivate(m)}>
-                      {T.users.reactivate}
-                    </Button>
-                  ) : null}
-                  {can(me, "users.view") ? (
-                    <Button
-                      variant="link"
-                      aria-expanded={functionsOf === m.id}
-                      onClick={() => setFunctionsOf(functionsOf === m.id ? null : m.id)}
-                    >
-                      {T.users.showFunctions}
-                    </Button>
-                  ) : null}
-                  {canAny(me, ["users.propose_head", "admin.tickets"]) ? (
-                    <Button
-                      variant="link"
-                      aria-expanded={documentsOf === m.id}
-                      onClick={() => setDocumentsOf(documentsOf === m.id ? null : m.id)}
-                    >
-                      {T.users.documents}
-                    </Button>
-                  ) : null}
-                </div>
-              );
-            },
-          },
-        ]}
+    <ConfirmDialog
+      open
+      title={T.userDetails.resetPassword}
+      subtitle={user.full_name}
+      onClose={onClose}
+      onConfirm={() => {
+        void reset.run(() => api(`/admin/users/${user.id}/password`, { method: "POST", body: { password } })).then((out) => {
+          if (out.ok) setPassword("");
+        });
+      }}
+      busy={reset.busy}
+      error={reset.error}
+      confirmLabel={T.save}
+    >
+      <TextField
+        label={T.users.tempPassword}
+        type="password"
+        autoComplete="new-password"
+        hint={T.users.tempPasswordHint}
+        required
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
       />
-      {functionsOf ? <MembershipFunctionsPanel userId={user.id} membershipId={functionsOf} me={me} /> : null}
-      {documentsOf ? <MembershipDocuments userId={user.id} membershipId={documentsOf} /> : null}
-      {changing ? (
-        <ChangeMembership userId={user.id} membership={changing} me={me} types={types} onClose={() => setChanging(null)} />
-      ) : null}
-      {ending ? <ExitDialog userId={user.id} membership={ending} onClose={() => setEnding(null)} /> : null}
-    </>
+      {reset.done ? <Notice>{T.users.passwordSet}</Notice> : null}
+    </ConfirmDialog>
   );
 }
 
-function ChangeMembership({
+export function ChangeMembership({
   userId,
   membership,
   me,
@@ -379,9 +184,17 @@ function ChangeMembership({
   );
 }
 
-function AddMembership({ userId, types }: { userId: string; types: UserTypeLabel[] | undefined }) {
+/** Add Office (decision 34): a new membership, its office chosen from the Office Picker (purpose `membership`). */
+export function AddMembershipDialog({
+  userId,
+  types,
+  onClose,
+}: {
+  userId: string;
+  types: UserTypeLabel[] | undefined;
+  onClose: () => void;
+}) {
   const refresh = useRefreshUser(userId);
-  const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<MembershipDraft>({ office: "", designation: "", role: "" });
   const save = useAction();
 
@@ -395,27 +208,20 @@ function AddMembership({ userId, types }: { userId: string; types: UserTypeLabel
     );
     if (out.ok) {
       await refresh();
-      setOpen(false);
+      onClose();
     }
   }
 
   return (
-    <>
-      <div>
-        <Button variant="secondary" onClick={() => setOpen(true)}>
-          {T.users.addMembership}
+    <Dialog open title={T.userDetails.addOfficeButton} onClose={onClose}>
+      <form className="stack" onSubmit={submit}>
+        <MembershipFields value={draft} onChange={setDraft} types={types} />
+        <ErrorBanner error={save.error} />
+        <Button type="submit" busy={save.busy} disabled={!draft.office || !draft.role}>
+          {T.userDetails.addOfficeButton}
         </Button>
-      </div>
-      <Dialog open={open} title={T.users.addMembership} onClose={() => setOpen(false)}>
-        <form className="stack" onSubmit={submit}>
-          <MembershipFields value={draft} onChange={setDraft} types={types} />
-          <ErrorBanner error={save.error} />
-          <Button type="submit" busy={save.busy}>
-            {T.save}
-          </Button>
-        </form>
-      </Dialog>
-    </>
+      </form>
+    </Dialog>
   );
 }
 
@@ -529,7 +335,7 @@ export function ExitDialog({
   );
 }
 
-function usePermissions() {
+export function usePermissions() {
   return useQuery({
     queryKey: ["admin", "permissions"],
     queryFn: () => api<PermissionInfo[]>("/admin/permissions"),
@@ -537,9 +343,14 @@ function usePermissions() {
   });
 }
 
+export function functionsKey(userId: string, membershipId: string) {
+  return [...userKey(userId), "functions", membershipId] as const;
+}
+
+/** The functions of one membership with grant / deny switches (Change Exceptions, decision 35). */
 export function MembershipFunctionsPanel({ userId, membershipId, me }: { userId: string; membershipId: string; me: Me }) {
   const queryClient = useQueryClient();
-  const key = [...userKey(userId), "functions", membershipId];
+  const key = functionsKey(userId, membershipId);
   const functions = useQuery({
     queryKey: key,
     queryFn: () => api<MembershipFunctions>(`/admin/users/${userId}/memberships/${membershipId}/permissions`),
@@ -565,7 +376,6 @@ export function MembershipFunctionsPanel({ userId, membershipId, me }: { userId:
   const overrides = new Map(data.overrides.filter((o) => o.is_active).map((o) => [o.permission, o]));
   return (
     <section className="stack" aria-label={T.users.functions}>
-      <h3>{T.users.functions}</h3>
       {mayGrant ? <TextField label={T.users.reason} value={reason} onChange={(e) => setReason(e.target.value)} /> : null}
       <ErrorBanner error={action.error} />
       <DataTable
@@ -642,7 +452,8 @@ export function MembershipFunctionsPanel({ userId, membershipId, me }: { userId:
   );
 }
 
-function MembershipDocuments({ userId, membershipId }: { userId: string; membershipId: string }) {
+/** The government orders linked to a membership (Government Orders, decision 34). */
+export function MembershipDocuments({ userId, membershipId }: { userId: string; membershipId: string }) {
   const documents = useQuery({
     queryKey: [...userKey(userId), "documents", membershipId],
     queryFn: () => api<MembershipDocument[]>(`/admin/users/${userId}/memberships/${membershipId}/documents`),

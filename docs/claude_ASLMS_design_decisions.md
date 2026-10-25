@@ -2598,3 +2598,27 @@ Row 153, design `docs/design/portal-ui-polish-2.md` (approved by the owner 25 Oc
 - Round 2 (row 162, Office Picker, Users toolbar, User Details modal, simpler Department Mapping) and round 3 (row 163, Filter Layout B, View Cause List modal).
 - Operations: apply 0026 with the `migrate` step, then `init`; rebuild with `docker compose build`. The Compose uicheck run and the design's browser checks are the integrator's and the owner's.
 
+
+## Office Picker, Users toolbar, User Details and Department Mapping (2026-10-26)
+Row 162, design `docs/design/portal-ui-polish-2-admin.md` (a pointer to `docs/design/portal-ui-polish-2.md`, decisions 27-43, approved by the owner 25 Oct 2026), branch `feature/portal-ui-polish-2-admin`. Round 2 of 3. No migration.
+
+**Built**
+- **API (read-only).** `GET /admin/offices/choices?purpose=...` (purposes `users`, `membership`, `office_parent`, `counsel_codes`, `keywords`, `watchlist`, `audit`) answers the offices one picker may offer, in tree order, each with its ancestors; `subtree=false` on `GET /admin/users` and `office_subtree=false` on `GET /audit` narrow a filter to the office itself. Tests `test_office_choices.py`, additions to `test_api_users_list.py`, `test_api_audit.py`, `test_audit_search.py`.
+- **Frontend.** The kit's `OfficePicker` (ARIA combobox over the office tree, filter by name or code, path under a match, keys, clear, Include Sub-offices, Inactive badge) used in the Users filter, Add User, Add Office, New Office's parent, the mapping add rows, Map and Change Office, Reports' Holding Department and the Audit Log office filter; the Users toolbar with More Filters and filters in the query string; the User Details modal on `/admin/users/<id>` (Overview, Offices, Functions with Given and Taken marks, Activity), `?user=<id>` redirecting; Department Mapping without notes or per-rule weights in the forms, one toolbar and add row per tab, a menu per row, Recommended From Cause Lists always shown, Scoring with sliders, the band bar and a save bar. Five new uicheck states and fixtures.
+
+**Decisions and reasons**
+1. The list endpoint is `/admin/offices/choices` (the offices router carries `/admin`), declared before `/admin/offices/{code}`.
+2. `include_inactive` needs `offices.manage` (except for `audit`, which always lists inactive offices) and widens `users` only; the other purposes stay active only.
+3. Each office's `ancestors` names every office above it, also those outside the caller's subtree, so a match shows its full path. Visibility of what a caller may pick still follows the function held in each membership.
+4. Change Office is offered only on counsel codes, because only `PATCH /admin/counsel-codes/{id}` accepts an office change; the other mapping rows offer Deactivate or Reactivate.
+5. Keywords and Watchlist search filters in the browser (those lists have no `q` and are unpaged).
+6. Reports' Holding Department offers every active department from `GET /custody/recipients`, since a case may be with any department.
+7. No visibility, permission or business rule changed; no new write.
+
+**Deviations** (15 listed with reasons in the design note's "Deviations, round 2"; none changes a rule or a function)
+- The status "Off" reads "Sign-in Off"; More Filters shows only to the Super Administrator; the Watchlist add row drops Reason; "+ sub" is a new `SENTENCE_EXCEPTIONS` entry.
+
+**Left for later**
+- Round 3 (row 163): Filter Layout B, date navigator, View Cause List modal.
+- Row 165: Change Office for keyword, name-pattern and watchlist rows needs an API change; `q` on those three lists.
+- The Compose uicheck run and the design's browser checks are the integrator's and the owner's.

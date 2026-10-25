@@ -93,3 +93,16 @@ def test_filters_never_widen_scope(api):
     assert _emails(r) == [] and r.headers["X-Total-Count"] == "0"
     # an officer without users.view gets nothing at all
     assert api.get("/admin/users", headers=headers(api, "anil.kumar@example.org")).status_code == 403
+
+
+def test_subtree_false_narrows_to_the_office(api):
+    """Design `portal-ui-polish-2`, decision 30: `subtree=false` lists the members of the office itself."""
+    h = headers(api, "root@example.org")
+    whole = api.get("/admin/users", params={"office": "EDU"}, headers=h)
+    assert _emails(whole) == ["admin.edu@example.org", "anita.sharma@example.org"]
+    only = api.get("/admin/users", params={"office": "EDU", "subtree": "false"}, headers=h)
+    assert _emails(only) == ["admin.edu@example.org"] and only.headers["X-Total-Count"] == "1"
+    # narrowing never widens: a department admin of EDU still sees nothing of HEALTH
+    h_edu = headers(api, "admin.edu@example.org")
+    r = api.get("/admin/users", params={"office": "HEALTH", "subtree": "false"}, headers=h_edu)
+    assert _emails(r) == []

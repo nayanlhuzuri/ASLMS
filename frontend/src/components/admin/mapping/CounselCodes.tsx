@@ -1,354 +1,274 @@
 "use client";
 
 /**
- * Counsel codes (design portal-mapping, decision 5; plan §4.1: "each code is mapped to its department in the
- * administration module"; Annexure B "Department mapping"), with the panel of codes seen in cause lists but not
- * mapped. Nothing is mapped automatically: "Map" only fills the form. A code mapped to the root office is generic
- * (recognised, recommends no department); the form sends `is_generic_state` exactly when the root office is chosen.
+ * Counsel codes (design portal-mapping, decision 5; simplified by portal-ui-polish-2, decisions 39-42; plan §4.1:
+ * "each code is mapped to its department in the administration module"). One toolbar line (Search Codes with the
+ * list's `q`, Include Deactivated), one add row (Code, Office from the Office Picker, Add Code), the list with a menu
+ * per row (Change Office, Deactivate or Reactivate), and "Recommended From Cause Lists" always beside it: the codes
+ * seen in cause lists with no mapping, each with its own picker and Map. Nothing is mapped automatically: Map is a
+ * person's decision. A code mapped to the root office is generic (recognised, recommends no department); the forms
+ * send `is_generic_state` exactly when the root office is chosen. Notes and weights are never sent (decision 39).
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useId, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 
 import {
   Badge,
   Button,
-  CheckField,
-  ConfirmDialog,
+  Card,
+  DataTable,
   EmptyState,
   ErrorBanner,
   Loading,
   Notice,
-  DataTable,
-  TextArea,
+  OfficePicker,
   TextField,
 } from "@/components/ui";
 import { api } from "@/lib/api/client";
-import { MAPPING_KEY, useMe } from "@/lib/api/hooks";
-import type { CounselCode, CounselCodeList, UnmappedCode } from "@/lib/api/types";
-import { can } from "@/lib/can";
+import { MAPPING_KEY, useOfficeChoices } from "@/lib/api/hooks";
+import type { CounselCode, CounselCodeList, OfficeChoice, UnmappedCode } from "@/lib/api/types";
 import { formatDate, formatDateTime, formatNumber } from "@/lib/format";
-import { given, isRootOffice, weightBody } from "@/lib/mapping";
+import { given } from "@/lib/mapping";
 import { T } from "@/lib/messages";
 import { useAction } from "@/lib/useAction";
 
-import {
-  conflictAware,
-  OfficeCell,
-  OfficeFilter,
-  OfficePicker,
-  RuleStatusActions,
-  SearchLink,
-  useOfficeChoices,
-  WeightCell,
-  weightDraft,
-  WeightField,
-  type WeightDraft,
-} from "./common";
+import { conflictAware, isRootChoice, OfficeCell, RuleMenu, RuleToolbar, SearchLink } from "./common";
 import s from "./mapping.module.css";
 
 const CODES_KEY = [...MAPPING_KEY, "codes"] as const;
-const UNMAPPED_KEY = [...MAPPING_KEY, "unmapped"] as const;
+export const UNMAPPED_KEY = [...MAPPING_KEY, "unmapped"] as const;
+
+/** The search words typed, sent as `q` once typing pauses. */
+function useSettled(value: string, ms = 300): string {
+  const [settled, setSettled] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setSettled(value), ms);
+    return () => clearTimeout(t);
+  }, [value, ms]);
+  return settled;
+}
 
 export function CounselCodes() {
-  const me = useMe();
-  const canScore = can(me.data, "admin.scoring");
-  const choices = useOfficeChoices();
   const queryClient = useQueryClient();
-  const officeFieldId = useId();
-
-  const [filter, setFilter] = useState({ q: "", office: "", inactive: false });
-  const [qDraft, setQDraft] = useState("");
+  const [q, setQ] = useState("");
+  const [inactive, setInactive] = useState(false);
+  const query = useSettled(q.trim());
   const list = useQuery({
-    queryKey: [...CODES_KEY, filter],
+    queryKey: [...CODES_KEY, { q: query, inactive }],
     queryFn: () =>
       api<CounselCodeList>("/admin/counsel-codes", {
-        query: { q: filter.q || undefined, office: filter.office || undefined, include_inactive: filter.inactive || undefined },
+        query: { q: query || undefined, include_inactive: inactive || undefined },
       }),
   });
   const refresh = () => queryClient.invalidateQueries({ queryKey: CODES_KEY });
-
-  const [draft, setDraft] = useState({ code: "", office: "", notes: "" });
-  const [weight, setWeight] = useState<WeightDraft>(weightDraft(null));
   const [notice, setNotice] = useState<string | null>(null);
-  const action = useAction();
-  const chosen = choices.offices.find((o) => o.code === draft.office);
-  const generic = isRootOffice(chosen);
-  const [editing, setEditing] = useState<CounselCode | null>(null);
+  // a generic code (on the root office) is managed only by a login whose scope holds the root office
+  const choices = useOfficeChoices("counsel_codes");
+  const editableGeneric = (choices.data?.items ?? []).some((o) => isRootChoice(o));
 
-  async function add(e: FormEvent) {
-    e.preventDefault();
-    setNotice(null);
-    const out = await action.run(() =>
-      conflictAware(
-        () =>
-          api<CounselCode>("/admin/counsel-codes", {
-            method: "POST",
-            body: {
-              code: draft.code.trim(),
-              office_code: draft.office.trim(),
-              is_generic_state: generic,
-              notes: draft.notes.trim() || null,
-              ...(canScore ? weightBody(weight.changed, weight.value) : {}),
-            },
-          }),
-        () => void refresh(),
-      ),
-    );
-    if (out.ok) {
-      setNotice(T.mapping.appliesWithin(out.value.applies_within_minutes ?? 15));
-      setDraft({ code: "", office: "", notes: "" });
-      setWeight(weightDraft(null));
-      // the mapped code leaves the unmapped panel without scanning the cause lists again
-      queryClient.setQueryData<UnmappedCode[]>(UNMAPPED_KEY, (old) => old?.filter((u) => u.code !== out.value.code));
-      await refresh();
-    }
+  function saved(row: CounselCode) {
+    setNotice(T.mapping.appliesWithin(row.applies_within_minutes ?? 15));
+    // the mapped code leaves the recommended panel without scanning the cause lists again
+    queryClient.setQueryData<UnmappedCode[]>(UNMAPPED_KEY, (old) => old?.filter((u) => u.code !== row.code));
+    void refresh();
   }
-
-  function mapCode(code: string) {
-    setDraft((d) => ({ ...d, code }));
-    document.getElementById(officeFieldId)?.focus();
-  }
-
-  const editableGeneric = !!choices.root;
 
   return (
     <section className="stack" aria-label={T.mapping.codes}>
       <h3>{T.mapping.codes}</h3>
-      <form className={`row ${s.form}`} onSubmit={add} aria-label={T.mapping.addCode}>
-        <TextField
-          label={T.mapping.code}
-          required
-          maxLength={60}
-          hint={T.mapping.codeHint}
-          value={draft.code}
-          onChange={(e) => setDraft({ ...draft, code: e.target.value })}
-        />
-        <OfficePicker
-          id={officeFieldId}
-          choices={choices}
-          required
-          value={draft.office}
-          onChange={(office) => setDraft({ ...draft, office })}
-          hint={generic ? T.mapping.genericLine : undefined}
-        />
-        <TextArea
-          label={T.mapping.notes}
-          maxLength={4000}
-          rows={2}
-          value={draft.notes}
-          onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
-        />
-        {canScore ? <WeightField mode="create" draft={weight} onChange={setWeight} /> : null}
-        <Button type="submit" busy={action.busy}>
-          {T.mapping.addCode}
-        </Button>
-      </form>
-      <ErrorBanner error={given(action.error)} />
-      {notice ? <Notice>{notice}</Notice> : null}
-
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          setFilter({ ...filter, q: qDraft.trim() });
-        }}
-      >
-        <TextField label={T.mapping.filterCode} value={qDraft} onChange={(e) => setQDraft(e.target.value)} />
-        <OfficeFilter choices={choices} value={filter.office} onChange={(office) => setFilter({ ...filter, office })} />
-        <Button type="submit" variant="secondary">
-          {T.mapping.apply}
-        </Button>
-        <CheckField
-          inline
-          label={T.mapping.includeInactive}
-          checked={filter.inactive}
-          onChange={(e) => setFilter({ ...filter, inactive: e.target.checked })}
-        />
-      </form>
-
-      {list.isPending ? <Loading /> : null}
-      <ErrorBanner error={given(list.error)} onRetry={() => list.refetch()} />
-      {list.data ? (
-        list.data.items.length === 0 ? (
-          <EmptyState>{T.mapping.empty}</EmptyState>
-        ) : (
-          <DataTable
-            caption={T.mapping.codes}
-            rows={list.data.items}
-            rowKey={(row) => row.id}
-            columns={[
-              { key: "code", header: T.mapping.code, primary: true, cell: (row) => <span className="mono">{row.code}</span> },
-              { key: "office", header: T.mapping.office, cell: (row) => <OfficeCell office={row.office} /> },
-              {
-                key: "weight",
-                header: T.mapping.effectiveWeight,
-                align: "right",
-                cell: (row) => <WeightCell effective={row.effective_weight} override={row.weight_override} />,
-              },
-              { key: "generic", header: T.mapping.generic, cell: (row) => (row.is_generic_state ? T.yes : "—") },
-              {
-                key: "status",
-                header: T.mapping.status,
-                width: "var(--lead-w)",
-                cell: (row) => (row.is_active ? <Badge tone="success">{T.active}</Badge> : <Badge>{T.inactive}</Badge>),
-              },
-              { key: "notes", header: T.mapping.notes, cell: (row) => row.notes ?? "—" },
-              { key: "updated", header: T.mapping.updated, cell: (row) => formatDateTime(row.updated_at) },
-              {
-                key: "actions",
-                header: T.mapping.actions,
-                cell: (row) =>
-                  !row.is_generic_state || editableGeneric ? (
-                    <div className="actions">
-                      <Button variant="link" aria-label={`${T.edit} ${row.code}`} onClick={() => setEditing(row)}>
-                        {T.edit}
-                      </Button>
-                      <RuleStatusActions<CounselCode>
+      <div className={s.codesLayout}>
+        <div className={s.codesMain}>
+          <RuleToolbar
+            searchLabel={T.mapping.searchCodesLabel}
+            placeholder={T.mapping.searchCodesPlaceholder}
+            q={q}
+            onQ={setQ}
+            inactive={inactive}
+            onInactive={setInactive}
+          />
+          <AddCode onSaved={saved} onConflict={() => void refresh()} />
+          {notice ? <Notice>{notice}</Notice> : null}
+          {list.isPending ? <Loading /> : null}
+          <ErrorBanner error={given(list.error)} onRetry={() => list.refetch()} />
+          {list.data ? (
+            list.data.items.length === 0 ? (
+              <EmptyState>{T.mapping.empty}</EmptyState>
+            ) : (
+              <DataTable
+                caption={T.mapping.codes}
+                rows={list.data.items}
+                rowKey={(row) => row.id}
+                columns={[
+                  { key: "code", header: T.mapping.code, primary: true, cell: (row) => <span className="mono">{row.code}</span> },
+                  { key: "office", header: T.mapping.office, cell: (row) => <OfficeCell office={row.office} /> },
+                  { key: "generic", header: T.mapping.generic, cell: (row) => (row.is_generic_state ? T.yes : "—") },
+                  {
+                    key: "status",
+                    header: T.mapping.status,
+                    width: "var(--lead-w)",
+                    cell: (row) => (row.is_active ? <Badge tone="success">{T.active}</Badge> : <Badge>{T.inactive}</Badge>),
+                  },
+                  { key: "updated", header: T.mapping.updated, cell: (row) => formatDateTime(row.updated_at) },
+                  {
+                    key: "actions",
+                    header: <span className="visually-hidden">{T.mapping.actions}</span>,
+                    label: T.mapping.actions,
+                    width: "var(--s7)",
+                    align: "right",
+                    cell: (row) =>
+                      row.is_generic_state && !editableGeneric ? null : (
+                      <RuleMenu<CounselCode>
                         path={`/admin/counsel-codes/${row.id}`}
                         active={row.is_active}
                         label={row.code}
                         confirmText={T.mapping.ruleConfirm}
-                        onDone={(r) => {
-                          setNotice(T.mapping.appliesWithin(r.applies_within_minutes ?? 15));
-                          void refresh();
-                        }}
+                        onDone={(r) => saved(r)}
                         onConflict={() => void refresh()}
+                        office={{
+                          purpose: "counsel_codes",
+                          current: row.office.code,
+                          // a generic code stays generic (the root office); any other code moves among departments
+                          kinds: row.is_generic_state ? ["state"] : undefined,
+                          body: (_choice, code) => ({ office_code: code }),
+                        }}
                       />
-                    </div>
-                  ) : null,
-              },
-            ]}
-          />
-        )
-      ) : null}
-
-      {editing ? (
-        <EditCode
-          row={editing}
-          canScore={canScore}
-          onClose={() => setEditing(null)}
-          onSaved={(r) => {
-            setEditing(null);
-            setNotice(T.mapping.appliesWithin(r.applies_within_minutes ?? 15));
-            void refresh();
-          }}
-          onConflict={() => void refresh()}
-        />
-      ) : null}
-
-      <UnmappedCodes onMap={mapCode} />
-    </section>
-  );
-}
-
-function EditCode({
-  row,
-  canScore,
-  onClose,
-  onSaved,
-  onConflict,
-}: {
-  row: CounselCode;
-  canScore: boolean;
-  onClose: () => void;
-  onSaved: (row: CounselCode) => void;
-  onConflict: () => void;
-}) {
-  const choices = useOfficeChoices();
-  const officeId = useId();
-  const [office, setOffice] = useState(row.office.code);
-  const [notes, setNotes] = useState(row.notes ?? "");
-  const [weight, setWeight] = useState<WeightDraft>(weightDraft(row.weight_override));
-  const action = useAction();
-
-  async function save() {
-    const body: Record<string, unknown> = {
-      ...(office.trim() && office.trim() !== row.office.code ? { office_code: office.trim() } : {}),
-      ...(notes !== (row.notes ?? "") ? { notes } : {}),
-      ...(canScore ? weightBody(weight.changed, weight.value) : {}),
-    };
-    if (Object.keys(body).length === 0) {
-      onClose();
-      return;
-    }
-    const out = await action.run(() =>
-      conflictAware(() => api<CounselCode>(`/admin/counsel-codes/${row.id}`, { method: "PATCH", body }), onConflict),
-    );
-    if (out.ok) onSaved(out.value);
-  }
-
-  return (
-    <ConfirmDialog
-      open
-      title={T.mapping.editCode(row.code)}
-      onClose={onClose}
-      onConfirm={() => void save()}
-      busy={action.busy}
-      error={given(action.error)}
-      confirmLabel={T.save}
-    >
-      {row.is_generic_state ? <p className="muted">{T.mapping.genericLine}</p> : null}
-      <OfficePicker id={officeId} choices={choices} required value={office} onChange={setOffice} />
-      <TextArea label={T.mapping.notes} maxLength={4000} rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
-      {canScore ? <WeightField mode="edit" draft={weight} onChange={setWeight} current={row.weight_override} /> : null}
-    </ConfirmDialog>
-  );
-}
-
-/**
- * Codes seen in cause lists and dossiers with no mapping (`GET /admin/counsel-codes/unmapped?limit=100`), read when
- * the panel is first opened, never on page load (the query scans every cause-list entry).
- */
-export function UnmappedCodes({ onMap }: { onMap: (code: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const list = useQuery({
-    queryKey: UNMAPPED_KEY,
-    queryFn: () => api<UnmappedCode[]>("/admin/counsel-codes/unmapped", { query: { limit: 100 } }),
-    enabled: open,
-    staleTime: 10 * 60_000,
-    retry: false,
-  });
-  return (
-    <section className={`stack ${s.panel}`} aria-label={T.mapping.unmapped}>
-      <div className="row">
-        <h3>{T.mapping.unmapped}</h3>
-        <Button variant="secondary" aria-expanded={open} onClick={() => setOpen(!open)}>
-          {open ? T.mapping.hideUnmapped : T.mapping.showUnmapped}
-        </Button>
-      </div>
-      {open ? (
-        <>
-          <Notice>{T.mapping.unmappedNotice}</Notice>
-          {list.isFetching && !list.data ? <Loading /> : null}
-          <ErrorBanner error={given(list.error)} onRetry={() => list.refetch()} />
-          {list.data ? (
-            list.data.length === 0 ? (
-              <EmptyState>{T.mapping.noUnmapped}</EmptyState>
-            ) : (
-              <DataTable
-                caption={T.mapping.unmapped}
-                rows={list.data}
-                rowKey={(u) => u.code}
-                columns={[
-                  { key: "code", header: T.mapping.code, primary: true, cell: (u) => <span className="mono">{u.code}</span> },
-                  { key: "entries", header: T.mapping.entries, align: "right", cell: (u) => formatNumber(u.entries) },
-                  { key: "last", header: T.mapping.lastListed, cell: (u) => formatDate(u.last_listed) },
-                  { key: "example", header: T.mapping.example, cell: (u) => (u.example_case_ref ? <SearchLink ref_no={u.example_case_ref} /> : "—") },
-                  {
-                    key: "actions",
-                    header: T.mapping.actions,
-                    cell: (u) => (
-                      <Button variant="link" aria-label={T.mapping.mapCode(u.code)} onClick={() => onMap(u.code)}>
-                        {T.mapping.map}
-                      </Button>
                     ),
                   },
                 ]}
               />
             )
           ) : null}
-        </>
-      ) : null}
+        </div>
+        <RecommendedCodes onMapped={saved} onConflict={() => void refresh()} />
+      </div>
     </section>
+  );
+}
+
+/** The add row (decision 41): Code, Office (picker), Add Code; secondary, so the page keeps no primary of its own. */
+function AddCode({ onSaved, onConflict }: { onSaved: (row: CounselCode) => void; onConflict: () => void }) {
+  const [code, setCode] = useState("");
+  const [office, setOffice] = useState<string | null>(null);
+  const [chosen, setChosen] = useState<OfficeChoice | undefined>(undefined);
+  const action = useAction();
+  const generic = isRootChoice(chosen);
+
+  async function add(e: FormEvent) {
+    e.preventDefault();
+    if (!office) return;
+    const out = await action.run(() =>
+      conflictAware(
+        () =>
+          api<CounselCode>("/admin/counsel-codes", {
+            method: "POST",
+            body: { code: code.trim(), office_code: office, is_generic_state: generic },
+          }),
+        onConflict,
+      ),
+    );
+    if (out.ok) {
+      setCode("");
+      setOffice(null);
+      setChosen(undefined);
+      onSaved(out.value);
+    }
+  }
+
+  return (
+    <>
+      <form className={s.addRow} onSubmit={add} aria-label={T.mapping.addCode}>
+        <div className={s.narrow}>
+          <TextField label={T.mapping.code} required maxLength={60} title={T.mapping.codeHint} value={code} onChange={(e) => setCode(e.target.value)} />
+        </div>
+        <OfficePicker
+          label={T.mapping.office}
+          purpose="counsel_codes"
+          required
+          value={office}
+          onChange={setOffice}
+          onChoose={setChosen}
+          hint={generic ? T.mapping.genericLine : undefined}
+        />
+        <Button type="submit" variant="secondary" busy={action.busy} disabled={!office || !code.trim()}>
+          {T.mapping.addCode}
+        </Button>
+      </form>
+      <ErrorBanner error={given(action.error)} />
+    </>
+  );
+}
+
+/**
+ * "Recommended From Cause Lists" (decision 42): the codes seen in cause lists with no mapping
+ * (`GET /admin/counsel-codes/unmapped?limit=100`), always shown, each with its entries, when it was last seen, an
+ * example case, and its own picker with Map, which posts the mapping directly. The code then leaves the panel.
+ */
+export function RecommendedCodes({ onMapped, onConflict }: { onMapped: (row: CounselCode) => void; onConflict: () => void }) {
+  const list = useQuery({
+    queryKey: UNMAPPED_KEY,
+    queryFn: () => api<UnmappedCode[]>("/admin/counsel-codes/unmapped", { query: { limit: 100 } }),
+    staleTime: 10 * 60_000,
+    retry: false,
+  });
+  return (
+    <aside className={s.recommended} aria-label={T.mapping.recommendedTitle}>
+      <Card title={T.mapping.recommendedTitle} actions={list.data ? <span className="muted">{T.mapping.toReview(list.data.length)}</span> : null}>
+        <div className="stack">
+          <Notice>{T.mapping.recommendedNotice}</Notice>
+          {list.isPending ? <Loading /> : null}
+          <ErrorBanner error={given(list.error)} onRetry={() => list.refetch()} />
+          {list.data ? (
+            list.data.length === 0 ? (
+              <EmptyState>{T.mapping.noUnmapped}</EmptyState>
+            ) : (
+              <ul className={s.recList}>
+                {list.data.map((u) => (
+                  <RecommendedCode key={u.code} item={u} onMapped={onMapped} onConflict={onConflict} />
+                ))}
+              </ul>
+            )
+          ) : null}
+        </div>
+      </Card>
+    </aside>
+  );
+}
+
+function RecommendedCode({ item, onMapped, onConflict }: { item: UnmappedCode; onMapped: (row: CounselCode) => void; onConflict: () => void }) {
+  const [office, setOffice] = useState<string | null>(null);
+  const [chosen, setChosen] = useState<OfficeChoice | undefined>(undefined);
+  const action = useAction();
+
+  async function map(e: FormEvent) {
+    e.preventDefault();
+    if (!office) return;
+    const out = await action.run(() =>
+      conflictAware(
+        () =>
+          api<CounselCode>("/admin/counsel-codes", {
+            method: "POST",
+            body: { code: item.code, office_code: office, is_generic_state: isRootChoice(chosen) },
+          }),
+        onConflict,
+      ),
+    );
+    if (out.ok) onMapped(out.value);
+  }
+
+  return (
+    <li>
+      <div className={s.recTop}>
+        <span className="mono">{item.code}</span>
+        <span className="muted">{T.mapping.entriesLine(formatNumber(item.entries), formatDate(item.last_listed))}</span>
+      </div>
+      {item.example_case_ref ? <SearchLink ref_no={item.example_case_ref} /> : null}
+      <form className={s.recMap} onSubmit={map} aria-label={T.mapping.mapCode(item.code)}>
+        <OfficePicker label={T.mapping.officeFor(item.code)} hideLabel purpose="counsel_codes" value={office} onChange={setOffice} onChoose={setChosen} />
+        <Button type="submit" variant="secondary" busy={action.busy} disabled={!office} aria-label={T.mapping.mapCode(item.code)}>
+          {T.mapping.map}
+        </Button>
+      </form>
+      <ErrorBanner error={given(action.error)} />
+    </li>
   );
 }

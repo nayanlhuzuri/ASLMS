@@ -194,6 +194,18 @@ def test_office_filter_covers_subtree(world):
         s.rollback()
 
 
+def test_office_subtree_false(world):
+    """Design `portal-ui-polish-2`, decision 30: `office_subtree=False` narrows to the office alone."""
+    with world.Session() as s:
+        now = datetime.now(UTC)
+        edu = _row(s, now - timedelta(seconds=3), office="EDU", action="test.office")
+        _row(s, now - timedelta(seconds=2), office="EDU-DSE", action="test.office")
+        assert _ids(_search(s, world, office_code="EDU", office_subtree=False, action="test.office")) == [
+            edu.id
+        ]
+        s.rollback()
+
+
 def test_keyset_paging_has_no_gaps_or_repeats(world):
     with world.Session() as s:
         base = datetime(2026, 10, 1, 6, 0, tzinfo=UTC)

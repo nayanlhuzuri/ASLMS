@@ -273,6 +273,26 @@ class OfficeNodeOut(OfficeOut):
     children: list[OfficeNodeOut] = Field(default_factory=list)
 
 
+class OfficeChoiceOut(BaseModel):
+    """One office an Office Picker may offer (design `portal-ui-polish-2`, decision 29)."""
+
+    code: str
+    name: str
+    kind: str
+    tier: str
+    depth: int
+    parent_code: str | None
+    ancestors: list[str]
+    is_active: bool
+
+
+class OfficeChoicesOut(BaseModel):
+    purpose: Literal[
+        "users", "membership", "office_parent", "counsel_codes", "keywords", "watchlist", "audit"
+    ]
+    items: list[OfficeChoiceOut]
+
+
 class OfficeDetailOut(OfficeOut):
     tier: str
     depth: int

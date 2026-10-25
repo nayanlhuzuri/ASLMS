@@ -402,6 +402,10 @@ export interface MenuItem {
   onSelect?: () => void;
   /** Marks the item as the current page (`aria-current`). */
   current?: boolean;
+  /** Drawn in red (a destructive action such as End Membership, design portal-ui-polish-2, decision 34). */
+  danger?: boolean;
+  /** A separator line before the item. */
+  separator?: boolean;
 }
 
 /**
@@ -494,8 +498,9 @@ export function Menu({
       </button>
       {open ? (
         <ul id={listId} role="menu" aria-label={label} className={cx(s.menuList, align === "start" && s.menuStart)} onKeyDown={onListKey}>
-          {items.map((item) => (
-            <li key={item.key} role="none">
+          {items.map((item) => [
+            item.separator ? <li key={`${item.key}-sep`} role="separator" className={s.menuSeparator} /> : null,
+            <li key={item.key} role="none" className={item.danger ? s.menuDanger : undefined}>
               {item.href ? (
                 <Link
                   href={item.href}
@@ -522,8 +527,8 @@ export function Menu({
                   {item.label}
                 </button>
               )}
-            </li>
-          ))}
+            </li>,
+          ])}
         </ul>
       ) : null}
     </div>

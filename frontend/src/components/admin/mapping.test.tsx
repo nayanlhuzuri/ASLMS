@@ -2,32 +2,23 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import type {
-  CounselCode,
-  Keyword,
-  Me,
-  OfficeOut,
-  Permission,
-  ScoringSettings,
-  UnmappedCode,
-  Watch,
-} from "@/lib/api/types";
+import type { CounselCode, Keyword, Me, NamePattern, OfficeChoice, Permission, ScoringSettings, UnmappedCode, Watch } from "@/lib/api/types";
 import { resetNav } from "@/test/nav";
-import { browserApi, expectDataTable, json, makeMe, renderWithClient, type BrowserCall } from "@/test/render";
+import { browserApi, expectDataTable, json, makeMe, primaryActions, renderWithClient, type BrowserCall } from "@/test/render";
 
 import { CounselCodes } from "./mapping/CounselCodes";
 import { KeywordsAndPatterns } from "./mapping/Keywords";
-import { Scoring } from "./mapping/Scoring";
+import { Scoring, sliderValue } from "./mapping/Scoring";
 import { Watchlist } from "./mapping/Watchlist";
 
-const RULES: Permission[] = ["users.view", "admin.counsel_codes", "admin.keywords", "admin.watchlist"];
+const RULES: Permission[] = ["admin.counsel_codes", "admin.keywords", "admin.watchlist"];
 
 function deptAdmin(functions: Permission[] = RULES): Me {
   return makeMe(functions, "dept_admin");
 }
 
 function superAdmin(): Me {
-  return makeMe([...RULES, "admin.scoring"], "super_admin", {
+  return makeMe([...RULES, "users.view", "admin.scoring"], "super_admin", {
     memberships: [
       {
         id: "m-0",
@@ -42,14 +33,20 @@ function superAdmin(): Me {
   });
 }
 
-function office(code: string, path: string, kind = "department", name = code): OfficeOut {
-  return { id: `o-${code}`, code, name, kind, path, is_active: true };
+function choice(code: string, name: string, depth: number, parent: string | null, kind = "department"): OfficeChoice {
+  const ancestors = depth === 0 ? [] : depth === 1 ? ["Government of Assam"] : ["Government of Assam", "Education"];
+  return { code, name, kind, tier: kind === "state" ? "state" : "department", depth, parent_code: parent, ancestors, is_active: true };
 }
 
-const ROOT = office("GOA", "GOA", "state", "Government of Assam");
-const EDU = office("EDU", "GOA/EDU", "department", "Education");
-const DSE = office("EDU-DSE", "GOA/EDU/EDU-DSE", "directorate", "Secondary Education");
-const HEALTH = office("HEALTH", "GOA/HEALTH", "department", "Health");
+const ROOT = choice("GOA", "Government of Assam", 0, null, "state");
+const EDU = choice("EDU", "Education", 1, "GOA");
+const DSE = choice("EDU-DSE", "Secondary Education", 2, "EDU", "directorate");
+const HEALTH = choice("HEALTH", "Health", 1, "GOA");
+
+/** The choices answer for whichever purpose was asked. */
+function choices(items: OfficeChoice[]) {
+  return (call: BrowserCall) => ({ purpose: new URL(call.path, "http://x").searchParams.get("purpose"), items });
+}
 
 function code(extra: Partial<CounselCode> = {}): CounselCode {
   return {
@@ -76,6 +73,23 @@ function keyword(extra: Partial<Keyword> = {}): Keyword {
     is_active: true,
     updated_at: "2026-10-10T05:00:00Z",
     discover: true,
+    discoverable: true,
+    discovery: null,
+    ...extra,
+  };
+}
+
+function pattern(extra: Partial<NamePattern> = {}): NamePattern {
+  return {
+    id: "np-1",
+    pattern: "STATE OF ASSAM",
+    kind: "prefix",
+    office: { code: "HEALTH", name: "Health" },
+    weight_override: null,
+    effective_weight: 0.6,
+    is_active: true,
+    updated_at: "2026-10-10T05:00:00Z",
+    discover: false,
     discoverable: true,
     discovery: null,
     ...extra,
@@ -111,339 +125,303 @@ function settings(version: number, extra: Partial<ScoringSettings> = {}): Scorin
   };
 }
 
-const posts = (api: { calls: BrowserCall[] }, method: string, path: string) =>
+const calls = (api: { calls: BrowserCall[] }, method: string, path: string) =>
   api.calls.filter((c) => c.method === method && c.path.split("?")[0] === path);
+
+async function chooseOffice(box: HTMLElement, name: string) {
+  await userEvent.click(box);
+  await userEvent.click(within(await screen.findByRole("listbox")).getByText(name));
+}
+
+/** Opens a row's menu (the kebab) and chooses an item. */
+async function rowAction(what: string, item: string) {
+  await userEvent.click(screen.getByRole("button", { name: `More actions for ${what}` }));
+  await userEvent.click(screen.getByRole("menuitem", { name: item }));
+}
 
 beforeEach(() => {
   resetNav("/admin/mapping/codes");
 });
 
-describe("counsel codes", () => {
-  it("without admin.scoring: no weight input, and no request carries a weight key", async () => {
+describe("counsel codes (design portal-ui-polish-2, decisions 39-42)", () => {
+  it("the add row has no Notes or Weight, even with admin.scoring, and the body never carries notes or weight", async () => {
     const api = browserApi({
-      "GET /me": deptAdmin(),
-      "GET /admin/offices": [EDU, DSE],
-      "GET /admin/counsel-codes": { items: [code()], total: 1 },
+      "GET /me": superAdmin(),
+      "GET /admin/offices/choices": choices([ROOT, EDU, DSE, HEALTH]),
+      "GET /admin/counsel-codes": { items: [code({ weight_override: 0.7, notes: "kept" })], total: 1 },
+      "GET /admin/counsel-codes/unmapped": [],
       "POST /admin/counsel-codes": json(201, { ...code({ id: "cc-2", code: "SC, DSE" }), applies_within_minutes: 15 }),
-      "PATCH /admin/counsel-codes/cc-1": { ...code({ notes: "the main code" }), applies_within_minutes: 15 },
     });
     renderWithClient(<CounselCodes />);
     expect(await screen.findByText("SC, EDU")).toBeInTheDocument();
-    expect(screen.queryByLabelText(/Weight override/)).toBeNull();
-    expect(screen.queryByRole("button", { name: "Clear Override" })).toBeNull();
-    expect(screen.getByText("0.900")).toBeInTheDocument();
-    expect(screen.getByText("setting")).toBeInTheDocument();
-
-    const form = screen.getByRole("form", { name: "Add a Counsel Code" });
+    const form = screen.getByRole("form", { name: "Add Code" });
+    expect(within(form).queryByLabelText(/Notes/)).toBeNull();
+    expect(within(form).queryByLabelText(/Weight/)).toBeNull();
+    // the list's Notes and Weight columns are gone
+    const table = screen.getByRole("table", { name: "Counsel Codes" });
+    expect(within(table).queryByText("Notes")).toBeNull();
+    expect(within(table).queryByText(/Weight/)).toBeNull();
+    expect(within(table).queryByText("kept")).toBeNull();
     await userEvent.type(within(form).getByLabelText("Code"), "SC, DSE");
-    await userEvent.selectOptions((await within(form).findByLabelText("Office")), "EDU-DSE");
-    await userEvent.click(within(form).getByRole("button", { name: "Add a Counsel Code" }));
+    await chooseOffice(within(form).getByRole("combobox", { name: "Office" }), "Secondary Education");
+    await userEvent.click(within(form).getByRole("button", { name: "Add Code" }));
     expect(await screen.findByText("Takes effect at the next rescore, within 15 minutes.")).toBeInTheDocument();
-    const create = posts(api, "POST", "/admin/counsel-codes")[0]!.body as Record<string, unknown>;
-    expect(create).toEqual({ code: "SC, DSE", office_code: "EDU-DSE", is_generic_state: false, notes: null });
-    expect("weight" in create).toBe(false);
-
-    await userEvent.click(screen.getByRole("button", { name: "Edit SC, EDU" }));
-    const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).queryByLabelText(/Weight override/)).toBeNull();
-    await userEvent.type(within(dialog).getByLabelText("Notes"), "the main code");
-    await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
-    await waitFor(() => expect(posts(api, "PATCH", "/admin/counsel-codes/cc-1")).toHaveLength(1));
-    expect(posts(api, "PATCH", "/admin/counsel-codes/cc-1")[0]!.body).toEqual({ notes: "the main code" });
-  });
-
-  it("with admin.scoring: an unchanged override is not sent and a cleared one sends null", async () => {
-    const api = browserApi({
-      "GET /me": superAdmin(),
-      "GET /admin/offices": [ROOT, EDU, HEALTH],
-      "GET /admin/counsel-codes": { items: [code({ weight_override: 0.7, effective_weight: 0.7 })], total: 1 },
-      "PATCH /admin/counsel-codes/cc-1": { ...code(), applies_within_minutes: 15 },
-    });
-    renderWithClient(<CounselCodes />);
-    expect(await screen.findByText("override")).toBeInTheDocument();
-    expect(screen.getByLabelText(/Weight override/)).toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole("button", { name: "Edit SC, EDU" }));
-    let dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByLabelText(/Weight override/)).toHaveValue(0.7);
-    await userEvent.type(within(dialog).getByLabelText("Notes"), "x");
-    await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
-    await waitFor(() => expect(posts(api, "PATCH", "/admin/counsel-codes/cc-1")).toHaveLength(1));
-    expect(posts(api, "PATCH", "/admin/counsel-codes/cc-1")[0]!.body).toEqual({ notes: "x" });
-
-    await userEvent.click(await screen.findByRole("button", { name: "Edit SC, EDU" }));
-    dialog = await screen.findByRole("dialog");
-    await userEvent.click(within(dialog).getByRole("button", { name: "Clear Override" }));
-    expect(within(dialog).getByText("The override will be cleared when you save.")).toBeInTheDocument();
-    await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
-    await waitFor(() => expect(posts(api, "PATCH", "/admin/counsel-codes/cc-1")).toHaveLength(2));
-    expect(posts(api, "PATCH", "/admin/counsel-codes/cc-1")[1]!.body).toEqual({ weight: null });
+    expect(calls(api, "POST", "/admin/counsel-codes")[0]!.body).toEqual({ code: "SC, DSE", office_code: "EDU-DSE", is_generic_state: false });
+    // the add row's submit is secondary: the mapping page keeps no primary of its own
+    expect(within(form).getByRole("button", { name: "Add Code" })).toHaveAttribute("data-variant", "secondary");
+    expect(calls(api, "GET", "/admin/offices/choices")[0]!.path).toContain("purpose=counsel_codes");
   });
 
   it("the root office makes the code generic; any other office does not", async () => {
     const api = browserApi({
       "GET /me": superAdmin(),
-      "GET /admin/offices": [ROOT, EDU, HEALTH],
+      "GET /admin/offices/choices": choices([ROOT, EDU, HEALTH]),
       "GET /admin/counsel-codes": { items: [], total: 0 },
+      "GET /admin/counsel-codes/unmapped": [],
       "POST /admin/counsel-codes": json(201, { ...code({ code: "PP, ASSAM" }), applies_within_minutes: 15 }),
     });
     renderWithClient(<CounselCodes />);
-    const form = await screen.findByRole("form", { name: "Add a Counsel Code" });
+    const form = await screen.findByRole("form", { name: "Add Code" });
     await userEvent.type(within(form).getByLabelText("Code"), "PP, ASSAM");
-    await userEvent.selectOptions((await within(form).findByLabelText("Office")), "GOA");
+    await chooseOffice(within(form).getByRole("combobox", { name: "Office" }), "Government of Assam");
     expect(within(form).getByText(/A code mapped to the State is generic/)).toBeInTheDocument();
-    await userEvent.click(within(form).getByRole("button", { name: "Add a Counsel Code" }));
-    await waitFor(() => expect(posts(api, "POST", "/admin/counsel-codes")).toHaveLength(1));
-    expect(posts(api, "POST", "/admin/counsel-codes")[0]!.body).toMatchObject({ office_code: "GOA", is_generic_state: true });
+    await userEvent.click(within(form).getByRole("button", { name: "Add Code" }));
+    await waitFor(() => expect(calls(api, "POST", "/admin/counsel-codes")).toHaveLength(1));
+    expect(calls(api, "POST", "/admin/counsel-codes")[0]!.body).toMatchObject({ office_code: "GOA", is_generic_state: true });
 
     await userEvent.type(within(form).getByLabelText("Code"), "SC, HEALTH");
-    await userEvent.selectOptions((await within(form).findByLabelText("Office")), "HEALTH");
+    await chooseOffice(within(form).getByRole("combobox", { name: "Office" }), "Health");
     expect(within(form).queryByText(/A code mapped to the State is generic/)).toBeNull();
-    await userEvent.click(within(form).getByRole("button", { name: "Add a Counsel Code" }));
-    await waitFor(() => expect(posts(api, "POST", "/admin/counsel-codes")).toHaveLength(2));
-    expect(posts(api, "POST", "/admin/counsel-codes")[1]!.body).toMatchObject({ office_code: "HEALTH", is_generic_state: false });
+    await userEvent.click(within(form).getByRole("button", { name: "Add Code" }));
+    await waitFor(() => expect(calls(api, "POST", "/admin/counsel-codes")).toHaveLength(2));
+    expect(calls(api, "POST", "/admin/counsel-codes")[1]!.body).toMatchObject({ office_code: "HEALTH", is_generic_state: false });
   });
 
-  it("generic rows show no actions when the root office is not in the picker", async () => {
+  it("the toolbar sends q and include_inactive on one line", async () => {
+    const api = browserApi({
+      "GET /me": deptAdmin(),
+      "GET /admin/offices/choices": choices([EDU, DSE]),
+      "GET /admin/counsel-codes": { items: [code()], total: 1 },
+      "GET /admin/counsel-codes/unmapped": [],
+    });
+    renderWithClient(<CounselCodes />);
+    await screen.findByText("SC, EDU");
+    const bar = screen.getByRole("search", { name: "Search Codes" });
+    await userEvent.type(within(bar).getByRole("searchbox", { name: "Search Codes" }), "edu");
+    await userEvent.click(within(bar).getByRole("switch", { name: "Include Deactivated" }));
+    await waitFor(() =>
+      expect(calls(api, "GET", "/admin/counsel-codes").some((c) => c.path.includes("q=edu") && c.path.includes("include_inactive=true"))).toBe(true),
+    );
+  });
+
+  it("a row's menu changes the office with the picker (PATCH office_code only) and deactivates after asking", async () => {
+    const api = browserApi({
+      "GET /me": deptAdmin(),
+      "GET /admin/offices/choices": choices([EDU, DSE]),
+      "GET /admin/counsel-codes": { items: [code()], total: 1 },
+      "GET /admin/counsel-codes/unmapped": [],
+      "PATCH /admin/counsel-codes/cc-1": { ...code({ office: { code: "EDU-DSE", name: "Secondary Education" } }), applies_within_minutes: 15 },
+      "POST /admin/counsel-codes/cc-1/deactivate": { ...code({ is_active: false }), applies_within_minutes: 15 },
+    });
+    renderWithClient(<CounselCodes />);
+    await screen.findByText("SC, EDU");
+    await rowAction("SC, EDU", "Change Office");
+    const dialog = await screen.findByRole("dialog", { name: "Change Office" });
+    await chooseOffice(within(dialog).getByRole("combobox", { name: "Office" }), "Secondary Education");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(calls(api, "PATCH", "/admin/counsel-codes/cc-1")).toHaveLength(1));
+    expect(calls(api, "PATCH", "/admin/counsel-codes/cc-1")[0]!.body).toEqual({ office_code: "EDU-DSE" });
+
+    await rowAction("SC, EDU", "Deactivate");
+    const confirm = await screen.findByRole("dialog", { name: "Deactivate This Rule" });
+    expect(calls(api, "POST", "/admin/counsel-codes/cc-1/deactivate")).toHaveLength(0);
+    await userEvent.click(within(confirm).getByRole("button", { name: "Deactivate" }));
+    await waitFor(() => expect(calls(api, "POST", "/admin/counsel-codes/cc-1/deactivate")).toHaveLength(1));
+  });
+
+  it("generic rows have no menu when the root office is not among the choices", async () => {
     browserApi({
       "GET /me": deptAdmin(),
-      "GET /admin/offices": [EDU, DSE],
+      "GET /admin/offices/choices": choices([EDU, DSE]),
       "GET /admin/counsel-codes": {
         items: [code(), code({ id: "cc-9", code: "PP, ASSAM", is_generic_state: true, office: { code: "GOA", name: "Government of Assam" } })],
         total: 2,
       },
+      "GET /admin/counsel-codes/unmapped": [],
     });
     renderWithClient(<CounselCodes />);
     expect(await screen.findByText("PP, ASSAM")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Edit SC, EDU" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Edit PP, ASSAM" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Deactivate PP, ASSAM" })).toBeNull();
+    await waitFor(() => expect(screen.getByRole("button", { name: "More actions for SC, EDU" })).toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: "More actions for PP, ASSAM" })).toBeNull();
   });
 
-  it("the office picker lists /admin/offices with users.view and is a text field without it", async () => {
-    let api = browserApi({
-      "GET /me": deptAdmin(),
-      "GET /admin/offices": [EDU, DSE],
-      "GET /admin/counsel-codes": { items: [], total: 0 },
-    });
-    const first = renderWithClient(<CounselCodes />);
-    const form = await screen.findByRole("form", { name: "Add a Counsel Code" });
-    const select = (await within(form).findByLabelText("Office"));
-    await waitFor(() => expect(within(select).getByRole("option", { name: /Secondary Education \(EDU-DSE\)/ })).toBeInTheDocument());
-    expect(within(select).getByRole("option", { name: /Education \(EDU\)/ })).toBeInTheDocument();
-    first.unmount();
-
-    api = browserApi({
-      "GET /me": deptAdmin(["admin.counsel_codes"]),
-      "GET /admin/counsel-codes": { items: [], total: 0 },
-      "POST /admin/counsel-codes": json(201, { ...code(), applies_within_minutes: 15 }),
-    });
-    renderWithClient(<CounselCodes />);
-    const form2 = await screen.findByRole("form", { name: "Add a Counsel Code" });
-    const typed = await within(form2).findByLabelText("Office Code");
-    expect(typed.tagName).toBe("INPUT");
-    await userEvent.type(within(form2).getByLabelText("Code"), "SC, EDU");
-    await userEvent.type(typed, "edu");
-    await userEvent.click(within(form2).getByRole("button", { name: "Add a Counsel Code" }));
-    await waitFor(() => expect(posts(api, "POST", "/admin/counsel-codes")).toHaveLength(1));
-    expect(posts(api, "POST", "/admin/counsel-codes")[0]!.body).toMatchObject({ office_code: "EDU", is_generic_state: false });
-    expect(posts(api, "GET", "/admin/offices")).toHaveLength(0);
-  });
-
-  it("the unmapped panel is read only when opened; Map fills the form and sends nothing", async () => {
+  it("Recommended From Cause Lists is always shown; Map posts the code with the chosen office and the code leaves", async () => {
     const unmapped: UnmappedCode[] = [
       { code: "SC, PWD", entries: 1240, last_listed: "2026-10-09", example_case_ref: "ASLMS/GOA/CASE/2026/000042" },
+      { code: "SC, AGRI", entries: 12, last_listed: "2026-10-01", example_case_ref: null },
     ];
     const api = browserApi({
       "GET /me": deptAdmin(),
-      "GET /admin/offices": [EDU, DSE],
+      "GET /admin/offices/choices": choices([EDU, DSE]),
       "GET /admin/counsel-codes": { items: [], total: 0 },
       "GET /admin/counsel-codes/unmapped": unmapped,
+      "POST /admin/counsel-codes": json(201, { ...code({ id: "cc-5", code: "SC, PWD" }), applies_within_minutes: 15 }),
     });
     renderWithClient(<CounselCodes />);
-    await screen.findByText("Nothing here yet.");
-    expect(posts(api, "GET", "/admin/counsel-codes/unmapped")).toHaveLength(0);
-    await userEvent.click(screen.getByRole("button", { name: "Show codes seen in cause lists but not mapped" }));
-    expect(await screen.findByText("SC, PWD")).toBeInTheDocument();
-    expect(screen.getByText(/Nothing is mapped automatically/)).toBeInTheDocument();
-    expect(posts(api, "GET", "/admin/counsel-codes/unmapped")[0]!.url).toContain("limit=100");
-    expect(screen.getByRole("link", { name: "ASLMS/GOA/CASE/2026/000042" })).toHaveAttribute(
-      "href",
-      "/search?q=ASLMS%2FGOA%2FCASE%2F2026%2F000042",
-    );
-    await userEvent.click(screen.getByRole("button", { name: "Map SC, PWD" }));
-    const form = screen.getByRole("form", { name: "Add a Counsel Code" });
-    expect(within(form).getByLabelText("Code")).toHaveValue("SC, PWD");
-    expect((await within(form).findByLabelText("Office"))).toHaveFocus();
-    expect(api.calls.filter((c) => c.method !== "GET")).toHaveLength(0);
+    const panel = await screen.findByRole("complementary", { name: "Recommended From Cause Lists" });
+    expect(await within(panel).findByText("SC, PWD")).toBeInTheDocument();
+    expect(within(panel).getByText("2 to review")).toBeInTheDocument();
+    expect(within(panel).getByText("Nothing is mapped automatically.")).toBeInTheDocument();
+    expect(calls(api, "GET", "/admin/counsel-codes/unmapped")[0]!.url).toContain("limit=100");
+    expect(within(panel).getByRole("link", { name: "ASLMS/GOA/CASE/2026/000042" })).toHaveAttribute("href", "/search?q=ASLMS%2FGOA%2FCASE%2F2026%2F000042");
+    expect(within(panel).getByText(/1,240 entries · last seen/)).toBeInTheDocument();
+    const map = within(panel).getByRole("form", { name: "Map SC, PWD" });
+    expect(within(map).getByRole("button", { name: "Map SC, PWD" })).toBeDisabled();
+    await chooseOffice(within(map).getByRole("combobox", { name: "Office for SC, PWD" }), "Education");
+    await userEvent.click(within(map).getByRole("button", { name: "Map SC, PWD" }));
+    await waitFor(() => expect(calls(api, "POST", "/admin/counsel-codes")).toHaveLength(1));
+    expect(calls(api, "POST", "/admin/counsel-codes")[0]!.body).toEqual({ code: "SC, PWD", office_code: "EDU", is_generic_state: false });
+    await waitFor(() => expect(within(panel).queryByText("SC, PWD")).toBeNull());
+    expect(within(panel).getByText("SC, AGRI")).toBeInTheDocument();
   });
 
-  it("a failing unmapped report shows the API's message with Retry", async () => {
+  it("a failing recommended report shows the API's message with Retry; a 403 on adding shows the server's message", async () => {
     browserApi({
       "GET /me": deptAdmin(),
-      "GET /admin/offices": [EDU],
+      "GET /admin/offices/choices": choices([EDU, DSE]),
       "GET /admin/counsel-codes": { items: [], total: 0 },
       "GET /admin/counsel-codes/unmapped": json(503, { detail: "the report took too long" }),
+      "POST /admin/counsel-codes": json(403, { detail: "the office is outside your offices" }),
     });
     renderWithClient(<CounselCodes />);
-    await userEvent.click(await screen.findByRole("button", { name: "Show codes seen in cause lists but not mapped" }));
     expect(await screen.findByText("the report took too long")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Try Again" })).toBeInTheDocument();
+    const form = screen.getByRole("form", { name: "Add Code" });
+    await userEvent.type(within(form).getByLabelText("Code"), "SC, EDU");
+    await chooseOffice(within(form).getByRole("combobox", { name: "Office" }), "Education");
+    await userEvent.click(within(form).getByRole("button", { name: "Add Code" }));
+    expect((await screen.findAllByText("the office is outside your offices")).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("renders DataTables with a primary cell and no primary button", async () => {
+    browserApi({
+      "GET /me": deptAdmin(),
+      "GET /admin/offices/choices": choices([EDU]),
+      "GET /admin/counsel-codes": { items: [code()], total: 1 },
+      "GET /admin/counsel-codes/unmapped": [],
+    });
+    const { container } = renderWithClient(<CounselCodes />);
+    expectDataTable(await screen.findByRole("table", { name: "Counsel Codes" }));
+    expect(primaryActions(container)).toEqual([]);
   });
 });
 
 describe("keywords and name patterns", () => {
-  it("offer no Edit without admin.scoring; Deactivate asks first and posts", async () => {
-    const api = browserApi({
+  function routes(extra: Record<string, unknown> = {}) {
+    return browserApi({
       "GET /me": deptAdmin(),
-      "GET /admin/offices": [EDU, DSE],
+      "GET /admin/offices/choices": choices([EDU, DSE, HEALTH]),
       "GET /admin/keywords": { items: [keyword()], total: 1 },
-      "GET /admin/name-patterns": { items: [], total: 0 },
-      "POST /admin/keywords/kw-1/deactivate": { ...keyword({ is_active: false }), applies_within_minutes: 15 },
+      "GET /admin/name-patterns": { items: [pattern()], total: 1 },
+      ...extra,
+    });
+  }
+
+  it("one list with the kind, the All / Keywords / Name Patterns choice and a search over the words", async () => {
+    routes();
+    renderWithClient(<KeywordsAndPatterns />);
+    const table = await screen.findByRole("table", { name: "Keywords and Name Patterns" });
+    expectDataTable(table);
+    expect(within(table).getByText("DIRECTOR OF SECONDARY EDUCATION")).toBeInTheDocument();
+    expect(within(table).getByText("STATE OF ASSAM")).toBeInTheDocument();
+    expect(within(table).getByText("Starts With")).toBeInTheDocument();
+    expect(within(table).queryByText(/Weight/)).toBeNull();
+    await userEvent.click(screen.getByRole("radio", { name: "Name Patterns" }));
+    expect(screen.queryByText("DIRECTOR OF SECONDARY EDUCATION")).toBeNull();
+    await userEvent.click(screen.getByRole("radio", { name: "All" }));
+    await userEvent.type(screen.getByRole("searchbox", { name: "Search Words" }), "secondary");
+    expect(screen.queryByText("STATE OF ASSAM")).toBeNull();
+    expect(screen.getByText("DIRECTOR OF SECONDARY EDUCATION")).toBeInTheDocument();
+  });
+
+  it("the add row routes a keyword to /admin/keywords and the other kinds to /admin/name-patterns, never with a weight", async () => {
+    const api = routes({
+      "POST /admin/keywords": json(201, { ...keyword({ id: "kw-2", keyword: "COMMISSIONER OF EDUCATION" }), applies_within_minutes: 15 }),
+      "POST /admin/name-patterns": json(201, { ...pattern({ id: "np-2" }), applies_within_minutes: 15 }),
     });
     renderWithClient(<KeywordsAndPatterns />);
-    expect(await screen.findByText("DIRECTOR OF SECONDARY EDUCATION")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /^Edit/ })).toBeNull();
-    expect(screen.queryByLabelText(/Weight override/)).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: "Deactivate DIRECTOR OF SECONDARY EDUCATION" }));
-    const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByText(/stops counting at the next rescore, within 15 minutes/)).toBeInTheDocument();
-    expect(posts(api, "POST", "/admin/keywords/kw-1/deactivate")).toHaveLength(0);
-    await userEvent.click(within(dialog).getByRole("button", { name: "Deactivate" }));
-    await waitFor(() => expect(posts(api, "POST", "/admin/keywords/kw-1/deactivate")).toHaveLength(1));
+    const form = await screen.findByRole("form", { name: "Add" });
+    expect(within(form).getAllByRole("option").map((o) => o.textContent)).toEqual(["Keyword", "Exact", "Starts With", "Pattern"]);
+    await userEvent.type(within(form).getByLabelText("Word or Pattern"), "COMMISSIONER OF EDUCATION");
+    await chooseOffice(within(form).getByRole("combobox", { name: "Office" }), "Education");
+    await userEvent.click(within(form).getByRole("button", { name: "Add" }));
     expect(await screen.findByText("Takes effect at the next rescore, within 15 minutes.")).toBeInTheDocument();
+    expect(calls(api, "POST", "/admin/keywords")[0]!.body).toEqual({ keyword: "COMMISSIONER OF EDUCATION", office_code: "EDU" });
+
+    await userEvent.type(within(form).getByLabelText("Word or Pattern"), "STATE OF");
+    await userEvent.selectOptions(within(form).getByLabelText("Kind"), "prefix");
+    await chooseOffice(within(form).getByRole("combobox", { name: "Office" }), "Health");
+    await userEvent.click(within(form).getByRole("button", { name: "Add" }));
+    await waitFor(() => expect(calls(api, "POST", "/admin/name-patterns")).toHaveLength(1));
+    expect(calls(api, "POST", "/admin/name-patterns")[0]!.body).toEqual({ pattern: "STATE OF", kind: "prefix", office_code: "HEALTH" });
+    expect(calls(api, "GET", "/admin/offices/choices")[0]!.path).toContain("purpose=keywords");
   });
 
-  it("with admin.scoring a keyword's Edit sends only the weight", async () => {
-    const api = browserApi({
-      "GET /me": superAdmin(),
-      "GET /admin/offices": [ROOT, EDU],
-      "GET /admin/keywords": { items: [keyword()], total: 1 },
-      "GET /admin/name-patterns": { items: [], total: 0 },
-      "PATCH /admin/keywords/kw-1": { ...keyword({ weight_override: 0.45 }), applies_within_minutes: 15 },
-    });
+  it("Search the Court follows the text until changed and is off and disabled for a pattern", async () => {
+    const api = routes({ "POST /admin/name-patterns": json(201, { ...pattern({ id: "np-3", pattern: "PRITAM" }), applies_within_minutes: 15 }) });
     renderWithClient(<KeywordsAndPatterns />);
-    await userEvent.click(await screen.findByRole("button", { name: "Edit DIRECTOR OF SECONDARY EDUCATION" }));
-    const dialog = await screen.findByRole("dialog");
-    await userEvent.type(within(dialog).getByLabelText(/Weight override/), "0.45");
-    await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
-    await waitFor(() => expect(posts(api, "PATCH", "/admin/keywords/kw-1")).toHaveLength(1));
-    expect(posts(api, "PATCH", "/admin/keywords/kw-1")[0]!.body).toEqual({ weight: 0.45 });
+    const form = await screen.findByRole("form", { name: "Add" });
+    const sw = within(form).getByRole("switch", { name: "Search the Court" });
+    await userEvent.type(within(form).getByLabelText("Word or Pattern"), "Dr. Pritam Saikia");
+    expect(sw).toHaveAttribute("aria-checked", "true");
+    await userEvent.clear(within(form).getByLabelText("Word or Pattern"));
+    await userEvent.type(within(form).getByLabelText("Word or Pattern"), "100% pass");
+    expect(sw).toHaveAttribute("aria-checked", "false");
+    await userEvent.clear(within(form).getByLabelText("Word or Pattern"));
+    await userEvent.type(within(form).getByLabelText("Word or Pattern"), "PRITAM");
+    await userEvent.selectOptions(within(form).getByLabelText("Kind"), "regex");
+    expect(sw).toHaveAttribute("aria-checked", "false");
+    expect(sw).toBeDisabled();
+    await userEvent.selectOptions(within(form).getByLabelText("Kind"), "prefix");
+    expect(sw).toHaveAttribute("aria-checked", "true");
+    await userEvent.click(sw); // the person turns it off: sent as false
+    await chooseOffice(within(form).getByRole("combobox", { name: "Office" }), "Education");
+    await userEvent.click(within(form).getByRole("button", { name: "Add" }));
+    await waitFor(() => expect(calls(api, "POST", "/admin/name-patterns")).toHaveLength(1));
+    expect(calls(api, "POST", "/admin/name-patterns")[0]!.body).toEqual({ pattern: "PRITAM", kind: "prefix", office_code: "EDU", discover: false });
   });
 
-  it("a rule save says when it applies; a 409 shows the API's message and re-reads the list", async () => {
-    let n = 0;
-    const api = browserApi({
-      "GET /me": deptAdmin(),
-      "GET /admin/offices": [EDU, DSE],
-      "GET /admin/keywords": { items: [], total: 0 },
-      "GET /admin/name-patterns": { items: [], total: 0 },
-      "POST /admin/keywords": () =>
-        ++n === 1
-          ? json(201, { ...keyword({ id: "kw-2", keyword: "COMMISSIONER OF EDUCATION" }), applies_within_minutes: 15 })
-          : json(409, { detail: "the keyword COMMISSIONER OF EDUCATION already exists for EDU" }),
-      "POST /admin/name-patterns": json(201, {
-        id: "np-1",
-        pattern: "STATE OF ASSAM",
-        kind: "prefix",
-        office: { code: "EDU", name: "Education" },
-        weight_override: null,
-        effective_weight: 0.6,
-        is_active: true,
-        updated_at: "2026-10-10T05:00:00Z",
-        applies_within_minutes: 15,
-      }),
-    });
-    renderWithClient(<KeywordsAndPatterns />);
-    const form = await screen.findByRole("form", { name: "Add a Keyword" });
-    await userEvent.type(within(form).getByLabelText("Keyword"), "COMMISSIONER OF EDUCATION");
-    await userEvent.selectOptions((await within(form).findByLabelText("Office")), "EDU");
-    await userEvent.click(within(form).getByRole("button", { name: "Add a Keyword" }));
-    expect(await screen.findByText("Takes effect at the next rescore, within 15 minutes.")).toBeInTheDocument();
-    expect(posts(api, "POST", "/admin/keywords")[0]!.body).toEqual({ keyword: "COMMISSIONER OF EDUCATION", office_code: "EDU" });
-
-    const before = posts(api, "GET", "/admin/keywords").length;
-    await userEvent.type(within(form).getByLabelText("Keyword"), "COMMISSIONER OF EDUCATION");
-    await userEvent.selectOptions((await within(form).findByLabelText("Office")), "EDU");
-    await userEvent.click(within(form).getByRole("button", { name: "Add a Keyword" }));
-    expect(await screen.findByText("the keyword COMMISSIONER OF EDUCATION already exists for EDU")).toBeInTheDocument();
-    await waitFor(() => expect(posts(api, "GET", "/admin/keywords").length).toBeGreaterThan(before));
-
-    const pform = screen.getByRole("form", { name: "Add a Name Pattern" });
-    await userEvent.type(within(pform).getByLabelText("Pattern"), "STATE OF ASSAM");
-    await userEvent.selectOptions(within(pform).getByLabelText("Kind"), "prefix");
-    await userEvent.selectOptions((await within(pform).findByLabelText("Office")), "EDU");
-    await userEvent.click(within(pform).getByRole("button", { name: "Add a Name Pattern" }));
-    await waitFor(() => expect(posts(api, "POST", "/admin/name-patterns")).toHaveLength(1));
-    expect(posts(api, "POST", "/admin/name-patterns")[0]!.body).toEqual({ pattern: "STATE OF ASSAM", kind: "prefix", office_code: "EDU" });
-  });
-});
-
-describe("Search the court (department-discovery)", () => {
-  it("the add forms pre-tick it for a discoverable text, untick it for others and disable it for a regex", async () => {
-    const api = browserApi({
-      "GET /me": deptAdmin(),
-      "GET /admin/offices": [EDU, DSE],
-      "GET /admin/keywords": { items: [], total: 0 },
-      "GET /admin/name-patterns": { items: [], total: 0 },
-      "POST /admin/name-patterns": json(201, { id: "np-1", pattern: "PRITAM", kind: "prefix", office: { code: "EDU", name: "Education" }, weight_override: null, effective_weight: 0.8, is_active: true, updated_at: "2026-10-10T05:00:00Z", discover: false, discoverable: true, discovery: null, applies_within_minutes: 15 }),
-    });
-    renderWithClient(<KeywordsAndPatterns />);
-    const kform = await screen.findByRole("form", { name: "Add a Keyword" });
-    const kbox = within(kform).getByLabelText("Search the Court");
-    await userEvent.type(within(kform).getByLabelText("Keyword"), "Dr. Pritam Saikia");
-    expect(kbox).toBeChecked();
-    await userEvent.clear(within(kform).getByLabelText("Keyword"));
-    await userEvent.type(within(kform).getByLabelText("Keyword"), "100% pass");
-    expect(kbox).not.toBeChecked();
-
-    const pform = screen.getByRole("form", { name: "Add a Name Pattern" });
-    const pbox = within(pform).getByLabelText("Search the Court");
-    await userEvent.type(within(pform).getByLabelText("Pattern"), "PRITAM");
-    expect(pbox).toBeChecked();
-    expect(pbox).not.toBeDisabled();
-    await userEvent.selectOptions(within(pform).getByLabelText("Kind"), "regex");
-    expect(pbox).not.toBeChecked();
-    expect(pbox).toBeDisabled();
-    await userEvent.selectOptions(within(pform).getByLabelText("Kind"), "prefix");
-    await userEvent.click(pbox); // the user unticks it: sent as false
-    await userEvent.selectOptions((await within(pform).findByLabelText("Office")), "EDU");
-    await userEvent.click(within(pform).getByRole("button", { name: "Add a Name Pattern" }));
-    await waitFor(() => expect(posts(api, "POST", "/admin/name-patterns")).toHaveLength(1));
-    expect(posts(api, "POST", "/admin/name-patterns")[0]!.body).toEqual({
-      pattern: "PRITAM",
-      kind: "prefix",
-      office_code: "EDU",
-      discover: false,
-    });
-  });
-
-  it("the row toggle sends PATCH {discover}, shows the last search and the refusal", async () => {
-    const api = browserApi({
-      "GET /me": deptAdmin(),
-      "GET /admin/offices": [EDU, DSE],
+  it("the row toggle sends PATCH {discover}; Deactivate from the menu asks first; a 409 shows the API's message", async () => {
+    const api = routes({
       "GET /admin/keywords": {
-        items: [
-          keyword({ discovery: { term_id: "t-1", last_searched_at: "2026-10-13T05:00:00Z", cases_found: 4 } }),
-          keyword({ id: "kw-2", keyword: "100% PASS", discover: false, discoverable: false }),
-        ],
-        total: 2,
+        items: [keyword({ discovery: { term_id: "t-1", last_searched_at: "2026-10-13T05:00:00Z", cases_found: 4 } })],
+        total: 1,
       },
-      "GET /admin/name-patterns": { items: [], total: 0 },
       "PATCH /admin/keywords/kw-1": { ...keyword({ discover: false }), applies_within_minutes: 15 },
-      "PATCH /admin/keywords/kw-2": json(400, {
-        detail: { code: "not_discoverable", message: "only 3 to 200 letters, digits, spaces and . , ' & ( ) / - can be searched at the court" },
-      }),
+      "POST /admin/keywords/kw-1/deactivate": { ...keyword({ is_active: false }), applies_within_minutes: 15 },
+      "POST /admin/keywords": json(409, { detail: "the keyword COMMISSIONER OF EDUCATION already exists for EDU" }),
     });
     renderWithClient(<KeywordsAndPatterns />);
     expect(await screen.findByText(/4 case\(s\) found/)).toBeInTheDocument();
     await userEvent.click(screen.getByLabelText("Search the court for DIRECTOR OF SECONDARY EDUCATION"));
-    await waitFor(() => expect(posts(api, "PATCH", "/admin/keywords/kw-1")).toHaveLength(1));
-    expect(posts(api, "PATCH", "/admin/keywords/kw-1")[0]!.body).toEqual({ discover: false });
-    await userEvent.click(screen.getByLabelText("Search the court for 100% PASS"));
-    await waitFor(() => expect(posts(api, "PATCH", "/admin/keywords/kw-2")).toHaveLength(1));
-    expect(posts(api, "PATCH", "/admin/keywords/kw-2")[0]!.body).toEqual({ discover: true });
-    expect(await screen.findByText(/can be searched at the court/)).toBeInTheDocument();
+    await waitFor(() => expect(calls(api, "PATCH", "/admin/keywords/kw-1")).toHaveLength(1));
+    expect(calls(api, "PATCH", "/admin/keywords/kw-1")[0]!.body).toEqual({ discover: false });
+    // a row's menu offers no Change Office here: the API takes no office change for a keyword
+    await userEvent.click(screen.getByRole("button", { name: "More actions for DIRECTOR OF SECONDARY EDUCATION" }));
+    expect(screen.queryByRole("menuitem", { name: "Change Office" })).toBeNull();
+    await userEvent.click(screen.getByRole("menuitem", { name: "Deactivate" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/stops counting at the next rescore, within 15 minutes/)).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Deactivate" }));
+    await waitFor(() => expect(calls(api, "POST", "/admin/keywords/kw-1/deactivate")).toHaveLength(1));
+
+    const form = screen.getByRole("form", { name: "Add" });
+    const before = calls(api, "GET", "/admin/keywords").length;
+    await userEvent.type(within(form).getByLabelText("Word or Pattern"), "COMMISSIONER OF EDUCATION");
+    await chooseOffice(within(form).getByRole("combobox", { name: "Office" }), "Education");
+    await userEvent.click(within(form).getByRole("button", { name: "Add" }));
+    expect(await screen.findByText("the keyword COMMISSIONER OF EDUCATION already exists for EDU")).toBeInTheDocument();
+    await waitFor(() => expect(calls(api, "GET", "/admin/keywords").length).toBeGreaterThan(before));
   });
 });
 
@@ -451,108 +429,125 @@ describe("watchlist", () => {
   it("refuses a malformed CNR without calling the API", async () => {
     const api = browserApi({
       "GET /me": deptAdmin(),
-      "GET /admin/offices": [EDU, DSE],
+      "GET /admin/offices/choices": choices([EDU, DSE]),
       "GET /admin/watchlist": { items: [], total: 0 },
     });
     renderWithClient(<Watchlist />);
-    const form = await screen.findByRole("form", { name: "Add to the Watchlist" });
+    const form = await screen.findByRole("form", { name: "Watchlist" });
     for (const bad of ["ASHC01001234202", "AS1C010012342025", "ASHC01001234202X"]) {
       await userEvent.clear(within(form).getByLabelText("CNR"));
       await userEvent.type(within(form).getByLabelText("CNR"), bad);
-      await userEvent.click(within(form).getByRole("button", { name: "Add to the Watchlist" }));
+      await userEvent.click(within(form).getByRole("button", { name: "Add" }));
       expect(await within(form).findByText("A CNR is four letters followed by twelve digits.")).toBeInTheDocument();
     }
-    expect(posts(api, "POST", "/admin/watchlist")).toHaveLength(0);
+    expect(calls(api, "POST", "/admin/watchlist")).toHaveLength(0);
   });
 
-  it("shows the queued and the scored lines; the case links through search; the root is not offered", async () => {
+  it("the add row is CNR, Office and Add: no reason or weight; the root is not offered; the lines after saving", async () => {
     let n = 0;
     const api = browserApi({
       "GET /me": superAdmin(),
-      "GET /admin/offices": [ROOT, EDU, HEALTH],
+      "GET /admin/offices/choices": choices([ROOT, EDU, HEALTH]),
       "GET /admin/watchlist": { items: [watch()], total: 1 },
       "POST /admin/watchlist": () =>
         json(201, ++n === 1 ? { ...watch({ id: "w-2", case_ref: null }), dossier_queued: true } : { ...watch({ id: "w-3" }), dossier_queued: false }),
     });
     renderWithClient(<Watchlist />);
-    expect(await screen.findByRole("link", { name: "ASLMS/GOA/CASE/2025/000001" })).toHaveAttribute(
-      "href",
-      "/search?q=ASLMS%2FGOA%2FCASE%2F2025%2F000001",
-    );
-    const form = screen.getByRole("form", { name: "Add to the Watchlist" });
-    const picker = (await within(form).findByLabelText("Office"));
-    await waitFor(() => expect(within(picker).getByRole("option", { name: /Health \(HEALTH\)/ })).toBeInTheDocument());
-    expect(within(picker).queryByRole("option", { name: /GOA/ })).toBeNull();
-
+    expect(await screen.findByRole("link", { name: "ASLMS/GOA/CASE/2025/000001" })).toHaveAttribute("href", "/search?q=ASLMS%2FGOA%2FCASE%2F2025%2F000001");
+    const form = screen.getByRole("form", { name: "Watchlist" });
+    expect(within(form).queryByLabelText(/Reason/)).toBeNull();
+    expect(within(form).queryByLabelText(/Weight/)).toBeNull();
+    await userEvent.click(within(form).getByRole("combobox", { name: "Office" }));
+    const list = await screen.findByRole("listbox");
+    expect(within(list).queryByText("Government of Assam")).toBeNull();
+    await userEvent.click(within(list).getByText("Education"));
     await userEvent.type(within(form).getByLabelText("CNR"), " ashc010099992026 ");
-    await userEvent.selectOptions(picker, "EDU");
-    await userEvent.click(within(form).getByRole("button", { name: "Add to the Watchlist" }));
+    await userEvent.click(within(form).getByRole("button", { name: "Add" }));
     expect(await screen.findByText(/its court details are queued/)).toBeInTheDocument();
-    expect(posts(api, "POST", "/admin/watchlist")[0]!.body).toEqual({ cnr: "ASHC010099992026", office_code: "EDU", reason: null });
+    expect(calls(api, "POST", "/admin/watchlist")[0]!.body).toEqual({ cnr: "ASHC010099992026", office_code: "EDU" });
 
     await userEvent.type(within(form).getByLabelText("CNR"), "ASHC010012342025");
-    await userEvent.click(within(form).getByRole("button", { name: "Add to the Watchlist" }));
+    await userEvent.click(within(form).getByRole("button", { name: "Add" }));
     expect(await screen.findByText("The case was scored again now.")).toBeInTheDocument();
-    expect(posts(api, "POST", "/admin/watchlist")[1]!.body).toEqual({ cnr: "ASHC010012342025", office_code: null, reason: null });
+    expect(calls(api, "POST", "/admin/watchlist")[1]!.body).toEqual({ cnr: "ASHC010012342025", office_code: null });
+    expect(calls(api, "GET", "/admin/offices/choices")[0]!.path).toContain("purpose=watchlist");
   });
 
-  it("shows the API's office_code refusal as given", async () => {
+  it("shows the API's office_code refusal on the picker; the search narrows the list", async () => {
     browserApi({
       "GET /me": deptAdmin(),
-      "GET /admin/offices": [EDU, HEALTH],
-      "GET /admin/watchlist": { items: [], total: 0 },
+      "GET /admin/offices/choices": choices([EDU, HEALTH]),
+      "GET /admin/watchlist": { items: [watch(), watch({ id: "w-9", cnr: "ASHC010099992026", case_ref: null })], total: 2 },
       "POST /admin/watchlist": json(400, { detail: "office_code is required: you work in 2 departments" }),
     });
     renderWithClient(<Watchlist />);
-    const form = await screen.findByRole("form", { name: "Add to the Watchlist" });
+    expectDataTable(await screen.findByRole("table", { name: "Watchlist" }));
+    await userEvent.type(screen.getByRole("searchbox", { name: "Search Watchlist" }), "9999");
+    expect(screen.queryByText("ASHC010012342025")).toBeNull();
+    expect(screen.getByText("ASHC010099992026")).toBeInTheDocument();
+    const form = screen.getByRole("form", { name: "Watchlist" });
     await userEvent.type(within(form).getByLabelText("CNR"), "ASHC010012342025");
-    await userEvent.click(within(form).getByRole("button", { name: "Add to the Watchlist" }));
-    const lines = await screen.findAllByText("office_code is required: you work in 2 departments");
-    expect(lines.length).toBeGreaterThanOrEqual(1);
-    expect((await within(form).findByLabelText("Office"))).toHaveAttribute("aria-invalid", "true");
+    await userEvent.click(within(form).getByRole("button", { name: "Add" }));
+    expect(await screen.findByText("office_code is required: you work in 2 departments")).toBeInTheDocument();
+    expect(within(form).getByRole("combobox", { name: "Office" })).toHaveAttribute("aria-invalid", "true");
   });
 });
 
-describe("scoring", () => {
-  it("is read-only for admin.keywords without admin.scoring: no inputs, no history request", async () => {
-    const api = browserApi({ "GET /me": deptAdmin(["admin.keywords"]), "GET /admin/scoring-settings": settings(3) });
-    renderWithClient(<Scoring />);
-    expect(await screen.findByText("Super Admin")).toBeInTheDocument();
-    expect(screen.getByText("0.850")).toBeInTheDocument();
-    expect(screen.queryByRole("spinbutton")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
-    expect(posts(api, "GET", "/admin/scoring-settings/history")).toHaveLength(0);
-  });
-
-  it("version 0 shows the built-in defaults", async () => {
-    browserApi({ "GET /me": deptAdmin(["admin.counsel_codes"]), "GET /admin/scoring-settings": settings(0) });
-    renderWithClient(<Scoring />);
-    expect(await screen.findByText("Built-in Defaults, Never Saved")).toBeInTheDocument();
-  });
-
-  it("saves all seven values, the reason and the loaded version after a confirmation", async () => {
-    const api = browserApi({
+describe("scoring (decisions 40 and 43)", () => {
+  function scorer(extra: Record<string, unknown> = {}) {
+    return browserApi({
       "GET /me": superAdmin(),
       "GET /admin/scoring-settings": settings(3),
       "GET /admin/scoring-settings/history": { items: [settings(3)], total: 1 },
-      "PUT /admin/scoring-settings": { ...settings(4), changed: true, rescore_dispatched: true, applies_within_minutes: 15 },
+      "GET /admin/counsel-codes": { items: [], total: 0 },
+      "GET /admin/keywords": { items: [], total: 0 },
+      "GET /admin/name-patterns": { items: [], total: 0 },
+      "GET /admin/watchlist": { items: [], total: 0 },
+      ...extra,
     });
+  }
+
+  it("the slider and the number field of a weight stay in sync", async () => {
+    expect(sliderValue("0.43")).toBeCloseTo(0.45);
+    expect(sliderValue("0.01")).toBeCloseTo(0.05);
+    scorer();
     renderWithClient(<Scoring />);
-    const keywordInput = await screen.findByLabelText("Keyword");
+    const number = await screen.findByRole("spinbutton", { name: "Keyword" });
+    const slider = screen.getByRole("slider", { name: "Keyword, slider" });
+    expect(slider).toHaveAttribute("min", "0.05");
+    expect(slider).toHaveAttribute("step", "0.05");
+    expect(number).toHaveAttribute("min", "0.01");
+    expect(number).toHaveAttribute("step", "0.01");
+    expect(slider).toHaveValue("0.4");
+    await userEvent.clear(number);
+    await userEvent.type(number, "0.7");
+    expect(slider).toHaveValue("0.7");
+    // a slider move writes the number
+    const { fireEvent } = await import("@testing-library/react");
+    fireEvent.change(slider, { target: { value: "0.55" } });
+    expect(number).toHaveValue(0.55);
+    expect(screen.getByRole("region", { name: "Unsaved Changes" })).toHaveTextContent("1 unsaved change");
+    expect(screen.getByText("Nothing is ever assigned automatically; a department always claims.")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /No Recommendation 50%, Possible Match 35%, Strong 15%/ })).toBeInTheDocument();
+  });
+
+  it("Save Changes asks for the reason and sends all seven values with the loaded version", async () => {
+    const api = scorer({ "PUT /admin/scoring-settings": { ...settings(4), changed: true, rescore_dispatched: true, applies_within_minutes: 15 } });
+    renderWithClient(<Scoring />);
+    const keywordInput = await screen.findByRole("spinbutton", { name: "Keyword" });
     await userEvent.clear(keywordInput);
     await userEvent.type(keywordInput, "0.45");
-    await userEvent.click(screen.getByRole("button", { name: "Save" }));
-    expect(await screen.findByText("A reason is required.")).toBeInTheDocument();
-    expect(posts(api, "PUT", "/admin/scoring-settings")).toHaveLength(0);
-
-    await userEvent.type(screen.getByLabelText("Reason for the Change (Required)"), "keywords were too weak");
-    await userEvent.click(screen.getByRole("button", { name: "Save" }));
-    const dialog = await screen.findByRole("dialog");
+    await userEvent.click(screen.getByRole("button", { name: "Save Changes" }));
+    const dialog = await screen.findByRole("dialog", { name: "Save New Scoring Settings" });
     expect(within(dialog).getByText("0.400")).toBeInTheDocument();
     expect(within(dialog).getByText("0.450")).toBeInTheDocument();
-    await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Save Changes" }));
+    expect(await within(dialog).findByText("A reason is required.")).toBeInTheDocument();
+    expect(calls(api, "PUT", "/admin/scoring-settings")).toHaveLength(0);
+    await userEvent.type(within(dialog).getByLabelText("Reason for the Change (Required)"), "keywords were too weak");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Save Changes" }));
     expect(await screen.findByText(/Saved as version 4\. Recommendations are rescored within 15 minutes; rescoring has started/)).toBeInTheDocument();
-    expect(posts(api, "PUT", "/admin/scoring-settings")[0]!.body).toEqual({
+    expect(calls(api, "PUT", "/admin/scoring-settings")[0]!.body).toEqual({
       weights: { counsel_code: 0.9, name_pattern: 0.6, watchlist: 0.95, linked_case: 0.5, keyword: 0.45 },
       thresholds: { strong: 0.85, possible: 0.5 },
       reason: "keywords were too weak",
@@ -560,188 +555,98 @@ describe("scoring", () => {
     });
   });
 
-  it("refuses Possible at or above Strong without calling the API", async () => {
-    const api = browserApi({
-      "GET /me": superAdmin(),
-      "GET /admin/scoring-settings": settings(3),
-      "GET /admin/scoring-settings/history": { items: [settings(3)], total: 1 },
-    });
+  it("refuses Possible at or above Strong; Discard restores the loaded values", async () => {
+    const api = scorer();
     renderWithClient(<Scoring />);
-    const possible = await screen.findByLabelText("Possible");
+    const possible = await screen.findByLabelText("Possible Match From");
     await userEvent.clear(possible);
     await userEvent.type(possible, "0.85");
-    await userEvent.type(screen.getByLabelText("Reason for the Change (Required)"), "test");
-    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save Changes" }));
     expect(await screen.findByText("Possible must be below Strong.")).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).toBeNull();
-    expect(posts(api, "PUT", "/admin/scoring-settings")).toHaveLength(0);
-  });
-
-  it("an unchanged save says nothing changed", async () => {
-    browserApi({
-      "GET /me": superAdmin(),
-      "GET /admin/scoring-settings": settings(3),
-      "GET /admin/scoring-settings/history": { items: [settings(3)], total: 1 },
-      "PUT /admin/scoring-settings": { ...settings(3), changed: false, rescore_dispatched: false, applies_within_minutes: 15 },
-    });
-    renderWithClient(<Scoring />);
-    await userEvent.type(await screen.findByLabelText("Reason for the Change (Required)"), "check");
-    await userEvent.click(screen.getByRole("button", { name: "Save" }));
-    await userEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Save" }));
-    expect(await screen.findByText("Nothing changed; no new version was saved.")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Discard" }));
+    expect(possible).toHaveValue(0.5);
+    expect(calls(api, "PUT", "/admin/scoring-settings")).toHaveLength(0);
   });
 
   it("a stale version re-reads the settings and history, shows the reload line and keeps the reason", async () => {
     let reads = 0;
-    const api = browserApi({
-      "GET /me": superAdmin(),
+    const api = scorer({
       "GET /admin/scoring-settings": () => (++reads === 1 ? settings(3) : settings(4, { weights: { ...settings(4).weights, keyword: 0.5 } })),
-      "GET /admin/scoring-settings/history": { items: [settings(3)], total: 1 },
       "PUT /admin/scoring-settings": json(409, { detail: "the settings changed meanwhile (version 4)" }),
     });
     renderWithClient(<Scoring />);
-    await userEvent.type(await screen.findByLabelText("Reason for the Change (Required)"), "my reason");
-    await userEvent.click(screen.getByRole("button", { name: "Save" }));
-    await userEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Save" }));
-    expect(
-      await screen.findByText("The settings were changed by someone else and have been reloaded; review them and save again."),
-    ).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByLabelText("Keyword")).toHaveValue(0.5));
-    expect(screen.getByLabelText("Reason for the Change (Required)")).toHaveValue("my reason");
-    expect(posts(api, "GET", "/admin/scoring-settings").length).toBeGreaterThanOrEqual(2);
-    expect(posts(api, "GET", "/admin/scoring-settings/history").length).toBeGreaterThanOrEqual(2);
-    expect(screen.queryByRole("dialog")).toBeNull();
+    const keywordInput = await screen.findByRole("spinbutton", { name: "Keyword" });
+    await userEvent.clear(keywordInput);
+    await userEvent.type(keywordInput, "0.45");
+    await userEvent.click(screen.getByRole("button", { name: "Save Changes" }));
+    let dialog = await screen.findByRole("dialog");
+    await userEvent.type(within(dialog).getByLabelText("Reason for the Change (Required)"), "my reason");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Save Changes" }));
+    expect(await screen.findByText("The settings were changed by someone else and have been reloaded; review them and save again.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("spinbutton", { name: "Keyword" })).toHaveValue(0.5));
+    expect(calls(api, "GET", "/admin/scoring-settings").length).toBeGreaterThanOrEqual(2);
+    expect(calls(api, "GET", "/admin/scoring-settings/history").length).toBeGreaterThanOrEqual(2);
+    await userEvent.clear(screen.getByRole("spinbutton", { name: "Keyword" }));
+    await userEvent.type(screen.getByRole("spinbutton", { name: "Keyword" }), "0.45");
+    await userEvent.click(screen.getByRole("button", { name: "Save Changes" }));
+    dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByLabelText("Reason for the Change (Required)")).toHaveValue("my reason");
   });
 
-  it("the history lists versions with the total and marks changed values", async () => {
+  it("Rules with Their Own Weight lists the overrides and Use the Standard Weight sends weight: null", async () => {
+    const api = scorer({
+      "GET /admin/counsel-codes": { items: [code({ weight_override: 0.7 }), code({ id: "cc-2", code: "SC, HEALTH" })], total: 2 },
+      "GET /admin/keywords": { items: [keyword({ weight_override: 0.3 })], total: 1 },
+      "PATCH /admin/counsel-codes/cc-1": { ...code(), applies_within_minutes: 15 },
+    });
+    renderWithClient(<Scoring />);
+    const table = await screen.findByRole("table", { name: "Rules with Their Own Weight" });
+    expectDataTable(table);
+    const rows = within(table).getAllByRole("row").slice(1);
+    expect(rows).toHaveLength(2);
+    expect(within(rows[0]!).getByText("SC, EDU")).toBeInTheDocument();
+    expect(within(rows[0]!).getByText("0.700")).toBeInTheDocument();
+    expect(within(rows[0]!).getByText("0.900")).toBeInTheDocument();
+    expect(within(table).queryByText("SC, HEALTH")).toBeNull();
+    await userEvent.click(within(rows[0]!).getByRole("button", { name: "Use the standard weight for SC, EDU" }));
+    await waitFor(() => expect(calls(api, "PATCH", "/admin/counsel-codes/cc-1")).toHaveLength(1));
+    expect(calls(api, "PATCH", "/admin/counsel-codes/cc-1")[0]!.body).toEqual({ weight: null });
+  });
+
+  it("says when no rule has its own weight", async () => {
+    scorer();
+    renderWithClient(<Scoring />);
+    expect(await screen.findByText("No rule has its own weight.")).toBeInTheDocument();
+  });
+
+  it("is read only without admin.scoring: no save bar, no history, no own-weight panel", async () => {
+    const api = browserApi({ "GET /me": deptAdmin(["admin.keywords"]), "GET /admin/scoring-settings": settings(3) });
+    renderWithClient(<Scoring />);
+    expect(await screen.findByText("Super Admin")).toBeInTheDocument();
+    expect(screen.getByRole("spinbutton", { name: "Keyword" })).toHaveAttribute("readonly");
+    expect(screen.getByRole("slider", { name: "Keyword, slider" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Save Changes" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Unsaved Changes" })).toBeNull();
+    expect(screen.queryByText("Rules with Their Own Weight")).toBeNull();
+    expect(calls(api, "GET", "/admin/scoring-settings/history")).toHaveLength(0);
+    expect(calls(api, "GET", "/admin/keywords")).toHaveLength(0);
+  });
+
+  it("version 0 shows the built-in defaults; the history marks changed values", async () => {
     const v2 = settings(2, { valid_to: "2026-10-05T05:00:00Z" });
     const v3 = settings(3, { weights: { ...settings(3).weights, keyword: 0.45 }, reason: "keywords too weak" });
-    browserApi({
-      "GET /me": superAdmin(),
-      "GET /admin/scoring-settings": v3,
-      "GET /admin/scoring-settings/history": { items: [v3, v2], total: 2 },
-    });
+    browserApi({ "GET /me": deptAdmin(["admin.counsel_codes"]), "GET /admin/scoring-settings": settings(0) });
+    const { unmount } = renderWithClient(<Scoring />);
+    expect(await screen.findByText("Built-in Defaults, Never Saved")).toBeInTheDocument();
+    unmount();
+    scorer({ "GET /admin/scoring-settings": v3, "GET /admin/scoring-settings/history": { items: [v3, v2], total: 2 } });
     renderWithClient(<Scoring />);
     const history = await screen.findByRole("table", { name: "History (2)" });
+    expectDataTable(history);
     const rows = within(history).getAllByRole("row");
     expect(rows).toHaveLength(3);
-    expect(within(rows[1]!).getByText("(changed)")).toBeInTheDocument();
     expect(within(rows[1]!).getAllByText("(changed)")).toHaveLength(1);
     expect(within(rows[2]!).queryByText("(changed)")).toBeNull();
-    expect(within(rows[1]!).getByText("keywords too weak")).toBeInTheDocument();
-  });
-});
-
-describe("tester additions", () => {
-  it("an edit dialog with nothing changed closes without a call", async () => {
-    const api = browserApi({
-      "GET /me": superAdmin(),
-      "GET /admin/offices": [ROOT, EDU],
-      "GET /admin/counsel-codes": { items: [code()], total: 1 },
-    });
-    renderWithClient(<CounselCodes />);
-    await userEvent.click(await screen.findByRole("button", { name: "Edit SC, EDU" }));
-    const dialog = await screen.findByRole("dialog");
-    await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    expect(posts(api, "PATCH", "/admin/counsel-codes/cc-1")).toHaveLength(0);
-  });
-
-  it("a refused regular expression shows the API's reason", async () => {
-    browserApi({
-      "GET /me": deptAdmin(),
-      "GET /admin/offices": [EDU, DSE],
-      "GET /admin/keywords": { items: [], total: 0 },
-      "GET /admin/name-patterns": { items: [], total: 0 },
-      "POST /admin/name-patterns": json(400, { detail: "the regular expression is not valid: unterminated group" }),
-    });
-    renderWithClient(<KeywordsAndPatterns />);
-    const pform = await screen.findByRole("form", { name: "Add a Name Pattern" });
-    await userEvent.type(within(pform).getByLabelText("Pattern"), "(abc");
-    await userEvent.selectOptions(within(pform).getByLabelText("Kind"), "regex");
-    await userEvent.selectOptions(await within(pform).findByLabelText("Office"), "EDU");
-    await userEvent.click(within(pform).getByRole("button", { name: "Add a Name Pattern" }));
-    expect((await screen.findAllByText("the regular expression is not valid: unterminated group")).length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("a 403 on adding a code shows the server's message, not the generic one", async () => {
-    browserApi({
-      "GET /me": deptAdmin(),
-      "GET /admin/offices": [EDU, DSE],
-      "GET /admin/counsel-codes": { items: [], total: 0 },
-      "POST /admin/counsel-codes": json(403, { detail: "the office is outside your offices" }),
-    });
-    renderWithClient(<CounselCodes />);
-    const form = await screen.findByRole("form", { name: "Add a Counsel Code" });
-    await userEvent.type(within(form).getByLabelText(/^Code/), "SC, EDU");
-    await userEvent.selectOptions(await within(form).findByLabelText("Office"), "EDU");
-    await userEvent.click(within(form).getByRole("button", { name: "Add a Counsel Code" }));
-    expect((await screen.findAllByText("the office is outside your offices")).length).toBeGreaterThanOrEqual(1);
-  });
-});
-
-describe("lists are DataTables, cards on phones (design portal-ui-polish, decision 15)", () => {
-  it("CounselCodes renders a DataTable with a primary cell", async () => {
-    browserApi({
-      "GET /me": deptAdmin(),
-      "GET /admin/offices": [EDU, DSE],
-      "GET /admin/counsel-codes": { items: [code()], total: 1 },
-      "GET /admin/counsel-codes/unmapped": [
-        { code: "SC, PWD", entries: 124000, last_listed: "2026-10-09", example_case_ref: "ASLMS/GOA/CASE/2026/000042" },
-      ],
-    });
-    renderWithClient(<CounselCodes />);
-    expectDataTable(await screen.findByRole("table", { name: "Counsel Codes" }));
-    await userEvent.click(screen.getByRole("button", { name: "Show codes seen in cause lists but not mapped" }));
-    expectDataTable(await screen.findByRole("table", { name: "Codes seen in cause lists but not mapped" }));
-  });
-
-  it("Keywords renders a DataTable with a primary cell", async () => {
-    browserApi({
-      "GET /me": deptAdmin(),
-      "GET /admin/offices": [EDU, DSE],
-      "GET /admin/keywords": { items: [keyword()], total: 1 },
-      "GET /admin/name-patterns": {
-        items: [
-          {
-            id: "np-1",
-            pattern: "DIRECTOR.*EDUCATION",
-            kind: "regex",
-            office: { code: "EDU", name: "Education" },
-            weight_override: null,
-            effective_weight: 0.6,
-            discover: false,
-            discoverable: false,
-            is_active: true,
-            updated_at: "2026-10-01T05:00:00Z",
-          },
-        ],
-        total: 1,
-      },
-    });
-    renderWithClient(<KeywordsAndPatterns />);
-    expectDataTable(await screen.findByRole("table", { name: "Keywords" }));
-    expectDataTable(await screen.findByRole("table", { name: "Name Patterns" }));
-  });
-
-  it("Watchlist renders a DataTable with a primary cell", async () => {
-    browserApi({ "GET /me": superAdmin(), "GET /admin/offices": [ROOT, EDU, HEALTH], "GET /admin/watchlist": { items: [watch()], total: 1 } });
-    renderWithClient(<Watchlist />);
-    expectDataTable(await screen.findByRole("table", { name: "Watchlist" }));
-  });
-
-  it("Scoring renders a DataTable with a primary cell", async () => {
-    browserApi({ "GET /me": deptAdmin(["admin.keywords"]), "GET /admin/scoring-settings": settings(3) });
-    const { unmount } = renderWithClient(<Scoring />);
-    const values = expectDataTable(await screen.findByRole("table", { name: "Weights and thresholds" }));
-    expect(within(values).getAllByRole("rowheader").length).toBeGreaterThan(0);
-    unmount();
-    browserApi({
-      "GET /me": superAdmin(),
-      "GET /admin/scoring-settings": settings(3),
-      "GET /admin/scoring-settings/history": { items: [settings(3), settings(2)], total: 2 },
-    });
-    renderWithClient(<Scoring />);
-    expectDataTable(await screen.findByRole("table", { name: "History (2)" }));
   });
 });

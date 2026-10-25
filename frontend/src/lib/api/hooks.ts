@@ -20,8 +20,9 @@ import type {
   InboxCountsList,
   ListingList,
   Me,
+  OfficeChoices,
+  OfficePurpose,
   MyCaseCounts,
-  OfficeOut,
   RecipientList,
   ReferenceLabels,
   ReportCatalogue,
@@ -152,13 +153,22 @@ export function useOwnership(ref: string, enabled = true) {
   });
 }
 
-/** The active offices of the caller's `users.view` scope, by path (`GET /admin/offices`), for office pickers. */
-export function useScopedOffices(enabled = true) {
+export const OFFICE_CHOICES_KEY = ["offices", "choices"] as const;
+
+/**
+ * The offices one Office Picker may offer (`GET /admin/offices/choices?purpose=`, design portal-ui-polish-2, decision
+ * 29): exactly those the screen's filter or write accepts, in tree order. Showing them is convenience only; every
+ * write checks again.
+ */
+export function useOfficeChoices(purpose: OfficePurpose | undefined, includeInactive = false, enabled = true) {
   return useQuery({
-    queryKey: ["admin", "offices", "scope"],
-    queryFn: () => api<OfficeOut[]>("/admin/offices"),
+    queryKey: [...OFFICE_CHOICES_KEY, purpose ?? "", includeInactive],
+    queryFn: () =>
+      api<OfficeChoices>("/admin/offices/choices", {
+        query: { purpose, include_inactive: includeInactive || undefined },
+      }),
     staleTime: 10 * 60_000,
-    enabled,
+    enabled: enabled && !!purpose,
   });
 }
 

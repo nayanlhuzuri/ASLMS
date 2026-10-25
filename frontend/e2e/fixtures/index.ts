@@ -8,6 +8,8 @@
 import type { components } from "@/lib/api/schema";
 import type {
   AlertList,
+  AuditPage,
+  CounselCodeList,
   CustodyBrief,
   CustodyHistory,
   CustodyLeg,
@@ -19,12 +21,14 @@ import type {
   MyCaseList,
   Note,
   NoteList,
+  OfficeChoices,
   Permission,
   PermissionInfo,
   Report,
   ReportCatalogue,
   SentList,
   SystemHealth,
+  UnmappedCode,
   UserOut,
 } from "@/lib/api/types";
 
@@ -438,6 +442,105 @@ function users(): UserOut[] {
   ];
 }
 
+/**
+ * The Office Picker's offices (design portal-ui-polish-2, decisions 28-29): the tree to depth 3 with long names, and one
+ * inactive office (shown with its badge where the purpose allows it).
+ */
+function officeChoices(url: URL): OfficeChoices {
+  const purpose = (url.searchParams.get("purpose") ?? "users") as OfficeChoices["purpose"];
+  const goa = "Government of Assam";
+  const edu = "Department of School Education, Government of Assam, Dispur";
+  const items: OfficeChoices["items"] = [
+    { code: "GOA", name: goa, kind: "state", tier: "state", depth: 0, parent_code: null, ancestors: [], is_active: true },
+    { code: "EDU", name: edu, kind: "department", tier: "department", depth: 1, parent_code: "GOA", ancestors: [goa], is_active: true },
+    { code: "EDU-DSE", name: STRESS.office, kind: "directorate", tier: "directorate", depth: 2, parent_code: "EDU", ancestors: [goa, edu], is_active: true },
+    {
+      code: "EDU-DSE-LEGAL-CELL",
+      name: "Legal Cell of the Directorate of Secondary Education, Kahilipara",
+      kind: "unit",
+      tier: "directorate",
+      depth: 3,
+      parent_code: "EDU-DSE",
+      ancestors: [goa, edu, STRESS.office],
+      is_active: true,
+    },
+    { code: "EDU-OLD", name: "Old Examination Cell (merged)", kind: "unit", tier: "directorate", depth: 2, parent_code: "EDU", ancestors: [goa, edu], is_active: false },
+    { code: "HEALTH", name: "Health and Family Welfare", kind: "department", tier: "department", depth: 1, parent_code: "GOA", ancestors: [goa], is_active: true },
+  ];
+  return { purpose, items: items.filter((o) => o.is_active || purpose === "audit") };
+}
+
+/** A person with two active offices and one ended (decision 34), as `GET /admin/users/{id}/memberships` answers. */
+function userMemberships(): MembershipOut[] {
+  return [
+    { ...MEMBERSHIPS[0]!, role: "dept_officer", valid_from: "2026-01-05" },
+    { ...MEMBERSHIPS[1]!, valid_from: "2026-03-01" },
+    {
+      id: "0192a3b4-0000-7000-8000-0000000000m3",
+      office: { code: "HEALTH", name: "Health and Family Welfare", kind: "department" },
+      department_code: "HEALTH",
+      designation: "Section Officer",
+      role: "dept_officer",
+      is_primary: false,
+      is_active: false,
+      valid_from: "2025-01-01",
+      valid_to: "2025-12-31",
+    },
+  ];
+}
+
+/** One membership's functions with one function given and one taken (decision 35). */
+function membershipFunctions(url: URL): S["MembershipFunctionsOut"] {
+  const active = permissions().filter((p) => p.is_active).map((p) => p.code);
+  const typeFns = active.filter((_, i) => i % 2 === 0);
+  const given = active.find((c) => !typeFns.includes(c))!;
+  const taken = typeFns[1]!;
+  const at = (permission: Permission, effect: "grant" | "deny") => ({
+    permission,
+    effect,
+    granted_by_user_id: null,
+    is_active: true,
+    reason: effect === "grant" ? "Covers the legal cell while the post is vacant" : null,
+    valid_to: null,
+  });
+  return {
+    membership_id: url.pathname.split("/").at(-2)!,
+    role: "dept_officer",
+    type_functions: typeFns,
+    overrides: [at(given, "grant"), at(taken, "deny")],
+    effective: [...typeFns.filter((c) => c !== taken), given],
+  };
+}
+
+/** The person's latest audit entries (decision 36). */
+function auditPage(): AuditPage {
+  const base = synthFor("/audit")!.body as AuditPage;
+  const row = base.items[0]!;
+  const actions = ["ownership.claim", "custody.sent", "notes.added"];
+  const items = actions.map((action, i) => ({ ...row, id: `0192a3b4-0000-7000-8000-00000000060${i}`, action }));
+  return { ...base, items, next_cursor: null };
+}
+
+/** Three codes seen in cause lists with no mapping (decision 42). */
+function unmapped(): UnmappedCode[] {
+  return [
+    { code: "SC, SECONDARY EDUCATION AND MADRASSA BOARD", entries: STRESS.count, last_listed: "2026-10-23", example_case_ref: SAMPLE.caseRef },
+    { code: "SC, PWD", entries: 48, last_listed: "2026-10-20", example_case_ref: null },
+    { code: "GA, ASSAM", entries: 3, last_listed: "2026-09-30", example_case_ref: SAMPLE.caseRef },
+  ];
+}
+
+/** The counsel codes with one rule carrying its own weight (decision 40). */
+function counselCodes(): CounselCodeList {
+  const base = synthFor("/admin/counsel-codes")!.body as CounselCodeList;
+  const row = base.items[0]!;
+  const items = [
+    { ...row, weight_override: 0.7, effective_weight: 0.7 },
+    { ...row, id: "0192a3b4-0000-7000-8000-000000000701", code: "SC, HEALTH", weight_override: null },
+  ];
+  return { ...base, items, total: items.length };
+}
+
 /** Cases with me and Pending action (design case-workspace-admin, decision 19): one row per lead badge. */
 function held(): HeldList {
   const base = synthFor("/custody/held")!.body as HeldList;
@@ -566,6 +669,14 @@ const OVERRIDES: [RegExp, Override][] = [
   [/^\/admin\/access\/overview$/, () => accessOverview()],
   [/^\/admin\/permissions$/, () => permissions()],
   [/^\/admin\/users$/, () => users()],
+  // design portal-ui-polish-2, decisions 28-42: the Office Picker, the User Details modal and Department Mapping
+  [/^\/admin\/offices\/choices$/, (url) => officeChoices(url)],
+  [/^\/admin\/users\/[^/]+$/, () => users()[0]],
+  [/^\/admin\/users\/[^/]+\/memberships$/, () => userMemberships()],
+  [/^\/admin\/users\/[^/]+\/memberships\/[^/]+\/permissions$/, (url) => membershipFunctions(url)],
+  [/^\/audit$/, () => auditPage()],
+  [/^\/admin\/counsel-codes\/unmapped$/, () => unmapped()],
+  [/^\/admin\/counsel-codes$/, () => counselCodes()],
   [/^\/custody\/held$/, () => held()],
   [/^\/cases\/[^/]+\/custody$/, (url) => custodyHistory(url)],
   [/^\/cases\/[^/]+\/notes$/, () => notes()],

@@ -382,7 +382,7 @@ describe("the period", () => {
 describe("pending actions", () => {
   it("holder department lists all active departments and says it does not narrow compliance", async () => {
     resetNav("/reports/pending-actions");
-    browserApi({
+    const api = browserApi({
       "GET /me": deptMe(),
       "GET /reports": catalogue(false),
       "GET /custody/recipients": {
@@ -397,12 +397,16 @@ describe("pending actions", () => {
       "GET /reports/pending-actions": report("pending-actions", { scope: "department", department_code: "EDU" }),
     });
     renderWithClient(<ReportPage reportKey="pending-actions" params={{ department: "EDU" }} />);
-    const holder = await screen.findByLabelText("Holder Department");
-    await waitFor(() => expect(within(holder).getAllByRole("option")).toHaveLength(4));
-    expect(within(holder).getByRole("option", { name: "All Holders" })).toBeInTheDocument();
-    expect(within(holder).getByRole("option", { name: "Public Works (PWD)" })).toBeInTheDocument();
+    // design portal-ui-polish-2, decision 30: an Office Picker fed by the departments the page holds, with no call of its own
+    const holder = await screen.findByRole("combobox", { name: "Holder Department" });
+    expect(holder).toHaveAttribute("placeholder", "All holders");
+    await userEvent.click(holder);
+    const list = await screen.findByRole("listbox");
+    await waitFor(() => expect(within(list).getAllByRole("option")).toHaveLength(3));
+    expect(within(list).getByRole("option", { name: /Public Works/ })).toHaveTextContent("PWD");
     expect(screen.getByText(/overdue compliance is always by the office addressed/)).toBeInTheDocument();
-    await userEvent.selectOptions(holder, "HEALTH");
+    await userEvent.click(within(list).getByText("Health"));
+    expect(api.calls.some((c) => c.path.startsWith("/admin/offices/choices"))).toBe(false);
     await userEvent.click(screen.getByRole("checkbox", { name: "List the Cases" }));
     await userEvent.click(screen.getByRole("button", { name: "Show Report" }));
     expect(nav.push).toHaveBeenCalledWith(

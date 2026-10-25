@@ -623,3 +623,93 @@ def set_designation_active(
         after=designation_summary(designation),
     )
     return designation
+
+
+# ------------------------------------------------------------------------------------------------ choices
+# Design `portal-ui-polish-2`, decision 29: the offices one Office Picker may offer, per purpose, exactly those the
+# matching screen's filter or write already accepts. Reads only; no audit row (the precedent of the tree).
+
+CHOICE_PURPOSES = ("users", "membership", "office_parent", "counsel_codes", "keywords", "watchlist", "audit")
+_PURPOSE_FUNCTION: dict[str, Permission] = {
+    "users": Permission.USERS_VIEW,
+    "membership": Permission.USERS_CREATE,
+    "office_parent": Permission.OFFICES_MANAGE,
+    "counsel_codes": Permission.ADMIN_COUNSEL_CODES,
+    "keywords": Permission.ADMIN_KEYWORDS,
+    "watchlist": Permission.ADMIN_WATCHLIST,
+    "audit": Permission.AUDIT_VIEW,
+}
+
+
+@dataclass
+class OfficeChoice:
+    code: str
+    name: str
+    kind: str
+    tier: str
+    depth: int
+    parent_code: str | None
+    ancestors: list[str]
+    is_active: bool
+
+
+def _choice_roots(session: Session, user: User, purpose: str, permission: Permission) -> list[Office] | None:
+    """None = every office; else the roots whose subtrees bound the answer."""
+    if purpose == "audit":
+        from aslms.services.audit_search import auditor_member
+
+        auditor_member(session, user)  # Forbidden("audit_scope") outside a State-wide membership
+        return None
+    if purpose == "users":
+        return access.user_scope_roots(session, user)
+    holders = access.holders_in(session, user, permission)
+    if any(m.is_super_admin for m in holders):
+        return None
+    return [m.office for m in holders]
+
+
+def choices(
+    session: Session, user: User, purpose: str, *, include_inactive: bool = False
+) -> list[OfficeChoice]:
+    """The offices for one picker, in tree order (by `path`). `Forbidden` without the purpose's function, for
+    `audit` outside a State-wide membership (`audit_scope`), and for `include_inactive` without `offices.manage`.
+    `audit` always includes inactive offices; `users` includes them on request; the other purposes list active
+    offices only."""
+    if purpose not in _PURPOSE_FUNCTION:
+        raise OfficeError(f"unknown purpose {purpose!r}")
+    permission = _PURPOSE_FUNCTION[purpose]
+    access.require(session, user, permission)
+    if include_inactive and purpose != "audit" and not access.has(session, user, Permission.OFFICES_MANAGE):
+        raise access.Forbidden("offices.manage is needed to list inactive offices")
+    roots = _choice_roots(session, user, purpose, permission)
+    if roots is not None and not roots:
+        return []
+    stmt = select(Office)
+    if roots is not None:
+        stmt = stmt.where(or_(*[or_(Office.id == r.id, Office.path.like(r.path + "/%")) for r in roots]))
+    with_inactive = purpose == "audit" or (purpose == "users" and include_inactive)
+    if not with_inactive:
+        stmt = stmt.where(Office.is_active.is_(True))
+    rows = list(session.scalars(stmt.order_by(Office.path)).all())
+    names = {o.code: o.name for o in rows}
+    missing = {c for o in rows for c in o.path.split("/")[:-1] if c not in names}
+    if missing:
+        names.update(
+            dict(session.execute(select(Office.code, Office.name).where(Office.code.in_(missing))).all())
+        )
+    out: list[OfficeChoice] = []
+    for o in rows:
+        parts = o.path.split("/")
+        out.append(
+            OfficeChoice(
+                code=o.code,
+                name=o.name,
+                kind=_as_kind(o.kind).value,
+                tier=tier_of(o),
+                depth=depth_of(o),
+                parent_code=parts[-2] if len(parts) > 1 else None,
+                ancestors=[names.get(c, c) for c in parts[:-1]],
+                is_active=o.is_active,
+            )
+        )
+    return out

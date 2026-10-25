@@ -1,176 +1,254 @@
 "use client";
 
 /**
- * Pieces shared by the department mapping screens (design portal-mapping, decisions 3, 4, 5 and 9): the office
- * picker, the weight override field and cell, the deactivate / reactivate action and the case link through search.
- * Showing an input or an action is convenience only: the API decides every write.
+ * Pieces shared by the department mapping screens (design portal-mapping, decisions 4, 5 and 9; simplified by
+ * portal-ui-polish-2, decisions 39-41): the one toolbar line (search, Include Deactivated), the menu of a row (Change
+ * Office where the API takes it, Deactivate or Reactivate after a confirmation), the case link through search and the
+ * office cell. The forms never send `notes` or `weight`: the Scoring tab is the only place for weights. Showing an
+ * input or an action is convenience only: the API decides every write.
  */
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 
-import { Button, ConfirmDialog, SelectField, TextField } from "@/components/ui";
+import { ConfirmDialog, Menu, OfficePicker, Switch, TextField, type MenuItem } from "@/components/ui";
 import { ApiError, api } from "@/lib/api/client";
-import { useMe, useScopedOffices } from "@/lib/api/hooks";
-import type { OfficeOut } from "@/lib/api/types";
-import { can } from "@/lib/can";
-import { given, isRootOffice, officeDepth, weightText } from "@/lib/mapping";
+import type { OfficeChoice, OfficePurpose } from "@/lib/api/types";
+import { given } from "@/lib/mapping";
 import { T } from "@/lib/messages";
 import { useAction } from "@/lib/useAction";
 
 import s from "./mapping.module.css";
 
-export interface OfficeChoices {
-  /** Whether the login picks from a list (`users.view`); otherwise it types the office code. */
-  pick: boolean;
-  offices: OfficeOut[];
-  isPending: boolean;
-  /** The root office when it is in the picker (the login's scope holds it). */
-  root: OfficeOut | undefined;
-  departments: number;
+/** The root office (the State) among the picker's choices: the generic-code rule sends `is_generic_state` for it. */
+export function isRootChoice(o: OfficeChoice | undefined): boolean {
+  return !!o && o.parent_code === null;
 }
 
-/** The offices a login may pick (decision 4): `GET /admin/offices` with `users.view`, else none (typed codes). */
-export function useOfficeChoices(): OfficeChoices {
-  const me = useMe();
-  const pick = can(me.data, "users.view");
-  const list = useScopedOffices(pick);
-  const offices = pick && !list.isError ? (list.data ?? []).filter((o) => o.is_active !== false) : [];
-  return {
-    pick: pick && !list.isError,
-    offices,
-    isPending: me.isPending || (pick && list.isPending),
-    root: offices.find((o) => isRootOffice(o)),
-    departments: offices.filter((o) => o.kind === "department").length,
-  };
-}
-
-export function officeLabel(o: OfficeOut): string {
-  return `${"  ".repeat(officeDepth(o))}${o.name} (${o.code})`;
-}
-
-/** The office picker: a list of the scope's offices with `users.view`, else a code typed by the user. */
-export function OfficePicker({
-  id,
-  choices,
-  value,
+/** A labelled on/off switch on the control line (Include Deactivated, Search the Court). */
+export function SwitchLine({
+  label,
+  checked,
   onChange,
-  allowRoot = true,
-  optional = false,
-  required = false,
-  label = T.mapping.office,
-  hint,
-  error,
+  disabled,
+  title,
 }: {
-  id: string;
-  choices: OfficeChoices;
-  value: string;
-  onChange: (code: string) => void;
-  allowRoot?: boolean;
-  optional?: boolean;
-  required?: boolean;
-  label?: string;
-  hint?: ReactNode;
-  error?: ReactNode;
+  label: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  disabled?: boolean;
+  title?: string;
 }) {
-  if (choices.pick || choices.isPending) {
-    const offices = choices.offices.filter((o) => allowRoot || !isRootOffice(o));
-    return (
-      <SelectField
-        id={id}
-        label={label}
-        hint={hint}
-        error={error}
-        required={required}
-        options={offices.map((o) => ({ value: o.code, label: officeLabel(o) }))}
-        placeholder={optional ? T.mapping.ownDepartment : T.mapping.chooseOffice}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      />
-    );
-  }
   return (
-    <TextField
-      id={id}
-      label={label === T.mapping.office ? T.mapping.officeCode : label}
-      hint={hint ?? T.mapping.officeCodeHint}
-      error={error}
-      required={required}
-      autoComplete="off"
-      value={value}
-      onChange={(e) => onChange(e.target.value.toUpperCase())}
-    />
+    <span className={s.switchLine} title={title}>
+      <Switch label={label} checked={checked} onChange={onChange} disabled={disabled} />
+      <span aria-hidden="true" onClick={() => (disabled ? undefined : onChange(!checked))}>
+        {label}
+      </span>
+    </span>
   );
-}
-
-/** The office filter of a rule list: shown when the picker holds more than one department (decision 4). */
-export function OfficeFilter({ choices, value, onChange }: { choices: OfficeChoices; value: string; onChange: (code: string) => void }) {
-  if (!choices.pick || choices.departments < 2) return null;
-  return (
-    <SelectField
-      label={T.mapping.filterOffice}
-      options={choices.offices.map((o) => ({ value: o.code, label: officeLabel(o) }))}
-      placeholder={T.mapping.allOffices}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-    />
-  );
-}
-
-export interface WeightDraft {
-  value: string;
-  changed: boolean;
-}
-
-export function weightDraft(current: number | null | undefined): WeightDraft {
-  return { value: current === null || current === undefined ? "" : String(current), changed: false };
 }
 
 /**
- * The weight override input and "Clear override" (decision 3). Rendered only for a login holding `admin.scoring`;
- * a request carries `weight` only when the input was changed (`weightBody`).
+ * One toolbar line per tab (decision 41): a search box (its label kept for screen readers, the placeholder shows it),
+ * the Include Deactivated switch and whatever the tab adds (the Keywords tab's kind choice).
  */
-export function WeightField({
-  draft,
-  onChange,
-  mode,
-  current,
+export function RuleToolbar({
+  searchLabel,
+  placeholder,
+  q,
+  onQ,
+  inactive,
+  onInactive,
+  children,
 }: {
-  draft: WeightDraft;
-  onChange: (draft: WeightDraft) => void;
-  mode: "create" | "edit";
-  current?: number | null;
+  searchLabel: string;
+  placeholder: string;
+  q: string;
+  onQ: (q: string) => void;
+  inactive: boolean;
+  onInactive: (v: boolean) => void;
+  children?: ReactNode;
 }) {
-  const clearing = mode === "edit" && draft.changed && draft.value.trim() === "" && current !== null && current !== undefined;
   return (
-    <div className="row">
-      <TextField
-        label={T.mapping.weightOverride}
-        type="number"
-        step="0.001"
-        min="0.001"
-        max="1"
-        inputMode="decimal"
-        value={draft.value}
-        hint={clearing ? T.mapping.overrideCleared : undefined}
-        onChange={(e) => onChange({ value: e.target.value, changed: true })}
-      />
-      <Button
-        variant="secondary"
-        onClick={() => onChange(mode === "create" ? { value: "", changed: false } : { value: "", changed: true })}
-      >
-        {T.mapping.clearOverride}
-      </Button>
+    <div className={s.toolbar} role="search" aria-label={searchLabel}>
+      <div className={s.toolbarSearch}>
+        <TextField label={searchLabel} hideLabel type="search" placeholder={placeholder} value={q} onChange={(e) => onQ(e.target.value)} />
+      </div>
+      {children}
+      <SwitchLine label={T.mapping.includeInactive} checked={inactive} onChange={onInactive} />
     </div>
   );
 }
 
-/** The effective weight, read-only for everyone, marked "setting" or "override". */
-export function WeightCell({ effective, override }: { effective: number; override: number | null | undefined }) {
+/**
+ * The menu of a rule's row (decision 41): Change Office (where the API takes an office change) and Deactivate or
+ * Reactivate, each after its dialog. A 409 re-reads the list (`onConflict`); the API's message shows in the dialog.
+ */
+export function RuleMenu<R>({
+  path,
+  active,
+  label,
+  confirmText,
+  onDone,
+  onConflict,
+  office,
+}: {
+  path: string;
+  active: boolean;
+  label: string;
+  confirmText: (enable: boolean) => string;
+  onDone: (row: R, what: "status" | "office") => void;
+  onConflict: () => void;
+  /** Change Office: the picker's purpose, the current office, and the body the API takes. */
+  office?: { purpose: OfficePurpose; current: string; body: (choice: OfficeChoice | undefined, code: string) => Record<string, unknown>; kinds?: string[] };
+}) {
+  const [open, setOpen] = useState<"status" | "office" | null>(null);
+  const enable = !active;
+  const verb = enable ? T.mapping.reactivate : T.mapping.deactivate;
+  const items: MenuItem[] = [];
+  if (office && active) items.push({ key: "office", label: T.mapping.changeOffice, onSelect: () => setOpen("office") });
+  items.push({ key: "status", label: verb, onSelect: () => setOpen("status"), danger: !enable, separator: items.length > 0 });
   return (
-    <span className={s.weight}>
-      <span className="mono">{weightText(effective)}</span>
-      <span className={s.source}>{override === null || override === undefined ? T.mapping.fromSetting : T.mapping.fromOverride}</span>
-    </span>
+    <>
+      <Menu
+        label={T.mapping.rowActionsAria(label)}
+        trigger={
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <circle cx="3" cy="8" r="1.5" />
+            <circle cx="8" cy="8" r="1.5" />
+            <circle cx="13" cy="8" r="1.5" />
+          </svg>
+        }
+        triggerClassName={s.kebab}
+        items={items}
+      />
+      {open === "status" ? (
+        <StatusDialog<R>
+          path={path}
+          enable={enable}
+          label={label}
+          confirmText={confirmText}
+          onClose={() => setOpen(null)}
+          onDone={(r) => {
+            setOpen(null);
+            onDone(r, "status");
+          }}
+          onConflict={onConflict}
+        />
+      ) : null}
+      {open === "office" && office ? (
+        <ChangeOfficeDialog<R>
+          path={path}
+          label={label}
+          office={office}
+          onClose={() => setOpen(null)}
+          onDone={(r) => {
+            setOpen(null);
+            onDone(r, "office");
+          }}
+          onConflict={onConflict}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function StatusDialog<R>({
+  path,
+  enable,
+  label,
+  confirmText,
+  onClose,
+  onDone,
+  onConflict,
+}: {
+  path: string;
+  enable: boolean;
+  label: string;
+  confirmText: (enable: boolean) => string;
+  onClose: () => void;
+  onDone: (row: R) => void;
+  onConflict: () => void;
+}) {
+  const action = useAction();
+  const verb = enable ? T.mapping.reactivate : T.mapping.deactivate;
+  async function confirm() {
+    const out = await action.run(() =>
+      conflictAware(() => api<R>(`${path}/${enable ? "reactivate" : "deactivate"}`, { method: "POST" }), onConflict),
+    );
+    if (out.ok) onDone(out.value);
+  }
+  return (
+    <ConfirmDialog
+      open
+      title={enable ? T.mapping.reactivateTitle : T.mapping.deactivateTitle}
+      onClose={onClose}
+      onConfirm={() => void confirm()}
+      busy={action.busy}
+      error={given(action.error)}
+      confirmLabel={verb}
+      danger={!enable}
+    >
+      <p>
+        <span className="mono">{label}</span>
+      </p>
+      <p>{confirmText(enable)}</p>
+    </ConfirmDialog>
+  );
+}
+
+function ChangeOfficeDialog<R>({
+  path,
+  label,
+  office,
+  onClose,
+  onDone,
+  onConflict,
+}: {
+  path: string;
+  label: string;
+  office: { purpose: OfficePurpose; current: string; body: (choice: OfficeChoice | undefined, code: string) => Record<string, unknown>; kinds?: string[] };
+  onClose: () => void;
+  onDone: (row: R) => void;
+  onConflict: () => void;
+}) {
+  const [code, setCode] = useState<string | null>(office.current);
+  const [chosen, setChosen] = useState<OfficeChoice | undefined>(undefined);
+  const action = useAction();
+  const id = useId();
+  async function save() {
+    if (!code || code === office.current) {
+      onClose();
+      return;
+    }
+    const out = await action.run(() =>
+      conflictAware(() => api<R>(path, { method: "PATCH", body: office.body(chosen, code) }), onConflict),
+    );
+    if (out.ok) onDone(out.value);
+  }
+  return (
+    <ConfirmDialog
+      open
+      title={T.mapping.changeOffice}
+      subtitle={label}
+      onClose={onClose}
+      onConfirm={() => void save()}
+      busy={action.busy}
+      error={given(action.error)}
+      confirmLabel={T.save}
+      confirmDisabled={!code}
+    >
+      <OfficePicker
+        id={id}
+        label={T.mapping.office}
+        purpose={office.purpose}
+        kinds={office.kinds}
+        required
+        value={code}
+        onChange={(c) => setCode(c)}
+        onChoose={setChosen}
+      />
+    </ConfirmDialog>
   );
 }
 
@@ -181,71 +259,6 @@ export function SearchLink({ ref_no }: { ref_no: string | null | undefined }) {
     <Link href={`/search?q=${encodeURIComponent(ref_no)}`} className="mono">
       {ref_no}
     </Link>
-  );
-}
-
-/**
- * Deactivate or reactivate a rule, after a confirmation (decision 5). A 409 re-reads the list (`onConflict`); the
- * API's message shows in the dialog.
- */
-export function RuleStatusActions<R>({
-  path,
-  active,
-  label,
-  confirmText,
-  onDone,
-  onConflict,
-}: {
-  path: string;
-  active: boolean;
-  label: string;
-  confirmText: (enable: boolean) => string;
-  onDone: (row: R) => void;
-  onConflict: () => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const action = useAction();
-  const enable = !active;
-  const verb = enable ? T.mapping.reactivate : T.mapping.deactivate;
-
-  async function confirm() {
-    const out = await action.run(() =>
-      conflictAware(() => api<R>(`${path}/${enable ? "reactivate" : "deactivate"}`, { method: "POST" }), onConflict),
-    );
-    if (out.ok) {
-      setOpen(false);
-      onDone(out.value);
-    }
-  }
-
-  return (
-    <>
-      <Button
-        variant="link"
-        aria-label={`${verb} ${label}`}
-        onClick={() => {
-          action.reset();
-          setOpen(true);
-        }}
-      >
-        {verb}
-      </Button>
-      <ConfirmDialog
-        open={open}
-        title={enable ? T.mapping.reactivateTitle : T.mapping.deactivateTitle}
-        onClose={() => setOpen(false)}
-        onConfirm={() => void confirm()}
-        busy={action.busy}
-        error={given(action.error)}
-        confirmLabel={verb}
-        danger={!enable}
-      >
-        <p>
-          <span className="mono">{label}</span>
-        </p>
-        <p>{confirmText(enable)}</p>
-      </ConfirmDialog>
-    </>
   );
 }
 
@@ -270,4 +283,11 @@ export function OfficeCell({ office }: { office: { code: string; name: string } 
       {office.name} <span className="mono muted">({office.code})</span>
     </span>
   );
+}
+
+/** The rows whose text holds the search words (case ignored), for the lists the API answers whole. */
+export function matches(q: string, ...texts: (string | null | undefined)[]): boolean {
+  const needle = q.trim().toLowerCase();
+  if (!needle) return true;
+  return texts.some((t) => (t ?? "").toLowerCase().includes(needle));
 }

@@ -86,6 +86,20 @@ def test_search_by_case_and_detail(api, world, claimed):
     assert missing.status_code == 404 and missing.json()["detail"]["code"] == "not_found"
 
 
+def test_office_subtree_param(api, world, claimed):
+    """Design `portal-ui-polish-2`, decision 30: `office_subtree=false` narrows to the office alone."""
+    h = ds.login(api, "edu_auditor")
+    params = {"office": "GOA", "action": "ownership.claim"}
+    whole = api.get("/audit", params=params, headers=h)
+    assert [i["actor"]["office_code"] for i in whole.json()["items"]] == ["EDU"]
+    only = api.get("/audit", params={**params, "office_subtree": "false"}, headers=h)
+    assert only.status_code == 200 and only.json()["items"] == []
+    exact = api.get(
+        "/audit", params={"office": "EDU", "action": "ownership.claim", "office_subtree": "false"}, headers=h
+    )
+    assert len(exact.json()["items"]) == 1
+
+
 def test_paging_through_the_api(api, world):
     with world.Session() as s:
         at = datetime(2026, 10, 2, 5, 0, tzinfo=UTC)

@@ -7,13 +7,14 @@ import { addDays } from "./format";
 import { T } from "./messages";
 import type { Params } from "./params";
 
-/** The ten filters, named as the API names them, so a screen URL and an API URL carry the same filters. */
+/** The eleven filters, named as the API names them, so a screen URL and an API URL carry the same filters. */
 export const AUDIT_PARAMS = [
   "user",
   "actor",
   "about_user",
   "case",
   "office",
+  "office_subtree",
   "action",
   "entity_type",
   "entity_id",

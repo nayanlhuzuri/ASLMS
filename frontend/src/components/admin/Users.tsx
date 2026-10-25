@@ -10,20 +10,19 @@
  * membership to this person" instead of a duplicate. Every rule stays on the server.
  */
 import { useQuery } from "@tanstack/react-query";
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
+import { useId, useState, type FormEvent } from "react";
 
 import { Chevron } from "@/components/inbox/rows";
 import {
   Badge,
   Button,
-  buttonClass,
   CheckField,
   DataTable,
   EmptyState,
   ErrorBanner,
   Loading,
+  OfficePicker,
   Pagination,
   SelectField,
   SidePanel,
@@ -34,12 +33,12 @@ import { labelOf, useLabels, useMe } from "@/lib/api/hooks";
 import type { Designation, MembershipOut, Role, UserLookup, UserOut, UserTypeLabel } from "@/lib/api/types";
 import { can, isSuperAdmin } from "@/lib/can";
 import { T } from "@/lib/messages";
-import type { Params } from "@/lib/params";
+import { offsetOf, queryString, type Params } from "@/lib/params";
 import { useAction } from "@/lib/useAction";
 import { useUrlOverlay } from "@/lib/useUrlOverlay";
 
 import a from "./admin.module.css";
-import { UserDetail } from "./UserDetail";
+import { openUserDetails, UserDetailsModal } from "./UserDetails";
 
 export const PAGE_SIZE = 50;
 
@@ -83,7 +82,7 @@ export function initials(name: string): string {
 }
 
 /** The primary active membership, else the first active one. */
-function primaryMembership(u: UserOut): MembershipOut | undefined {
+export function primaryMembership(u: UserOut): MembershipOut | undefined {
   const active = (u.memberships ?? []).filter((m) => m.is_active !== false);
   return active.find((m) => m.is_primary) ?? active[0];
 }
@@ -104,61 +103,78 @@ export function TypeBadges({ user, types }: { user: UserOut; types?: UserTypeLab
   );
 }
 
-/**
- * The user's side panel on `?user=<id>` (decision 23): the existing `UserDetail` sections, unchanged, with "Open full
- * page" in the footer; `?user=new` holds the new-user flow (e-mail lookup first).
- */
-function UserPanel({
-  value,
-  onClose,
-  onCreated,
-}: {
-  value: string | null;
-  onClose: () => void;
-  onCreated: (id: string) => void;
-}) {
-  const isNew = value === "new";
-  const user = useQuery({
-    queryKey: ["admin", "user", value ?? ""],
-    queryFn: () => api<UserOut>(`/admin/users/${value}`),
-    enabled: !!value && !isNew,
-  });
-  const title = isNew ? T.users.addUser : (user.data?.full_name ?? T.users.title);
+/** The new-user flow in the side panel on `?user=new` (decision 31: it stays a side panel; a person opens the modal). */
+function NewUserPanel({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: (id: string) => void }) {
   return (
-    <SidePanel
-      open={value !== null}
-      title={title}
-      onClose={onClose}
-      wide
-      footer={
-        value && !isNew ? (
-          <Link href={`/admin/users/${value}`} className={buttonClass("secondary")} data-variant="secondary">
-            {T.users.openFullPage}
-          </Link>
-        ) : null
-      }
-    >
-      {isNew ? <NewUserForm onDone={onCreated} /> : value ? <UserDetail id={value} /> : null}
+    <SidePanel open={open} title={T.users.addUser} onClose={onClose} wide>
+      {open ? <NewUserForm onDone={onCreated} /> : null}
     </SidePanel>
   );
 }
 
-export function UsersList({ params = {} }: { params?: Params }) {
+/** The list's own filters in the address (design portal-ui-polish-2, decision 31: the modal keeps the list behind). */
+export const USER_LIST_KEYS = ["q", "role", "office", "subtree", "status", "include_ended", "offset"] as const;
+
+export function listParamsOf(params: Params): Params {
+  const out: Params = {};
+  for (const k of USER_LIST_KEYS) if (params[k]) out[k] = params[k];
+  return out;
+}
+
+interface Filters {
+  q: string;
+  role: string;
+  office: string;
+  subtree: boolean;
+  status: string;
+  includeEnded: boolean;
+}
+
+function filtersOf(params: Params): Filters {
+  return {
+    q: params.q ?? "",
+    role: params.role ?? "",
+    office: params.office ?? "",
+    subtree: params.subtree !== "false",
+    status: params.status ?? "",
+    includeEnded: params.include_ended === "true",
+  };
+}
+
+function paramsOf(f: Filters): Params {
+  return {
+    q: f.q.trim() || undefined,
+    role: f.role || undefined,
+    office: f.office || undefined,
+    subtree: f.office && !f.subtree ? "false" : undefined,
+    status: f.status || undefined,
+    include_ended: f.includeEnded ? "true" : undefined,
+  };
+}
+
+/**
+ * The Users list (decision 23) with the one-line toolbar (design portal-ui-polish-2, decision 27): Name or E-mail,
+ * User Type, Office (the Office Picker with Include Sub-offices), Status, More Filters (n) and Search on one line,
+ * labels kept for screen readers and shown as placeholders; "Include Logins Without an Active Office" (the super
+ * admin's) sits inside More Filters. The filters live in the address, so the User Details modal (`userId`, on
+ * `/admin/users/<id>`) opens over the same list.
+ */
+export function UsersList({ params = {}, userId }: { params?: Params; userId?: string }) {
   const me = useMe();
   const labels = useLabels();
-  const pathname = usePathname() ?? "/admin/users";
-  const overlay = useUrlOverlay("user", params, pathname);
-  const [draft, setDraft] = useState({ q: "", office: "", role: "", status: "", includeEnded: false });
-  const [filters, setFilters] = useState(draft);
-  const [offset, setOffset] = useState(0);
-  const [shortQuery, setShortQuery] = useState(false);
+  const router = useRouter();
+  const listPath = "/admin/users";
+  const overlay = useUrlOverlay("user", params, listPath);
+  const filters = filtersOf(params);
+  const offset = offsetOf(params);
   const users = useQuery({
     queryKey: ["admin", "users", filters, offset],
     queryFn: () =>
       apiPage<UserOut[]>("/admin/users", {
         query: {
           q: filters.q.trim() || undefined,
-          office: filters.office.trim() || undefined,
+          office: filters.office || undefined,
+          subtree: filters.office && !filters.subtree ? false : undefined,
           role: filters.role || undefined,
           status: filters.status || undefined,
           include_ended: filters.includeEnded || undefined,
@@ -168,16 +184,11 @@ export function UsersList({ params = {} }: { params?: Params }) {
       }),
   });
   const types = labels.data?.user_types;
+  const list = listParamsOf(params);
+  const superAdmin = isSuperAdmin(me.data);
 
-  function apply(e: FormEvent) {
-    e.preventDefault();
-    if (draft.q.trim().length === 1) {
-      setShortQuery(true);
-      return;
-    }
-    setShortQuery(false);
-    setOffset(0);
-    setFilters(draft);
+  function go(next: Params) {
+    router.push(listPath + queryString(next));
   }
 
   return (
@@ -190,40 +201,13 @@ export function UsersList({ params = {} }: { params?: Params }) {
         {/* the page's one primary (decision 28) */}
         {can(me.data, "users.create") ? <Button onClick={() => overlay.open("new")}>{T.users.addUser}</Button> : null}
       </div>
-      <form className="row" onSubmit={apply} role="search">
-        <TextField
-          label={T.users.search}
-          value={draft.q}
-          error={shortQuery ? T.users.shortQuery : undefined}
-          onChange={(e) => setDraft({ ...draft, q: e.target.value })}
-        />
-        <SelectField
-          label={T.users.type}
-          value={draft.role}
-          placeholder={T.users.anyType}
-          options={(types ?? []).map((t) => ({ value: t.code, label: t.label }))}
-          onChange={(e) => setDraft({ ...draft, role: e.target.value })}
-        />
-        <TextField label={T.users.office} value={draft.office} onChange={(e) => setDraft({ ...draft, office: e.target.value })} />
-        <SelectField
-          label={T.users.statusFilter}
-          value={draft.status}
-          placeholder={T.users.anyStatus}
-          options={(["active", "not_signed_in", "off"] as const).map((s) => ({ value: s, label: T.users.statuses[s]! }))}
-          onChange={(e) => setDraft({ ...draft, status: e.target.value })}
-        />
-        {isSuperAdmin(me.data) ? (
-          <CheckField
-            inline
-            label={T.users.includeEnded}
-            checked={draft.includeEnded}
-            onChange={(e) => setDraft({ ...draft, includeEnded: e.target.checked })}
-          />
-        ) : null}
-        <Button type="submit" variant="secondary">
-          {T.users.apply}
-        </Button>
-      </form>
+      <UsersToolbar
+        key={queryString(paramsOf(filters))}
+        initial={filters}
+        types={types}
+        superAdmin={superAdmin}
+        onSearch={(f) => go(paramsOf(f))}
+      />
       {users.isPending ? <Loading /> : null}
       <ErrorBanner error={users.error} onRetry={() => users.refetch()} />
       {users.data ? (
@@ -236,7 +220,7 @@ export function UsersList({ params = {} }: { params?: Params }) {
               rows={users.data.items}
               rowKey={(u) => u.id}
               rowLabel={(u) => T.users.openUser(u.full_name)}
-              onRowClick={(u) => overlay.open(u.id)}
+              onRowClick={(u) => openUserDetails(router, u.id, list)}
               columns={[
                 {
                   key: "avatar",
@@ -268,20 +252,124 @@ export function UsersList({ params = {} }: { params?: Params }) {
                 { key: "status", header: T.users.status, width: "var(--lead-w)", cell: (u) => <StatusBadge user={u} /> },
                 {
                   key: "open",
-                  header: <span className="visually-hidden">{T.users.openFullPage}</span>,
-                  label: T.users.openFullPage,
+                  header: <span className="visually-hidden">{T.users.open}</span>,
+                  label: T.users.open,
                   hideOnPhone: true,
                   width: "var(--s6)",
                   cell: () => <Chevron />,
                 },
               ]}
             />
-            <Pagination offset={offset} limit={PAGE_SIZE} total={users.data.total} onChange={setOffset} />
+            <Pagination
+              offset={offset}
+              limit={PAGE_SIZE}
+              total={users.data.total}
+              onChange={(next) => go({ ...paramsOf(filters), offset: next ? String(next) : undefined })}
+            />
           </>
         )
       ) : null}
-      <UserPanel value={overlay.value} onClose={overlay.close} onCreated={(id) => overlay.open(id)} />
+      <NewUserPanel
+        open={overlay.value === "new"}
+        onClose={overlay.close}
+        onCreated={(id) => openUserDetails(router, id, list, { replace: true })}
+      />
+      {userId ? <UserDetailsModal key={userId} id={userId} listParams={list} tab={params.tab} /> : null}
     </section>
+  );
+}
+
+function UsersToolbar({
+  initial,
+  types,
+  superAdmin,
+  onSearch,
+}: {
+  initial: Filters;
+  types: UserTypeLabel[] | undefined;
+  superAdmin: boolean;
+  onSearch: (f: Filters) => void;
+}) {
+  const [draft, setDraft] = useState<Filters>(initial);
+  const [shortQuery, setShortQuery] = useState(false);
+  const moreCount = draft.includeEnded ? 1 : 0;
+  const [moreOpen, setMoreOpen] = useState(moreCount > 0);
+  const moreId = useId();
+
+  function submit(e: FormEvent) {
+    e.preventDefault();
+    if (draft.q.trim().length === 1) {
+      setShortQuery(true);
+      return;
+    }
+    setShortQuery(false);
+    onSearch(draft);
+  }
+
+  return (
+    <form className={a.toolbar} onSubmit={submit} role="search" aria-label={T.users.title}>
+      <div className={a.toolbarLine}>
+        <div className={a.toolbarSearch}>
+          <TextField
+            label={T.users.search}
+            hideLabel
+            placeholder={T.users.searchPlaceholder}
+            title={T.users.shortQuery}
+            value={draft.q}
+            error={shortQuery ? T.users.shortQuery : undefined}
+            onChange={(e) => setDraft({ ...draft, q: e.target.value })}
+          />
+        </div>
+        <div className={a.toolbarType}>
+          <SelectField
+            label={T.users.type}
+            hideLabel
+            value={draft.role}
+            placeholder={T.users.anyType}
+            options={(types ?? []).map((t) => ({ value: t.code, label: t.label }))}
+            onChange={(e) => setDraft({ ...draft, role: e.target.value })}
+          />
+        </div>
+        <div className={a.toolbarOffice}>
+          <OfficePicker
+            label={T.users.office}
+            hideLabel
+            placeholder={T.users.officePlaceholder}
+            purpose="users"
+            value={draft.office || null}
+            onChange={(office) => setDraft({ ...draft, office: office ?? "" })}
+            subtree={{ value: draft.subtree, onChange: (subtree) => setDraft({ ...draft, subtree }) }}
+          />
+        </div>
+        <div className={a.toolbarStatus}>
+          <SelectField
+            label={T.users.statusFilter}
+            hideLabel
+            value={draft.status}
+            placeholder={T.users.anyStatus}
+            options={(["active", "not_signed_in", "off"] as const).map((s) => ({ value: s, label: T.users.statuses[s]! }))}
+            onChange={(e) => setDraft({ ...draft, status: e.target.value })}
+          />
+        </div>
+        {superAdmin ? (
+          <Button variant="secondary" aria-expanded={moreOpen} aria-controls={moreId} onClick={() => setMoreOpen(!moreOpen)}>
+            {T.users.moreFiltersButton(moreCount)}
+          </Button>
+        ) : null}
+        <Button type="submit" variant="secondary">
+          {T.users.apply}
+        </Button>
+      </div>
+      {superAdmin ? (
+        <div id={moreId} className={a.toolbarMore} hidden={!moreOpen} role="group" aria-label={T.users.moreFiltersTitle}>
+          <CheckField
+            label={T.users.includeEnded}
+            checked={draft.includeEnded}
+            onChange={(e) => setDraft({ ...draft, includeEnded: e.target.checked })}
+          />
+        </div>
+      ) : null}
+    </form>
   );
 }
 
@@ -324,7 +412,14 @@ export function MembershipFields({
 }) {
   return (
     <div className="row">
-      <TextField label={T.users.officeCode} required value={value.office} onChange={(e) => onChange({ ...value, office: e.target.value })} />
+      {/* design portal-ui-polish-2, decision 30: the office from the picker, never typed */}
+      <OfficePicker
+        label={T.users.office}
+        purpose="membership"
+        required
+        value={value.office || null}
+        onChange={(office) => onChange({ ...value, office: office ?? "" })}
+      />
       <DesignationInput value={value.designation} onChange={(designation) => onChange({ ...value, designation })} />
       <SelectField
         label={T.users.type}
@@ -338,7 +433,7 @@ export function MembershipFields({
   );
 }
 
-/** `onDone` (the side panel): open the person's panel; without it the full page, as before. */
+/** `onDone` (the side panel): open the person's User Details; without it the person's address. */
 export function NewUserForm({ onDone }: { onDone?: (id: string) => void } = {}) {
   const router = useRouter();
   const labels = useLabels();

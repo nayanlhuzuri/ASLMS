@@ -32,3 +32,248 @@
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: var(--s3);
 }
+
+/* design portal-ui-polish-2, decisions 41-43: one toolbar line, one aligned add row, the row's menu, the
+   Recommended From Cause Lists column, and the scoring rows with a slider and a number field */
+.toolbar,
+.addRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--s2) var(--s3);
+}
+
+.toolbar > *,
+.addRow > * {
+  min-width: 0;
+}
+
+.toolbarSearch {
+  flex: 1 1 220px;
+}
+
+.addRow > div {
+  flex: 1 1 200px;
+}
+
+.addRow > .narrow {
+  flex: 0 1 180px;
+}
+
+.addRow > button,
+.addRow > .switchLine {
+  margin-top: var(--label-offset);
+}
+
+.switchLine {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--s2);
+  height: var(--control-h);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.kebab {
+  display: inline-grid;
+  place-items: center;
+  width: var(--control-h);
+  height: var(--control-h);
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  background: none;
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.kebab:hover,
+.kebab:focus-visible,
+.kebab[aria-expanded="true"] {
+  border-color: var(--border-strong);
+  background: var(--surface);
+}
+
+.codesLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: var(--s4);
+  align-items: start;
+}
+
+.codesMain {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  min-width: 0;
+}
+
+.recommended {
+  position: sticky;
+  top: var(--s4);
+  min-width: 0;
+}
+
+.recList {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recList > li {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding: var(--s3) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.recList > li:last-child {
+  border-bottom: 0;
+}
+
+.recTop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s2);
+}
+
+.recMap {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s2);
+}
+
+.recMap > div {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 1100px) {
+  .codesLayout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .recommended {
+    position: static;
+  }
+}
+
+.weightRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(160px, 1fr) 104px;
+  gap: var(--s4);
+  align-items: center;
+  padding: var(--s3) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.weightRow:last-child {
+  border-bottom: 0;
+}
+
+.weightName {
+  font-weight: 500;
+}
+
+.weightExplain {
+  display: block;
+  color: var(--text-3);
+  font-size: var(--t-sm);
+}
+
+.slider {
+  width: 100%;
+  height: var(--control-h);
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.weightRow input[type="number"] {
+  text-align: right;
+}
+
+.weightRow > div {
+  min-width: 0;
+}
+
+.weightRow [data-ui="field"] {
+  width: 100%;
+}
+
+.unsavedDot::after {
+  content: "";
+  display: inline-block;
+  width: var(--s1);
+  height: var(--s1);
+  margin-left: var(--s2);
+  border-radius: 50%;
+  background: var(--amber);
+  vertical-align: middle;
+}
+
+.bands {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--s3);
+}
+
+.bandBar {
+  display: flex;
+  height: var(--control-h);
+  margin-top: var(--s4);
+  overflow: hidden;
+  border-radius: var(--r-md);
+  font-size: var(--t-xs);
+  font-weight: 600;
+}
+
+.bandBar > div {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: flex-basis var(--med) var(--ease);
+}
+
+.band0 {
+  background: var(--slate-soft);
+  color: var(--text-2);
+}
+
+.band1 {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
+.band2 {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+@media (max-width: 640px) {
+  .weightRow {
+    grid-template-columns: minmax(0, 1fr) 104px;
+  }
+
+  .weightRow > :first-child {
+    grid-column: 1 / -1;
+  }
+
+  .addRow > div,
+  .addRow > .narrow,
+  .toolbarSearch {
+    flex: 1 1 100%;
+  }
+
+  .addRow > button,
+  .addRow > .switchLine {
+    margin-top: 0;
+  }
+}

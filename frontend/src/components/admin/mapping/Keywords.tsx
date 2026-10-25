@@ -1,126 +1,61 @@
 "use client";
 
 /**
- * Keywords and name patterns (design portal-mapping, decision 6; plan §4.1: "department names and designations
- * appearing in the party names"; §5.11), both under `admin.keywords`, two tables on one page. Edit changes the
- * weight only, so it shows only with `admin.scoring`; a wording change is a deactivation and a new rule. Adding
- * a rule that exists deactivated reactivates it (the API's behaviour); the screen says so when it knew the row.
- * "Search the court" (design department-discovery, decision 13a): the add forms pre-tick it for a text the court's
- * party-name search accepts and disable it for a regular expression; each row has its toggle (`PATCH {discover}`, the
- * server's refusal shown as given) with when it was last searched and the cases found.
+ * Keywords and name patterns (design portal-mapping, decision 6; simplified by portal-ui-polish-2, decisions 39-41;
+ * plan §4.1: "department names and designations appearing in the party names"), both under `admin.keywords`, in one
+ * list. One toolbar line (Search Words, the All / Keywords / Name Patterns choice, Include Deactivated), one add row
+ * (Word or Pattern, Kind: Keyword, Exact, Starts With or Pattern, routed to `/admin/keywords` or `/admin/name-patterns`
+ * as before, Office from the Office Picker, Search the Court, Add), and a menu per row (Deactivate or Reactivate). A
+ * wording change is a deactivation and a new rule; adding a rule that exists deactivated reactivates it (the API's
+ * behaviour), and the screen says so when it knew the row. No weight is shown or sent: the Scoring tab is the only
+ * place for weights. "Search the Court" (design department-discovery, decision 13a): the add row follows the text
+ * until changed and is off for a regular expression; each row has its toggle (`PATCH {discover}`).
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useId, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 
 import {
   Badge,
   Button,
   CheckField,
-  ConfirmDialog,
+  DataTable,
   EmptyState,
   ErrorBanner,
   Loading,
   Notice,
+  OfficePicker,
+  SegmentedSwitch,
   SelectField,
-  DataTable,
   TextField,
 } from "@/components/ui";
 import { api } from "@/lib/api/client";
-import { MAPPING_KEY, useMe } from "@/lib/api/hooks";
+import { MAPPING_KEY } from "@/lib/api/hooks";
 import type { Keyword, KeywordList, NamePattern, NamePatternList } from "@/lib/api/types";
-import { can } from "@/lib/can";
 import { formatDateTime } from "@/lib/format";
 import { isDiscoverable } from "@/lib/discovery";
-import { given, weightBody } from "@/lib/mapping";
+import { given } from "@/lib/mapping";
 import { T } from "@/lib/messages";
 import { useAction } from "@/lib/useAction";
 
-import {
-  conflictAware,
-  OfficeCell,
-  OfficeFilter,
-  OfficePicker,
-  RuleStatusActions,
-  useOfficeChoices,
-  WeightCell,
-  weightDraft,
-  WeightField,
-  type OfficeChoices,
-  type WeightDraft,
-} from "./common";
+import { conflictAware, matches, OfficeCell, RuleMenu, RuleToolbar, SwitchLine } from "./common";
 import s from "./mapping.module.css";
 
 const KEYWORDS_KEY = [...MAPPING_KEY, "keywords"] as const;
 const PATTERNS_KEY = [...MAPPING_KEY, "name-patterns"] as const;
-const KINDS = ["exact", "prefix", "regex"] as const;
+const ADD_KINDS = ["keyword", "exact", "prefix", "regex"] as const;
+const SHOW = ["all", "keywords", "patterns"] as const;
 
-interface Filter {
-  office: string;
-  inactive: boolean;
-}
+type Row =
+  | { type: "keyword"; key: string; text: string; row: Keyword }
+  | { type: "pattern"; key: string; text: string; row: NamePattern };
 
-function ListFilter({ choices, filter, onChange }: { choices: OfficeChoices; filter: Filter; onChange: (f: Filter) => void }) {
-  return (
-    <div className="row">
-      <OfficeFilter choices={choices} value={filter.office} onChange={(office) => onChange({ ...filter, office })} />
-      <CheckField
-        inline
-        label={T.mapping.includeInactive}
-        checked={filter.inactive}
-        onChange={(e) => onChange({ ...filter, inactive: e.target.checked })}
-      />
-    </div>
-  );
-}
-
-/** The add forms' "Search the court" box: untouched, it follows the text (and is off for a regex). */
-function DiscoverBox({
-  text,
-  kind,
-  value,
-  onChange,
-}: {
-  text: string;
-  kind?: string;
-  value: boolean | null;
-  onChange: (v: boolean) => void;
-}) {
-  const regex = kind === "regex";
-  const checked = regex ? false : (value ?? isDiscoverable(text, kind));
-  return (
-    <CheckField
-      inline
-      label={T.discovery.searchCourt}
-      title={T.discovery.searchCourtHint}
-      checked={checked}
-      disabled={regex}
-      onChange={(e) => onChange(e.target.checked)}
-    />
-  );
-}
-
-/** `discover` in a create body: only when the user changed the box (the API defaults it from the text). */
-function discoverBody(value: boolean | null, kind?: string): { discover?: boolean } {
-  return value === null || kind === "regex" ? {} : { discover: value };
-}
-
-/** A row's toggle and its last search (`PATCH {discover}`). */
-function DiscoverCell<R extends Keyword | NamePattern>({
-  path,
-  row,
-  label,
-  onDone,
-}: {
-  path: string;
-  row: Keyword | NamePattern;
-  label: string;
-  onDone: (r: R) => void;
-}) {
+/** A row's toggle of Search the Court and its last search (`PATCH {discover}`). */
+function DiscoverCell({ path, row, label, onDone }: { path: string; row: Keyword | NamePattern; label: string; onDone: () => void }) {
   const action = useAction();
   const regex = "kind" in row && row.kind === "regex";
   async function toggle(next: boolean) {
-    const out = await action.run(() => api<R>(path, { method: "PATCH", body: { discover: next } }));
-    if (out.ok) onDone(out.value);
+    const out = await action.run(() => api(path, { method: "PATCH", body: { discover: next } }));
+    if (out.ok) onDone();
   }
   const last = row.discovery?.last_searched_at ? formatDateTime(row.discovery.last_searched_at) : null;
   return (
@@ -139,273 +74,94 @@ function DiscoverCell<R extends Keyword | NamePattern>({
 }
 
 export function KeywordsAndPatterns() {
-  return (
-    <div className="stack">
-      <Keywords />
-      <NamePatterns />
-    </div>
-  );
-}
-
-function Keywords() {
-  const me = useMe();
-  const canScore = can(me.data, "admin.scoring");
-  const choices = useOfficeChoices();
   const queryClient = useQueryClient();
-  const officeId = useId();
-  const [filter, setFilter] = useState<Filter>({ office: "", inactive: false });
-  const list = useQuery({
-    queryKey: [...KEYWORDS_KEY, filter],
-    queryFn: () =>
-      api<KeywordList>("/admin/keywords", {
-        query: { office: filter.office || undefined, include_inactive: filter.inactive || undefined },
-      }),
+  const [q, setQ] = useState("");
+  const [inactive, setInactive] = useState(false);
+  const [show, setShow] = useState<(typeof SHOW)[number]>("all");
+  const keywords = useQuery({
+    queryKey: [...KEYWORDS_KEY, { inactive }],
+    queryFn: () => api<KeywordList>("/admin/keywords", { query: { include_inactive: inactive || undefined } }),
   });
-  const refresh = () => queryClient.invalidateQueries({ queryKey: KEYWORDS_KEY });
-  const [draft, setDraft] = useState({ keyword: "", office: "" });
-  const [discover, setDiscover] = useState<boolean | null>(null);
-  const [weight, setWeight] = useState<WeightDraft>(weightDraft(null));
+  const patterns = useQuery({
+    queryKey: [...PATTERNS_KEY, { inactive }],
+    queryFn: () => api<NamePatternList>("/admin/name-patterns", { query: { include_inactive: inactive || undefined } }),
+  });
+  const refresh = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: KEYWORDS_KEY }),
+      queryClient.invalidateQueries({ queryKey: PATTERNS_KEY }),
+    ]);
   const [notice, setNotice] = useState<string | null>(null);
-  const [editing, setEditing] = useState<Keyword | null>(null);
-  const action = useAction();
 
-  async function add(e: FormEvent) {
-    e.preventDefault();
-    setNotice(null);
-    const known = new Set((list.data?.items ?? []).map((r) => r.id));
-    const out = await action.run(() =>
-      conflictAware(
-        () =>
-          api<Keyword>("/admin/keywords", {
-            method: "POST",
-            body: {
-              keyword: draft.keyword.trim(),
-              office_code: draft.office.trim(),
-              ...discoverBody(discover),
-              ...(canScore ? weightBody(weight.changed, weight.value) : {}),
-            },
-          }),
-        () => void refresh(),
-      ),
-    );
-    if (out.ok) {
-      const line = T.mapping.appliesWithin(out.value.applies_within_minutes ?? 15);
-      setNotice(known.has(out.value.id) ? `${T.mapping.reactivated} ${line}` : line);
-      setDraft({ keyword: "", office: "" });
-      setDiscover(null);
-      setWeight(weightDraft(null));
-      await refresh();
-    }
-  }
+  const rows: Row[] = [
+    ...(show !== "patterns"
+      ? (keywords.data?.items ?? []).map((r): Row => ({ type: "keyword", key: `kw-${r.id}`, text: r.keyword, row: r }))
+      : []),
+    ...(show !== "keywords"
+      ? (patterns.data?.items ?? []).map((r): Row => ({ type: "pattern", key: `np-${r.id}`, text: r.pattern, row: r }))
+      : []),
+  ].filter((r) => matches(q, r.text, r.row.office.name, r.row.office.code));
+  const pending = keywords.isPending || patterns.isPending;
+  const known = new Set([...(keywords.data?.items ?? []), ...(patterns.data?.items ?? [])].map((r) => r.id));
 
   return (
-    <section className="stack" aria-label={T.mapping.keywords}>
-      <h3>{T.mapping.keywords}</h3>
-      <form className={`row ${s.form}`} onSubmit={add} aria-label={T.mapping.addKeyword}>
-        <TextField
-          label={T.mapping.keyword}
-          required
-          maxLength={200}
-          hint={T.mapping.keywordHint}
-          value={draft.keyword}
-          onChange={(e) => setDraft({ ...draft, keyword: e.target.value })}
+    <section className="stack" aria-label={T.mapping.keywordsAndPatterns}>
+      <h3>{T.mapping.keywordsAndPatterns}</h3>
+      <RuleToolbar
+        searchLabel={T.mapping.searchWordsLabel}
+        placeholder={T.mapping.searchWordsPlaceholder}
+        q={q}
+        onQ={setQ}
+        inactive={inactive}
+        onInactive={setInactive}
+      >
+        <SegmentedSwitch
+          label={T.mapping.showLabel}
+          options={SHOW.map((k) => ({ value: k, label: T.mapping.showChoices[k]! }))}
+          value={show}
+          onChange={(v) => setShow(v as (typeof SHOW)[number])}
         />
-        <OfficePicker id={officeId} choices={choices} required value={draft.office} onChange={(office) => setDraft({ ...draft, office })} />
-        <DiscoverBox text={draft.keyword} value={discover} onChange={setDiscover} />
-        {canScore ? <WeightField mode="create" draft={weight} onChange={setWeight} /> : null}
-        <Button type="submit" busy={action.busy}>
-          {T.mapping.addKeyword}
-        </Button>
-      </form>
-      <ErrorBanner error={given(action.error)} />
+      </RuleToolbar>
+      <AddWord
+        known={known}
+        onSaved={(line) => {
+          setNotice(line);
+          void refresh();
+        }}
+        onConflict={() => void refresh()}
+      />
       {notice ? <Notice>{notice}</Notice> : null}
-      <ListFilter choices={choices} filter={filter} onChange={setFilter} />
-      {list.isPending ? <Loading /> : null}
-      <ErrorBanner error={given(list.error)} onRetry={() => list.refetch()} />
-      {list.data ? (
-        list.data.items.length === 0 ? (
+      {pending ? <Loading /> : null}
+      <ErrorBanner error={given(keywords.error ?? patterns.error)} onRetry={() => void refresh()} />
+      {!pending && !keywords.error && !patterns.error ? (
+        rows.length === 0 ? (
           <EmptyState>{T.mapping.empty}</EmptyState>
         ) : (
           <DataTable
-            caption={T.mapping.keywords}
-            rows={list.data.items}
-            rowKey={(row) => row.id}
+            caption={T.mapping.wordsCaption}
+            rows={rows}
+            rowKey={(r) => r.key}
             columns={[
-              { key: "keyword", header: T.mapping.keyword, primary: true, cell: (row) => row.keyword },
-              { key: "office", header: T.mapping.office, cell: (row) => <OfficeCell office={row.office} /> },
               {
-                key: "weight",
-                header: T.mapping.effectiveWeight,
-                align: "right",
-                cell: (row) => <WeightCell effective={row.effective_weight} override={row.weight_override} />,
+                key: "text",
+                header: T.mapping.wordLabel,
+                primary: true,
+                cell: (r) => (r.type === "pattern" ? <span className="mono">{r.text}</span> : r.text),
               },
+              {
+                key: "kind",
+                header: T.mapping.kind,
+                cell: (r) => (r.type === "keyword" ? T.mapping.kindShort.keyword : (T.mapping.kindShort[r.row.kind] ?? r.row.kind)),
+              },
+              { key: "office", header: T.mapping.office, cell: (r) => <OfficeCell office={r.row.office} /> },
               {
                 key: "discover",
                 header: T.discovery.searchCourt,
-                cell: (row) => (
-                  <DiscoverCell<Keyword> path={`/admin/keywords/${row.id}`} row={row} label={row.keyword} onDone={() => void refresh()} />
-                ),
-              },
-              {
-                key: "status",
-                header: T.mapping.status,
-                width: "var(--lead-w)",
-                cell: (row) => (row.is_active ? <Badge tone="success">{T.active}</Badge> : <Badge>{T.inactive}</Badge>),
-              },
-              { key: "updated", header: T.mapping.updated, cell: (row) => formatDateTime(row.updated_at) },
-              {
-                key: "actions",
-                header: T.mapping.actions,
-                cell: (row) => (
-                  <div className="actions">
-                    {canScore ? (
-                      <Button variant="link" aria-label={`${T.edit} ${row.keyword}`} onClick={() => setEditing(row)}>
-                        {T.edit}
-                      </Button>
-                    ) : null}
-                    <RuleStatusActions<Keyword>
-                      path={`/admin/keywords/${row.id}`}
-                      active={row.is_active}
-                      label={row.keyword}
-                      confirmText={T.mapping.ruleConfirm}
-                      onDone={(r) => {
-                        setNotice(T.mapping.appliesWithin(r.applies_within_minutes ?? 15));
-                        void refresh();
-                      }}
-                      onConflict={() => void refresh()}
-                    />
-                  </div>
-                ),
-              },
-            ]}
-          />
-        )
-      ) : null}
-      {editing && canScore ? (
-        <EditWeight<Keyword>
-          path={`/admin/keywords/${editing.id}`}
-          what={editing.keyword}
-          current={editing.weight_override}
-          onClose={() => setEditing(null)}
-          onSaved={(r) => {
-            setEditing(null);
-            setNotice(T.mapping.appliesWithin(r.applies_within_minutes ?? 15));
-            void refresh();
-          }}
-          onConflict={() => void refresh()}
-        />
-      ) : null}
-    </section>
-  );
-}
-
-function NamePatterns() {
-  const me = useMe();
-  const canScore = can(me.data, "admin.scoring");
-  const choices = useOfficeChoices();
-  const queryClient = useQueryClient();
-  const officeId = useId();
-  const [filter, setFilter] = useState<Filter>({ office: "", inactive: false });
-  const list = useQuery({
-    queryKey: [...PATTERNS_KEY, filter],
-    queryFn: () =>
-      api<NamePatternList>("/admin/name-patterns", {
-        query: { office: filter.office || undefined, include_inactive: filter.inactive || undefined },
-      }),
-  });
-  const refresh = () => queryClient.invalidateQueries({ queryKey: PATTERNS_KEY });
-  const [draft, setDraft] = useState({ pattern: "", kind: "exact", office: "" });
-  const [discover, setDiscover] = useState<boolean | null>(null);
-  const [weight, setWeight] = useState<WeightDraft>(weightDraft(null));
-  const [notice, setNotice] = useState<string | null>(null);
-  const [editing, setEditing] = useState<NamePattern | null>(null);
-  const action = useAction();
-
-  async function add(e: FormEvent) {
-    e.preventDefault();
-    setNotice(null);
-    const known = new Set((list.data?.items ?? []).map((r) => r.id));
-    const out = await action.run(() =>
-      conflictAware(
-        () =>
-          api<NamePattern>("/admin/name-patterns", {
-            method: "POST",
-            body: {
-              pattern: draft.pattern.trim(),
-              kind: draft.kind,
-              office_code: draft.office.trim(),
-              ...discoverBody(discover, draft.kind),
-              ...(canScore ? weightBody(weight.changed, weight.value) : {}),
-            },
-          }),
-        () => void refresh(),
-      ),
-    );
-    if (out.ok) {
-      const line = T.mapping.appliesWithin(out.value.applies_within_minutes ?? 15);
-      setNotice(known.has(out.value.id) ? `${T.mapping.reactivated} ${line}` : line);
-      setDraft({ pattern: "", kind: draft.kind, office: "" });
-      setDiscover(null);
-      setWeight(weightDraft(null));
-      await refresh();
-    }
-  }
-
-  return (
-    <section className="stack" aria-label={T.mapping.patterns}>
-      <h3>{T.mapping.patterns}</h3>
-      <form className={`row ${s.form}`} onSubmit={add} aria-label={T.mapping.addPattern}>
-        <TextField
-          label={T.mapping.pattern}
-          required
-          maxLength={300}
-          value={draft.pattern}
-          onChange={(e) => setDraft({ ...draft, pattern: e.target.value })}
-        />
-        <SelectField
-          label={T.mapping.kind}
-          options={KINDS.map((k) => ({ value: k, label: T.mapping.kinds[k]! }))}
-          value={draft.kind}
-          onChange={(e) => setDraft({ ...draft, kind: e.target.value })}
-        />
-        <OfficePicker id={officeId} choices={choices} required value={draft.office} onChange={(office) => setDraft({ ...draft, office })} />
-        <DiscoverBox text={draft.pattern} kind={draft.kind} value={discover} onChange={setDiscover} />
-        {canScore ? <WeightField mode="create" draft={weight} onChange={setWeight} /> : null}
-        <Button type="submit" variant="secondary" busy={action.busy}>
-          {T.mapping.addPattern}
-        </Button>
-      </form>
-      <ErrorBanner error={given(action.error)} />
-      {notice ? <Notice>{notice}</Notice> : null}
-      <ListFilter choices={choices} filter={filter} onChange={setFilter} />
-      {list.isPending ? <Loading /> : null}
-      <ErrorBanner error={given(list.error)} onRetry={() => list.refetch()} />
-      {list.data ? (
-        list.data.items.length === 0 ? (
-          <EmptyState>{T.mapping.empty}</EmptyState>
-        ) : (
-          <DataTable
-            caption={T.mapping.patterns}
-            rows={list.data.items}
-            rowKey={(row) => row.id}
-            columns={[
-              { key: "pattern", header: T.mapping.pattern, primary: true, cell: (row) => <span className="mono">{row.pattern}</span> },
-              { key: "kind", header: T.mapping.kind, cell: (row) => T.mapping.kindShort[row.kind] ?? row.kind },
-              { key: "office", header: T.mapping.office, cell: (row) => <OfficeCell office={row.office} /> },
-              {
-                key: "weight",
-                header: T.mapping.effectiveWeight,
-                align: "right",
-                cell: (row) => <WeightCell effective={row.effective_weight} override={row.weight_override} />,
-              },
-              {
-                key: "discover",
-                header: T.discovery.searchCourt,
-                cell: (row) => (
-                  <DiscoverCell<NamePattern>
-                    path={`/admin/name-patterns/${row.id}`}
-                    row={row}
-                    label={row.pattern}
+                cell: (r) => (
+                  <DiscoverCell
+                    path={r.type === "keyword" ? `/admin/keywords/${r.row.id}` : `/admin/name-patterns/${r.row.id}`}
+                    row={r.row}
+                    label={r.text}
                     onDone={() => void refresh()}
                   />
                 ),
@@ -414,95 +170,108 @@ function NamePatterns() {
                 key: "status",
                 header: T.mapping.status,
                 width: "var(--lead-w)",
-                cell: (row) => (row.is_active ? <Badge tone="success">{T.active}</Badge> : <Badge>{T.inactive}</Badge>),
+                cell: (r) => (r.row.is_active ? <Badge tone="success">{T.active}</Badge> : <Badge>{T.inactive}</Badge>),
               },
-              { key: "updated", header: T.mapping.updated, cell: (row) => formatDateTime(row.updated_at) },
               {
                 key: "actions",
-                header: T.mapping.actions,
-                cell: (row) => (
-                  <div className="actions">
-                    {canScore ? (
-                      <Button variant="link" aria-label={`${T.edit} ${row.pattern}`} onClick={() => setEditing(row)}>
-                        {T.edit}
-                      </Button>
-                    ) : null}
-                    <RuleStatusActions<NamePattern>
-                      path={`/admin/name-patterns/${row.id}`}
-                      active={row.is_active}
-                      label={row.pattern}
-                      confirmText={T.mapping.ruleConfirm}
-                      onDone={(r) => {
-                        setNotice(T.mapping.appliesWithin(r.applies_within_minutes ?? 15));
-                        void refresh();
-                      }}
-                      onConflict={() => void refresh()}
-                    />
-                  </div>
+                header: <span className="visually-hidden">{T.mapping.actions}</span>,
+                label: T.mapping.actions,
+                width: "var(--s7)",
+                align: "right",
+                cell: (r) => (
+                  <RuleMenu<Keyword | NamePattern>
+                    path={r.type === "keyword" ? `/admin/keywords/${r.row.id}` : `/admin/name-patterns/${r.row.id}`}
+                    active={r.row.is_active}
+                    label={r.text}
+                    confirmText={T.mapping.ruleConfirm}
+                    onDone={(row) => {
+                      setNotice(T.mapping.appliesWithin(row.applies_within_minutes ?? 15));
+                      void refresh();
+                    }}
+                    onConflict={() => void refresh()}
+                  />
                 ),
               },
             ]}
           />
         )
       ) : null}
-      {editing && canScore ? (
-        <EditWeight<NamePattern>
-          path={`/admin/name-patterns/${editing.id}`}
-          what={editing.pattern}
-          current={editing.weight_override}
-          onClose={() => setEditing(null)}
-          onSaved={(r) => {
-            setEditing(null);
-            setNotice(T.mapping.appliesWithin(r.applies_within_minutes ?? 15));
-            void refresh();
-          }}
-          onConflict={() => void refresh()}
-        />
-      ) : null}
     </section>
   );
 }
 
-/** The weight-only edit of a keyword or a name pattern (`PATCH {weight}`), for `admin.scoring` only. */
-function EditWeight<R>({
-  path,
-  what,
-  current,
-  onClose,
-  onSaved,
-  onConflict,
-}: {
-  path: string;
-  what: string;
-  current: number | null;
-  onClose: () => void;
-  onSaved: (row: R) => void;
-  onConflict: () => void;
-}) {
-  const [weight, setWeight] = useState<WeightDraft>(weightDraft(current));
+/**
+ * The add row (decision 41): Word or Pattern, Kind, Office, Search the Court and Add. A keyword posts to
+ * `/admin/keywords`; Exact, Starts With and Pattern post to `/admin/name-patterns` with their kind. `discover` is sent
+ * only when the switch was changed (the API defaults it from the text) and never for a regular expression.
+ */
+function AddWord({ known, onSaved, onConflict }: { known: Set<string>; onSaved: (line: string) => void; onConflict: () => void }) {
+  const [text, setText] = useState("");
+  const [kind, setKind] = useState<(typeof ADD_KINDS)[number]>("keyword");
+  const [office, setOffice] = useState<string | null>(null);
+  const [discover, setDiscover] = useState<boolean | null>(null);
   const action = useAction();
+  const regex = kind === "regex";
+  const patternKind = kind === "keyword" ? undefined : kind;
+  const discoverOn = regex ? false : (discover ?? isDiscoverable(text, patternKind));
 
-  async function save() {
-    const body = weightBody(weight.changed, weight.value);
-    if (!("weight" in body)) {
-      onClose();
-      return;
+  async function add(e: FormEvent) {
+    e.preventDefault();
+    if (!office) return;
+    const discoverPart = discover === null || regex ? {} : { discover };
+    const out = await action.run(() =>
+      conflictAware<Keyword | NamePattern>(
+        () =>
+          kind === "keyword"
+            ? api<Keyword>("/admin/keywords", { method: "POST", body: { keyword: text.trim(), office_code: office, ...discoverPart } })
+            : api<NamePattern>("/admin/name-patterns", {
+                method: "POST",
+                body: { pattern: text.trim(), kind, office_code: office, ...discoverPart },
+              }),
+        onConflict,
+      ),
+    );
+    if (out.ok) {
+      const line = T.mapping.appliesWithin(out.value.applies_within_minutes ?? 15);
+      onSaved(known.has(out.value.id) ? `${T.mapping.reactivated} ${line}` : line);
+      setText("");
+      setOffice(null);
+      setDiscover(null);
     }
-    const out = await action.run(() => conflictAware(() => api<R>(path, { method: "PATCH", body }), onConflict));
-    if (out.ok) onSaved(out.value);
   }
 
   return (
-    <ConfirmDialog
-      open
-      title={T.mapping.editWeight(what)}
-      onClose={onClose}
-      onConfirm={() => void save()}
-      busy={action.busy}
-      error={given(action.error)}
-      confirmLabel={T.save}
-    >
-      <WeightField mode="edit" draft={weight} onChange={setWeight} current={current} />
-    </ConfirmDialog>
+    <>
+      <form className={s.addRow} onSubmit={add} aria-label={T.mapping.add}>
+        <TextField
+          label={T.mapping.wordLabel}
+          required
+          maxLength={300}
+          title={kind === "keyword" ? T.mapping.keywordHint : undefined}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+        />
+        <div className={s.narrow}>
+          <SelectField
+            label={T.mapping.kind}
+            options={ADD_KINDS.map((k) => ({ value: k, label: T.mapping.addKinds[k]! }))}
+            value={kind}
+            onChange={(e) => setKind(e.target.value as (typeof ADD_KINDS)[number])}
+          />
+        </div>
+        <OfficePicker label={T.mapping.office} purpose="keywords" required value={office} onChange={setOffice} />
+        <SwitchLine
+          label={T.discovery.searchCourt}
+          title={T.discovery.searchCourtHint}
+          checked={discoverOn}
+          disabled={regex}
+          onChange={setDiscover}
+        />
+        <Button type="submit" variant="secondary" busy={action.busy} disabled={!office || !text.trim()}>
+          {T.mapping.add}
+        </Button>
+      </form>
+      <ErrorBanner error={given(action.error)} />
+    </>
   );
 }

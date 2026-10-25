@@ -289,6 +289,22 @@
   box-shadow: none;
 }
 
+.menuSeparator {
+  height: 1px;
+  margin: var(--s1) 0;
+  background: var(--border);
+}
+
+.menuDanger button,
+.menuDanger a {
+  color: var(--red-text);
+}
+
+.menuDanger button:hover,
+.menuDanger button:focus {
+  background: var(--red-soft);
+}
+
 .menuList a[aria-current="page"] {
   color: var(--accent);
   font-weight: 600;

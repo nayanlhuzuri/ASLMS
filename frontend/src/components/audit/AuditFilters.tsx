@@ -9,7 +9,7 @@
  */
 import { useState, type FormEvent } from "react";
 
-import { Button, SelectField, TextField, type Option } from "@/components/ui";
+import { Button, OfficePicker, SelectField, TextField, type Option } from "@/components/ui";
 import { useDepartmentPeople, useDepartments } from "@/lib/api/hooks";
 import {
   actionGroups,
@@ -62,6 +62,7 @@ export function AuditFilters({
     entity_id: params.entity_id ?? "",
   });
   const [department, setDepartment] = useState(params.office ?? "");
+  const [subtree, setSubtree] = useState(params.office_subtree !== "false");
   const [unit, setUnit] = useState("");
   const [choice, setChoice] = useState<PeriodChoice>(() => choiceOf(params.from, params.to, today));
   const [from, setFrom] = useState(params.from ?? "");
@@ -91,15 +92,13 @@ export function AuditFilters({
     for (const [k, v] of Object.entries(form)) if (v.trim()) next[k] = v.trim();
     const office = unit || department;
     if (office) next.office = office;
+    if (office && !subtree) next.office_subtree = "false";
     if (period.from) next.from = period.from;
     if (period.to) next.to = period.to;
     onSearch(next);
   }
 
   const apiError = (field: ErrorField) => (touched.has(field) ? undefined : apiErrors[field]);
-
-  const deptOptions: Option[] = deptList.map((d) => ({ value: d.code, label: `${d.name} (${d.code})` }));
-  if (department && !known) deptOptions.push({ value: department, label: department });
 
   const groups = actionGroups(actions, T.audit.groups);
   const actionOptions = groups.map((g) => ({
@@ -141,16 +140,27 @@ export function AuditFilters({
         onChange={(e) => set("case", { case: e.target.value })}
         error={apiError("case")}
       />
-      <SelectField
+      {/* design portal-ui-polish-2, decision 30: the Office Picker (purpose audit, inactive offices marked) with
+          Include Sub-offices, sent as office_subtree */}
+      <OfficePicker
         label={T.audit.office}
         hint={T.audit.officeHint}
-        value={department}
-        onChange={(e) => {
-          setDepartment(e.target.value);
+        purpose="audit"
+        includeInactive
+        placeholder={T.audit.anyOfficePlaceholder}
+        value={department || null}
+        onChange={(code) => {
+          setDepartment(code ?? "");
           setUnit("");
           set("office");
         }}
-        options={[{ value: "", label: T.audit.anyOffice }, ...deptOptions]}
+        subtree={{
+          value: subtree,
+          onChange: (v) => {
+            setSubtree(v);
+            set("office");
+          },
+        }}
         error={apiError("office")}
       />
       {known ? (

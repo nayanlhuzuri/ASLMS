@@ -87,6 +87,7 @@ def _like(text: str) -> str:
 def list_users(
     response: Response,
     office: str | None = None,
+    subtree: bool = Query(True, description="false: members of `office` itself, without its sub-offices"),
     q: str | None = None,
     role: Role | None = None,
     status_: Literal["active", "not_signed_in", "off"] | None = Query(None, alias="status"),
@@ -101,7 +102,8 @@ def list_users(
     (of an active membership in scope), `include_ended` (State-wide scope only: logins with no active membership
     too), `limit` (1-200) and `offset`; `X-Total-Count` counts the same filters. Without `limit` every row.
     Design case-workspace-admin, decision 23: `status` — `active` (sign-in on and signed in at least once),
-    `not_signed_in` (on, never signed in) or `off` (sign-in turned off)."""
+    `not_signed_in` (on, never signed in) or `off` (sign-in turned off). Design `portal-ui-polish-2`, decision 30:
+    `subtree=false` narrows `office` to that office exactly (default `true`, its whole subtree)."""
     if q is not None and len(q.strip()) < 2:
         raise _bad_field("q needs at least 2 characters")
     if limit is not None and not 1 <= limit <= 200:
@@ -127,7 +129,10 @@ def list_users(
         root = session.scalar(select(Office).where(Office.code == office.strip().upper()))
         if root is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "no such office")
-        filtered = filtered.where((Office.id == root.id) | Office.path.like(root.path + "/%"))
+        if subtree:
+            filtered = filtered.where((Office.id == root.id) | Office.path.like(root.path + "/%"))
+        else:
+            filtered = filtered.where(Office.id == root.id)
     if roots is not None:
         filtered = filtered.where(
             or_(*[(Office.id == r.id) | Office.path.like(r.path + "/%") for r in roots])

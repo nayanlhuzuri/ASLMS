@@ -181,7 +181,7 @@ function changesBetween(codes: string[], from: Row, to: Row): { permission: stri
   return codes.filter((c) => !!from[c] !== !!to[c]).map((c) => ({ permission: c, enabled: !!to[c] }));
 }
 
-function SaveBar({
+export function SaveBar({
   count,
   busy,
   onSave,

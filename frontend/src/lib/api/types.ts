@@ -147,6 +147,10 @@ export type UnmatchedRow = S["UnmatchedRowOut"];
 // portal-mapping: counsel codes, keywords, name patterns, watchlist, scoring settings
 export type OfficeOut = S["OfficeOut"];
 export type OfficeRef = S["OfficeRefOut"];
+// portal-ui-polish-2, decision 29: the offices one Office Picker may offer
+export type OfficeChoice = S["OfficeChoiceOut"];
+export type OfficeChoices = S["OfficeChoicesOut"];
+export type OfficePurpose = OfficeChoices["purpose"];
 export type CounselCode = S["CounselCodeOut"];
 export type CounselCodeList = S["CounselCodeListOut"];
 export type UnmappedCode = S["UnmappedCodeOut"];

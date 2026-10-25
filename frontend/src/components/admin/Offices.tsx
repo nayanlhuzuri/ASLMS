@@ -20,6 +20,7 @@ import {
   EmptyState,
   ErrorBanner,
   Loading,
+  OfficePicker,
   SelectField,
   TextArea,
   TextField,
@@ -179,7 +180,15 @@ export function NewOfficeForm() {
           options={(labels.data?.office_kinds ?? []).filter((k) => k.code !== "state").map((k) => ({ value: k.code, label: k.label }))}
           onChange={(e) => setForm({ ...form, kind: e.target.value })}
         />
-        <TextField label={T.offices.parent} hint={T.offices.hints.parent} required value={form.parent} onChange={(e) => setForm({ ...form, parent: e.target.value })} />
+        {/* design portal-ui-polish-2, decision 30: the parent from the Office Picker (purpose office_parent) */}
+        <OfficePicker
+          label={T.offices.parent}
+          hint={T.offices.hints.parent}
+          purpose="office_parent"
+          required
+          value={form.parent || null}
+          onChange={(parent) => setForm({ ...form, parent: parent ?? "" })}
+        />
         <TextField label={T.offices.validFrom} hint={T.offices.hints.validFrom} type="date" value={form.validFrom} onChange={(e) => setForm({ ...form, validFrom: e.target.value })} />
       </div>
       <TextArea label={T.offices.notes} hint={T.offices.hints.notes} rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />

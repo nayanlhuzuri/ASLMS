@@ -69,6 +69,8 @@ export interface FieldShell {
   label: ReactNode;
   hint?: ReactNode;
   error?: ReactNode;
+  /** The label kept for screen readers but not drawn (a one-line toolbar, where the placeholder shows it). */
+  hideLabel?: boolean;
 }
 
 export function useFieldIds(id?: string) {
@@ -81,10 +83,17 @@ function describedBy(ids: { hint: string; error: string }, hint?: ReactNode, err
   return [hint ? ids.hint : null, error ? ids.error : null].filter(Boolean).join(" ") || undefined;
 }
 
-function FieldFrame({ ids, label, hint, error, children }: FieldShell & { ids: ReturnType<typeof useFieldIds>; children: ReactNode }) {
+function FieldFrame({
+  ids,
+  label,
+  hint,
+  error,
+  hideLabel,
+  children,
+}: FieldShell & { ids: ReturnType<typeof useFieldIds>; children: ReactNode }) {
   return (
     <div className={s.field}>
-      <label className={s.label} htmlFor={ids.id}>
+      <label className={cx(s.label, hideLabel && "visually-hidden")} htmlFor={ids.id}>
         {label}
       </label>
       {children}
@@ -102,7 +111,7 @@ function FieldFrame({ ids, label, hint, error, children }: FieldShell & { ids: R
   );
 }
 
-export function TextField({ label, hint, error, id, className, ...rest }: FieldShell & InputHTMLAttributes<HTMLInputElement>) {
+export function TextField({ label, hint, error, hideLabel, id, className, ...rest }: FieldShell & InputHTMLAttributes<HTMLInputElement>) {
   const ids = useFieldIds(id);
   const [shown, setShown] = useState(false);
   const isPassword = rest.type === "password";
@@ -118,7 +127,7 @@ export function TextField({ label, hint, error, id, className, ...rest }: FieldS
     />
   );
   return (
-    <FieldFrame ids={ids} label={label} hint={hint} error={error}>
+    <FieldFrame ids={ids} label={label} hint={hint} error={error} hideLabel={hideLabel}>
       {isPassword ? (
         // every password field can be shown while typing; the button is a toggle, so a screen reader hears its state
         <div className={s.reveal}>
@@ -152,10 +161,10 @@ function EyeIcon({ off }: { off: boolean }) {
   );
 }
 
-export function TextArea({ label, hint, error, id, ...rest }: FieldShell & TextareaHTMLAttributes<HTMLTextAreaElement>) {
+export function TextArea({ label, hint, error, hideLabel, id, ...rest }: FieldShell & TextareaHTMLAttributes<HTMLTextAreaElement>) {
   const ids = useFieldIds(id);
   return (
-    <FieldFrame ids={ids} label={label} hint={hint} error={error}>
+    <FieldFrame ids={ids} label={label} hint={hint} error={error} hideLabel={hideLabel}>
       <textarea
         id={ids.id}
         className={cx(s.input, s.textarea)}
@@ -177,6 +186,7 @@ export function SelectField({
   label,
   hint,
   error,
+  hideLabel,
   id,
   options,
   groups,
@@ -191,7 +201,7 @@ export function SelectField({
   }) {
   const ids = useFieldIds(id);
   return (
-    <FieldFrame ids={ids} label={label} hint={hint} error={error}>
+    <FieldFrame ids={ids} label={label} hint={hint} error={error} hideLabel={hideLabel}>
       <select
         id={ids.id}
         className={cx(s.input, s.select, s.control)}

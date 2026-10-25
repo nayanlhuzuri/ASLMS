@@ -342,3 +342,249 @@
   border-left-color: var(--accent);
   color: var(--accent);
 }
+
+/* design portal-ui-polish-2, decision 27: the Users filter as one line on laptops, wrapping on the control line below
+   about 1,280 px and stacking on phones; labels are visually hidden, so every box starts on the same top line */
+.toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.toolbarLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--s2) var(--s3);
+}
+
+.toolbarLine > * {
+  min-width: 0;
+}
+
+.toolbarLine > div > div {
+  min-width: 0;
+}
+
+.toolbarSearch {
+  flex: 1 1 200px;
+}
+
+.toolbarType {
+  flex: 0 1 200px;
+}
+
+.toolbarOffice {
+  flex: 1 1 240px;
+}
+
+.toolbarStatus {
+  flex: 0 1 160px;
+}
+
+.toolbarMore {
+  padding: var(--s3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  animation: more-in var(--med) var(--ease);
+}
+
+.toolbarMore[hidden] {
+  display: none;
+}
+
+@keyframes more-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@media (max-width: 640px) {
+  .toolbarLine > * {
+    flex: 1 1 100%;
+  }
+}
+
+/* decisions 31-36: the User Details modal */
+.umTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s3);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.avatarXl {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: var(--s7);
+  height: var(--s7);
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: var(--t-lg);
+  font-weight: 600;
+}
+
+.umHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s3);
+  margin-bottom: var(--s3);
+}
+
+.umFacts {
+  display: flex;
+  flex: 1 1 320px;
+  flex-direction: column;
+  gap: var(--s1);
+  min-width: 0;
+}
+
+.umMeta,
+.umLine {
+  margin: 0;
+}
+
+.umMeta {
+  color: var(--text-2);
+}
+
+.umLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s1) var(--s4);
+  color: var(--text-3);
+  font-size: var(--t-sm);
+  overflow-wrap: anywhere;
+}
+
+.umActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+.umOverview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--s5);
+}
+
+.umOverview h3 {
+  margin: 0 0 var(--s2);
+}
+
+.mcards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--s4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mcard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+
+.mcardEnded {
+  background: var(--surface-2);
+}
+
+.mcardTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s2);
+}
+
+.mcardName {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  min-width: 0;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.mcardName .muted {
+  font-weight: 400;
+  font-size: var(--t-sm);
+}
+
+.mcardFoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+  margin-top: auto;
+  padding-top: var(--s3);
+  border-top: 1px solid var(--border);
+  font-size: var(--t-sm);
+}
+
+.fnHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--s3);
+}
+
+.fnHead p {
+  flex: 1 1 240px;
+  margin: 0;
+  padding-bottom: var(--s2);
+}
+
+.fnText .fnDesc,
+.fnText .fnName {
+  display: block;
+}
+
+.fnTaken {
+  color: var(--text-3);
+  text-decoration: line-through;
+}
+
+.activity {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.activity > li {
+  display: flex;
+  gap: var(--s4);
+  padding: var(--s3) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.activityWhen {
+  flex: none;
+  width: calc(var(--lead-w) + var(--s7));
+  color: var(--text-3);
+  font-size: var(--t-sm);
+}
+
+.activityBody {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

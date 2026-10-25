@@ -126,7 +126,21 @@ export interface TabItem {
  * `data-scroll-x`, one of the two places the browser check (`frontend/e2e`, design portal-ui-polish, decision 21)
  * allows to scroll sideways, because a row of tabs on a phone is better scrolled than wrapped or cut.
  */
-export function Tabs({ items, label, more }: { items: TabItem[]; label: string; more?: TabItem[] }) {
+export function Tabs({
+  items,
+  label,
+  more,
+  onSelect,
+}: {
+  items: TabItem[];
+  label: string;
+  more?: TabItem[];
+  /**
+   * Takes over a plain click on a tab (the User Details modal keeps its tab in the address without a new history
+   * entry, design portal-ui-polish-2, decision 31); a click with a modifier key still opens the link.
+   */
+  onSelect?: (href: string) => void;
+}) {
   const nav = useRef<HTMLElement>(null);
   const [ink, setInk] = useState<{ left: number; width: number } | null>(null);
   const activeKey = [...items, ...(more ?? [])].find((t) => t.active)?.href ?? "";
@@ -171,6 +185,15 @@ export function Tabs({ items, label, more }: { items: TabItem[]; label: string; 
           data-tab=""
           aria-current={t.active ? "page" : undefined}
           data-tab-current={t.active ? "true" : undefined}
+          onClick={
+            onSelect
+              ? (e) => {
+                  if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                  e.preventDefault();
+                  onSelect(t.href);
+                }
+              : undefined
+          }
         >
           {t.label}
           {t.count !== undefined && t.count !== null ? (

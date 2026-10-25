@@ -88,9 +88,8 @@ export const SENTENCE_EXCEPTIONS: Record<string, string> = {
   "access.off": "a state word inside an accessible description",
   "offices.outgoingOfficer": "a fragment completing a choice sentence",
   "offices.outgoingEnd": "a fragment completing a choice sentence",
-  "mapping.fromSetting": "a fragment after a weight",
-  "mapping.fromOverride": "a fragment after a weight",
   "mapping.changedMark": "a marker inside parentheses",
+  "officePicker.subMarker": "a marker beside an office code",
   "inbox.stayWatcher": "a fragment completing a sentence",
   "causelist.versus": "the word between two parties",
   "causelist.provisional": "a value shown in place of a CNR",
@@ -132,6 +131,7 @@ export const SENTENCE_EXCEPTIONS: Record<string, string> = {
 
 /** Functions under label paths, with the sample arguments their result is checked with (path → args). */
 export const LABEL_FUNCTIONS: Record<string, unknown[]> = {
+  "users.moreFiltersButton": [1],
   "nav.count": ["Case Inbox", "3"],
   "score.badge": ["Strong Recommendation", "0.91"],
   "own.decideTitle": [true],

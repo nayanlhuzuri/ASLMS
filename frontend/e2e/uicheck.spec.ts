@@ -262,12 +262,48 @@ const STATES: State[] = [
     },
   },
   {
-    // decision 23: a user's details in the wide side panel
-    name: "/admin/users?user=<id> (side panel)",
-    path: `/admin/users?user=${SAMPLE.userId}`,
+    // design portal-ui-polish-2, decision 28: the Office Picker open in the Users toolbar
+    name: "/admin/users (Office Picker open)",
+    path: "/admin/users",
+    open: async (page) => {
+      await page.getByRole("combobox", { name: "Office" }).click();
+      await page.getByRole("listbox", { name: "Offices" }).waitFor();
+    },
+  },
+  {
+    // decision 27: More Filters open, with Include Logins Without an Active Office
+    name: "/admin/users (More Filters open)",
+    path: "/admin/users",
+    open: async (page) => {
+      await page.getByRole("button", { name: /^More Filters/ }).click();
+      await page.getByLabel("Include Logins Without an Active Office").waitFor();
+    },
+  },
+  {
+    // decisions 31 and 34: the User Details modal on its own address, the Offices tab
+    name: "/admin/users/<id> (User Details, Offices tab)",
+    path: `/admin/users/${SAMPLE.userId}?tab=offices`,
     open: async (page) => {
       await page.getByRole("dialog").first().waitFor();
-      await page.getByRole("link", { name: "Open Full Page" }).waitFor();
+      await page.getByRole("list", { name: "Offices" }).waitFor();
+    },
+  },
+  {
+    // decision 34: an office card's Actions menu, End Membership last and in red
+    name: "/admin/users/<id> (Actions menu open)",
+    path: `/admin/users/${SAMPLE.userId}?tab=offices`,
+    open: async (page) => {
+      await page.getByRole("button", { name: /^Actions for / }).first().click();
+      await page.getByRole("menuitem", { name: "End Membership" }).waitFor();
+    },
+  },
+  {
+    // decision 42: Recommended From Cause Lists beside the codes, each code with its picker and Map
+    name: "/admin/mapping/codes (Recommended From Cause Lists)",
+    path: "/admin/mapping/codes",
+    open: async (page) => {
+      await page.getByRole("complementary", { name: "Recommended From Cause Lists" }).waitFor();
+      await page.getByRole("button", { name: /^Map / }).first().waitFor();
     },
   },
   {

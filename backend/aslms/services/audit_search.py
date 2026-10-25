@@ -4,7 +4,8 @@ read-only for auditors").
 - **Who** (decision 2): `audit.view` counts only in a State-wide membership (the super admin, or one holding
   `cases.view_all`); anyone else gets `Forbidden("audit_scope")`. The rows are read whole, never filtered per row.
 - **What** (decision 1): filters by actor (login id or e-mail, or actor-name text), the login a row is about
-  (`user` and `user_membership` rows), case (with the cases merged into it), actor office (its subtree), action
+  (`user` and `user_membership` rows), case (with the cases merged into it), actor office (its subtree, or the
+  office alone with `office_subtree=False`, design `portal-ui-polish-2` decision 30), action
   (exact, or a prefix ending in `.`), entity type and id, and an IST date range. Newest first by
   `(created_at DESC, id DESC)` with an opaque keyset cursor; no total.
 - **Cost** (decision 4): every search runs under `SET LOCAL statement_timeout`; a cancelled statement raises
@@ -65,6 +66,7 @@ class AuditQuery:
     about_user_email: str | None = None
     case_ref: str | None = None
     office_code: str | None = None
+    office_subtree: bool = True
     action: str | None = None
     entity_type: str | None = None
     entity_id: uuid.UUID | None = None
@@ -190,8 +192,11 @@ def _conditions(session: Session, q: AuditQuery) -> list[ColumnElement[bool]]:
         root = session.scalar(select(Office).where(Office.code == q.office_code.strip().upper()))
         if root is None:
             raise AuditInputError("bad_office", f"{q.office_code!r} is not an office")
-        codes = select(Office.code).where(or_(Office.id == root.id, Office.path.like(root.path + "/%")))
-        conds.append(AuditLog.actor_office_code.in_(codes))
+        if q.office_subtree:
+            codes = select(Office.code).where(or_(Office.id == root.id, Office.path.like(root.path + "/%")))
+            conds.append(AuditLog.actor_office_code.in_(codes))
+        else:
+            conds.append(AuditLog.actor_office_code == root.code)
     if q.action:
         kind, pattern = action_pattern(q.action)
         conds.append(

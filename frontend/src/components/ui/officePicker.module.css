@@ -1,0 +1,180 @@
+/* The Office Picker (design portal-ui-polish-2, decision 28; the mockup's .opick). The input is the one 36 px control
+   (so it lines up with every other box in a field row); the icon, the code tag, the clear button and the chevron sit
+   over it. The list is a portal placed under the box (or above it), fixed to the viewport. */
+
+.field {
+  min-width: 220px;
+}
+
+.box {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.icon {
+  position: absolute;
+  left: var(--s3);
+  color: var(--text-3);
+  pointer-events: none;
+}
+
+.input {
+  width: 100%;
+  min-width: 0;
+  padding-left: calc(var(--s3) + var(--s4) + var(--s2));
+  padding-right: calc(var(--s7) + var(--s5));
+  text-overflow: ellipsis;
+}
+
+.right {
+  position: absolute;
+  right: var(--s2);
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+  max-width: 50%;
+}
+
+.codeTag {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  color: var(--text-3);
+}
+
+.sub {
+  flex: none;
+  font-size: var(--t-xs);
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.clear {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+.clear:hover,
+.clear:focus-visible {
+  background: var(--slate-soft);
+  color: var(--text);
+}
+
+.chev {
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--text-3);
+  pointer-events: none;
+  transition: transform var(--fast) var(--ease);
+}
+
+.open .chev {
+  transform: rotate(180deg);
+}
+
+.pop {
+  position: fixed;
+  z-index: 70;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-3);
+  animation: pop-in var(--med) var(--ease);
+}
+
+.popTop {
+  z-index: 80;
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.list {
+  max-height: 280px;
+  margin: 0;
+  padding: var(--s1);
+  overflow: auto;
+  list-style: none;
+}
+
+.option {
+  --depth: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: var(--control-h);
+  padding: var(--s1) var(--s2) var(--s1) calc(var(--s2) + var(--depth) * var(--s4));
+  border-radius: var(--r-sm);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.option.active {
+  background: var(--slate-soft);
+}
+
+.option[aria-selected="true"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.name {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.path {
+  display: block;
+  font-size: var(--t-xs);
+  color: var(--text-3);
+}
+
+.code {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  color: var(--text-3);
+}
+
+.mark {
+  background: var(--amber-soft);
+  color: inherit;
+  border-radius: 2px;
+}
+
+.none {
+  padding: var(--s2);
+  color: var(--text-3);
+}
+
+.foot {
+  padding: var(--s2) var(--s3);
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+  border-radius: 0 0 var(--r-md) var(--r-md);
+  font-size: var(--t-xs);
+  color: var(--text-3);
+}
+
+[role="dialog"] .list {
+  max-height: 200px;
+}

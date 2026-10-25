@@ -1,52 +1,31 @@
 "use client";
 
 /**
- * The watchlist (design portal-mapping, decision 7; plan §4.1: "specific cases a department has asked to follow"),
- * under `admin.watchlist`. The CNR is checked in the browser before sending (four letters and twelve digits); a CNR
- * not yet held queues its court details (`dossier_queued`); a held case is scored again at once. Case references
- * link through search, which opens the case when visible and otherwise its court-public summary.
+ * The watchlist (design portal-mapping, decision 7; simplified by portal-ui-polish-2, decisions 39-41; plan §4.1:
+ * "specific cases a department has asked to follow"), under `admin.watchlist`. One toolbar line (Search Watchlist,
+ * Include Deactivated), one add row (CNR, checked in the browser before sending: four letters and twelve digits;
+ * Office from the Office Picker, left empty for the caller's own department; Add), and a menu per row (Deactivate or
+ * Reactivate). A CNR not yet held queues its court details (`dossier_queued`); a held case is scored again at once.
+ * Case references link through search. No weight or reason is sent from the forms.
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useId, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 
-import {
-  Badge,
-  Button,
-  CheckField,
-  ConfirmDialog,
-  EmptyState,
-  ErrorBanner,
-  Loading,
-  Notice,
-  DataTable,
-  TextArea,
-  TextField,
-} from "@/components/ui";
+import { Badge, Button, DataTable, EmptyState, ErrorBanner, Loading, Notice, OfficePicker, TextField } from "@/components/ui";
 import { api } from "@/lib/api/client";
-import { MAPPING_KEY, useMe } from "@/lib/api/hooks";
+import { MAPPING_KEY } from "@/lib/api/hooks";
 import type { Watch, WatchList } from "@/lib/api/types";
-import { can } from "@/lib/can";
 import { formatDateTime } from "@/lib/format";
-import { given, isCnr, normaliseCnr, officeRequired, weightBody } from "@/lib/mapping";
+import { given, isCnr, normaliseCnr, officeRequired } from "@/lib/mapping";
 import { T } from "@/lib/messages";
 import { useAction } from "@/lib/useAction";
 
-import {
-  conflictAware,
-  OfficeCell,
-  OfficeFilter,
-  OfficePicker,
-  RuleStatusActions,
-  SearchLink,
-  useOfficeChoices,
-  WeightCell,
-  weightDraft,
-  WeightField,
-  type WeightDraft,
-} from "./common";
+import { conflictAware, matches, OfficeCell, RuleMenu, RuleToolbar, SearchLink } from "./common";
 import s from "./mapping.module.css";
 
 const WATCH_KEY = [...MAPPING_KEY, "watchlist"] as const;
+/** Every kind but the State: a watch belongs to a department or an office below it. */
+const WATCH_KINDS = ["department", "central", "advocate_general", "directorate", "unit"];
 
 /** After a save: queued details for a CNR not held yet, else the held case was scored again at once. */
 function savedLine(row: Watch): string {
@@ -55,132 +34,51 @@ function savedLine(row: Watch): string {
 }
 
 export function Watchlist() {
-  const me = useMe();
-  const canScore = can(me.data, "admin.scoring");
-  const choices = useOfficeChoices();
   const queryClient = useQueryClient();
-  const officeId = useId();
-  const [filter, setFilter] = useState({ office: "", inactive: false });
+  const [q, setQ] = useState("");
+  const [inactive, setInactive] = useState(false);
   const list = useQuery({
-    queryKey: [...WATCH_KEY, filter],
-    queryFn: () =>
-      api<WatchList>("/admin/watchlist", {
-        query: { office: filter.office || undefined, include_inactive: filter.inactive || undefined },
-      }),
+    queryKey: [...WATCH_KEY, { inactive }],
+    queryFn: () => api<WatchList>("/admin/watchlist", { query: { include_inactive: inactive || undefined } }),
   });
   const refresh = () => queryClient.invalidateQueries({ queryKey: WATCH_KEY });
-  const [draft, setDraft] = useState({ cnr: "", office: "", reason: "" });
-  const [cnrError, setCnrError] = useState<string | null>(null);
-  const [weight, setWeight] = useState<WeightDraft>(weightDraft(null));
   const [notice, setNotice] = useState<string | null>(null);
-  const [editing, setEditing] = useState<Watch | null>(null);
-  const action = useAction();
-
-  async function add(e: FormEvent) {
-    e.preventDefault();
-    setNotice(null);
-    const cnr = normaliseCnr(draft.cnr);
-    if (!isCnr(cnr)) {
-      setCnrError(T.mapping.badCnr);
-      return;
-    }
-    setCnrError(null);
-    const out = await action.run(() =>
-      conflictAware(
-        () =>
-          api<Watch>("/admin/watchlist", {
-            method: "POST",
-            body: {
-              cnr,
-              office_code: draft.office.trim() || null,
-              reason: draft.reason.trim() || null,
-              ...(canScore ? weightBody(weight.changed, weight.value) : {}),
-            },
-          }),
-        () => void refresh(),
-      ),
-    );
-    if (out.ok) {
-      setNotice(savedLine(out.value));
-      setDraft({ cnr: "", office: "", reason: "" });
-      setWeight(weightDraft(null));
-      await refresh();
-    }
-  }
+  const rows = (list.data?.items ?? []).filter((r) => matches(q, r.cnr, r.case_ref, r.office.name, r.office.code, r.reason));
 
   return (
     <section className="stack" aria-label={T.mapping.watchlist}>
       <h3>{T.mapping.watchlist}</h3>
-      <form className={`row ${s.form}`} onSubmit={add} aria-label={T.mapping.addWatch} noValidate>
-        <TextField
-          label={T.mapping.cnr}
-          required
-          className="mono"
-          maxLength={20}
-          autoComplete="off"
-          hint={T.mapping.cnrHint}
-          error={cnrError}
-          value={draft.cnr}
-          onChange={(e) => {
-            setCnrError(null);
-            setDraft({ ...draft, cnr: e.target.value });
-          }}
-        />
-        <OfficePicker
-          id={officeId}
-          choices={choices}
-          optional
-          allowRoot={false}
-          value={draft.office}
-          onChange={(office) => setDraft({ ...draft, office })}
-          hint={T.mapping.watchOfficeHint}
-          error={officeRequired(action.error) ? (action.error as Error).message : undefined}
-        />
-        <TextArea
-          label={T.mapping.reason}
-          maxLength={2000}
-          rows={2}
-          value={draft.reason}
-          onChange={(e) => setDraft({ ...draft, reason: e.target.value })}
-        />
-        {canScore ? <WeightField mode="create" draft={weight} onChange={setWeight} /> : null}
-        <Button type="submit" busy={action.busy}>
-          {T.mapping.addWatch}
-        </Button>
-      </form>
-      <ErrorBanner error={given(action.error)} />
+      <RuleToolbar
+        searchLabel={T.mapping.searchWatchLabel}
+        placeholder={T.mapping.searchWatchPlaceholder}
+        q={q}
+        onQ={setQ}
+        inactive={inactive}
+        onInactive={setInactive}
+      />
+      <AddWatch
+        onSaved={(row) => {
+          setNotice(savedLine(row));
+          void refresh();
+        }}
+        onConflict={() => void refresh()}
+      />
       {notice ? <Notice>{notice}</Notice> : null}
-
-      <div className="row">
-        <OfficeFilter choices={choices} value={filter.office} onChange={(office) => setFilter({ ...filter, office })} />
-        <CheckField
-          inline
-          label={T.mapping.includeInactive}
-          checked={filter.inactive}
-          onChange={(e) => setFilter({ ...filter, inactive: e.target.checked })}
-        />
-      </div>
       {list.isPending ? <Loading /> : null}
       <ErrorBanner error={given(list.error)} onRetry={() => list.refetch()} />
       {list.data ? (
-        list.data.items.length === 0 ? (
+        rows.length === 0 ? (
           <EmptyState>{T.mapping.empty}</EmptyState>
         ) : (
           <DataTable
             caption={T.mapping.watchlist}
-            rows={list.data.items}
+            rows={rows}
             rowKey={(row) => row.id}
             columns={[
               { key: "cnr", header: T.mapping.cnr, primary: true, cell: (row) => <span className="mono">{row.cnr}</span> },
               { key: "case", header: T.mapping.case, cell: (row) => <SearchLink ref_no={row.case_ref} /> },
               { key: "office", header: T.mapping.office, cell: (row) => <OfficeCell office={row.office} /> },
               { key: "reason", header: T.mapping.reason, cell: (row) => row.reason ?? "—" },
-              {
-                key: "weight",
-                header: T.mapping.effectiveWeight,
-                align: "right",
-                cell: (row) => <WeightCell effective={row.effective_weight} override={row.weight_override} />,
-              },
               {
                 key: "status",
                 header: T.mapping.status,
@@ -190,91 +88,91 @@ export function Watchlist() {
               { key: "updated", header: T.mapping.updated, cell: (row) => formatDateTime(row.updated_at) },
               {
                 key: "actions",
-                header: T.mapping.actions,
+                header: <span className="visually-hidden">{T.mapping.actions}</span>,
+                label: T.mapping.actions,
+                width: "var(--s7)",
+                align: "right",
                 cell: (row) => (
-                  <div className="actions">
-                    <Button variant="link" aria-label={`${T.edit} ${row.cnr}`} onClick={() => setEditing(row)}>
-                      {T.edit}
-                    </Button>
-                    <RuleStatusActions<Watch>
-                      path={`/admin/watchlist/${row.id}`}
-                      active={row.is_active}
-                      label={row.cnr}
-                      confirmText={T.mapping.watchConfirm}
-                      onDone={(r) => {
-                        setNotice(savedLine(r));
-                        void refresh();
-                      }}
-                      onConflict={() => void refresh()}
-                    />
-                  </div>
+                  <RuleMenu<Watch>
+                    path={`/admin/watchlist/${row.id}`}
+                    active={row.is_active}
+                    label={row.cnr}
+                    confirmText={T.mapping.watchConfirm}
+                    onDone={(r) => {
+                      setNotice(savedLine(r));
+                      void refresh();
+                    }}
+                    onConflict={() => void refresh()}
+                  />
                 ),
               },
             ]}
           />
         )
       ) : null}
-      {editing ? (
-        <EditWatch
-          row={editing}
-          canScore={canScore}
-          onClose={() => setEditing(null)}
-          onSaved={(r) => {
-            setEditing(null);
-            setNotice(savedLine(r));
-            void refresh();
-          }}
-          onConflict={() => void refresh()}
-        />
-      ) : null}
     </section>
   );
 }
 
-function EditWatch({
-  row,
-  canScore,
-  onClose,
-  onSaved,
-  onConflict,
-}: {
-  row: Watch;
-  canScore: boolean;
-  onClose: () => void;
-  onSaved: (row: Watch) => void;
-  onConflict: () => void;
-}) {
-  const [reason, setReason] = useState(row.reason ?? "");
-  const [weight, setWeight] = useState<WeightDraft>(weightDraft(row.weight_override));
+/** The add row (decision 41): CNR, Office (picker, optional) and Add. */
+function AddWatch({ onSaved, onConflict }: { onSaved: (row: Watch) => void; onConflict: () => void }) {
+  const [cnr, setCnr] = useState("");
+  const [office, setOffice] = useState<string | null>(null);
+  const [cnrError, setCnrError] = useState<string | null>(null);
   const action = useAction();
 
-  async function save() {
-    const body: Record<string, unknown> = {
-      ...(reason !== (row.reason ?? "") ? { reason } : {}),
-      ...(canScore ? weightBody(weight.changed, weight.value) : {}),
-    };
-    if (Object.keys(body).length === 0) {
-      onClose();
+  async function add(e: FormEvent) {
+    e.preventDefault();
+    const value = normaliseCnr(cnr);
+    if (!isCnr(value)) {
+      setCnrError(T.mapping.badCnr);
       return;
     }
+    setCnrError(null);
     const out = await action.run(() =>
-      conflictAware(() => api<Watch>(`/admin/watchlist/${row.id}`, { method: "PATCH", body }), onConflict),
+      conflictAware(() => api<Watch>("/admin/watchlist", { method: "POST", body: { cnr: value, office_code: office } }), onConflict),
     );
-    if (out.ok) onSaved(out.value);
+    if (out.ok) {
+      setCnr("");
+      setOffice(null);
+      onSaved(out.value);
+    }
   }
 
   return (
-    <ConfirmDialog
-      open
-      title={T.mapping.editWatch(row.cnr)}
-      onClose={onClose}
-      onConfirm={() => void save()}
-      busy={action.busy}
-      error={given(action.error)}
-      confirmLabel={T.save}
-    >
-      <TextArea label={T.mapping.reason} maxLength={2000} rows={3} value={reason} onChange={(e) => setReason(e.target.value)} />
-      {canScore ? <WeightField mode="edit" draft={weight} onChange={setWeight} current={row.weight_override} /> : null}
-    </ConfirmDialog>
+    <>
+      <form className={s.addRow} onSubmit={add} aria-label={T.mapping.watchlist} noValidate>
+        <div className={s.narrow}>
+          <TextField
+            label={T.mapping.cnr}
+            required
+            className="mono"
+            maxLength={20}
+            autoComplete="off"
+            title={T.mapping.cnrHint}
+            error={cnrError}
+            value={cnr}
+            onChange={(e) => {
+              setCnrError(null);
+              setCnr(e.target.value);
+            }}
+          />
+        </div>
+        <OfficePicker
+          label={T.mapping.office}
+          purpose="watchlist"
+          kinds={WATCH_KINDS}
+          placeholder={T.mapping.ownDepartmentPlaceholder}
+          hint={T.mapping.watchOfficeHint}
+          value={office}
+          onChange={setOffice}
+          error={officeRequired(action.error) ? (action.error as Error).message : undefined}
+        />
+        <Button type="submit" variant="secondary" busy={action.busy}>
+          {T.mapping.add}
+        </Button>
+      </form>
+      {officeRequired(action.error) ? null : <ErrorBanner error={given(action.error)} />}
+    </>
   );
 }
