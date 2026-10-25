@@ -10,6 +10,7 @@ from datetime import date
 import pytest
 from pydantic import ValidationError
 
+from aslms.core.clock import today_ist
 from aslms.core.config import Settings
 from aslms.domain.ops import FetchLane
 from aslms.domain.ownership import PatternKind
@@ -108,12 +109,12 @@ def test_discovery_settings_ranges():
     s = Settings(_env_file=None)
     assert (s.napix_discovery_share, s.discovery_from_year) == (100, 2025)
     Settings(_env_file=None, napix_discovery_share=0, discovery_from_year=1950)
-    Settings(_env_file=None, napix_discovery_share=1000, discovery_from_year=date.today().year)
+    Settings(_env_file=None, napix_discovery_share=1000, discovery_from_year=today_ist().year)
     for bad in (
         {"napix_discovery_share": -1},
         {"napix_discovery_share": 1001},
         {"discovery_from_year": 1949},
-        {"discovery_from_year": date.today().year + 1},
+        {"discovery_from_year": today_ist().year + 1},
     ):
         with pytest.raises(ValidationError):
             Settings(_env_file=None, **bad)

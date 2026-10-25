@@ -9,6 +9,7 @@ from datetime import date
 import pytest
 import sqlalchemy as sa
 
+from aslms.core.clock import today_ist
 from aslms.domain.cases import FirstSeenSource
 from aslms.domain.courts import Court
 from aslms.domain.events import AuditLog, Event
@@ -243,7 +244,7 @@ def test_deactivation_is_refused_while_in_use(session, world):
     session.get(Custody, case.id).holder_office_id = world["health"].id  # moved, never deleted
     session.flush()
     offices.deactivate_office(session, actor, sup, edu)
-    assert not edu.is_active and edu.deactivated_at is not None and edu.valid_to == date.today()
+    assert not edu.is_active and edu.deactivated_at is not None and edu.valid_to == today_ist()
     assert session.get(Office, edu.id) is not None  # never deleted
     row = audits(session, "office.deactivate", edu.id)[0]
     assert row.before["is_active"] is True and row.after["is_active"] is False
@@ -403,7 +404,7 @@ def test_designations(session, world):
         row.after == {"name": "OSD (Legal)", "sort_order": 5} and row.before["sort_order"] == max_before + 10
     )
     offices.set_designation_active(session, actor, sup, osd, False)
-    assert not osd.is_active and osd.deactivated_at is not None and osd.valid_to == date.today()
+    assert not osd.is_active and osd.deactivated_at is not None and osd.valid_to == today_ist()
     assert len(audits(session, "designation.deactivate", osd.id)) == 1
     with pytest.raises(OfficeError, match="already inactive"):
         offices.set_designation_active(session, actor, sup, osd, False)

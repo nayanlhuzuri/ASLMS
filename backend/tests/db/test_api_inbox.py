@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 
 from aslms.api.main import create_app
 from aslms.api.routers import matching as matching_router
+from aslms.core.clock import today_ist
 from aslms.core.config import Settings
 from aslms.domain.cases import CaseStatus
 from aslms.domain.causelists import Causelist, CauselistEntry, EntrySource, ListSource, ListType
@@ -168,7 +169,7 @@ def test_claimed_tab_by_role_and_case_state(api, world):
 
 def test_pool_excludes_owned_and_filters(api, world):
     with world.Session() as s:
-        q1 = make_case(s, pet="RAM KUMAR", next_hearing=date.today() + timedelta(days=3))
+        q1 = make_case(s, pet="RAM KUMAR", next_hearing=today_ist() + timedelta(days=3))
         q2 = make_case(s)
         q3 = make_case(s)
         q4 = make_case(s, pet="GAUHATI UNIVERSITY")
@@ -893,7 +894,7 @@ def test_dashboard_counts_unchanged_by_filters_module(api, world):
         r1, r2 = make_case(s), make_case(s)
         recommend(s, world, r1, "EDU", score=0.95, band=ScoreBand.HIGH)
         recommend(s, world, r2, "EDU", score=0.6, band=ScoreBand.MEDIUM)
-        c = make_case(s, next_hearing=date.today() + timedelta(days=2))
+        c = make_case(s, next_hearing=today_ist() + timedelta(days=2))
         add_listing(s, r1, OCT1)
         s.commit()
         c_id = str(c.id)

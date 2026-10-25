@@ -3,17 +3,16 @@ rules made directly."""
 
 from __future__ import annotations
 
-from datetime import date
-
 import sqlalchemy as sa
 
+from aslms.core.clock import today_ist
 from aslms.core.config import get_settings
 from aslms.domain.ops import FetchKind, FetchQueueItem
 from aslms.services import discovery
 
 
 def years() -> list[int]:
-    return discovery.sweep_years(date.today(), get_settings().discovery_from_year)
+    return discovery.sweep_years(today_ist(), get_settings().discovery_from_year)
 
 
 def ref(year: int, term: str) -> str:

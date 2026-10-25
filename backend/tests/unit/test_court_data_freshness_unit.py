@@ -317,3 +317,18 @@ async def test_napix_probe_refuses_to_start_without_the_call_log(gateway: Gatewa
             3, 0, client_factory=factory, recorder=FakeRecorder(gateway), check_db=unreachable
         )
     assert "napix-probe-rate" in str(e.value) and made == [] and gateway.seen == []
+
+
+def test_no_naive_today_in_the_tests():
+    """Tests compare with dates the application takes in IST; `date.today()` is the container's UTC date, a day behind
+    between 00:00 and 05:30 IST, which turned CI red on 25 Oct 2026."""
+    tests = BACKEND / "tests"
+    offenders = [
+        f"{p.relative_to(BACKEND)}:{i}"
+        for p in tests.rglob("*.py")
+        for i, line in enumerate(p.read_text("utf-8").splitlines(), start=1)
+        if "date.today(" in line
+        and not line.lstrip().startswith("#")
+        and p.name != "test_court_data_freshness_unit.py"
+    ]
+    assert offenders == [], f"use aslms.core.clock.today_ist(), not date.today(): {offenders}"

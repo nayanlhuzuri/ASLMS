@@ -11,6 +11,7 @@ from datetime import UTC, date, datetime, timedelta
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
+from aslms.core.clock import today_ist
 from aslms.domain.alerts import Alert, Notification
 from aslms.domain.cases import Case
 from aslms.domain.events import AuditLog, Event, EventVisibility
@@ -144,4 +145,4 @@ def audit_actions(s: Session, entity_id) -> list[str]:
 
 
 def days(n: int) -> date:
-    return date.today() + timedelta(days=n)
+    return today_ist() + timedelta(days=n)

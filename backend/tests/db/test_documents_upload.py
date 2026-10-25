@@ -12,6 +12,7 @@ from datetime import date, timedelta
 import pytest
 import sqlalchemy as sa
 
+from aslms.core.clock import today_ist
 from aslms.domain.cases import Case
 from aslms.domain.documents import Document, DocumentText, Order
 from aslms.domain.events import Event
@@ -69,7 +70,7 @@ def test_edu_admin_uploads_a_pdf(api, world, owned):
     r = ds.upload(api, ds.login(api, "edu_admin"), owned["owned"], pdf)
     assert r.status_code == 201, r.text
     body = r.json()
-    year = date.today().year
+    year = today_ist().year
     assert body["ref_no"] == f"ASLMS/EDU/DOC/{year}/000001"
     assert body["kind"] == "upload" and body["doc_type"] == "petition" and body["doc_group"] == "court_filing"
     assert body["virus_scan_status"] == "clean" and body["text_status"] == "pending"
@@ -294,7 +295,7 @@ def test_duplicate_rule_per_case_and_office(api, world, owned):
         ({"doc_type": "other"}, "doc_group is required"),
         ({"doc_type": "other", "doc_group": "court_record"}, "reserved"),
         ({"doc_type": "petition", "doc_group": "court_filing"}, "set by doc_type"),
-        ({"doc_date": (date.today() + timedelta(days=1)).isoformat()}, "future"),
+        ({"doc_date": (today_ist() + timedelta(days=1)).isoformat()}, "future"),
         ({"doc_date": "1949-12-31"}, "before"),
         ({"description": "ab"}, "description"),
         ({"description": "x" * 501}, "description"),
