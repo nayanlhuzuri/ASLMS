@@ -402,5 +402,5 @@ def test_claimed_items_carry_new_brief_fields(api, world, cases):
 
 
 def test_openapi_brief_lists_the_new_fields(api):
-    schema = api.get("/openapi.json").json()["components"]["schemas"]["CustodyBriefOut"]
+    schema = api.app.openapi()["components"]["schemas"]["CustodyBriefOut"]  # /openapi.json is 404 outside dev
     assert {"due_soon", "sent_by"} <= set(schema["properties"])

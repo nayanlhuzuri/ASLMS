@@ -112,7 +112,7 @@ def test_a_search_stores_records_and_queues_dossiers(world, napix, tmp_path):
         term = s.scalar(sa.select(DiscoveryTerm).where(DiscoveryTerm.term == "JANIFA KAIFEE AHMED"))
         assert (term.searches_done, term.cases_found) == (1, 3) and term.last_searched_at is not None
         hits = s.scalars(sa.select(DiscoveryHit).where(DiscoveryHit.term_id == term.id)).all()
-        assert len(hits) == 3 and {h.reg_year for h in hits} == {years()[0]}
+        assert len(hits) == 3 and {h.reg_year for h in hits} == {discovery.parse_ref(first.ref)[1]}
         dossiers = s.scalars(sa.select(FetchQueueItem).where(FetchQueueItem.kind == FetchKind.DOSSIER)).all()
         assert {d.ref for d in dossiers} == SAMPLE_CNRS
         assert {(d.lane, d.priority) for d in dossiers} == {(FetchLane.DISCOVERY, 41)}
