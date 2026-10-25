@@ -2,10 +2,10 @@
 
 ```
 slug: portal-ui-polish-2
-status: awaiting-approval
+status: approved
 author: architect
 date: 2026-10-25
-approved_by:
+approved_by: owner on 2026-10-25, with the recommended answers to open questions 1-7 (View Cause List modal as designed; Department Mapping a page under Administration; reference values not Title Cased here; overrides shown on Scoring; no Sign Out Everywhere; plan wording for descriptions; three rounds)
 ```
 
 ## Context

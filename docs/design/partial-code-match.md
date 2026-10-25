@@ -2,10 +2,10 @@
 
 ```
 slug: partial-code-match
-status: awaiting-approval
+status: approved
 author: architect
 date: 2026-10-25
-approved_by:
+approved_by: owner on 2026-10-25, with the recommended answers a-e (respondent markers removed for partial matching; exact wins; other-form matches possible only; weight inside the possible band; the stop-list as listed including AG)
 ```
 
 ## Context
