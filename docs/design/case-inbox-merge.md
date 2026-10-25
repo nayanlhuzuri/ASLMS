@@ -2,10 +2,10 @@
 
 ```
 slug: case-inbox-merge
-status: awaiting-approval
+status: approved
 author: architect
 date: 2026-10-25
-approved_by: <owner> on <date>
+approved_by: owner on 2026-10-25, including decisions 3, 4, 8 and 14 as written
 ```
 
 ## Context
