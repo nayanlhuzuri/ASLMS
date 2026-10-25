@@ -152,6 +152,15 @@ export function MoreIcon() {
 }
 
 /** The icon of each navigation entry, by its key. */
+/** The 16 px chevron of an expanding menu entry (design portal-ui-polish-2, decision 17); it turns 90 degrees open. */
+export function ChevronIcon() {
+  return (
+    <Svg size={16}>
+      <path d="M7 4l5 5-5 5" />
+    </Svg>
+  );
+}
+
 export const NAV_ICONS: Record<string, () => ReactNode> = {
   dashboard: DashboardIcon,
   inbox: InboxIcon,

@@ -95,3 +95,49 @@ def test_office_kind_is_the_enum_in_python(session):
     seed_all(session)
     root = session.scalar(sa.select(Office).where(Office.code == "GOA"))
     assert root is not None and root.kind is OfficeKind.STATE
+
+
+def test_fresh_seed_has_full_type_names_and_descriptions(session):
+    """Design portal-ui-polish-2, decisions 7, 8 and 11: a fresh database gets the full user-type names and the
+    Table 1 descriptions; every seeded label is Title Case."""
+    from aslms.core.titlecase import is_title_case
+    from aslms.domain.reference import RefRole, Role
+    from aslms.services.seed import ROLE_DESCRIPTIONS, ROLE_LABELS
+
+    wipe(session)
+    seed_all(session)
+    rows = {r.code: r for r in session.scalars(sa.select(RefRole)).all()}
+    assert {code: r.label for code, r in rows.items()} == {
+        "super_admin": "Super Administrator",
+        "state_oversight": "State Oversight Officer",
+        "dept_head": "Head of Department",
+        "dept_admin": "Department Administrator",
+        "dept_officer": "Department Officer",
+        "directorate_user": "Directorate Officer",
+        "referral_reviewer": "Referral Reviewer",
+        "standing_counsel": "Standing Counsel",
+        "central_operator": "Central Operator",
+        "auditor": "Auditor",
+    }
+    for role in Role:
+        assert rows[role.value].description == ROLE_DESCRIPTIONS[role]
+        assert 0 < len(ROLE_DESCRIPTIONS[role]) <= 200
+        assert is_title_case(ROLE_LABELS[role]), ROLE_LABELS[role]
+
+
+def test_seed_rerun_keeps_edited_type_name(session):
+    """The seed sets labels and descriptions on insert only: an edited name and a cleared description survive."""
+    from aslms.domain.reference import RefRole
+
+    wipe(session)
+    seed_all(session)
+    row = session.get(RefRole, "dept_officer")
+    row.label, row.description = "Department Officer (Legal)", None
+    other = session.get(RefRole, "auditor")
+    other.description = None
+    session.flush()
+    seed_all(session)
+    session.expire_all()
+    assert session.get(RefRole, "dept_officer").label == "Department Officer (Legal)"
+    assert session.get(RefRole, "dept_officer").description is None
+    assert session.get(RefRole, "auditor").description is None

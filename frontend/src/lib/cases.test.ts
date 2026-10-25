@@ -54,11 +54,11 @@ function sentRow(current: boolean | null, due: string | null): SentItem {
 }
 
 describe("leadBadge (case-workspace-admin, decision 19), first match wins", () => {
-  it("Cases with me: Overdue, Due soon, New within 48 h, else no badge", () => {
+  it("Cases with Me: Overdue, Due soon, New within 48 h, else no badge", () => {
     expect(leadBadge(heldRow({ overdue: true, due_soon: false }), "with-me", NOW)).toEqual({ label: "Overdue", tone: "danger" });
     // overdue wins over due soon and new
     expect(leadBadge(heldRow({ overdue: true, due_soon: true, since: "2026-10-25T06:00:00Z" }), "with-me", NOW)!.label).toBe("Overdue");
-    expect(leadBadge(heldRow({ due_soon: true, since: "2026-10-25T06:00:00Z" }), "with-me", NOW)).toEqual({ label: "Due soon", tone: "warning" });
+    expect(leadBadge(heldRow({ due_soon: true, since: "2026-10-25T06:00:00Z" }), "with-me", NOW)).toEqual({ label: "Due Soon", tone: "warning" });
     // the 48 h edge: exactly 48 h ago is still new, a minute more is not
     expect(leadBadge(heldRow({ since: "2026-10-23T06:30:00Z" }), "with-me", NOW)).toEqual({ label: "New", tone: "info" });
     expect(leadBadge(heldRow({ since: "2026-10-23T06:29:00Z" }), "with-me", NOW)).toBeNull();
@@ -66,16 +66,16 @@ describe("leadBadge (case-workspace-admin, decision 19), first match wins", () =
     expect(leadBadge({ case: {} as HeldItem["case"], card: null }, "with-me", NOW)).toBeNull();
   });
 
-  it("Pending action: Overdue, Due soon, else Waiting (never New)", () => {
+  it("Pending Action: Overdue, Due soon, else Waiting (never New)", () => {
     expect(leadBadge(heldRow({ overdue: true }), "pending", NOW)!.label).toBe("Overdue");
-    expect(leadBadge(heldRow({ due_soon: true }), "pending", NOW)!.label).toBe("Due soon");
+    expect(leadBadge(heldRow({ due_soon: true }), "pending", NOW)!.label).toBe("Due Soon");
     expect(leadBadge(heldRow({ since: "2026-10-25T06:00:00Z" }), "pending", NOW)).toEqual({ label: "Waiting" });
     expect(leadBadge(heldRow(), "pending", NOW)).toEqual({ label: "Waiting" });
   });
 
-  it("Sent by me: only while the leg is current, Overdue, Due soon or Waiting; nothing when not current or not known", () => {
+  it("Sent by Me: only while the leg is current, Overdue, Due soon or Waiting; nothing when not current or not known", () => {
     expect(leadBadge(sentRow(true, "2026-10-24"), "sent", NOW)).toEqual({ label: "Overdue", tone: "danger" });
-    expect(leadBadge(sentRow(true, "2026-10-27"), "sent", NOW)).toEqual({ label: "Due soon", tone: "warning" });
+    expect(leadBadge(sentRow(true, "2026-10-27"), "sent", NOW)).toEqual({ label: "Due Soon", tone: "warning" });
     expect(leadBadge(sentRow(true, "2026-10-28"), "sent", NOW)).toEqual({ label: "Waiting" });
     expect(leadBadge(sentRow(true, null), "sent", NOW)).toEqual({ label: "Waiting" });
     expect(leadBadge(sentRow(false, "2026-10-24"), "sent", NOW)).toBeNull();
@@ -116,7 +116,7 @@ describe("leadBadge on Working on (case-inbox-merge, decision 8): only a case wi
       label: "Overdue",
       tone: "danger",
     });
-    expect(leadBadge(workingRow({ due_soon: true, since: "2026-10-25T06:00:00Z" }), "working", NOW)).toEqual({ label: "Due soon", tone: "warning" });
+    expect(leadBadge(workingRow({ due_soon: true, since: "2026-10-25T06:00:00Z" }), "working", NOW)).toEqual({ label: "Due Soon", tone: "warning" });
     expect(leadBadge(workingRow({ since: "2026-10-23T06:30:00Z" }), "working", NOW)).toEqual({ label: "New", tone: "info" });
     expect(leadBadge(workingRow({ since: "2026-10-23T06:29:00Z" }), "working", NOW)).toBeNull();
   });

@@ -6,7 +6,7 @@ import { courtTotals, percent, ringTone, secondsUntil, testBlock, toneOf, typica
 function card(extra: Partial<ApiCard> = {}): ApiCard {
   return {
     key: "state",
-    label: "High Courts list",
+    label: "High Courts List",
     label_key: "high_courts",
     group: "masters",
     status: "ok",

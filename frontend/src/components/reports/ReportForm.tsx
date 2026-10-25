@@ -151,6 +151,7 @@ export function ReportForm({
           />
           <div>
             <CheckField
+              inline
               label={T.reports.listFiles}
               checked={includeCases}
               onChange={(e) => setIncludeCases(e.target.checked)}

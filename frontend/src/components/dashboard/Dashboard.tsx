@@ -10,16 +10,20 @@
  * decisions 9-11) as headline numbers and panels; the ticket panel stays at the top of the State view for the super
  * admin. Each view loads on its own and fails alone with a retry; a section the API returns as `null` is not shown;
  * nothing is computed in the browser beyond the greeting and the day words.
+ * Design portal-ui-polish-2, decisions 44 and 45: the greeting names the person only when the account has a personal
+ * name; the line under it is the primary designation and office; the date sits right of the view switch; each view
+ * has a tooltip and the chosen one's sentence is the line under the switch (`aria-describedby`); a login with the State
+ * view but no department sees Department disabled with its reason; opening on State says why.
  */
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 
 import { useFilters } from "@/components/inbox/common";
-import { buttonClass, Collapsible, ErrorBanner, Loading, PageHeader, SegmentedSwitch } from "@/components/ui";
+import { buttonClass, Collapsible, ErrorBanner, Loading, Notice, PageHeader, SegmentedSwitch } from "@/components/ui";
 import { FlashNotice } from "@/components/workflow/common";
 import { api } from "@/lib/api/client";
-import { useMe } from "@/lib/api/hooks";
+import { useLabels, useMe } from "@/lib/api/hooks";
 import type { DashboardIndex, DashboardMe, DashboardState, TicketCounts } from "@/lib/api/types";
 import { canAny } from "@/lib/can";
 import { T } from "@/lib/messages";
@@ -27,7 +31,8 @@ import type { Params } from "@/lib/params";
 import { CASE_READERS, navFor } from "@/lib/routes";
 
 import { Block, DepartmentSection, NoDashboard, PersonalExtras, StateBlock, TicketsBlock } from "./Blocks";
-import { greeting, greetingLine, hasPersonalWork, MyWork } from "./Headline";
+import { dashboardDate, greeting, greetingLine, hasPersonalWork, MyWork, personalName } from "./Headline";
+import s from "./dashboard.module.css";
 
 export { CaseRef, DepartmentBlock, HearingList, NoDashboard, StateBlock, TicketsBlock } from "./Blocks";
 
@@ -87,6 +92,8 @@ function viewsOf(index: DashboardIndex | undefined): View[] {
 
 export function Dashboard({ params = {} }: { params?: Params }) {
   const me = useMe();
+  const labels = useLabels();
+  const hintId = useId();
   const setFilters = useFilters(params);
   const readsCases = canAny(me.data, CASE_READERS);
   const index = useQuery({
@@ -134,25 +141,49 @@ export function Dashboard({ params = {} }: { params?: Params }) {
         {T.dash.reviewClaim}
       </Link>
     ) : null;
-  const options = views.map((v) => ({
+  const labelOfView = (v: View) => (v === "me" ? T.dash.viewMe : v === "department" ? T.dash.viewDepartment : T.dash.viewState);
+  const options: { value: View; label: string; title: string; disabled?: boolean }[] = views.map((v) => ({
     value: v,
-    label: v === "me" ? T.dash.viewMe : v === "department" ? T.dash.viewDepartment : T.dash.viewState,
+    label: labelOfView(v),
+    title: T.dash.viewHints[v] ?? "",
   }));
+  // decision 45: the State view without a department shows Department disabled with the reason (other views stay hidden)
+  if (views.includes("state") && !views.includes("department")) {
+    options.splice(views.includes("me") ? 1 : 0, 0, {
+      value: "department",
+      label: T.dash.viewDepartment,
+      title: T.dash.departmentUnavailable,
+      disabled: true,
+    });
+  }
+  const openedOnState =
+    !asked && view === "state" && views.includes("me") && !!personal.data && !hasPersonalWork(personal.data);
+  const typeLabels = (labels.data?.user_types ?? []).map((t) => t.label);
 
   return (
     <div className="stack">
-      <PageHeader title={greeting(me.data.user.full_name)} subtitle={greetingLine(me.data)} primary={primary} />
+      <PageHeader title={greeting(personalName(me.data, typeLabels))} subtitle={greetingLine(me.data)} primary={primary} />
       <FlashNotice />
       {index.isPending ? <Loading /> : null}
       {index.error ? <ErrorBanner error={index.error} onRetry={() => index.refetch()} /> : null}
-      {views.length > 1 && view ? (
-        <SegmentedSwitch
-          label={T.dash.views}
-          options={options}
-          value={view}
-          onChange={(v) => setFilters({ view: v === "me" ? undefined : v })}
-        />
-      ) : null}
+      <div className={s.viewRow}>
+        {options.length > 1 && view ? (
+          <div className={s.viewSwitch}>
+            <SegmentedSwitch
+              label={T.dash.views}
+              options={options}
+              value={view}
+              describedBy={hintId}
+              onChange={(v) => setFilters({ view: v === "me" ? undefined : v })}
+            />
+            <p id={hintId} className={s.viewHint}>
+              {T.dash.viewHints[view]}
+            </p>
+          </div>
+        ) : null}
+        <span className={s.viewDate}>{dashboardDate()}</span>
+      </div>
+      {openedOnState ? <Notice>{T.dash.openedOnState}</Notice> : null}
       {index.data && views.length === 0 && handlesTickets ? <TicketsSection /> : null}
       {waiting ? <Loading /> : null}
       {!waiting && view ? (

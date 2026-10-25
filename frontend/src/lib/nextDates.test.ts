@@ -24,24 +24,24 @@ function row(extra: Partial<NextDate> = {}): NextDate {
 
 describe("next-date words (portal-next-dates, decision 12)", () => {
   it("names every source and status, and an unknown code by its words", () => {
-    expect(sourceLabel("causelist")).toBe("Cause list");
-    expect(sourceLabel("current_status")).toBe("Court records");
-    expect(sourceLabel("order_specific")).toBe("Date in the order");
-    expect(sourceLabel("order_period")).toBe("Counted from the order");
-    expect(sourceLabel("manual")).toBe("Entered by hand");
+    expect(sourceLabel("causelist")).toBe("Cause List");
+    expect(sourceLabel("current_status")).toBe("Court Records");
+    expect(sourceLabel("order_specific")).toBe("Date in the Order");
+    expect(sourceLabel("order_period")).toBe("Counted From the Order");
+    expect(sourceLabel("manual")).toBe("Entered by Hand");
     expect(sourceLabel("something_new")).toBe("something new");
-    expect(statusLabel("not_needed")).toBe("In use");
+    expect(statusLabel("not_needed")).toBe("In Use");
     expect(statusLabel("confirmed")).toBe("Confirmed");
-    expect(statusLabel("rejected")).toBe("Not accepted");
-    expect(statusLabel("superseded")).toBe("Replaced by a later date");
-    expect(statusLabel("expired")).toBe("Date passed before it was confirmed");
+    expect(statusLabel("rejected")).toBe("Not Accepted");
+    expect(statusLabel("superseded")).toBe("Replaced by a Later Date");
+    expect(statusLabel("expired")).toBe("Date Passed Before It Was Confirmed");
     expect(statusLabel("odd_state")).toBe("odd state");
   });
 
   it("a pending date reads differently with and without the action", () => {
-    expect(statusLabel("pending", { canAct: true })).toBe("Suggested from the order — please confirm");
-    expect(statusLabel("pending", { canAct: false })).toBe("Waiting for confirmation");
-    expect(statusLabel("pending")).toBe("Waiting for confirmation");
+    expect(statusLabel("pending", { canAct: true })).toBe("Suggested From the Order — Please Confirm");
+    expect(statusLabel("pending", { canAct: false })).toBe("Waiting for Confirmation");
+    expect(statusLabel("pending")).toBe("Waiting for Confirmation");
   });
 
   it("gives a hint for the known rules and none for an unknown or missing rule", () => {
@@ -59,16 +59,16 @@ describe("next-date words (portal-next-dates, decision 12)", () => {
   it("reads an order's six statuses in plain words (decision 11)", () => {
     expect(readingLabel({ next_date_status: "specific", next_date_found: "2026-11-20" })).toEqual({
       date: "20 Nov 2026",
-      words: "Date in the order",
+      words: "Date in the Order",
     });
     expect(readingLabel({ next_date_status: "period", next_date_found: "2026-10-26" })).toEqual({
       date: "26 Oct 2026",
       words: "counted from the order",
     });
-    expect(readingLabel({ next_date_status: "unclear", next_date_found: null })).toEqual({ date: null, words: "No clear date" });
+    expect(readingLabel({ next_date_status: "unclear", next_date_found: null })).toEqual({ date: null, words: "No Clear Date" });
     expect(readingLabel({ next_date_status: "none" })).toEqual({ date: null, words: "No next date given" });
     expect(readingLabel({ next_date_status: "no_text" })).toEqual({ date: null, words: "Could not be read (scanned copy)" });
-    expect(readingLabel({ next_date_status: "pending" })).toEqual({ date: null, words: "Not read yet" });
+    expect(readingLabel({ next_date_status: "pending" })).toEqual({ date: null, words: "Not Read Yet" });
     expect(readingLabel({ next_date_status: null })).toBeNull();
   });
 
@@ -87,7 +87,7 @@ describe("next-date words (portal-next-dates, decision 12)", () => {
     expect(
       originLine(row({ source: "manual", order: null, created_by: { name: "Officer One" }, created_at: "2026-10-15T05:00:00Z" })),
     ).toBe("Entered by Officer One on 15 Oct 2026");
-    expect(originLine(row({ source: "current_status", order: null }))).toBe("From the court records");
+    expect(originLine(row({ source: "current_status", order: null }))).toBe("From the Court Records");
   });
 
   it("an enter item with neither rule nor sentence is a scanned order", () => {

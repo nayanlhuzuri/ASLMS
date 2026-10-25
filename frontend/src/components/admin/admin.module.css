@@ -242,3 +242,103 @@
     flex-basis: 100%;
   }
 }
+
+/* design portal-ui-polish-2, decision 13: the user-type page's header, with the code as a muted tag; long custom names
+   wrap rather than overflow */
+.typeTitle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s2);
+  min-width: 0;
+}
+
+.typeTitle h2 {
+  overflow-wrap: anywhere;
+}
+
+.codeTag {
+  padding: 0 var(--s2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+}
+
+.typeCard h3 {
+  overflow-wrap: anywhere;
+}
+
+/* decision 14: the Jump To list beside the groups on laptops (sticky), a select on phones */
+.jumpLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s4);
+}
+
+.jumpLayout > .jumpGroups {
+  display: grid;
+  gap: var(--s4);
+  min-width: 0;
+}
+
+.jumpNav {
+  display: none;
+}
+
+.jumpSelect {
+  display: block;
+}
+
+@media (min-width: 1100px) {
+  .jumpLayout {
+    grid-template-columns: minmax(0, 1fr) 220px;
+    align-items: start;
+  }
+
+  .jumpNav {
+    display: block;
+    position: sticky;
+    top: var(--s4);
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .jumpSelect {
+    display: none;
+  }
+}
+
+.jumpHead {
+  margin: 0 0 var(--s2);
+  color: var(--text-3);
+  font-size: var(--t-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.jumpNav ul {
+  display: grid;
+  gap: var(--s1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.jumpNav a {
+  display: block;
+  padding: var(--s1) var(--s2);
+  border-left: 2px solid var(--border);
+  color: var(--text-2);
+  font-size: var(--t-sm);
+  text-decoration: none;
+}
+
+.jumpNav a:hover,
+.jumpNav a:focus-visible {
+  border-left-color: var(--accent);
+  color: var(--accent);
+}

@@ -189,6 +189,17 @@ export function formatDayLong(value: string | Date | null | undefined, locale?: 
   return `${formatWeekday(d)}, ${p.day} ${MONTHS_LONG[p.month - 1]}`;
 }
 
+/** A day with its weekday and year, `Sunday, 25 October 2026` (the dashboard's date, design portal-ui-polish-2). */
+export function formatDayLongYear(value: string | Date | null | undefined, locale?: LocaleArg): string {
+  if (!value) return "—";
+  const d = toDate(value);
+  if (!d) return String(value);
+  const intl = intlOf(locale);
+  if (intl) return intlDate(d, intl, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const p = istParts(d);
+  return `${formatWeekday(d)}, ${p.day} ${MONTHS_LONG[p.month - 1]} ${p.year}`;
+}
+
 /** The hour (0-23) of an instant in IST (the dashboard greeting). */
 export function istHour(now: Date = new Date()): number {
   return istParts(now).hour;

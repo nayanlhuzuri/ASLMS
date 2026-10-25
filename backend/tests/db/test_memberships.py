@@ -32,8 +32,8 @@ def audits(s, action: str, entity_id=None) -> list[AuditLog]:
 REF_ROWS = """
 INSERT INTO ref_office_kind (code, label) VALUES ('state', 'State'), ('department', 'Department'),
   ('directorate', 'Directorate');
-INSERT INTO ref_role (code, label) VALUES ('super_admin', 'x'), ('dept_admin', 'x'), ('dept_officer', 'x'),
-  ('directorate_user', 'x'), ('dept_head', 'x');
+INSERT INTO ref_role (code, label) VALUES ('super_admin', 'x1'), ('dept_admin', 'x2'), ('dept_officer', 'x3'),
+  ('directorate_user', 'x4'), ('dept_head', 'x5');
 INSERT INTO ref_permission (code, label, module) VALUES ('cases.claim', 'Claim', 'cases');
 INSERT INTO offices (id, code, name, kind, path) VALUES
   ('00000000-0000-7000-8000-000000000001', 'GOA', 'Assam', 'state', 'GOA');

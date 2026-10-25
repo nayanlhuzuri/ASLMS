@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 
 import { CaseLink, DataTable, type Column } from "@/components/ui";
 import type { AuditRow } from "@/lib/api/types";
+import { actionName } from "@/lib/audit";
 import { formatDateTimeSeconds } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { queryString, type Params } from "@/lib/params";
@@ -46,8 +47,8 @@ export function AuditTable({ rows, params }: { rows: readonly AuditRow[]; params
       header: T.audit.action,
       primary: true,
       cell: (r) => (
-        <Link href={narrow(params, { action: r.action })} className={s.code}>
-          {r.action}
+        <Link href={narrow(params, { action: r.action })} className={s.code} title={r.action}>
+          {actionName(r.action)}
         </Link>
       ),
     },

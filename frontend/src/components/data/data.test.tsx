@@ -101,12 +101,12 @@ describe("the load console", () => {
     expect(await screen.findByText("The backdated load is running.")).toBeInTheDocument();
     expect(screen.getByText(/Load period 1 Jan 2025 to 31 Dec 2025/)).toBeInTheDocument();
     expect(screen.getByText("652 calls remaining")).toBeInTheDocument();
-    expect(screen.getByText("Backdated load")).toBeInTheDocument();
+    expect(screen.getByText("Backdated Load")).toBeInTheDocument();
     expect(screen.getByText("300")).toBeInTheDocument();
     expect(screen.getByText(/About 20 Oct 2026, 10:00 \(216 hours\)/)).toBeInTheDocument();
     expect(screen.getByText("The court gateway is off for this server.", { exact: false })).toBeInTheDocument();
-    const table = screen.getByRole("table", { name: "Work left" });
-    expect(within(table).getByText("Case details")).toBeInTheDocument();
+    const table = screen.getByRole("table", { name: "Work Left" });
+    expect(within(table).getByText("Case Details")).toBeInTheDocument();
     expect(screen.getByText("IntegrationError: 502")).toBeInTheDocument();
   });
 
@@ -121,7 +121,7 @@ describe("the load console", () => {
     if (status === "unknown") data.allowance = { ...data.allowance, remaining: null, next_reset_at: null };
     consoleRoutes(READER, {}, data);
     renderWithClient(<LoadConsole />);
-    expect(await screen.findByRole("heading", { name: "Court gateway allowance, this window" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Court Gateway Allowance, This Window" })).toBeInTheDocument();
     expect(screen.getByText(text)).toBeInTheDocument();
     if (status === "unknown") expect(screen.getByText("No call in this window yet.")).toBeInTheDocument();
   });
@@ -143,27 +143,27 @@ describe("the load console", () => {
     const { unmount } = renderWithClient(<LoadConsole />);
     await screen.findByText("The backdated load is running.");
     expect(screen.queryByRole("heading", { name: "Actions" })).toBeNull();
-    expect(screen.queryByRole("button", { name: /Retry failed/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Retry Failed/ })).toBeNull();
     unmount();
 
     consoleRoutes(OPERATOR);
     const second = renderWithClient(<LoadConsole />);
     await screen.findByText("The backdated load is running.");
-    expect(await screen.findByRole("button", { name: "Retry failed: Cause-list days" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Retry Failed: Cause-list Days" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Actions" })).toBeNull();
     second.unmount();
 
     consoleRoutes(MANAGER);
     renderWithClient(<LoadConsole />);
     expect(await screen.findByRole("heading", { name: "Actions" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Start a load" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Retry failed/ })).toBeNull();
+    expect(screen.getByRole("heading", { name: "Start a Load" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Retry Failed/ })).toBeNull();
   });
 
   it("retries the failed rows of one kind in the load lane", async () => {
     const api = consoleRoutes(OPERATOR, { "POST /admin/napix/queue/retry-failed": { kind: "order_pdf", retried: 2 } });
     renderWithClient(<LoadConsole />);
-    await userEvent.click(await screen.findByRole("button", { name: "Retry failed: Order PDFs" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Retry Failed: Order PDFs" }));
     expect(await screen.findByText("2 rows queued again.")).toBeInTheDocument();
     const call = api.calls.find((c) => c.path === "/admin/napix/queue/retry-failed");
     expect(call?.body).toEqual({ kind: "order_pdf", lane: "load" });
@@ -184,7 +184,7 @@ describe("the load console", () => {
       "POST /admin/data-load/start": { days: 10, queued: 3, held_skipped: 0, held_requeued: 3, revived: 2, masters_queued: true },
     });
     renderWithClient(<LoadConsole />);
-    const form = await screen.findByRole("form", { name: "Start a load" });
+    const form = await screen.findByRole("form", { name: "Start a Load" });
     await userEvent.type(within(form).getByLabelText("From"), "2025-02-01");
     await userEvent.type(within(form).getByLabelText("To"), "2025-02-10");
     await userEvent.click(within(form).getByRole("button", { name: "Preview" }));
@@ -244,18 +244,18 @@ describe("fetching from the court", () => {
           : json(409, { detail: { code: "already_held", message: "held", cases: [held] } }),
     });
     renderWithClient(<LoadConsole />);
-    const form = await screen.findByRole("form", { name: "Fetch from the court" });
+    const form = await screen.findByRole("form", { name: "Fetch From the Court" });
     await userEvent.type(within(form).getByLabelText("CNR"), "gahc010129772026");
     await userEvent.click(within(form).getByRole("button", { name: "Fetch" }));
-    const dialog = await screen.findByRole("dialog", { name: "Already in the database" });
+    const dialog = await screen.findByRole("dialog", { name: "Already in the Database" });
     expect(within(dialog).getByText(/ASLMS\/GOA\/CASE\/2026\/000001: details fetched 8 Oct 2026/)).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(api.calls.filter((c) => c.path === "/admin/data-load/fetch")).toHaveLength(1);
 
     await userEvent.click(within(form).getByRole("button", { name: "Fetch" }));
-    const again = await screen.findByRole("dialog", { name: "Already in the database" });
-    await userEvent.click(within(again).getByRole("button", { name: "Fetch anyway" }));
+    const again = await screen.findByRole("dialog", { name: "Already in the Database" });
+    await userEvent.click(within(again).getByRole("button", { name: "Fetch Anyway" }));
     expect(await screen.findByText(/not visible to you/)).toBeInTheDocument();
     const sent = api.calls.filter((c) => c.path === "/admin/data-load/fetch").map((c) => c.body);
     expect(sent).toEqual([
@@ -285,16 +285,16 @@ describe("fetching from the court", () => {
       },
     });
     renderWithClient(<LoadConsole />);
-    const form = await screen.findByRole("form", { name: "Fetch from the court" });
-    await userEvent.selectOptions(within(form).getByLabelText("Search by"), "party");
-    await userEvent.type(within(form).getByLabelText("Party name"), "RAMEN DAS");
+    const form = await screen.findByRole("form", { name: "Fetch From the Court" });
+    await userEvent.selectOptions(within(form).getByLabelText("Search By"), "party");
+    await userEvent.type(within(form).getByLabelText("Party Name"), "RAMEN DAS");
     await userEvent.type(within(form).getByLabelText("Year"), "2026");
     await userEvent.click(within(form).getByRole("button", { name: "Fetch" }));
-    const dialog = await screen.findByRole("dialog", { name: "Searched before" });
+    const dialog = await screen.findByRole("dialog", { name: "Searched Before" });
     expect(within(dialog).getByText(/10 Oct 2026, 11:00 \(4 cases stored\). 2 held cases match locally./)).toBeInTheDocument();
-    await userEvent.click(within(dialog).getByRole("button", { name: "Fetch anyway" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Fetch Anyway" }));
     const box = await screen.findByRole("checkbox", { name: "ASLMS/GOA/CASE/2026/000001" });
-    const details = screen.getByRole("button", { name: "Fetch details" });
+    const details = screen.getByRole("button", { name: "Fetch Details" });
     expect(details).toBeDisabled();
     await userEvent.click(box);
     await userEvent.click(details);
@@ -419,21 +419,21 @@ describe("the health tab", () => {
   it("shows each button by its function", async () => {
     healthRoutes(["reports.state"]);
     const { unmount } = renderWithClient(<Health />);
-    expect(await screen.findByRole("heading", { name: "Court gateway" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Sync masters" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Re-fetch a day" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Connectivity check" })).toBeNull();
+    expect(await screen.findByRole("heading", { name: "Court Gateway" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Sync Masters" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Re-fetch a Day" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Connectivity Check" })).toBeNull();
     unmount();
     healthRoutes(["admin.masters_sync"]);
     const second = renderWithClient(<Health />);
-    expect(await screen.findByRole("button", { name: "Sync masters" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Connectivity check" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Re-fetch a day" })).toBeNull();
+    expect(await screen.findByRole("button", { name: "Sync Masters" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Connectivity Check" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Re-fetch a Day" })).toBeNull();
     second.unmount();
     healthRoutes(["admin.napix_refetch"]);
     renderWithClient(<Health />);
-    expect(await screen.findByRole("button", { name: "Re-fetch a day" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Sync masters" })).toBeNull();
+    expect(await screen.findByRole("button", { name: "Re-fetch a Day" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Sync Masters" })).toBeNull();
     expect(await screen.findByText("7")).toBeInTheDocument(); // the load lane's pending dossiers
   });
 
@@ -446,18 +446,18 @@ describe("the health tab", () => {
     const napix = { ...NAPIX, window: { ...NAPIX.window, status } } as NapixHealth;
     healthRoutes(["reports.state"], { "GET /admin/napix/health": napix });
     renderWithClient(<Health />);
-    expect(await screen.findByText("This window")).toBeInTheDocument();
+    expect(await screen.findByText("This Window")).toBeInTheDocument();
     expect(screen.getByText(text)).toBeInTheDocument();
   });
 
   it("shows the document text block by kind, the ones not read split by type (document-ocr)", async () => {
     healthRoutes(["reports.state"]);
     renderWithClient(<Health />);
-    const block = await screen.findByRole("region", { name: "Document text" });
+    const block = await screen.findByRole("region", { name: "Document Text" });
     expect(within(block).getByText(/not read, so they cannot be searched by their content/)).toBeInTheDocument();
     const rowOf = (name: string) => within(block).getByRole("row", { name: new RegExp(`^${name}`) });
-    expect(within(rowOf("Court orders")).getAllByRole("cell").map((c) => c.textContent)).toEqual([
-      "Court orders",
+    expect(within(rowOf("Court Orders")).getAllByRole("cell").map((c) => c.textContent)).toEqual([
+      "Court Orders",
       formatNumber(3220),
       formatNumber(57392),
       "0",
@@ -467,8 +467,8 @@ describe("the health tab", () => {
       "0",
     ]);
     expect(within(rowOf("Uploads")).getAllByRole("cell").map((c) => c.textContent)).toEqual(["Uploads", "0", "14", "11", "12", "15", "13", "0"]);
-    expect(within(rowOf("Note attachments")).getAllByRole("cell")[5]).toHaveTextContent("16");
-    expect(within(block).getByRole("columnheader", { name: "Scanned PDFs, not read" })).toBeInTheDocument();
+    expect(within(rowOf("Note Attachments")).getAllByRole("cell")[5]).toHaveTextContent("16");
+    expect(within(block).getByRole("columnheader", { name: "Scanned PDFs, Not Read" })).toBeInTheDocument();
   });
 
   it("shows the corrected lists, the recheck and the Retention block (court-data-freshness)", async () => {
@@ -500,7 +500,7 @@ describe("the health tab", () => {
       },
     });
     renderWithClient(<Health />);
-    const cycle = await screen.findByRole("region", { name: "Daily cycle" });
+    const cycle = await screen.findByRole("region", { name: "Daily Cycle" });
     expect(within(cycle).getByRole("columnheader", { name: "Corrected" })).toBeInTheDocument();
     expect(within(cycle).getByText("done · 38 checked")).toBeInTheDocument();
     const block = screen.getByRole("region", { name: "Retention" });
@@ -513,32 +513,32 @@ describe("the health tab", () => {
   it("links to the period report with reports.state only (portal-reports)", async () => {
     healthRoutes(["reports.state"]);
     const { unmount } = renderWithClient(<Health />);
-    expect(await screen.findByRole("link", { name: "Period report" })).toHaveAttribute("href", "/reports/data-health");
+    expect(await screen.findByRole("link", { name: "Period Report" })).toHaveAttribute("href", "/reports/data-health");
     unmount();
     healthRoutes(["admin.napix_refetch"]);
     renderWithClient(<Health />);
-    expect(await screen.findByRole("heading", { name: "Court gateway" })).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Period report" })).toBeNull();
+    expect(await screen.findByRole("heading", { name: "Court Gateway" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Period Report" })).toBeNull();
   });
 
   it("lists the recent resets with the precise mark", async () => {
     healthRoutes(["reports.state"]);
     renderWithClient(<Health />);
-    const list = await screen.findByRole("region", { name: "Recent resets" });
+    const list = await screen.findByRole("region", { name: "Recent Resets" });
     expect(within(list).getByText(/14:34: 769 → 999/)).toBeInTheDocument();
     expect(within(list).getByText(/12:30: 148 → 999/)).toBeInTheDocument();
-    expect(within(list).getAllByText("precise")).toHaveLength(1);
+    expect(within(list).getAllByText("Precise")).toHaveLength(1);
   });
 
   it("shows calls by user only when the API sends them", async () => {
     healthRoutes(["reports.state"]);
     const { unmount } = renderWithClient(<Health />);
-    await screen.findByText("This window");
-    expect(screen.queryByRole("table", { name: "Calls by user" })).toBeNull();
+    await screen.findByText("This Window");
+    expect(screen.queryByRole("table", { name: "Calls by User" })).toBeNull();
     unmount();
     healthRoutes(OPERATOR, { "GET /admin/napix/health": { ...NAPIX, by_user: BY_USER } });
     renderWithClient(<Health />);
-    const table = await screen.findByRole("table", { name: "Calls by user" });
+    const table = await screen.findByRole("table", { name: "Calls by User" });
     const rows = within(table).getAllByRole("row");
     expect(rows).toHaveLength(3);
     expect(within(rows[1] as HTMLElement).getByText("Rina Das")).toBeInTheDocument();
@@ -555,13 +555,13 @@ describe("the health tab", () => {
           : json(409, { detail: { code: "already_held", message: "held", status: "done", lists_stored: 2, finished_at: null } }),
     });
     renderWithClient(<Health />);
-    const form = await screen.findByRole("form", { name: "Re-fetch a day" });
+    const form = await screen.findByRole("form", { name: "Re-fetch a Day" });
     await userEvent.type(within(form).getByLabelText("Date"), "2025-01-06");
-    await userEvent.click(within(form).getByRole("button", { name: "Re-fetch a day" }));
-    const dialog = await screen.findByRole("dialog", { name: "Already in the database" });
+    await userEvent.click(within(form).getByRole("button", { name: "Re-fetch a Day" }));
+    const dialog = await screen.findByRole("dialog", { name: "Already in the Database" });
     expect(within(dialog).getByText("That day is already held (done, 2 lists stored).")).toBeInTheDocument();
-    await userEvent.click(within(dialog).getByRole("button", { name: "Fetch anyway" }));
-    expect(await screen.findByText("Cause-list days queued (pending).")).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Fetch Anyway" }));
+    expect(await screen.findByText("Cause-list Days queued (pending).")).toBeInTheDocument();
     const bodies = api.calls.filter((c) => c.path === "/admin/napix/refetch/day").map((c) => c.body);
     expect(bodies).toEqual([{ date: "2025-01-06" }, { date: "2025-01-06", force: true }]);
   });
@@ -600,15 +600,15 @@ describe("the call log", () => {
   it("shows the lane, and the user column only when users are returned", async () => {
     routes([call(), call({ id: "k-2", lane: "load" })]);
     const { unmount } = renderWithClient(<QueueAndCalls />);
-    const table = await screen.findByRole("table", { name: "Call log" });
+    const table = await screen.findByRole("table", { name: "Call Log" });
     expect(within(table).getByRole("columnheader", { name: "Lane" })).toBeInTheDocument();
     expect(within(table).queryByRole("columnheader", { name: "User" })).toBeNull();
-    expect(within(table).getByText("Searches and checks")).toBeInTheDocument();
-    expect(within(table).getByText("Backdated load")).toBeInTheDocument();
+    expect(within(table).getByText("Searches and Checks")).toBeInTheDocument();
+    expect(within(table).getByText("Backdated Load")).toBeInTheDocument();
     unmount();
     routes([call({ lane: "request", user_id: "u-1", user_name: "Rina Das" }), call({ id: "k-2" })]);
     renderWithClient(<QueueAndCalls />);
-    const second = await screen.findByRole("table", { name: "Call log" });
+    const second = await screen.findByRole("table", { name: "Call Log" });
     expect(within(second).getByRole("columnheader", { name: "User" })).toBeInTheDocument();
     expect(within(second).getByText("Rina Das")).toBeInTheDocument();
     expect(within(second).getByText("Requests")).toBeInTheDocument();
@@ -634,7 +634,7 @@ describe("duplicates", () => {
     const { unmount } = renderWithClient(<Duplicates />);
     expect(await screen.findByText("portal records on the provisional case: case_ownership")).toBeInTheDocument();
     expect(screen.getByText("ASLMS/GOA/CASE/2026/000009")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Scan now" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Scan Now" })).toBeNull();
     unmount();
     const api = browserApi({
       "GET /me": makeMe(MANAGER),
@@ -642,7 +642,7 @@ describe("duplicates", () => {
       "POST /admin/data-load/duplicates/scan": { merged: 3, needs_review: 1, court_linked: 2 },
     });
     renderWithClient(<Duplicates />);
-    await userEvent.click(await screen.findByRole("button", { name: "Scan now" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Scan Now" }));
     expect(await screen.findByText("3 merged, 1 listed for review, 2 court duplicates linked.")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Merged" }));
     await waitFor(() => expect(api.calls.some((c) => c.url.includes("kind=merged"))).toBe(true));
@@ -653,7 +653,7 @@ describe("navigation", () => {
   it("the Data collection entry and its tabs follow the functions", async () => {
     browserApi({ "GET /reference/labels": labels() });
     const { unmount } = renderWithClient(<Sidebar me={makeMe(["cases.view_scope"])} />);
-    expect(screen.queryByRole("link", { name: "Data collection" })).toBeNull();
+    expect(screen.queryByRole("treeitem", { name: "Data Collection" })).toBeNull();
     unmount();
     resetNav("/data/health");
     const me = makeMe(["admin.napix_refetch"], "central_operator");
@@ -666,10 +666,12 @@ describe("navigation", () => {
         </DataFrame>
       </>,
     );
-    const nav = screen.getByRole("navigation", { name: "Main navigation" });
-    expect(within(nav).getByRole("link", { name: "Data collection" })).toHaveAttribute("aria-current", "page");
-    const tabs = await screen.findByRole("navigation", { name: "Data collection sections" });
-    for (const name of ["Load", "Health", "Queue and calls", "Duplicates"]) {
+    const nav = screen.getByRole("navigation", { name: "Main Navigation" });
+    // design portal-ui-polish-2, decision 16: the entry opens on its pages and the page's child is current
+    expect(within(nav).getByRole("treeitem", { name: "Data Collection" })).toHaveAttribute("aria-expanded", "true");
+    expect(within(nav).getByRole("treeitem", { name: "Health" })).toHaveAttribute("aria-current", "page");
+    const tabs = await screen.findByRole("navigation", { name: "Data Collection Sections" });
+    for (const name of ["Load", "Health", "Queue and Calls", "Duplicates"]) {
       expect(within(tabs).getByRole("link", { name })).toBeInTheDocument();
     }
     expect(within(tabs).getByRole("link", { name: "Health" })).toHaveAttribute("aria-current", "page");
@@ -702,14 +704,14 @@ describe("the Dashboard template (design portal-ui-redesign, decision 26)", () =
       },
     });
     const { container } = renderWithClient(<LoadConsole />);
-    const allowance = await screen.findByRole("region", { name: "Court gateway allowance, this window" });
+    const allowance = await screen.findByRole("region", { name: "Court Gateway Allowance, This Window" });
     expect(allowance.className).toMatch(/panel/);
     expect(within(allowance).getAllByText(/./, { selector: "[class*='kpiLabel']" }).length).toBe(5);
-    for (const name of ["Status", "Work left", "Estimated finish", "Actions"]) {
+    for (const name of ["Status", "Work Left", "Estimated Finish", "Actions"]) {
       expect(screen.getByRole("region", { name }).className).toMatch(/panel/);
     }
     expect(primaryActions(container)).toEqual([]);
-    const form = screen.getByRole("form", { name: "Start a load" });
+    const form = screen.getByRole("form", { name: "Start a Load" });
     await userEvent.type(within(form).getByLabelText("From"), "2025-02-01");
     await userEvent.type(within(form).getByLabelText("To"), "2025-02-02");
     await userEvent.click(within(form).getByRole("button", { name: "Preview" }));
@@ -724,9 +726,9 @@ describe("the Dashboard template (design portal-ui-redesign, decision 26)", () =
       "GET /admin/napix/health": NAPIX,
     });
     const { container } = renderWithClient(<Health />);
-    const gateway = await screen.findByRole("region", { name: "Court gateway" });
+    const gateway = await screen.findByRole("region", { name: "Court Gateway" });
     expect(within(gateway).getAllByText(/./, { selector: "[class*='kpiLabel']" }).length).toBe(2);
-    expect(screen.getByRole("region", { name: "Document text" }).className).toMatch(/wide/);
+    expect(screen.getByRole("region", { name: "Document Text" }).className).toMatch(/wide/);
     expect(primaryActions(container)).toEqual([]);
   });
 
@@ -737,7 +739,7 @@ describe("the Dashboard template (design portal-ui-redesign, decision 26)", () =
     });
     const { container } = renderWithClient(<Duplicates />);
     const group = await screen.findByRole("group", { name: "Duplicates" });
-    expect(within(group).getByRole("button", { name: "Needs review" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(group).getByRole("button", { name: "Needs Review" })).toHaveAttribute("aria-pressed", "true");
     expect(primaryActions(container)).toEqual([]);
   });
 });
@@ -746,8 +748,8 @@ describe("lists are DataTables, cards on phones (design portal-ui-polish, decisi
   it("LoadConsole renders a DataTable with a primary cell", async () => {
     consoleRoutes(READER);
     renderWithClient(<LoadConsole />);
-    expectDataTable(await screen.findByRole("table", { name: "Work left" }));
-    expectDataTable(screen.getByRole("table", { name: "Latest failures" }));
+    expectDataTable(await screen.findByRole("table", { name: "Work Left" }));
+    expectDataTable(screen.getByRole("table", { name: "Latest Failures" }));
   });
 
   it("Health renders a DataTable with a primary cell", async () => {
@@ -757,9 +759,9 @@ describe("lists are DataTables, cards on phones (design portal-ui-polish, decisi
       "GET /admin/napix/health": { ...NAPIX, by_user: BY_USER },
     });
     renderWithClient(<Health />);
-    expectDataTable(await screen.findByRole("table", { name: "Calls by user" }));
+    expectDataTable(await screen.findByRole("table", { name: "Calls by User" }));
     expectDataTable(screen.getByRole("table", { name: "Queue" }));
-    expectDataTable(screen.getByRole("table", { name: "Document text" }));
+    expectDataTable(screen.getByRole("table", { name: "Document Text" }));
   });
 
   it("Queue renders a DataTable with a primary cell", async () => {
@@ -772,8 +774,8 @@ describe("lists are DataTables, cards on phones (design portal-ui-polish, decisi
       },
     });
     renderWithClient(<QueueAndCalls />);
-    expectDataTable(await screen.findByRole("table", { name: "Queue rows" }));
-    expectDataTable(await screen.findByRole("table", { name: "Call log" }));
+    expectDataTable(await screen.findByRole("table", { name: "Queue Rows" }));
+    expectDataTable(await screen.findByRole("table", { name: "Call Log" }));
   });
 
   it("Duplicates renders a DataTable with a primary cell", async () => {

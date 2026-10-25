@@ -23303,6 +23303,68 @@
         "title": "UserTypeLabelOut",
         "type": "object"
       },
+      "UserTypeNameIn": {
+        "description": "Edit Name (design portal-ui-polish-2, decision 12). The service trims and checks: the label 1 to 80 characters\nafter trimming and collapsing white space, unique without regard to case; the description at most 200 characters,\nempty = none. The raw limits here only bound the request.",
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "label": {
+            "maxLength": 400,
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label"
+        ],
+        "title": "UserTypeNameIn",
+        "type": "object"
+      },
+      "UserTypeNameOut": {
+        "properties": {
+          "changed": {
+            "description": "false when neither the name nor the description changed (no audit row)",
+            "title": "Changed",
+            "type": "boolean"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "label",
+          "changed"
+        ],
+        "title": "UserTypeNameOut",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -23905,6 +23967,83 @@
           }
         ],
         "summary": "Set Role Functions",
+        "tags": [
+          "access"
+        ]
+      }
+    },
+    "/admin/access/types/{role}/name": {
+      "patch": {
+        "description": "Edit Name (design portal-ui-polish-2, decision 12): the display name and short description of a user type. The\ncode, the memberships and the functions never change. Audited `access.type_edited` when something changed; 409\n`label_taken` when another type has the name without regard to case; 422 `label_required`, `label_too_long`,\n`label_bad_characters` or `description_too_long`.",
+        "operationId": "rename_type_admin_access_types__role__name_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "role",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserTypeNameIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserTypeNameOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Rename Type",
         "tags": [
           "access"
         ]

@@ -110,7 +110,7 @@ describe("the remarks history (case-workspace-admin, decision 15)", () => {
       ),
     });
     renderWithClient(<RemarksPanel caseRef={REF} c={C} open onClose={() => {}} />);
-    const panel = await screen.findByRole("dialog", { name: "Remarks and notes" });
+    const panel = await screen.findByRole("dialog", { name: "Remarks and Notes" });
     expect(panel).toHaveAttribute("data-panel", "wide");
     expect(await within(panel).findByRole("tab", { name: "Remarks (3)" })).toHaveAttribute("aria-selected", "true");
     const list = within(panel).getByRole("list", { name: "Remarks (3)" });
@@ -124,9 +124,9 @@ describe("the remarks history (case-workspace-admin, decision 15)", () => {
     expect(within(items[1]!).getByText("Recalled by Joint Secretary, EDU")).toBeInTheDocument();
     expect(within(items[1]!).getByText("No due date")).toBeInTheDocument();
     expect(within(items[1]!).queryByText(/Line one/)).toBeNull();
-    expect(within(items[2]!).getByText("Claimed by EDU — with Section Officer, Secondary Education (you)")).toBeInTheDocument();
+    expect(within(items[2]!).getByText("Claimed by EDU — With Section Officer, Secondary Education (you)")).toBeInTheDocument();
     expect(within(panel).queryByText("Remarks are shown only to the people working on the case.")).toBeNull();
-    expect(within(panel).queryByRole("button", { name: "Show more" })).toBeNull();
+    expect(within(panel).queryByRole("button", { name: "Show More" })).toBeNull();
   });
 
   it("without remarks for the caller the panel says so once and lists the movements", async () => {
@@ -135,7 +135,7 @@ describe("the remarks history (case-workspace-admin, decision 15)", () => {
       [`GET ${BASE}/custody`]: history([leg(2, { remark: null }), leg(1, { remark: null })], 2, false),
     });
     renderWithClient(<RemarksPanel caseRef={REF} c={C} open onClose={() => {}} />);
-    const panel = await screen.findByRole("dialog", { name: "Remarks and notes" });
+    const panel = await screen.findByRole("dialog", { name: "Remarks and Notes" });
     expect(await within(panel).findAllByText("Remarks are shown only to the people working on the case.")).toHaveLength(1);
     expect(within(panel).getAllByText(/^Sent by/)).toHaveLength(2);
   });
@@ -150,11 +150,11 @@ describe("the remarks history (case-workspace-admin, decision 15)", () => {
       },
     });
     renderWithClient(<RemarksPanel caseRef={REF} c={C} open onClose={() => {}} />);
-    const panel = await screen.findByRole("dialog", { name: "Remarks and notes" });
+    const panel = await screen.findByRole("dialog", { name: "Remarks and Notes" });
     await waitFor(() => expect(within(panel).getAllByText(/^Sent by/)).toHaveLength(50));
-    await userEvent.click(within(panel).getByRole("button", { name: "Show more" }));
+    await userEvent.click(within(panel).getByRole("button", { name: "Show More" }));
     await waitFor(() => expect(within(panel).getAllByText(/^Sent by/)).toHaveLength(60));
-    expect(within(panel).queryByRole("button", { name: "Show more" })).toBeNull();
+    expect(within(panel).queryByRole("button", { name: "Show More" })).toBeNull();
     const urls = api.calls.filter((c) => c.path.startsWith(`${BASE}/custody`)).map((c) => c.path);
     expect(urls).toEqual([`${BASE}/custody?order=desc&limit=50&offset=0`, `${BASE}/custody?order=desc&limit=50&offset=50`]);
   });
@@ -170,16 +170,16 @@ describe("the remarks history (case-workspace-admin, decision 15)", () => {
           : { items: [note(1), note(2, { kind: "file_noting", kind_label: "Office note" }), note(3)], total: 3 },
     });
     renderWithClient(<RemarksPanel caseRef={REF} c={C} open onClose={() => {}} />);
-    const panel = await screen.findByRole("dialog", { name: "Remarks and notes" });
+    const panel = await screen.findByRole("dialog", { name: "Remarks and Notes" });
     await userEvent.click(within(panel).getByRole("tab", { name: "Notes (3)" }));
     const list = await within(panel).findByRole("list", { name: "Notes (3)" });
     expect(within(list).getAllByText(/^Body of note/).map((n) => n.textContent)).toEqual(["Body of note 1", "Body of note 2", "Body of note 3"]);
     const first = within(list).getAllByRole("listitem")[0]!;
     expect(within(first).getByText("Under Secretary, EDU")).toHaveAttribute("title", "Author 1");
-    expect(within(first).getByText("Everyone with the case")).toBeInTheDocument();
+    expect(within(first).getByText("Everyone with the Case")).toBeInTheDocument();
     expect(api.calls.find((c) => c.path.startsWith(`${BASE}/notes`))!.path).toContain("include_superseded=true");
     const kind = within(panel).getByLabelText("Kind");
-    await waitFor(() => expect(within(kind).getAllByRole("option").map((o) => o.textContent)).toEqual(["All kinds", "Office note", "Remark"]));
+    await waitFor(() => expect(within(kind).getAllByRole("option").map((o) => o.textContent)).toEqual(["All Kinds", "Office note", "Remark"]));
     await userEvent.selectOptions(kind, "file_noting");
     await waitFor(() => expect(within(panel).getAllByText(/^Body of note/)).toHaveLength(1));
     expect(api.calls.some((c) => c.path.startsWith(`${BASE}/notes`) && c.path.includes("kind=file_noting"))).toBe(true);
@@ -199,7 +199,7 @@ describe("the remarks history (case-workspace-admin, decision 15)", () => {
       },
     });
     renderWithClient(<RemarksPanel caseRef={REF} c={C} open onClose={() => {}} />);
-    const panel = await screen.findByRole("dialog", { name: "Remarks and notes" });
+    const panel = await screen.findByRole("dialog", { name: "Remarks and Notes" });
     await userEvent.click(within(panel).getByRole("tab", { name: /Notes/ }));
     const list = await within(panel).findByRole("list", { name: "Notes (2)" });
     const [original, correction] = within(list).getAllByRole("listitem");
@@ -208,10 +208,10 @@ describe("the remarks history (case-workspace-admin, decision 15)", () => {
       "#remarks-note-2",
     );
     expect(within(correction!).getByText("Corrects ASLMS/EDU/NOTE/2026/000001")).toBeInTheDocument();
-    const fold = within(correction!).getByRole("button", { name: "Show the corrected note" });
+    const fold = within(correction!).getByRole("button", { name: "Show the Corrected Note" });
     expect(fold).toHaveAttribute("aria-expanded", "false");
     await userEvent.click(fold);
-    const shown = within(correction!).getByLabelText("Corrected note");
+    const shown = within(correction!).getByLabelText("Corrected Note");
     expect(within(shown).getByText("The original text")).toBeInTheDocument();
   });
 
@@ -227,10 +227,10 @@ describe("the remarks history (case-workspace-admin, decision 15)", () => {
       "GET /notes/ASLMS-EDU-NOTE-2026-000001": note(1, { body: "Fetched original", kind: "file_noting", kind_label: "Office note" }),
     });
     renderWithClient(<RemarksPanel caseRef={REF} c={C} open onClose={() => {}} />);
-    const panel = await screen.findByRole("dialog", { name: "Remarks and notes" });
+    const panel = await screen.findByRole("dialog", { name: "Remarks and Notes" });
     await userEvent.click(within(panel).getByRole("tab", { name: /Notes/ }));
     await userEvent.selectOptions(await within(panel).findByLabelText("Kind"), "remark");
-    await userEvent.click(await within(panel).findByRole("button", { name: "Show the corrected note" }));
+    await userEvent.click(await within(panel).findByRole("button", { name: "Show the Corrected Note" }));
     expect(await within(panel).findByText("Fetched original")).toBeInTheDocument();
     expect(api.calls.some((c) => c.path === "/notes/ASLMS-EDU-NOTE-2026-000001")).toBe(true);
   });
@@ -243,7 +243,7 @@ describe("the remarks history (case-workspace-admin, decision 15)", () => {
       [`GET ${BASE}/notes`]: { items: [note(1)], total: 1 },
     });
     renderWithClient(<RemarksPanel caseRef={REF} c={C} open onClose={() => {}} />);
-    const panel = await screen.findByRole("dialog", { name: "Remarks and notes" });
+    const panel = await screen.findByRole("dialog", { name: "Remarks and Notes" });
     await userEvent.click(within(panel).getByRole("tab", { name: /Notes/ }));
     await within(panel).findByText("Body of note 1");
     expect(api.calls.every((c) => c.method === "GET")).toBe(true);
@@ -277,14 +277,14 @@ describe("?remarks=all on the case page (decision 15)", () => {
   it("See all remarks pushes ?remarks=all; the address opens the panel and Close takes it away", async () => {
     browserApi(pageRoutes());
     const { unmount } = renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
-    await userEvent.click(await screen.findByRole("button", { name: "See all remarks (1)" }));
+    await userEvent.click(await screen.findByRole("button", { name: "See All Remarks (1)" }));
     expect(nav.push).toHaveBeenCalledWith(`${BASE}?remarks=all`);
-    expect(screen.queryByRole("dialog", { name: "Remarks and notes" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Remarks and Notes" })).toBeNull();
     unmount();
     resetNav(BASE, "remarks=all");
     browserApi(pageRoutes());
     renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
-    const panel = await screen.findByRole("dialog", { name: "Remarks and notes" });
+    const panel = await screen.findByRole("dialog", { name: "Remarks and Notes" });
     await userEvent.click(within(panel).getByRole("button", { name: "Close" }));
     expect(nav.replace).toHaveBeenCalledWith(BASE);
   });

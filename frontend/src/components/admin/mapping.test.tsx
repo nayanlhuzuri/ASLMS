@@ -130,14 +130,14 @@ describe("counsel codes", () => {
     renderWithClient(<CounselCodes />);
     expect(await screen.findByText("SC, EDU")).toBeInTheDocument();
     expect(screen.queryByLabelText(/Weight override/)).toBeNull();
-    expect(screen.queryByRole("button", { name: "Clear override" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Clear Override" })).toBeNull();
     expect(screen.getByText("0.900")).toBeInTheDocument();
     expect(screen.getByText("setting")).toBeInTheDocument();
 
-    const form = screen.getByRole("form", { name: "Add a counsel code" });
+    const form = screen.getByRole("form", { name: "Add a Counsel Code" });
     await userEvent.type(within(form).getByLabelText("Code"), "SC, DSE");
     await userEvent.selectOptions((await within(form).findByLabelText("Office")), "EDU-DSE");
-    await userEvent.click(within(form).getByRole("button", { name: "Add a counsel code" }));
+    await userEvent.click(within(form).getByRole("button", { name: "Add a Counsel Code" }));
     expect(await screen.findByText("Takes effect at the next rescore, within 15 minutes.")).toBeInTheDocument();
     const create = posts(api, "POST", "/admin/counsel-codes")[0]!.body as Record<string, unknown>;
     expect(create).toEqual({ code: "SC, DSE", office_code: "EDU-DSE", is_generic_state: false, notes: null });
@@ -173,7 +173,7 @@ describe("counsel codes", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: "Edit SC, EDU" }));
     dialog = await screen.findByRole("dialog");
-    await userEvent.click(within(dialog).getByRole("button", { name: "Clear override" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Clear Override" }));
     expect(within(dialog).getByText("The override will be cleared when you save.")).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(posts(api, "PATCH", "/admin/counsel-codes/cc-1")).toHaveLength(2));
@@ -188,18 +188,18 @@ describe("counsel codes", () => {
       "POST /admin/counsel-codes": json(201, { ...code({ code: "PP, ASSAM" }), applies_within_minutes: 15 }),
     });
     renderWithClient(<CounselCodes />);
-    const form = await screen.findByRole("form", { name: "Add a counsel code" });
+    const form = await screen.findByRole("form", { name: "Add a Counsel Code" });
     await userEvent.type(within(form).getByLabelText("Code"), "PP, ASSAM");
     await userEvent.selectOptions((await within(form).findByLabelText("Office")), "GOA");
     expect(within(form).getByText(/A code mapped to the State is generic/)).toBeInTheDocument();
-    await userEvent.click(within(form).getByRole("button", { name: "Add a counsel code" }));
+    await userEvent.click(within(form).getByRole("button", { name: "Add a Counsel Code" }));
     await waitFor(() => expect(posts(api, "POST", "/admin/counsel-codes")).toHaveLength(1));
     expect(posts(api, "POST", "/admin/counsel-codes")[0]!.body).toMatchObject({ office_code: "GOA", is_generic_state: true });
 
     await userEvent.type(within(form).getByLabelText("Code"), "SC, HEALTH");
     await userEvent.selectOptions((await within(form).findByLabelText("Office")), "HEALTH");
     expect(within(form).queryByText(/A code mapped to the State is generic/)).toBeNull();
-    await userEvent.click(within(form).getByRole("button", { name: "Add a counsel code" }));
+    await userEvent.click(within(form).getByRole("button", { name: "Add a Counsel Code" }));
     await waitFor(() => expect(posts(api, "POST", "/admin/counsel-codes")).toHaveLength(2));
     expect(posts(api, "POST", "/admin/counsel-codes")[1]!.body).toMatchObject({ office_code: "HEALTH", is_generic_state: false });
   });
@@ -227,7 +227,7 @@ describe("counsel codes", () => {
       "GET /admin/counsel-codes": { items: [], total: 0 },
     });
     const first = renderWithClient(<CounselCodes />);
-    const form = await screen.findByRole("form", { name: "Add a counsel code" });
+    const form = await screen.findByRole("form", { name: "Add a Counsel Code" });
     const select = (await within(form).findByLabelText("Office"));
     await waitFor(() => expect(within(select).getByRole("option", { name: /Secondary Education \(EDU-DSE\)/ })).toBeInTheDocument());
     expect(within(select).getByRole("option", { name: /Education \(EDU\)/ })).toBeInTheDocument();
@@ -239,12 +239,12 @@ describe("counsel codes", () => {
       "POST /admin/counsel-codes": json(201, { ...code(), applies_within_minutes: 15 }),
     });
     renderWithClient(<CounselCodes />);
-    const form2 = await screen.findByRole("form", { name: "Add a counsel code" });
-    const typed = await within(form2).findByLabelText("Office code");
+    const form2 = await screen.findByRole("form", { name: "Add a Counsel Code" });
+    const typed = await within(form2).findByLabelText("Office Code");
     expect(typed.tagName).toBe("INPUT");
     await userEvent.type(within(form2).getByLabelText("Code"), "SC, EDU");
     await userEvent.type(typed, "edu");
-    await userEvent.click(within(form2).getByRole("button", { name: "Add a counsel code" }));
+    await userEvent.click(within(form2).getByRole("button", { name: "Add a Counsel Code" }));
     await waitFor(() => expect(posts(api, "POST", "/admin/counsel-codes")).toHaveLength(1));
     expect(posts(api, "POST", "/admin/counsel-codes")[0]!.body).toMatchObject({ office_code: "EDU", is_generic_state: false });
     expect(posts(api, "GET", "/admin/offices")).toHaveLength(0);
@@ -272,7 +272,7 @@ describe("counsel codes", () => {
       "/search?q=ASLMS%2FGOA%2FCASE%2F2026%2F000042",
     );
     await userEvent.click(screen.getByRole("button", { name: "Map SC, PWD" }));
-    const form = screen.getByRole("form", { name: "Add a counsel code" });
+    const form = screen.getByRole("form", { name: "Add a Counsel Code" });
     expect(within(form).getByLabelText("Code")).toHaveValue("SC, PWD");
     expect((await within(form).findByLabelText("Office"))).toHaveFocus();
     expect(api.calls.filter((c) => c.method !== "GET")).toHaveLength(0);
@@ -288,7 +288,7 @@ describe("counsel codes", () => {
     renderWithClient(<CounselCodes />);
     await userEvent.click(await screen.findByRole("button", { name: "Show codes seen in cause lists but not mapped" }));
     expect(await screen.findByText("the report took too long")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Try Again" })).toBeInTheDocument();
   });
 });
 
@@ -355,25 +355,25 @@ describe("keywords and name patterns", () => {
       }),
     });
     renderWithClient(<KeywordsAndPatterns />);
-    const form = await screen.findByRole("form", { name: "Add a keyword" });
+    const form = await screen.findByRole("form", { name: "Add a Keyword" });
     await userEvent.type(within(form).getByLabelText("Keyword"), "COMMISSIONER OF EDUCATION");
     await userEvent.selectOptions((await within(form).findByLabelText("Office")), "EDU");
-    await userEvent.click(within(form).getByRole("button", { name: "Add a keyword" }));
+    await userEvent.click(within(form).getByRole("button", { name: "Add a Keyword" }));
     expect(await screen.findByText("Takes effect at the next rescore, within 15 minutes.")).toBeInTheDocument();
     expect(posts(api, "POST", "/admin/keywords")[0]!.body).toEqual({ keyword: "COMMISSIONER OF EDUCATION", office_code: "EDU" });
 
     const before = posts(api, "GET", "/admin/keywords").length;
     await userEvent.type(within(form).getByLabelText("Keyword"), "COMMISSIONER OF EDUCATION");
     await userEvent.selectOptions((await within(form).findByLabelText("Office")), "EDU");
-    await userEvent.click(within(form).getByRole("button", { name: "Add a keyword" }));
+    await userEvent.click(within(form).getByRole("button", { name: "Add a Keyword" }));
     expect(await screen.findByText("the keyword COMMISSIONER OF EDUCATION already exists for EDU")).toBeInTheDocument();
     await waitFor(() => expect(posts(api, "GET", "/admin/keywords").length).toBeGreaterThan(before));
 
-    const pform = screen.getByRole("form", { name: "Add a name pattern" });
+    const pform = screen.getByRole("form", { name: "Add a Name Pattern" });
     await userEvent.type(within(pform).getByLabelText("Pattern"), "STATE OF ASSAM");
     await userEvent.selectOptions(within(pform).getByLabelText("Kind"), "prefix");
     await userEvent.selectOptions((await within(pform).findByLabelText("Office")), "EDU");
-    await userEvent.click(within(pform).getByRole("button", { name: "Add a name pattern" }));
+    await userEvent.click(within(pform).getByRole("button", { name: "Add a Name Pattern" }));
     await waitFor(() => expect(posts(api, "POST", "/admin/name-patterns")).toHaveLength(1));
     expect(posts(api, "POST", "/admin/name-patterns")[0]!.body).toEqual({ pattern: "STATE OF ASSAM", kind: "prefix", office_code: "EDU" });
   });
@@ -389,16 +389,16 @@ describe("Search the court (department-discovery)", () => {
       "POST /admin/name-patterns": json(201, { id: "np-1", pattern: "PRITAM", kind: "prefix", office: { code: "EDU", name: "Education" }, weight_override: null, effective_weight: 0.8, is_active: true, updated_at: "2026-10-10T05:00:00Z", discover: false, discoverable: true, discovery: null, applies_within_minutes: 15 }),
     });
     renderWithClient(<KeywordsAndPatterns />);
-    const kform = await screen.findByRole("form", { name: "Add a keyword" });
-    const kbox = within(kform).getByLabelText("Search the court");
+    const kform = await screen.findByRole("form", { name: "Add a Keyword" });
+    const kbox = within(kform).getByLabelText("Search the Court");
     await userEvent.type(within(kform).getByLabelText("Keyword"), "Dr. Pritam Saikia");
     expect(kbox).toBeChecked();
     await userEvent.clear(within(kform).getByLabelText("Keyword"));
     await userEvent.type(within(kform).getByLabelText("Keyword"), "100% pass");
     expect(kbox).not.toBeChecked();
 
-    const pform = screen.getByRole("form", { name: "Add a name pattern" });
-    const pbox = within(pform).getByLabelText("Search the court");
+    const pform = screen.getByRole("form", { name: "Add a Name Pattern" });
+    const pbox = within(pform).getByLabelText("Search the Court");
     await userEvent.type(within(pform).getByLabelText("Pattern"), "PRITAM");
     expect(pbox).toBeChecked();
     expect(pbox).not.toBeDisabled();
@@ -408,7 +408,7 @@ describe("Search the court (department-discovery)", () => {
     await userEvent.selectOptions(within(pform).getByLabelText("Kind"), "prefix");
     await userEvent.click(pbox); // the user unticks it: sent as false
     await userEvent.selectOptions((await within(pform).findByLabelText("Office")), "EDU");
-    await userEvent.click(within(pform).getByRole("button", { name: "Add a name pattern" }));
+    await userEvent.click(within(pform).getByRole("button", { name: "Add a Name Pattern" }));
     await waitFor(() => expect(posts(api, "POST", "/admin/name-patterns")).toHaveLength(1));
     expect(posts(api, "POST", "/admin/name-patterns")[0]!.body).toEqual({
       pattern: "PRITAM",
@@ -455,11 +455,11 @@ describe("watchlist", () => {
       "GET /admin/watchlist": { items: [], total: 0 },
     });
     renderWithClient(<Watchlist />);
-    const form = await screen.findByRole("form", { name: "Add to the watchlist" });
+    const form = await screen.findByRole("form", { name: "Add to the Watchlist" });
     for (const bad of ["ASHC01001234202", "AS1C010012342025", "ASHC01001234202X"]) {
       await userEvent.clear(within(form).getByLabelText("CNR"));
       await userEvent.type(within(form).getByLabelText("CNR"), bad);
-      await userEvent.click(within(form).getByRole("button", { name: "Add to the watchlist" }));
+      await userEvent.click(within(form).getByRole("button", { name: "Add to the Watchlist" }));
       expect(await within(form).findByText("A CNR is four letters followed by twelve digits.")).toBeInTheDocument();
     }
     expect(posts(api, "POST", "/admin/watchlist")).toHaveLength(0);
@@ -479,19 +479,19 @@ describe("watchlist", () => {
       "href",
       "/search?q=ASLMS%2FGOA%2FCASE%2F2025%2F000001",
     );
-    const form = screen.getByRole("form", { name: "Add to the watchlist" });
+    const form = screen.getByRole("form", { name: "Add to the Watchlist" });
     const picker = (await within(form).findByLabelText("Office"));
     await waitFor(() => expect(within(picker).getByRole("option", { name: /Health \(HEALTH\)/ })).toBeInTheDocument());
     expect(within(picker).queryByRole("option", { name: /GOA/ })).toBeNull();
 
     await userEvent.type(within(form).getByLabelText("CNR"), " ashc010099992026 ");
     await userEvent.selectOptions(picker, "EDU");
-    await userEvent.click(within(form).getByRole("button", { name: "Add to the watchlist" }));
+    await userEvent.click(within(form).getByRole("button", { name: "Add to the Watchlist" }));
     expect(await screen.findByText(/its court details are queued/)).toBeInTheDocument();
     expect(posts(api, "POST", "/admin/watchlist")[0]!.body).toEqual({ cnr: "ASHC010099992026", office_code: "EDU", reason: null });
 
     await userEvent.type(within(form).getByLabelText("CNR"), "ASHC010012342025");
-    await userEvent.click(within(form).getByRole("button", { name: "Add to the watchlist" }));
+    await userEvent.click(within(form).getByRole("button", { name: "Add to the Watchlist" }));
     expect(await screen.findByText("The case was scored again now.")).toBeInTheDocument();
     expect(posts(api, "POST", "/admin/watchlist")[1]!.body).toEqual({ cnr: "ASHC010012342025", office_code: null, reason: null });
   });
@@ -504,9 +504,9 @@ describe("watchlist", () => {
       "POST /admin/watchlist": json(400, { detail: "office_code is required: you work in 2 departments" }),
     });
     renderWithClient(<Watchlist />);
-    const form = await screen.findByRole("form", { name: "Add to the watchlist" });
+    const form = await screen.findByRole("form", { name: "Add to the Watchlist" });
     await userEvent.type(within(form).getByLabelText("CNR"), "ASHC010012342025");
-    await userEvent.click(within(form).getByRole("button", { name: "Add to the watchlist" }));
+    await userEvent.click(within(form).getByRole("button", { name: "Add to the Watchlist" }));
     const lines = await screen.findAllByText("office_code is required: you work in 2 departments");
     expect(lines.length).toBeGreaterThanOrEqual(1);
     expect((await within(form).findByLabelText("Office"))).toHaveAttribute("aria-invalid", "true");
@@ -527,7 +527,7 @@ describe("scoring", () => {
   it("version 0 shows the built-in defaults", async () => {
     browserApi({ "GET /me": deptAdmin(["admin.counsel_codes"]), "GET /admin/scoring-settings": settings(0) });
     renderWithClient(<Scoring />);
-    expect(await screen.findByText("Built-in defaults, never saved")).toBeInTheDocument();
+    expect(await screen.findByText("Built-in Defaults, Never Saved")).toBeInTheDocument();
   });
 
   it("saves all seven values, the reason and the loaded version after a confirmation", async () => {
@@ -545,7 +545,7 @@ describe("scoring", () => {
     expect(await screen.findByText("A reason is required.")).toBeInTheDocument();
     expect(posts(api, "PUT", "/admin/scoring-settings")).toHaveLength(0);
 
-    await userEvent.type(screen.getByLabelText("Reason for the change (required)"), "keywords were too weak");
+    await userEvent.type(screen.getByLabelText("Reason for the Change (Required)"), "keywords were too weak");
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText("0.400")).toBeInTheDocument();
@@ -570,7 +570,7 @@ describe("scoring", () => {
     const possible = await screen.findByLabelText("Possible");
     await userEvent.clear(possible);
     await userEvent.type(possible, "0.85");
-    await userEvent.type(screen.getByLabelText("Reason for the change (required)"), "test");
+    await userEvent.type(screen.getByLabelText("Reason for the Change (Required)"), "test");
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(await screen.findByText("Possible must be below Strong.")).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -585,7 +585,7 @@ describe("scoring", () => {
       "PUT /admin/scoring-settings": { ...settings(3), changed: false, rescore_dispatched: false, applies_within_minutes: 15 },
     });
     renderWithClient(<Scoring />);
-    await userEvent.type(await screen.findByLabelText("Reason for the change (required)"), "check");
+    await userEvent.type(await screen.findByLabelText("Reason for the Change (Required)"), "check");
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
     await userEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Save" }));
     expect(await screen.findByText("Nothing changed; no new version was saved.")).toBeInTheDocument();
@@ -600,14 +600,14 @@ describe("scoring", () => {
       "PUT /admin/scoring-settings": json(409, { detail: "the settings changed meanwhile (version 4)" }),
     });
     renderWithClient(<Scoring />);
-    await userEvent.type(await screen.findByLabelText("Reason for the change (required)"), "my reason");
+    await userEvent.type(await screen.findByLabelText("Reason for the Change (Required)"), "my reason");
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
     await userEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Save" }));
     expect(
       await screen.findByText("The settings were changed by someone else and have been reloaded; review them and save again."),
     ).toBeInTheDocument();
     await waitFor(() => expect(screen.getByLabelText("Keyword")).toHaveValue(0.5));
-    expect(screen.getByLabelText("Reason for the change (required)")).toHaveValue("my reason");
+    expect(screen.getByLabelText("Reason for the Change (Required)")).toHaveValue("my reason");
     expect(posts(api, "GET", "/admin/scoring-settings").length).toBeGreaterThanOrEqual(2);
     expect(posts(api, "GET", "/admin/scoring-settings/history").length).toBeGreaterThanOrEqual(2);
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -656,11 +656,11 @@ describe("tester additions", () => {
       "POST /admin/name-patterns": json(400, { detail: "the regular expression is not valid: unterminated group" }),
     });
     renderWithClient(<KeywordsAndPatterns />);
-    const pform = await screen.findByRole("form", { name: "Add a name pattern" });
+    const pform = await screen.findByRole("form", { name: "Add a Name Pattern" });
     await userEvent.type(within(pform).getByLabelText("Pattern"), "(abc");
     await userEvent.selectOptions(within(pform).getByLabelText("Kind"), "regex");
     await userEvent.selectOptions(await within(pform).findByLabelText("Office"), "EDU");
-    await userEvent.click(within(pform).getByRole("button", { name: "Add a name pattern" }));
+    await userEvent.click(within(pform).getByRole("button", { name: "Add a Name Pattern" }));
     expect((await screen.findAllByText("the regular expression is not valid: unterminated group")).length).toBeGreaterThanOrEqual(1);
   });
 
@@ -672,10 +672,10 @@ describe("tester additions", () => {
       "POST /admin/counsel-codes": json(403, { detail: "the office is outside your offices" }),
     });
     renderWithClient(<CounselCodes />);
-    const form = await screen.findByRole("form", { name: "Add a counsel code" });
+    const form = await screen.findByRole("form", { name: "Add a Counsel Code" });
     await userEvent.type(within(form).getByLabelText(/^Code/), "SC, EDU");
     await userEvent.selectOptions(await within(form).findByLabelText("Office"), "EDU");
-    await userEvent.click(within(form).getByRole("button", { name: "Add a counsel code" }));
+    await userEvent.click(within(form).getByRole("button", { name: "Add a Counsel Code" }));
     expect((await screen.findAllByText("the office is outside your offices")).length).toBeGreaterThanOrEqual(1);
   });
 });
@@ -691,7 +691,7 @@ describe("lists are DataTables, cards on phones (design portal-ui-polish, decisi
       ],
     });
     renderWithClient(<CounselCodes />);
-    expectDataTable(await screen.findByRole("table", { name: "Counsel codes" }));
+    expectDataTable(await screen.findByRole("table", { name: "Counsel Codes" }));
     await userEvent.click(screen.getByRole("button", { name: "Show codes seen in cause lists but not mapped" }));
     expectDataTable(await screen.findByRole("table", { name: "Codes seen in cause lists but not mapped" }));
   });
@@ -721,7 +721,7 @@ describe("lists are DataTables, cards on phones (design portal-ui-polish, decisi
     });
     renderWithClient(<KeywordsAndPatterns />);
     expectDataTable(await screen.findByRole("table", { name: "Keywords" }));
-    expectDataTable(await screen.findByRole("table", { name: "Name patterns" }));
+    expectDataTable(await screen.findByRole("table", { name: "Name Patterns" }));
   });
 
   it("Watchlist renders a DataTable with a primary cell", async () => {

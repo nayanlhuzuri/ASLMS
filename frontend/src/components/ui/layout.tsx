@@ -28,15 +28,18 @@ export function Card({
   actions,
   children,
   flush,
+  id,
 }: {
   title?: ReactNode;
   actions?: ReactNode;
   children: ReactNode;
   /** No body padding (a table or a list that runs to the edges). */
   flush?: boolean;
+  /** An anchor for in-page links (the Jump To list of the user-type page). */
+  id?: string;
 }) {
   return (
-    <section className={s.card}>
+    <section className={s.card} id={id}>
       {title || actions ? (
         <div className={s.cardHead}>
           {title ? <h3>{title}</h3> : <span />}

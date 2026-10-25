@@ -111,14 +111,14 @@ describe("navigation", () => {
     ] as const) {
       browserApi({ "GET /reference/labels": labels() });
       const { unmount } = renderWithClient(<Sidebar me={me} />);
-      const sidebar = screen.getByRole("navigation", { name: "Main navigation" });
-      const link = within(sidebar).queryByRole("link", { name: "Audit log" });
+      const sidebar = screen.getByRole("navigation", { name: "Main Navigation" });
+      const link = within(sidebar).queryByRole("treeitem", { name: "Audit Log" });
       if (shown) {
         expect(link).toHaveAttribute("href", "/audit");
         const names = within(sidebar)
-          .getAllByRole("link")
+          .getAllByRole("treeitem")
           .map((a) => a.textContent);
-        expect(names.indexOf("Data collection") === -1 || names.indexOf("Data collection") > names.indexOf("Audit log")).toBe(true);
+        expect(names.indexOf("Data Collection") === -1 || names.indexOf("Data Collection") > names.indexOf("Audit Log")).toBe(true);
       } else {
         expect(link).toBeNull();
       }
@@ -131,7 +131,7 @@ describe("the search", () => {
   it("runs on open with the URL's filters and limit=50", async () => {
     const api = routes();
     renderWithClient(<AuditSearch params={{ case: "GHC-1", action: "custody.", offset: "10", user: "" }} />);
-    await screen.findByRole("table", { name: "Audit log entries" });
+    await screen.findByRole("table", { name: "Audit Log Entries" });
     const calls = auditCalls(api);
     expect(calls).toHaveLength(1);
     expect(queryOf(calls[0]!)).toEqual({ case: "GHC-1", action: "custody.", limit: "50" });
@@ -140,7 +140,7 @@ describe("the search", () => {
   it("with no filter lists the newest entries", async () => {
     const api = routes({ items: [row("r-1"), row("r-2", { action: "custody.sent" })], next_cursor: null });
     renderWithClient(<AuditSearch params={{}} />);
-    const table = await screen.findByRole("table", { name: "Audit log entries" });
+    const table = await screen.findByRole("table", { name: "Audit Log Entries" });
     expect(within(table).getAllByRole("row")).toHaveLength(3);
     expect(queryOf(auditCalls(api)[0]!)).toEqual({ limit: "50" });
   });
@@ -214,14 +214,14 @@ describe("the search", () => {
   it("the action list is grouped with All … actions entries", async () => {
     routes();
     renderWithClient(<AuditSearch params={{}} />);
-    await screen.findByRole("option", { name: "All custody actions" });
+    await screen.findByRole("option", { name: "All Custody Actions" });
     const select = screen.getByLabelText("Action");
-    expect(within(select).getByRole("option", { name: "Any action" })).toHaveValue("");
-    expect(within(select).getByRole("option", { name: "All custody actions" })).toHaveValue("custody.");
-    expect(within(select).getByRole("option", { name: "All sign-in and password actions" })).toHaveValue("auth.");
+    expect(within(select).getByRole("option", { name: "Any Action" })).toHaveValue("");
+    expect(within(select).getByRole("option", { name: "All Custody Actions" })).toHaveValue("custody.");
+    expect(within(select).getByRole("option", { name: "All Sign-in and Password Actions" })).toHaveValue("auth.");
     expect(within(select).getByRole("option", { name: "custody.recalled" })).toBeInTheDocument();
     const groups = within(select).getAllByRole("group").map((g) => g.getAttribute("label"));
-    expect(groups).toEqual(["Custody", "Ownership", "Sign-in and password"]);
+    expect(groups).toEqual(["Custody", "Ownership", "Sign-in and Password"]);
     await userEvent.selectOptions(select, "custody.");
     await userEvent.click(screen.getByRole("button", { name: "Search" }));
     expect(nav.push).toHaveBeenLastCalledWith("/audit?action=custody.");
@@ -249,7 +249,7 @@ describe("the search", () => {
 
   it.each([
     ["unknown_user", { user: "nobody@example.org" }, "Person", "No such user."],
-    ["unknown_user", { about_user: "nobody@example.org" }, "About the user", "No such user."],
+    ["unknown_user", { about_user: "nobody@example.org" }, "About the User", "No such user."],
     ["not_found", { case: "GHC-MADE-UP" }, "Case", "No case with this reference"],
     ["bad_office", { office: "NOPE" }, "Office", "No office with this code."],
     ["bad_period", { from: "2026-10-01", to: "2026-10-02" }, "To", "from must not be after to"],
@@ -273,15 +273,15 @@ describe("the search", () => {
     routes(json(503, { detail: { code: "search_timeout", message: "the search took too long; narrow the search" } }));
     renderWithClient(<AuditSearch params={{ actor: "Sharma" }} />);
     expect(await screen.findByText("The search took too long; narrow the search.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Try Again" })).toBeInTheDocument();
     expect(screen.queryByRole("table")).toBeNull();
   });
 
   it("a 403 shows the readers sentence and no form, and requests nothing more", async () => {
     const api = routes(json(403, { detail: { code: "audit_scope", message: "State-wide only" } }));
     renderWithClient(<AuditSearch params={{}} />);
-    expect(await screen.findByText("The audit log is read only by the super admin and the Auditor.")).toBeInTheDocument();
-    expect(screen.queryByRole("form", { name: "Audit log filters" })).toBeNull();
+    expect(await screen.findByText("The audit log is read only by the Super Administrator and the Auditor.")).toBeInTheDocument();
+    expect(screen.queryByRole("form", { name: "Audit Log Filters" })).toBeNull();
     expect(api.calls.filter((c) => c.path.startsWith("/audit/actions"))).toHaveLength(0);
     expect(auditCalls(api)).toHaveLength(1);
   });
@@ -291,18 +291,18 @@ describe("the search", () => {
     renderWithClient(<AuditSearch params={{}} />);
     await screen.findByRole("table");
     const before = api.calls.length;
-    await userEvent.type(screen.getByLabelText("Name contains"), "S");
+    await userEvent.type(screen.getByLabelText("Name Contains"), "S");
     await userEvent.click(screen.getByRole("button", { name: "Search" }));
     expect(await screen.findByText("Give 2 to 100 characters.")).toBeInTheDocument();
-    await userEvent.clear(screen.getByLabelText("Name contains"));
+    await userEvent.clear(screen.getByLabelText("Name Contains"));
     await userEvent.selectOptions(screen.getByLabelText("Period"), "custom");
     await userEvent.type(screen.getByLabelText("From"), "2026-10-05");
     await userEvent.type(screen.getByLabelText("To"), "2026-10-01");
     await userEvent.click(screen.getByRole("button", { name: "Search" }));
     expect(await screen.findByText("The end date is before the start date.")).toBeInTheDocument();
     await userEvent.clear(screen.getByLabelText("To"));
-    await userEvent.click(screen.getByText("More filters"));
-    await userEvent.type(screen.getByLabelText("Record id"), "not-a-uuid");
+    await userEvent.click(screen.getByText("More Filters"));
+    await userEvent.type(screen.getByLabelText("Record ID"), "not-a-uuid");
     await userEvent.click(screen.getByRole("button", { name: "Search" }));
     expect(await screen.findByText(/A record id looks like/)).toBeInTheDocument();
     expect(nav.push).not.toHaveBeenCalled();
@@ -313,7 +313,7 @@ describe("the search", () => {
     const api = routes();
     renderWithClient(<AuditSearch params={{ actor: "x" }} />);
     expect(await screen.findByText("Give 2 to 100 characters.")).toBeInTheDocument();
-    await screen.findByRole("option", { name: "All custody actions" });
+    await screen.findByRole("option", { name: "All Custody Actions" });
     expect(auditCalls(api)).toHaveLength(0);
   });
 
@@ -350,23 +350,23 @@ describe("the entry page", () => {
     expect(screen.getByText("Anita Sharma, Under Secretary, EDU")).toBeInTheDocument();
     expect(screen.getByText("10.0.0.5")).toBeInTheDocument();
     expect(screen.getByText("Mozilla/5.0")).toBeInTheDocument();
-    const table = screen.getByRole("table", { name: "Before and after" });
+    const table = screen.getByRole("table", { name: "Before and After" });
     const rowOf = (field: string) => within(table).getByRole("rowheader", { name: field }).closest("tr")!;
     expect(within(rowOf("name")).getByText("Changed")).toBeInTheDocument();
     expect(within(rowOf("notes")).queryByText("Changed")).toBeNull();
     expect(within(rowOf("notes")).getAllByText("—")).toHaveLength(2);
     expect(within(rowOf("meta")).getByText(/"a": 2/)).toBeInTheDocument();
     expect(within(rowOf("body")).getAllByText("Text not kept in the log (42 characters; fingerprint abcdef012345)")).toHaveLength(2);
-    expect(screen.getByRole("link", { name: "All entries for this case" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "All Entries for This Case" })).toHaveAttribute(
       "href",
       "/audit?case=ASLMS%2FGOA%2FCASE%2F2026%2F000001",
     );
-    expect(screen.getByRole("link", { name: "All entries by this person" })).toHaveAttribute("href", "/audit?user=u-7");
-    expect(screen.getByRole("link", { name: "All entries for this record" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "All Entries by This Person" })).toHaveAttribute("href", "/audit?user=u-7");
+    expect(screen.getByRole("link", { name: "All Entries for This Record" })).toHaveAttribute(
       "href",
       "/audit?entity_type=office&entity_id=0192a3b4-5c6d-7e8f-9a0b-1c2d3e4f5a6b",
     );
-    expect(screen.getByRole("link", { name: "Back to the search" })).toHaveAttribute("href", "/audit");
+    expect(screen.getByRole("link", { name: "Back to the Search" })).toHaveAttribute("href", "/audit");
     expect(api.calls.every((c) => c.method === "GET")).toBe(true);
   });
 
@@ -374,15 +374,15 @@ describe("the entry page", () => {
     browserApi({ "GET /me": SUPER, [`GET /audit/${ID}`]: row(ID, { before: null, after: {}, case: null, entity_id: null }) });
     renderWithClient(<AuditEntry id={ID} />);
     expect(await screen.findByText("This action records no values.")).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "All entries for this case" })).toBeNull();
-    expect(screen.queryByRole("link", { name: "All entries for this record" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "All Entries for This Case" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "All Entries for This Record" })).toBeNull();
   });
 
   it("Back goes back when the entry was opened from the search", async () => {
     browserApi({ "GET /me": SUPER, [`GET /audit/${ID}`]: row(ID) });
     window.sessionStorage.setItem("aslms.audit.fromSearch", ID);
     renderWithClient(<AuditEntry id={ID} />);
-    await userEvent.click(await screen.findByRole("link", { name: "Back to the search" }));
+    await userEvent.click(await screen.findByRole("link", { name: "Back to the Search" }));
     expect(nav.back).toHaveBeenCalled();
   });
 
@@ -393,7 +393,7 @@ describe("the entry page", () => {
     unmount();
     browserApi({ [`GET /audit/${ID}`]: json(403, { detail: { code: "audit_scope", message: "no" } }) });
     renderWithClient(<AuditEntry id={ID} />);
-    expect(await screen.findByText("The audit log is read only by the super admin and the Auditor.")).toBeInTheDocument();
+    expect(await screen.findByText("The audit log is read only by the Super Administrator and the Auditor.")).toBeInTheDocument();
   });
 });
 
@@ -401,7 +401,7 @@ describe("the Work list template (design portal-ui-redesign, decision 26)", () =
   it("rows open their entry page by click or Enter, cells carry phone labels, and the page has one primary", async () => {
     routes({ items: [row("r-1"), row("r-2", { action: "custody.sent" })], next_cursor: null });
     const { container } = renderWithClient(<AuditSearch params={{}} />);
-    const table = await screen.findByRole("table", { name: "Audit log entries" });
+    const table = await screen.findByRole("table", { name: "Audit Log Entries" });
     const [, first, second] = within(table).getAllByRole("row");
     // every cell but the primary and the hidden View has its label for the phone card
     const labelled = [...first!.querySelectorAll("td[data-label]")].map((td) => td.getAttribute("data-label"));
@@ -424,7 +424,7 @@ describe("the Work list template (design portal-ui-redesign, decision 26)", () =
 describe("lists are DataTables, cards on phones (design portal-ui-polish, decision 15)", () => {
   it("BeforeAfter renders a DataTable with a primary cell", () => {
     renderWithClient(<BeforeAfter before={{ name: "Old name", notes: null }} after={{ name: "New name", notes: null }} />);
-    const table = expectDataTable(screen.getByRole("table", { name: "Before and after" }));
+    const table = expectDataTable(screen.getByRole("table", { name: "Before and After" }));
     expect(within(table).getByRole("rowheader", { name: "name" }).closest("tr")!.className).toMatch(/changedRow/);
   });
 });

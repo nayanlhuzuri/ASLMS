@@ -11,13 +11,13 @@ import type { ReactNode } from "react";
 
 import { Badge, Card, CaseLink, DateChip, EmptyState, Kpi, Lead, ListRow, type Tone } from "@/components/ui";
 import type { DashboardHeadline, DashboardMe, DashboardMeAttention, DashboardUpcoming, Me } from "@/lib/api/types";
-import { daysBetween, formatDayLong, formatNumber, istDay, istHour } from "@/lib/format";
+import { daysBetween, formatDayLongYear, formatNumber, istDay, istHour } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { casePath } from "@/lib/refs";
 
 import s from "./dashboard.module.css";
 
-/** "Good morning / afternoon / evening, <first name>" by the IST hour. */
+/** "Good Morning / Afternoon / Evening, <first name>" by the IST hour; without a name, the greeting alone. */
 export function greeting(fullName: string | null | undefined, now: Date = new Date()): string {
   const first = (fullName ?? "").trim().split(/\s+/)[0] ?? "";
   const hour = istHour(now);
@@ -25,10 +25,32 @@ export function greeting(fullName: string | null | undefined, now: Date = new Da
   return g(first).replace(/,\s*$/, "");
 }
 
-/** The line under the greeting: the primary membership's office and the IST date ("Tuesday, 21 October"). */
-export function greetingLine(me: Me | undefined, now: Date = new Date()): string {
-  const primary = (me?.memberships ?? []).find((m) => m.is_primary && m.is_active !== false) ?? me?.memberships?.[0];
-  return T.dash.greetingLine([primary?.office.name ?? "", formatDayLong(now)]);
+function primaryOf(me: Me | undefined) {
+  return (me?.memberships ?? []).find((m) => m.is_primary && m.is_active !== false) ?? me?.memberships?.[0];
+}
+
+/**
+ * The account's personal name, or "" when it has none (design portal-ui-polish-2, decision 44): a full name that is
+ * empty, or that equals (trimmed, without regard to case) the primary designation, a user-type label or "Super
+ * Administrator", is a post, not a person.
+ */
+export function personalName(me: Me | undefined, typeLabels: readonly string[] = []): string {
+  const full = (me?.user.full_name ?? "").trim();
+  if (!full) return "";
+  const designation = primaryOf(me)?.designation ?? me?.user.designation ?? "";
+  const posts = [designation, ...typeLabels, "Super Administrator"].map((x) => x.trim().toLowerCase()).filter(Boolean);
+  return posts.includes(full.toLowerCase()) ? "" : full;
+}
+
+/** The line under the greeting, for every account: the primary membership's designation and office name. */
+export function greetingLine(me: Me | undefined): string {
+  const primary = primaryOf(me);
+  return T.dash.greetingLine([primary?.designation ?? me?.user.designation ?? "", primary?.office.name ?? ""]);
+}
+
+/** The IST date beside the view switch ("Sunday, 25 October 2026"). */
+export function dashboardDate(now: Date = new Date()): string {
+  return formatDayLongYear(now);
 }
 
 /** Whether the login has personal work to show (a State-wide reader without any opens on the State view). */

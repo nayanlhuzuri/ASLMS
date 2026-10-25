@@ -157,14 +157,14 @@ const PAGES = pages();
 
 /** Pages whose one primary is known, so the check is seen to render real content. */
 const EXPECTED: Record<string, string[]> = {
-  "/login": ["Sign in"],
-  "/forgot": ["Send code"],
-  "/reports/pending-cases": ["Show report"],
+  "/login": ["Sign In"],
+  "/forgot": ["Send Code"],
+  "/reports/pending-cases": ["Show Report"],
   "/audit": ["Search"],
-  "/admin/users": ["Add user"],
-  "/admin/access/dept_officer": ["Save changes"],
-  "/admin/offices": ["New office"],
-  "/admin/tickets": ["Propose a head change"],
+  "/admin/users": ["Add User"],
+  "/admin/access/dept_officer": ["Save Changes"],
+  "/admin/offices": ["New Office"],
+  "/admin/tickets": ["Propose a Head Change"],
 };
 
 beforeEach(() => {
@@ -208,7 +208,7 @@ describe("every page has at most one primary action (decision 16)", () => {
   it("the not-found page renders too", async () => {
     const { default: NotFound } = await import("./not-found");
     const { container } = render(<NotFound />);
-    expect(primaryActions(container)).toEqual(["Go to the dashboard"]);
+    expect(primaryActions(container)).toEqual(["Go to the Dashboard"]);
   });
 });
 

@@ -302,7 +302,7 @@ def test_department_admin_delegation(session, world):
     )
     assert dse.created_by == admin.id and unit.path == "GOA/EDU/EDU-LEGAL"
     assert audits(session, "office.create", dse.id)[0].actor_office_code == "EDU"
-    with pytest.raises(Forbidden, match="super admin"):
+    with pytest.raises(Forbidden, match="Super Administrator"):
         offices.create_office(
             session, actor, admin, code="NEW", name="New", kind="department", parent=world["goa"]
         )
@@ -378,7 +378,7 @@ def test_add_department_admin(session, world):
             session, actor, sup, agri, email="h@example.org", password=PW, full_name="H"
         )
     # the dept admin cannot: dept_admin is not a delegable type
-    with pytest.raises(Forbidden, match="super admin"):
+    with pytest.raises(Forbidden, match="Super Administrator"):
         offices.add_department_admin(
             session, world["admin_actor"], admin, edu, email="a2@example.org", password=PW, full_name="A2"
         )

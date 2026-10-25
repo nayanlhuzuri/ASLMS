@@ -92,7 +92,7 @@ describe("the review list (portal-next-dates, decision 4)", () => {
   it("asks the API with kind omitted by default and shows both kinds of row", async () => {
     const api = browserApi(routes([confirmItem(), enterItem()]));
     renderWithClient(<ReviewList params={{}} />);
-    const table = await screen.findByRole("table", { name: "Next dates to confirm" });
+    const table = await screen.findByRole("table", { name: "Next Dates to Confirm" });
     const q = queryOf(reviewCalls(api.calls)[0]!);
     expect(q.has("kind")).toBe(false);
     expect(q.get("limit")).toBe("50");
@@ -150,20 +150,20 @@ describe("the review list (portal-next-dates, decision 4)", () => {
   it("View order only with a stored document and documents.view", async () => {
     browserApi(routes([confirmItem(), enterItem()]));
     const { unmount } = renderWithClient(<ReviewList params={{}} />);
-    const links = await screen.findAllByRole("link", { name: "View order" });
+    const links = await screen.findAllByRole("link", { name: "View Order" });
     expect(links).toHaveLength(1);
     expect(links[0]).toHaveAttribute("href", `/api/backend${CASE_PATH}/orders/o-1/file?disposition=inline`);
     unmount();
     browserApi(routes([confirmItem()], {}, me(["cases.view_scope", "next_dates.review"])));
     renderWithClient(<ReviewList params={{}} />);
-    await screen.findByRole("table", { name: "Next dates to confirm" });
-    expect(screen.queryByRole("link", { name: "View order" })).toBeNull();
+    await screen.findByRole("table", { name: "Next Dates to Confirm" });
+    expect(screen.queryByRole("link", { name: "View Order" })).toBeNull();
   });
 
   it("shows the department only for a login with more than one department", async () => {
     browserApi(routes([enterItem()]));
     const { unmount } = renderWithClient(<ReviewList params={{}} />);
-    await screen.findByRole("table", { name: "Next dates to confirm" });
+    await screen.findByRole("table", { name: "Next Dates to Confirm" });
     expect(screen.queryByRole("columnheader", { name: "Department" })).toBeNull();
     unmount();
     browserApi(routes([enterItem()], {}, me(READ, ["EDU", "HEALTH"])));
@@ -216,7 +216,7 @@ describe("the actions (portal-next-dates, decisions 5-7, 9, 16, 17)", () => {
     // with nothing filled the body is empty
     await userEvent.click(screen.getByRole("button", { name: "Not correct: next date of WP(C)/1234/2026" }));
     dialog = screen.getByRole("dialog");
-    await userEvent.type(within(dialog).getByLabelText("Reason (optional)"), "  ");
+    await userEvent.type(within(dialog).getByLabelText("Reason (Optional)"), "  ");
     await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Saved. The suggested date will not be used."));
     expect(api.calls.filter((c) => c.method === "POST").at(-1)!.body).toEqual({});
@@ -233,10 +233,10 @@ describe("the actions (portal-next-dates, decisions 5-7, 9, 16, 17)", () => {
     // the date is required
     await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
     expect(within(dialog).getByText("Choose the next date.")).toBeInTheDocument();
-    const field = within(dialog).getByLabelText("Next date");
+    const field = within(dialog).getByLabelText("Next Date");
     expect(field).toHaveAttribute("min", todayIst());
     await userEvent.type(field, SOON);
-    await userEvent.type(within(dialog).getByLabelText("Note (optional)"), "As told in court");
+    await userEvent.type(within(dialog).getByLabelText("Note (Optional)"), "As told in court");
     await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(/is the next date of WA\/55\/2026\./));
     const post = api.calls.find((c) => c.method === "POST")!;
@@ -250,7 +250,7 @@ describe("the actions (portal-next-dates, decisions 5-7, 9, 16, 17)", () => {
     renderWithClient(<ReviewList params={{}} />);
     await userEvent.click(await screen.findByRole("button", { name: "Enter date for WA/55/2026" }));
     const dialog = screen.getByRole("dialog");
-    await userEvent.type(within(dialog).getByLabelText("Next date"), SOON);
+    await userEvent.type(within(dialog).getByLabelText("Next Date"), SOON);
     await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
     expect(
       await within(dialog).findByText("The date must be today or later, and not more than about 18 months ahead."),
@@ -291,6 +291,6 @@ describe("lists are DataTables, cards on phones (design portal-ui-polish, decisi
   it("ReviewList renders a DataTable with a primary cell", async () => {
     browserApi(routes([confirmItem(), enterItem()]));
     renderWithClient(<ReviewList params={{}} />);
-    expectDataTable(await screen.findByRole("table", { name: "Next dates to confirm" }));
+    expectDataTable(await screen.findByRole("table", { name: "Next Dates to Confirm" }));
   });
 });

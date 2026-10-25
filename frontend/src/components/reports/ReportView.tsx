@@ -100,7 +100,7 @@ export function SectionTable({ section }: { section: ReportSection }) {
       {rows.length === 0 ? (
         <>
           <h3>{section.title}</h3>
-          <p className="muted">{T.reports.emptySection}</p>
+          <p className="muted">{T.reports.sectionEmpty}</p>
         </>
       ) : (
         <>

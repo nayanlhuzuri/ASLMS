@@ -30,6 +30,8 @@ from aslms.domain.reference import (
     RefEventType,
     RefNoteKind,
     RefPermission,
+    RefRole,
+    Role,
     Stage,
 )
 from aslms.services import scoring_settings
@@ -104,6 +106,37 @@ NOTE_KIND_LABELS = {
     NoteKind.HAND_OVER: "Hand-over",
     NoteKind.FILE_NOTING: "Office note",  # design case-workspace-admin, decision 4 (migration 0025)
 }
+# the full user-type names and their Table 1 descriptions (design portal-ui-polish-2, decisions 7 and 8; the same
+# text as migration 0026). Used on insert only: `init` never relabels an existing row, so a name or description an
+# administrator set with Edit Name is never undone.
+ROLE_LABELS = {
+    Role.SUPER_ADMIN: "Super Administrator",
+    Role.STATE_OVERSIGHT: "State Oversight Officer",
+    Role.DEPT_HEAD: "Head of Department",
+    Role.DEPT_ADMIN: "Department Administrator",
+    Role.DEPT_OFFICER: "Department Officer",
+    Role.DIRECTORATE_USER: "Directorate Officer",
+    Role.REFERRAL_REVIEWER: "Referral Reviewer",
+    Role.STANDING_COUNSEL: "Standing Counsel",
+    Role.CENTRAL_OPERATOR: "Central Operator",
+    Role.AUDITOR: "Auditor",
+}
+ROLE_DESCRIPTIONS = {
+    Role.SUPER_ADMIN: "Holds every function and manages access for the whole State.",
+    Role.STATE_OVERSIGHT: "Read-only view of all cases, with the State dashboards and reports.",
+    Role.DEPT_HEAD: "All cases of the department and its directorates, with approvals and oversight.",
+    Role.DEPT_ADMIN: (
+        "Manages the department's users, counsel codes and keywords; reviews recommendations and claims cases."
+    ),
+    Role.DEPT_OFFICER: "Works on allotted cases: moves the case, adds notes and documents, and receives alerts.",
+    Role.DIRECTORATE_USER: "Works on the cases of their own directorate.",
+    Role.REFERRAL_REVIEWER: (
+        "Reviews cases with a department officer's reviewing functions, without ownership or the case's movement."
+    ),
+    Role.STANDING_COUNSEL: "Cases they appear in, with the notes and documents shared with counsel.",
+    Role.CENTRAL_OPERATOR: "Looks after unclaimed cases and data quality.",
+    Role.AUDITOR: "Read-only case records and the audit log.",
+}
 ALERT_SEVERITY = {
     AlertKind.HEARING_DUE: "high",
     AlertKind.NEXT_DATE_CHANGED: "high",
@@ -168,6 +201,8 @@ def _extra_columns(model: type, member: enum.Enum) -> dict:
     if model is RefPermission:
         label, description = PERMISSION_LABELS[member]
         return {"label": label, "description": description, "module": member.module}
+    if model is RefRole:
+        return {"label": ROLE_LABELS[member], "description": ROLE_DESCRIPTIONS[member]}
     if model is RefNoteKind and member in NOTE_KIND_LABELS:
         return {"label": NOTE_KIND_LABELS[member]}
     if model is RefEventType:

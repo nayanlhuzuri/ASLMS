@@ -303,6 +303,7 @@ function FilterForm({
       return (
         <CheckField
           key={c.key}
+          inline
           label={c.label}
           checked={form[c.key] === "true"}
           onChange={(e) => set(c.key, e.target.checked ? "true" : "")}

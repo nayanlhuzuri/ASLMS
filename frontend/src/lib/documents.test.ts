@@ -34,16 +34,16 @@ describe("canViewInline", () => {
 
 describe("textLabel (document-ocr, decision 3)", () => {
   it("names each text state in plain words", () => {
-    expect(textLabel({ text_status: "pending", mime: "application/pdf" })).toBe("Being read");
+    expect(textLabel({ text_status: "pending", mime: "application/pdf" })).toBe("Being Read");
     expect(textLabel({ text_status: "extracted", mime: WORD })).toBe("Searchable");
-    expect(textLabel({ text_status: "failed", mime: "application/pdf" })).toBe("Text could not be read");
+    expect(textLabel({ text_status: "failed", mime: "application/pdf" })).toBe("Text Could Not Be Read");
   });
 
   it("a document with no text is scanned for PDFs and images, old Word for .doc, empty otherwise", () => {
-    expect(textLabel({ text_status: "none", mime: "application/pdf" })).toBe("Scanned, not read");
-    expect(textLabel({ text_status: "none", mime: "image/jpeg" })).toBe("Scanned, not read");
-    expect(textLabel({ text_status: "none", mime: "image/png" })).toBe("Scanned, not read");
-    expect(textLabel({ text_status: "none", mime: "application/msword" })).toBe("Old Word format, not read");
+    expect(textLabel({ text_status: "none", mime: "application/pdf" })).toBe("Scanned, Not Read");
+    expect(textLabel({ text_status: "none", mime: "image/jpeg" })).toBe("Scanned, Not Read");
+    expect(textLabel({ text_status: "none", mime: "image/png" })).toBe("Scanned, Not Read");
+    expect(textLabel({ text_status: "none", mime: "application/msword" })).toBe("Old Word Format, Not Read");
     expect(textLabel({ text_status: "none", mime: WORD })).toBe("No text in the file");
     expect(textLabel({ text_status: "none", mime: null })).toBe("No text in the file");
   });

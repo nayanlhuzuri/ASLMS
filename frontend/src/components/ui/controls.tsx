@@ -220,11 +220,20 @@ export function SelectField({
   );
 }
 
-export function CheckField({ label, id, ...rest }: { label: ReactNode } & InputHTMLAttributes<HTMLInputElement>) {
+/**
+ * A checkbox with its label. `inline` (design portal-ui-polish-2, decision 26) is for a checkbox in a row of labelled
+ * fields: it sits on the 36 px control line, level with the boxes and the Search button, not with the labels.
+ */
+export function CheckField({
+  label,
+  id,
+  inline,
+  ...rest
+}: { label: ReactNode; inline?: boolean } & InputHTMLAttributes<HTMLInputElement>) {
   const auto = useId();
   const fieldId = id ?? auto;
   return (
-    <div className={s.check}>
+    <div className={cx(s.check, inline && s.checkInline)} data-inline={inline || undefined}>
       <input id={fieldId} type="checkbox" {...rest} />
       <label htmlFor={fieldId}>{label}</label>
     </div>
@@ -379,23 +388,32 @@ export function SegmentedSwitch({
   options,
   value,
   onChange,
+  describedBy,
 }: {
   label: string;
-  options: Option[];
+  /** `title` is the option's tooltip; a `disabled` option is shown but cannot be chosen (design portal-ui-polish-2). */
+  options: (Option & { title?: string; disabled?: boolean })[];
   value: string;
   onChange: (value: string) => void;
+  /** The id of the line that says what the chosen option shows. */
+  describedBy?: string;
 }) {
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
   function onKey(e: KeyboardEvent<HTMLButtonElement>, index: number) {
     const delta = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
     if (!delta) return;
     e.preventDefault();
-    const next = (index + delta + options.length) % options.length;
+    let next = index;
+    for (let step = 0; step < options.length; step++) {
+      next = (next + delta + options.length) % options.length;
+      if (!options[next]!.disabled) break;
+    }
+    if (next === index) return;
     onChange(options[next]!.value);
     refs.current[next]?.focus();
   }
   return (
-    <div role="radiogroup" aria-label={label} className={s.segmented}>
+    <div role="radiogroup" aria-label={label} aria-describedby={describedBy} className={s.segmented}>
       {options.map((o, i) => {
         const checked = o.value === value;
         return (
@@ -408,8 +426,11 @@ export function SegmentedSwitch({
             role="radio"
             aria-checked={checked}
             tabIndex={checked ? 0 : -1}
+            title={o.title}
+            // aria-disabled, not disabled: the tooltip saying why still shows on pointer and focus
+            aria-disabled={o.disabled || undefined}
             className={cx(s.segment, checked && s.segmentOn)}
-            onClick={() => onChange(o.value)}
+            onClick={() => (o.disabled ? undefined : onChange(o.value))}
             onKeyDown={(e) => onKey(e, i)}
           >
             {o.label}

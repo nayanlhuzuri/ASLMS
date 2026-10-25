@@ -415,12 +415,10 @@ def render_ticket_alert(d: dict[str, Any]) -> tuple[str, str]:
     event = d.get("event") or "opened"
     if event == "opened":
         title = f"Admin ticket {ref} awaits your decision: {kind}, {dept}"
-        body = (
-            f"Requested by {d.get('requested_by') or 'a department admin'}. Open the ticket panel to decide."
-        )
+        body = f"Requested by {d.get('requested_by') or 'a Department Administrator'}. Open the ticket panel to decide."
     else:
         title = f"Admin ticket {ref} {event}: {kind}, {dept}"
-        body = f"The super admin {event} the request."
+        body = f"The Super Administrator {event} the request."
         if d.get("remark"):
             body += f" Remark: {d['remark']}"
     return _title(title), body

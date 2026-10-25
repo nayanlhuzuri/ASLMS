@@ -102,7 +102,7 @@ describe("My calendar (portal-ui-redesign, decision 8)", () => {
     const api = browserApi(routes());
     renderWithClient(<MyCalendar params={{ month: "2026-10", day: "2026-10-22" }} />);
     const grid = await screen.findByRole("table", { name: "October 2026" });
-    const legend = screen.getByRole("group", { name: "Show on the calendar" });
+    const legend = screen.getByRole("group", { name: "Show on the Calendar" });
     const hearings = within(legend).getByRole("button", { name: "Hearings" });
     expect(hearings).toHaveAttribute("aria-pressed", "true");
     await userEvent.click(hearings);
@@ -132,9 +132,9 @@ describe("My calendar (portal-ui-redesign, decision 8)", () => {
     browserApi(routes());
     renderWithClient(<MyCalendar params={{ month: "2026-10", day: "2026-10-22" }} />);
     await screen.findByRole("table", { name: "October 2026" });
-    await userEvent.click(screen.getByRole("button", { name: "Previous month" }));
+    await userEvent.click(screen.getByRole("button", { name: "Previous Month" }));
     expect(nav.replace).toHaveBeenLastCalledWith("/calendar?month=2026-09");
-    await userEvent.click(screen.getByRole("button", { name: "Next month" }));
+    await userEvent.click(screen.getByRole("button", { name: "Next Month" }));
     expect(nav.replace).toHaveBeenLastCalledWith("/calendar?month=2026-11");
     await userEvent.click(screen.getByRole("button", { name: "Today" }));
     expect(nav.replace).toHaveBeenLastCalledWith("/calendar");
@@ -163,14 +163,14 @@ describe("My calendar (portal-ui-redesign, decision 8)", () => {
     expect(within(rows[0]!).getByRole("link", { name: "WP(C)/1/2026" })).toHaveAttribute("href", "/cases/ASLMS-GOA-CASE-2026-000001");
     expect(within(rows[0]!).getByText("Court 3 · item 14 · Admission")).toBeInTheDocument();
     expect(within(rows[1]!).getByText("Parawise comments")).toBeInTheDocument();
-    expect(within(rows[2]!).getByRole("link", { name: "Open the review" })).toHaveAttribute("href", "/alerts/next-dates?q=c3");
+    expect(within(rows[2]!).getByRole("link", { name: "Open the Review" })).toHaveAttribute("href", "/alerts/next-dates?q=c3");
   });
 
   it("a day with nothing says so", async () => {
     browserApi(routes());
     renderWithClient(<MyCalendar params={{ month: "2026-10", day: "2026-10-23" }} />);
     await screen.findByRole("table", { name: "October 2026" });
-    expect(screen.getByText("Nothing on this day")).toBeInTheDocument();
+    expect(screen.getByText("Nothing on This Day")).toBeInTheDocument();
   });
 
   it("the phone dots carry no text: every day's button has an accessible name", async () => {
@@ -198,7 +198,7 @@ describe("the Department hearings view (portal-ui-redesign, decision 8; question
     renderWithClient(<MyCalendar params={{ month: "2026-10" }} />);
     await screen.findByRole("table", { name: "October 2026" });
     await new Promise((r) => setTimeout(r, 20));
-    expect(screen.queryByRole("radiogroup", { name: "Calendar view" })).toBeNull();
+    expect(screen.queryByRole("radiogroup", { name: "Calendar View" })).toBeNull();
   });
 
   it("a whole-department member gets the switch, which shows /calendar unchanged", async () => {
@@ -209,21 +209,21 @@ describe("the Department hearings view (portal-ui-redesign, decision 8; question
       }),
     );
     const { unmount } = renderWithClient(<MyCalendar params={{ month: "2026-10" }} />);
-    const sw = await screen.findByRole("radiogroup", { name: "Calendar view" });
-    expect(within(sw).getByRole("radio", { name: "My dates" })).toHaveAttribute("aria-checked", "true");
-    await userEvent.click(within(sw).getByRole("radio", { name: "Department hearings" }));
+    const sw = await screen.findByRole("radiogroup", { name: "Calendar View" });
+    expect(within(sw).getByRole("radio", { name: "My Dates" })).toHaveAttribute("aria-checked", "true");
+    await userEvent.click(within(sw).getByRole("radio", { name: "Department Hearings" }));
     expect(nav.replace).toHaveBeenLastCalledWith("/calendar?view=department");
     unmount();
     renderWithClient(<MyCalendar params={{ view: "department" }} />);
-    expect(await screen.findByRole("button", { name: "Next 7 days" })).toHaveAttribute("aria-pressed", "true");
+    expect(await screen.findByRole("button", { name: "Next 7 Days" })).toHaveAttribute("aria-pressed", "true");
     await waitFor(() => expect(api.calls.some((c) => c.path === "/calendar")).toBe(true));
-    expect(screen.getByRole("radio", { name: "Department hearings" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: "Department Hearings" })).toHaveAttribute("aria-checked", "true");
   });
 
   it("a State-wide reader gets the switch without asking /inbox/counts; ?view=department is ignored for others", async () => {
     const api = browserApi(routes(["cases.view_all", "cases.view_scope"], { "GET /custody/recipients": { departments: [], items: [], units: [], total: 0 } }));
     const { unmount } = renderWithClient(<MyCalendar params={{ view: "department" }} />);
-    expect(await screen.findByRole("radiogroup", { name: "Calendar view" })).toBeInTheDocument();
+    expect(await screen.findByRole("radiogroup", { name: "Calendar View" })).toBeInTheDocument();
     expect(await screen.findByText("Choose a department to see its hearings.")).toBeInTheDocument();
     expect(api.calls.some((c) => c.path.startsWith("/inbox/counts"))).toBe(false);
     unmount();

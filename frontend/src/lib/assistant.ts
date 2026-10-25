@@ -87,7 +87,7 @@ export function noteText(m: AssistantMessage): string {
       const passage = plainPassage(c.passage);
       return T.assistant.copyRef(i + 1, `${sourceWords(c)}${where}${passage ? `: “${passage}”` : ""}`);
     });
-  return [m.content ?? "", refs.length ? `\n${T.assistant.copyHeading}` : "", ...refs].filter((x) => x !== "").join("\n");
+  return [m.content ?? "", refs.length ? `\n${T.assistant.copyIntro}` : "", ...refs].filter((x) => x !== "").join("\n");
 }
 
 /** The questions left this hour (never below 0). */

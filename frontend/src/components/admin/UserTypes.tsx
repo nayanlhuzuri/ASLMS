@@ -13,23 +13,31 @@
  *   `PUT /admin/access/types/{role}` with the changed entries only (one transaction; a refusal saves nothing).
  *   Leaving with unsaved changes asks first. The super admin type is all on and locked; `admin.tickets` is reserved;
  *   retired functions are not shown; without `access.manage_types` every switch is disabled. The API decides.
+ * - design portal-ui-polish-2, decisions 12-14: the header shows the label, the code as a muted tag and the
+ *   description; "Edit Name" (with `access.manage_types`) changes the display name and short description through
+ *   `PATCH /admin/access/types/{role}/name` and drops the cached labels and cards so every screen shows the new name;
+ *   a "Jump To" list of the function groups sits beside them on laptops and is a select on phones.
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useId, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useId, useMemo, useState } from "react";
 
 import {
   Badge,
   Button,
   Card,
+  CharCounter,
   Chip,
   ConfirmDialog,
+  Dialog,
   EmptyState,
   ErrorBanner,
   Loading,
   Notice,
+  SelectField,
   Switch,
+  TextArea,
   TextField,
   usePrefersReducedMotion,
 } from "@/components/ui";
@@ -56,6 +64,7 @@ export const SUPER_ADMIN = "super_admin";
 export const RESERVED = new Set(["admin.tickets"]);
 
 const KEYS = {
+  labels: ["reference", "labels"] as const,
   overview: ["admin", "access", "overview"] as const,
   defaults: ["admin", "access", "defaults"] as const,
   permissions: ["admin", "permissions"] as const,
@@ -233,6 +242,145 @@ function FunctionRow({
   );
 }
 
+export const NAME_MAX = 80;
+export const DESCRIPTION_MAX = 200;
+
+interface NameOut {
+  code: string;
+  label: string;
+  description: string | null;
+  changed: boolean;
+}
+
+/**
+ * Edit Name (decision 13): the display name (required, 80 characters, different from every other type without regard
+ * to case: warned in the browser from `/reference/labels`, and the server's 409 shown on the field) and the short
+ * description (200 characters). The trimmed values go to `PATCH /admin/access/types/{role}/name`.
+ */
+function EditNameDialog({
+  open,
+  role,
+  label,
+  description,
+  others,
+  onClose,
+  onSaved,
+}: {
+  open: boolean;
+  role: string;
+  label: string;
+  description: string;
+  others: string[];
+  onClose: () => void;
+  onSaved: (out: NameOut) => void;
+}) {
+  const [name, setName] = useState(label);
+  const [desc, setDesc] = useState(description);
+  const [tried, setTried] = useState(false);
+  const save = useAction();
+  const nameCounter = useId();
+  const descCounter = useId();
+  const clean = name.trim().replace(/\s+/g, " ");
+  const taken = clean !== "" && others.some((o) => o.trim().toLowerCase() === clean.toLowerCase());
+  const serverTaken = save.error instanceof ApiError && save.error.status === 409;
+  const serverField = save.error instanceof ApiError && save.error.status === 422 ? save.error.message : null;
+  const tooLong = clean.length > NAME_MAX;
+  const nameError =
+    tried && !clean ? T.access.nameRequired : taken || serverTaken ? T.access.nameTaken : (serverField ?? undefined);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setTried(true);
+    if (!clean || taken || tooLong || desc.trim().length > DESCRIPTION_MAX) return;
+    const out = await save.run(() =>
+      api<NameOut>(`/admin/access/types/${role}/name`, {
+        method: "PATCH",
+        body: { label: clean, description: desc.trim() || null },
+      }),
+    );
+    if (out.ok) onSaved(out.value);
+  }
+
+  return (
+    <Dialog
+      open={open}
+      title={T.access.editName}
+      subtitle={T.access.internalCode(role)}
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose} disabled={save.busy}>
+            {T.cancel}
+          </Button>
+          <Button type="submit" form={`edit-name-${role}`} busy={save.busy}>
+            {T.save}
+          </Button>
+        </>
+      }
+    >
+      <form id={`edit-name-${role}`} className="stack" onSubmit={submit} noValidate>
+        <TextField
+          label={T.access.displayName}
+          hint={T.access.displayNameHint}
+          value={name}
+          required
+          error={nameError}
+          onChange={(e) => {
+            save.reset();
+            setName(e.target.value);
+          }}
+        />
+        <CharCounter id={nameCounter} value={clean} max={NAME_MAX} />
+        <TextArea
+          label={T.access.shortDescription}
+          value={desc}
+          rows={3}
+          onChange={(e) => {
+            save.reset();
+            setDesc(e.target.value);
+          }}
+        />
+        <CharCounter id={descCounter} value={desc.trim()} max={DESCRIPTION_MAX} />
+        <Notice>{T.access.codeNotice(role)}</Notice>
+        {save.error && !serverTaken && !serverField ? <ErrorBanner error={save.error} /> : null}
+      </form>
+    </Dialog>
+  );
+}
+
+/** Decision 14: anchor links to each function group; a select on phones (CSS shows one or the other). */
+function JumpTo({ groups }: { groups: { code: string; label: string }[] }) {
+  const go = (code: string) => {
+    if (!code) return;
+    document.getElementById(`group-${code}`)?.scrollIntoView?.({ block: "start" });
+    window.history.replaceState(window.history.state, "", `#group-${code}`);
+  };
+  return (
+    <>
+      <nav className={a.jumpNav} aria-label={T.access.jumpTo}>
+        <p className={a.jumpHead} aria-hidden="true">
+          {T.access.jumpTo}
+        </p>
+        <ul>
+          {groups.map((g) => (
+            <li key={g.code}>
+              <a href={`#group-${g.code}`}>{g.label}</a>
+            </li>
+          ))}
+        </ul>
+      </nav>
+      <div className={a.jumpSelect}>
+        <SelectField
+          label={T.access.jumpTo}
+          value=""
+          onChange={(e) => go(e.target.value)}
+          options={[{ value: "", label: T.access.jumpToChoose }, ...groups.map((g) => ({ value: g.code, label: g.label }))]}
+        />
+      </div>
+    </>
+  );
+}
+
 export function UserTypePage({ role }: { role: string }) {
   const me = useMe();
   const labels = useLabels();
@@ -245,6 +393,7 @@ export function UserTypePage({ role }: { role: string }) {
   const [query, setQuery] = useState("");
   const [onlyChanged, setOnlyChanged] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
   const save = useAction();
   const groups = useMemo(() => groupFunctions(permissions.data ?? []), [permissions.data]);
   const codes = useMemo(() => groups.flatMap((g) => g.items.map((p) => p.code as string)), [groups]);
@@ -263,7 +412,8 @@ export function UserTypePage({ role }: { role: string }) {
   const type = (labels.data?.user_types ?? []).find((t) => t.code === role);
   const dflt: Row = defaults.data[role] ?? {};
   const isSuper = role === SUPER_ADMIN;
-  const editable = can(me.data, "access.manage_types") && !isSuper;
+  const canRename = can(me.data, "access.manage_types");
+  const editable = canRename && !isSuper;
   const card = overview.data?.find((c) => c.code === role);
   const savedOn = codes.filter((c) => base[c]).length;
   const locked = (code: string) => isSuper || RESERVED.has(code);
@@ -317,10 +467,18 @@ export function UserTypePage({ role }: { role: string }) {
       </div>
       <div className={a.groupHead}>
         <div>
-          <h2>{type ? labelOf(labels.data?.user_types, role) : role}</h2>
+          <div className={a.typeTitle}>
+            <h2>{type ? labelOf(labels.data?.user_types, role) : role}</h2>
+            <code className={a.codeTag}>{role}</code>
+          </div>
           {type?.description ? <p className="muted">{type.description}</p> : null}
           <p className="muted">{T.access.counts(card?.users ?? 0, savedOn, codes.length)}</p>
         </div>
+        {canRename ? (
+          <Button variant="secondary" onClick={() => setEditing(true)}>
+            {T.access.editName}
+          </Button>
+        ) : null}
       </div>
       <div className="row" role="search">
         <TextField
@@ -345,8 +503,16 @@ export function UserTypePage({ role }: { role: string }) {
       <ErrorBanner error={save.error} messages={refusal ? { reserved: () => refusal, retired: () => refusal, bad_request: () => refusal } : undefined} />
 
       {shownGroups.length === 0 ? <EmptyState>{T.access.noMatch}</EmptyState> : null}
-      {shownGroups.map((g) => (
-        <Card key={g.code} title={g.label} actions={<span className="muted">{T.access.groupOn(g.items.filter((p) => !!current[p.code]).length, g.items.length)}</span>}>
+      <div className={a.jumpLayout}>
+        {shownGroups.length > 1 ? <JumpTo groups={shownGroups} /> : null}
+        <div className={a.jumpGroups}>
+          {shownGroups.map((g) => (
+            <Card
+              key={g.code}
+              id={`group-${g.code}`}
+              title={g.label}
+              actions={<span className="muted">{T.access.groupOn(g.items.filter((p) => !!current[p.code]).length, g.items.length)}</span>}
+            >
           <ul className={a.fnList} aria-label={g.label}>
             {g.shown.map((p) => (
               <FunctionRow
@@ -360,8 +526,10 @@ export function UserTypePage({ role }: { role: string }) {
               />
             ))}
           </ul>
-        </Card>
-      ))}
+            </Card>
+          ))}
+        </div>
+      </div>
       {isSuper ? null : editable ? (
         <SaveBar count={unsaved.length} busy={save.busy} onSave={doSave} onDiscard={() => setDraft(null)} />
       ) : (
@@ -379,6 +547,24 @@ export function UserTypePage({ role }: { role: string }) {
       >
         <p>{T.access.leaveText(unsaved.length)}</p>
       </ConfirmDialog>
+      {editing ? (
+        <EditNameDialog
+          open={editing}
+          role={role}
+          label={type?.label ?? role}
+          description={type?.description ?? ""}
+          others={(labels.data?.user_types ?? []).filter((t) => t.code !== role).map((t) => t.label)}
+          onClose={() => setEditing(false)}
+          onSaved={async (out) => {
+            setEditing(false);
+            setNotice(out.changed ? T.access.nameSaved : null);
+            await Promise.all([
+              queryClient.invalidateQueries({ queryKey: KEYS.labels }),
+              queryClient.invalidateQueries({ queryKey: KEYS.overview }),
+            ]);
+          }}
+        />
+      ) : null}
     </section>
   );
 }

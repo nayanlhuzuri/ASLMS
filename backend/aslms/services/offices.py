@@ -166,7 +166,7 @@ def assert_can_manage_office(
         return
     if kind is not None and _as_kind(kind) not in DELEGABLE_KINDS:
         raise access.Forbidden(
-            f"only a super admin may create or change offices of kind {_as_kind(kind).value}"
+            f"only the Super Administrator may create or change offices of kind {_as_kind(kind).value}"
         )
     if office is not None:
         member = access.acting_member_for_office(
@@ -508,11 +508,11 @@ def add_department_admin(
         raise OfficeError(f"the office {office.code} is inactive")
     if tier_of(office) != "department" or _as_kind(office.kind) not in DEPARTMENT_TIER_KINDS:
         raise OfficeError(
-            f"a department admin belongs to a Department-tier office; {office.code} is a "
+            f"a Department Administrator belongs to a Department-tier office; {office.code} is a "
             f"{_as_kind(office.kind).value} at the {tier_of(office)} tier"
         )
     if department_admins(session, office):
-        raise AdminExists(f"{office.code} already has a department admin; use the swap")
+        raise AdminExists(f"{office.code} already has a Department Administrator; use the swap")
     user = create_user(
         session,
         actor,

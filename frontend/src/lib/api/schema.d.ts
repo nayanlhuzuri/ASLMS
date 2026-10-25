@@ -86,6 +86,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/access/types/{role}/name": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Rename Type
+         * @description Edit Name (design portal-ui-polish-2, decision 12): the display name and short description of a user type. The
+         *     code, the memberships and the functions never change. Audited `access.type_edited` when something changed; 409
+         *     `label_taken` when another type has the name without regard to case; 422 `label_required`, `label_too_long`,
+         *     `label_bad_characters` or `description_too_long`.
+         */
+        patch: operations["rename_type_admin_access_types__role__name_patch"];
+        trace?: never;
+    };
     "/admin/access/types/{role}/{permission}": {
         parameters: {
             query?: never;
@@ -11774,6 +11797,32 @@ export interface components {
             /** Label */
             label: string;
         };
+        /**
+         * UserTypeNameIn
+         * @description Edit Name (design portal-ui-polish-2, decision 12). The service trims and checks: the label 1 to 80 characters
+         *     after trimming and collapsing white space, unique without regard to case; the description at most 200 characters,
+         *     empty = none. The raw limits here only bound the request.
+         */
+        UserTypeNameIn: {
+            /** Description */
+            description?: string | null;
+            /** Label */
+            label: string;
+        };
+        /** UserTypeNameOut */
+        UserTypeNameOut: {
+            /**
+             * Changed
+             * @description false when neither the name nor the description changed (no audit row)
+             */
+            changed: boolean;
+            /** Code */
+            code: string;
+            /** Description */
+            description?: string | null;
+            /** Label */
+            label: string;
+        };
         /** ValidationError */
         ValidationError: {
             /** Context */
@@ -12049,6 +12098,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rename_type_admin_access_types__role__name_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                role: components["schemas"]["Role"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserTypeNameIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserTypeNameOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
                 };
             };
         };

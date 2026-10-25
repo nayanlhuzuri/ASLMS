@@ -103,6 +103,44 @@ def set_role_functions(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, {"code": exc.code, "message": str(exc)}) from exc
 
 
+@router.patch(
+    "/access/types/{role}/name",
+    response_model=schemas.UserTypeNameOut,
+    responses={
+        403: {"model": schemas.ErrorOut},
+        409: {"model": schemas.ErrorOut},
+        422: {"model": schemas.ErrorOut},
+    },
+)
+def rename_type(
+    role: Role,
+    body: schemas.UserTypeNameIn,
+    request: Request,
+    session: Session = Depends(get_session),
+    caller: User = Depends(require(Permission.ACCESS_MANAGE_TYPES)),
+) -> schemas.UserTypeNameOut:
+    """Edit Name (design portal-ui-polish-2, decision 12): the display name and short description of a user type. The
+    code, the memberships and the functions never change. Audited `access.type_edited` when something changed; 409
+    `label_taken` when another type has the name without regard to case; 422 `label_required`, `label_too_long`,
+    `label_bad_characters` or `description_too_long`."""
+    try:
+        out = access.rename_type(
+            session, actor_of(request, caller, session), caller, role, body.label, body.description
+        )
+    except Forbidden as exc:
+        session.rollback()
+        raise HTTPException(status.HTTP_403_FORBIDDEN, {"code": exc.code, "message": str(exc)}) from exc
+    except access.TypeLabelTaken as exc:
+        session.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, {"code": exc.code, "message": str(exc)}) from exc
+    except access.TypeLabelInvalid as exc:
+        session.rollback()
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, {"code": exc.code, "message": str(exc)}
+        ) from exc
+    return schemas.UserTypeNameOut(**out)
+
+
 @router.put("/access/types/{role}/{permission}", response_model=dict[str, bool])
 def set_role_function(
     role: Role,

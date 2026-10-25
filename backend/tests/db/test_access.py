@@ -151,7 +151,7 @@ def test_delegation_rules(session, world):
             session, admin, "create", target_office=health, target_role=Role.DEPT_OFFICER
         )
     # a type only the super admin may create
-    with pytest.raises(Forbidden, match="super admin"):
+    with pytest.raises(Forbidden, match="Super Administrator"):
         access.assert_can_manage(session, admin, "create", target_office=edu, target_role=Role.DEPT_ADMIN)
     # a function the admin does not hold
     with pytest.raises(Forbidden, match="do not hold"):

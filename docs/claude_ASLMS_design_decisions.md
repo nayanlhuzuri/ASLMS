@@ -2571,3 +2571,30 @@ Row 152, design `docs/design/case-inbox-merge.md` (approved by the owner 25 Oct 
 - Title Case labels and the multi-level menu are row 153, after the owner's mockup.
 - The Compose uicheck run and the design's browser checks are the integrator's and the owner's.
 
+## Navigation polish, round 1 of 3 (2026-10-25)
+Row 153, design `docs/design/portal-ui-polish-2.md` (approved by the owner 25 Oct 2026 with the recommended answers to open questions 1-7), branch `feature/portal-ui-polish-2`. One migration, 0026 (reference data and one index).
+
+**Built**
+- **Title Case labels.** A shared helper in the frontend (`lib/titleCase.ts`, `lib/labelRules.ts`) and in the backend (`aslms/core/titlecase.py`); a vitest over `messages.ts` and a pytest over function labels keep every label in Title Case (tests `titleCase.test.ts`, `labels.test.ts`, `test_titlecase.py`).
+- **Full user-type names** (Super Administrator to Auditor) with the plan's Table 1 descriptions. Migration `0026_portal_ui_polish_2.py` relabels a row only while its label still holds the old seeded text, sets a description only where it is NULL, and adds the unique index `uq_ref_role_label_lower` on `lower(label)`. The seed sets labels on insert only. API messages naming types use the full names.
+- **Edit Name for user types.** `PATCH /admin/access/types/{role}/name` behind `access.manage_types`, audited `access.type_edited` with before and after (tests `test_access_type_name.py`, `test_migration_0026_type_names.py`, `test_seed_and_refno.py`).
+- **Side menu expands one level only** (Administration, Data Collection, Reports, System Health): `NavTree.tsx`, 220 ms, chevron, one open branch, treeview keys, phone drawer, reduced-motion fallback.
+- **Checkbox alignment rule** in the kit (`CheckField inline`) with a uicheck step.
+- **Dashboard greeting and view switch** (`SegmentedSwitch` options with `title` and `disabled`).
+
+**Decisions and reasons**
+1. The migration writes no audit row (as 0016 and 0025), because it changes the seed's own labels; an administrator's edit is never overwritten.
+2. Reference values and alerts already sent are not re-cased, so the record of what was sent is kept.
+3. No visibility or permission change; the only new write is Edit Name.
+
+**Deviations** (the design note's Deviations section lists 15 with reasons; none changes a decision, a function or a business rule)
+- The migration is 0026, not the next number after 0025 assumed elsewhere; row 154, if it needs one, takes 0027.
+- Edit Name refuses control characters (`label_bad_characters`) and collapses ordinary white space.
+- Units in labels are written out ("Hours", "Days"); `SENTENCE_EXCEPTIONS` (65 entries) holds the sentence fragments exempt from the rule.
+- `tests/db/test_memberships.py` gave five seeded `ref_role` rows distinct labels, because the new index refuses equal ones.
+- `access.type_edited` reads "User Type Name Changed" in the Audit Log; two label keys were renamed.
+
+**Left for later**
+- Round 2 (row 162, Office Picker, Users toolbar, User Details modal, simpler Department Mapping) and round 3 (row 163, Filter Layout B, View Cause List modal).
+- Operations: apply 0026 with the `migrate` step, then `init`; rebuild with `docker compose build`. The Compose uicheck run and the design's browser checks are the integrator's and the owner's.
+

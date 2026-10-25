@@ -35,17 +35,17 @@ describe("My profile on the Settings template (portal-ui-redesign, decision 26)"
   it("shows the four groups as a sub-menu and one group at a time, Details first", async () => {
     browserApi({ "GET /me/profile": PROFILE, "GET /me/devices": DEVICES });
     const { container } = renderWithClient(<ProfilePage />);
-    const menu = await screen.findByRole("navigation", { name: "Profile settings" });
+    const menu = await screen.findByRole("navigation", { name: "Profile Settings" });
     const links = within(menu).getAllByRole("link");
     expect(links.map((l) => [l.textContent, l.getAttribute("href")])).toEqual([
       ["Details", "/profile"],
       ["Notifications", "/profile?group=notifications"],
-      ["Change password", "/profile?group=password"],
+      ["Change Password", "/profile?group=password"],
       ["Devices", "/profile?group=devices"],
     ]);
     expect(links[0]).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("form", { name: "Details" })).toBeInTheDocument();
-    expect(screen.queryByRole("form", { name: "Change password" })).toBeNull();
+    expect(screen.queryByRole("form", { name: "Change Password" })).toBeNull();
     expect(screen.queryByRole("region", { name: "Devices" })).toBeNull();
     expect(container.querySelectorAll("[data-variant='primary']")).toHaveLength(1);
   });
@@ -55,7 +55,7 @@ describe("My profile on the Settings template (portal-ui-redesign, decision 26)"
     const { container } = renderWithClient(<ProfilePage params={{ group: "devices" }} />);
     expect(await screen.findByText("Firefox on Windows")).toBeInTheDocument();
     expect(screen.queryByRole("form", { name: "Details" })).toBeNull();
-    const menu = screen.getByRole("navigation", { name: "Profile settings" });
+    const menu = screen.getByRole("navigation", { name: "Profile Settings" });
     expect(within(menu).getByRole("link", { name: "Devices" })).toHaveAttribute("aria-current", "page");
     expect(container.querySelectorAll("[data-variant='primary']").length).toBeLessThanOrEqual(1);
   });
@@ -70,7 +70,7 @@ describe("My profile on the Settings template (portal-ui-redesign, decision 26)"
     browserApi({ "GET /me/profile": PROFILE });
     renderWithClient(<ProfilePage />);
     const select = await screen.findByLabelText("Setting");
-    expect(within(select).getAllByRole("option").map((o) => o.textContent)).toEqual(["Details", "Notifications", "Change password", "Devices"]);
+    expect(within(select).getAllByRole("option").map((o) => o.textContent)).toEqual(["Details", "Notifications", "Change Password", "Devices"]);
     await userEvent.selectOptions(select, "password");
     expect(nav.push).toHaveBeenCalledWith("/profile?group=password");
   });

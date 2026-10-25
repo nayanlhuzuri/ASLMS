@@ -20,8 +20,8 @@ afterEach(() => {
 
 describe("CodeBlock and CopyButton (design system-health-inspector, decision 14)", () => {
   it("scrolls sideways inside itself, never the page", () => {
-    render(<CodeBlock label="The plain string">{"est_code=GAHC01|causelist_date=2026-10-20"}</CodeBlock>);
-    const pre = screen.getByLabelText("The plain string");
+    render(<CodeBlock label="The Plain String">{"est_code=GAHC01|causelist_date=2026-10-20"}</CodeBlock>);
+    const pre = screen.getByLabelText("The Plain String");
     expect(pre.tagName).toBe("PRE");
     expect(pre).toHaveAttribute("tabindex", "0"); // reachable by keyboard to scroll
     expect(pre).toHaveTextContent("est_code=GAHC01|causelist_date=2026-10-20");
@@ -34,8 +34,8 @@ describe("CodeBlock and CopyButton (design system-health-inspector, decision 14)
   it("its copy button copies the text and announces Copied to screen readers", async () => {
     const writeText = vi.fn(async () => undefined);
     vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } });
-    render(<CodeBlock label="cURL template">{"curl -G 'https://x'"}</CodeBlock>);
-    const figure = screen.getByLabelText("cURL template").closest("figure")!;
+    render(<CodeBlock label="cURL Template">{"curl -G 'https://x'"}</CodeBlock>);
+    const figure = screen.getByLabelText("cURL Template").closest("figure")!;
     await userEvent.click(within(figure).getByRole("button", { name: "Copy" }));
     expect(writeText).toHaveBeenCalledWith("curl -G 'https://x'");
     const status = within(figure).getByRole("status");

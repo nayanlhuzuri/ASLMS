@@ -146,11 +146,11 @@ describe("Send case and Recall case", () => {
   it("appear exactly when the card's can_send / can_recall say so", async () => {
     browserApi({ "GET /me": me() });
     const { unmount } = renderWithClient(<CustodyActions caseRef={REF} detail={detail()} card={card({ can_send: true, can_recall: true })} />);
-    expect(screen.getByRole("button", { name: "Send case" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Recall case" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send Case" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Recall Case" })).toBeInTheDocument();
     unmount();
     renderWithClient(<CustodyActions caseRef={REF} detail={detail()} card={card({ can_send: false, can_recall: false })} />);
-    expect(screen.queryByRole("button", { name: /Send case|Recall case/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Send Case|Recall Case/ })).toBeNull();
   });
 
   it("Send case walks three steps: who, what, remark; Continue refuses a missing field; Back keeps values; the body is unchanged", async () => {
@@ -162,17 +162,17 @@ describe("Send case and Recall case", () => {
     renderWithClient(
       <CustodyActions caseRef={REF} detail={detail({ counts: { ...detail().counts, my_drafts: 2 } })} card={card()} />,
     );
-    await userEvent.click(screen.getByRole("button", { name: "Send case" }));
-    const dialog = screen.getByRole("dialog", { name: "Send the case" });
+    await userEvent.click(screen.getByRole("button", { name: "Send Case" }));
+    const dialog = screen.getByRole("dialog", { name: "Send the Case" });
     // step 1: who receives it (the stepper says where we are)
-    expect(within(dialog).getByText("Step 1 of 3 · Who receives it")).toBeInTheDocument();
+    expect(within(dialog).getByText("Step 1 of 3 · Who Receives It")).toBeInTheDocument();
     await waitFor(() => expect(within(dialog).getByRole("option", { name: "HEALTH — Health" })).toBeInTheDocument());
     await userEvent.click(within(dialog).getByRole("button", { name: "Continue" }));
     expect(within(dialog).getByText("Required.")).toBeInTheDocument();
-    expect(within(dialog).getByText("Step 1 of 3 · Who receives it")).toBeInTheDocument();
+    expect(within(dialog).getByText("Step 1 of 3 · Who Receives It")).toBeInTheDocument();
     await userEvent.selectOptions(within(dialog).getByLabelText("Department"), "HEALTH");
     await waitFor(() => expect(within(dialog).getByRole("radio", { name: /Health Off/ })).toBeInTheDocument());
-    await userEvent.type(within(dialog).getByLabelText("Search by name or designation"), "dir");
+    await userEvent.type(within(dialog).getByLabelText("Search by Name or Designation"), "dir");
     await waitFor(() => expect(api.calls.some((c) => c.url.includes("department=HEALTH") && c.url.includes("q=dir"))).toBe(true));
     // the people are cards with their initials
     expect(within(dialog).getAllByText("HO").length).toBeGreaterThan(0);
@@ -181,12 +181,12 @@ describe("Send case and Recall case", () => {
     await userEvent.click(within(dialog).getByRole("radio", { name: /Health Off/ }));
     await userEvent.click(within(dialog).getByRole("button", { name: "Continue" }));
     // step 2: what they should do — the sendable actions only, nothing pre-selected; the stage with the flag
-    expect(within(dialog).getByText("Step 2 of 3 · What they should do")).toBeInTheDocument();
-    const action = within(dialog).getByLabelText("Pending action") as HTMLSelectElement;
+    expect(within(dialog).getByText("Step 2 of 3 · What They Should Do")).toBeInTheDocument();
+    const action = within(dialog).getByLabelText("Pending Action") as HTMLSelectElement;
     await waitFor(() => expect(within(action).getByRole("option", { name: "Parawise comments" })).toBeInTheDocument());
     expect(action.value).toBe("");
     expect(within(action).queryByRole("option", { name: "None" })).toBeNull();
-    expect(within(dialog).getByLabelText("Stage (optional)")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Stage (Optional)")).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole("button", { name: "Continue" }));
     expect(within(dialog).getByText("Required.")).toBeInTheDocument();
     await userEvent.selectOptions(action, "parawise_comments");
@@ -194,17 +194,17 @@ describe("Send case and Recall case", () => {
     await userEvent.click(within(dialog).getByRole("button", { name: "Back" }));
     expect(within(dialog).getByRole("radio", { name: /Health Off/ })).toBeChecked();
     await userEvent.click(within(dialog).getByRole("button", { name: "Continue" }));
-    expect((within(dialog).getByLabelText("Pending action") as HTMLSelectElement).value).toBe("parawise_comments");
+    expect((within(dialog).getByLabelText("Pending Action") as HTMLSelectElement).value).toBe("parawise_comments");
     await userEvent.click(within(dialog).getByRole("button", { name: "Continue" }));
     // step 3: the remark is required; the drafts notice and the summary line
-    expect(within(dialog).getByText("Step 3 of 3 · Remark and confirm")).toBeInTheDocument();
+    expect(within(dialog).getByText("Step 3 of 3 · Remark and Confirm")).toBeInTheDocument();
     expect(within(dialog).getByText("Your 2 draft notes become permanent notes of the case when you send.")).toBeInTheDocument();
-    await userEvent.click(within(dialog).getByRole("button", { name: "Send case" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Send Case" }));
     expect(within(dialog).getByText("Give a remark of 3 to 2,000 characters.")).toBeInTheDocument();
     expect(api.calls.some((c) => c.method === "POST")).toBe(false);
     await userEvent.type(within(dialog).getByLabelText("Remark"), "please comment");
     expect(within(dialog).getByText("Send to Health Off, Under Secretary, HEALTH — Parawise comments")).toBeInTheDocument();
-    await userEvent.click(within(dialog).getByRole("button", { name: "Send case" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Send Case" }));
     await waitFor(() =>
       expect(api.calls.find((c) => c.method === "POST")?.body).toEqual({
         to_membership: "m-h1",
@@ -225,12 +225,12 @@ describe("Send case and Recall case", () => {
     renderWithClient(
       <CustodyActions caseRef={REF} detail={detail({ workflow: { note_mode: "draft", upload: true, set_stage: false, next_dates: false } })} card={card()} />,
     );
-    await userEvent.click(screen.getByRole("button", { name: "Send case" }));
-    const dialog = screen.getByRole("dialog", { name: "Send the case" });
+    await userEvent.click(screen.getByRole("button", { name: "Send Case" }));
+    const dialog = screen.getByRole("dialog", { name: "Send the Case" });
     await chooseHealthOff(dialog);
     await waitFor(() => expect(within(dialog).getByRole("option", { name: "Examine" })).toBeInTheDocument());
-    expect(within(dialog).queryByLabelText("Stage (optional)")).toBeNull();
-    await userEvent.selectOptions(within(dialog).getByLabelText("Pending action"), "examine");
+    expect(within(dialog).queryByLabelText("Stage (Optional)")).toBeNull();
+    await userEvent.selectOptions(within(dialog).getByLabelText("Pending Action"), "examine");
     await userEvent.click(within(dialog).getByRole("button", { name: "Continue" }));
     expect(within(dialog).queryByText(/draft notes? become/)).toBeNull();
   });
@@ -245,10 +245,10 @@ describe("Send case and Recall case", () => {
 
   async function fillAndSend(dialog: HTMLElement) {
     await chooseHealthOff(dialog);
-    await userEvent.selectOptions(within(dialog).getByLabelText("Pending action"), "examine");
+    await userEvent.selectOptions(within(dialog).getByLabelText("Pending Action"), "examine");
     await userEvent.click(within(dialog).getByRole("button", { name: "Continue" }));
     await userEvent.type(within(dialog).getByLabelText("Remark"), "over to you");
-    await userEvent.click(within(dialog).getByRole("button", { name: "Send case" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Send Case" }));
   }
 
   it("a card: null answer goes to Case inbox → Sent by me with the notice and the finalised notes", async () => {
@@ -258,8 +258,8 @@ describe("Send case and Recall case", () => {
       [`POST ${BASE}/custody/send`]: moved(null, ["ASLMS/HEALTH/NOTE/2026/000001"]),
     });
     renderWithClient(<CustodyActions caseRef={REF} detail={detail()} card={card()} />);
-    await userEvent.click(screen.getByRole("button", { name: "Send case" }));
-    await fillAndSend(screen.getByRole("dialog", { name: "Send the case" }));
+    await userEvent.click(screen.getByRole("button", { name: "Send Case" }));
+    await fillAndSend(screen.getByRole("dialog", { name: "Send the Case" }));
     await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/inbox/sent"));
     expect(sessionStorage.getItem("aslms.flash")).toBe(
       "Case sent to Health Off, Under Secretary, HEALTH. It is no longer with you. Made permanent: ASLMS/HEALTH/NOTE/2026/000001",
@@ -291,8 +291,8 @@ describe("Send case and Recall case", () => {
       </>,
     );
     expect(await screen.findByText("case loaded")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Send case" }));
-    await fillAndSend(screen.getByRole("dialog", { name: "Send the case" }));
+    await userEvent.click(screen.getByRole("button", { name: "Send Case" }));
+    await fillAndSend(screen.getByRole("dialog", { name: "Send the Case" }));
     await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/inbox/sent"));
     await new Promise((r) => setTimeout(r, 50));
     expect(calls.calls.filter((c) => c.method === "GET" && c.path === BASE)).toHaveLength(1);
@@ -306,8 +306,8 @@ describe("Send case and Recall case", () => {
       [`POST ${BASE}/custody/send`]: moved(card({ can_send: false }), ["ASLMS/EDU/NOTE/2026/000004", "ASLMS/EDU/NOTE/2026/000005"]),
     });
     renderWithClient(<CustodyActions caseRef={REF} detail={detail()} card={card()} />);
-    await userEvent.click(screen.getByRole("button", { name: "Send case" }));
-    await fillAndSend(screen.getByRole("dialog", { name: "Send the case" }));
+    await userEvent.click(screen.getByRole("button", { name: "Send Case" }));
+    await fillAndSend(screen.getByRole("dialog", { name: "Send the Case" }));
     expect(
       await screen.findByText(/Made permanent: ASLMS\/EDU\/NOTE\/2026\/000004, ASLMS\/EDU\/NOTE\/2026\/000005/),
     ).toBeInTheDocument();
@@ -322,12 +322,12 @@ describe("Send case and Recall case", () => {
       [`POST ${BASE}/custody/send`]: () => answer,
     });
     renderWithClient(<CustodyActions caseRef={REF} detail={detail()} card={card()} />);
-    await userEvent.click(screen.getByRole("button", { name: "Send case" }));
-    const dialog = screen.getByRole("dialog", { name: "Send the case" });
+    await userEvent.click(screen.getByRole("button", { name: "Send Case" }));
+    const dialog = screen.getByRole("dialog", { name: "Send the Case" });
     await fillAndSend(dialog);
     expect(await within(dialog).findByText("the case is already with that officer")).toBeInTheDocument();
     answer = json(403, { detail: { code: "not_in_control", message: "x" } });
-    await userEvent.click(within(dialog).getByRole("button", { name: "Send case" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Send Case" }));
     expect(
       await within(dialog).findByText("The case is not with you, and you do not control the office it is with."),
     ).toBeInTheDocument();
@@ -336,14 +336,14 @@ describe("Send case and Recall case", () => {
   it("the recall dialog names the holder and needs a remark", async () => {
     const api = browserApi({ [`POST ${BASE}/custody/recall`]: moved(card({ can_recall: false })) });
     renderWithClient(<CustodyActions caseRef={REF} detail={detail()} card={card({ can_send: false, can_recall: true })} />);
-    await userEvent.click(screen.getByRole("button", { name: "Recall case" }));
-    const dialog = screen.getByRole("dialog", { name: "Recall the case" });
+    await userEvent.click(screen.getByRole("button", { name: "Recall Case" }));
+    const dialog = screen.getByRole("dialog", { name: "Recall the Case" });
     expect(within(dialog).getByText("The case is with Officer One, SO, EDU-DSE — Secondary Education.")).toBeInTheDocument();
-    await userEvent.click(within(dialog).getByRole("button", { name: "Recall case" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Recall Case" }));
     expect(within(dialog).getByText("Give a remark of 3 to 2,000 characters.")).toBeInTheDocument();
     expect(api.calls.some((c) => c.method === "POST")).toBe(false);
     await userEvent.type(within(dialog).getByLabelText("Remark"), "needed back");
-    await userEvent.click(within(dialog).getByRole("button", { name: "Recall case" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Recall Case" }));
     await waitFor(() => expect(api.calls.find((c) => c.method === "POST")?.body).toEqual({ remark: "needed back" }));
     expect(await screen.findByText("The case is with you now, with 'Examine' pending.")).toBeInTheDocument();
   });
@@ -415,19 +415,19 @@ describe("the custody tab", () => {
   it("CustodyTab renders a DataTable with a primary cell (design portal-ui-polish, decision 15)", async () => {
     browserApi(routes(detail()));
     renderWithClient(<CustodyTab caseRef={REF} />);
-    expectDataTable(await screen.findByRole("table", { name: "Movement record" }));
+    expectDataTable(await screen.findByRole("table", { name: "Movement Record" }));
   });
 
   it("lists the legs, hides a remark the API does not send, and shows the stage gaps", async () => {
     browserApi(routes(detail({ workflow: { note_mode: null, upload: false, set_stage: false, next_dates: false } })));
     renderWithClient(<CustodyTab caseRef={REF} />);
-    const table = await screen.findByRole("table", { name: "Movement record" });
+    const table = await screen.findByRole("table", { name: "Movement Record" });
     const rows = within(table).getAllByRole("row");
     expect(rows).toHaveLength(3);
-    expect(within(rows[1]!).getByText("Not shown")).toBeInTheDocument();
+    expect(within(rows[1]!).getByText("Not Shown")).toBeInTheDocument();
     expect(within(rows[2]!).getByText("comments within a week")).toBeInTheDocument();
     expect(await screen.findByText("Not recorded: Reply due")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Set stage" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Set Stage" })).toBeNull();
   });
 
   it("Set stage shows only with the flag and puts 409 unchanged in words", async () => {
@@ -438,12 +438,12 @@ describe("the custody tab", () => {
     );
     renderWithClient(<CustodyTab caseRef={REF} />);
     const block = await screen.findByRole("region", { name: "Stage" });
-    await userEvent.click(await within(block).findByRole("button", { name: "Set stage" }));
-    const dialog = screen.getByRole("dialog", { name: "Set the stage" });
+    await userEvent.click(await within(block).findByRole("button", { name: "Set Stage" }));
+    const dialog = screen.getByRole("dialog", { name: "Set the Stage" });
     await waitFor(() => expect(within(dialog).getByRole("option", { name: "Reply filed (current)" })).toBeInTheDocument());
-    expect((within(dialog).getByLabelText("Response mode") as HTMLSelectElement).value).toBe("department");
+    expect((within(dialog).getByLabelText("Response Mode") as HTMLSelectElement).value).toBe("department");
     await userEvent.selectOptions(within(dialog).getByLabelText("Stage"), "reply_filed");
-    await userEvent.click(within(dialog).getByRole("button", { name: "Set stage" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Set Stage" }));
     expect(await within(dialog).findByText("the case is already at Reply filed")).toBeInTheDocument();
     expect(api.calls.find((c) => c.method === "POST")?.body).toEqual({ stage: "reply_filed", response_mode: "department", note: null });
   });
@@ -545,24 +545,24 @@ describe("writing notes", () => {
       }),
     );
     renderWithClient(<Notes caseRef={REF} />);
-    const form = await screen.findByRole("form", { name: "Write a note" });
+    const form = await screen.findByRole("form", { name: "Write a Note" });
     expect(within(form).getByText(/This case is with you. Your notes are drafts/)).toBeInTheDocument();
-    expect(within(form).queryByLabelText("Attach new files")).toBeNull();
+    expect(within(form).queryByLabelText("Attach New Files")).toBeNull();
     expect(within(form).getByText("Notes and their attachments are internal and are never sent to the Case Assistant.")).toBeInTheDocument();
     // the drafts panel shows for the holder
-    expect(await screen.findByRole("region", { name: "My drafts" })).toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: "My Drafts" })).toBeInTheDocument();
     // archived documents are not offered as links
     await waitFor(() => expect(within(form).getByLabelText(/d-1 description/)).toBeInTheDocument());
     expect(within(form).queryByLabelText(/d-2 description/)).toBeNull();
     await userEvent.selectOptions(within(form).getByLabelText("Kind"), "general");
     await userEvent.type(within(form).getByLabelText("Note"), "draft text");
     await userEvent.click(within(form).getByLabelText(/d-1 description/));
-    await userEvent.click(within(form).getByRole("button", { name: "Save draft" }));
+    await userEvent.click(within(form).getByRole("button", { name: "Save Draft" }));
     // visibility is required and nothing was pre-selected
     expect(within(form).getAllByText("Required.").length).toBeGreaterThan(0);
     expect(api.calls.some((c) => c.method === "POST")).toBe(false);
-    await userEvent.click(within(form).getByLabelText(/^Shared with counsel/));
-    await userEvent.click(within(form).getByRole("button", { name: "Save draft" }));
+    await userEvent.click(within(form).getByLabelText(/^Shared with Counsel/));
+    await userEvent.click(within(form).getByRole("button", { name: "Save Draft" }));
     await waitFor(() => expect(api.calls.some((c) => c.method === "POST")).toBe(true));
     const body = api.calls.find((c) => c.method === "POST")!.body as FormData;
     expect(body.get("kind")).toBe("general");
@@ -579,12 +579,12 @@ describe("writing notes", () => {
       noteRoutes(detail(), [], { [`POST ${BASE}/notes`]: json(201, note(1, { ref_no: "ASLMS/EDU/NOTE/2026/000001" })) }),
     );
     renderWithClient(<Notes caseRef={REF} />);
-    const form = await screen.findByRole("form", { name: "Write a note" });
+    const form = await screen.findByRole("form", { name: "Write a Note" });
     expect(within(form).getByText(/becomes part of the case record at once/)).toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: "My drafts" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "My Drafts" })).toBeNull();
     for (const radio of within(form).getAllByRole("radio")) expect(radio).not.toBeChecked();
     expect((within(form).getByLabelText("Kind") as HTMLSelectElement).value).toBe("");
-    const input = await within(form).findByLabelText("Attach new files");
+    const input = await within(form).findByLabelText("Attach New Files");
     await user.upload(input, [new File(["%PDF-1"], "reply.pdf", { type: "application/pdf" })]);
     await waitFor(() => expect(within(form).getByLabelText("Document type for reply.pdf")).toBeInTheDocument());
     expect((within(form).getByLabelText("Document type for reply.pdf") as HTMLSelectElement).value).toBe("correspondence");
@@ -594,8 +594,8 @@ describe("writing notes", () => {
     expect(within(form).getByText(/notes\.txt: This file type is not accepted/)).toBeInTheDocument();
     await user.selectOptions(within(form).getByLabelText("Kind"), "opinion");
     await user.type(within(form).getByLabelText("Note"), "final view");
-    await user.click(within(form).getByLabelText(/^Everyone with the case/));
-    await user.click(within(form).getByRole("button", { name: "Add note" }));
+    await user.click(within(form).getByLabelText(/^Everyone with the Case/));
+    await user.click(within(form).getByRole("button", { name: "Add Note" }));
     await waitFor(() => expect(api.calls.some((c) => c.method === "POST")).toBe(true));
     const body = api.calls.find((c) => c.method === "POST")!.body as FormData;
     expect((body.getAll("files") as File[]).map((f) => f.name)).toEqual(["reply.pdf"]);
@@ -615,14 +615,14 @@ describe("writing notes", () => {
     expect(within(trail).getAllByRole("button", { name: "Correct" })).toHaveLength(1);
     expect(within(trail).queryByRole("button", { name: /Edit|Delete/ })).toBeNull();
     await userEvent.click(within(trail).getByRole("button", { name: "Correct" }));
-    const form = screen.getByRole("form", { name: "Write a note" });
+    const form = screen.getByRole("form", { name: "Write a Note" });
     expect(within(form).getByText("Corrects ASLMS/EDU/NOTE/2026/000001")).toBeInTheDocument();
     expect(within(form).getByLabelText("Kind")).toBeDisabled();
     expect((within(form).getByLabelText("Kind") as HTMLSelectElement).value).toBe("opinion");
-    expect(within(form).getByLabelText(/^Shared with counsel/)).toBeChecked();
-    expect(within(form).getByLabelText(/^Shared with counsel/)).toBeDisabled();
+    expect(within(form).getByLabelText(/^Shared with Counsel/)).toBeChecked();
+    expect(within(form).getByLabelText(/^Shared with Counsel/)).toBeDisabled();
     await userEvent.type(within(form).getByLabelText("Note"), "corrected text");
-    await userEvent.click(within(form).getByRole("button", { name: "Add note" }));
+    await userEvent.click(within(form).getByRole("button", { name: "Add Note" }));
     expect(await within(form).findByText("Someone corrected this note first. Correct the latest note instead.")).toBeInTheDocument();
     const body = api.calls.find((c) => c.method === "POST")!.body as FormData;
     expect(body.get("supersedes")).toBe("ASLMS/EDU/NOTE/2026/000001");
@@ -634,7 +634,7 @@ describe("writing notes", () => {
     browserApi(noteRoutes(detail({ workflow: { note_mode: null, upload: false, set_stage: false, next_dates: false } }), [note(1)]));
     renderWithClient(<Notes caseRef={REF} />);
     await screen.findByText("body 1");
-    expect(screen.queryByRole("form", { name: "Write a note" })).toBeNull();
+    expect(screen.queryByRole("form", { name: "Write a Note" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Correct" })).toBeNull();
   });
 });
@@ -651,19 +651,19 @@ describe("the drafts panel", () => {
   it("edit sends only the changed fields, links as ids", async () => {
     const api = browserApi(draftRoutes({ "PATCH /notes/drafts/dr-1": draft({ body: "edited" }) }));
     renderWithClient(<Notes caseRef={REF} />);
-    const panel = await screen.findByRole("region", { name: "My drafts" });
+    const panel = await screen.findByRole("region", { name: "My Drafts" });
     await userEvent.click(await within(panel).findByRole("button", { name: "Edit" }));
-    const form = within(panel).getByRole("form", { name: "Edit the draft" });
+    const form = within(panel).getByRole("form", { name: "Edit the Draft" });
     const text = within(form).getByLabelText("Note");
     await userEvent.clear(text);
     await userEvent.type(text, "edited");
-    await userEvent.click(within(form).getByRole("button", { name: "Save draft" }));
+    await userEvent.click(within(form).getByRole("button", { name: "Save Draft" }));
     await waitFor(() => expect(api.calls.find((c) => c.method === "PATCH")?.body).toEqual({ body: "edited" }));
     await userEvent.click(await within(panel).findByRole("button", { name: "Edit" }));
-    const again = within(panel).getByRole("form", { name: "Edit the draft" });
+    const again = within(panel).getByRole("form", { name: "Edit the Draft" });
     await waitFor(() => expect(within(again).getByLabelText(/d-1 description/)).toBeInTheDocument());
     await userEvent.click(within(again).getByLabelText(/d-1 description/));
-    await userEvent.click(within(again).getByRole("button", { name: "Save draft" }));
+    await userEvent.click(within(again).getByRole("button", { name: "Save Draft" }));
     await waitFor(() =>
       expect(api.calls.filter((c) => c.method === "PATCH")[1]?.body).toEqual({ document_refs: ["ord-1", "d-1"] }),
     );
@@ -674,9 +674,9 @@ describe("the drafts panel", () => {
       draftRoutes({ "DELETE /notes/drafts/dr-1": json(409, { detail: { code: "draft_finalised", message: "moved" } }) }),
     );
     renderWithClient(<Notes caseRef={REF} />);
-    const panel = await screen.findByRole("region", { name: "My drafts" });
+    const panel = await screen.findByRole("region", { name: "My Drafts" });
     await userEvent.click(await within(panel).findByRole("button", { name: "Delete" }));
-    const dialog = screen.getByRole("dialog", { name: "Delete the draft" });
+    const dialog = screen.getByRole("dialog", { name: "Delete the Draft" });
     expect(within(dialog).getByText(/the only delete in a case's records/)).toBeInTheDocument();
     expect(api.calls.some((c) => c.method === "DELETE")).toBe(false);
     const before = api.calls.filter((c) => c.path === `${BASE}/notes/drafts`).length;
@@ -705,11 +705,11 @@ describe("uploads and document actions", () => {
     browserApi(docRoutes(detail({ workflow: { note_mode: null, upload: false, set_stage: false, next_dates: false } })));
     const { unmount } = renderWithClient(<Documents caseRef={REF} />);
     await screen.findByText("No documents.");
-    expect(screen.queryByRole("form", { name: "Upload a document" })).toBeNull();
+    expect(screen.queryByRole("form", { name: "Upload a Document" })).toBeNull();
     unmount();
     browserApi(docRoutes(detail()));
     renderWithClient(<Documents caseRef={REF} />);
-    const form = await screen.findByRole("form", { name: "Upload a document" });
+    const form = await screen.findByRole("form", { name: "Upload a Document" });
     expect(within(form).getByText(/Court filings visible to the whole case or shared with counsel are sent/)).toBeInTheDocument();
     for (const radio of within(form).getAllByRole("radio")) expect(radio).not.toBeChecked();
   });
@@ -718,8 +718,8 @@ describe("uploads and document actions", () => {
     const user = userEvent.setup({ applyAccept: false });
     const api = browserApi(docRoutes(detail()));
     renderWithClient(<Documents caseRef={REF} />);
-    const form = await screen.findByRole("form", { name: "Upload a document" });
-    const input = await within(form).findByLabelText("File (PDF, Word or image)");
+    const form = await screen.findByRole("form", { name: "Upload a Document" });
+    const input = await within(form).findByLabelText("File (PDF, Word or Image)");
     await waitFor(() => expect(input).toHaveAttribute("accept", ".pdf,.docx,.doc,.jpg,.jpeg,.png"));
     await user.upload(input, new File(["hello"], "notes.txt", { type: "text/plain" }));
     expect(within(form).getByText(/This file type is not accepted/)).toBeInTheDocument();
@@ -731,11 +731,11 @@ describe("uploads and document actions", () => {
 
   async function fillUpload(form: HTMLElement) {
     const user = userEvent.setup();
-    await user.upload(await within(form).findByLabelText("File (PDF, Word or image)"), new File(["%PDF"], "petition.pdf", { type: "application/pdf" }));
-    await user.selectOptions(within(form).getByLabelText("Document type"), "petition");
-    fireEvent.change(within(form).getByLabelText("Document date"), { target: { value: "2026-01-03" } });
+    await user.upload(await within(form).findByLabelText("File (PDF, Word or Image)"), new File(["%PDF"], "petition.pdf", { type: "application/pdf" }));
+    await user.selectOptions(within(form).getByLabelText("Document Type"), "petition");
+    fireEvent.change(within(form).getByLabelText("Document Date"), { target: { value: "2026-01-03" } });
     await user.type(within(form).getByLabelText("Description"), "Writ petition as filed");
-    await user.click(within(form).getByLabelText(/^Everyone with the case/));
+    await user.click(within(form).getByLabelText(/^Everyone with the Case/));
     await user.click(within(form).getByRole("button", { name: "Upload" }));
   }
 
@@ -745,7 +745,7 @@ describe("uploads and document actions", () => {
   ])("puts %s in words", async (code, status, text) => {
     browserApi(docRoutes(detail(), [], { [`POST ${BASE}/documents`]: json(status, { detail: { code, message: "x" } }) }));
     renderWithClient(<Documents caseRef={REF} />);
-    const form = await screen.findByRole("form", { name: "Upload a document" });
+    const form = await screen.findByRole("form", { name: "Upload a Document" });
     await fillUpload(form);
     expect(await within(form).findByText(text)).toBeInTheDocument();
   });
@@ -754,7 +754,7 @@ describe("uploads and document actions", () => {
     let answer: Response = json(409, { detail: { code: "duplicate", message: "x", existing_ref_no: "ASLMS/EDU/DOC/2026/000003" } });
     const api = browserApi(docRoutes(detail(), [], { [`POST ${BASE}/documents`]: () => answer }));
     renderWithClient(<Documents caseRef={REF} />);
-    const form = await screen.findByRole("form", { name: "Upload a document" });
+    const form = await screen.findByRole("form", { name: "Upload a Document" });
     await fillUpload(form);
     expect(await within(form).findByText("Refused: this file is already on the case as ASLMS/EDU/DOC/2026/000003.")).toBeInTheDocument();
     expect(within(form).getByRole("link", { name: "Open ASLMS/EDU/DOC/2026/000003" })).toHaveAttribute(
@@ -780,20 +780,20 @@ describe("uploads and document actions", () => {
       }),
     );
     renderWithClient(<Documents caseRef={REF} />);
-    const section = await screen.findByRole("region", { name: "Court filings" });
-    expect(within(section).getAllByRole("button", { name: "Change visibility" })).toHaveLength(1);
+    const section = await screen.findByRole("region", { name: "Court Filings" });
+    expect(within(section).getAllByRole("button", { name: "Change Visibility" })).toHaveLength(1);
     expect(within(section).getAllByRole("button", { name: "Archive" })).toHaveLength(1);
-    await userEvent.click(within(section).getByRole("button", { name: "Change visibility" }));
-    const vis = screen.getByRole("dialog", { name: "Change who may see the document" });
-    expect(within(vis).getByLabelText(/^Everyone with the case \(current\)/)).toBeInTheDocument();
-    await userEvent.click(within(vis).getByLabelText(/^Private to the office/));
-    await userEvent.click(within(vis).getByRole("button", { name: "Change visibility" }));
+    await userEvent.click(within(section).getByRole("button", { name: "Change Visibility" }));
+    const vis = screen.getByRole("dialog", { name: "Change Who May See the Document" });
+    expect(within(vis).getByLabelText(/^Everyone with the Case \(current\)/)).toBeInTheDocument();
+    await userEvent.click(within(vis).getByLabelText(/^Private to the Office/));
+    await userEvent.click(within(vis).getByRole("button", { name: "Change Visibility" }));
     expect(
       await within(vis).findByText("This document is already in the Case Assistant, so it cannot be made private."),
     ).toBeInTheDocument();
     await userEvent.click(within(vis).getByRole("button", { name: "Cancel" }));
     await userEvent.click(within(section).getByRole("button", { name: "Archive" }));
-    const arch = screen.getByRole("dialog", { name: "Archive the document" });
+    const arch = screen.getByRole("dialog", { name: "Archive the Document" });
     expect(within(arch).getByText(/there is no unarchive and no delete/)).toBeInTheDocument();
     await userEvent.click(within(arch).getByRole("button", { name: "Archive" }));
     expect(within(arch).getByText("Give a reason of 3 to 500 characters.")).toBeInTheDocument();
@@ -863,8 +863,8 @@ describe("the case alerts tab", () => {
     expect(within(items[1]!).getByText(/Acknowledged by Edu Admin/)).toBeInTheDocument();
     expect(within(items[2]!).queryByRole("button")).toBeNull();
     await userEvent.click(within(items[0]!).getByRole("button", { name: "Acknowledge" }));
-    const dialog = screen.getByRole("dialog", { name: "Acknowledge the alert" });
-    await userEvent.type(within(dialog).getByLabelText("Note (optional)"), "seen");
+    const dialog = screen.getByRole("dialog", { name: "Acknowledge the Alert" });
+    await userEvent.type(within(dialog).getByLabelText("Note (Optional)"), "seen");
     await userEvent.click(within(dialog).getByRole("button", { name: "Acknowledge" }));
     expect(await within(dialog).findByText("Only an open alert can be acknowledged. The list has been read again.")).toBeInTheDocument();
     expect(api.calls.find((c) => c.method === "POST")?.body).toEqual({ note: "seen" });

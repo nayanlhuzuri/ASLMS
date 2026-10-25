@@ -200,17 +200,18 @@ class HeadChange:
                     )
                 if m.office_id != dept.id:
                     raise MembershipError(
-                        "head_at_department", "a department head sits at the department office"
+                        "head_at_department", "a Head of Department sits at the department office"
                     )
                 role = Role(m.role)
                 if role == Role.DEPT_HEAD and m.is_active:
                     raise Conflict("head_exists", "the incoming membership is already the head")
                 if not super_admin and role not in DELEGABLE_ROLES:
                     raise Forbidden(
-                        f"a department admin cannot make a {role.value} membership the head", "not_delegable"
+                        f"a Department Administrator cannot make a {role.value} membership the head",
+                        "not_delegable",
                     )
                 if role == Role.SUPER_ADMIN:
-                    raise Conflict("super_admin_single", "the super admin holds no other membership")
+                    raise Conflict("super_admin_single", "the Super Administrator holds no other membership")
                 user = session.get(User, m.user_id)
                 if not m.is_active:
                     other = access.member_in_department(session, user, dept)
@@ -231,7 +232,7 @@ class HeadChange:
                         "the person already has a membership in this department; name that membership",
                     )
                 if any(Role(m.role) == Role.SUPER_ADMIN for m in access.active_memberships(session, user)):
-                    raise Conflict("super_admin_single", "the super admin holds no other membership")
+                    raise Conflict("super_admin_single", "the Super Administrator holds no other membership")
                 out.incoming_user = user
             if out.incoming_user is not None and not out.incoming_user.is_active:
                 raise Conflict("login_inactive", "the incoming person's login is disabled")
@@ -653,7 +654,8 @@ def request_head_change(
     member, is_super = _requester(session, user, dept)
     if p.operation == "end" and not is_super:
         raise Forbidden(
-            "only the super admin may end a head and leave the department without one", "super_admin_only"
+            "only the Super Administrator may end a head and leave the department without one",
+            "super_admin_only",
         )
     remark = _remark(request_remark)
     files = files or []
@@ -721,7 +723,7 @@ def request_head_change(
             actor,
             open_ticket,
             TicketStatus.REJECTED,
-            f"superseded by the super admin's change {ref}",
+            f"superseded by the Super Administrator's change {ref}",
         )
     result = kind.apply(session, actor, p, ref, stale_code="stale_exit")
     incoming_id = (result.get("incoming") or {}).get("membership_id")
@@ -762,7 +764,7 @@ def record_direct_set(
     an order can be attached later."""
     sa = access.super_admin_member(session, user)
     if sa is None:
-        raise Forbidden("only the super admin creates a department", "super_admin_only")
+        raise Forbidden("only the Super Administrator creates a department", "super_admin_only")
     actor = access.actor_as(actor, sa)
     if memberships.head_of(session, department) is not None:
         raise Conflict("head_exists", f"{department.code} already has a head")
@@ -857,7 +859,7 @@ def _lock_open(session: Session, t: AdminTicket) -> None:
 def _super_admin(session: Session, user: User | Member) -> Member:
     sa = access.super_admin_member(session, user)
     if sa is None or not sa.holds(Permission.ADMIN_TICKETS):
-        raise Forbidden("only the super admin decides tickets", "super_admin_only")
+        raise Forbidden("only the Super Administrator decides tickets", "super_admin_only")
     return sa
 
 
@@ -996,7 +998,7 @@ def archive_document(
         raise TicketError("ticket_closed", f"the ticket is {TicketStatus(t.status).value}", 409)
     sa = access.super_admin_member(session, user)
     if sa is None and doc.actor_user_id != user.id:
-        raise Forbidden("only the uploader or the super admin may archive this document")
+        raise Forbidden("only the uploader or the Super Administrator may archive this document")
     if doc.archived_at is not None:
         raise TicketError("bad_field", "the document is already archived")
     text = (reason or "").strip()

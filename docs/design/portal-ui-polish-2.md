@@ -1025,3 +1025,59 @@ The owner's approval of this note adopts the recommended answers below. None blo
 7. **Three rounds.**
    - **Recommended:** split as in decision 46. Row 153 is round 1, and two new rows are added at approval for the
      administration round and the filters round.
+
+## Deviations
+Recorded by the developer while building round 1 (25 Oct 2026); none changes a decision above.
+1. **Migration number.** 0025 is the latest migration on `main`, so the migration is `0026_portal_ui_polish_2.py`
+   (revises 0025). Row 154, if it needs one, takes the next number. `RefRole` declares the index as
+   `Index("uq_ref_role_label_lower", text("lower(label::text)"), unique=True)`: the expression is written the way
+   PostgreSQL reads it back, so the schema comparison test sees no difference.
+2. **Edit Name, white space.** A tab, a newline or any other control character in the name is refused
+   (`label_bad_characters`); ordinary spaces, inner runs included, are collapsed to one. The request schema bounds the
+   raw body (label 400, description 1,000 characters) so that the service gives the precise 422 codes.
+3. **Edit Name, tests.** `test_put_name_is_not_a_function` is in `tests/db/test_access_type_name.py` with the other
+   Edit Name tests, because `test_api_access.py` builds a world of its own. The race test commits the first rename while
+   the second session waits on the unique index.
+4. **API messages and labels naming types.** The API messages a person can read now say "Super Administrator",
+   "Department Administrator" and "Head of Department" (`services/access.py`, `memberships.py`, `offices.py`,
+   `tickets.py`, `documents.py`, `ownership.py`, `routers/users.py`, and the two admin-ticket alert texts). The
+   Offices screen labels "Department admin" and "Department head" become "Department Administrator" and "Head of
+   Department". The description of `cases.view_private_all` names the function by its new label ("With See All Cases:
+   …"). Three tests matching the old words were updated.
+5. **Audit Log name.** `access.type_edited` reads "User Type Name Changed" through a small `T.audit.actionNames` map,
+   in the action filter, the table and the entry page; every other action still shows its code.
+6. **Label keys renamed.** `reports.emptySection` became `reports.sectionEmpty` and `assistant.copyHeading` became
+   `assistant.copyIntro`: both hold sentences, and their old last keys made them label paths. `T.audit.allActions` no
+   longer lower-cases the group ("All Custody Actions").
+7. **Units in labels.** The rule capitalises a lone "h" or "d", so labels write the unit out ("Within 48 Hours",
+   "Hearings in 7 Days", "Court Calls Answered (24 Hours)"). Two progress sentences ("Testing… (up to 30 s)") and the
+   "Average ms" column keep the abbreviation as `SENTENCE_EXCEPTIONS`. `SENTENCE_EXCEPTIONS` holds 65 entries, each a
+   fragment read inside a sentence, a marker in parentheses, a noun after a count or a value; `LABEL_FUNCTIONS` holds
+   the 11 label templates that are checked.
+8. **Short labels under sentence-like keys.** About 30 buttons and field labels whose keys contain `note`, `confirm`
+   or `details` (for example "Note (Optional)", "Copy to Note", "Case Details") were written in Title Case too, though
+   the guard does not check those paths.
+9. **Kit additions.** `Card` takes an `id` (the Jump To anchors), `CheckField` takes `inline`, and `SegmentedSwitch`
+   options take `title` and `disabled`. A disabled view is `aria-disabled`, not `disabled`, so its tooltip still shows
+   on pointer and focus; it cannot be chosen by click or arrow keys.
+10. **Menu details.** `routes.ts` exports `filterNav` (the rule over any list of entries, for the test of an entry
+    whose children are all hidden), `childActive`, `activeChild`, `onPath` and `entryActive`; the shell's own
+    `isActive` now calls `entryActive`. The tree reads the query string inside a `Suspense` boundary and the hash on
+    `hashchange`. The System Health sections carry the ids `court` and `services`. A closed branch is `inert` and
+    `aria-hidden`. In the phone drawer a click on a closed parent opens it and goes to its landing page, but keeps the
+    drawer open so a child can be chosen; any other link closes it.
+11. **Menu sizes.** The icon column uses the existing `--icon-w` token (20 px) rather than a raw 18 px, as the tokens
+    rule asks. The children's guide line sits at `--s4 − 1px` and the child rows keep an empty icon slot and `--s3`
+    padding, so child labels start exactly 16 px beyond the parent's label.
+12. **Jump To.** The list's heading is a plain caption, not a heading, so the page's heading outline is unchanged;
+    the select for phones and the list are both rendered and CSS shows one of them (the list at 1,100 px and up).
+13. **Dashboard.** The date reads "Sunday, 25 October 2026" through a new `formatDayLongYear`. The disabled Department
+    option appears for every login with the State view and no department, not only the Super Administrator.
+14. **uicheck fixtures.** The sample type `dept_officer` carries the 80-character custom name (the other nine have the
+    full names), so the badges, the type cards, the user-type page title and the Edit Name dialog are measured at
+    their longest. The new states are "/ (side menu: Administration open)" at 1280 px, "/ (phone drawer:
+    Administration open)" at 375 px and "/admin/access/dept_officer (Edit Name dialog)". The checkbox step's two
+    self-check pages run in `uicheck-self.spec.ts` and pass locally against Chromium.
+15. **Test data under the new index.** `tests/db/test_memberships.py` seeded five `ref_role` rows all labelled "x" at
+    revision 0007; the upgrade back to head now creates `uq_ref_role_label_lower`, so the rows get distinct labels
+    ("x1" to "x5"). No real database can hold two equal seeded labels.

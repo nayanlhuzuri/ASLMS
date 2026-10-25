@@ -26,6 +26,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import event, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, object_session
 
 from aslms.core.clock import today_ist
@@ -383,7 +384,7 @@ def assert_can_manage(
         return member
     if target_role is not None and _as_role(target_role) not in DELEGABLE_ROLES:
         raise Forbidden(
-            f"only a super admin may create or change users of type {_as_role(target_role).value}",
+            f"only the Super Administrator may create or change users of type {_as_role(target_role).value}",
             "not_delegable",
         )
     if functions:
@@ -436,14 +437,15 @@ def login_scope_member(session: Session, actor_user: User | Member, user: User, 
         return sa_member
     primary = _primary_membership(session, user)
     if primary is None:
-        raise Forbidden("only the super admin may act on a login with no membership")
+        raise Forbidden("only the Super Administrator may act on a login with no membership")
     office = session.get(Office, primary.office_id)
     member = acting_member_for_office(session, actor_user, office, permission=permission)
     if member is None:
         raise Forbidden("the user is outside your offices")
     if _as_role(primary.role) not in DELEGABLE_ROLES:
         raise Forbidden(
-            f"only a super admin may change users of type {_as_role(primary.role).value}", "not_delegable"
+            f"only the Super Administrator may change users of type {_as_role(primary.role).value}",
+            "not_delegable",
         )
     return member
 
@@ -457,13 +459,13 @@ def set_enabled(session: Session, actor: Actor, actor_user: User | Member, user:
     `super_admin_cli_only`); a department head's login cannot be disabled (409 `head_required`)."""
     if _holds_role(session, user, Role.SUPER_ADMIN):
         raise Forbidden(
-            "the super admin is changed only from the server's command line", "super_admin_cli_only"
+            "the Super Administrator is changed only from the server's command line", "super_admin_cli_only"
         )
     require(session, actor_user, MANAGE_PERMISSIONS["enable_disable"])
     if not enabled and _holds_role(session, user, Role.DEPT_HEAD):
         raise Conflict(
             "head_required",
-            "the user is a department's head; replace the head first (or the super admin ends it)",
+            "the user is a Head of Department; replace the head first (or the Super Administrator ends it)",
         )
     member = login_scope_member(session, actor_user, user, "enable_disable")
     if user.id == member.user.id and not enabled:
@@ -532,7 +534,7 @@ def set_override(
         functions={permission} if effect == PermissionEffect.GRANT else None,
     )
     if _as_role(membership.role) == Role.SUPER_ADMIN:
-        raise Forbidden("a super admin's functions cannot be overridden", "super_admin_cli_only")
+        raise Forbidden("the Super Administrator's functions cannot be overridden", "super_admin_cli_only")
     actor = actor_as(actor, member)
     row = session.scalar(
         select(UserPermission).where(
@@ -609,9 +611,9 @@ def set_matrix(
     require(session, actor_user, Permission.ACCESS_MANAGE_TYPES)
     role, permission = _as_role(role), _as_perm(permission)
     if role == Role.SUPER_ADMIN:
-        raise Forbidden("the super admin type always has every function")
+        raise Forbidden("the Super Administrator type always has every function")
     if permission in RESERVED_FUNCTIONS:
-        raise ReservedFunction(f"{permission.value} is reserved for the super admin")
+        raise ReservedFunction(f"{permission.value} is reserved for the Super Administrator")
     if permission in RETIRED_PERMISSIONS:
         raise RetiredFunction(f"{permission.value} is retired")
     row = session.scalar(
@@ -718,11 +720,11 @@ def set_matrix_batch(
     require(session, actor_user, Permission.ACCESS_MANAGE_TYPES)
     role = _as_role(role)
     if role == Role.SUPER_ADMIN:
-        raise Forbidden("the super admin type always has every function")
+        raise Forbidden("the Super Administrator type always has every function")
     wanted = [(_as_perm(p), bool(enabled)) for p, enabled in changes]
     for permission, _ in wanted:
         if permission in RESERVED_FUNCTIONS:
-            raise ReservedFunction(f"{permission.value} is reserved for the super admin")
+            raise ReservedFunction(f"{permission.value} is reserved for the Super Administrator")
         if permission in RETIRED_PERMISSIONS:
             raise RetiredFunction(f"{permission.value} is retired")
     current = matrix(session, role).get(role.value, {})
@@ -759,3 +761,94 @@ def user_summary(user: User) -> dict:
     from aslms.services.users import user_summary as _summary
 
     return _summary(user)
+
+
+# ------------------------------------------------------------------------------------------------ Edit Name
+TYPE_LABEL_MAX = 80
+TYPE_DESCRIPTION_MAX = 200
+
+
+class TypeLabelTaken(Conflict):
+    """Another user type already has this name, without regard to case (HTTP 409 `label_taken`)."""
+
+    def __init__(self) -> None:
+        super().__init__("label_taken", "another user type already has this name")
+
+
+class TypeLabelInvalid(ValueError):
+    """The name or description breaks a limit (HTTP 422). `code` is `label_required`, `label_too_long`,
+    `label_bad_characters` or `description_too_long`."""
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+
+
+def _has_control(text: str) -> bool:
+    import unicodedata
+
+    return any(unicodedata.category(ch) in {"Cc", "Cf"} for ch in text)
+
+
+def _type_label(label: str) -> str:
+    if _has_control(label):
+        raise TypeLabelInvalid("label_bad_characters", "the name may not hold control characters")
+    clean = " ".join(label.split())
+    if not clean:
+        raise TypeLabelInvalid("label_required", "give the user type a name")
+    if len(clean) > TYPE_LABEL_MAX:
+        raise TypeLabelInvalid("label_too_long", f"the name may be at most {TYPE_LABEL_MAX} characters")
+    return clean
+
+
+def _type_description(description: str | None) -> str | None:
+    clean = (description or "").strip()
+    if len(clean) > TYPE_DESCRIPTION_MAX:
+        raise TypeLabelInvalid(
+            "description_too_long", f"the description may be at most {TYPE_DESCRIPTION_MAX} characters"
+        )
+    return clean or None
+
+
+def rename_type(
+    session: Session,
+    actor: Actor,
+    actor_user: User | Member,
+    role: Role | str,
+    label: str,
+    description: str | None,
+) -> dict[str, Any]:
+    """Edit Name (design portal-ui-polish-2, decision 12): the display name and short description of a user type,
+    behind `access.manage_types`. The code, the memberships, the matrix and the history never change, so no
+    `access_changed` event is raised. The label is trimmed with inner white space collapsed, 1 to 80 characters, no
+    control characters, unique without regard to case against every other `ref_role` row (inactive ones included;
+    `uq_ref_role_label_lower` under a race); the description is trimmed, at most 200 characters, empty = NULL. One
+    `access.type_edited` audit row when something changed; none otherwise. Returns `{code, label, description,
+    changed}`."""
+    from sqlalchemy import func
+
+    from aslms.domain.reference import RefRole
+
+    require(session, actor_user, Permission.ACCESS_MANAGE_TYPES)
+    role = _as_role(role)
+    new_label, new_description = _type_label(label), _type_description(description)
+    row = session.scalar(select(RefRole).where(RefRole.code == role.value).with_for_update())
+    if row is None:  # every Role is seeded; a missing row is a broken database, not a client error
+        raise LookupError(f"ref_role {role.value} is not seeded")
+    clash = session.scalar(
+        select(RefRole.code).where(RefRole.code != role.value, func.lower(RefRole.label) == new_label.lower())
+    )
+    if clash is not None:
+        raise TypeLabelTaken()
+    before = {"code": row.code, "label": row.label, "description": row.description}
+    if row.label == new_label and row.description == new_description:
+        return {**before, "changed": False}
+    row.label, row.description = new_label, new_description
+    try:
+        with session.begin_nested():
+            session.flush()
+    except IntegrityError as exc:
+        raise TypeLabelTaken() from exc
+    after = {"code": row.code, "label": row.label, "description": row.description}
+    write_audit(session, actor, "access.type_edited", "ref_role", None, before=before, after=after)
+    return {**after, "changed": True}

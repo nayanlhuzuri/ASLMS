@@ -72,17 +72,17 @@ describe("user detail", () => {
     renderWithClient(<UserDetail id="u-9" />);
     expect(await screen.findByRole("heading", { name: "Ravi Das" })).toBeInTheDocument();
     await screen.findByText("Section Officer");
-    for (const name of ["Edit", "Disable login", "Set a temporary password", "End membership", "Change", "Add a membership", "Government orders"]) {
+    for (const name of ["Edit", "Disable Login", "Set a Temporary Password", "End Membership", "Change", "Add a Membership", "Government Orders"]) {
       expect(screen.queryByRole("button", { name })).toBeNull();
     }
-    expect(screen.getByRole("button", { name: "Functions and overrides" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Functions and Overrides" })).toBeInTheDocument();
   });
 
   it("shows each action with its function", async () => {
     userRoutes(makeMe(DEPT_ADMIN, "dept_admin"));
     renderWithClient(<UserDetail id="u-9" />);
     await screen.findByRole("heading", { name: "Ravi Das" });
-    for (const name of ["Edit", "Disable login", "Set a temporary password", "End membership", "Change", "Add a membership", "Government orders"]) {
+    for (const name of ["Edit", "Disable Login", "Set a Temporary Password", "End Membership", "Change", "Add a Membership", "Government Orders"]) {
       expect(await screen.findByRole("button", { name })).toBeInTheDocument();
     }
   });
@@ -106,12 +106,12 @@ describe("user detail", () => {
       "POST /admin/users/u-9/memberships/m-9/end": { membership: { ...MEMBERSHIP, is_active: false }, reassigned: [], counts: { alerts: 0, allotments: 1, files: 1, notes_finalised: 0 } },
     });
     renderWithClient(<UserDetail id="u-9" />);
-    await userEvent.click(await screen.findByRole("button", { name: "End membership" }));
+    await userEvent.click(await screen.findByRole("button", { name: "End Membership" }));
     const dialog = await screen.findByRole("dialog");
     expect(await within(dialog).findByText("WP(C)/1/2026")).toBeInTheDocument();
     expect(within(dialog).getByText("WA/2/2026")).toBeInTheDocument();
-    const submit = within(dialog).getByRole("button", { name: "End membership" });
-    await userEvent.type(within(dialog).getByLabelText("Reason for ending"), "transferred out");
+    const submit = within(dialog).getByRole("button", { name: "End Membership" });
+    await userEvent.type(within(dialog).getByLabelText("Reason for Ending"), "transferred out");
     expect(submit).toBeDisabled();
     expect(within(dialog).getByText("2 item(s) still need a successor.")).toBeInTheDocument();
     await userEvent.selectOptions(within(dialog).getByLabelText("Successor EDU/2026/0001"), "m-20");
@@ -136,7 +136,7 @@ describe("user detail", () => {
     renderWithClient(<UserDetail id="u-9" />);
     await userEvent.click(await screen.findByRole("button", { name: "Change" }));
     const dialog = await screen.findByRole("dialog");
-    const options = within(within(dialog).getByLabelText("User type")).getAllByRole("option").map((o) => o.getAttribute("value"));
+    const options = within(within(dialog).getByLabelText("User Type")).getAllByRole("option").map((o) => o.getAttribute("value"));
     expect(options.sort()).toEqual(["dept_officer", "directorate_user", "referral_reviewer", "standing_counsel"]);
   });
 });
@@ -151,12 +151,12 @@ describe("new user", () => {
     });
     renderWithClient(<NewUserForm />);
     await userEvent.type(screen.getByLabelText("E-mail"), "mira@example.org");
-    await userEvent.click(screen.getByRole("button", { name: "Check e-mail" }));
+    await userEvent.click(screen.getByRole("button", { name: "Check E-mail" }));
     expect(await screen.findByText("Mira Bora already has a login.")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Create user" })).toBeNull();
-    await userEvent.type(screen.getByLabelText("Office code"), "EDU");
-    await userEvent.selectOptions(screen.getByLabelText("User type"), "dept_officer");
-    await userEvent.click(screen.getByRole("button", { name: "Add a membership to this person" }));
+    expect(screen.queryByRole("button", { name: "Create User" })).toBeNull();
+    await userEvent.type(screen.getByLabelText("Office Code"), "EDU");
+    await userEvent.selectOptions(screen.getByLabelText("User Type"), "dept_officer");
+    await userEvent.click(screen.getByRole("button", { name: "Add a Membership to This Person" }));
     await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/admin/users/u-5"));
     expect(api.calls.find((c) => c.method === "POST")!.body).toEqual({ office: "EDU", designation: null, role: "dept_officer" });
   });
@@ -169,9 +169,9 @@ describe("new user", () => {
     });
     renderWithClient(<NewUserForm />);
     await userEvent.type(screen.getByLabelText("E-mail"), "new@example.org");
-    await userEvent.click(screen.getByRole("button", { name: "Check e-mail" }));
-    expect(await screen.findByRole("button", { name: "Create user" })).toBeInTheDocument();
-    const values = within(screen.getByLabelText("User type"))
+    await userEvent.click(screen.getByRole("button", { name: "Check E-mail" }));
+    expect(await screen.findByRole("button", { name: "Create User" })).toBeInTheDocument();
+    const values = within(screen.getByLabelText("User Type"))
       .getAllByRole("option")
       .map((o) => o.getAttribute("value"))
       .filter(Boolean);
@@ -205,7 +205,7 @@ describe("the Users list on the Settings hub (case-workspace-admin, decision 23)
     const row = (name: string) => within(table).getByText(name).closest("tr")!;
     expect(within(row("Ravi Das")).getByText("RD")).toHaveAttribute("data-lead", "avatar");
     expect(within(row("Ravi Das")).getByText("Section Officer, Secondary Education")).toBeInTheDocument();
-    expect(within(row("Ravi Das")).getByText("Not signed in yet")).toBeInTheDocument();
+    expect(within(row("Ravi Das")).getByText("Not Signed in Yet")).toBeInTheDocument();
     expect(within(row("Off Person")).getByText("Off")).toBeInTheDocument();
     expect(within(row("Mira Bora")).getByText("Active")).toBeInTheDocument();
     expect(within(row("Mira Bora")).getByText("Under Secretary, Education")).toBeInTheDocument();
@@ -224,9 +224,9 @@ describe("the Users list on the Settings hub (case-workspace-admin, decision 23)
     renderWithClient(<UsersList />);
     await screen.findByRole("table", { name: "Users" });
     const status = screen.getByLabelText("Status");
-    expect(within(status).getAllByRole("option").map((o) => o.textContent)).toEqual(["Any status", "Active", "Not signed in yet", "Off"]);
+    expect(within(status).getAllByRole("option").map((o) => o.textContent)).toEqual(["Any Status", "Active", "Not Signed in Yet", "Off"]);
     await userEvent.selectOptions(status, "not_signed_in");
-    await userEvent.type(screen.getByLabelText("Name or e-mail"), "ra");
+    await userEvent.type(screen.getByLabelText("Name or E-mail"), "ra");
     await userEvent.click(screen.getByRole("button", { name: "Search" }));
     await waitFor(() => expect(api.calls.some((c) => c.path.includes("status=not_signed_in"))).toBe(true));
     const url = api.calls.filter((c) => c.path.startsWith("/admin/users?")).pop()!.path;
@@ -245,8 +245,8 @@ describe("the Users list on the Settings hub (case-workspace-admin, decision 23)
     renderWithClient(<UsersList params={{ user: "u-9" }} />);
     const panel = await screen.findByRole("dialog", { name: "Ravi Das" });
     expect(panel).toHaveAttribute("data-panel", "wide");
-    expect(await within(panel).findByRole("region", { name: "Offices (memberships)" })).toBeInTheDocument();
-    expect(within(panel).getByRole("link", { name: "Open full page" })).toHaveAttribute("href", "/admin/users/u-9");
+    expect(await within(panel).findByRole("region", { name: "Offices (Memberships)" })).toBeInTheDocument();
+    expect(within(panel).getByRole("link", { name: "Open Full Page" })).toHaveAttribute("href", "/admin/users/u-9");
     await userEvent.click(within(panel).getByRole("button", { name: "Close" }));
     expect(nav.replace).toHaveBeenCalledWith("/admin/users");
   });
@@ -258,19 +258,19 @@ describe("the Users list on the Settings hub (case-workspace-admin, decision 23)
       "POST /admin/users": { ...USER, id: "u-20" },
     });
     const { unmount } = renderWithClient(<UsersList />);
-    await userEvent.click(await screen.findByRole("button", { name: "Add user" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Add User" }));
     expect(nav.push).toHaveBeenCalledWith("/admin/users?user=new");
     unmount();
     resetNav("/admin/users", "user=new");
     renderWithClient(<UsersList params={{ user: "new" }} />);
-    const panel = await screen.findByRole("dialog", { name: "Add user" });
+    const panel = await screen.findByRole("dialog", { name: "Add User" });
     await userEvent.type(within(panel).getByLabelText("E-mail"), "new@example.org");
-    await userEvent.click(within(panel).getByRole("button", { name: "Check e-mail" }));
-    await userEvent.type(await within(panel).findByLabelText("Full name"), "New Person");
-    await userEvent.type(within(panel).getByLabelText("Temporary password"), "Str0ng!Passw0rd");
-    await userEvent.type(within(panel).getByLabelText("Office code"), "EDU");
-    await userEvent.selectOptions(within(panel).getByLabelText("User type"), "dept_officer");
-    await userEvent.click(within(panel).getByRole("button", { name: "Create user" }));
+    await userEvent.click(within(panel).getByRole("button", { name: "Check E-mail" }));
+    await userEvent.type(await within(panel).findByLabelText("Full Name"), "New Person");
+    await userEvent.type(within(panel).getByLabelText("Temporary Password"), "Str0ng!Passw0rd");
+    await userEvent.type(within(panel).getByLabelText("Office Code"), "EDU");
+    await userEvent.selectOptions(within(panel).getByLabelText("User Type"), "dept_officer");
+    await userEvent.click(within(panel).getByRole("button", { name: "Create User" }));
     await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/admin/users?user=u-20"));
     expect(api.calls.some((c) => c.method === "POST" && c.path === "/admin/users")).toBe(true);
   });
@@ -402,16 +402,16 @@ describe("audit links (portal-audit-health, decision 7)", () => {
   it("a user's page links to the entries by and about the user for an audit reader", async () => {
     userRoutes(superAdmin(["users.view", "audit.view", "cases.view_all"]));
     renderWithClient(<UserDetail id="u-9" />);
-    expect(await screen.findByRole("link", { name: "Entries by this user" })).toHaveAttribute("href", "/audit?user=u-9");
-    expect(screen.getByRole("link", { name: "Entries about this user" })).toHaveAttribute("href", "/audit?about_user=u-9");
+    expect(await screen.findByRole("link", { name: "Entries by This User" })).toHaveAttribute("href", "/audit?user=u-9");
+    expect(screen.getByRole("link", { name: "Entries About This User" })).toHaveAttribute("href", "/audit?about_user=u-9");
   });
 
   it("no audit links on a user's page without readsAudit", async () => {
     userRoutes(makeMe([...DEPT_ADMIN, "audit.view"], "dept_admin"));
     renderWithClient(<UserDetail id="u-9" />);
     await screen.findByRole("heading", { name: "Ravi Das" });
-    expect(screen.queryByRole("link", { name: "Entries by this user" })).toBeNull();
-    expect(screen.queryByRole("link", { name: "Entries about this user" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Entries by This User" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Entries About This User" })).toBeNull();
   });
 
   it("an office's page links to the entries by the office for an audit reader, not otherwise", async () => {
@@ -421,7 +421,7 @@ describe("audit links (portal-audit-health, decision 7)", () => {
       "GET /admin/offices/EDU-DSE": OFFICE,
     });
     const { unmount } = renderWithClient(<OfficeDetailView code="EDU-DSE" />);
-    expect(await screen.findByRole("link", { name: "Entries by this office" })).toHaveAttribute(
+    expect(await screen.findByRole("link", { name: "Entries by This Office" })).toHaveAttribute(
       "href",
       "/audit?office=EDU-DSE",
     );
@@ -433,7 +433,7 @@ describe("audit links (portal-audit-health, decision 7)", () => {
     });
     renderWithClient(<OfficeDetailView code="EDU-DSE" />);
     await screen.findByRole("heading", { name: /Secondary Education/ });
-    expect(screen.queryByRole("link", { name: "Entries by this office" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Entries by This Office" })).toBeNull();
   });
 });
 
@@ -442,18 +442,18 @@ describe("Administration on the Settings template (design portal-ui-redesign, de
     resetNav("/admin/offices/EDU");
     browserApi({ "GET /me": makeMe([...DEPT_ADMIN, "admin.keywords"], "dept_admin") });
     renderWithClient(<AdminFrame>body</AdminFrame>);
-    const menu = await screen.findByRole("navigation", { name: "Administration sections" });
+    const menu = await screen.findByRole("navigation", { name: "Administration Sections" });
     expect(within(menu).getAllByRole("link").map((l) => l.textContent)).toEqual([
       "Users",
-      "User types",
+      "User Types",
       "Offices",
       "Designations",
-      "Department mapping",
+      "Department Mapping",
       "Tickets",
     ]);
     expect(within(menu).getByRole("link", { name: "Offices" })).toHaveAttribute("aria-current", "page");
     expect(within(menu).getByRole("link", { name: "Users" })).not.toHaveAttribute("aria-current");
-    const select = screen.getByLabelText("Setting group");
+    const select = screen.getByLabelText("Setting Group");
     expect(select).toHaveValue("offices");
     await userEvent.selectOptions(select, "mapping");
     expect(nav.push).toHaveBeenCalledWith("/admin/mapping");
@@ -464,7 +464,7 @@ describe("Administration on the Settings template (design portal-ui-redesign, de
     browserApi({ "GET /me": makeMe(["cases.view_scope"]) });
     renderWithClient(<AdminFrame>nothing here</AdminFrame>);
     expect(await screen.findByText("nothing here")).toBeInTheDocument();
-    expect(screen.queryByRole("navigation", { name: "Administration sections" })).toBeNull();
+    expect(screen.queryByRole("navigation", { name: "Administration Sections" })).toBeNull();
   });
 
   it("the users group keeps one primary (Add user); the filter's Search is secondary", async () => {
@@ -475,7 +475,7 @@ describe("Administration on the Settings template (design portal-ui-redesign, de
     });
     const { container } = renderWithClient(<UsersList />);
     await screen.findByRole("row", { name: "Open Ravi Das" });
-    expect(primaryActions(container)).toEqual(["Add user"]);
+    expect(primaryActions(container)).toEqual(["Add User"]);
     expect(screen.getByRole("button", { name: "Search" })).toHaveAttribute("data-variant", "secondary");
   });
 
@@ -483,7 +483,7 @@ describe("Administration on the Settings template (design portal-ui-redesign, de
     userRoutes(makeMe(DEPT_ADMIN, "dept_admin"), { "GET /admin/users/u-9": { ...USER, is_active: false } });
     const { container } = renderWithClient(<UserDetail id="u-9" />);
     await screen.findByRole("heading", { name: "Ravi Das" });
-    expect(screen.getByRole("button", { name: "Enable login" })).toHaveAttribute("data-variant", "secondary");
+    expect(screen.getByRole("button", { name: "Enable Login" })).toHaveAttribute("data-variant", "secondary");
     await userEvent.click(screen.getByRole("button", { name: "Edit" }));
     expect(primaryActions(container)).toEqual(["Save"]);
   });
@@ -515,11 +515,11 @@ describe("lists are DataTables, cards on phones (design portal-ui-polish, decisi
       ],
     });
     renderWithClient(<UserDetail id="u-9" />);
-    expectDataTable(await screen.findByRole("table", { name: "Offices (memberships)" }));
-    await userEvent.click(screen.getByRole("button", { name: "Functions and overrides" }));
+    expectDataTable(await screen.findByRole("table", { name: "Offices (Memberships)" }));
+    await userEvent.click(screen.getByRole("button", { name: "Functions and Overrides" }));
     expectDataTable(await screen.findByRole("table", { name: "Functions" }));
-    await userEvent.click(screen.getByRole("button", { name: "Government orders" }));
-    expectDataTable(await screen.findByRole("table", { name: "Government orders" }));
+    await userEvent.click(screen.getByRole("button", { name: "Government Orders" }));
+    expectDataTable(await screen.findByRole("table", { name: "Government Orders" }));
   });
 
   it("Tickets renders a DataTable with a primary cell", async () => {
@@ -552,6 +552,6 @@ describe("lists are DataTables, cards on phones (design portal-ui-polish, decisi
       } as unknown as TicketDetail,
     });
     renderWithClient(<TicketView ticketRef="TKT-EDU-2026-0001" />);
-    expectDataTable(await screen.findByRole("table", { name: "Government orders" }));
+    expectDataTable(await screen.findByRole("table", { name: "Government Orders" }));
   });
 });

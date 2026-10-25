@@ -193,11 +193,12 @@ def create(
     try:
         if body.role.value == "super_admin":
             raise access.Forbidden(
-                "the super admin is created only from the server's command line", "super_admin_cli_only"
+                "the Super Administrator is created only from the server's command line",
+                "super_admin_cli_only",
             )
         if body.role.value == "dept_head":
             raise access.Conflict(
-                "use_head_change", "a department head is set through the head-change request"
+                "use_head_change", "a Head of Department is set through the head-change request"
             )
         member = access.assert_can_manage(
             session,
@@ -261,7 +262,8 @@ def patch_user(
     try:
         if access.is_super_admin(user) and (not access.is_super_admin(caller) or fields.get("email")):
             raise access.Forbidden(
-                "the super admin is changed only from the server's command line", "super_admin_cli_only"
+                "the Super Administrator is changed only from the server's command line",
+                "super_admin_cli_only",
             )
         member = access.login_scope_member(session, caller, user, "edit")
         update_profile(
@@ -339,7 +341,8 @@ def reset_password(
     try:
         if access.is_super_admin(user) and not access.is_super_admin(caller):
             raise access.Forbidden(
-                "the super admin is changed only from the server's command line", "super_admin_cli_only"
+                "the Super Administrator is changed only from the server's command line",
+                "super_admin_cli_only",
             )
         member = access.login_scope_member(session, caller, user, "reset_password")
         set_password(

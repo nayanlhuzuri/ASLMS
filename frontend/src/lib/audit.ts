@@ -4,6 +4,7 @@
  * field shows an API refusal. A plain module, so the server pages may import its values.
  */
 import { addDays } from "./format";
+import { T } from "./messages";
 import type { Params } from "./params";
 
 /** The ten filters, named as the API names them, so a screen URL and an API URL carry the same filters. */
@@ -100,6 +101,11 @@ export interface ActionGroup {
 }
 
 /** The action codes grouped by the part before the first dot, groups by label, codes sorted. */
+/** The name of an action where it has one (design portal-ui-polish-2, decision 13), else its code. */
+export function actionName(code: string): string {
+  return T.audit.actionNames[code] ?? code;
+}
+
 export function actionGroups(codes: readonly string[], groupLabels: Record<string, string>): ActionGroup[] {
   const groups = new Map<string, ActionGroup>();
   for (const code of new Set(codes)) {

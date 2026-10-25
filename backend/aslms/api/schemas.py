@@ -181,6 +181,24 @@ class UserTypeCardOut(BaseModel):
     changed_from_default: int
 
 
+class UserTypeNameIn(BaseModel):
+    """Edit Name (design portal-ui-polish-2, decision 12). The service trims and checks: the label 1 to 80 characters
+    after trimming and collapsing white space, unique without regard to case; the description at most 200 characters,
+    empty = none. The raw limits here only bound the request."""
+
+    label: str = Field(max_length=400)
+    description: str | None = Field(default=None, max_length=1000)
+
+
+class UserTypeNameOut(BaseModel):
+    code: str
+    label: str
+    description: str | None = None
+    changed: bool = Field(
+        description="false when neither the name nor the description changed (no audit row)"
+    )
+
+
 class UserTypeLabelOut(BaseModel):
     code: str
     label: str

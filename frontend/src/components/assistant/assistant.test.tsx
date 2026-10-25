@@ -155,9 +155,9 @@ describe("the Assistant page", () => {
     expect(within(box).getAllByText("Preview")).toHaveLength(2); // who answered, and the badge
     expect(within(box).getByText("Answered")).toBeInTheDocument();
     expect(primaryActions(document.body)).toEqual(["Ask"]);
-    expect(screen.getByRole("radiogroup", { name: "Search in" })).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: "My cases" })).toHaveAttribute("aria-checked", "true");
-    expect(screen.queryByRole("radio", { name: "This case" })).toBeNull();
+    expect(screen.getByRole("radiogroup", { name: "Search In" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "My Cases" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.queryByRole("radio", { name: "This Case" })).toBeNull();
     expect(screen.getByText("Conversations are private to you and cannot be deleted.")).toBeInTheDocument();
     expect(screen.getByText(/26 questions left this hour of 30/)).toBeInTheDocument();
   });
@@ -165,11 +165,11 @@ describe("the Assistant page", () => {
   it("sources open the file at the page, a case the reader cannot open opens the court-record view, related apart", async () => {
     browserApi(pageRoutes([conv()], [question(), answer()]));
     renderWithClient(<AssistantPage />);
-    const panel = await screen.findByRole("complementary", { name: "Sources used" });
+    const panel = await screen.findByRole("complementary", { name: "Sources Used" });
     const own = await within(panel).findByRole("link", { name: /Open source 1: Order of 12 Mar 2026, No\. 5, page 2/ });
     expect(own).toHaveAttribute("href", "/api/backend/cases/c-1/orders/o-1/file?disposition=inline#page=2");
     expect(own).toHaveAttribute("target", "_blank");
-    const related = within(panel).getByRole("list", { name: "Related orders in other cases" });
+    const related = within(panel).getByRole("list", { name: "Related Orders in Other Cases" });
     const other = within(related).getByRole("link", { name: /Open source 2/ });
     expect(other).toHaveAttribute("href", "/assistant/orders/o-2?m=a-1");
     expect(within(related).getByText("WP(C)/202/2026")).toBeInTheDocument();
@@ -204,7 +204,7 @@ describe("the Assistant page", () => {
     renderWithClient(<AssistantPage />);
     const box = await screen.findByRole("log", { name: "Conversation" });
     expect(await within(box).findByText("This answer drew on a document you can no longer see.")).toBeInTheDocument();
-    const panel = screen.getByRole("complementary", { name: "Sources used" });
+    const panel = screen.getByRole("complementary", { name: "Sources Used" });
     expect(within(panel).getByText("This source is no longer available to you")).toBeInTheDocument();
     expect(within(panel).queryByRole("link")).toBeNull();
     expect(panel.textContent).not.toMatch(/Petition|Order of|page/);
@@ -216,7 +216,7 @@ describe("the Assistant page", () => {
     renderWithClient(<AssistantPage />);
     const box = await screen.findByRole("log", { name: "Conversation" });
     expect(await within(box).findByText("The answer drew on material outside your reach and was withheld.")).toBeInTheDocument();
-    expect(within(box).getByText("Not answered")).toBeInTheDocument();
+    expect(within(box).getByText("Not Answered")).toBeInTheDocument();
     expect(within(box).getByText("No answer was recorded for this question.")).toBeInTheDocument();
   });
 
@@ -231,7 +231,7 @@ describe("the Assistant page", () => {
       }),
     );
     renderWithClient(<AssistantPage />);
-    const chips = await screen.findByRole("group", { name: "Suggested questions" });
+    const chips = await screen.findByRole("group", { name: "Suggested Questions" });
     await userEvent.click(within(chips).getByRole("button", { name: "Which of my cases have a direction to file an affidavit?" }));
     const box = screen.getByLabelText("Question") as HTMLTextAreaElement;
     expect(box.value).toBe("Which of my cases have a direction to file an affidavit?");
@@ -299,9 +299,9 @@ describe("the case Assistant tab", () => {
     const api = browserApi(caseRoutes());
     resetNav(`${BASE}/assistant`);
     renderWithClient(<CaseAssistant caseRef={REF} />);
-    const group = await screen.findByRole("radiogroup", { name: "Search in" });
-    expect(within(group).getAllByRole("radio").map((r) => r.textContent)).toEqual(["This case", "My cases", "All court orders"]);
-    expect(within(group).getByRole("radio", { name: "This case" })).toHaveAttribute("aria-checked", "true");
+    const group = await screen.findByRole("radiogroup", { name: "Search In" });
+    expect(within(group).getAllByRole("radio").map((r) => r.textContent)).toEqual(["This Case", "My Cases", "All Court Orders"]);
+    expect(within(group).getByRole("radio", { name: "This Case" })).toHaveAttribute("aria-checked", "true");
     expect(screen.getByText(/Searches this case's court orders/)).toBeInTheDocument();
     expect(primaryActions(document.body)).toEqual([]);
     await screen.findByRole("log", { name: "Conversation" });
@@ -317,7 +317,7 @@ describe("the case Assistant tab", () => {
     resetNav(`${BASE}/assistant`);
     renderWithClient(<CaseAssistant caseRef={REF} />);
     const box = await screen.findByRole("log", { name: "Conversation" });
-    await userEvent.click(await within(box).findByRole("button", { name: "Copy to note" }));
+    await userEvent.click(await within(box).findByRole("button", { name: "Copy to Note" }));
     const dialog = await screen.findByRole("dialog");
     const note = (await within(dialog).findByLabelText("Note")) as HTMLTextAreaElement;
     expect(note.value).toContain("2 passages from 2 documents matched");
@@ -332,7 +332,7 @@ describe("the case Assistant tab", () => {
     renderWithClient(<CaseAssistant caseRef={REF} />);
     const box = await screen.findByRole("log", { name: "Conversation" });
     await within(box).findByText("Answered");
-    expect(within(box).queryByRole("button", { name: "Copy to note" })).toBeNull();
+    expect(within(box).queryByRole("button", { name: "Copy to Note" })).toBeNull();
   });
 
   it("switching the scope searches the last question again there", async () => {
@@ -349,7 +349,7 @@ describe("the case Assistant tab", () => {
     renderWithClient(<CaseAssistant caseRef={REF} />);
     const box = await screen.findByRole("log", { name: "Conversation" });
     await within(box).findByText("what did the court direct");
-    await userEvent.click(screen.getByRole("radio", { name: "All court orders" }));
+    await userEvent.click(screen.getByRole("radio", { name: "All Court Orders" }));
     await waitFor(() => expect(api.calls.some((c) => c.method === "POST")).toBe(true));
     const post = api.calls.find((c) => c.method === "POST")!;
     // in the latest conversation of that scope
@@ -385,14 +385,14 @@ describe("the court-record view (decision 11)", () => {
     resetNav("/assistant/orders/o-2");
     renderWithClient(<CourtOrderView orderId="o-2" messageId="a-1" />);
     expect(await screen.findByText("This is the court's public record. You cannot open this case in ASLMS.")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Court record: WP(C)/202/2026");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Court Record: WP(C)/202/2026");
     expect(screen.getByText("R. DAS; THE STATE OF ASSAM")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Open the order" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Open the Order" })).toHaveAttribute(
       "href",
       "/api/backend/assistant/court-orders/o-2/file?message=a-1&disposition=inline",
     );
-    expect(screen.queryByRole("link", { name: "Open the case page" })).toBeNull();
-    expect(primaryActions(document.body)).toEqual(["Open the order"]);
+    expect(screen.queryByRole("link", { name: "Open the Case Page" })).toBeNull();
+    expect(primaryActions(document.body)).toEqual(["Open the Order"]);
     const text = document.body.textContent ?? "";
     for (const banned of ["ASLMS/", "Owner", "Custody", "Stage", "Notes"]) expect(text).not.toContain(banned);
   });

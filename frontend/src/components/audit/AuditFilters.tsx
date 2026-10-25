@@ -13,6 +13,7 @@ import { Button, SelectField, TextField, type Option } from "@/components/ui";
 import { useDepartmentPeople, useDepartments } from "@/lib/api/hooks";
 import {
   actionGroups,
+  actionName,
   checkFilters,
   choiceOf,
   PERIOD_CHOICES,
@@ -105,7 +106,7 @@ export function AuditFilters({
     label: g.label,
     options: [
       ...(g.prefix ? [{ value: g.prefix, label: T.audit.allActions(g.label) }] : []),
-      ...g.codes.map((c) => ({ value: c, label: c })),
+      ...g.codes.map((c) => ({ value: c, label: actionName(c) })),
     ],
   }));
   const listed = actionOptions.some((g) => g.options.some((o) => o.value === form.action));

@@ -26,7 +26,7 @@ def test_seed_adds_admin_service_health_disabled_for_every_type(world):
             sa.text("SELECT label, description FROM ref_permission WHERE code = 'admin.service_health'")
         ).one()
         assert label == PERMISSION_LABELS[Permission.ADMIN_SERVICE_HEALTH]
-        assert label[0] == "System health"
+        assert label[0] == "System Health"
         rows = s.scalars(
             sa.select(RolePermission).where(RolePermission.permission == Permission.ADMIN_SERVICE_HEALTH)
         ).all()

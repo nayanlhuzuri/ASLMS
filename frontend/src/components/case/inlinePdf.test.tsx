@@ -43,7 +43,7 @@ describe("INLINE_PDF false", () => {
     });
     renderWithClient(<Orders caseRef={REF} />);
     await userEvent.click(await screen.findByRole("button", { name: /interim/ }));
-    expect(screen.getByRole("link", { name: "Open in a new tab" })).toHaveAttribute("href", `/api/backend${BASE}/orders/o-1/file?disposition=inline`);
+    expect(screen.getByRole("link", { name: "Open in a New Tab" })).toHaveAttribute("href", `/api/backend${BASE}/orders/o-1/file?disposition=inline`);
     expect(screen.getByRole("link", { name: "Download PDF" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Print" })).toBeNull();
     expect(document.querySelector("iframe")).toBeNull();
@@ -79,10 +79,10 @@ describe("INLINE_PDF false", () => {
     renderWithClient(<Documents caseRef={REF} />);
     const pdfRow = (await screen.findByText("d-pdf description")).closest("tr")!;
     expect(within(pdfRow).queryByRole("link", { name: "View" })).toBeNull();
-    expect(within(pdfRow).getByText("Opens as a download")).toBeInTheDocument();
+    expect(within(pdfRow).getByText("Opens As a Download")).toBeInTheDocument();
     const imgRow = screen.getByText("d-img description").closest("tr")!;
     expect(within(imgRow).getByRole("link", { name: "View" })).toBeInTheDocument();
-    expect(within(imgRow).queryByText("Opens as a download")).toBeNull();
+    expect(within(imgRow).queryByText("Opens As a Download")).toBeNull();
   });
 
   it("note attachments: a PDF downloads with the hint", async () => {
@@ -114,6 +114,6 @@ describe("INLINE_PDF false", () => {
     await screen.findByText("with a pdf");
     expect(screen.queryByRole("link", { name: "View" })).toBeNull();
     expect(screen.getByRole("link", { name: "Download" })).toBeInTheDocument();
-    expect(screen.getByText("Opens as a download")).toBeInTheDocument();
+    expect(screen.getByText("Opens As a Download")).toBeInTheDocument();
   });
 });

@@ -94,8 +94,8 @@ describe("Court search tab", () => {
       </MappingFrame>,
     );
     await screen.findByText("body");
-    const nav = screen.getByRole("navigation", { name: "Department mapping sections" });
-    expect(within(nav).queryByRole("link", { name: "Court search" })).toBeNull();
+    const nav = screen.getByRole("navigation", { name: "Department Mapping Sections" });
+    expect(within(nav).queryByRole("link", { name: "Court Search" })).toBeNull();
   });
 
   it("lists the names and opens a name's cases with Claim through the claim dialog", async () => {
@@ -124,9 +124,9 @@ describe("Court search tab", () => {
       [`POST ${own}/claim`]: json(201, {}),
     });
     renderWithClient(<CourtSearch />);
-    const table = await screen.findByRole("table", { name: "Names searched at the court" });
+    const table = await screen.findByRole("table", { name: "Names Searched at the Court" });
     expect(within(table).getByText("PRITAM SAIKIA")).toBeInTheDocument();
-    expect(within(table).getByText("Not searched now")).toBeInTheDocument();
+    expect(within(table).getByText("Not Searched Now")).toBeInTheDocument();
     expect(screen.queryByText(/calls?\b/i)).toBeNull(); // no call counts for users
     await userEvent.click(screen.getByRole("button", { name: "Show the cases found for PRITAM SAIKIA" }));
     const cases = await screen.findByRole("table", { name: "Cases found for PRITAM SAIKIA" });
@@ -134,7 +134,7 @@ describe("Court search tab", () => {
     expect(within(rows[2]!).getByText("HEALTH")).toBeInTheDocument();
     expect(within(rows[2]!).queryByRole("button", { name: "Claim" })).toBeNull();
     await userEvent.click(within(rows[1]!).getByRole("button", { name: "Claim" }));
-    const dialog = screen.getByRole("dialog", { name: "Claim this case" });
+    const dialog = screen.getByRole("dialog", { name: "Claim This Case" });
     await within(dialog).findByText("EDU");
     await userEvent.click(within(dialog).getByRole("button", { name: "Claim" }));
     await waitFor(() =>
@@ -150,7 +150,7 @@ describe("Court search tab", () => {
       "POST /admin/discovery/search": json(202, { term_id: "t-1", term: "PRITAM SAIKIA", years: [2011, 2010], queued: true }),
     });
     renderWithClient(<CourtSearch />);
-    const form = await screen.findByRole("form", { name: "Search older years" });
+    const form = await screen.findByRole("form", { name: "Search Older Years" });
     await userEvent.type(within(form).getByLabelText("Name"), "Pritam Saikia");
     await userEvent.type(within(form).getByLabelText("Years"), "1900");
     await userEvent.click(within(form).getByRole("button", { name: "Search" }));
@@ -182,7 +182,7 @@ describe("Discovery data tab", () => {
     renderWithClient(<Discovery />);
     expect(await screen.findByText("12 of 100 calls used in this window; 88 left.")).toBeInTheDocument();
     expect(screen.getByText("GAHC01|P|2025|PRITAM SAIKIA")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Sweep every name now" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Sweep Every Name Now" })).toBeNull();
   });
 
   it("the sweep asks first and posts for admin.data_load", async () => {
@@ -192,10 +192,10 @@ describe("Discovery data tab", () => {
       "POST /admin/discovery/sweep": json(202, { terms: 3, rows_queued: 6 }),
     });
     renderWithClient(<Discovery />);
-    await userEvent.click(await screen.findByRole("button", { name: "Sweep every name now" }));
-    const dialog = screen.getByRole("dialog", { name: "Queue a discovery sweep" });
+    await userEvent.click(await screen.findByRole("button", { name: "Sweep Every Name Now" }));
+    const dialog = screen.getByRole("dialog", { name: "Queue a Discovery Sweep" });
     expect(api.calls.some((c) => c.method === "POST")).toBe(false);
-    await userEvent.click(within(dialog).getByRole("button", { name: "Sweep every name now" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Sweep Every Name Now" }));
     expect(await screen.findByText("6 searches queued for 3 name(s).")).toBeInTheDocument();
   });
 });
@@ -209,7 +209,7 @@ describe("lists are DataTables, cards on phones (design portal-ui-polish, decisi
       "GET /admin/discovery/terms/t-1/cases": { items: [found(1)], total: 1 },
     });
     renderWithClient(<CourtSearch />);
-    expectDataTable(await screen.findByRole("table", { name: "Names searched at the court" }));
+    expectDataTable(await screen.findByRole("table", { name: "Names Searched at the Court" }));
     await userEvent.click(screen.getByRole("button", { name: "Show the cases found for PRITAM SAIKIA" }));
     expectDataTable(await screen.findByRole("table", { name: "Cases found for PRITAM SAIKIA" }));
   });

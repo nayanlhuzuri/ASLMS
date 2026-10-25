@@ -168,9 +168,9 @@ describe("the date", () => {
   it("Previous list and Next list move to the API's dates", async () => {
     browserApi(routes());
     renderWithClient(<CauseList params={{ date: D, bench_id: "1854", q: "anima" }} />);
-    await userEvent.click(await screen.findByRole("button", { name: "Previous list" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Previous List" }));
     expect(nav.replace).toHaveBeenLastCalledWith("/causelist?date=2026-10-12&q=anima");
-    await userEvent.click(screen.getByRole("button", { name: "Next list" }));
+    await userEvent.click(screen.getByRole("button", { name: "Next List" }));
     expect(nav.replace).toHaveBeenLastCalledWith("/causelist?date=2026-10-20&q=anima");
   });
 
@@ -194,14 +194,14 @@ describe("fetching a missing day", () => {
     browserApi(routes(notLoaded));
     renderWithClient(<CauseList params={{ date: D }} />);
     await screen.findByText(/Not loaded yet/);
-    expect(screen.queryByRole("button", { name: "Fetch this day from the court" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Fetch This Day From the Court" })).toBeNull();
   });
 
   it("no button on a loading day even for an operator", async () => {
     browserApi(routes({ [`GET /causelists/${D}`]: day({ state: "loading", benches: [] }) }, [...READER, "admin.napix_refetch"]));
     renderWithClient(<CauseList params={{ date: D }} />);
     await screen.findByText(/being fetched/);
-    expect(screen.queryByRole("button", { name: "Fetch this day from the court" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Fetch This Day From the Court" })).toBeNull();
   });
 
   it("posts the day, and a 409 already_held asks before resending with force", async () => {
@@ -218,10 +218,10 @@ describe("fetching a missing day", () => {
       ),
     );
     renderWithClient(<CauseList params={{ date: D }} />);
-    await userEvent.click(await screen.findByRole("button", { name: "Fetch this day from the court" }));
-    const dialog = await screen.findByRole("dialog", { name: "Already held" });
+    await userEvent.click(await screen.findByRole("button", { name: "Fetch This Day From the Court" }));
+    const dialog = await screen.findByRole("dialog", { name: "Already Held" });
     expect(within(dialog).getByText(/published no cause list/)).toBeInTheDocument();
-    await userEvent.click(within(dialog).getByRole("button", { name: "Fetch anyway" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Fetch Anyway" }));
     expect(await screen.findByText(/Asked for/)).toBeInTheDocument();
     const posts = api.calls.filter((c) => c.method === "POST" && c.path === "/admin/napix/refetch/day");
     expect(posts.map((c) => c.body)).toEqual([{ date: D }, { date: D, force: true }]);
@@ -234,10 +234,10 @@ describe("the bench", () => {
     renderWithClient(<CauseList params={{ date: D }} />);
     const select = await screen.findByLabelText("Bench");
     expect(within(select).getAllByRole("option").map((o) => o.textContent)).toEqual([
-      "All benches",
+      "All Benches",
       "Court 2 · HONOURABLE MR. JUSTICE SOUMITRA SAIKIA · 1",
       "Court 10 · HONOURABLE THE CHIEF JUSTICE · 53",
-      "Court 5 · Court-wide list · 1",
+      "Court 5 · Court-wide List · 1",
     ]);
     await userEvent.selectOptions(select, "b:1854");
     expect(nav.replace).toHaveBeenLastCalledWith(`/causelist?date=${D}&bench_id=1854`);
@@ -248,7 +248,7 @@ describe("the bench", () => {
   it("the chosen bench's lists offer View with documents.view and Download with documents.download", async () => {
     browserApi(routes());
     renderWithClient(<CauseList params={{ date: D, bench_id: "1854" }} />);
-    const lists = await screen.findByRole("region", { name: "Lists of this bench" });
+    const lists = await screen.findByRole("region", { name: "Lists of This Bench" });
     const items = within(lists).getAllByRole("listitem");
     expect(within(items[0]!).getByRole("link", { name: "View" })).toHaveAttribute(
       "href",
@@ -265,7 +265,7 @@ describe("the bench", () => {
   it("without the file functions neither View nor Download shows", async () => {
     browserApi(routes({}, ["cases.view_scope", "documents.view"]));
     renderWithClient(<CauseList params={{ date: D, bench_id: "1854" }} />);
-    const lists = await screen.findByRole("region", { name: "Lists of this bench" });
+    const lists = await screen.findByRole("region", { name: "Lists of This Bench" });
     expect(within(lists).getAllByRole("link", { name: "View" })).toHaveLength(1);
     expect(within(lists).queryByRole("link", { name: "Download" })).toBeNull();
   });
@@ -275,7 +275,7 @@ describe("the entries", () => {
   it("render in API order with a heading at each court, bench, list and section change", async () => {
     browserApi(routes());
     renderWithClient(<CauseList params={{ date: D }} />);
-    const table = await screen.findByRole("table", { name: "Cause-list entries" });
+    const table = await screen.findByRole("table", { name: "Cause-list Entries" });
     const headings = within(table)
       .getAllByRole("columnheader")
       .filter((th) => th.getAttribute("scope") === "colgroup")
@@ -283,14 +283,14 @@ describe("the entries", () => {
     expect(headings).toEqual([
       "Court 2",
       "HONOURABLE MR. JUSTICE SOUMITRA SAIKIA",
-      "Daily list",
+      "Daily List",
       "ORDERS",
       "Court 10",
       "HONOURABLE THE CHIEF JUSTICE",
-      "Daily list",
+      "Daily List",
       "ORDERS",
       "FOR ADMISSION",
-      "Supplementary list",
+      "Supplementary List",
       "ORDERS",
     ]);
     const cases = within(table)
@@ -316,10 +316,10 @@ describe("the entries", () => {
     renderWithClient(<CauseList params={{ date: D }} />);
     const owned = (await screen.findByText("WP(C)/4/2025")).closest("tr")!;
     expect(within(owned).getByText("Claimed by EDU")).toBeInTheDocument();
-    expect(within(owned).getByText("Your department")).toBeInTheDocument();
+    expect(within(owned).getByText("Your Department")).toBeInTheDocument();
     const watched = screen.getByText("WP(C)/6/2025").closest("tr")!;
     expect(within(watched).getByText("Claimed by FIN")).toBeInTheDocument();
-    expect(within(watched).getByText("Your department (watching)")).toBeInTheDocument();
+    expect(within(watched).getByText("Your Department (Watching)")).toBeInTheDocument();
     const rec = screen.getByText("WP(C)/2/2025").closest("tr")!;
     expect(within(rec).getByText("Strong · EDU · 0.95")).toBeInTheDocument();
     expect(within(rec).getByText("Unclaimed")).toBeInTheDocument();
@@ -340,12 +340,12 @@ describe("the entries", () => {
       }),
     );
     renderWithClient(<CauseList params={{ date: D }} />);
-    await screen.findByRole("table", { name: "Cause-list entries" });
+    await screen.findByRole("table", { name: "Cause-list Entries" });
     expect(screen.getAllByRole("button", { name: "Claim" })).toHaveLength(1);
     const before = api.calls.filter((c) => c.path.startsWith(`/causelists/${D}/entries`)).length;
     const row = screen.getByText("WP(C)/2/2025").closest("tr")!;
     await userEvent.click(within(row).getByRole("button", { name: "Claim" }));
-    const dialog = screen.getByRole("dialog", { name: "Claim this case" });
+    const dialog = screen.getByRole("dialog", { name: "Claim This Case" });
     await waitFor(() => expect(api.calls.some((c) => c.path === `${own}/ownership`)).toBe(true));
     await userEvent.click(within(dialog).getByRole("button", { name: "Claim" }));
     await waitFor(() =>
@@ -363,7 +363,7 @@ describe("filters", () => {
     renderWithClient(
       <CauseList params={{ date: D, bench_id: "1854", list_type: "supplementary", court_no: "10", q: "anima", only: "claimable", offset: "200" }} />,
     );
-    await screen.findByRole("table", { name: "Cause-list entries" });
+    await screen.findByRole("table", { name: "Cause-list Entries" });
     const sent = entriesCall(api);
     expect(Object.fromEntries(sent.entries())).toEqual({
       bench_id: "1854",
@@ -380,7 +380,7 @@ describe("filters", () => {
     browserApi(routes());
     renderWithClient(<CauseList params={{ date: D, offset: "200" }} />);
     expect(await screen.findByText("55 entries · 4 recommended to you · 12 claimed · 6 claimable")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Recommended to me (4)" }));
+    await userEvent.click(screen.getByRole("button", { name: "Recommended to Me (4)" }));
     expect(nav.replace).toHaveBeenLastCalledWith(`/causelist?date=${D}&only=recommended`);
     await userEvent.type(screen.getByLabelText(/^Words/), "SC, REV");
     await userEvent.click(screen.getByRole("button", { name: "Search" }));
@@ -390,11 +390,11 @@ describe("filters", () => {
   it("the list type choices are the day's types, and choosing one writes list_type", async () => {
     browserApi(routes());
     renderWithClient(<CauseList params={{ date: D, bench_id: "1854" }} />);
-    const select = await screen.findByLabelText("List type");
+    const select = await screen.findByLabelText("List Type");
     expect(within(select).getAllByRole("option").map((o) => o.textContent)).toEqual([
-      "All list types",
-      "Daily list",
-      "Supplementary list",
+      "All List Types",
+      "Daily List",
+      "Supplementary List",
     ]);
     await userEvent.selectOptions(select, "supplementary");
     expect(nav.replace).toHaveBeenLastCalledWith(`/causelist?date=${D}&bench_id=1854&list_type=supplementary`);
@@ -405,7 +405,7 @@ describe("the Work list template (portal-ui-redesign, decision 26)", () => {
   it("court and item lead every entry in the fixed column; a connected entry has no item number", async () => {
     browserApi(routes());
     renderWithClient(<CauseList params={{ date: D }} />);
-    const table = await screen.findByRole("table", { name: "Cause-list entries" });
+    const table = await screen.findByRole("table", { name: "Cause-list Entries" });
     const rows = within(table)
       .getAllByRole("row")
       .filter((r) => r.getAttribute("tabindex") === "0");
@@ -430,7 +430,7 @@ describe("the Work list template (portal-ui-redesign, decision 26)", () => {
     const row = (await screen.findByText("WP(C)/2/2025")).closest("tr")!;
     await userEvent.click(within(row).getByRole("button", { name: "Claim" }));
     expect(screen.queryByRole("dialog", { name: "WP(C)/2/2025" })).toBeNull();
-    await userEvent.click(within(screen.getByRole("dialog", { name: "Claim this case" })).getByRole("button", { name: "Cancel" }));
+    await userEvent.click(within(screen.getByRole("dialog", { name: "Claim This Case" })).getByRole("button", { name: "Cancel" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(container.querySelectorAll("[data-variant='primary']").length).toBeLessThanOrEqual(1);
     await userEvent.click(screen.getByRole("row", { name: "Details of WP(C)/4/2025" }));
@@ -438,7 +438,7 @@ describe("the Work list template (portal-ui-redesign, decision 26)", () => {
     expect(within(panel).getByText("MR. A. BORA")).toBeInTheDocument();
     expect(within(panel).getByText("SC, REVENUE", { selector: "span" })).toBeInTheDocument();
     expect(within(panel).getByText("FOR ADMISSION")).toBeInTheDocument();
-    expect(within(panel).getByRole("link", { name: "Open case page" })).toHaveAttribute("href", "/cases/ASLMS-GOA-CASE-2026-000004");
+    expect(within(panel).getByRole("link", { name: "Open Case Page" })).toHaveAttribute("href", "/cases/ASLMS-GOA-CASE-2026-000004");
     await userEvent.click(within(panel).getByRole("button", { name: "Close" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
@@ -466,10 +466,10 @@ describe("corrected lists (court-data-freshness, decision 17)", () => {
   it("a corrected list carries the badge, the time received and an Earlier version link", async () => {
     browserApi(routes({ [`GET /causelists/${D}`]: day({ benches }) }));
     renderWithClient(<CauseList params={{ date: D, bench_id: "1854" }} />);
-    const lists = await screen.findByRole("region", { name: "Lists of this bench" });
-    expect(within(lists).getByText("Corrected list")).toBeInTheDocument();
+    const lists = await screen.findByRole("region", { name: "Lists of This Bench" });
+    expect(within(lists).getByText("Corrected List")).toBeInTheDocument();
     expect(within(lists).getByText(/^received /)).toBeInTheDocument();
-    await userEvent.click(within(lists).getByRole("button", { name: "Earlier version" }));
+    await userEvent.click(within(lists).getByRole("button", { name: "Earlier Version" }));
     expect(nav.replace).toHaveBeenLastCalledWith(`/causelist?date=${D}&list_id=${OLD}`);
   });
 
@@ -484,7 +484,7 @@ describe("corrected lists (court-data-freshness, decision 17)", () => {
     renderWithClient(<CauseList params={{ date: D, list_id: OLD }} />);
     expect(await screen.findByText(/This list was replaced by a corrected list/)).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "View" }).some((a) => a.getAttribute("href")?.includes(OLD))).toBe(true);
-    await userEvent.click(screen.getByRole("button", { name: "Show the current list" }));
+    await userEvent.click(screen.getByRole("button", { name: "Show the Current List" }));
     expect(nav.replace).toHaveBeenLastCalledWith(`/causelist?date=${D}&bench_id=1854`);
   });
 });

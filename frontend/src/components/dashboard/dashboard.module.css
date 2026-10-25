@@ -113,3 +113,32 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* design portal-ui-polish-2, decisions 44 and 45: the view switch with its sentence under it and the date at the right */
+.viewRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--s2) var(--s4);
+}
+
+.viewSwitch {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  min-width: 0;
+}
+
+.viewHint {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--t-sm);
+}
+
+.viewDate {
+  margin-left: auto;
+  padding-top: var(--s1);
+  color: var(--text-2);
+  font-size: var(--t-sm);
+  white-space: nowrap;
+}

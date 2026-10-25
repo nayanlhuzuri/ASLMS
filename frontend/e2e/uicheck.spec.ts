@@ -162,8 +162,35 @@ const STATES: State[] = [
     path: "/",
     widths: [375],
     open: async (page) => {
-      await page.getByRole("button", { name: "Open menu" }).click();
+      await page.getByRole("button", { name: "Open Menu" }).click();
       await page.getByRole("dialog").first().waitFor();
+    },
+  },
+  {
+    // design portal-ui-polish-2, decision 14: the one-level side menu with Administration open
+    name: "/ (side menu: Administration open)",
+    path: "/",
+    widths: [1280],
+    open: async (page) => {
+      const admin = page.getByRole("treeitem", { name: "Administration" });
+      await admin.waitFor();
+      await admin.focus();
+      await page.keyboard.press("ArrowRight");
+      await page.getByRole("group", { name: "Administration" }).getByRole("treeitem", { name: "Users" }).waitFor();
+    },
+  },
+  {
+    // decision 19: the phone drawer holds the same tree
+    name: "/ (phone drawer: Administration open)",
+    path: "/",
+    widths: [375],
+    open: async (page) => {
+      await page.getByRole("button", { name: "Open Menu" }).click();
+      await page.getByRole("dialog").first().waitFor();
+      const admin = page.getByRole("treeitem", { name: "Administration" });
+      await admin.focus();
+      await page.keyboard.press("ArrowRight");
+      await page.getByRole("group", { name: "Administration" }).getByRole("treeitem", { name: "Users" }).waitFor();
     },
   },
   {
@@ -203,14 +230,14 @@ const STATES: State[] = [
     name: `/assistant/orders/${SAMPLE.orderId} (court record from a citation)`,
     path: `/assistant/orders/${SAMPLE.orderId}?m=${SAMPLE.messageId}`,
     open: async (page) => {
-      await page.getByRole("link", { name: "Open the order" }).waitFor();
+      await page.getByRole("link", { name: "Open the Order" }).waitFor();
     },
   },
   {
     name: `/cases/${SAMPLE.caseRefPath} (send case, step 1)`,
     path: `/cases/${SAMPLE.caseRefPath}`,
     open: async (page) => {
-      await page.getByRole("button", { name: "Send case" }).first().click();
+      await page.getByRole("button", { name: "Send Case" }).first().click();
       await page.getByRole("dialog").first().waitFor();
     },
   },
@@ -219,8 +246,8 @@ const STATES: State[] = [
     name: `/cases/${SAMPLE.caseRefPath}?remarks=all (remarks panel)`,
     path: `/cases/${SAMPLE.caseRefPath}?remarks=all`,
     open: async (page) => {
-      await page.getByRole("dialog", { name: "Remarks and notes" }).waitFor();
-      await page.getByText("Sent by", { exact: false }).first().waitFor();
+      await page.getByRole("dialog", { name: "Remarks and Notes" }).waitFor();
+      await page.getByText("Sent By", { exact: false }).first().waitFor();
     },
   },
   {
@@ -240,7 +267,7 @@ const STATES: State[] = [
     path: `/admin/users?user=${SAMPLE.userId}`,
     open: async (page) => {
       await page.getByRole("dialog").first().waitFor();
-      await page.getByRole("link", { name: "Open full page" }).waitFor();
+      await page.getByRole("link", { name: "Open Full Page" }).waitFor();
     },
   },
   {
@@ -253,6 +280,15 @@ const STATES: State[] = [
       await switches.nth(0).click();
       await switches.nth(1).click();
       await page.getByText("2 unsaved changes").waitFor();
+    },
+  },
+  {
+    // design portal-ui-polish-2, decision 13: Edit Name on the user-type page (the sample type has the 80-character name)
+    name: `/admin/access/${SAMPLE.userType} (Edit Name dialog)`,
+    path: `/admin/access/${SAMPLE.userType}`,
+    open: async (page) => {
+      await page.getByRole("button", { name: "Edit Name" }).click();
+      await page.getByRole("dialog", { name: "Edit Name" }).waitFor();
     },
   },
 ];

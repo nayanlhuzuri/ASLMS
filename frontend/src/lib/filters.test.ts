@@ -23,19 +23,19 @@ const TEXTS = { reversed: "reversed", chooseDate: "choose", year: "year", words:
 const CHIPS: ChipTexts = {
   field: {
     q: "Words",
-    listed: "Cause list",
-    next: "Next hearing",
-    case_type: "Case type",
+    listed: "Cause List",
+    next: "Next Hearing",
+    case_type: "Case Type",
     year: "Year",
     case_status: "Status",
     court_no: "Court",
     bench: "Bench",
     owner: "Department",
-    scored_for: "Matched to department",
-    other_office: "Other department",
+    scored_for: "Matched to Department",
+    other_office: "Other Department",
   },
-  listedPresets: { today: "Today", tomorrow: "Tomorrow", d7: "Last 7 days", d30: "Last 30 days" },
-  nextPresets: { today: "Today", n7: "Next 7 days", n30: "Next 30 days" },
+  listedPresets: { today: "Today", tomorrow: "Tomorrow", d7: "Last 7 Days", d30: "Last 30 Days" },
+  nextPresets: { today: "Today", n7: "Next 7 Days", n30: "Next 30 Days" },
   statuses: { pending: "Pending", disposed: "Disposed", unknown: "Unknown" },
   range: (a, b) => `${a} – ${b}`,
   from: (d) => `from ${d}`,
@@ -193,9 +193,9 @@ describe("the date field and chips", () => {
     );
     expect(chips.map((c) => c.label)).toEqual([
       "Words: ram",
-      "Cause list: 25 Sep 2026",
-      "Next hearing: Next 7 days",
-      "Case type: WP(C)",
+      "Cause List: 25 Sep 2026",
+      "Next Hearing: Next 7 Days",
+      "Case Type: WP(C)",
       "Year: 2025",
       "Status: Disposed",
       "Court: 3",
@@ -204,10 +204,10 @@ describe("the date field and chips", () => {
     ]);
     expect(chips[1]!.keys).toEqual(["listed", "listed_from", "listed_to"]);
     const range = chipsOf({ listed_from: "2026-10-01", listed_to: "2026-10-07", scored_for: "EDU" }, "pool", CHIPS);
-    expect(range.map((c) => c.label)).toEqual(["Cause list: 1 Oct 2026 – 7 Oct 2026", "Matched to department: EDU"]);
+    expect(range.map((c) => c.label)).toEqual(["Cause List: 1 Oct 2026 – 7 Oct 2026", "Matched to Department: EDU"]);
     // a chip read from an old name also drops it
     expect(chipsOf({ status: "disposed" }, "search", CHIPS)[0]!.keys).toEqual(["case_status", "status"]);
-    expect(chipsOf({ other_office: "FIN" }, "transfers", CHIPS)[0]!.label).toBe("Other department: FIN");
+    expect(chipsOf({ other_office: "FIN" }, "transfers", CHIPS)[0]!.label).toBe("Other Department: FIN");
   });
 
   it("tells whether a case filter is set", () => {
@@ -235,12 +235,12 @@ describe("the defaultOn check control (ownership-refinements, decision 8)", () =
   });
 
   it("the chip shows only the non-default state, with its own label", () => {
-    const plain = { label: "Overdue only" };
-    const on = { label: "Only cases I can open", defaultOn: true, offLabel: "Also cases I cannot open" };
-    expect(checkChip("overdue", "true", plain)).toEqual({ keys: ["overdue"], label: "Overdue only" });
+    const plain = { label: "Overdue Only" };
+    const on = { label: "Only Cases I Can Open", defaultOn: true, offLabel: "Also Cases I Cannot Open" };
+    expect(checkChip("overdue", "true", plain)).toEqual({ keys: ["overdue"], label: "Overdue Only" });
     expect(checkChip("overdue", undefined, plain)).toBeNull();
     expect(checkChip("visible_only", undefined, on)).toBeNull();
     expect(checkChip("visible_only", "true", on)).toBeNull();
-    expect(checkChip("visible_only", "false", on)).toEqual({ keys: ["visible_only"], label: "Also cases I cannot open" });
+    expect(checkChip("visible_only", "false", on)).toEqual({ keys: ["visible_only"], label: "Also Cases I Cannot Open" });
   });
 });

@@ -12,9 +12,9 @@ from aslms.services.access import ACTIVE_FUNCTIONS
 from aslms.services.access_seed import PERMISSION_GROUPS, PERMISSION_LABELS, permission_group
 
 EXPECTED_SIZES = {
-    "People and access": 11,
-    "Cases and ownership": 12,
-    "Case work": 8,
+    "People and Access": 11,
+    "Cases and Ownership": 12,
+    "Case Work": 8,
     "Documents": 3,
     "Alerts": 2,
     "Reports": 4,

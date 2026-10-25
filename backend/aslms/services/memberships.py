@@ -238,9 +238,9 @@ def check_type_limits(
     dept = access.department_of(session, office)
     others = [m for m in access.active_memberships(session, user) if exclude is None or m.id != exclude.id]
     if any(_role(m.role) == Role.SUPER_ADMIN for m in others):
-        raise Conflict("super_admin_single", "the super admin holds no other membership")
+        raise Conflict("super_admin_single", "the Super Administrator holds no other membership")
     if role == Role.SUPER_ADMIN and others:
-        raise Conflict("super_admin_single", "the super admin holds no other membership")
+        raise Conflict("super_admin_single", "the Super Administrator holds no other membership")
     same = [m for m in others if m.department_id == (dept.id if dept else None)]
     if same:
         raise Conflict(
@@ -250,20 +250,24 @@ def check_type_limits(
         )
     if role == Role.DEPT_ADMIN:
         if dept is None or dept.id != office.id:
-            raise MembershipError("admin_at_department", "a department admin sits at the department office")
+            raise MembershipError(
+                "admin_at_department", "a Department Administrator sits at the department office"
+            )
         current = admin_of(session, dept)
         if current is not None and (exclude is None or current.id != exclude.id):
-            raise Conflict("one_dept_admin", f"{dept.code} already has a department admin; use the swap")
+            raise Conflict(
+                "one_dept_admin", f"{dept.code} already has a Department Administrator; use the swap"
+            )
     if role == Role.DEPT_HEAD:
         if dept is None or dept.id != office.id:
-            raise MembershipError("head_at_department", "a department head sits at the department office")
+            raise MembershipError("head_at_department", "a Head of Department sits at the department office")
         current = head_of(session, dept)
         if current is not None and (exclude is None or current.id != exclude.id):
             raise Conflict("one_dept_head", f"{dept.code} already has a head")
     if role == Role.SUPER_ADMIN:
         current = super_admin_membership(session)
         if current is not None and (exclude is None or current.id != exclude.id):
-            raise Conflict("super_admin_single", "there is already a super admin")
+            raise Conflict("super_admin_single", "there is already a Super Administrator")
     return dept
 
 
@@ -411,7 +415,7 @@ def _require_active_login(member: Member, user: User) -> None:
     password (409 `login_inactive`)."""
     if not user.is_active and not member.is_super_admin:
         raise Conflict(
-            "login_inactive", "the login is disabled; only the super admin can add a membership to it"
+            "login_inactive", "the login is disabled; only the Super Administrator can add a membership to it"
         )
 
 
@@ -432,11 +436,11 @@ def add(
     role = _role(role)
     if role == Role.SUPER_ADMIN:
         raise Forbidden(
-            "the super admin is created only from the server's command line", "super_admin_cli_only"
+            "the Super Administrator is created only from the server's command line", "super_admin_cli_only"
         )
     member = access.assert_can_manage(session, actor_user, "create", target_office=office, target_role=role)
     if role == Role.DEPT_HEAD:
-        raise Conflict("use_head_change", "a department head is set through the head-change request")
+        raise Conflict("use_head_change", "a Head of Department is set through the head-change request")
     _require_active_login(member, user)
     return insert_membership(
         session,
@@ -471,7 +475,8 @@ def update(
         new = _role(role)
         if Role.SUPER_ADMIN in (old, new):
             raise Forbidden(
-                "the super admin is changed only from the server's command line", "super_admin_cli_only"
+                "the Super Administrator is changed only from the server's command line",
+                "super_admin_cli_only",
             )
         if old == Role.DEPT_HEAD:
             raise Conflict("head_required", "the head changes only through the head-change request")
@@ -480,10 +485,10 @@ def update(
         )
         if not member.is_super_admin and old not in DELEGABLE_ROLES:
             raise Forbidden(
-                f"only a super admin may change a membership of type {old.value}", "not_delegable"
+                f"only the Super Administrator may change a membership of type {old.value}", "not_delegable"
             )
         if new == Role.DEPT_HEAD:
-            raise Conflict("use_head_change", "a department head is set through the head-change request")
+            raise Conflict("use_head_change", "a Head of Department is set through the head-change request")
         if old == Role.DEPT_HEAD:
             raise Conflict("head_required", "the head changes only through the head-change request")
         set_role(session, access.actor_as(actor, member), m, new)
@@ -495,7 +500,8 @@ def update(
     if changes:
         if old == Role.SUPER_ADMIN:
             raise Forbidden(
-                "the super admin is changed only from the server's command line", "super_admin_cli_only"
+                "the Super Administrator is changed only from the server's command line",
+                "super_admin_cli_only",
             )
         member = access.assert_can_manage(
             session, actor_user, "edit", target_office=office, target_role=m.role
@@ -527,14 +533,14 @@ def reactivate(
     role = _role(m.role)
     if role == Role.SUPER_ADMIN:
         raise Forbidden(
-            "the super admin is changed only from the server's command line", "super_admin_cli_only"
+            "the Super Administrator is changed only from the server's command line", "super_admin_cli_only"
         )
     office = session.get(Office, m.office_id)
     member = access.assert_can_manage(
         session, actor_user, "enable_disable", target_office=office, target_role=role
     )
     if role == Role.DEPT_HEAD:
-        raise Conflict("use_head_change", "a department head is set through the head-change request")
+        raise Conflict("use_head_change", "a Head of Department is set through the head-change request")
     _require_active_login(member, session.get(User, m.user_id))
     return reactivate_internal(session, access.actor_as(actor, member), m)
 
@@ -598,12 +604,14 @@ def end(
     role = _role(m.role)
     if role == Role.SUPER_ADMIN:
         raise Forbidden(
-            "the super admin is changed only from the server's command line", "super_admin_cli_only"
+            "the Super Administrator is changed only from the server's command line", "super_admin_cli_only"
         )
     if role == Role.DEPT_HEAD and m.is_active:
         raise Conflict("head_required", "the head changes only through the head-change request")
     if role == Role.DEPT_ADMIN and access.super_admin_member(session, actor_user) is None:
-        raise Forbidden("a department admin is changed only by the super admin", "use_admin_swap")
+        raise Forbidden(
+            "a Department Administrator is changed only by the Super Administrator", "use_admin_swap"
+        )
     office = session.get(Office, m.office_id)
     member = access.assert_can_manage(
         session, actor_user, "enable_disable", target_office=office, target_role=role
@@ -1104,7 +1112,9 @@ def replace_department_admin(
     the department, an existing login, or a new login). Returns (admin membership, outgoing result)."""
     sa_member = access.super_admin_member(session, actor_user)
     if sa_member is None:
-        raise Forbidden("only the super admin replaces a department admin", "super_admin_only")
+        raise Forbidden(
+            "only the Super Administrator replaces a Department Administrator", "super_admin_only"
+        )
     actor = access.actor_as(actor, sa_member)
     if not access.is_department(department) or not department.is_active:
         raise MembershipError("bad_field", f"{department.code} is not an active department")
@@ -1180,7 +1190,9 @@ def _make_incoming(
             return reactivate_internal(session, actor, m, role=role, ticket_ref=ticket_ref)
         if m.office_id != department.id:
             if role == Role.DEPT_HEAD:
-                raise MembershipError("head_at_department", "a department head sits at the department office")
+                raise MembershipError(
+                    "head_at_department", "a Head of Department sits at the department office"
+                )
             _close(session, m, f"moved to the department office as {role.value}")
             session.flush()
             write_audit(
@@ -1334,16 +1346,16 @@ def replace_super_admin(
     actor = Actor.system("cli: replace-super-admin")
     current = super_admin_membership(session)
     if current is None:
-        raise Conflict("no_super_admin", "there is no super admin; use create-super-admin")
+        raise Conflict("no_super_admin", "there is no Super Administrator; use create-super-admin")
     session.execute(select(UserMembership.id).where(UserMembership.id == current.id).with_for_update())
     old_user = session.get(User, current.user_id)
     email_n = (email or "").strip().lower()
     if email_n == old_user.email:
-        raise MembershipError("bad_field", "the new super admin is a different person")
+        raise MembershipError("bad_field", "the new Super Administrator is a different person")
     existing = lookup(session, email_n)
     if existing is not None and access.active_memberships(session, existing):
         raise Conflict(
-            "login_has_memberships", "the super admin holds nothing else; that login has memberships"
+            "login_has_memberships", "the Super Administrator holds nothing else; that login has memberships"
         )
     before = {"user_id": str(old_user.id), "email": old_user.email}
     _close(session, current, "replaced")

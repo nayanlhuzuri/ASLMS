@@ -44,10 +44,10 @@ describe("FilterBar (portal-filters, decision 9)", () => {
     renderWithClient(<FilterBar list="recommended" params={{ department: "EDU" }} total={12} />);
     expect(screen.getByText("12 cases match")).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText(/^Words/), "ram kumar");
-    await userEvent.selectOptions(screen.getByLabelText("Cause-list date"), "range");
-    await userEvent.type(screen.getByLabelText("Cause-list date: from"), "2026-10-01");
-    await userEvent.type(screen.getByLabelText("Cause-list date: to"), "2026-10-07");
-    await userEvent.selectOptions(screen.getByLabelText("Next hearing"), "n7");
+    await userEvent.selectOptions(screen.getByLabelText("Cause-list Date"), "range");
+    await userEvent.type(screen.getByLabelText("Cause-list Date: From"), "2026-10-01");
+    await userEvent.type(screen.getByLabelText("Cause-list Date: To"), "2026-10-07");
+    await userEvent.selectOptions(screen.getByLabelText("Next Hearing"), "n7");
     expect(nav.replace).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole("button", { name: "Apply" }));
     expect(nav.replace).toHaveBeenCalledTimes(1);
@@ -66,8 +66,8 @@ describe("FilterBar (portal-filters, decision 9)", () => {
   it("A date writes both ends the same", async () => {
     browserApi(ROUTES);
     renderWithClient(<FilterBar list="recommended" params={{}} />);
-    await userEvent.selectOptions(screen.getByLabelText("Cause-list date"), "date");
-    await userEvent.type(screen.getByLabelText("Cause-list date: date"), "2026-09-25");
+    await userEvent.selectOptions(screen.getByLabelText("Cause-list Date"), "date");
+    await userEvent.type(screen.getByLabelText("Cause-list Date: Date"), "2026-09-25");
     await userEvent.click(screen.getByRole("button", { name: "Apply" }));
     expect(nav.replace).toHaveBeenCalledWith("/inbox/recommended?listed_from=2026-09-25&listed_to=2026-09-25");
   });
@@ -75,7 +75,7 @@ describe("FilterBar (portal-filters, decision 9)", () => {
   it("More filters opens by itself when one of its fields is in the URL", async () => {
     browserApi(ROUTES);
     const { unmount } = renderWithClient(<FilterBar list="recommended" params={{}} />);
-    const more = screen.getByRole("button", { name: "More filters" });
+    const more = screen.getByRole("button", { name: "More Filters" });
     expect(more).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByLabelText("Year")).toBeNull();
     await userEvent.click(more);
@@ -83,7 +83,7 @@ describe("FilterBar (portal-filters, decision 9)", () => {
     expect(screen.getByLabelText("Year")).toBeInTheDocument();
     unmount();
     renderWithClient(<FilterBar list="recommended" params={{ year: "2025" }} />);
-    expect(screen.getByRole("button", { name: "More filters" })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: "More Filters" })).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByLabelText("Year")).toHaveValue("2025");
   });
 
@@ -92,7 +92,7 @@ describe("FilterBar (portal-filters, decision 9)", () => {
     renderWithClient(
       <FilterBar list="recommended" params={{ department: "EDU", bench: "SAIKIA", year: "2025", offset: "50" }} />,
     );
-    const chips = screen.getByRole("list", { name: "Applied filters" });
+    const chips = screen.getByRole("list", { name: "Applied Filters" });
     expect(within(chips).getByText("Year: 2025")).toBeInTheDocument();
     await userEvent.click(within(chips).getByRole("button", { name: "Remove filter Bench: SAIKIA" }));
     expect(nav.replace).toHaveBeenCalledWith("/inbox/recommended?department=EDU&year=2025");
@@ -105,12 +105,12 @@ describe("FilterBar (portal-filters, decision 9)", () => {
       <FilterBar
         list="transfers"
         params={{ department: "EDU", direction: "out", year: "2025", status: "requested", other_office: "FIN", offset: "50" }}
-        own={[{ key: "status", kind: "select", label: "Transfer status", options: [{ value: "requested", label: "Requested" }] }]}
+        own={[{ key: "status", kind: "select", label: "Transfer Status", options: [{ value: "requested", label: "Requested" }] }]}
       />,
     );
-    expect(screen.getByText("Transfer status: Requested")).toBeInTheDocument();
-    expect(screen.getByText("Other department: FIN")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Clear all" }));
+    expect(screen.getByText("Transfer Status: Requested")).toBeInTheDocument();
+    expect(screen.getByText("Other Department: FIN")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Clear All" }));
     expect(nav.replace).toHaveBeenCalledWith("/inbox/transfers?department=EDU&direction=out");
   });
 
@@ -118,16 +118,16 @@ describe("FilterBar (portal-filters, decision 9)", () => {
     browserApi(ROUTES);
     renderWithClient(<FilterBar list="recommended" params={{}} />);
     await userEvent.type(screen.getByLabelText(/^Words/), "ab");
-    await userEvent.selectOptions(screen.getByLabelText("Next hearing"), "range");
-    await userEvent.type(screen.getByLabelText("Next hearing: from"), "2026-11-02");
-    await userEvent.type(screen.getByLabelText("Next hearing: to"), "2026-11-01");
-    await userEvent.click(screen.getByRole("button", { name: "More filters" }));
+    await userEvent.selectOptions(screen.getByLabelText("Next Hearing"), "range");
+    await userEvent.type(screen.getByLabelText("Next Hearing: From"), "2026-11-02");
+    await userEvent.type(screen.getByLabelText("Next Hearing: To"), "2026-11-01");
+    await userEvent.click(screen.getByRole("button", { name: "More Filters" }));
     await userEvent.type(screen.getByLabelText("Year"), "202");
     await userEvent.click(screen.getByRole("button", { name: "Apply" }));
     expect(nav.replace).not.toHaveBeenCalled();
     for (const [label, message] of [
       ["Year", "Year is four digits, 1900 to 2100."],
-      ["Next hearing: to", "The start date is after the end date."],
+      ["Next Hearing: To", "The start date is after the end date."],
     ] as const) {
       const input = screen.getByLabelText(label);
       expect(input).toHaveAttribute("aria-invalid", "true");
@@ -140,14 +140,14 @@ describe("FilterBar (portal-filters, decision 9)", () => {
   it("the bench field offers the suggestions of /reference/benches; Court lists its court numbers", async () => {
     browserApi(ROUTES);
     renderWithClient(<FilterBar list="recommended" params={{ bench: "SAIKIA" }} />);
-    const bench = screen.getByLabelText("Bench (judge names)");
+    const bench = screen.getByLabelText("Bench (Judge Names)");
     const listId = bench.getAttribute("list")!;
     await waitFor(() => expect(document.getElementById(listId)!.querySelectorAll("option")).toHaveLength(2));
     expect(document.getElementById(listId)!.querySelector("option")!.getAttribute("value")).toBe(
       "HONOURABLE MR. JUSTICE SOUMITRA SAIKIA",
     );
     const court = screen.getByLabelText("Court");
-    await waitFor(() => expect(within(court).getAllByRole("option").map((o) => o.textContent)).toEqual(["Any court", "Court 3", "Court 10"]));
+    await waitFor(() => expect(within(court).getAllByRole("option").map((o) => o.textContent)).toEqual(["Any Court", "Court 3", "Court 10"]));
   });
 
   it("the department field shows where the list declares it, with the given choices", async () => {
@@ -159,6 +159,6 @@ describe("FilterBar (portal-filters, decision 9)", () => {
       <FilterBar list="held_owned" params={{ owner: "EDU" }} ownerOptions={[{ value: "EDU", label: "EDU" }]} />,
     );
     const owner = screen.getByLabelText("Department");
-    expect(within(owner).getAllByRole("option").map((o) => o.textContent)).toEqual(["Any department", "EDU"]);
+    expect(within(owner).getAllByRole("option").map((o) => o.textContent)).toEqual(["Any Department", "EDU"]);
   });
 });

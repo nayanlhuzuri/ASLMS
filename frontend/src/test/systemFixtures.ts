@@ -100,7 +100,7 @@ export const SERVICES: ServicesHealth = {
   },
   services: [
     { key: "api", label: "ASLMS API", status: "ok", headline: "Answering", facts: [{ label: "Version", value: "3.0.0" }], duration_ms: 0 },
-    { key: "clamav", label: "Virus scanner", status: "down", headline: "The virus scanner does not answer", facts: [], duration_ms: 5 },
+    { key: "clamav", label: "Virus Scanner", status: "down", headline: "The virus scanner does not answer", facts: [], duration_ms: 5 },
   ],
 };
 
@@ -118,7 +118,7 @@ export function tokenState(enabled = true, extra: Partial<NapixToken> = {}): Nap
     obtained_at: "2026-10-21T14:16:00+05:30",
     token_type: "Bearer",
     scope: "napix",
-    accepted_since: { at: "2026-10-21T14:31:05+05:30", api_label: "Case details by CNR", http_status: 200 },
+    accepted_since: { at: "2026-10-21T14:31:05+05:30", api_label: "Case Details by CNR", http_status: 200 },
     rejected_since: 0,
     last_request: {
       at: "2026-10-21T14:16:00+05:30",
@@ -159,7 +159,7 @@ const CNR = "GAHC010277142024";
 export function consoleOf(extra: Partial<ApiConsole> = {}): ApiConsole {
   return {
     api: "cnr",
-    label: "Case details by CNR",
+    label: "Case Details by CNR",
     method: "GET",
     method_note: null,
     url: "https://delhigw.napix.gov.in/nic/ecourts/hc-cnr-api/CNR",
@@ -222,7 +222,7 @@ export function sendResult(extra: Partial<ApiTest> = {}): ApiTest {
     token_verified: true,
     remaining: 811,
     input: { label: "The values in the form", values: {} },
-    summary: { kind: "record", row_count: 64, field_names: ["cino"], facts: [{ label: "Case status", value: "pending" }] },
+    summary: { kind: "record", row_count: 64, field_names: ["cino"], facts: [{ label: "Case Status", value: "pending" }] },
     request: { method: "GET", url: "https://delhigw.napix.gov.in/nic/ecourts/hc-cnr-api/CNR", plain: "cino=GAHC010118832025", envelope: [] },
     edited: true,
     rate_limit: { limit: 1000, remaining: 811 },

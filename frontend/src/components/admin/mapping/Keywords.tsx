@@ -64,6 +64,7 @@ function ListFilter({ choices, filter, onChange }: { choices: OfficeChoices; fil
     <div className="row">
       <OfficeFilter choices={choices} value={filter.office} onChange={(office) => onChange({ ...filter, office })} />
       <CheckField
+        inline
         label={T.mapping.includeInactive}
         checked={filter.inactive}
         onChange={(e) => onChange({ ...filter, inactive: e.target.checked })}
@@ -88,6 +89,7 @@ function DiscoverBox({
   const checked = regex ? false : (value ?? isDiscoverable(text, kind));
   return (
     <CheckField
+      inline
       label={T.discovery.searchCourt}
       title={T.discovery.searchCourtHint}
       checked={checked}

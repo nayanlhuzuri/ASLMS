@@ -1,8 +1,9 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
-import { act, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AdminFrame } from "@/components/admin/AdminFrame";
@@ -40,42 +41,42 @@ describe("navigation by functions", () => {
   it("Work lists Case inbox, Cause list, My calendar, Alerts and Search in order for a case reader; no Cases entry (case-inbox-merge, decision 6)", () => {
     browserApi({ "GET /reference/labels": labels() });
     renderWithClient(<Sidebar me={makeMe(OFFICER)} />);
-    const nav = screen.getByRole("navigation", { name: "Main navigation" });
+    const nav = screen.getByRole("navigation", { name: "Main Navigation" });
     const names = within(nav)
-      .getAllByRole("link")
+      .getAllByRole("treeitem")
       .map((a) => a.textContent);
-    expect(names).toEqual(["Dashboard", "Case inbox", "Cause list", "My calendar", "Alerts", "Search"]);
-    expect(within(nav).getByRole("link", { name: "Cause list" })).toHaveAttribute("href", "/causelist");
-    expect(within(nav).queryByRole("link", { name: "Cases" })).toBeNull();
-    expect(within(nav).getByRole("link", { name: "My calendar" })).toHaveAttribute("href", "/calendar");
-    expect(within(nav).getByRole("link", { name: "Alerts" })).toHaveAttribute("href", "/alerts");
+    expect(names).toEqual(["Dashboard", "Case Inbox", "Cause List", "My Calendar", "Alerts", "Search"]);
+    expect(within(nav).getByRole("treeitem", { name: "Cause List" })).toHaveAttribute("href", "/causelist");
+    expect(within(nav).queryByRole("treeitem", { name: "Cases" })).toBeNull();
+    expect(within(nav).getByRole("treeitem", { name: "My Calendar" })).toHaveAttribute("href", "/calendar");
+    expect(within(nav).getByRole("treeitem", { name: "Alerts" })).toHaveAttribute("href", "/alerts");
   });
 
   it("Reports and Audit log sit under Oversight, Data collection and Administration under Settings", () => {
     browserApi({ "GET /reference/labels": labels() });
     const me = makeMe(["cases.view_all", "reports.state", "audit.view", "users.view"], "super_admin");
     renderWithClient(<Sidebar me={me} />);
-    const oversight = screen.getByRole("list", { name: "Oversight" });
+    const oversight = screen.getByRole("tree", { name: "Oversight" });
     expect(
       within(oversight)
-        .getAllByRole("link")
+        .getAllByRole("treeitem")
         .map((a) => a.textContent),
-    ).toEqual(["Reports", "Audit log"]);
-    const settings = screen.getByRole("list", { name: "Settings" });
+    ).toEqual(["Reports", "Audit Log"]);
+    const settings = screen.getByRole("tree", { name: "Settings" });
     expect(
       within(settings)
-        .getAllByRole("link")
+        .getAllByRole("treeitem")
         .map((a) => a.textContent),
-    ).toEqual(["Data collection", "Administration"]);
-    expect(within(screen.getByRole("list", { name: "Work" })).getByRole("link", { name: "Dashboard" })).toBeInTheDocument();
+    ).toEqual(["Data Collection", "Administration"]);
+    expect(within(screen.getByRole("tree", { name: "Work" })).getByRole("treeitem", { name: "Dashboard" })).toBeInTheDocument();
   });
 
   it("a group with no visible entry is hidden", () => {
     browserApi({ "GET /reference/labels": labels() });
     renderWithClient(<Sidebar me={makeMe(OFFICER)} />);
-    expect(screen.getByRole("list", { name: "Work" })).toBeInTheDocument();
-    expect(screen.queryByRole("list", { name: "Oversight" })).toBeNull();
-    expect(screen.queryByRole("list", { name: "Settings" })).toBeNull();
+    expect(screen.getByRole("tree", { name: "Work" })).toBeInTheDocument();
+    expect(screen.queryByRole("tree", { name: "Oversight" })).toBeNull();
+    expect(screen.queryByRole("tree", { name: "Settings" })).toBeNull();
     expect(screen.queryByText("Oversight")).toBeNull();
   });
 
@@ -85,7 +86,7 @@ describe("navigation by functions", () => {
       "GET /alerts/counts": { unread: 3, open: { critical: 0, high: 1, normal: 2 } },
     });
     renderWithClient(<Sidebar me={makeMe(OFFICER)} />);
-    const link = await screen.findByRole("link", { name: "Alerts, 3" });
+    const link = await screen.findByRole("treeitem", { name: "Alerts, 3" });
     expect(link).toHaveAttribute("href", "/alerts");
     expect(within(link).getByText("3")).toHaveAttribute("aria-hidden", "true");
   });
@@ -93,12 +94,12 @@ describe("navigation by functions", () => {
   it("Reports shows with a reports function, before Data collection (portal-reports)", () => {
     browserApi({ "GET /reference/labels": labels() });
     renderWithClient(<Sidebar me={makeMe(["cases.view_all", "reports.state"], "state_oversight")} />);
-    const nav = screen.getByRole("navigation", { name: "Main navigation" });
+    const nav = screen.getByRole("navigation", { name: "Main Navigation" });
     const names = within(nav)
-      .getAllByRole("link")
+      .getAllByRole("treeitem")
       .map((a) => a.textContent);
-    expect(names.indexOf("Data collection")).toBe(names.indexOf("Reports") + 1);
-    expect(within(nav).getByRole("link", { name: "Reports" })).toHaveAttribute("href", "/reports");
+    expect(names.indexOf("Data Collection")).toBe(names.indexOf("Reports") + 1);
+    expect(within(nav).getByRole("treeitem", { name: "Reports" })).toHaveAttribute("href", "/reports");
   });
 
   it("Case inbox stays current across its tabs and on a case page", () => {
@@ -106,8 +107,8 @@ describe("navigation by functions", () => {
       resetNav(path);
       browserApi({ "GET /reference/labels": labels() });
       const { unmount } = renderWithClient(<Sidebar me={makeMe(OFFICER)} />);
-      const nav = screen.getByRole("navigation", { name: "Main navigation" });
-      expect(within(nav).getByRole("link", { name: "Case inbox" }), path).toHaveAttribute("aria-current", "page");
+      const nav = screen.getByRole("navigation", { name: "Main Navigation" });
+      expect(within(nav).getByRole("treeitem", { name: "Case Inbox" }), path).toHaveAttribute("aria-current", "page");
       unmount();
     }
   });
@@ -115,20 +116,20 @@ describe("navigation by functions", () => {
   it("an officer sees no Administration and no unbuilt entries", () => {
     browserApi({ "GET /reference/labels": labels() });
     renderWithClient(<Sidebar me={makeMe(OFFICER)} />);
-    const nav = screen.getByRole("navigation", { name: "Main navigation" });
-    expect(within(nav).getByRole("link", { name: "Dashboard" })).toHaveAttribute("aria-current", "page");
-    expect(within(nav).queryByRole("link", { name: "Administration" })).toBeNull();
-    for (const unbuilt of ["Reports", "Audit log", "Data collection"]) {
-      expect(within(nav).queryByRole("link", { name: unbuilt })).toBeNull();
+    const nav = screen.getByRole("navigation", { name: "Main Navigation" });
+    expect(within(nav).getByRole("treeitem", { name: "Dashboard" })).toHaveAttribute("aria-current", "page");
+    expect(within(nav).queryByRole("treeitem", { name: "Administration" })).toBeNull();
+    for (const unbuilt of ["Reports", "Audit Log", "Data Collection"]) {
+      expect(within(nav).queryByRole("treeitem", { name: unbuilt })).toBeNull();
     }
   });
 
   it("Case inbox shows with a department membership, Search for every case reader", () => {
     browserApi({ "GET /reference/labels": labels() });
     renderWithClient(<Sidebar me={makeMe(OFFICER)} />);
-    const nav = screen.getByRole("navigation", { name: "Main navigation" });
-    expect(within(nav).getByRole("link", { name: "Case inbox" })).toHaveAttribute("href", "/inbox");
-    expect(within(nav).getByRole("link", { name: "Search" })).toHaveAttribute("href", "/search");
+    const nav = screen.getByRole("navigation", { name: "Main Navigation" });
+    expect(within(nav).getByRole("treeitem", { name: "Case Inbox" })).toHaveAttribute("href", "/inbox");
+    expect(within(nav).getByRole("treeitem", { name: "Search" })).toHaveAttribute("href", "/search");
   });
 
   it("standing counsel without a department see the Case inbox and Search, not Case claim (case-inbox-merge, decision 6)", () => {
@@ -147,26 +148,26 @@ describe("navigation by functions", () => {
       ],
     });
     renderWithClient(<Sidebar me={counsel} />);
-    const nav = screen.getByRole("navigation", { name: "Main navigation" });
-    expect(within(nav).getByRole("link", { name: "Case inbox" })).toHaveAttribute("href", "/inbox");
-    expect(within(nav).queryByRole("link", { name: /Case claim/ })).toBeNull();
-    expect(within(nav).getByRole("link", { name: "Search" })).toBeInTheDocument();
+    const nav = screen.getByRole("navigation", { name: "Main Navigation" });
+    expect(within(nav).getByRole("treeitem", { name: "Case Inbox" })).toHaveAttribute("href", "/inbox");
+    expect(within(nav).queryByRole("treeitem", { name: /Case Claim/ })).toBeNull();
+    expect(within(nav).getByRole("treeitem", { name: "Search" })).toBeInTheDocument();
   });
 
   it("a State-wide reader without a department sees the inbox through cases.view_all", () => {
     browserApi({ "GET /reference/labels": labels() });
     const reader = makeMe(["cases.view_scope", "cases.view_all"], "state_oversight", { memberships: [] });
     renderWithClient(<Sidebar me={reader} />);
-    const nav = screen.getByRole("navigation", { name: "Main navigation" });
-    expect(within(nav).getByRole("link", { name: "Case inbox" })).toBeInTheDocument();
+    const nav = screen.getByRole("navigation", { name: "Main Navigation" });
+    expect(within(nav).getByRole("treeitem", { name: "Case Inbox" })).toBeInTheDocument();
   });
 
   it("a login without case functions sees neither", () => {
     browserApi({ "GET /reference/labels": labels() });
     renderWithClient(<Sidebar me={makeMe(["users.view"], "dept_admin")} />);
-    const nav = screen.getByRole("navigation", { name: "Main navigation" });
-    expect(within(nav).queryByRole("link", { name: "Case inbox" })).toBeNull();
-    expect(within(nav).queryByRole("link", { name: "Search" })).toBeNull();
+    const nav = screen.getByRole("navigation", { name: "Main Navigation" });
+    expect(within(nav).queryByRole("treeitem", { name: "Case Inbox" })).toBeNull();
+    expect(within(nav).queryByRole("treeitem", { name: "Search" })).toBeNull();
   });
 
   it("a department admin sees Administration with Users and Offices", async () => {
@@ -174,8 +175,13 @@ describe("navigation by functions", () => {
     const me = makeMe(DEPT_ADMIN, "dept_admin");
     browserApi({ "GET /reference/labels": labels(), "GET /me": me });
     renderWithClient(<Sidebar me={me} />);
-    const nav = screen.getByRole("navigation", { name: "Main navigation" });
-    expect(within(nav).getByRole("link", { name: "Administration" })).toHaveAttribute("aria-current", "page");
+    const nav = screen.getByRole("navigation", { name: "Main Navigation" });
+    // design portal-ui-polish-2, decision 16: the parent is on the path and open; its active child is the page
+    const admin = within(nav).getByRole("treeitem", { name: "Administration" });
+    expect(admin).toHaveAttribute("aria-expanded", "true");
+    expect(admin).not.toHaveAttribute("aria-current");
+    expect(within(nav).getByRole("treeitem", { name: "Users" })).toHaveAttribute("aria-current", "page");
+    expect(within(nav).getByRole("treeitem", { name: "Offices" })).toHaveAttribute("href", "/admin/offices");
   });
 
   it("the administration tabs follow the functions", async () => {
@@ -187,11 +193,11 @@ describe("navigation by functions", () => {
         <p>body</p>
       </AdminFrame>,
     );
-    const tabs = await screen.findByRole("navigation", { name: "Administration sections" });
+    const tabs = await screen.findByRole("navigation", { name: "Administration Sections" });
     expect(within(tabs).getByRole("link", { name: "Users" })).toHaveAttribute("aria-current", "page");
     expect(within(tabs).getByRole("link", { name: "Offices" })).toBeInTheDocument();
     expect(within(tabs).getByRole("link", { name: "Tickets" })).toBeInTheDocument();
-    expect(within(tabs).getByRole("link", { name: "User types" })).toBeInTheDocument();
+    expect(within(tabs).getByRole("link", { name: "User Types" })).toBeInTheDocument();
   });
 
   it("an officer's administration has no tabs", async () => {
@@ -202,7 +208,7 @@ describe("navigation by functions", () => {
       </AdminFrame>,
     );
     await screen.findByText("body");
-    expect(screen.queryByRole("navigation", { name: "Administration sections" })).toBeNull();
+    expect(screen.queryByRole("navigation", { name: "Administration Sections" })).toBeNull();
   });
 });
 
@@ -217,37 +223,37 @@ describe("department mapping tab", () => {
       </AdminFrame>,
     );
     await screen.findByText("body");
-    return screen.queryByRole("navigation", { name: "Administration sections" });
+    return screen.queryByRole("navigation", { name: "Administration Sections" });
   }
 
   it("a department admin sees Department mapping", async () => {
     resetNav("/admin/mapping/codes");
     const tabs = await adminTabs(makeMe(MAPPING_ADMIN, "dept_admin"));
-    expect(within(tabs!).getByRole("link", { name: "Department mapping" })).toHaveAttribute("aria-current", "page");
-    expect(within(tabs!).getByRole("link", { name: "Department mapping" })).toHaveAttribute("href", "/admin/mapping");
+    expect(within(tabs!).getByRole("link", { name: "Department Mapping" })).toHaveAttribute("aria-current", "page");
+    expect(within(tabs!).getByRole("link", { name: "Department Mapping" })).toHaveAttribute("href", "/admin/mapping");
   });
 
   it("a department officer does not", async () => {
     const tabs = await adminTabs(makeMe(OFFICER));
     expect(tabs).toBeNull();
-    expect(screen.queryByRole("link", { name: "Department mapping" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Department Mapping" })).toBeNull();
   });
 
   it("a login holding only admin.watchlist reaches Administration with the mapping tab and without Designations", async () => {
     const me = makeMe(["admin.watchlist"], "central_operator");
     browserApi({ "GET /reference/labels": labels(), "GET /me": me });
     const { unmount } = renderWithClient(<Sidebar me={me} />);
-    const side = screen.getByRole("navigation", { name: "Main navigation" });
-    expect(within(side).getByRole("link", { name: "Administration" })).toHaveAttribute("href", "/admin");
+    const side = screen.getByRole("navigation", { name: "Main Navigation" });
+    expect(within(side).getByRole("treeitem", { name: "Administration" })).toHaveAttribute("href", "/admin");
     unmount();
     const tabs = await adminTabs(me);
-    expect(within(tabs!).getByRole("link", { name: "Department mapping" })).toBeInTheDocument();
+    expect(within(tabs!).getByRole("link", { name: "Department Mapping" })).toBeInTheDocument();
     expect(within(tabs!).queryByRole("link", { name: "Designations" })).toBeNull();
   });
 
   it("the super admin sees it", async () => {
     const tabs = await adminTabs(makeMe([...MAPPING_ADMIN, "admin.scoring", "admin.designations"], "super_admin"));
-    expect(within(tabs!).getByRole("link", { name: "Department mapping" })).toBeInTheDocument();
+    expect(within(tabs!).getByRole("link", { name: "Department Mapping" })).toBeInTheDocument();
     expect(within(tabs!).getByRole("link", { name: "Designations" })).toBeInTheDocument();
   });
 
@@ -259,7 +265,7 @@ describe("department mapping tab", () => {
       </MappingFrame>,
     );
     await screen.findByText("tab body");
-    const nav = screen.getByRole("navigation", { name: "Department mapping sections" });
+    const nav = screen.getByRole("navigation", { name: "Department Mapping Sections" });
     return within(nav)
       .getAllByRole("link")
       .map((a) => a.textContent);
@@ -270,14 +276,14 @@ describe("department mapping tab", () => {
   });
 
   it("Scoring shows for admin.keywords without admin.scoring", async () => {
-    expect(await mappingTabs(["admin.keywords"])).toEqual(["Keywords and name patterns", "Court search", "Scoring"]);
+    expect(await mappingTabs(["admin.keywords"])).toEqual(["Keywords and Name Patterns", "Court Search", "Scoring"]);
   });
 
   it("every tab for the super admin's functions", async () => {
     expect(await mappingTabs(["admin.counsel_codes", "admin.keywords", "admin.watchlist", "admin.scoring"])).toEqual([
-      "Counsel codes",
-      "Keywords and name patterns",
-      "Court search",
+      "Counsel Codes",
+      "Keywords and Name Patterns",
+      "Court Search",
       "Watchlist",
       "Scoring",
     ]);
@@ -293,16 +299,16 @@ describe("header and sidebar foot", () => {
 
   it("the breadcrumb names the Case inbox and Alerts screens by path, the case tab by segment", () => {
     for (const [path, last] of [
-      ["/inbox/working", "Working on"],
-      ["/inbox/pending", "Pending action"],
-      ["/inbox/sent", "Sent by me"],
+      ["/inbox/working", "Working On"],
+      ["/inbox/pending", "Pending Action"],
+      ["/inbox/sent", "Sent by Me"],
       ["/alerts", "Alerts"],
-      ["/calendar", "My calendar"],
-      ["/alerts/calendar", "Hearing calendar"],
+      ["/calendar", "My Calendar"],
+      ["/alerts/calendar", "Hearing Calendar"],
       ["/cases/EDU-2026-0001/alerts", "Alerts"],
       ["/admin/offices", "Offices"],
-      ["/reports/pending-cases", "Pending cases"],
-      ["/reports/data-health", "Data collection health"],
+      ["/reports/pending-cases", "Pending Cases"],
+      ["/reports/data-health", "Data Collection Health"],
     ] as const) {
       resetNav(path);
       const { unmount } = renderWithClient(<Breadcrumb />);
@@ -313,7 +319,7 @@ describe("header and sidebar foot", () => {
     // design case-inbox-merge, decision 12: the crumb above a case page reads "Case inbox" and leads to /cases
     resetNav("/cases/EDU-2026-0001/alerts");
     renderWithClient(<Breadcrumb />);
-    expect(screen.getByRole("link", { name: "Case inbox" })).toHaveAttribute("href", "/cases");
+    expect(screen.getByRole("link", { name: "Case Inbox" })).toHaveAttribute("href", "/cases");
   });
 
   it("no bell for a login without case functions", () => {
@@ -354,7 +360,7 @@ describe("header and sidebar foot", () => {
     await userEvent.click(screen.getByRole("button", { name: "2 offices" }));
     const list = screen.getByRole("list", { name: "2 offices" });
     expect(within(list).getByText(/Joint Secretary, Health/)).toBeInTheDocument();
-    expect(within(list).getByText(/Under Secretary, Education .*\(primary\)/)).toBeInTheDocument();
+    expect(within(list).getByText(/Under Secretary, Education .*(Primary)/)).toBeInTheDocument();
   });
 
   it("the shell loads /me and shows the frame", async () => {
@@ -369,7 +375,7 @@ describe("header and sidebar foot", () => {
       </PortalShell>,
     );
     expect(await screen.findByText("page body")).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByRole("button", { name: "User menu" })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("button", { name: "User Menu" })).toBeInTheDocument());
   });
 
   it("the header search box opens /search?q= for case readers", async () => {
@@ -399,7 +405,7 @@ describe("header, brand, drawer and bottom bar (portal-ui-redesign, decisions 18
   it("the emblem slot is a marked placeholder hidden from screen readers while no emblem is set", () => {
     renderWithClient(<Brand brand={{ emblem: null }} />);
     const slot = screen.getByText("Emblem");
-    expect(slot).toHaveAttribute("title", "Place for the official Government of Assam emblem");
+    expect(slot).toHaveAttribute("title", "Place for the Official Government of Assam Emblem");
     expect(slot).toHaveAttribute("aria-hidden", "true");
     expect(screen.queryByRole("img")).toBeNull();
     expect(screen.getByText("Government of Assam")).toBeInTheDocument();
@@ -441,7 +447,7 @@ describe("header, brand, drawer and bottom bar (portal-ui-redesign, decisions 18
     expect(within(header).getByText("Assam State Litigation Management System")).toBeInTheDocument();
     expect(within(header).getByRole("searchbox")).toBeInTheDocument();
     expect(await within(header).findByRole("link", { name: "2 unread alerts" })).toBeInTheDocument();
-    expect(within(header).getByRole("button", { name: "User menu" })).toHaveTextContent("AS");
+    expect(within(header).getByRole("button", { name: "User Menu" })).toHaveTextContent("AS");
     expect(within(header).queryByRole("navigation", { name: "Breadcrumb" })).toBeNull();
   });
 
@@ -452,13 +458,13 @@ describe("header, brand, drawer and bottom bar (portal-ui-redesign, decisions 18
         <p>page body</p>
       </PortalShell>,
     );
-    const button = await screen.findByRole("button", { name: "User menu" });
+    const button = await screen.findByRole("button", { name: "User Menu" });
     button.focus();
     await userEvent.keyboard("{ArrowDown}");
-    const menu = screen.getByRole("menu", { name: "User menu" });
-    expect(within(menu).getByRole("menuitem", { name: "My profile" })).toHaveFocus();
+    const menu = screen.getByRole("menu", { name: "User Menu" });
+    expect(within(menu).getByRole("menuitem", { name: "My Profile" })).toHaveFocus();
     await userEvent.keyboard("{ArrowDown}");
-    expect(within(menu).getByRole("menuitem", { name: "Sign out" })).toHaveFocus();
+    expect(within(menu).getByRole("menuitem", { name: "Sign Out" })).toHaveFocus();
     await userEvent.keyboard("{Escape}");
     expect(screen.queryByRole("menu")).toBeNull();
     expect(button).toHaveFocus();
@@ -471,18 +477,18 @@ describe("header, brand, drawer and bottom bar (portal-ui-redesign, decisions 18
         <p>page body</p>
       </PortalShell>,
     );
-    const open = await screen.findByRole("button", { name: "Open menu" });
+    const open = await screen.findByRole("button", { name: "Open Menu" });
     expect(open).toHaveAttribute("aria-expanded", "false");
     await userEvent.click(open);
     expect(open).toHaveAttribute("aria-expanded", "true");
-    const drawer = screen.getByRole("dialog", { name: "Main navigation" });
+    const drawer = screen.getByRole("dialog", { name: "Main Navigation" });
     expect(drawer).toHaveAttribute("aria-modal", "true");
     expect(drawer.contains(document.activeElement)).toBe(true);
     // Tab past the last control comes back to the first: the focus stays in the drawer
     for (let i = 0; i < 20; i += 1) await userEvent.tab();
     expect(drawer.contains(document.activeElement)).toBe(true);
     await userEvent.keyboard("{Escape}");
-    expect(screen.queryByRole("dialog", { name: "Main navigation" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Main Navigation" })).toBeNull();
     expect(open).toHaveFocus();
     await userEvent.click(open);
     await userEvent.click(screen.getByTestId("drawer-overlay"));
@@ -509,15 +515,15 @@ describe("header, brand, drawer and bottom bar (portal-ui-redesign, decisions 18
         <p>page body</p>
       </PortalShell>,
     );
-    const bar = await screen.findByRole("navigation", { name: "Quick links" });
+    const bar = await screen.findByRole("navigation", { name: "Quick Links" });
     expect(
       within(bar)
         .getAllByRole("link")
         .map((a) => a.textContent),
-    ).toEqual(["Dashboard", "Case inbox", "Alerts"]);
+    ).toEqual(["Dashboard", "Case Inbox", "Alerts"]);
     const more = within(bar).getByRole("button", { name: "More" });
     await userEvent.click(more);
-    expect(screen.getByRole("dialog", { name: "Main navigation" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Main Navigation" })).toBeInTheDocument();
   });
 
   it("the bottom bar never holds more than three entries, and only the login's own", () => {
@@ -529,12 +535,12 @@ describe("header, brand, drawer and bottom bar (portal-ui-redesign, decisions 18
 
   it("the breadcrumb renders inside the page header, above the title", () => {
     resetNav("/inbox/sent");
-    renderWithClient(<PageHeader title="Case inbox" />);
+    renderWithClient(<PageHeader title="Case Inbox" />);
     const header = screen.getByRole("banner");
     const crumbs = within(header).getByRole("navigation", { name: "Breadcrumb" });
-    const title = within(header).getByRole("heading", { level: 1, name: "Case inbox" });
+    const title = within(header).getByRole("heading", { level: 1, name: "Case Inbox" });
     expect(crumbs.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(within(crumbs).getByText("Sent by me", { selector: "[aria-current=page]" })).toBeInTheDocument();
+    expect(within(crumbs).getByText("Sent by Me", { selector: "[aria-current=page]" })).toBeInTheDocument();
   });
 
   it("the drawer state resets when the window grows past 820 px (review of round 1)", async () => {
@@ -556,14 +562,14 @@ describe("header, brand, drawer and bottom bar (portal-ui-redesign, decisions 18
           <p>page body</p>
         </PortalShell>,
       );
-      const open = await screen.findByRole("button", { name: "Open menu" });
+      const open = await screen.findByRole("button", { name: "Open Menu" });
       await userEvent.click(open);
-      expect(screen.getByRole("dialog", { name: "Main navigation" })).toBeInTheDocument();
+      expect(screen.getByRole("dialog", { name: "Main Navigation" })).toBeInTheDocument();
       expect(document.body.style.overflow).toBe("hidden");
       wide = true;
       act(() => listeners.forEach((cb) => cb({ matches: true })));
       expect(open).toHaveAttribute("aria-expanded", "false");
-      expect(screen.queryByRole("dialog", { name: "Main navigation" })).toBeNull();
+      expect(screen.queryByRole("dialog", { name: "Main Navigation" })).toBeNull();
       expect(document.body.style.overflow).toBe("");
     } finally {
       vi.unstubAllGlobals();
@@ -617,15 +623,210 @@ describe("navigation counts (portal-ui-redesign, decision 4; round 2)", () => {
       "GET /inbox/counts": { departments: [block("EDU", 2, 1, 1), block("HEALTH", 0, 4, null)] },
     });
     renderWithClient(<Sidebar me={claimer()} />);
-    expect(await screen.findByRole("link", { name: "Case inbox, 5" })).toHaveAttribute("href", "/inbox");
-    expect(await screen.findByRole("link", { name: "Case claim, 8" })).toHaveAttribute("href", "/claim");
-    expect(screen.queryByRole("link", { name: /^Cases/ })).toBeNull();
+    expect(await screen.findByRole("treeitem", { name: "Case Inbox, 5" })).toHaveAttribute("href", "/inbox");
+    expect(await screen.findByRole("treeitem", { name: "Case Claim, 8" })).toHaveAttribute("href", "/claim");
+    expect(screen.queryByRole("treeitem", { name: /^Cases/ })).toBeNull();
     expect(screen.queryByText("2")).toBeNull();
   });
 
   it("Case claim is not shown without a claim or transfer function", () => {
     browserApi({ "GET /reference/labels": labels() });
     renderWithClient(<Sidebar me={makeMe(OFFICER)} />);
-    expect(screen.queryByRole("link", { name: /Case claim/ })).toBeNull();
+    expect(screen.queryByRole("treeitem", { name: /Case Claim/ })).toBeNull();
+  });
+});
+
+describe("the one-level side menu (design portal-ui-polish-2, decisions 14-19)", () => {
+  const ALL: Permission[] = [
+    "cases.view_scope",
+    "cases.view_all",
+    "reports.state",
+    "audit.view",
+    "admin.data_load",
+    "admin.service_health",
+    "users.view",
+    "offices.manage",
+    "access.manage_types",
+  ];
+  const tree = () => screen.getByRole("navigation", { name: "Main Navigation" });
+  const item = (name: string) => within(tree()).getByRole("treeitem", { name });
+
+  /** Clicks and reports whether the menu stopped the browser from following the link. */
+  function click(el: HTMLElement): { prevented: boolean } {
+    const seen = { prevented: false };
+    const after = (e: Event) => {
+      seen.prevented = e.defaultPrevented;
+      e.preventDefault(); // jsdom cannot navigate; the menu's own decision was read above
+    };
+    document.addEventListener("click", after);
+    fireEvent.click(el);
+    document.removeEventListener("click", after);
+    return seen;
+  }
+
+  function sidebar(path = "/", props: { onNavigate?: () => void } = {}) {
+    resetNav(path);
+    browserApi({ "GET /reference/labels": labels() });
+    return renderWithClient(<Sidebar me={makeMe(ALL, "super_admin")} {...props} />);
+  }
+
+  it("a parent toggles aria-expanded and opening one closes the other", () => {
+    sidebar("/");
+    const admin = item("Administration");
+    const reports = item("Reports");
+    expect(admin).toHaveAttribute("aria-expanded", "false");
+    click(admin);
+    expect(admin).toHaveAttribute("aria-expanded", "true");
+    expect(within(tree()).getByRole("group", { name: "Administration" })).toBeInTheDocument();
+    click(reports);
+    expect(reports).toHaveAttribute("aria-expanded", "true");
+    expect(admin).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("a closed parent goes to its landing page; an open one closes without navigating", () => {
+    sidebar("/");
+    const data = item("Data Collection");
+    expect(data).toHaveAttribute("href", "/data/load");
+    expect(click(data).prevented).toBe(false);
+    expect(data).toHaveAttribute("aria-expanded", "true");
+    expect(click(data).prevented).toBe(true);
+    expect(data).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("already on one of its pages, clicking the closed parent opens it without navigating", () => {
+    sidebar("/admin/offices");
+    const admin = item("Administration");
+    click(admin); // open on the path: closes
+    expect(admin).toHaveAttribute("aria-expanded", "false");
+    expect(click(admin).prevented).toBe(true);
+    expect(admin).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("the active child is the page, its parent is on the path, and a route change opens the new parent", () => {
+    const { rerender, client } = sidebar("/admin/offices");
+    const admin = item("Administration");
+    expect(admin).toHaveAttribute("aria-expanded", "true");
+    expect(admin.className).toMatch(/onPath/);
+    expect(item("Offices")).toHaveAttribute("aria-current", "page");
+    expect(item("Users")).not.toHaveAttribute("aria-current");
+    nav.pathname = "/reports/data-health";
+    rerender(
+      <QueryClientProvider client={client}>
+        <Sidebar me={makeMe(ALL, "super_admin")} />
+      </QueryClientProvider>,
+    );
+    expect(item("Reports")).toHaveAttribute("aria-expanded", "true");
+    expect(item("Administration")).toHaveAttribute("aria-expanded", "false");
+    expect(item("Data Collection Health")).toHaveAttribute("aria-current", "page");
+  });
+
+  it("closed children are neither focusable nor read", () => {
+    sidebar("/");
+    const admin = item("Administration");
+    const group = document.getElementById(admin.getAttribute("aria-owns")!)!;
+    const wrapper = group.parentElement!;
+    expect(wrapper).toHaveAttribute("inert");
+    expect(wrapper).toHaveAttribute("aria-hidden", "true");
+    for (const link of within(group).getAllByRole("treeitem", { hidden: true })) expect(link).toHaveAttribute("tabindex", "-1");
+    click(admin);
+    expect(wrapper).not.toHaveAttribute("inert");
+    expect(wrapper).not.toHaveAttribute("aria-hidden");
+  });
+
+  it("one tab stop for the whole menu; the arrows, Home, End, Right and Left move across groups", async () => {
+    sidebar("/");
+    const stops = () => tree().querySelectorAll('[role="treeitem"][tabindex="0"]');
+    expect(stops()).toHaveLength(1);
+    expect(stops()[0]).toHaveTextContent("Dashboard");
+    const user = userEvent.setup();
+    // Tab from the drawer's search box enters the menu once, on its one stop
+    document.getElementById("drawer-search")!.focus();
+    for (let i = 0; i < 3 && !tree().contains(document.activeElement); i++) await user.tab();
+    expect(document.activeElement).toHaveTextContent("Dashboard");
+    await user.keyboard("{End}");
+    expect(document.activeElement).toHaveTextContent("Administration");
+    expect(stops()).toHaveLength(1);
+    await user.keyboard("{ArrowRight}");
+    expect(item("Administration")).toHaveAttribute("aria-expanded", "true");
+    await user.keyboard("{ArrowRight}");
+    expect(document.activeElement).toHaveTextContent("Users");
+    await user.keyboard("{ArrowDown}");
+    expect(document.activeElement).toHaveTextContent("User Types");
+    await user.keyboard("{ArrowLeft}");
+    expect(document.activeElement).toHaveTextContent("Administration");
+    await user.keyboard("{ArrowLeft}");
+    expect(item("Administration")).toHaveAttribute("aria-expanded", "false");
+    await user.keyboard("{ArrowUp}");
+    expect(document.activeElement).toHaveTextContent("System Health");
+    // across the group boundary: from the first Settings row up into Oversight
+    await user.keyboard("{ArrowUp}{ArrowUp}");
+    expect(document.activeElement).toHaveTextContent("Audit Log");
+    await user.keyboard("{Home}");
+    expect(document.activeElement).toHaveTextContent("Dashboard");
+    expect(stops()).toHaveLength(1);
+    // and leaves it once
+    await user.tab();
+    expect(tree().contains(document.activeElement)).toBe(false);
+    await user.tab({ shift: true });
+    expect(document.activeElement).toHaveTextContent("Dashboard");
+    // Enter on a parent acts as a click: it opens
+    await user.keyboard("{End}");
+    const after = (e: Event) => e.preventDefault();
+    document.addEventListener("click", after);
+    await user.keyboard("{Enter}");
+    document.removeEventListener("click", after);
+    expect(item("Administration")).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("a truncated label gets its full text as the title, and only then", () => {
+    sidebar("/");
+    const reports = item("Reports");
+    const label = reports.querySelector<HTMLElement>("[data-nav-label]")!;
+    Object.defineProperty(label, "clientWidth", { configurable: true, value: 100 });
+    Object.defineProperty(label, "scrollWidth", { configurable: true, value: 100 });
+    fireEvent.pointerEnter(reports);
+    expect(reports).not.toHaveAttribute("title");
+    Object.defineProperty(label, "scrollWidth", { configurable: true, value: 180 });
+    fireEvent.focus(reports);
+    expect(reports).toHaveAttribute("title", "Reports");
+    expect(reports).toHaveAccessibleName("Reports");
+  });
+
+  it("under reduced motion the open state applies at once (the CSS tokens are 0 ms; nothing waits in script)", () => {
+    vi.stubGlobal("matchMedia", (q: string) => ({
+      matches: q.includes("reduce"),
+      media: q,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+    sidebar("/");
+    const admin = item("Administration");
+    click(admin);
+    const wrapper = document.getElementById(admin.getAttribute("aria-owns")!)!.parentElement!;
+    expect(wrapper).toHaveAttribute("data-open", "true");
+    expect(within(wrapper).getByRole("treeitem", { name: "Users" })).toBeVisible();
+  });
+
+  it("in the drawer, choosing a child closes it and toggling a parent does not", () => {
+    const onNavigate = vi.fn();
+    sidebar("/", { onNavigate });
+    click(item("Administration"));
+    expect(onNavigate).not.toHaveBeenCalled();
+    click(item("Users"));
+    expect(onNavigate).toHaveBeenCalledTimes(1);
+    click(item("Search"));
+    expect(onNavigate).toHaveBeenCalledTimes(2);
+  });
+
+  it("the count pills stay on Case Inbox, Case Claim and Alerts", async () => {
+    resetNav("/");
+    browserApi({
+      "GET /reference/labels": labels(),
+      "GET /alerts/counts": { unread: 4, open: { critical: 0, high: 0, normal: 4 } },
+      "GET /inbox/mine/counts": { working: 2, files: 0, claimed: 0, disposed: 0 },
+    });
+    renderWithClient(<Sidebar me={makeMe(["cases.view_scope"])} />);
+    expect(await screen.findByRole("treeitem", { name: "Alerts, 4" })).toBeInTheDocument();
+    expect(await screen.findByRole("treeitem", { name: "Case Inbox, 2" })).toBeInTheDocument();
   });
 });

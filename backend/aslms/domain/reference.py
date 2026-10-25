@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import enum
 
-from sqlalchemy import Boolean, ForeignKey, Integer, SmallInteger, String, Text, text
+from sqlalchemy import Boolean, ForeignKey, Index, Integer, SmallInteger, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from aslms.db.base import Base, TableClass, TimestampMixin
@@ -268,7 +268,11 @@ class RefMixin(TimestampMixin):
 
 
 class RefRole(RefMixin, Base):
+    """The user types. The label is unique without regard to case (design portal-ui-polish-2, decision 11; migration
+    0026), so Edit Name can never give two types the same name."""
+
     __tablename__ = "ref_role"
+    __table_args__ = (Index("uq_ref_role_label_lower", text("lower(label::text)"), unique=True),)
 
 
 class RefOfficeKind(RefMixin, Base):

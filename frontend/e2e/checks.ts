@@ -15,7 +15,9 @@
  * - alignment (decision 15): within one list, leading elements of one `data-lead` kind of unequal width;
  * - field rows (owner, 23 Oct 2026): in a flex or grid row holding labelled fields, the items on one line must share
  *   the top of their labels and the top of their boxes (input, select, textarea, or a bare button beside them), so a
- *   hint under one field can never push its neighbours out of line;
+ *   hint under one field can never push its neighbours out of line; and (design portal-ui-polish-2, decision 26) an
+ *   item whose control is a checkbox sits level with the boxes: its checkbox's vertical centre within 1 px of the line's
+ *   box centre (the 36 px control line), not with the labels;
  * - one primary (decision 16): more than one visible primary outside an open dialog.
  */
 
@@ -204,8 +206,34 @@ export function pageChecks({ width }: CheckArgs): PageFinding[] {
     const display = getComputedStyle(row).display;
     if (display.includes("flex") || display.includes("grid")) rows.add(row);
   }
+  const checkboxOf = (child: Element): HTMLInputElement | null => {
+    if (boxOf(child)) return null;
+    const box = child.querySelector<HTMLInputElement>("input[type=checkbox]");
+    return box && visible(box) ? box : null;
+  };
   for (const row of rows) {
     const items = Array.from(row.children).filter((c) => visible(c) && boxOf(c));
+    const checks = Array.from(row.children).filter((c) => visible(c) && checkboxOf(c));
+    // the checkbox step: a checkbox item on the line of a box sits on the box's centre line
+    for (const check of checks) {
+      const r = check.getBoundingClientRect();
+      const line = items.filter((i) => {
+        const o = i.getBoundingClientRect();
+        return r.top < o.bottom && o.top < r.bottom;
+      });
+      if (line.length === 0) continue;
+      const box = boxOf(line[0]!)!.getBoundingClientRect();
+      const boxCentre = box.top + box.height / 2;
+      const c = checkboxOf(check)!.getBoundingClientRect();
+      const checkCentre = c.top + c.height / 2;
+      if (Math.abs(checkCentre - boxCentre) > 1) {
+        out.push({
+          kind: "alignment",
+          element: describe(row),
+          detail: `field row: checkbox centre ${checkCentre.toFixed(1)} vs box centre ${boxCentre.toFixed(1)}`,
+        });
+      }
+    }
     if (items.length < 2) continue;
     // one visual line = items whose boxes overlap vertically
     const lines: Element[][] = [];

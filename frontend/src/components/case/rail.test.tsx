@@ -94,22 +94,22 @@ describe("Your task (case-workspace-admin, decision 10)", () => {
   it("the case is with the caller: the action, From, Due by with days left, the latest remark, See all remarks and the hint", async () => {
     browserApi(routes());
     renderRail(detail());
-    const task = await screen.findByRole("region", { name: "Your task" });
-    expect(await within(task).findByText("Your task", { selector: "div" })).toBeInTheDocument();
+    const task = await screen.findByRole("region", { name: "Your Task" });
+    expect(await within(task).findByText("Your Task", { selector: "div" })).toBeInTheDocument();
     expect(within(task).getByText("Prepare reply")).toBeInTheDocument();
     expect(within(task).getByText("Commissioner and Secretary, EDU")).toHaveAttribute("title", "Edu Head");
     expect(within(task).getByText(/30 Nov 2099/)).toBeInTheDocument();
     expect(within(task).getByText(/days left/)).toBeInTheDocument();
     expect(within(task).getByText("“Please draft the affidavit by Friday.”")).toBeInTheDocument();
-    expect(await within(task).findByRole("button", { name: "See all remarks (5)" })).toBeInTheDocument();
+    expect(await within(task).findByRole("button", { name: "See All Remarks (5)" })).toBeInTheDocument();
     expect(within(task).getByText("Done? Use Send case above to pass it on with your remark.")).toBeInTheDocument();
-    expect(within(task).queryByRole("button", { name: "Recall case" })).toBeNull();
+    expect(within(task).queryByRole("button", { name: "Recall Case" })).toBeNull();
   });
 
   it("overdue says Overdue by n days", async () => {
     browserApi(routes());
     renderRail(detail({ custody: card({ overdue: true, overdue_days: 3, due_date: "2026-10-20" }) }));
-    const task = await screen.findByRole("region", { name: "Your task" });
+    const task = await screen.findByRole("region", { name: "Your Task" });
     expect(within(task).getByText("Overdue by 3 days")).toBeInTheDocument();
   });
 
@@ -123,9 +123,9 @@ describe("Your task (case-workspace-admin, decision 10)", () => {
     const onAction = vi.fn();
     browserApi(routes());
     const { container } = renderRail(detail({ custody: other }), true, onAction);
-    const task = await screen.findByRole("region", { name: "Your task" });
+    const task = await screen.findByRole("region", { name: "Your Task" });
     expect(await within(task).findByText("With Section Officer, Secondary Education")).toHaveAttribute("title", "Officer One");
-    const recall = within(task).getByRole("button", { name: "Recall case" });
+    const recall = within(task).getByRole("button", { name: "Recall Case" });
     expect(recall).toHaveAttribute("data-variant", "danger");
     expect(container.querySelectorAll(PRIMARY_SELECTOR)).toHaveLength(0);
     expect(within(task).queryByText(/Done\? Use Send case/)).toBeNull();
@@ -136,16 +136,16 @@ describe("Your task (case-workspace-admin, decision 10)", () => {
   it("Recall case shows only with can_recall", async () => {
     browserApi(routes());
     renderRail(detail({ custody: card({ holder_user: { id: "u-7", full_name: "O", designation: "SO" }, can_recall: false }) }));
-    const task = await screen.findByRole("region", { name: "Your task" });
+    const task = await screen.findByRole("region", { name: "Your Task" });
     await within(task).findByText(/With SO/);
-    expect(within(task).queryByRole("button", { name: "Recall case" })).toBeNull();
+    expect(within(task).queryByRole("button", { name: "Recall Case" })).toBeNull();
   });
 
   it("the remark is absent when the API omits it, with no placeholder; See the journey when remarks are not shown", async () => {
     browserApi(routes(history({ remarks_shown: false, legs: [leg(2, { remark: null }), leg(1, { remark: null })], total: 2 })));
     renderRail(detail({ custody: card({ holder_user: { id: "u-7", full_name: "O", designation: "SO" }, remark: null }) }));
-    const task = await screen.findByRole("region", { name: "Your task" });
-    expect(await within(task).findByRole("button", { name: "See the journey (2)" })).toBeInTheDocument();
+    const task = await screen.findByRole("region", { name: "Your Task" });
+    expect(await within(task).findByRole("button", { name: "See the Journey (2)" })).toBeInTheDocument();
     expect(within(task).queryByRole("button", { name: /See all remarks/ })).toBeNull();
     expect(within(task).queryByText(/“/)).toBeNull();
     expect(within(task).queryByText(/remark|hidden/i)).toBeNull();
@@ -155,39 +155,39 @@ describe("Your task (case-workspace-admin, decision 10)", () => {
     const onRemarks = vi.fn();
     browserApi(routes());
     renderRail(detail(), true, () => {}, onRemarks);
-    await userEvent.click(await screen.findByRole("button", { name: "See all remarks (5)" }));
+    await userEvent.click(await screen.findByRole("button", { name: "See All Remarks (5)" }));
     expect(onRemarks).toHaveBeenCalled();
   });
 
   it("a case with an office and no officer: With <office name>", async () => {
     browserApi(routes());
     renderRail(detail({ custody: card({ holder_user: null, can_send: false }) }));
-    const task = await screen.findByRole("region", { name: "Your task" });
+    const task = await screen.findByRole("region", { name: "Your Task" });
     expect(within(task).getByText("With Education")).toBeInTheDocument();
   });
 
   it("no custody: one muted line and no buttons; no journey card", async () => {
     browserApi(routes(null));
     renderRail(detail({ custody: null, workflow: { note_mode: null, upload: false, set_stage: false, next_dates: false } }));
-    const task = await screen.findByRole("region", { name: "Your task" });
+    const task = await screen.findByRole("region", { name: "Your Task" });
     expect(within(task).getByText("The case moves between officers once a department claims it.")).toBeInTheDocument();
     expect(within(task).queryAllByRole("button")).toHaveLength(0);
-    expect(screen.queryByRole("region", { name: "Journey of this case" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Journey of This Case" })).toBeNull();
   });
 });
 
 describe("Next hearing, Quick actions and Journey (decisions 11, 12 and 14)", () => {
-  it("Next hearing: the weekday and date with the countdown; none says so and offers Enter next date by the flag", async () => {
+  it("Next Hearing: the weekday and date with the countdown; none says so and offers Enter next date by the flag", async () => {
     browserApi(routes());
     const onAction = vi.fn();
     const { unmount } = renderRail(detail(), true, onAction);
-    const card1 = screen.getByRole("region", { name: "Next hearing" });
+    const card1 = screen.getByRole("region", { name: "Next Hearing" });
     expect(within(card1).getByText(/^Fri, 20 Nov 2099 · in [0-9]+ days$/)).toBeInTheDocument();
     unmount();
     renderRail(detail({ status: { status: "pending", next_hearing_date: null } as CaseDetail["status"] }), true, onAction);
-    const none = screen.getByRole("region", { name: "Next hearing" });
+    const none = screen.getByRole("region", { name: "Next Hearing" });
     expect(within(none).getByText("No next hearing date yet")).toBeInTheDocument();
-    await userEvent.click(within(none).getByRole("button", { name: "Enter next date" }));
+    await userEvent.click(within(none).getByRole("button", { name: "Enter Next Date" }));
     expect(onAction).toHaveBeenCalledWith("next");
   });
 
@@ -195,24 +195,24 @@ describe("Next hearing, Quick actions and Journey (decisions 11, 12 and 14)", ()
     browserApi(routes());
     const onAction = vi.fn();
     const { unmount } = renderRail(detail(), true, onAction);
-    const quick = screen.getByRole("region", { name: "Quick actions" });
-    expect(within(quick).getAllByRole("button").map((b) => b.textContent)).toEqual(["Add note", "Upload a document", "Set stage"]);
+    const quick = screen.getByRole("region", { name: "Quick Actions" });
+    expect(within(quick).getAllByRole("button").map((b) => b.textContent)).toEqual(["Add Note", "Upload a Document", "Set Stage"]);
     for (const b of within(quick).getAllByRole("button")) expect(b).toHaveAttribute("data-variant", "secondary");
-    await userEvent.click(within(quick).getByRole("button", { name: "Upload a document" }));
+    await userEvent.click(within(quick).getByRole("button", { name: "Upload a Document" }));
     expect(onAction).toHaveBeenCalledWith("upload");
     unmount();
     const { unmount: u2 } = renderRail(detail({ workflow: { note_mode: null, upload: false, set_stage: true, next_dates: false } }));
-    expect(within(screen.getByRole("region", { name: "Quick actions" })).getAllByRole("button").map((b) => b.textContent)).toEqual(["Set stage"]);
+    expect(within(screen.getByRole("region", { name: "Quick Actions" })).getAllByRole("button").map((b) => b.textContent)).toEqual(["Set Stage"]);
     u2();
     renderRail(detail({ workflow: { note_mode: null, upload: false, set_stage: false, next_dates: false } }));
-    expect(screen.queryByRole("region", { name: "Quick actions" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Quick Actions" })).toBeNull();
   });
 
   it("the journey shows the latest 4 movements newest first, the now marker and the reason when it is not a send", async () => {
     const api = browserApi(routes());
     renderRail(detail());
-    const journey = screen.getByRole("region", { name: "Journey of this case" });
-    const list = await within(journey).findByRole("list", { name: "Journey of this case" });
+    const journey = screen.getByRole("region", { name: "Journey of This Case" });
+    const list = await within(journey).findByRole("list", { name: "Journey of This Case" });
     const items = within(list).getAllByRole("listitem");
     expect(items).toHaveLength(4);
     expect(items.map((li) => within(li).getByText(/^With /).textContent)).toEqual([
@@ -222,9 +222,9 @@ describe("Next hearing, Quick actions and Journey (decisions 11, 12 and 14)", ()
       "With Post 2, Education",
     ]);
     expect(items[0]).toHaveAttribute("aria-current", "step");
-    expect(within(items[0]!).getByText("now")).toBeInTheDocument();
+    expect(within(items[0]!).getByText("Now")).toBeInTheDocument();
     expect(within(items[1]!).getByText("Recalled")).toBeInTheDocument();
-    expect(within(journey).getByRole("link", { name: "Journey and stage" })).toHaveAttribute("href", `${BASE}/custody`);
+    expect(within(journey).getByRole("link", { name: "Journey and Stage" })).toHaveAttribute("href", `${BASE}/custody`);
     expect(within(journey).queryByRole("button", { name: /See all remarks/ })).toBeNull();
     const call = api.calls.find((c) => c.path.startsWith(`${BASE}/custody`))!;
     expect(call.path).toContain("order=desc");
@@ -236,18 +236,18 @@ describe("the layout (decision 8)", () => {
   it("below 1100 px the cards are collapsibles: Your task open, the others closed with their key fact", async () => {
     browserApi(routes());
     renderRail(detail(), false);
-    const task = await screen.findByRole("region", { name: "Your task" });
-    expect(within(task).getByRole("button", { name: /Your task/ })).toHaveAttribute("aria-expanded", "true");
-    const hearing = screen.getByRole("region", { name: "Next hearing" });
-    const toggle = within(hearing).getByRole("button", { name: /Next hearing/ });
+    const task = await screen.findByRole("region", { name: "Your Task" });
+    expect(within(task).getByRole("button", { name: /Your Task/ })).toHaveAttribute("aria-expanded", "true");
+    const hearing = screen.getByRole("region", { name: "Next Hearing" });
+    const toggle = within(hearing).getByRole("button", { name: /Next Hearing/ });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     expect(toggle).toHaveTextContent(/Fri, 20 Nov 2099/);
-    expect(within(screen.getByRole("region", { name: "Quick actions" })).getByRole("button", { name: /3 actions/ })).toHaveAttribute(
+    expect(within(screen.getByRole("region", { name: "Quick Actions" })).getByRole("button", { name: /3 actions/ })).toHaveAttribute(
       "aria-expanded",
       "false",
     );
-    const journey = screen.getByRole("region", { name: "Journey of this case" });
-    await waitFor(() => expect(within(journey).getByRole("button", { name: /Journey of this case/ })).toHaveTextContent("With Post 5, Education"));
+    const journey = screen.getByRole("region", { name: "Journey of This Case" });
+    await waitFor(() => expect(within(journey).getByRole("button", { name: /Journey of This Case/ })).toHaveTextContent("With Post 5, Education"));
   });
 
   describe("on the case page", () => {
@@ -290,17 +290,17 @@ describe("the layout (decision 8)", () => {
       wideScreen(true);
       browserApi(pageRoutes());
       const { unmount } = renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
-      const aside = await screen.findByRole("complementary", { name: "Case work" });
-      expect(within(aside).getByRole("region", { name: "Your task" })).toBeInTheDocument();
-      const tabs = screen.getByRole("navigation", { name: "Case sections" });
+      const aside = await screen.findByRole("complementary", { name: "Case Work" });
+      expect(within(aside).getByRole("region", { name: "Your Task" })).toBeInTheDocument();
+      const tabs = screen.getByRole("navigation", { name: "Case Sections" });
       expect(tabs.compareDocumentPosition(aside) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       unmount();
       wideScreen(false);
       browserApi(pageRoutes());
       renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
-      const task = await screen.findByRole("region", { name: "Your task" });
-      expect(screen.queryByRole("complementary", { name: "Case work" })).toBeNull();
-      const tabs2 = screen.getByRole("navigation", { name: "Case sections" });
+      const task = await screen.findByRole("region", { name: "Your Task" });
+      expect(screen.queryByRole("complementary", { name: "Case Work" })).toBeNull();
+      const tabs2 = screen.getByRole("navigation", { name: "Case Sections" });
       expect(task.compareDocumentPosition(tabs2) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
@@ -308,12 +308,12 @@ describe("the layout (decision 8)", () => {
       wideScreen(true);
       browserApi(pageRoutes());
       const { container } = renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
-      const group = await screen.findByRole("group", { name: "Case actions" });
-      expect(within(group).getByRole("button", { name: "Send case" })).toHaveAttribute("data-variant", "primary");
-      for (const name of ["Add note", "Upload a document", "Set stage"]) expect(within(group).queryByRole("button", { name })).toBeNull();
-      await userEvent.click(within(group).getByRole("button", { name: "More actions" }));
+      const group = await screen.findByRole("group", { name: "Case Actions" });
+      expect(within(group).getByRole("button", { name: "Send Case" })).toHaveAttribute("data-variant", "primary");
+      for (const name of ["Add Note", "Upload a Document", "Set Stage"]) expect(within(group).queryByRole("button", { name })).toBeNull();
+      await userEvent.click(within(group).getByRole("button", { name: "More Actions" }));
       const items = within(group).getAllByRole("menuitem").map((m) => m.textContent);
-      for (const name of ["Add note", "Upload a document", "Set stage"]) expect(items).not.toContain(name);
+      for (const name of ["Add Note", "Upload a Document", "Set Stage"]) expect(items).not.toContain(name);
       expect(container.querySelectorAll(PRIMARY_SELECTOR)).toHaveLength(1);
     });
   });

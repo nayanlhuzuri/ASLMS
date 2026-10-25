@@ -92,14 +92,14 @@ describe("navigation", () => {
     for (const fns of [["reports.department"], ["reports.state"]] as Permission[][]) {
       browserApi({ "GET /reference/labels": labels() });
       const { unmount } = renderWithClient(<Sidebar me={makeMe(fns)} />);
-      const main = screen.getByRole("navigation", { name: "Main navigation" });
-      expect(within(main).getByRole("link", { name: "Reports" })).toHaveAttribute("href", "/reports");
+      const main = screen.getByRole("navigation", { name: "Main Navigation" });
+      expect(within(main).getByRole("treeitem", { name: "Reports" })).toHaveAttribute("href", "/reports");
       unmount();
     }
     browserApi({ "GET /reference/labels": labels() });
     renderWithClient(<Sidebar me={makeMe(["cases.view_scope"])} />);
-    const main = screen.getByRole("navigation", { name: "Main navigation" });
-    expect(within(main).queryByRole("link", { name: "Reports" })).toBeNull();
+    const main = screen.getByRole("navigation", { name: "Main Navigation" });
+    expect(within(main).queryByRole("treeitem", { name: "Reports" })).toBeNull();
   });
 });
 
@@ -107,20 +107,20 @@ describe("tabs follow the catalogue", () => {
   it("a State reader gets four tabs, a department reader three", async () => {
     browserApi({ "GET /reports": catalogue(true) });
     const { unmount } = renderWithClient(<ReportsFrame>body</ReportsFrame>);
-    const tabs = await screen.findByRole("navigation", { name: "Reports sections" });
+    const tabs = await screen.findByRole("navigation", { name: "Reports Sections" });
     expect(within(tabs).getAllByRole("link").map((a) => a.textContent)).toEqual([
-      "Pending cases",
-      "Hearings and disposals",
-      "Pending actions",
-      "Data collection health",
+      "Pending Cases",
+      "Hearings and Disposals",
+      "Pending Actions",
+      "Data Collection Health",
     ]);
-    expect(within(tabs).getByRole("link", { name: "Pending cases" })).toHaveAttribute("aria-current", "page");
+    expect(within(tabs).getByRole("link", { name: "Pending Cases" })).toHaveAttribute("aria-current", "page");
     unmount();
     browserApi({ "GET /reports": catalogue(false) });
     renderWithClient(<ReportsFrame>body</ReportsFrame>);
-    const three = await screen.findByRole("navigation", { name: "Reports sections" });
+    const three = await screen.findByRole("navigation", { name: "Reports Sections" });
     expect(within(three).getAllByRole("link")).toHaveLength(3);
-    expect(within(three).queryByRole("link", { name: "Data collection health" })).toBeNull();
+    expect(within(three).queryByRole("link", { name: "Data Collection Health" })).toBeNull();
   });
 
   it("/reports opens the first tab", async () => {
@@ -182,7 +182,7 @@ describe("scope", () => {
     expect(await screen.findByText("Scope: Whole State")).toBeInTheDocument();
     expect(reportCalls(api).map((c) => c.path)).toEqual(["/reports/pending-cases"]);
     await userEvent.selectOptions(scope, "FIN");
-    await userEvent.click(screen.getByRole("button", { name: "Show report" }));
+    await userEvent.click(screen.getByRole("button", { name: "Show Report" }));
     expect(nav.push).toHaveBeenCalledWith("/reports/pending-cases?department=FIN");
   });
 });
@@ -247,7 +247,7 @@ describe("sections render from columns", () => {
             key: "files",
             title: "Cases with a pending action",
             columns: [
-              { key: "case_no", label: "Case number", kind: "text" },
+              { key: "case_no", label: "Case Number", kind: "text" },
               { key: "holder_office_code", label: "Holder office", kind: "text" },
               { key: "due_date", label: "Due", kind: "date" },
               { key: "overdue_days", label: "Days overdue", kind: "days" },
@@ -286,7 +286,7 @@ describe("downloads", () => {
       },
     });
     renderWithClient(<ReportPage reportKey="pending-cases" params={{ department: "EDU" }} />);
-    expect(await screen.findByText("Preparing the report…")).toBeInTheDocument();
+    expect(await screen.findByText("Preparing the Report…")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Download Excel" })).toBeNull();
     release(undefined);
     const xlsx = await screen.findByRole("link", { name: "Download Excel" });
@@ -311,7 +311,7 @@ describe("downloads", () => {
     expect(message).toHaveAttribute("role", "alert");
     expect(screen.getByLabelText("To")).toHaveAttribute("aria-describedby", expect.stringContaining(message.id));
     expect(screen.queryByRole("link", { name: "Download Excel" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Try Again" })).toBeNull();
   });
 
   it("a 503 shows the message with Try again and no download", async () => {
@@ -331,7 +331,7 @@ describe("downloads", () => {
       await screen.findByText("The report took too long. Choose a shorter period or one department."),
     ).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Download Excel" })).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await userEvent.click(screen.getByRole("button", { name: "Try Again" }));
     expect(await screen.findByRole("link", { name: "Download Excel" })).toBeInTheDocument();
   });
 });
@@ -352,7 +352,7 @@ describe("the period", () => {
       expect(reportCalls(api)[0]!.path).toBe(`/reports/hearings-disposals?from=${today.slice(0, 7)}-01&to=${today}`),
     );
     await userEvent.selectOptions(period, "last_month");
-    await userEvent.click(screen.getByRole("button", { name: "Show report" }));
+    await userEvent.click(screen.getByRole("button", { name: "Show Report" }));
     expect(nav.push.mock.calls[0]![0]).toMatch(/^\/reports\/hearings-disposals\?from=\d{4}-\d{2}-01&to=\d{4}-\d{2}-\d{2}$/);
   });
 
@@ -366,7 +366,7 @@ describe("the period", () => {
     await userEvent.selectOptions(period, "custom");
     await userEvent.type(screen.getByLabelText("From"), "2026-10-05");
     await userEvent.type(screen.getByLabelText("To"), "2026-10-01");
-    await userEvent.click(screen.getByRole("button", { name: "Show report" }));
+    await userEvent.click(screen.getByRole("button", { name: "Show Report" }));
     expect(await screen.findByText("The end date is before the start date.")).toBeInTheDocument();
     expect(nav.push).not.toHaveBeenCalled();
   });
@@ -375,7 +375,7 @@ describe("the period", () => {
     resetNav("/reports/data-health");
     browserApi({ "GET /me": stateMe(), "GET /reports": catalogue(true), "GET /reports/data-health": report("data-health") });
     renderWithClient(<ReportPage reportKey="data-health" params={{}} />);
-    expect(await screen.findByRole("link", { name: "Live health" })).toHaveAttribute("href", "/data/health");
+    expect(await screen.findByRole("link", { name: "Live Health" })).toHaveAttribute("href", "/data/health");
   });
 });
 
@@ -397,14 +397,14 @@ describe("pending actions", () => {
       "GET /reports/pending-actions": report("pending-actions", { scope: "department", department_code: "EDU" }),
     });
     renderWithClient(<ReportPage reportKey="pending-actions" params={{ department: "EDU" }} />);
-    const holder = await screen.findByLabelText("Holder department");
+    const holder = await screen.findByLabelText("Holder Department");
     await waitFor(() => expect(within(holder).getAllByRole("option")).toHaveLength(4));
-    expect(within(holder).getByRole("option", { name: "All holders" })).toBeInTheDocument();
+    expect(within(holder).getByRole("option", { name: "All Holders" })).toBeInTheDocument();
     expect(within(holder).getByRole("option", { name: "Public Works (PWD)" })).toBeInTheDocument();
     expect(screen.getByText(/overdue compliance is always by the office addressed/)).toBeInTheDocument();
     await userEvent.selectOptions(holder, "HEALTH");
-    await userEvent.click(screen.getByRole("checkbox", { name: "List the cases" }));
-    await userEvent.click(screen.getByRole("button", { name: "Show report" }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "List the Cases" }));
+    await userEvent.click(screen.getByRole("button", { name: "Show Report" }));
     expect(nav.push).toHaveBeenCalledWith(
       "/reports/pending-actions?department=EDU&holder_department=HEALTH&include_cases=true",
     );
@@ -420,13 +420,13 @@ describe("pending actions", () => {
     browserApi({ ...routes, "GET /me": deptMe() });
     const { unmount } = renderWithClient(<ReportPage reportKey="pending-actions" params={{ department: "EDU" }} />);
     await screen.findByRole("link", { name: "Download Excel" });
-    expect(screen.queryByRole("link", { name: "Pending action" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Pending Action" })).toBeNull();
     unmount();
     const tracker = deptMe();
     tracker.memberships = (tracker.memberships ?? []).map((m) => ({ ...m, functions: ["custody.track", "reports.department"] }));
     browserApi({ ...routes, "GET /me": tracker });
     renderWithClient(<ReportPage reportKey="pending-actions" params={{ department: "EDU" }} />);
-    expect(await screen.findByRole("link", { name: "Pending action" })).toHaveAttribute("href", "/inbox/pending");
+    expect(await screen.findByRole("link", { name: "Pending Action" })).toHaveAttribute("href", "/inbox/pending");
     expect(screen.getByText(/is under Case inbox:/)).toBeInTheDocument();
   });
 });
@@ -456,7 +456,7 @@ describe("the Report template (design portal-ui-redesign, decision 26)", () => {
     expect(within(group).getByRole("button", { name: "Download PDF" })).toBeDisabled();
     expect(screen.queryByRole("link", { name: "Download Excel" })).toBeNull();
     // the form comes before the results
-    const form = screen.getByRole("form", { name: "Report choices" });
+    const form = screen.getByRole("form", { name: "Report Choices" });
     release(undefined);
     const xlsx = await within(group).findByRole("link", { name: "Download Excel" });
     expect(xlsx).toHaveAttribute("href", "/api/backend/reports/pending-cases?format=xlsx");
@@ -465,7 +465,7 @@ describe("the Report template (design portal-ui-redesign, decision 26)", () => {
     const title = screen.getByRole("heading", { level: 2, name: "Pending cases by department, court and age" });
     expect(form.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // one primary on the page: Show report
-    expect(primaryActions(container)).toEqual(["Show report"]);
+    expect(primaryActions(container)).toEqual(["Show Report"]);
   });
 
   it("a reader without reports sees no download buttons", async () => {
@@ -481,7 +481,7 @@ describe("the data-health call figures (court-data-freshness, decision 20)", () 
     const { ReportView } = await import("./ReportView");
     const health = (from: string) =>
       report("data-health", {
-        title: "Data collection health",
+        title: "Data Collection Health",
         params: { department: null, from, to: "2026-10-14" },
         meta: { calls_kept_from: "2024-10-14", calls_kept_days: 730 },
       });

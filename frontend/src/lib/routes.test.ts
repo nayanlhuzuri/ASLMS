@@ -74,7 +74,7 @@ describe("department discovery navigation", () => {
       expect(keys(dataTabsFor(only(fn)))).toContain("discovery");
     }
     expect(keys(dataTabsFor(only("admin.keywords")))).not.toContain("discovery");
-    expect(crumbLabel("/admin/mapping/discovery")).toBe("Court search");
+    expect(crumbLabel("/admin/mapping/discovery")).toBe("Court Search");
     expect(crumbLabel("/data/discovery")).toBe("Discovery");
   });
 });
@@ -91,9 +91,9 @@ describe("the case page tabs (portal-workflow)", () => {
       "Assistant", // shown only with assistant.use while the assistant is on (CaseFrame)
     ]);
     expect(CASE_TABS.filter((t) => t.more).map((t) => t.key)).toEqual(["parties", "links", "custody", "alerts", "details"]);
-    expect(CASE_TABS.find((t) => t.key === "custody")!.label).toBe("Journey and stage");
+    expect(CASE_TABS.find((t) => t.key === "custody")!.label).toBe("Journey and Stage");
     expect(CASE_TABS.find((t) => t.key === "alerts")!.count).toBeNull();
-    expect(CRUMBS.custody).toBe("Journey and stage");
+    expect(CRUMBS.custody).toBe("Journey and Stage");
     expect(CRUMBS.alerts).toBe("Alerts");
   });
 
@@ -129,7 +129,7 @@ describe("Files, My calendar and Alerts navigation (portal-files-alerts; portal-
       memberships: [{ ...membership(null, ["cases.view_scope"], "standing_counsel"), office: { code: "AG", name: "Advocate General", kind: "office" } }],
     });
     const inbox = counsel.find((e) => e.key === "inbox")!;
-    expect(inbox.label).toBe("Case inbox");
+    expect(inbox.label).toBe("Case Inbox");
     expect(inbox.href).toBe("/inbox");
     expect(inbox.count).toBe("inbox");
     expect(counsel.map((e) => e.key)).not.toContain("claim");
@@ -152,7 +152,7 @@ describe("Files, My calendar and Alerts navigation (portal-files-alerts; portal-
     const head = { functions: headFns, memberships: [membership("EDU", headFns)] };
     const all = inboxTabsFor(head, { whole: true });
     expect(keys(all)).toEqual(["working", "sent", "claimed", "disposed", "department", "pending"]);
-    expect(all.map((t) => t.label)).toEqual(["Working on", "Sent by me", "Claimed by me", "Disposed", "Department cases", "Pending action"]);
+    expect(all.map((t) => t.label)).toEqual(["Working On", "Sent by Me", "Claimed by Me", "Disposed", "Department Cases", "Pending Action"]);
     expect(all.map((t) => t.href)).toEqual([
       "/inbox/working",
       "/inbox/sent",
@@ -207,25 +207,25 @@ describe("Files, My calendar and Alerts navigation (portal-files-alerts; portal-
   it("the Next dates to confirm tab shows only with next_dates.review (portal-next-dates, decision 1)", () => {
     const both = alertsTabsFor({ functions: ["cases.view_scope", "next_dates.review"] });
     expect(keys(both)).toEqual(["list", "next-dates"]);
-    expect(both[1]!.label).toBe("Next dates to confirm");
+    expect(both[1]!.label).toBe("Next Dates to Confirm");
     expect(both[1]!.href).toBe("/alerts/next-dates");
     expect(keys(alertsTabsFor({ functions: ["cases.view_scope"] }))).not.toContain("next-dates");
-    expect(crumbLabel("/alerts/next-dates")).toBe("Next dates to confirm");
+    expect(crumbLabel("/alerts/next-dates")).toBe("Next Dates to Confirm");
   });
 
   it("CRUMB_PATHS names the screens by path, while the segments keep their meaning", () => {
-    expect(crumbLabel("/inbox/sent")).toBe("Sent by me");
-    expect(crumbLabel("/inbox/pending")).toBe("Pending action");
-    expect(crumbLabel("/inbox/working")).toBe("Working on");
+    expect(crumbLabel("/inbox/sent")).toBe("Sent by Me");
+    expect(crumbLabel("/inbox/pending")).toBe("Pending Action");
+    expect(crumbLabel("/inbox/working")).toBe("Working On");
     expect(CRUMB_PATHS["/cases/with-me"]).toBeUndefined();
     expect(crumbLabel("/admin/offices")).toBe("Offices");
     expect(crumbLabel("/alerts")).toBe("Alerts");
-    expect(crumbLabel("/calendar")).toBe("My calendar");
+    expect(crumbLabel("/calendar")).toBe("My Calendar");
     expect(crumbLabel("/cases/x/alerts")).toBe("Alerts");
-    expect(crumbLabel("/alerts/calendar")).toBe("Hearing calendar");
+    expect(crumbLabel("/alerts/calendar")).toBe("Hearing Calendar");
     // the crumb above a case page leads to the Case inbox (case-inbox-merge, decision 12)
-    expect(CRUMB_PATHS["/cases"]).toBe("Case inbox");
-    expect(crumbLabel("/cases")).toBe("Case inbox");
+    expect(CRUMB_PATHS["/cases"]).toBe("Case Inbox");
+    expect(crumbLabel("/cases")).toBe("Case Inbox");
   });
 });
 
@@ -241,7 +241,7 @@ describe("the Cause list navigation (portal-causelist)", () => {
     expect(navFor({ functions: ["users.view"] }).map((e) => e.key)).not.toContain("causelist");
     expect(navFor({ functions: [] }).map((e) => e.key)).not.toContain("causelist");
     const entry = navFor({ functions: ["cases.view_scope"] }).find((e) => e.key === "causelist")!;
-    expect(entry.label).toBe("Cause list");
+    expect(entry.label).toBe("Cause List");
     expect(entry.href).toBe("/causelist");
   });
 });
@@ -256,8 +256,8 @@ describe("Reports navigation (portal-reports)", () => {
   it("names the four tabs in the breadcrumb", () => {
     expect(CRUMBS.reports).toBe("Reports");
     expect(crumbLabel("/reports")).toBe("Reports");
-    expect(CRUMB_PATHS["/reports/hearings-disposals"]).toBe("Hearings and disposals");
-    expect(crumbLabel("/reports/pending-actions")).toBe("Pending actions");
+    expect(CRUMB_PATHS["/reports/hearings-disposals"]).toBe("Hearings and Disposals");
+    expect(crumbLabel("/reports/pending-actions")).toBe("Pending Actions");
   });
 });
 
@@ -312,8 +312,8 @@ describe("Audit log navigation (portal-audit-health)", () => {
   });
 
   it("names the screen and an entry in the breadcrumb", () => {
-    expect(CRUMBS.audit).toBe("Audit log");
-    expect(crumbLabel("/audit")).toBe("Audit log");
+    expect(CRUMBS.audit).toBe("Audit Log");
+    expect(crumbLabel("/audit")).toBe("Audit Log");
     expect(crumbLabel("/audit/0192a3b4-5c6d-7e8f-9a0b-1c2d3e4f5a6b")).toBe(AUDIT_ENTRY_CRUMB);
     expect(AUDIT_ENTRY_CRUMB).toBe("Entry");
   });
@@ -322,7 +322,7 @@ describe("Audit log navigation (portal-audit-health)", () => {
 describe("System health navigation (api-health-checker, decision 2)", () => {
   it("the entry shows only with admin.service_health, in Settings after Data collection", () => {
     const entry = NAV.find((e) => e.key === "system")!;
-    expect(entry).toMatchObject({ href: "/system", group: "settings", label: "System health", functions: ["admin.service_health"] });
+    expect(entry).toMatchObject({ href: "/system", group: "settings", label: "System Health", functions: ["admin.service_health"] });
     expect(navFor({ functions: ["admin.service_health"] }).map((e) => e.key)).toEqual(["dashboard", "system"]);
     for (const fn of ["admin.napix_refetch", "admin.masters_sync", "reports.state", "admin.data_load"] as const) {
       expect(navFor(only(fn)).map((e) => e.key)).not.toContain("system");
@@ -330,6 +330,80 @@ describe("System health navigation (api-health-checker, decision 2)", () => {
     const keys = NAV.map((e) => e.key);
     expect(keys.indexOf("system")).toBe(keys.indexOf("data") + 1);
     expect(keys.indexOf("admin")).toBe(keys.indexOf("system") + 1);
-    expect(crumbLabel("/system")).toBe("System health");
+    expect(crumbLabel("/system")).toBe("System Health");
+  });
+});
+
+describe("the one-level menu (design portal-ui-polish-2, decisions 14 and 15)", () => {
+  const entry = (functions: Permission[], key: string) => navFor({ functions }).find((e) => e.key === key);
+  const keys = (functions: Permission[], key: string) => entry(functions, key)?.children?.map((c) => c.key);
+
+  it("four entries expand, each to its own pages; every other entry is a plain link", () => {
+    const all = NAV.filter((e) => e.children).map((e) => e.key);
+    expect(all).toEqual(["reports", "data", "system", "admin"]);
+    expect(keys(["users.view", "access.manage_types", "offices.manage", "admin.designations", "admin.keywords", "admin.tickets"], "admin")).toEqual(
+      ["users", "access", "offices", "designations", "mapping", "tickets"],
+    );
+    expect(keys(["admin.data_load"], "data")).toEqual(["load", "health", "queue", "duplicates", "discovery"]);
+    expect(keys(["reports.state"], "reports")).toEqual(["pending-cases", "hearings-disposals", "pending-actions", "data-health"]);
+    expect(keys(["admin.service_health"], "system")).toEqual(["court", "services", "token"]);
+    for (const e of navFor({ functions: ["cases.view_scope", "cases.view_all", "cases.claim", "audit.view"] })) {
+      if (!["reports", "data", "system", "admin"].includes(e.key)) expect(e.children, e.key).toBeUndefined();
+    }
+  });
+
+  it("Data Health shows only with reports.state", () => {
+    expect(keys(["reports.department"], "reports")).toEqual(["pending-cases", "hearings-disposals", "pending-actions"]);
+    expect(keys(["reports.state"], "reports")).toContain("data-health");
+  });
+
+  it("Administration's children follow ADMIN_TABS' functions", () => {
+    expect(keys(["admin.watchlist"], "admin")).toEqual(["mapping"]);
+    expect(keys(["users.propose_head"], "admin")).toEqual(["designations", "tickets"]);
+    const children = NAV.find((e) => e.key === "admin")!.children!;
+    expect(children.map((c) => [c.key, c.href, c.functions])).toEqual(ADMIN_TABS.map((t) => [t.key, t.href, t.functions]));
+  });
+
+  it("an entry whose children are all hidden is a plain link", async () => {
+    const { filterNav } = await import("./routes");
+    const parent = {
+      key: "x",
+      label: "X",
+      href: "/x",
+      group: "settings" as const,
+      functions: ["users.view"] as Permission[],
+      built: true,
+      children: [{ key: "a", label: "A", href: "/x/a", functions: ["offices.manage"] as Permission[] }],
+    };
+    const [plain] = filterNav([parent], { functions: ["users.view"] });
+    expect(plain).toBeDefined();
+    expect(plain!.children).toBeUndefined();
+    expect(plain!.href).toBe("/x");
+    const [full] = filterNav([parent], { functions: ["users.view", "offices.manage"] });
+    expect(full!.children?.map((c) => c.key)).toEqual(["a"]);
+  });
+
+  it("no child has children (one level)", () => {
+    for (const e of NAV) for (const c of e.children ?? []) expect("children" in c, `${e.key}/${c.key}`).toBe(false);
+  });
+
+  it("the /system children match by hash and by the api key", async () => {
+    const { childActive, SYSTEM_SECTIONS } = await import("./routes");
+    const [court, services, token] = SYSTEM_SECTIONS;
+    expect(childActive(court!, { pathname: "/system", hash: "#court" })).toBe(true);
+    expect(childActive(court!, { pathname: "/system", hash: "#services" })).toBe(false);
+    expect(childActive(services!, { pathname: "/system", hash: "#services" })).toBe(true);
+    expect(childActive(token!, { pathname: "/system", search: "?api=token&tab=token" })).toBe(true);
+    expect(childActive(court!, { pathname: "/system", hash: "#court", search: "?api=token" })).toBe(false);
+    expect(childActive(token!, { pathname: "/system", hash: "" })).toBe(false);
+    expect(token!.href).toBe("/system?api=token&tab=token");
+  });
+
+  it("a child is active when the path starts with its href; its parent is then on the path", async () => {
+    const { activeChild, onPath } = await import("./routes");
+    const admin = entry(["users.view", "offices.manage"], "admin")!;
+    expect(activeChild(admin, { pathname: "/admin/offices/EDU" })).toBe("offices");
+    expect(onPath(admin, { pathname: "/admin/offices/EDU" })).toBe(true);
+    expect(onPath(admin, { pathname: "/inbox" })).toBe(false);
   });
 });

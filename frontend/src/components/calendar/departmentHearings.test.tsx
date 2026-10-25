@@ -47,7 +47,7 @@ describe("the hearing calendar (portal-files-alerts, decisions 10, 11)", () => {
     expect(await screen.findByRole("region", { name: "Agenda" })).toBeInTheDocument();
     expect(calendarCalls(api.calls).map((c) => c.path)).toEqual(["/calendar"]);
     expect(screen.queryByRole("table")).toBeNull();
-    expect(screen.getByRole("button", { name: "Next 7 days" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Next 7 Days" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("a month asks for its first and last day, never more than 62 days, and shows the grid", async () => {
@@ -75,9 +75,9 @@ describe("the hearing calendar (portal-files-alerts, decisions 10, 11)", () => {
     const day14 = within(grid).getByRole("link", { name: "14 October: 3 hearings, 1 within 48 hours" });
     expect(day14).toHaveAttribute("href", "#d-2026-10-14");
     expect(within(day14).getByText("3 hearings")).toBeInTheDocument();
-    expect(within(day14).getByText("Within 48 h")).toBeInTheDocument();
+    expect(within(day14).getByText("Within 48 Hours")).toBeInTheDocument();
     const day20 = within(grid).getByRole("link", { name: "20 October: 1 hearing" });
-    expect(within(day20).queryByText("Within 48 h")).toBeNull();
+    expect(within(day20).queryByText("Within 48 Hours")).toBeNull();
     expect(document.getElementById("d-2026-10-14")).not.toBeNull();
   });
 
@@ -86,13 +86,13 @@ describe("the hearing calendar (portal-files-alerts, decisions 10, 11)", () => {
     renderWithClient(<Calendar params={{}} />);
     const agenda = await screen.findByRole("region", { name: "Agenda" });
     const row = (caseNo: string) => within(agenda).getByRole("link", { name: caseNo }).closest("li")!;
-    expect(within(row("WP(C)/1/2026")).getByText("Within 48 h")).toBeInTheDocument();
-    expect(within(row("WP(C)/1/2026")).getByText("This week")).toBeInTheDocument();
-    expect(within(row("WP(C)/1/2026")).getByText(/Cause list/)).toBeInTheDocument();
-    expect(within(row("WA/2/2026")).queryByText("Within 48 h")).toBeNull();
-    expect(within(row("WA/2/2026")).getByText(/Next date/)).toBeInTheDocument();
-    expect(within(row("WA/3/2026")).queryByText("This week")).toBeNull();
-    expect(within(row("WA/3/2026")).getByText(/Court records/)).toBeInTheDocument();
+    expect(within(row("WP(C)/1/2026")).getByText("Within 48 Hours")).toBeInTheDocument();
+    expect(within(row("WP(C)/1/2026")).getByText("This Week")).toBeInTheDocument();
+    expect(within(row("WP(C)/1/2026")).getByText(/Cause List/)).toBeInTheDocument();
+    expect(within(row("WA/2/2026")).queryByText("Within 48 Hours")).toBeNull();
+    expect(within(row("WA/2/2026")).getByText(/Next Date/)).toBeInTheDocument();
+    expect(within(row("WA/3/2026")).queryByText("This Week")).toBeNull();
+    expect(within(row("WA/3/2026")).getByText(/Court Records/)).toBeInTheDocument();
     expect(within(row("WA/4/2026")).getByText(/mystery/)).toBeInTheDocument();
     // dates ascending
     const heads = within(agenda).getAllByRole("heading", { level: 3 }).map((h) => h.id);
@@ -109,13 +109,13 @@ describe("the hearing calendar (portal-files-alerts, decisions 10, 11)", () => {
     browserApi({ "GET /me": makeMe(["cases.view_scope"]), "GET /calendar": { items: [] } });
     renderWithClient(<Calendar params={{ month: "2026-01" }} />);
     await screen.findByRole("table", { name: "January 2026" });
-    await userEvent.click(screen.getByRole("button", { name: "Previous month" }));
+    await userEvent.click(screen.getByRole("button", { name: "Previous Month" }));
     expect(nav.replace).toHaveBeenLastCalledWith("/calendar?month=2025-12");
-    await userEvent.click(screen.getByRole("button", { name: "Next month" }));
+    await userEvent.click(screen.getByRole("button", { name: "Next Month" }));
     expect(nav.replace).toHaveBeenLastCalledWith("/calendar?month=2026-02");
-    await userEvent.click(screen.getByRole("button", { name: "This month" }));
+    await userEvent.click(screen.getByRole("button", { name: "This Month" }));
     expect(nav.replace).toHaveBeenLastCalledWith(`/calendar?month=${monthOf(todayIst())}`);
-    await userEvent.click(screen.getByRole("button", { name: "Next 7 days" }));
+    await userEvent.click(screen.getByRole("button", { name: "Next 7 Days" }));
     expect(nav.replace).toHaveBeenLastCalledWith("/calendar");
   });
 

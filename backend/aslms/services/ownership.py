@@ -234,7 +234,7 @@ def acting_member(
         )
     with_dept = [m for m in members if m.department is not None]
     if not with_dept:
-        raise OwnershipError("you do not belong to a department; the super admin names office_code")
+        raise OwnershipError("you do not belong to a department; the Super Administrator names office_code")
     related = [m for m in with_dept if relation is None or relation(m.department)]
     qualifying = [m for m in related if permission is None or m.holds(permission)]
     if qualifying:

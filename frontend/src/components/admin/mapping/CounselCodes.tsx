@@ -159,6 +159,7 @@ export function CounselCodes() {
           {T.mapping.apply}
         </Button>
         <CheckField
+          inline
           label={T.mapping.includeInactive}
           checked={filter.inactive}
           onChange={(e) => setFilter({ ...filter, inactive: e.target.checked })}

@@ -24,9 +24,9 @@ function perm(code: string, label: string, group: string | null, group_label: st
 
 // deliberately out of order: the page follows group and sort_in_group, not the list order
 const PERMS: PermissionInfo[] = [
-  perm("custody.recall", "Recall cases", "case_work", "Case work", 2),
+  perm("custody.recall", "Recall cases", "case_work", "Case Work", 2),
   perm("users.view", "See users", "people", "People and access", 1),
-  perm("custody.move", "Send cases held by an office", "case_work", "Case work", 1),
+  perm("custody.move", "Send cases held by an office", "case_work", "Case Work", 1),
   perm("users.create", "Add users", "people", "People and access", 2),
   perm("admin.tickets", "Decide admin tickets", "administration", "Administration", 1),
   perm("requests.send", "Send requests", null, null, null),
@@ -66,7 +66,7 @@ describe("the user-type cards (case-workspace-admin, decision 24)", () => {
     resetNav("/admin/access");
     routes();
     const { container } = renderWithClient(<UserTypesIndex />);
-    const list = await screen.findByRole("list", { name: "User types" });
+    const list = await screen.findByRole("list", { name: "User Types" });
     const cards = within(list).getAllByRole("link");
     expect(cards.map((c) => c.getAttribute("aria-label"))).toEqual(["Super admin", "Dept officer"]);
     const officer = within(list).getByRole("link", { name: "Dept officer" });
@@ -90,10 +90,10 @@ describe("the user-type page (decisions 25-27)", () => {
     expect(screen.getByRole("heading", { level: 2, name: "Dept officer" })).toBeInTheDocument();
     expect(screen.getByText("12 users · 2 of 5 functions on")).toBeInTheDocument();
     const headings = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent);
-    expect(headings).toEqual(["Case work", "People and access", "Administration"]);
+    expect(headings).toEqual(["Case Work", "People and access", "Administration"]);
     const people = screen.getByRole("list", { name: "People and access" });
     expect(within(people).getAllByRole("switch").map((s) => s.getAttribute("aria-label"))).toEqual(["See users", "Add users"]);
-    const work = screen.getByRole("list", { name: "Case work" });
+    const work = screen.getByRole("list", { name: "Case Work" });
     expect(within(work).getAllByRole("switch").map((s) => s.getAttribute("aria-label"))).toEqual(["Send cases held by an office", "Recall cases"]);
     expect(screen.getAllByText("1 of 2 on", { selector: "span" })).toHaveLength(2);
     expect(screen.getByText("0 of 1 on", { selector: "span" })).toBeInTheDocument();
@@ -105,7 +105,7 @@ describe("the user-type page (decisions 25-27)", () => {
   it("every function given is under its group's heading (decision 26)", () => {
     const groups = groupFunctions(PERMS);
     expect(groups.map((g) => [g.label, g.items.map((p) => p.code)])).toEqual([
-      ["Case work", ["custody.move", "custody.recall"]],
+      ["Case Work", ["custody.move", "custody.recall"]],
       ["People and access", ["users.view", "users.create"]],
       ["Administration", ["admin.tickets"]],
     ]);
@@ -117,15 +117,15 @@ describe("the user-type page (decisions 25-27)", () => {
     renderWithClient(<UserTypePage role="dept_officer" />);
     await screen.findByRole("switch", { name: "See users" });
     const row = (name: string) => sw(name).closest("li")!;
-    expect(within(row("Send cases held by an office")).getByText("Changed from default")).toBeInTheDocument();
-    expect(within(row("See users")).queryByText("Changed from default")).toBeNull();
-    await userEvent.type(screen.getByLabelText("Find a function"), "recall");
+    expect(within(row("Send cases held by an office")).getByText("Changed From Default")).toBeInTheDocument();
+    expect(within(row("See users")).queryByText("Changed From Default")).toBeNull();
+    await userEvent.type(screen.getByLabelText("Find a Function"), "recall");
     expect(screen.getAllByRole("switch").map((s) => s.getAttribute("aria-label"))).toEqual(["Recall cases"]);
-    await userEvent.clear(screen.getByLabelText("Find a function"));
-    await userEvent.click(screen.getByRole("button", { name: "Only changed from default" }));
-    expect(screen.getByRole("button", { name: "Only changed from default" })).toHaveAttribute("aria-pressed", "true");
+    await userEvent.clear(screen.getByLabelText("Find a Function"));
+    await userEvent.click(screen.getByRole("button", { name: "Only Changed From Default" }));
+    expect(screen.getByRole("button", { name: "Only Changed From Default" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getAllByRole("switch").map((s) => s.getAttribute("aria-label"))).toEqual(["Send cases held by an office"]);
-    await userEvent.type(screen.getByLabelText("Find a function"), "nothing like this");
+    await userEvent.type(screen.getByLabelText("Find a Function"), "nothing like this");
     expect(screen.getByText("No function matches.")).toBeInTheDocument();
   });
 
@@ -133,9 +133,9 @@ describe("the user-type page (decisions 25-27)", () => {
     const api = routes();
     renderWithClient(<UserTypePage role="dept_officer" />);
     await screen.findByRole("switch", { name: "See users" });
-    const bar = screen.getByRole("region", { name: "Unsaved changes" });
+    const bar = screen.getByRole("region", { name: "Unsaved Changes" });
     expect(within(bar).getByText("No unsaved changes")).toBeInTheDocument();
-    expect(within(bar).getByRole("button", { name: "Save changes" })).toBeDisabled();
+    expect(within(bar).getByRole("button", { name: "Save Changes" })).toBeDisabled();
     await userEvent.click(sw("Add users"));
     await userEvent.click(sw("Recall cases"));
     expect(sw("Add users")).toHaveAttribute("aria-checked", "true");
@@ -147,7 +147,7 @@ describe("the user-type page (decisions 25-27)", () => {
     expect(within(bar).getByText("No unsaved changes")).toBeInTheDocument();
     expect(sw("Add users")).toHaveAttribute("aria-checked", "false");
     // Reset to default: Send cases held by an office goes back to off, nothing is sent
-    await userEvent.click(screen.getByRole("button", { name: "Reset to default" }));
+    await userEvent.click(screen.getByRole("button", { name: "Reset to Default" }));
     expect(sw("Send cases held by an office")).toHaveAttribute("aria-checked", "false");
     expect(within(bar).getByText("1 unsaved change")).toBeInTheDocument();
     expect(api.calls.some((c) => c.method === "PUT")).toBe(false);
@@ -161,8 +161,8 @@ describe("the user-type page (decisions 25-27)", () => {
     await screen.findByRole("switch", { name: "See users" });
     await userEvent.click(sw("Add users"));
     await userEvent.click(sw("Recall cases"));
-    expect(primaryActions(container)).toEqual(["Save changes"]);
-    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    expect(primaryActions(container)).toEqual(["Save Changes"]);
+    await userEvent.click(screen.getByRole("button", { name: "Save Changes" }));
     expect(await screen.findByText("Saved. The change is in the audit log.")).toBeInTheDocument();
     const puts = api.calls.filter((c) => c.method === "PUT");
     expect(puts).toHaveLength(1);
@@ -184,7 +184,7 @@ describe("the user-type page (decisions 25-27)", () => {
     renderWithClient(<UserTypePage role="dept_officer" />);
     await screen.findByRole("switch", { name: "See users" });
     await userEvent.click(sw("Add users"));
-    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save Changes" }));
     expect(await screen.findByText("Nothing was saved. Add users: users.create is retired")).toBeInTheDocument();
     expect(sw("Add users")).toHaveAttribute("aria-checked", "true");
     expect(screen.getByText("1 unsaved change")).toBeInTheDocument();
@@ -195,20 +195,20 @@ describe("the user-type page (decisions 25-27)", () => {
     routes();
     const { unmount } = renderWithClient(<UserTypePage role="super_admin" />);
     await screen.findByRole("switch", { name: "See users" });
-    expect(screen.getByText("The super admin always holds every function.")).toBeInTheDocument();
+    expect(screen.getByText("The Super Administrator always holds every function.")).toBeInTheDocument();
     for (const s of screen.getAllByRole("switch")) {
       expect(s).toHaveAttribute("aria-checked", "true");
       expect(s).toBeDisabled();
     }
-    expect(screen.queryByRole("region", { name: "Unsaved changes" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Reset to default" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Unsaved Changes" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Reset to Default" })).toBeNull();
     unmount();
     resetNav("/admin/access/dept_officer");
     routes();
     renderWithClient(<UserTypePage role="dept_officer" />);
     const tickets = await screen.findByRole("switch", { name: "Decide admin tickets" });
     expect(tickets).toBeDisabled();
-    expect(tickets).toHaveAccessibleDescription("Reserved to the super admin");
+    expect(tickets).toHaveAccessibleDescription("Reserved to the Super Administrator");
     expect(sw("See users")).toBeEnabled();
   });
 
@@ -217,9 +217,9 @@ describe("the user-type page (decisions 25-27)", () => {
     renderWithClient(<UserTypePage role="dept_officer" />);
     await screen.findByRole("switch", { name: "See users" });
     for (const s of screen.getAllByRole("switch")) expect(s).toBeDisabled();
-    expect(screen.queryByRole("region", { name: "Unsaved changes" })).toBeNull();
-    expect(screen.getByText("Only the super admin changes user types.")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Reset to default" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Unsaved Changes" })).toBeNull();
+    expect(screen.getByText("Only the Super Administrator changes user types.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reset to Default" })).toBeNull();
   });
 
   it("leaving with unsaved changes asks first; Stay keeps the draft, Leave goes", async () => {
@@ -227,24 +227,122 @@ describe("the user-type page (decisions 25-27)", () => {
     renderWithClient(<UserTypePage role="dept_officer" />);
     await screen.findByRole("switch", { name: "See users" });
     // no question without changes
-    const back = screen.getByRole("link", { name: /All user types/ });
+    const back = screen.getByRole("link", { name: /All User Types/ });
     back.addEventListener("click", (e) => e.preventDefault());
     await userEvent.click(back);
-    expect(screen.queryByRole("dialog", { name: "Leave without saving?" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Leave Without Saving?" })).toBeNull();
     await userEvent.click(sw("Add users"));
     await userEvent.click(back);
-    const dialog = await screen.findByRole("dialog", { name: "Leave without saving?" });
+    const dialog = await screen.findByRole("dialog", { name: "Leave Without Saving?" });
     expect(within(dialog).getByText("1 change is not saved and will be lost.")).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole("button", { name: "Stay" }));
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Leave without saving?" })).toBeNull());
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Leave Without Saving?" })).toBeNull());
     expect(sw("Add users")).toHaveAttribute("aria-checked", "true");
     expect(nav.push).not.toHaveBeenCalled();
     await userEvent.click(back);
-    await userEvent.click(within(await screen.findByRole("dialog", { name: "Leave without saving?" })).getByRole("button", { name: "Leave" }));
+    await userEvent.click(within(await screen.findByRole("dialog", { name: "Leave Without Saving?" })).getByRole("button", { name: "Leave" }));
     expect(nav.push).toHaveBeenCalledWith("/admin/access");
     // closing the tab asks too
     const event = new Event("beforeunload", { cancelable: true });
     window.dispatchEvent(event);
     expect(event.defaultPrevented).toBe(true);
+  });
+});
+
+describe("Edit Name (design portal-ui-polish-2, decisions 12 and 13)", () => {
+  it("shows Edit Name only with access.manage_types, with the code as a tag in the header", async () => {
+    routes(["users.view"]);
+    const { unmount } = renderWithClient(<UserTypePage role="dept_officer" />);
+    await screen.findByRole("switch", { name: "See users" });
+    expect(screen.queryByRole("button", { name: "Edit Name" })).toBeNull();
+    expect(screen.getByText("dept_officer", { selector: "code" })).toBeInTheDocument();
+    unmount();
+    routes();
+    renderWithClient(<UserTypePage role="dept_officer" />);
+    expect(await screen.findByRole("button", { name: "Edit Name" })).toBeInTheDocument();
+  });
+
+  it("counts the characters, warns about an empty or taken name and shows the server's 409 on the field", async () => {
+    const api = routes(SUPER, {
+      "PATCH /admin/access/types/dept_officer/name": json(409, { detail: { code: "label_taken", message: "another user type already has this name" } }),
+    });
+    renderWithClient(<UserTypePage role="dept_officer" />);
+    await userEvent.click(await screen.findByRole("button", { name: "Edit Name" }));
+    const dialog = await screen.findByRole("dialog", { name: "Edit Name" });
+    expect(within(dialog).getByText("Internal code: dept_officer")).toBeInTheDocument();
+    const name = within(dialog).getByLabelText("Display Name");
+    expect(name).toHaveValue("Dept officer");
+    expect(within(dialog).getByText("12 / 80 characters")).toBeInTheDocument();
+    expect(within(dialog).getByText("0 / 200 characters")).toBeInTheDocument();
+    await userEvent.clear(name);
+    await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+    expect(within(dialog).getByText("Give the user type a name.")).toBeInTheDocument();
+    // another type's name, without regard to case, is warned about before sending
+    await userEvent.type(name, "auditor");
+    expect(within(dialog).getByText("Another user type already has this name.")).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+    expect(api.calls.filter((c) => c.method === "PATCH")).toHaveLength(0);
+    // a clash only the server sees is shown on the field too
+    await userEvent.clear(name);
+    await userEvent.type(name, "Officer of the Day");
+    expect(within(dialog).queryByText("Another user type already has this name.")).toBeNull();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+    expect(await within(dialog).findByText("Another user type already has this name.")).toBeInTheDocument();
+    expect(name).toHaveAccessibleDescription(expect.stringContaining("Another user type already has this name."));
+  });
+
+  it("saves the trimmed values, drops the labels and cards and shows the new name", async () => {
+    let current = labels();
+    const api = routes(SUPER, {
+      "GET /reference/labels": () => current,
+      "PATCH /admin/access/types/dept_officer/name": (call: { body: unknown }) => {
+        const body = call.body as { label: string; description: string | null };
+        current = {
+          ...current,
+          user_types: current.user_types.map((t) => (t.code === "dept_officer" ? { ...t, label: body.label, description: body.description } : t)),
+        };
+        return { code: "dept_officer", label: body.label, description: body.description, changed: true };
+      },
+    });
+    renderWithClient(<UserTypePage role="dept_officer" />);
+    await userEvent.click(await screen.findByRole("button", { name: "Edit Name" }));
+    const dialog = await screen.findByRole("dialog", { name: "Edit Name" });
+    const name = within(dialog).getByLabelText("Display Name");
+    await userEvent.clear(name);
+    await userEvent.type(name, "  Department   Officer (Legal) ");
+    await userEvent.type(within(dialog).getByLabelText("Short Description"), "  Works on cases.  ");
+    const before = api.calls.filter((c) => c.path.startsWith("/admin/access/overview")).length;
+    await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Edit Name" })).toBeNull());
+    const patch = api.calls.find((c) => c.method === "PATCH")!;
+    expect(patch.path).toBe("/admin/access/types/dept_officer/name");
+    expect(patch.body).toEqual({ label: "Department Officer (Legal)", description: "Works on cases." });
+    expect(await screen.findByRole("heading", { level: 2, name: "Department Officer (Legal)" })).toBeInTheDocument();
+    expect(screen.getByText("Name saved. The change is recorded in the audit log.")).toBeInTheDocument();
+    await waitFor(() => expect(api.calls.filter((c) => c.path.startsWith("/admin/access/overview")).length).toBeGreaterThan(before));
+    // one primary per page: the dialog's Save is gone and Save Changes stays the page's primary
+    expect(screen.getByRole("button", { name: "Save Changes" })).toHaveAttribute("data-variant", "primary");
+  });
+
+  it("the Jump To list links to each function group's anchor", async () => {
+    routes();
+    renderWithClient(<UserTypePage role="dept_officer" />);
+    await screen.findByRole("switch", { name: "See users" });
+    const jump = screen.getByRole("navigation", { name: "Jump To" });
+    const links = within(jump).getAllByRole("link");
+    expect(links.map((l) => [l.textContent, l.getAttribute("href")])).toEqual([
+      ["Case Work", "#group-case_work"],
+      ["People and access", "#group-people"],
+      ["Administration", "#group-administration"],
+    ]);
+    for (const l of links) expect(document.querySelector(l.getAttribute("href")!)).not.toBeNull();
+    // the phone form is a select over the same groups
+    const select = screen.getByRole("combobox", { name: "Jump To" });
+    expect(within(select).getAllByRole("option").map((o) => o.textContent)).toEqual([
+      "Choose a Group",
+      "Case Work",
+      "People and access",
+      "Administration",
+    ]);
   });
 });

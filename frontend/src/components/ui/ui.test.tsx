@@ -9,6 +9,7 @@ import { renderWithClient } from "@/test/render";
 import {
   Badge,
   Button,
+  CheckField,
   Chip,
   Collapsible,
   controlClass,
@@ -68,14 +69,14 @@ describe("Tabs", () => {
   it("marks the current tab, places the underline and shows counts", () => {
     renderWithClient(
       <Tabs
-        label="Case sections"
+        label="Case Sections"
         items={[
           { href: "/a", label: "Overview", active: false },
           { href: "/b", label: "Orders", active: true, count: 4 },
         ]}
       />,
     );
-    const nav = screen.getByRole("navigation", { name: "Case sections" });
+    const nav = screen.getByRole("navigation", { name: "Case Sections" });
     expect(within(nav).getByRole("link", { name: "Orders (4)" })).toHaveAttribute("aria-current", "page");
     expect(within(nav).getByRole("link", { name: "Overview" })).not.toHaveAttribute("aria-current");
     expect(screen.getByTestId("tab-ink")).toBeInTheDocument();
@@ -84,11 +85,11 @@ describe("Tabs", () => {
   it("puts the more group in a menu whose button names the current tab", async () => {
     renderWithClient(
       <Tabs
-        label="Case sections"
+        label="Case Sections"
         items={[{ href: "/a", label: "Overview", active: false }]}
         more={[
           { href: "/p", label: "Parties", active: true },
-          { href: "/l", label: "Linked cases", active: false },
+          { href: "/l", label: "Linked Cases", active: false },
         ]}
       />,
     );
@@ -96,12 +97,12 @@ describe("Tabs", () => {
     await userEvent.click(trigger);
     const menu = screen.getByRole("menu");
     expect(within(menu).getByRole("menuitem", { name: "Parties" })).toHaveAttribute("aria-current", "page");
-    expect(within(menu).getByRole("menuitem", { name: "Linked cases" })).toHaveAttribute("href", "/l");
+    expect(within(menu).getByRole("menuitem", { name: "Linked Cases" })).toHaveAttribute("href", "/l");
   });
 
   it("the more button reads More when none of its tabs is current", () => {
     renderWithClient(
-      <Tabs label="Case sections" items={[{ href: "/a", label: "Overview", active: true }]} more={[{ href: "/p", label: "Parties", active: false }]} />,
+      <Tabs label="Case Sections" items={[{ href: "/a", label: "Overview", active: true }]} more={[{ href: "/p", label: "Parties", active: false }]} />,
     );
     expect(screen.getByRole("button", { name: "More" })).toHaveAttribute("aria-expanded", "false");
   });
@@ -125,7 +126,7 @@ describe("Tabs follow a tab's own width (design portal-ui-polish, decision 1)", 
     try {
       renderWithClient(
         <Tabs
-          label="Case sections"
+          label="Case Sections"
           items={[
             { href: "/a", label: "Overview", active: false },
             { href: "/b", label: "Orders", active: true },
@@ -133,7 +134,7 @@ describe("Tabs follow a tab's own width (design portal-ui-polish, decision 1)", 
         />,
       );
       const tab = screen.getByRole("link", { name: "Orders" });
-      const nav = screen.getByRole("navigation", { name: "Case sections" });
+      const nav = screen.getByRole("navigation", { name: "Case Sections" });
       expect(nav).toHaveAttribute("data-scroll-x");
       const watcher = observers.find((o) => o.els.includes(tab));
       expect(watcher).toBeDefined();
@@ -156,20 +157,20 @@ describe("Menu", () => {
     const onSelect = vi.fn();
     renderWithClient(
       <Menu
-        label="More actions"
+        label="More Actions"
         items={[
           { key: "recall", label: "Recall", onSelect },
-          { key: "stage", label: "Set stage" },
+          { key: "stage", label: "Set Stage" },
         ]}
       />,
     );
-    const button = screen.getByRole("button", { name: "More actions" });
+    const button = screen.getByRole("button", { name: "More Actions" });
     button.focus();
     await userEvent.keyboard("{Enter}");
     expect(button).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("menuitem", { name: "Recall" })).toHaveFocus();
     await userEvent.keyboard("{ArrowDown}");
-    expect(screen.getByRole("menuitem", { name: "Set stage" })).toHaveFocus();
+    expect(screen.getByRole("menuitem", { name: "Set Stage" })).toHaveFocus();
     await userEvent.keyboard("{ArrowDown}");
     expect(screen.getByRole("menuitem", { name: "Recall" })).toHaveFocus();
     await userEvent.keyboard("{Escape}");
@@ -185,11 +186,11 @@ describe("Menu", () => {
 describe("Collapsible", () => {
   it("toggles aria-expanded and mounts its body on first opening", async () => {
     renderWithClient(
-      <Collapsible summary="Show parties, advocates and acts">
+      <Collapsible summary="Show Parties, Advocates and Acts">
         <p>Petitioner A</p>
       </Collapsible>,
     );
-    const button = screen.getByRole("button", { name: "Show parties, advocates and acts" });
+    const button = screen.getByRole("button", { name: "Show Parties, Advocates and Acts" });
     expect(button).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByText("Petitioner A")).toBeNull();
     await userEvent.click(button);
@@ -264,7 +265,7 @@ describe("an overlay's first focus (design portal-ui-polish, decision 3)", () =>
           <button type="button" onClick={() => setOpen(true)}>
             Open it
           </button>
-          <Dialog open={open} title="New user" onClose={() => setOpen(false)} footer={<Button>Save</Button>}>
+          <Dialog open={open} title="New User" onClose={() => setOpen(false)} footer={<Button>Save</Button>}>
             <input type="hidden" name="token" />
             <p>
               <a href="/help">Help</a>
@@ -523,13 +524,13 @@ describe("badges and feedback", () => {
   });
 
   it("the Stepper names the step", () => {
-    renderWithClient(<Stepper step={2} steps={["Who receives it", "What they should do", "Remark and confirm"]} />);
-    expect(screen.getByText("Step 2 of 3 · What they should do")).toBeInTheDocument();
+    renderWithClient(<Stepper step={2} steps={["Who Receives It", "What They Should Do", "Remark and Confirm"]} />);
+    expect(screen.getByText("Step 2 of 3 · What They Should Do")).toBeInTheDocument();
   });
 
   it("the Meter carries its value", () => {
-    renderWithClient(<Meter value={0.62} label="Match strength" />);
-    expect(screen.getByRole("meter", { name: "Match strength" })).toHaveAttribute("aria-valuenow", "0.62");
+    renderWithClient(<Meter value={0.62} label="Match Strength" />);
+    expect(screen.getByRole("meter", { name: "Match Strength" })).toHaveAttribute("aria-valuenow", "0.62");
   });
 });
 
@@ -565,20 +566,20 @@ describe("chips, switches and the page header", () => {
           value={v}
           onChange={setV}
           options={[
-            { value: "mine", label: "My dates" },
-            { value: "department", label: "Department hearings" },
+            { value: "mine", label: "My Dates" },
+            { value: "department", label: "Department Hearings" },
           ]}
         />
       );
     }
     renderWithClient(<Harness />);
     const group = screen.getByRole("radiogroup", { name: "View" });
-    const mine = within(group).getByRole("radio", { name: "My dates" });
+    const mine = within(group).getByRole("radio", { name: "My Dates" });
     expect(mine).toHaveAttribute("aria-checked", "true");
     mine.focus();
     await userEvent.keyboard("{ArrowRight}");
-    expect(within(group).getByRole("radio", { name: "Department hearings" })).toHaveAttribute("aria-checked", "true");
-    expect(within(group).getByRole("radio", { name: "Department hearings" })).toHaveFocus();
+    expect(within(group).getByRole("radio", { name: "Department Hearings" })).toHaveAttribute("aria-checked", "true");
+    expect(within(group).getByRole("radio", { name: "Department Hearings" })).toHaveFocus();
   });
 
   it("the PageHeader holds one primary action and secondary actions", () => {
@@ -603,18 +604,35 @@ describe("password fields", () => {
     renderWithClient(<TextField label="Password" type="password" defaultValue="s3cret" />);
     const input = screen.getByLabelText("Password");
     expect(input).toHaveAttribute("type", "password");
-    const toggle = screen.getByRole("button", { name: "Show password" });
+    const toggle = screen.getByRole("button", { name: "Show Password" });
     expect(toggle).toHaveAttribute("aria-pressed", "false");
     expect(toggle).toHaveAttribute("type", "button");
     await user.click(toggle);
     expect(input).toHaveAttribute("type", "text");
-    expect(screen.getByRole("button", { name: "Hide password" })).toHaveAttribute("aria-pressed", "true");
-    await user.click(screen.getByRole("button", { name: "Hide password" }));
+    expect(screen.getByRole("button", { name: "Hide Password" })).toHaveAttribute("aria-pressed", "true");
+    await user.click(screen.getByRole("button", { name: "Hide Password" }));
     expect(input).toHaveAttribute("type", "password");
   });
 
   it("other fields carry no toggle", () => {
     renderWithClient(<TextField label="E-mail" type="email" />);
     expect(screen.queryByRole("button")).toBeNull();
+  });
+});
+
+describe("CheckField inline (design portal-ui-polish-2, decision 26)", () => {
+  it("marks a checkbox that sits on a field row's control line, and only when asked", () => {
+    renderWithClient(
+      <>
+        <CheckField label="Include Sub-offices" inline />
+        <CheckField label="Show Archived" />
+      </>,
+    );
+    const inline = screen.getByLabelText("Include Sub-offices").parentElement!;
+    const plain = screen.getByLabelText("Show Archived").parentElement!;
+    expect(inline).toHaveAttribute("data-inline", "true");
+    expect(inline.className).toMatch(/checkInline/);
+    expect(plain).not.toHaveAttribute("data-inline");
+    expect(plain.className).not.toMatch(/checkInline/);
   });
 });

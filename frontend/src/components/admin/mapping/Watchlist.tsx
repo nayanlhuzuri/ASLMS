@@ -154,6 +154,7 @@ export function Watchlist() {
       <div className="row">
         <OfficeFilter choices={choices} value={filter.office} onChange={(office) => setFilter({ ...filter, office })} />
         <CheckField
+          inline
           label={T.mapping.includeInactive}
           checked={filter.inactive}
           onChange={(e) => setFilter({ ...filter, inactive: e.target.checked })}

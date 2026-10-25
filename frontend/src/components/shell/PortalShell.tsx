@@ -8,6 +8,7 @@
  * the sidebar is a drawer (focus trapped, Escape and the overlay close it) and a bottom bar shows up to three
  * entries plus More. The breadcrumb sits inside each page, in its `PageHeader`. There is no acting-membership switch:
  * the API picks the membership that holds the function for each action.
+ * Design portal-ui-polish-2, decisions 14-19: the navigation is a one-level tree (`NavTree`), the same in the drawer.
  */
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
@@ -19,12 +20,12 @@ import { session } from "@/lib/api/client";
 import { labelOf, useAlertCounts, useInboxCounts, useLabels, useMe, useMyCounts } from "@/lib/api/hooks";
 import type { Me } from "@/lib/api/types";
 import { can, canAny } from "@/lib/can";
-import { formatNumber } from "@/lib/format";
 import { T } from "@/lib/messages";
-import { bottomBarFor, CASE_READERS, navFor, navGroupsFor, type NavCount } from "@/lib/routes";
+import { bottomBarFor, CASE_READERS, entryActive, navFor, navGroupsFor, type NavCount } from "@/lib/routes";
 
 import { Brand } from "./Brand";
 import { BellIcon, MenuIcon, MoreIcon, NAV_ICONS, SearchIcon } from "./icons";
+import { NavTree } from "./NavTree";
 import s from "./shell.module.css";
 
 export { Breadcrumb } from "@/components/ui";
@@ -32,12 +33,8 @@ export { Breadcrumb } from "@/components/ui";
 const SIDEBAR_ID = "portal-sidebar";
 
 function isActive(pathname: string, href: string): boolean {
-  if (href === "/") return pathname === "/";
   // an entry stays current across its section's tabs (`/data/load` → every `/data/...` page)
-  const section = "/" + (href.split("/")[1] ?? "");
-  // design case-inbox-merge, decision 12: the case page sits under the Case inbox, as its crumb says
-  if (section === "/inbox" && (pathname === "/cases" || pathname.startsWith("/cases/"))) return true;
-  return pathname === section || pathname.startsWith(section + "/");
+  return entryActive({ href }, pathname);
 }
 
 /**
@@ -93,7 +90,6 @@ export function Sidebar({
   drawerRef?: RefObject<HTMLElement | null>;
   onNavigate?: () => void;
 }) {
-  const pathname = usePathname() ?? "/";
   const groups = navGroupsFor(me);
   const counts = useNavCounts(me);
   return (
@@ -111,38 +107,7 @@ export function Sidebar({
         <HeaderSearch me={me} id="drawer-search" onSearch={onNavigate} />
       </div>
       <nav className={s.nav} aria-label={T.shell.nav}>
-        {groups.map((g) => (
-          <div key={g.key} className={s.group}>
-            <div className={s.groupLabel} id={`nav-group-${g.key}`}>
-              {g.label}
-            </div>
-            <ul aria-labelledby={`nav-group-${g.key}`}>
-              {g.entries.map((e) => {
-                const Icon = NAV_ICONS[e.key];
-                const n = e.count ? counts[e.count] : undefined;
-                const shown = typeof n === "number" && n > 0;
-                return (
-                  <li key={e.key}>
-                    <Link
-                      href={e.href}
-                      aria-current={isActive(pathname, e.href) ? "page" : undefined}
-                      aria-label={shown ? T.nav.count(e.label, formatNumber(n)) : undefined}
-                      onClick={onNavigate}
-                    >
-                      <span className={s.navIcon}>{Icon ? <Icon /> : null}</span>
-                      <span className={s.navLabel}>{e.label}</span>
-                      {shown ? (
-                        <span className={s.navCount} aria-hidden="true">
-                          {formatNumber(n)}
-                        </span>
-                      ) : null}
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ))}
+        <NavTree groups={groups} counts={counts} onNavigate={onNavigate} />
       </nav>
       <MembershipsFoot me={me} />
     </aside>

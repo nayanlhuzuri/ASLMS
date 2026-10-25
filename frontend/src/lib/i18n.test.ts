@@ -73,8 +73,8 @@ describe("message catalogues", () => {
 
   it("the navigation, tab, breadcrumb and group labels live in messages.ts", () => {
     expect(T.nav.groups).toEqual({ work: "Work", oversight: "Oversight", settings: "Settings" });
-    expect(T.nav.inbox).toBe("Case inbox");
-    expect(T.crumbs.mapping).toBe("Department mapping");
+    expect(T.nav.inbox).toBe("Case Inbox");
+    expect(T.crumbs.mapping).toBe("Department Mapping");
   });
 });
 

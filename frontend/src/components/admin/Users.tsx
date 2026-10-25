@@ -214,6 +214,7 @@ export function UsersList({ params = {} }: { params?: Params }) {
         />
         {isSuperAdmin(me.data) ? (
           <CheckField
+            inline
             label={T.users.includeEnded}
             checked={draft.includeEnded}
             onChange={(e) => setDraft({ ...draft, includeEnded: e.target.checked })}

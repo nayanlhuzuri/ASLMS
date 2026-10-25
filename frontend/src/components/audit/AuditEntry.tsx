@@ -13,6 +13,7 @@ import { useRouter } from "next/navigation";
 import { CaseLink, DefinitionList, EmptyState, ErrorBanner, Loading, PageHeader } from "@/components/ui";
 import { api, ApiError } from "@/lib/api/client";
 import type { AuditRow } from "@/lib/api/types";
+import { actionName } from "@/lib/audit";
 import { formatDateTimeSeconds } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { queryString } from "@/lib/params";
@@ -91,7 +92,12 @@ export function AuditEntry({ id }: { id: string }) {
         <DefinitionList
           items={[
             [T.audit.when, formatDateTimeSeconds(r.at)],
-            [T.audit.action, <span key="action" className={s.code}>{r.action}</span>],
+            [
+              T.audit.action,
+              <span key="action" className={s.code}>
+                {actionName(r.action) === r.action ? r.action : `${actionName(r.action)} (${r.action})`}
+              </span>,
+            ],
             [T.audit.by, by],
             [T.audit.case, r.case?.ref_no ? <CaseLink key="case" value={{ ...r.case, ref_no: r.case.ref_no }} /> : null],
             [

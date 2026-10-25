@@ -76,11 +76,11 @@ describe("the alert list (portal-files-alerts, decisions 7-9)", () => {
     const { unmount } = renderWithClient(<AlertList params={{}} />);
     expect(await screen.findByText("You have no open alerts.")).toBeInTheDocument();
     await userEvent.selectOptions(screen.getByLabelText("Status"), "all");
-    await userEvent.click(screen.getByRole("button", { name: "More filters" }));
+    await userEvent.click(screen.getByRole("button", { name: "More Filters" }));
     await waitFor(() => expect(screen.getByRole("option", { name: "File movement" })).toBeInTheDocument());
     await userEvent.selectOptions(screen.getByLabelText("Kind"), "workflow");
     await userEvent.selectOptions(screen.getByLabelText("Severity"), "critical");
-    await userEvent.click(screen.getByLabelText("Unread only"));
+    await userEvent.click(screen.getByLabelText("Unread Only"));
     expect(nav.replace).not.toHaveBeenCalled(); // nothing is requested until Apply
     await userEvent.click(screen.getByRole("button", { name: "Apply" }));
     expect(nav.replace).toHaveBeenLastCalledWith("/alerts?status=all&kind=workflow&severity=critical&unread=true");
@@ -97,7 +97,7 @@ describe("the alert list (portal-files-alerts, decisions 7-9)", () => {
     browserApi(routes([]));
     renderWithClient(<AlertList params={{ offset: "50" }} />);
     await screen.findByText("No alerts match these filters.");
-    await userEvent.click(screen.getByRole("button", { name: "More filters" }));
+    await userEvent.click(screen.getByRole("button", { name: "More Filters" }));
     await userEvent.selectOptions(screen.getByLabelText("Severity"), "high");
     await userEvent.click(screen.getByRole("button", { name: "Apply" }));
     expect(nav.replace).toHaveBeenLastCalledWith("/alerts?severity=high");
@@ -106,7 +106,7 @@ describe("the alert list (portal-files-alerts, decisions 7-9)", () => {
   it("shows the counts header from /alerts/counts", async () => {
     browserApi(routes([]));
     renderWithClient(<AlertList params={{}} />);
-    const group = await screen.findByRole("group", { name: "Alert counts" });
+    const group = await screen.findByRole("group", { name: "Alert Counts" });
     expect(within(group).getByText("Unread 2")).toBeInTheDocument();
     expect(within(group).getByText("Critical 1")).toBeInTheDocument();
     expect(within(group).getByText("High 3")).toBeInTheDocument();
@@ -120,10 +120,10 @@ describe("the alert list (portal-files-alerts, decisions 7-9)", () => {
     const rows = screen.getAllByRole("listitem");
     expect(within(rows[0]!).getByText("New")).toBeInTheDocument();
     expect(within(rows[0]!).getByText("unread")).toHaveClass("visually-hidden");
-    expect(within(rows[1]!).queryByRole("button", { name: "Mark read" })).toBeNull();
+    expect(within(rows[1]!).queryByRole("button", { name: "Mark Read" })).toBeNull();
     const before = alertCalls(api.calls).length;
     const countsBefore = api.calls.filter((c) => c.path === "/alerts/counts").length;
-    await userEvent.click(within(rows[0]!).getByRole("button", { name: "Mark read" }));
+    await userEvent.click(within(rows[0]!).getByRole("button", { name: "Mark Read" }));
     await waitFor(() => expect(api.calls.find((c) => c.method === "POST")?.body).toEqual({ alert_ids: ["a-1"] }));
     await waitFor(() => expect(alertCalls(api.calls).length).toBeGreaterThan(before));
     expect(api.calls.filter((c) => c.path === "/alerts/counts").length).toBeGreaterThan(countsBefore);
@@ -132,13 +132,13 @@ describe("the alert list (portal-files-alerts, decisions 7-9)", () => {
   it("Mark all read posts all and shows only while unread > 0", async () => {
     const api = browserApi(routes([alert()]));
     const { unmount } = renderWithClient(<AlertList params={{}} />);
-    await userEvent.click(await screen.findByRole("button", { name: "Mark all read" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Mark All Read" }));
     await waitFor(() => expect(api.calls.find((c) => c.method === "POST")?.body).toEqual({ all: true }));
     unmount();
     browserApi(routes([], { "GET /alerts/counts": { unread: 0, open: { critical: 0, high: 0, normal: 0 } } }));
     renderWithClient(<AlertList params={{}} />);
     await screen.findByText("Unread 0");
-    expect(screen.queryByRole("button", { name: "Mark all read" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Mark All Read" })).toBeNull();
   });
 
   it("following a case link marks the row read first, then navigates", async () => {
@@ -203,7 +203,7 @@ describe("the alert list (portal-files-alerts, decisions 7-9)", () => {
     const api = browserApi(routes([alert()], { "POST /alerts/a-1/acknowledge": alert({ status: "acknowledged" }) }));
     renderWithClient(<AlertList params={{}} />);
     await userEvent.click(await screen.findByRole("button", { name: "Acknowledge" }));
-    const dialog = screen.getByRole("dialog", { name: "Acknowledge the alert" });
+    const dialog = screen.getByRole("dialog", { name: "Acknowledge the Alert" });
     const lists = alertCalls(api.calls).length;
     const counts = api.calls.filter((c) => c.path === "/alerts/counts").length;
     await userEvent.click(within(dialog).getByRole("button", { name: "Acknowledge" }));
@@ -228,8 +228,8 @@ describe("the Alerts frame (decisions 1, 13)", () => {
       </AlertsFrame>,
     );
     expect(await screen.findByRole("heading", { name: "Alerts", level: 1 })).toBeInTheDocument();
-    const tabs = await screen.findByRole("navigation", { name: "Alerts sections" });
-    expect(within(tabs).getAllByRole("link").map((a) => a.textContent)).toEqual(["Alerts", "Next dates to confirm"]);
+    const tabs = await screen.findByRole("navigation", { name: "Alerts Sections" });
+    expect(within(tabs).getAllByRole("link").map((a) => a.textContent)).toEqual(["Alerts", "Next Dates to Confirm"]);
     expect(within(tabs).getByRole("link", { name: "Alerts" })).toHaveAttribute("aria-current", "page");
     expect(within(tabs).queryByRole("link", { name: /calendar/i })).toBeNull();
     unmount();
@@ -239,9 +239,9 @@ describe("the Alerts frame (decisions 1, 13)", () => {
         <p>body</p>
       </AlertsFrame>,
     );
-    const tabs2 = await screen.findByRole("navigation", { name: "Alerts sections" });
+    const tabs2 = await screen.findByRole("navigation", { name: "Alerts Sections" });
     expect(within(tabs2).getByRole("link", { name: "Alerts" })).not.toHaveAttribute("aria-current");
-    expect(within(tabs2).getByRole("link", { name: "Next dates to confirm" })).toHaveAttribute("aria-current", "page");
+    expect(within(tabs2).getByRole("link", { name: "Next Dates to Confirm" })).toHaveAttribute("aria-current", "page");
   });
 
   it("a login without case functions sees the neutral not-found text", async () => {
@@ -286,14 +286,14 @@ describe("next dates (portal-next-dates, decisions 1 and 14)", () => {
   it("a visible next_date_review alert has Answer it to the review list for its case; others do not", async () => {
     browserApi(
       routes([
-        alert({ id: "a-1", kind: "next_date_review", kind_label: "Next date to confirm", title: "Confirm the next date" }),
-        alert({ id: "a-2", kind: "next_date_review", kind_label: "Next date to confirm", title: "Hidden case", case_visible: false }),
+        alert({ id: "a-1", kind: "next_date_review", kind_label: "Next Date to Confirm", title: "Confirm the next date" }),
+        alert({ id: "a-2", kind: "next_date_review", kind_label: "Next Date to Confirm", title: "Hidden case", case_visible: false }),
         alert({ id: "a-3", title: "Hearing in three days" }),
       ]),
     );
     renderWithClient(<AlertList params={{}} />);
     await screen.findByText("Confirm the next date");
-    const links = screen.getAllByRole("link", { name: "Answer it" });
+    const links = screen.getAllByRole("link", { name: "Answer It" });
     expect(links).toHaveLength(1);
     expect(links[0]).toHaveAttribute("href", "/alerts/next-dates?q=c1");
     // following it marks the alert read first, then navigates
@@ -308,8 +308,8 @@ describe("next dates (portal-next-dates, decisions 1 and 14)", () => {
         <p>body</p>
       </AlertsFrame>,
     );
-    const tabs = await screen.findByRole("navigation", { name: "Alerts sections" });
-    expect(within(tabs).getByRole("link", { name: "Next dates to confirm" })).toHaveAttribute("href", "/alerts/next-dates");
+    const tabs = await screen.findByRole("navigation", { name: "Alerts Sections" });
+    expect(within(tabs).getByRole("link", { name: "Next Dates to Confirm" })).toHaveAttribute("href", "/alerts/next-dates");
     unmount();
     browserApi({ "GET /me": makeMe(["cases.view_scope"]) });
     renderWithClient(
@@ -317,7 +317,7 @@ describe("next dates (portal-next-dates, decisions 1 and 14)", () => {
         <p>body</p>
       </AlertsFrame>,
     );
-    const only = await screen.findByRole("navigation", { name: "Alerts sections" });
-    expect(within(only).queryByRole("link", { name: "Next dates to confirm" })).toBeNull();
+    const only = await screen.findByRole("navigation", { name: "Alerts Sections" });
+    expect(within(only).queryByRole("link", { name: "Next Dates to Confirm" })).toBeNull();
   });
 });

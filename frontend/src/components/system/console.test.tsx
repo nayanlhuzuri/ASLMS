@@ -63,7 +63,7 @@ describe("the court cards and the console's address", () => {
     expect(api.calls.filter((c) => c.method !== "GET")).toHaveLength(0);
     expect(api.calls.some((c) => c.path.includes("/napix/cnr"))).toBe(false);
     navigate(view, <SystemHealth params={{ api: "cnr", tab: "request" }} />);
-    expect(await screen.findByRole("dialog", { name: "Case details by CNR" })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Case Details by CNR" })).toBeInTheDocument();
     // Back: the address loses ?api= and the console closes
     navigate(view, <SystemHealth params={{}} />);
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
@@ -72,9 +72,9 @@ describe("the court cards and the console's address", () => {
   it("closing the console goes back after opening it, and drops the tab with the overlay otherwise", async () => {
     consoleRoutes();
     const view = renderWithClient(<SystemHealth params={{}} />);
-    await userEvent.click(await screen.findByRole("button", { name: "Case details by CNR: details" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Case Details by CNR: Details" }));
     navigate(view, <SystemHealth params={{ api: "cnr", tab: "request" }} />);
-    const dialog = await screen.findByRole("dialog", { name: "Case details by CNR" });
+    const dialog = await screen.findByRole("dialog", { name: "Case Details by CNR" });
     await waitFor(() => expect((window.history.state as Record<string, unknown> | null)?.__aslmsOverlay).toBe("api=cnr"));
     await userEvent.click(within(dialog).getByRole("button", { name: /close/i }));
     expect(nav.back).toHaveBeenCalledTimes(1);
@@ -87,19 +87,19 @@ describe("the court cards and the console's address", () => {
   it("the console has four tabs, a shared link opens its tab, and the token card opens ?api=token with three", async () => {
     consoleRoutes();
     const view = renderWithClient(<SystemHealth params={{ api: "cnr", tab: "history" }} />);
-    const dialog = await screen.findByRole("dialog", { name: "Case details by CNR" });
+    const dialog = await screen.findByRole("dialog", { name: "Case Details by CNR" });
     const tabs = (await within(dialog).findAllByRole("tab")).map((t) => t.textContent);
     expect(tabs).toEqual(["Request", "Response", "History", "Documentation"]);
     expect(within(dialog).getByRole("tab", { name: "History" })).toHaveAttribute("aria-selected", "true");
-    expect(await within(dialog).findByRole("table", { name: "The last 7 days" })).toBeInTheDocument();
+    expect(await within(dialog).findByRole("table", { name: "The Last 7 Days" })).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole("tab", { name: "Documentation" }));
     expect(window.location.search).toBe("?api=cnr&tab=docs");
     navigate(view, <SystemHealth params={{}} />);
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    await userEvent.click(screen.getByRole("button", { name: "Access token: details" }));
+    await userEvent.click(screen.getByRole("button", { name: "Access Token: Details" }));
     expect(nav.push).toHaveBeenCalledWith("/system?api=token&tab=token");
     navigate(view, <SystemHealth params={{ api: "token", tab: "token" }} />);
-    const token = await screen.findByRole("dialog", { name: "Access token" });
+    const token = await screen.findByRole("dialog", { name: "Access Token" });
     expect((await within(token).findAllByRole("tab")).map((t) => t.textContent)).toEqual(["Token", "Request", "Documentation"]);
   });
 });
@@ -108,19 +108,19 @@ describe("the Request tab", () => {
   it("renders the URL, the pre-filled field, the masked envelope and the plain string", async () => {
     consoleRoutes();
     renderWithClient(<SystemHealth params={{ api: "cnr", tab: "request" }} />);
-    const dialog = await screen.findByRole("dialog", { name: "Case details by CNR" });
+    const dialog = await screen.findByRole("dialog", { name: "Case Details by CNR" });
     expect(await within(dialog).findByLabelText("Method and URL")).toHaveTextContent(
       "GET https://delhigw.napix.gov.in/nic/ecourts/hc-cnr-api/CNR",
     );
     const field = within(dialog).getByRole("textbox", { name: "cino" });
     expect(field).toHaveValue("GAHC010277142024");
     expect(field).toHaveAccessibleDescription(/from data ASLMS holds · mandatory/);
-    expect(within(dialog).getByLabelText("The plain string")).toHaveTextContent("cino=GAHC010277142024");
-    const envelope = within(dialog).getByRole("table", { name: "Query parameters (the envelope)" });
+    expect(within(dialog).getByLabelText("The Plain String")).toHaveTextContent("cino=GAHC010277142024");
+    const envelope = within(dialog).getByRole("table", { name: "Query Parameters (the Envelope)" });
     expect(within(envelope).getByText("AS…")).toBeInTheDocument();
     expect(within(envelope).getByText("encrypted, 44 characters, not shown")).toBeInTheDocument();
     expect(within(dialog).getByText("Bearer ‹access token, not shown›")).toBeInTheDocument();
-    expect(within(dialog).getByLabelText("cURL template")).toHaveTextContent("<ACCESS_TOKEN>");
+    expect(within(dialog).getByLabelText("cURL Template")).toHaveTextContent("<ACCESS_TOKEN>");
   });
 
   it("editing calls the preview once 400 ms after typing stops and updates the plain string; Reset restores", async () => {
@@ -132,18 +132,18 @@ describe("the Request tab", () => {
       },
     });
     renderWithClient(<SystemHealth params={{ api: "cnr", tab: "request" }} />);
-    const dialog = await screen.findByRole("dialog", { name: "Case details by CNR" });
+    const dialog = await screen.findByRole("dialog", { name: "Case Details by CNR" });
     const field = await within(dialog).findByRole("textbox", { name: "cino" });
     await userEvent.clear(field);
     await userEvent.type(field, "GAHC010118832025");
     expect(previews).toBe(0);
-    await waitFor(() => expect(within(dialog).getByLabelText("The plain string")).toHaveTextContent("cino=GAHC010118832025"));
+    await waitFor(() => expect(within(dialog).getByLabelText("The Plain String")).toHaveTextContent("cino=GAHC010118832025"));
     expect(previews).toBe(1);
     expect(api.calls.find((c) => c.path.endsWith("/preview"))!.body).toEqual({ values: { cino: "GAHC010118832025" } });
     expect(field).toHaveAccessibleDescription(/edited by you/);
-    await userEvent.click(within(dialog).getByRole("button", { name: "Reset to the sample" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Reset to the Sample" }));
     expect(field).toHaveValue("GAHC010277142024");
-    expect(within(dialog).getByLabelText("The plain string")).toHaveTextContent("cino=GAHC010277142024");
+    expect(within(dialog).getByLabelText("The Plain String")).toHaveTextContent("cino=GAHC010277142024");
   });
 
   it("an empty name with its hint keeps Send disabled, a 422 shows the field's message and a 429 the wait", async () => {
@@ -159,16 +159,16 @@ describe("the Request tab", () => {
       [`POST ${BASE}/napix/cnr/test`]: json(429, { detail: { code: "test_too_soon", message: "too soon", retry_after: 42 } }, { "retry-after": "42" }),
     });
     renderWithClient(<SystemHealth params={{ api: "cnr", tab: "request" }} />);
-    const dialog = await screen.findByRole("dialog", { name: "Case details by CNR" });
+    const dialog = await screen.findByRole("dialog", { name: "Case Details by CNR" });
     const field = await within(dialog).findByRole("textbox", { name: "cino" });
     expect(field).toHaveAccessibleDescription(/cannot see/);
-    const send = within(dialog).getByRole("button", { name: "Send · 1 court call" });
+    const send = within(dialog).getByRole("button", { name: "Send · 1 Court Call" });
     expect(send).toBeDisabled();
-    expect(send).toHaveAccessibleDescription("Type every value first");
+    expect(send).toHaveAccessibleDescription("Type Every Value First");
     await userEvent.type(field, "BAD");
     expect(await within(dialog).findByText("A CNR is 4 letters and 12 digits; one CNR per send")).toBeInTheDocument();
     expect(send).toBeDisabled();
-    expect(send).toHaveAccessibleDescription("Correct the values marked first");
+    expect(send).toHaveAccessibleDescription("Correct the Values Marked First");
   });
 
   it("a 429 on Send shows the wait", async () => {
@@ -176,18 +176,18 @@ describe("the Request tab", () => {
       [`POST ${BASE}/napix/cnr/test`]: json(429, { detail: { code: "test_too_soon", message: "too soon", retry_after: 42 } }, { "retry-after": "42" }),
     });
     renderWithClient(<SystemHealth params={{ api: "cnr", tab: "request" }} />);
-    const dialog = await screen.findByRole("dialog", { name: "Case details by CNR" });
+    const dialog = await screen.findByRole("dialog", { name: "Case Details by CNR" });
     await within(dialog).findByRole("textbox", { name: "cino" });
-    await userEvent.click(within(dialog).getByRole("button", { name: "Send · 1 court call" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Send · 1 Court Call" }));
     expect(await within(dialog).findByRole("alert")).toHaveTextContent("Next test possible in 42 s.");
   });
 
   it("Send is disabled with the reason when the switch is off", async () => {
     consoleRoutes({}, summary(false));
     renderWithClient(<SystemHealth params={{ api: "cnr", tab: "request" }} />);
-    const dialog = await screen.findByRole("dialog", { name: "Case details by CNR" });
+    const dialog = await screen.findByRole("dialog", { name: "Case Details by CNR" });
     await within(dialog).findByRole("textbox", { name: "cino" });
-    expect(within(dialog).getByRole("button", { name: "Send · 1 court call" })).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "Send · 1 Court Call" })).toBeDisabled();
   });
 });
 
@@ -202,9 +202,9 @@ describe("Send and the Response tab", () => {
       },
     });
     renderWithClient(<SystemHealth params={{ api: "cnr", tab: "request" }} />);
-    const dialog = await screen.findByRole("dialog", { name: "Case details by CNR" });
+    const dialog = await screen.findByRole("dialog", { name: "Case Details by CNR" });
     await within(dialog).findByRole("textbox", { name: "cino" });
-    const send = within(dialog).getByRole("button", { name: "Send · 1 court call" });
+    const send = within(dialog).getByRole("button", { name: "Send · 1 Court Call" });
     fireEvent.click(send);
     fireEvent.click(send);
     expect(posts).toBe(1);
@@ -229,13 +229,13 @@ describe("Send and the Response tab", () => {
       [`GET ${BASE}/napix/cnr/response`]: RAW,
     });
     renderWithClient(<SystemHealth params={{ api: "cnr", tab: "request" }} />);
-    const dialog = await screen.findByRole("dialog", { name: "Case details by CNR" });
+    const dialog = await screen.findByRole("dialog", { name: "Case Details by CNR" });
     await within(dialog).findByRole("textbox", { name: "cino" });
-    await userEvent.click(within(dialog).getByRole("button", { name: "Send · 1 court call" }));
-    const section = await within(dialog).findByRole("button", { name: "Full answer (JSON)" });
+    await userEvent.click(within(dialog).getByRole("button", { name: "Send · 1 Court Call" }));
+    const section = await within(dialog).findByRole("button", { name: "Full Answer (JSON)" });
     expect(api.calls.some((c) => c.path.includes("/response"))).toBe(false);
     await userEvent.click(section);
-    expect(await within(dialog).findByLabelText("Full answer (JSON)")).toHaveTextContent('"cino": "GAHC010118832025"');
+    expect(await within(dialog).findByLabelText("Full Answer (JSON)")).toHaveTextContent('"cino": "GAHC010118832025"');
     const call = api.calls.find((c) => c.path.includes("/response"))!;
     expect(call.path).toBe(`${BASE}/napix/cnr/response?source=send&response_id=0192f000-0000-7000-8000-000000000001`);
   });
@@ -258,9 +258,9 @@ describe("Send and the Response tab", () => {
       }),
     });
     renderWithClient(<SystemHealth params={{ api: "cnr", tab: "response" }} />);
-    const dialog = await screen.findByRole("dialog", { name: "Case details by CNR" });
+    const dialog = await screen.findByRole("dialog", { name: "Case Details by CNR" });
     expect(await within(dialog).findByText("a person")).toBeInTheDocument();
-    await userEvent.click(within(dialog).getByRole("button", { name: "Full answer (JSON)" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Full Answer (JSON)" }));
     expect(within(dialog).getByText("The full answer is shown only to users who can see every case")).toBeInTheDocument();
     expect(api.calls.some((c) => c.path.includes("/response"))).toBe(false);
     await userEvent.click(within(dialog).getByRole("tab", { name: "Request" }));
@@ -270,32 +270,32 @@ describe("Send and the Response tab", () => {
   it("Help opens the specification at the API's page in a new tab", async () => {
     consoleRoutes();
     renderWithClient(<SystemHealth params={{ api: "cnr", tab: "docs" }} />);
-    const dialog = await screen.findByRole("dialog", { name: "Case details by CNR" });
-    const help = await within(dialog).findByRole("link", { name: "NAPIX documentation for this API" });
+    const dialog = await screen.findByRole("dialog", { name: "Case Details by CNR" });
+    const help = await within(dialog).findByRole("link", { name: "NAPIX Documentation for This API" });
     expect(help).toHaveAttribute("href", "/api/backend/admin/system-health/docs/hc_spec#page=12");
     expect(help).toHaveAttribute("target", "_blank");
     expect(await within(dialog).findByRole("link", { name: "6.1 Search by CNR API (page 12)" })).toHaveAttribute("target", "_blank");
-    expect(within(dialog).getByRole("table", { name: "Status codes" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("table", { name: "Status Codes" })).toBeInTheDocument();
   });
 
   it("Send is the modal's only primary and Check services again the page's", async () => {
     consoleRoutes();
     renderWithClient(<SystemHealth params={{ api: "cnr", tab: "request" }} />);
-    const dialog = await screen.findByRole("dialog", { name: "Case details by CNR" });
+    const dialog = await screen.findByRole("dialog", { name: "Case Details by CNR" });
     await within(dialog).findByRole("textbox", { name: "cino" });
     const inModal = dialog.querySelectorAll("button[data-variant='primary']");
     expect(inModal).toHaveLength(1);
-    expect(inModal[0]).toHaveTextContent("Send · 1 court call");
+    expect(inModal[0]).toHaveTextContent("Send · 1 Court Call");
     const all = [...document.querySelectorAll("button[data-variant='primary']")].filter((b) => !dialog.contains(b));
     expect(all).toHaveLength(1);
-    expect(all[0]).toHaveTextContent("Check services again");
+    expect(all[0]).toHaveTextContent("Check Services Again");
   });
 
   it("under reduced motion the console closes at once", async () => {
     stubMotion(true);
     consoleRoutes();
     const view = renderWithClient(<SystemHealth params={{ api: "cnr", tab: "request" }} />);
-    await screen.findByRole("dialog", { name: "Case details by CNR" });
+    await screen.findByRole("dialog", { name: "Case Details by CNR" });
     navigate(view, <SystemHealth params={{}} />);
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(document.querySelector("[data-closing='true']")).toBeNull();
@@ -313,9 +313,9 @@ describe("the Access token card and modal", () => {
   });
 
   it.each([
-    [tokenState(true, { status: "warn", shared_store: false, held: false, ttl_seconds: null }), "Needs attention", "No shared token store — every court call's client obtains its own token"],
-    [tokenState(true, { status: "down", held: false, ttl_seconds: null }), "Not working", "No token held — the next court call obtains one (1 token request)"],
-    [tokenState(false, { status: "unknown", held: false, ttl_seconds: null }), "Not known", "Court calls are switched off on this server"],
+    [tokenState(true, { status: "warn", shared_store: false, held: false, ttl_seconds: null }), "Needs Attention", "No shared token store — every court call's client obtains its own token"],
+    [tokenState(true, { status: "down", held: false, ttl_seconds: null }), "Not Working", "No token held — the next court call obtains one (1 token request)"],
+    [tokenState(false, { status: "unknown", held: false, ttl_seconds: null }), "Not Known", "Court calls are switched off on this server"],
     [tokenState(true, { renewing_soon: true, ttl_seconds: 40 }), "Working", "About to be renewed (under 60 s left)"],
   ])("each status reads in words", async (token, word, line) => {
     consoleRoutes({ [`GET ${BASE}/token`]: token });
@@ -334,17 +334,17 @@ describe("the Access token card and modal", () => {
       },
     });
     renderWithClient(<SystemHealth params={{ api: "token", tab: "token" }} />);
-    const dialog = await screen.findByRole("dialog", { name: "Access token" });
-    expect(await within(dialog).findByText("Yes — 14:31, Case details by CNR, HTTP 200")).toBeInTheDocument();
+    const dialog = await screen.findByRole("dialog", { name: "Access Token" });
+    expect(await within(dialog).findByText("Yes — 14:31, Case Details by CNR, HTTP 200")).toBeInTheDocument();
     expect(within(dialog).getByText("The token value is never shown.")).toBeInTheDocument();
     expect(api.calls.filter((c) => c.method === "POST")).toHaveLength(0);
-    const check = within(dialog).getByRole("button", { name: "Check token · 1 token request" });
+    const check = within(dialog).getByRole("button", { name: "Check Token · 1 Token Request" });
     fireEvent.click(check);
     fireEvent.click(check);
     expect(posts).toBe(1);
     expect(await within(dialog).findByText("Token request: obtained")).toBeInTheDocument();
-    expect(within(dialog).getByRole("button", { name: "Check token · 1 token request" })).toBeDisabled();
-    const help = within(dialog).getByRole("link", { name: "NAPIX documentation for the access token" });
+    expect(within(dialog).getByRole("button", { name: "Check Token · 1 Token Request" })).toBeDisabled();
+    const help = within(dialog).getByRole("link", { name: "NAPIX Documentation for the Access Token" });
     expect(help).toHaveAttribute("href", "/api/backend/admin/system-health/docs/subscriber_manual#page=10");
   });
 
@@ -353,9 +353,9 @@ describe("the Access token card and modal", () => {
       [`POST ${BASE}/token/check`]: json(429, { detail: { code: "check_too_soon", message: "x", retry_after: 540 } }, { "retry-after": "540" }),
     });
     renderWithClient(<SystemHealth params={{ api: "token", tab: "request" }} />);
-    const dialog = await screen.findByRole("dialog", { name: "Access token" });
-    expect(await within(dialog).findByLabelText("cURL template")).toHaveTextContent("<CLIENT_KEY>:<CLIENT_SECRET>");
-    await userEvent.click(within(dialog).getByRole("button", { name: "Check token · 1 token request" }));
+    const dialog = await screen.findByRole("dialog", { name: "Access Token" });
+    expect(await within(dialog).findByLabelText("cURL Template")).toHaveTextContent("<CLIENT_KEY>:<CLIENT_SECRET>");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Check Token · 1 Token Request" }));
     expect(await within(dialog).findByRole("alert")).toHaveTextContent("The token was checked a moment ago. Next check possible in 9 minutes.");
   });
 });
@@ -377,18 +377,18 @@ describe("followups-oct: the full answer, a too-large answer and the button size
       [`GET ${BASE}/napix/cnr/response`]: { ...RAW, source: "latest" },
     });
     renderWithClient(<SystemHealth params={{ api: "cnr", tab: "response" }} />);
-    const dialog = await screen.findByRole("dialog", { name: "Case details by CNR" });
-    const section = await within(dialog).findByRole("button", { name: "Full answer (JSON)" });
+    const dialog = await screen.findByRole("dialog", { name: "Case Details by CNR" });
+    const section = await within(dialog).findByRole("button", { name: "Full Answer (JSON)" });
     const fetches = () => api.calls.filter((c) => c.path.includes("/response?source=latest")).length;
     expect(fetches()).toBe(0);
     await userEvent.click(section);
-    await within(dialog).findByLabelText("Full answer (JSON)");
+    await within(dialog).findByLabelText("Full Answer (JSON)");
     expect(fetches()).toBe(1);
     await userEvent.click(section); // closed: nothing fetched
     expect(fetches()).toBe(1);
     await userEvent.click(section); // opened again: read again, so audited again
     await waitFor(() => expect(fetches()).toBe(2));
-    expect(await within(dialog).findByLabelText("Full answer (JSON)")).toHaveTextContent('"cino": "GAHC010118832025"');
+    expect(await within(dialog).findByLabelText("Full Answer (JSON)")).toHaveTextContent('"cino": "GAHC010118832025"');
   });
 
   it("too-large answer shows the note", async () => {
@@ -396,9 +396,9 @@ describe("followups-oct: the full answer, a too-large answer and the button size
       [`GET ${BASE}/napix/cnr/console`]: consoleOf({ latest_answer: { ...LATEST, response_too_large: true } }),
     });
     renderWithClient(<SystemHealth params={{ api: "cnr", tab: "response" }} />);
-    const dialog = await screen.findByRole("dialog", { name: "Case details by CNR" });
+    const dialog = await screen.findByRole("dialog", { name: "Case Details by CNR" });
     expect(await within(dialog).findByText("This answer is too large to outline here.")).toBeInTheDocument();
-    expect(within(dialog).queryByRole("region", { name: "The structure of the answer" })).toBeNull();
+    expect(within(dialog).queryByRole("region", { name: "The Structure of the Answer" })).toBeNull();
   });
 
   it("Copy, Download, Help and Try again are md", async () => {
@@ -407,15 +407,15 @@ describe("followups-oct: the full answer, a too-large answer and the button size
       [`GET ${BASE}/napix/cnr/response`]: { ...RAW, source: "latest" },
     });
     const view = renderWithClient(<SystemHealth params={{ api: "cnr", tab: "request" }} />);
-    let dialog = await screen.findByRole("dialog", { name: "Case details by CNR" });
+    let dialog = await screen.findByRole("dialog", { name: "Case Details by CNR" });
     await within(dialog).findByRole("textbox", { name: "cino" });
     const copies = within(dialog).getAllByRole("button", { name: "Copy" });
     expect(copies.length).toBeGreaterThanOrEqual(3); // method and URL, plain string, cURL
     for (const b of copies) expect(b).toHaveAttribute("data-size", "md");
-    expect(within(dialog).getByRole("link", { name: "NAPIX documentation for this API" }).className).toContain(controlClass);
+    expect(within(dialog).getByRole("link", { name: "NAPIX Documentation for This API" }).className).toContain(controlClass);
     await userEvent.click(within(dialog).getByRole("tab", { name: "Response" }));
-    await userEvent.click(within(dialog).getByRole("button", { name: "Full answer (JSON)" }));
-    await within(dialog).findByLabelText("Full answer (JSON)");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Full Answer (JSON)" }));
+    await within(dialog).findByLabelText("Full Answer (JSON)");
     for (const name of ["Copy", "Download"]) {
       const toolbar = within(dialog).getAllByRole("button", { name }).at(-1)!;
       expect(toolbar).toHaveAttribute("data-size", "md");
@@ -424,8 +424,8 @@ describe("followups-oct: the full answer, a too-large answer and the button size
     view.unmount();
     routes(summary(), { [`GET ${BASE}/napix/cnr/console`]: json(500, { detail: "boom" }) });
     renderWithClient(<SystemHealth params={{ api: "cnr", tab: "request" }} />);
-    dialog = await screen.findByRole("dialog", { name: "Case details by CNR" });
-    expect(await within(dialog).findByRole("button", { name: "Try again" })).toHaveAttribute("data-size", "md");
+    dialog = await screen.findByRole("dialog", { name: "Case Details by CNR" });
+    expect(await within(dialog).findByRole("button", { name: "Try Again" })).toHaveAttribute("data-size", "md");
     expect(api.calls.length).toBeGreaterThan(0);
   });
 });

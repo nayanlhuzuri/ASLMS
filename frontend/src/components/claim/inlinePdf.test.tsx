@@ -37,7 +37,7 @@ describe("INLINE_PDF false", () => {
     browserApi({ "GET /me": admin() });
     const { container } = renderWithClient(<OrderRow caseRef={REF} order={ORDER} />);
     await userEvent.click(await screen.findByRole("button", { name: /Issue notice/ }));
-    expect(await screen.findByRole("link", { name: "Open in a new tab" })).toHaveAttribute(
+    expect(await screen.findByRole("link", { name: "Open in a New Tab" })).toHaveAttribute(
       "href",
       `/api/backend/cases/${REF}/orders/o-1/file?disposition=inline`,
     );

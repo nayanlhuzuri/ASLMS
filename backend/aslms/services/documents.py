@@ -827,7 +827,7 @@ def _manageable(session: Session, user: User, doc: Document) -> None:
         raise DocumentError("court records cannot be changed")
     if not can_manage(session, user, doc):
         raise NotAllowed(
-            "only the uploader, the department's head or admin, or the super admin may change this"
+            "only the uploader, the Head of Department, the Department Administrator, or the Super Administrator may change this"
         )
 
 

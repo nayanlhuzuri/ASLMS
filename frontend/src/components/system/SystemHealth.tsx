@@ -104,7 +104,7 @@ export function SystemHealth({ params }: { params: Params }) {
       {summary.data && !summary.data.napix_enabled ? <Notice>{T.system.switchedOff}</Notice> : null}
       {summary.data ? <Overview data={summary.data} services={services.data} /> : null}
       {summary.data ? (
-        <section className="stack" aria-labelledby="court-heading">
+        <section className="stack" id="court" aria-labelledby="court-heading">
           <div className={s.sectionHead}>
             <h2 id="court-heading">{T.system.court}</h2>
             <span className="muted">{T.system.courtCount(summary.data.summary.working, summary.data.summary.total)}</span>
@@ -242,7 +242,7 @@ function CourtCard({ card, onOpen }: { card: ApiCard; onOpen: () => void }) {
 function Services({ query }: { query: { data?: ServicesHealth; error: unknown; isPending: boolean; refetch: () => unknown } }) {
   const data = query.data;
   return (
-    <section className="stack" aria-labelledby="services-heading">
+    <section className="stack" id="services" aria-labelledby="services-heading">
       <div className={s.sectionHead}>
         <h2 id="services-heading">{T.system.services}</h2>
         {data ? (

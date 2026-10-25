@@ -132,10 +132,10 @@ describe("tabs and rows", () => {
   it("shows the tabs by counts, with the badge counts; a null count hides its tab", async () => {
     browserApi(routes({ "GET /inbox/counts": { departments: [block("EDU", { transfers_in_open: null })] } }));
     renderWithClient(<ClaimFrame tab="recommended" params={{}} />);
-    const tabs = await screen.findByRole("navigation", { name: "Case claim sections" });
+    const tabs = await screen.findByRole("navigation", { name: "Case Claim Sections" });
     expect(within(tabs).getByRole("link", { name: /Recommended.*\(3\)/ })).toHaveAttribute("aria-current", "page");
-    expect(within(tabs).getByRole("link", { name: "Unclaimed pool" })).toBeInTheDocument();
-    expect(within(tabs).queryByRole("link", { name: /Transfers to us/ })).toBeNull();
+    expect(within(tabs).getByRole("link", { name: "Unclaimed Pool" })).toBeInTheDocument();
+    expect(within(tabs).queryByRole("link", { name: /Transfers to Us/ })).toBeNull();
     expect(screen.getByText(/Nothing is assigned automatically/)).toBeInTheDocument();
   });
 
@@ -185,15 +185,15 @@ describe("the details modal", () => {
     renderWithClient(<ClaimFrame tab="recommended" params={{ case: REF }} />);
     const dialog = await screen.findByRole("dialog", { name: "WP(C)/1/2026" });
     expect(await within(dialog).findByText("Suggested for your department · cause list of 25 Sep 2026")).toBeInTheDocument();
-    expect(within(dialog).getByText("Not claimed")).toBeInTheDocument();
+    expect(within(dialog).getByText("Not Claimed")).toBeInTheDocument();
     expect(within(dialog).getByText("10 Jan 2026")).toBeInTheDocument();
     expect(within(dialog).getByText(/25 Sep 2026 · Court 3, item 41/)).toBeInTheDocument();
     // Why this is suggested: one line per signal with its contribution, the meter and the rule
-    const why = within(dialog).getByRole("complementary", { name: "Why this is suggested" });
+    const why = within(dialog).getByRole("complementary", { name: "Why This Is Suggested" });
     expect(within(why).getByText("Code: SC, EDU")).toBeInTheDocument();
     expect(within(why).getByText("0.600")).toBeInTheDocument();
     expect(within(why).getByText("Linked: WP(C)/2417/2026")).toBeInTheDocument();
-    expect(within(why).getByRole("meter", { name: "Match strength" })).toHaveAttribute("aria-valuenow", "0.849");
+    expect(within(why).getByRole("meter", { name: "Match Strength" })).toHaveAttribute("aria-valuenow", "0.849");
     expect(within(why).getByText(/never returns to the unclaimed pool/)).toBeInTheDocument();
     // tabs: Parties first; Orders and Linked cases load only when opened
     expect(await within(dialog).findByText("RAM KUMAR", { selector: "td > div" })).toBeInTheDocument();
@@ -202,7 +202,7 @@ describe("the details modal", () => {
     await userEvent.click(within(dialog).getByRole("tab", { name: "Orders" }));
     expect(within(dialog).getByRole("tab", { name: "Orders" })).toHaveAttribute("aria-selected", "true");
     await waitFor(() => expect(api.calls.some((c) => c.path.startsWith(`${BASE}/orders`))).toBe(true));
-    await userEvent.click(within(dialog).getByRole("tab", { name: "Linked cases" }));
+    await userEvent.click(within(dialog).getByRole("tab", { name: "Linked Cases" }));
     const link = await within(dialog).findByRole("link", { name: "WP(C)/5/2026" });
     expect(link).toHaveAttribute("target", "_blank");
   });
@@ -221,7 +221,7 @@ describe("the details modal", () => {
     const dialog = await screen.findByRole("dialog", { name: "WP(C)/1/2026" });
     expect(await within(dialog).findByRole("button", { name: "Claim for EDU" })).toBeInTheDocument();
     expect(within(dialog).queryByRole("button", { name: "Dismiss" })).toBeNull();
-    expect(within(dialog).queryByRole("button", { name: "Suggest elsewhere" })).toBeNull();
+    expect(within(dialog).queryByRole("button", { name: "Suggest Elsewhere" })).toBeNull();
     unmount();
     const reader = makeMe(["cases.view_scope", "cases.view_all"], "state_oversight", { memberships: [] });
     browserApi(
@@ -233,10 +233,10 @@ describe("the details modal", () => {
     );
     renderWithClient(<ClaimFrame tab="recommended" params={{ department: "EDU", case: REF }} />);
     const read = await screen.findByRole("dialog", { name: "WP(C)/1/2026" });
-    await within(read).findByText("Not claimed");
+    await within(read).findByText("Not Claimed");
     const footerButtons = within(read)
       .getAllByRole("button")
-      .filter((b) => ["Claim", "Dismiss", "Suggest elsewhere"].some((t) => b.textContent?.startsWith(t)));
+      .filter((b) => ["Claim", "Dismiss", "Suggest Elsewhere"].some((t) => b.textContent?.startsWith(t)));
     expect(footerButtons).toEqual([]);
   });
 
@@ -250,10 +250,10 @@ describe("the details modal", () => {
     renderWithClient(<ClaimFrame tab="recommended" params={{ case: REF }} />);
     const dialog = await screen.findByRole("dialog", { name: "WP(C)/1/2026" });
     await userEvent.click(await within(dialog).findByRole("button", { name: "Claim for EDU" }));
-    const step = within(dialog).getByRole("group", { name: "Claim this case" });
+    const step = within(dialog).getByRole("group", { name: "Claim This Case" });
     // no second dialog on top
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
-    await userEvent.type(within(step).getByLabelText("Note (optional)"), "ours");
+    await userEvent.type(within(step).getByLabelText("Note (Optional)"), "ours");
     await waitFor(() => expect(within(step).getByRole("option", { name: /Officer One/ })).toBeInTheDocument());
     await userEvent.selectOptions(within(step).getByLabelText("Officer"), "u-7");
     await userEvent.click(within(step).getByRole("button", { name: "Claim for EDU" }));
@@ -262,7 +262,7 @@ describe("the details modal", () => {
     // the modal closes and a notice names the action with "Open case page"
     expect(nav.replace).toHaveBeenCalledWith("/claim/recommended");
     expect(await screen.findByText("Claimed WP(C)/1/2026 for EDU.")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Open case page" })).toHaveAttribute("href", BASE);
+    expect(screen.getByRole("link", { name: "Open Case Page" })).toHaveAttribute("href", BASE);
   });
 
   it("the allot fields show only with cases.allot; Back returns to the footer", async () => {
@@ -271,7 +271,7 @@ describe("the details modal", () => {
     renderWithClient(<ClaimFrame tab="recommended" params={{ case: REF }} />);
     const dialog = await screen.findByRole("dialog", { name: "WP(C)/1/2026" });
     await userEvent.click(await within(dialog).findByRole("button", { name: "Claim for EDU" }));
-    const step = within(dialog).getByRole("group", { name: "Claim this case" });
+    const step = within(dialog).getByRole("group", { name: "Claim This Case" });
     expect(within(step).queryByLabelText("Officer")).toBeNull();
     await userEvent.click(within(step).getByRole("button", { name: "Back" }));
     expect(within(dialog).getByRole("button", { name: "Claim for EDU" })).toBeInTheDocument();
@@ -290,7 +290,7 @@ describe("the details modal", () => {
     renderWithClient(<ClaimFrame tab="recommended" params={{ department: "HEALTH", case: REF }} />);
     const dialog = await screen.findByRole("dialog", { name: "WP(C)/1/2026" });
     await userEvent.click(await within(dialog).findByRole("button", { name: "Dismiss" }));
-    const step = within(dialog).getByRole("group", { name: "Dismiss this recommendation" });
+    const step = within(dialog).getByRole("group", { name: "Dismiss This Recommendation" });
     await userEvent.click(within(step).getByRole("button", { name: "Confirm" }));
     await waitFor(() => expect(posts(api.calls)[0]?.body).toEqual({ office_code: "HEALTH" }));
   });
@@ -308,16 +308,16 @@ describe("the details modal", () => {
     );
     renderWithClient(<ClaimFrame tab="recommended" params={{ case: REF }} />);
     const dialog = await screen.findByRole("dialog", { name: "WP(C)/1/2026" });
-    await userEvent.click(await within(dialog).findByRole("button", { name: "Suggest elsewhere" }));
-    const step = within(dialog).getByRole("group", { name: "Suggest another department" });
+    await userEvent.click(await within(dialog).findByRole("button", { name: "Suggest Elsewhere" }));
+    const step = within(dialog).getByRole("group", { name: "Suggest Another Department" });
     const target = within(step).getByLabelText("Department");
     await waitFor(() => expect(within(target).getByRole("option", { name: /^HEALTH/ })).toBeInTheDocument());
-    expect(within(target).getAllByRole("option").map((o) => o.textContent)).toEqual(["Choose a department", "HEALTH — Health"]);
+    expect(within(target).getAllByRole("option").map((o) => o.textContent)).toEqual(["Choose a Department", "HEALTH — Health"]);
     await userEvent.selectOptions(target, "HEALTH");
     await userEvent.click(within(step).getByRole("button", { name: "Confirm" }));
     expect(within(step).getByText("A reason is required.")).toBeInTheDocument();
     expect(posts(api.calls)).toHaveLength(0);
-    await userEvent.type(within(step).getByLabelText("Reason (required)"), "health matter");
+    await userEvent.type(within(step).getByLabelText("Reason (Required)"), "health matter");
     await userEvent.click(within(step).getByRole("button", { name: "Confirm" }));
     await waitFor(() =>
       expect(posts(api.calls)[0]?.body).toEqual({ office_code: "HEALTH", reason: "health matter", from_office_code: "EDU" }),
@@ -337,9 +337,9 @@ describe("the details modal", () => {
     renderWithClient(<ClaimFrame tab="recommended" params={{ case: REF }} />);
     const dialog = await screen.findByRole("dialog", { name: "WP(C)/1/2026" });
     await userEvent.click(await within(dialog).findByRole("button", { name: "Claim for EDU" }));
-    const step = within(dialog).getByRole("group", { name: "Claim this case" });
+    const step = within(dialog).getByRole("group", { name: "Claim This Case" });
     await userEvent.click(within(step).getByRole("button", { name: "Claim for EDU" }));
-    const select = await within(step).findByLabelText("Claim for");
+    const select = await within(step).findByLabelText("Claim For");
     await userEvent.selectOptions(select, "HEALTH");
     await userEvent.click(within(step).getByRole("button", { name: "Claim for HEALTH" }));
     await waitFor(() => expect(posts(api.calls).at(-1)?.body).toMatchObject({ office_code: "HEALTH" }));
@@ -359,7 +359,7 @@ describe("the details modal", () => {
       list: api.calls.filter((c) => c.path.startsWith("/inbox/recommended")).length,
       counts: api.calls.filter((c) => c.path.startsWith("/inbox/counts")).length,
     };
-    await userEvent.click(within(within(dialog).getByRole("group", { name: "Claim this case" })).getByRole("button", { name: "Claim for EDU" }));
+    await userEvent.click(within(within(dialog).getByRole("group", { name: "Claim This Case" })).getByRole("button", { name: "Claim for EDU" }));
     expect(await within(dialog).findByText("Your department already holds this case.")).toBeInTheDocument();
     await waitFor(() => {
       expect(api.calls.filter((c) => c.path.startsWith("/inbox/recommended")).length).toBeGreaterThan(before.list);
@@ -376,7 +376,7 @@ describe("the details modal", () => {
   });
 });
 
-describe("Transfers to us", () => {
+describe("Transfers to Us", () => {
   it("defaults to In with status requested; the modal's footer has Decline and the primary Accept transfer", async () => {
     resetNav("/claim/transfers");
     const t = transfer(1);
@@ -394,10 +394,10 @@ describe("Transfers to us", () => {
     expect(url).toContain("status=requested");
     const dialog = await screen.findByRole("dialog", { name: "WP(C)/1/2026" });
     expect(await within(dialog).findByText("Transfer requested by HEALTH")).toBeInTheDocument();
-    await userEvent.click(await within(dialog).findByRole("button", { name: "Accept transfer" }));
-    const step = within(dialog).getByRole("group", { name: "Accept the transfer" });
+    await userEvent.click(await within(dialog).findByRole("button", { name: "Accept Transfer" }));
+    const step = within(dialog).getByRole("group", { name: "Accept the Transfer" });
     await userEvent.type(within(step).getByLabelText(/Note/), "agreed");
-    await userEvent.click(within(step).getByRole("button", { name: "Accept transfer" }));
+    await userEvent.click(within(step).getByRole("button", { name: "Accept Transfer" }));
     await waitFor(() => expect(posts(api.calls)[0]?.path).toBe("/transfers/t-1/accept"));
     expect(posts(api.calls)[0]!.body).toEqual({ note: "agreed" });
     expect(await screen.findByText("Accepted the transfer of WP(C)/1/2026.")).toBeInTheDocument();
@@ -412,14 +412,14 @@ describe("Transfers to us", () => {
     const { unmount } = renderWithClient(<ClaimFrame tab="transfers" params={{ case: REF }} />);
     const dialog = await screen.findByRole("dialog", { name: "WP(C)/1/2026" });
     await userEvent.click(await within(dialog).findByRole("button", { name: "Decline" }));
-    await userEvent.click(within(within(dialog).getByRole("group", { name: "Decline the transfer" })).getByRole("button", { name: "Decline" }));
+    await userEvent.click(within(within(dialog).getByRole("group", { name: "Decline the Transfer" })).getByRole("button", { name: "Decline" }));
     await waitFor(() => expect(posts(api.calls)[0]?.path).toBe("/transfers/t-1/decline"));
     unmount();
     browserApi(routes(caseRoutes(ownershipView(actions(), { open_transfer: t }))));
     renderWithClient(<ClaimFrame tab="transfers" params={{ case: REF }} />);
     const read = await screen.findByRole("dialog", { name: "WP(C)/1/2026" });
     await within(read).findByText("Transfer requested by HEALTH");
-    expect(within(read).queryByRole("button", { name: "Accept transfer" })).toBeNull();
+    expect(within(read).queryByRole("button", { name: "Accept Transfer" })).toBeNull();
   });
 
   it("From us keeps Withdraw reachable in the modal", async () => {
@@ -468,8 +468,8 @@ describe("Transfers to us", () => {
     expect(within(dialog).getByText("theirs")).toBeInTheDocument();
     expect(within(dialog).getByText(/Requested by Health Admin/)).toBeInTheDocument();
     expect(within(dialog).queryByRole("tablist")).toBeNull();
-    await userEvent.click(within(dialog).getByRole("button", { name: "Accept transfer" }));
-    await userEvent.click(within(within(dialog).getByRole("group", { name: "Accept the transfer" })).getByRole("button", { name: "Accept transfer" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Accept Transfer" }));
+    await userEvent.click(within(within(dialog).getByRole("group", { name: "Accept the Transfer" })).getByRole("button", { name: "Accept Transfer" }));
     await waitFor(() => expect(posts(api.calls)[0]?.path).toBe("/transfers/t-1/accept"));
   });
 });
@@ -551,7 +551,7 @@ describe("old addresses and the filter bars", () => {
     expect(url).toContain("min_score=0.5");
     expect(url).not.toMatch(/[?&]status=/);
     expect(screen.getByText("Status: Disposed")).toBeInTheDocument();
-    await userEvent.selectOptions(screen.getByLabelText("Found by our court search"), "EDU");
+    await userEvent.selectOptions(screen.getByLabelText("Found by Our Court Search"), "EDU");
     await userEvent.click(screen.getByRole("button", { name: "Apply" }));
     const written = nav.replace.mock.calls.at(-1)![0] as string;
     expect(written.startsWith("/claim/pool?")).toBe(true);
@@ -597,7 +597,7 @@ describe("round 2 advisories (design portal-ui-polish, decisions 6, 7, 9 and 10)
     expect(within(dialog).queryByText("Transfer requested by HEALTH")).toBeNull();
     // the footer's actions are those of the clicked row's status: a declined transfer offers none
     expect(within(dialog).queryByRole("button", { name: "Withdraw" })).toBeNull();
-    expect(within(dialog).queryByRole("button", { name: "Accept transfer" })).toBeNull();
+    expect(within(dialog).queryByRole("button", { name: "Accept Transfer" })).toBeNull();
   });
 
   it("modal Orders pages past 50", async () => {
@@ -643,7 +643,7 @@ describe("round 2 advisories (design portal-ui-polish, decisions 6, 7, 9 and 10)
     renderWithClient(<ClaimFrame tab="recommended" params={{ department: "EDU", case: REF }} />);
     const dialog = await screen.findByRole("dialog", { name: "WP(C)/1/2026" });
     await userEvent.click(await within(dialog).findByRole("button", { name: "Dismiss" }));
-    const step = within(dialog).getByRole("group", { name: "Dismiss this recommendation" });
+    const step = within(dialog).getByRole("group", { name: "Dismiss This Recommendation" });
     // two submits before the first request resolves
     fireEvent.submit(step);
     fireEvent.submit(step);

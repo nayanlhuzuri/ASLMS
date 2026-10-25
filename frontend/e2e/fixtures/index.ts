@@ -155,7 +155,7 @@ function napixToken(): S["NapixTokenOut"] {
     obtained_at: "2026-10-21T14:25:00+05:30",
     token_type: "Bearer",
     scope: "napix",
-    accepted_since: { at: "2026-10-21T14:31:00+05:30", api_label: "Case details by CNR", http_status: 200 },
+    accepted_since: { at: "2026-10-21T14:31:00+05:30", api_label: "Case Details by CNR", http_status: 200 },
     rejected_since: 0,
     last_request: { at: "2026-10-21T14:25:00+05:30", ok: true, outcome: "obtained", http_status: 200, duration_ms: 310, rate_limit: { limit: null, remaining: null } },
     last_failure: null,
@@ -188,7 +188,7 @@ function napixConsole(api: string): S["ConsoleOut"] {
   };
   return {
     api,
-    label: "Case details by CNR",
+    label: "Case Details by CNR",
     method: "GET",
     method_note: null,
     url,
@@ -292,7 +292,7 @@ function report(key: string): Report {
     { key: "petitioner", label: "Petitioner", kind: "text" },
     { key: "department", label: "Holding department", kind: "text" },
     { key: "filed", label: "Filed", kind: "date" },
-    { key: "next", label: "Next hearing", kind: "date" },
+    { key: "next", label: "Next Hearing", kind: "date" },
     { key: "stage", label: "Stage", kind: "text" },
     { key: "held", label: "Files held", kind: "int" },
     { key: "pending", label: "Days pending", kind: "days" },
@@ -323,17 +323,22 @@ function report(key: string): Report {
   } as Report;
 }
 
-/** The ten user types (decision 20's stress for the type x function matrix: one column per type, as in the database). */
+/**
+ * The ten user types (decision 20's stress for the type x function matrix: one column per type, as in the database),
+ * with the full names of design portal-ui-polish-2 (decision 7); the sample type carries an 80-character custom name
+ * (Edit Name's limit), so badges, cards and the page title are measured at their longest.
+ */
+export const LONG_TYPE_NAME = "Department Officers for Litigation, Contempt Proceedings and Compliance Tracking";
 const USER_TYPES: [string, string][] = [
-  ["super_admin", "Super admin"],
-  ["state_oversight", "State oversight"],
-  ["dept_head", "Department head"],
-  ["dept_admin", "Department admin"],
-  ["dept_officer", "Department officer"],
-  ["directorate_user", "Directorate user"],
-  ["referral_reviewer", "Referral reviewer"],
-  ["standing_counsel", "Standing counsel"],
-  ["central_operator", "Central operator"],
+  ["super_admin", "Super Administrator"],
+  ["state_oversight", "State Oversight Officer"],
+  ["dept_head", "Head of Department"],
+  ["dept_admin", "Department Administrator"],
+  ["dept_officer", LONG_TYPE_NAME],
+  ["directorate_user", "Directorate Officer"],
+  ["referral_reviewer", "Referral Reviewer"],
+  ["standing_counsel", "Standing Counsel"],
+  ["central_operator", "Central Operator"],
   ["auditor", "Auditor"],
 ];
 
@@ -353,7 +358,7 @@ function labels(): S["ReferenceLabelsOut"] {
 const GROUPS: [string, string, RegExp][] = [
   ["people", "People and access", /^(users|access|offices)\.|^admin\.designations$/],
   ["cases", "Cases and ownership", /^cases\./],
-  ["case_work", "Case work", /^(custody|stages|notes|assistant)\./],
+  ["case_work", "Case Work", /^(custody|stages|notes|assistant)\./],
   ["documents", "Documents", /^documents\./],
   ["alerts", "Alerts", /^(alerts|next_dates)\./],
   ["reports", "Reports", /^(reports|dashboard|audit)\./],

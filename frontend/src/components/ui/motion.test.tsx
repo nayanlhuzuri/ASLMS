@@ -60,7 +60,7 @@ describe("reduced motion (design portal-ui-redesign, decision 13)", () => {
     function Harness() {
       const [open, setOpen] = useState(true);
       return (
-        <Dialog open={open} title="New user" onClose={() => setOpen(false)}>
+        <Dialog open={open} title="New User" onClose={() => setOpen(false)}>
           <p>body</p>
         </Dialog>
       );
@@ -110,7 +110,7 @@ describe("with motion", () => {
     function Harness() {
       const [open, setOpen] = useState(true);
       return (
-        <Dialog open={open} title="New user" onClose={() => setOpen(false)}>
+        <Dialog open={open} title="New User" onClose={() => setOpen(false)}>
           <p>body</p>
         </Dialog>
       );
@@ -136,7 +136,7 @@ describe("a closing overlay is inert (review of round 1, fixed in round 2)", () 
       return (
         <ConfirmDialog
           open={open}
-          title="Add note"
+          title="Add Note"
           onClose={() => setOpen(false)}
           onConfirm={() => {
             confirm();

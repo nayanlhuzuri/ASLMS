@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { DashboardDepartment, DashboardMe, DashboardState } from "@/lib/api/types";
 import { nav, resetNav } from "@/test/nav";
-import { browserApi, expectDataTable, json, makeMe, renderWithClient } from "@/test/render";
+import { browserApi, expectDataTable, json, labels, makeMe, renderWithClient } from "@/test/render";
 
 import { Dashboard } from "./Dashboard";
 import { dayWords } from "./Headline";
@@ -78,7 +78,7 @@ afterEach(() => {
 
 /** Opens "More about my work", where the rest of the personal block is folded. */
 async function openMore() {
-  await userEvent.click(await screen.findByRole("button", { name: "More about my work" }));
+  await userEvent.click(await screen.findByRole("button", { name: "More About My Work" }));
 }
 
 describe("dashboard", () => {
@@ -89,8 +89,8 @@ describe("dashboard", () => {
       "GET /dashboard/me": PERSONAL,
     });
     renderWithClient(<Dashboard />);
-    expect(await screen.findByRole("region", { name: "My work" })).toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: "State overview" })).toBeNull();
+    expect(await screen.findByRole("region", { name: "My Work" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "State Overview" })).toBeNull();
     expect(api.calls.some((c) => c.path.startsWith("/dashboard/state"))).toBe(false);
     expect(api.calls.some((c) => c.path.startsWith("/dashboard/department"))).toBe(false);
     await openMore();
@@ -120,17 +120,17 @@ describe("dashboard", () => {
     renderWithClient(<Dashboard />);
     const block = await screen.findByRole("region", { name: "Department: Education" });
     expect(within(block).getByText("1,28,400")).toBeInTheDocument();
-    expect(within(block).getByText("Recommendations awaiting review")).toBeInTheDocument();
+    expect(within(block).getByText("Recommendations Awaiting Review")).toBeInTheDocument();
     const rows = within(block).getAllByRole("row");
     const critical = rows.find((r) => within(r).queryByText("WP(C)/1234/2026"))!;
-    expect(within(critical).getByText("Within 48 h")).toBeInTheDocument();
+    expect(within(critical).getByText("Within 48 Hours")).toBeInTheDocument();
     // case references are links to the case page (design portal-cases, decision 2)
     expect(within(critical).getByRole("link", { name: "WP(C)/1234/2026" })).toHaveAttribute(
       "href",
       "/cases/EDU-2026-0001",
     );
     const later = rows.find((r) => within(r).queryByText("WA/55/2026"))!;
-    expect(within(later).getByText("This week")).toBeInTheDocument();
+    expect(within(later).getByText("This Week")).toBeInTheDocument();
     expect(within(block).getByText("Secondary Education")).toBeInTheDocument();
   });
 
@@ -146,12 +146,12 @@ describe("dashboard", () => {
     });
     renderWithClient(<Dashboard />);
     const block = await screen.findByRole("region", { name: "Department: Education" });
-    expect(within(block).queryByText("Recommendations awaiting review")).toBeNull();
-    expect(within(block).queryByText("Pending actions")).toBeNull();
-    expect(within(block).queryByText("Cases by office")).toBeNull();
-    expect(within(block).queryByText("Open transfers")).toBeNull();
-    expect(within(block).queryByText("Next dates to confirm")).toBeNull();
-    expect(within(block).getByText("Hearings in 7 days")).toBeInTheDocument();
+    expect(within(block).queryByText("Recommendations Awaiting Review")).toBeNull();
+    expect(within(block).queryByText("Pending Actions")).toBeNull();
+    expect(within(block).queryByText("Cases by Office")).toBeNull();
+    expect(within(block).queryByText("Open Transfers")).toBeNull();
+    expect(within(block).queryByText("Next Dates to Confirm")).toBeNull();
+    expect(within(block).getByText("Hearings in 7 Days")).toBeInTheDocument();
   });
 
   it("one failing view shows its error while the others render", async () => {
@@ -162,13 +162,13 @@ describe("dashboard", () => {
       "GET /dashboard/state": json(500, { detail: "boom" }),
     });
     renderWithClient(<Dashboard />);
-    expect(await screen.findByRole("region", { name: "My work" })).toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: "My Work" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("radio", { name: "State" }));
     expect(nav.replace).toHaveBeenLastCalledWith("/?view=state");
     renderWithClient(<Dashboard params={{ view: "state" }} />);
-    const state = await screen.findByRole("region", { name: "State overview" });
+    const state = await screen.findByRole("region", { name: "State Overview" });
     await waitFor(() => expect(within(state).getByText("This block could not be loaded.")).toBeInTheDocument());
-    expect(within(state).getByRole("button", { name: "Try again" })).toBeInTheDocument();
+    expect(within(state).getByRole("button", { name: "Try Again" })).toBeInTheDocument();
   });
 
   it("the State block lists departments and the not-claimed row", async () => {
@@ -178,9 +178,9 @@ describe("dashboard", () => {
       "GET /dashboard/state": STATE,
     });
     renderWithClient(<Dashboard />);
-    const table = await screen.findByRole("table", { name: "Cases by department" });
+    const table = await screen.findByRole("table", { name: "Cases by Department" });
     expect(within(table).getByText("Education")).toBeInTheDocument();
-    expect(within(table).getByRole("rowheader", { name: "Not claimed" })).toBeInTheDocument();
+    expect(within(table).getByRole("rowheader", { name: "Not Claimed" })).toBeInTheDocument();
   });
 
   it("the super admin sees the ticket panel first, with counts by kind and department", async () => {
@@ -198,14 +198,14 @@ describe("dashboard", () => {
       },
     });
     renderWithClient(<Dashboard />);
-    await screen.findByText("Open tickets");
-    const panel = screen.getByRole("region", { name: "Tickets awaiting action" });
-    expect(within(panel).getByText("Departments without a head")).toBeInTheDocument();
+    await screen.findByText("Open Tickets");
+    const panel = screen.getByRole("region", { name: "Tickets Awaiting Action" });
+    expect(within(panel).getByText("Departments Without a Head")).toBeInTheDocument();
     expect(await within(panel).findByRole("rowheader", { name: "Head change" })).toBeInTheDocument();
     expect(within(panel).getByRole("rowheader", { name: "EDU" })).toBeInTheDocument();
-    expect(within(panel).getByRole("link", { name: "Open the tickets list" })).toHaveAttribute("href", "/admin/tickets");
+    expect(within(panel).getByRole("link", { name: "Open the Tickets List" })).toHaveAttribute("href", "/admin/tickets");
     const regions = screen.getAllByRole("region").map((r) => r.getAttribute("aria-label"));
-    expect(regions[0]).toBe("Tickets awaiting action");
+    expect(regions[0]).toBe("Tickets Awaiting Action");
   });
 
   it("no ticket panel without a ticket function", async () => {
@@ -215,8 +215,8 @@ describe("dashboard", () => {
       "GET /dashboard/me": PERSONAL,
     });
     renderWithClient(<Dashboard />);
-    expect(await screen.findByRole("region", { name: "My work" })).toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: "Tickets awaiting action" })).toBeNull();
+    expect(await screen.findByRole("region", { name: "My Work" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Tickets Awaiting Action" })).toBeNull();
     expect(api.calls.some((c) => c.path.startsWith("/admin/tickets"))).toBe(false);
   });
 
@@ -227,8 +227,8 @@ describe("dashboard", () => {
     });
     renderWithClient(<Dashboard />);
     await screen.findByText("No open tickets.");
-    const panel = screen.getByRole("region", { name: "Tickets awaiting action" });
-    expect(within(panel).queryByText("Departments without a head")).toBeNull();
+    const panel = screen.getByRole("region", { name: "Tickets Awaiting Action" });
+    expect(within(panel).queryByText("Departments Without a Head")).toBeNull();
   });
 
   it("a login without case functions gets the short page", async () => {
@@ -258,9 +258,9 @@ describe("dashboard", () => {
     renderWithClient(<Dashboard />);
     await openMore();
     await screen.findByText(/File recalled/);
-    const block = screen.getByRole("region", { name: "My work" });
-    expect(within(block).getByRole("link", { name: "My alerts" })).toHaveAttribute("href", "/alerts");
-    for (const link of within(block).getAllByRole("link", { name: "Cases with me: 3" })) expect(link).toHaveAttribute("href", "/inbox/working?held=me");
+    const block = screen.getByRole("region", { name: "My Work" });
+    expect(within(block).getByRole("link", { name: "My Alerts" })).toHaveAttribute("href", "/alerts");
+    for (const link of within(block).getAllByRole("link", { name: "Cases with Me: 3" })) expect(link).toHaveAttribute("href", "/inbox/working?held=me");
     // a visible case is a link; a case the reader can no longer open is text
     expect(within(block).getByRole("link", { name: "WP(C)/1234/2026" })).toHaveAttribute("href", "/cases/EDU-2026-0001");
     expect(within(block).getByText("WA/9/2026").tagName).toBe("SPAN");
@@ -275,8 +275,8 @@ describe("dashboard", () => {
       "GET /dashboard/state": STATE,
     });
     const { unmount } = renderWithClient(<Dashboard />);
-    await screen.findByRole("table", { name: "Cases by department" });
-    const block = screen.getByRole("region", { name: "State overview" });
+    await screen.findByRole("table", { name: "Cases by Department" });
+    const block = screen.getByRole("region", { name: "State Overview" });
     expect(within(block).getByRole("link", { name: "Reports" })).toHaveAttribute("href", "/reports/pending-cases");
     unmount();
     browserApi({
@@ -285,8 +285,8 @@ describe("dashboard", () => {
       "GET /dashboard/state": STATE,
     });
     renderWithClient(<Dashboard />);
-    await screen.findByRole("table", { name: "Cases by department" });
-    const plain = screen.getByRole("region", { name: "State overview" });
+    await screen.findByRole("table", { name: "Cases by Department" });
+    const plain = screen.getByRole("region", { name: "State Overview" });
     expect(within(plain).queryByRole("link", { name: "Reports" })).toBeNull();
   });
 
@@ -301,18 +301,18 @@ describe("dashboard", () => {
     const { unmount } = renderWithClient(<Dashboard />);
     await screen.findByText("1,28,400");
     const block = screen.getByRole("region", { name: "Department: Education" });
-    expect(within(block).getByRole("link", { name: "Department reports" })).toHaveAttribute(
+    expect(within(block).getByRole("link", { name: "Department Reports" })).toHaveAttribute(
       "href",
       "/reports/pending-cases?department=EDU",
     );
     // design case-inbox-merge, decision 13: the department's pending figure leads to the Case inbox's Pending action
-    expect(within(block).getByRole("link", { name: "Pending actions: 9" })).toHaveAttribute("href", "/inbox/pending");
+    expect(within(block).getByRole("link", { name: "Pending Actions: 9" })).toHaveAttribute("href", "/inbox/pending");
     unmount();
     browserApi({ ...routes, "GET /me": makeMe(["cases.view_scope"]) });
     renderWithClient(<Dashboard />);
     await screen.findByText("1,28,400");
     const plain = screen.getByRole("region", { name: "Department: Education" });
-    expect(within(plain).queryByRole("link", { name: "Department reports" })).toBeNull();
+    expect(within(plain).queryByRole("link", { name: "Department Reports" })).toBeNull();
   });
 
   it("Next dates to confirm links to the review list for the department when above zero (portal-next-dates, decision 13)", async () => {
@@ -335,25 +335,25 @@ describe("dashboard", () => {
     );
     const { unmount } = renderWithClient(<Dashboard />);
     let block = await screen.findByRole("region", { name: "Department: Education" });
-    expect(within(block).getByRole("link", { name: "Next dates to confirm" })).toHaveAttribute("href", "/alerts/next-dates?owner=EDU");
-    const table = within(block).getByRole("table", { name: "Recent order next dates" });
-    expect(within(table).getByRole("columnheader", { name: "Where it came from" })).toBeInTheDocument();
+    expect(within(block).getByRole("link", { name: "Next Dates to Confirm" })).toHaveAttribute("href", "/alerts/next-dates?owner=EDU");
+    const table = within(block).getByRole("table", { name: "Recent Order Next Dates" });
+    expect(within(table).getByRole("columnheader", { name: "Where It Came From" })).toBeInTheDocument();
     expect(within(table).getByRole("columnheader", { name: "Status" })).toBeInTheDocument();
-    expect(within(table).getByText("Counted from the order")).toBeInTheDocument();
-    expect(within(table).getByText("Waiting for confirmation")).toBeInTheDocument();
-    expect(within(table).getByText("Date in the order")).toBeInTheDocument();
-    expect(within(table).getByText("In use")).toBeInTheDocument();
+    expect(within(table).getByText("Counted From the Order")).toBeInTheDocument();
+    expect(within(table).getByText("Waiting for Confirmation")).toBeInTheDocument();
+    expect(within(table).getByText("Date in the Order")).toBeInTheDocument();
+    expect(within(table).getByText("In Use")).toBeInTheDocument();
     unmount();
     browserApi(routes(att(0)));
     const second = renderWithClient(<Dashboard />);
     block = await screen.findByRole("region", { name: "Department: Education" });
-    expect(within(block).getByText("Next dates to confirm")).toBeInTheDocument();
-    expect(within(block).queryByRole("link", { name: "Next dates to confirm" })).toBeNull();
+    expect(within(block).getByText("Next Dates to Confirm")).toBeInTheDocument();
+    expect(within(block).queryByRole("link", { name: "Next Dates to Confirm" })).toBeNull();
     second.unmount();
     browserApi(routes(att(null)));
     renderWithClient(<Dashboard />);
     block = await screen.findByRole("region", { name: "Department: Education" });
-    expect(within(block).queryByText("Next dates to confirm")).toBeNull();
+    expect(within(block).queryByText("Next Dates to Confirm")).toBeNull();
   });
 });
 
@@ -369,7 +369,7 @@ const HEADLINE: DashboardMe["headline"] = {
 
 const ATTENTION: DashboardMe["attention"] = [
   { kind: "overdue_action", case: CASE, title: "Parawise comments", date: "2026-10-15", detail: "Overdue 6 days", pending_action: "parawise_comments", overdue_days: 6, next_date_id: null },
-  { kind: "confirm_next_date", case: { ...CASE, id: "c3", case_no_text: "WA/3/2026" }, title: "Next date to confirm", date: "2026-11-19", detail: "Suggested from an order", pending_action: null, overdue_days: 0, next_date_id: "nd-1" },
+  { kind: "confirm_next_date", case: { ...CASE, id: "c3", case_no_text: "WA/3/2026" }, title: "Next Date to Confirm", date: "2026-11-19", detail: "Suggested from an order", pending_action: null, overdue_days: 0, next_date_id: "nd-1" },
   { kind: "due_soon", case: { ...CASE, id: "c4", case_no_text: "WA/4/2026" }, title: "Reply", date: "2026-10-22", detail: "Due tomorrow", pending_action: "reply", overdue_days: 0, next_date_id: null },
   { kind: "file_received", case: { ...CASE, id: "c5", case_no_text: "WA/5/2026" }, title: "Examine", date: "2026-10-21", detail: "From Edu Admin, Joint Secretary", pending_action: "examine", overdue_days: 0, next_date_id: null },
 ];
@@ -389,31 +389,32 @@ describe("the personal dashboard (portal-ui-redesign, decision 23)", () => {
     vi.useFakeTimers({ now: new Date("2026-10-21T03:00:00Z"), toFake: ["Date"] }); // 08:30 IST
     browserApi(mine());
     const { unmount } = renderWithClient(<Dashboard />);
-    expect(await screen.findByRole("heading", { level: 1, name: "Good morning, Anita" })).toBeInTheDocument();
-    expect(screen.getByText("Education · Wednesday, 21 October")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1, name: "Good Morning, Anita" })).toBeInTheDocument();
+    expect(screen.getByText("Under Secretary · Education")).toBeInTheDocument();
+    expect(screen.getByText("Wednesday, 21 October 2026")).toBeInTheDocument();
     unmount();
     vi.setSystemTime(new Date("2026-10-21T09:00:00Z")); // 14:30 IST
     browserApi(mine());
     const second = renderWithClient(<Dashboard />);
-    expect(await screen.findByRole("heading", { level: 1, name: "Good afternoon, Anita" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1, name: "Good Afternoon, Anita" })).toBeInTheDocument();
     second.unmount();
     vi.setSystemTime(new Date("2026-10-21T13:00:00Z")); // 18:30 IST
     browserApi(mine());
     renderWithClient(<Dashboard />);
-    expect(await screen.findByRole("heading", { level: 1, name: "Good evening, Anita" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1, name: "Good Evening, Anita" })).toBeInTheDocument();
   });
 
   it("five headline numbers, each a link to its list; a null figure is left out", async () => {
     browserApi(mine());
     const { unmount } = renderWithClient(<Dashboard />);
-    const headline = await screen.findByRole("region", { name: "Headline numbers" });
+    const headline = await screen.findByRole("region", { name: "Headline Numbers" });
     const links = within(headline).getAllByRole("link");
     expect(links.map((l) => [l.getAttribute("aria-label"), l.getAttribute("href")])).toEqual([
-      ["Cases to claim: 12", "/claim/recommended"],
-      ["Hearings this week: 4", "/calendar"],
-      ["Cases with me: 6", "/inbox/working?held=me"],
-      ["Overdue actions: 3", "/inbox/working?overdue=true"],
-      ["Next dates to confirm: 2", "/alerts/next-dates"],
+      ["Cases to Claim: 12", "/claim/recommended"],
+      ["Hearings This Week: 4", "/calendar"],
+      ["Cases with Me: 6", "/inbox/working?held=me"],
+      ["Overdue Actions: 3", "/inbox/working?overdue=true"],
+      ["Next Dates to Confirm: 2", "/alerts/next-dates"],
     ]);
     expect(within(headline).getByText("5 strong · 7 possible")).toBeInTheDocument();
     expect(within(headline).getByText("2 within 48 hours")).toBeInTheDocument();
@@ -426,18 +427,18 @@ describe("the personal dashboard (portal-ui-redesign, decision 23)", () => {
       "GET /dashboard/me": personal({ headline: { ...HEADLINE, to_claim: null, next_dates_to_confirm: null } }),
     });
     renderWithClient(<Dashboard />);
-    const fewer = await screen.findByRole("region", { name: "Headline numbers" });
+    const fewer = await screen.findByRole("region", { name: "Headline Numbers" });
     expect(within(fewer).getAllByRole("link")).toHaveLength(3);
     expect(fewer).toHaveAttribute("data-count", "3");
-    expect(within(fewer).queryByText("Cases to claim")).toBeNull();
-    expect(within(fewer).queryByText("Next dates to confirm")).toBeNull();
+    expect(within(fewer).queryByText("Cases to Claim")).toBeNull();
+    expect(within(fewer).queryByText("Next Dates to Confirm")).toBeNull();
   });
 
   it("under reduced motion the numbers show their final value at once", async () => {
     vi.stubGlobal("matchMedia", (q: string) => ({ matches: q.includes("reduce"), media: q, addEventListener() {}, removeEventListener() {} }));
     browserApi(mine());
     renderWithClient(<Dashboard />);
-    const headline = await screen.findByRole("region", { name: "Headline numbers" });
+    const headline = await screen.findByRole("region", { name: "Headline Numbers" });
     expect(within(headline).getByText("12")).toBeInTheDocument();
     expect(within(headline).getByText("6")).toBeInTheDocument();
   });
@@ -445,27 +446,27 @@ describe("the personal dashboard (portal-ui-redesign, decision 23)", () => {
   it("Review cases to claim is the one primary, only with cases to claim and Case claim shown", async () => {
     browserApi(mine());
     const { container, unmount } = renderWithClient(<Dashboard />);
-    expect(await screen.findByRole("link", { name: "Review cases to claim" })).toHaveAttribute("href", "/claim/recommended");
+    expect(await screen.findByRole("link", { name: "Review Cases to Claim" })).toHaveAttribute("href", "/claim/recommended");
     expect(container.querySelectorAll("[data-variant='primary']")).toHaveLength(1);
     unmount();
     browserApi(mine(personal({ headline: { ...HEADLINE, to_claim: { high: 0, medium: 0 } } })));
     const none = renderWithClient(<Dashboard />);
-    await screen.findByRole("region", { name: "Headline numbers" });
-    expect(screen.queryByRole("link", { name: "Review cases to claim" })).toBeNull();
+    await screen.findByRole("region", { name: "Headline Numbers" });
+    expect(screen.queryByRole("link", { name: "Review Cases to Claim" })).toBeNull();
     expect(none.container.querySelectorAll("[data-variant='primary']").length).toBeLessThanOrEqual(1);
   });
 
   it("Needs your attention leads every row with a Lead badge and links to the case or the review", async () => {
     browserApi(mine());
     renderWithClient(<Dashboard />);
-    const list = await screen.findByRole("list", { name: "Needs your attention" });
+    const list = await screen.findByRole("list", { name: "Needs Your Attention" });
     const rows = within(list).getAllByRole("listitem");
     expect(rows).toHaveLength(4);
     for (const row of rows) expect(row.firstElementChild).toHaveAttribute("data-lead", "lead");
-    expect(rows.map((r) => r.firstElementChild!.textContent)).toEqual(["Overdue", "Confirm", "Due soon", "New"]);
+    expect(rows.map((r) => r.firstElementChild!.textContent)).toEqual(["Overdue", "Confirm", "Due Soon", "New"]);
     expect(within(rows[0]!).getByRole("link", { name: "Parawise comments" })).toHaveAttribute("href", "/cases/EDU-2026-0001");
     expect(within(rows[0]!).getByText("WP(C)/1234/2026 · Overdue 6 days")).toBeInTheDocument();
-    expect(within(rows[1]!).getByRole("link", { name: "Next date to confirm" })).toHaveAttribute("href", "/alerts/next-dates?q=c3");
+    expect(within(rows[1]!).getByRole("link", { name: "Next Date to Confirm" })).toHaveAttribute("href", "/alerts/next-dates?q=c3");
   });
 
   it("Upcoming hearings lead with the date chip, red within 48 hours, and the day words", async () => {
@@ -481,22 +482,22 @@ describe("the personal dashboard (portal-ui-redesign, decision 23)", () => {
       ),
     );
     renderWithClient(<Dashboard />);
-    const list = await screen.findByRole("list", { name: "Upcoming hearings" });
+    const list = await screen.findByRole("list", { name: "Upcoming Hearings" });
     const rows = within(list).getAllByRole("listitem");
     expect(rows.map((r) => r.firstElementChild!.getAttribute("data-lead"))).toEqual(["date", "date"]);
     expect(rows[0]!.firstElementChild!.className).toMatch(/hot/);
     expect(rows[1]!.firstElementChild!.className).not.toMatch(/hot/);
     expect(within(rows[0]!).getByText("Tomorrow")).toBeInTheDocument();
     expect(within(rows[0]!).getByText("Court 3 · item 14")).toBeInTheDocument();
-    expect(within(rows[1]!).getByText("This week")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Open calendar →" })).toHaveAttribute("href", "/calendar");
+    expect(within(rows[1]!).getByText("This Week")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open Calendar →" })).toHaveAttribute("href", "/calendar");
   });
 
   it("the view switch shows only with more than one view", async () => {
     browserApi(mine());
     const { unmount } = renderWithClient(<Dashboard />);
-    await screen.findByRole("region", { name: "Headline numbers" });
-    expect(screen.queryByRole("radiogroup", { name: "Dashboard view" })).toBeNull();
+    await screen.findByRole("region", { name: "Headline Numbers" });
+    expect(screen.queryByRole("radiogroup", { name: "Dashboard View" })).toBeNull();
     unmount();
     browserApi({
       ...mine(),
@@ -504,8 +505,8 @@ describe("the personal dashboard (portal-ui-redesign, decision 23)", () => {
       "GET /dashboard/department": department("EDU", "Education"),
     });
     renderWithClient(<Dashboard />);
-    const group = await screen.findByRole("radiogroup", { name: "Dashboard view" });
-    expect(within(group).getAllByRole("radio").map((r) => r.textContent)).toEqual(["My work", "Department"]);
+    const group = await screen.findByRole("radiogroup", { name: "Dashboard View" });
+    expect(within(group).getAllByRole("radio").map((r) => r.textContent)).toEqual(["My Work", "Department"]);
     await userEvent.click(within(group).getByRole("radio", { name: "Department" }));
     expect(nav.replace).toHaveBeenLastCalledWith("/?view=department");
   });
@@ -519,7 +520,7 @@ describe("the personal dashboard (portal-ui-redesign, decision 23)", () => {
     renderWithClient(<Dashboard params={{ view: "department" }} />);
     const block = await screen.findByRole("region", { name: "Department: Education" });
     expect(within(block).getByText("1,28,400")).toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: "My work" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "My Work" })).toBeNull();
   });
 
   it("a State-wide reader without personal work opens on State", async () => {
@@ -534,9 +535,9 @@ describe("the personal dashboard (portal-ui-redesign, decision 23)", () => {
       "GET /dashboard/state": STATE,
     });
     renderWithClient(<Dashboard />);
-    expect(await screen.findByRole("table", { name: "Cases by department" })).toBeInTheDocument();
+    expect(await screen.findByRole("table", { name: "Cases by Department" })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "State" })).toHaveAttribute("aria-checked", "true");
-    expect(screen.queryByRole("region", { name: "My work" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "My Work" })).toBeNull();
   });
 });
 
@@ -550,7 +551,7 @@ describe("every Upcoming hearings row has a badge (design portal-ui-polish, deci
     expect(w("2026-10-25", false, true)).toEqual({ text: "Tomorrow", tone: undefined });
     expect(w("2026-10-26", true, false)).toEqual({ text: "In 2 days", tone: "danger" });
     expect(dayWords({ date: "2026-10-23", critical: false, this_week: true }, new Date("2026-10-21T06:00:00Z"))).toEqual({
-      text: "This week",
+      text: "This Week",
     });
     expect(w("2026-10-26")).toEqual({ text: "In 2 days" });
     expect(w("2026-10-30")).toEqual({ text: "In 6 days" });
@@ -576,7 +577,109 @@ describe("lists are DataTables, cards on phones (design portal-ui-polish, decisi
       "GET /dashboard/state": STATE,
     });
     renderWithClient(<Dashboard />);
-    await screen.findByRole("table", { name: "Cases by department" });
+    await screen.findByRole("table", { name: "Cases by Department" });
     for (const table of screen.getAllByRole("table")) expectDataTable(table);
+  });
+});
+
+describe("the greeting and the view switch (design portal-ui-polish-2, decisions 44 and 45)", () => {
+  const STATE_ONLY = { me: true, departments: [], state: true };
+  const NO_WORK = {
+    ...PERSONAL,
+    cases: [],
+    upcoming: [],
+    attention: [],
+    headline: {
+      ...PERSONAL.headline,
+      to_claim: null,
+      next_dates_to_confirm: null,
+      hearings_week: { total: 0, within_48h: 0 },
+      files_with_me: { total: 0, due_today: 0 },
+      overdue_actions: { total: 0, oldest_days: null },
+    },
+  };
+
+  it("greets a person by first name, with the designation and office under it and the IST date by the switch", async () => {
+    vi.useFakeTimers({ now: new Date("2026-10-25T09:00:00Z"), toFake: ["Date"] }); // 14:30 IST, Sunday
+    browserApi(mine());
+    renderWithClient(<Dashboard />);
+    expect(await screen.findByRole("heading", { level: 1, name: "Good Afternoon, Anita" })).toBeInTheDocument();
+    expect(screen.getByText("Under Secretary · Education")).toBeInTheDocument();
+    expect(screen.getByText("Sunday, 25 October 2026")).toBeInTheDocument();
+  });
+
+  it.each([
+    ["the designation", "under secretary "],
+    ["a user-type label", "Dept admin"],
+    ["Super Administrator", "Super Administrator"],
+    ["nothing", "   "],
+  ])("an account whose full name is %s has no name in the greeting", async (_what, fullName) => {
+    vi.useFakeTimers({ now: new Date("2026-10-25T09:00:00Z"), toFake: ["Date"] });
+    const me = makeMe(["cases.view_scope", "cases.claim"], "dept_admin");
+    me.user.full_name = fullName;
+    browserApi({ ...mine(), "GET /me": me, "GET /reference/labels": labels() });
+    renderWithClient(<Dashboard />);
+    expect(await screen.findByRole("heading", { level: 1, name: "Good Afternoon" })).toBeInTheDocument();
+    expect(screen.getByText("Under Secretary · Education")).toBeInTheDocument();
+  });
+
+  it("each view has a tooltip and the chosen one's sentence is the line under the switch", async () => {
+    browserApi({
+      ...mine(),
+      "GET /dashboard": { me: true, departments: [{ code: "EDU", name: "Education" }], state: false },
+      "GET /dashboard/department": department("EDU", "Education"),
+    });
+    renderWithClient(<Dashboard />);
+    const group = await screen.findByRole("radiogroup", { name: "Dashboard View" });
+    expect(within(group).getByRole("radio", { name: "My Work" })).toHaveAttribute("title", "My Work: your own cases.");
+    expect(within(group).getByRole("radio", { name: "Department" })).toHaveAttribute("title", "Department: your department's cases.");
+    expect(group).toHaveAccessibleDescription("My Work: your own cases.");
+  });
+
+  it("a login with the State view and no department sees Department disabled with its reason", async () => {
+    const root = makeMe(["cases.view_all", "dashboard.state"], "super_admin", {
+      memberships: [
+        {
+          id: "m-0",
+          office: { code: "GOA", name: "Government of Assam", kind: "state" },
+          department_code: null,
+          designation: "Super Administrator",
+          role: "super_admin",
+          is_primary: true,
+          is_active: true,
+        },
+      ],
+    });
+    root.user.full_name = "Super Administrator";
+    browserApi({
+      "GET /me": root,
+      "GET /reference/labels": labels(),
+      "GET /dashboard": STATE_ONLY,
+      "GET /dashboard/me": PERSONAL,
+      "GET /dashboard/state": STATE,
+    });
+    renderWithClient(<Dashboard params={{ view: "state" }} />);
+    const group = await screen.findByRole("radiogroup", { name: "Dashboard View" });
+    expect(within(group).getAllByRole("radio").map((r) => r.textContent)).toEqual(["My Work", "Department", "State"]);
+    const dept = within(group).getByRole("radio", { name: "Department" });
+    expect(dept).toHaveAttribute("aria-disabled", "true");
+    expect(dept).toHaveAttribute("title", "Department: not available, because you are not in a department");
+    await userEvent.click(dept);
+    expect(nav.replace).not.toHaveBeenCalled();
+    expect(screen.getByText("Super Administrator · Government of Assam")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: /^Good (Morning|Afternoon|Evening)$/ })).toBeInTheDocument();
+    expect(group).toHaveAccessibleDescription("State: every case in the whole State.");
+  });
+
+  it("opens on State with the reason when there is no personal work", async () => {
+    browserApi({
+      "GET /me": makeMe(["cases.view_all", "dashboard.state"], "state_oversight"),
+      "GET /dashboard": STATE_ONLY,
+      "GET /dashboard/me": NO_WORK,
+      "GET /dashboard/state": STATE,
+    });
+    renderWithClient(<Dashboard />);
+    expect(await screen.findByText("Opened on State because you have no cases of your own.")).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "State" })).toHaveAttribute("aria-checked", "true");
   });
 });

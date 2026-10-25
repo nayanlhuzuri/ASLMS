@@ -27,7 +27,7 @@ describe("sign-in", () => {
     renderWithClient(<LoginForm />);
     await userEvent.type(screen.getByLabelText("E-mail"), "anita@example.org");
     await userEvent.type(screen.getByLabelText("Password"), "secret-pass-1");
-    await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    await userEvent.click(screen.getByRole("button", { name: "Sign In" }));
     await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/login/code?next=%2Fadmin%2Fusers"));
     expect(api.calls[0]!.body).toEqual({ email: "anita@example.org", password: "secret-pass-1" });
     expect(JSON.parse(sessionStorage.getItem("aslms.step")!)).toMatchObject({ sent_to: "a***@example.org" });
@@ -40,7 +40,7 @@ describe("sign-in", () => {
     renderWithClient(<LoginForm />);
     await userEvent.type(screen.getByLabelText("E-mail"), "a@example.org");
     await userEvent.type(screen.getByLabelText("Password"), "x");
-    await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    await userEvent.click(screen.getByRole("button", { name: "Sign In" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Try again in 5 minutes");
   });
 
@@ -51,7 +51,7 @@ describe("sign-in", () => {
     renderWithClient(<LoginForm />);
     await userEvent.type(screen.getByLabelText("E-mail"), "a@example.org");
     await userEvent.type(screen.getByLabelText("Password"), "x");
-    await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    await userEvent.click(screen.getByRole("button", { name: "Sign In" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Contact the administrator");
   });
 
@@ -61,16 +61,16 @@ describe("sign-in", () => {
     browserApi({});
     renderWithClient(<CodeForm />);
     expect(screen.getByText("A 6-digit code was sent to a***@example.org.")).toBeInTheDocument();
-    const button = screen.getByRole("button", { name: "Send a new code in 3 s" });
+    const button = screen.getByRole("button", { name: "Send a New Code in 3 s" });
     expect(button).toBeDisabled();
     act(() => {
       vi.advanceTimersByTime(1000);
     });
-    expect(screen.getByRole("button", { name: "Send a new code in 2 s" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Send a New Code in 2 s" })).toBeDisabled();
     act(() => {
       vi.advanceTimersByTime(2000);
     });
-    expect(screen.getByRole("button", { name: "Send a new code" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Send a New Code" })).toBeEnabled();
   });
 
   it("a wrong code shows attempts_left", async () => {
@@ -119,7 +119,7 @@ describe("sign-in", () => {
     browserApi({ "POST session:/reset/request": json(202, { expires_in: 600, resend_after: 120 }) });
     renderWithClient(<ForgotForm />);
     await userEvent.type(screen.getByLabelText("E-mail"), "nobody@example.org");
-    await userEvent.click(screen.getByRole("button", { name: "Send code" }));
+    await userEvent.click(screen.getByRole("button", { name: "Send Code" }));
     await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/forgot/code"));
   });
 });
@@ -133,20 +133,20 @@ describe("first sign-in", () => {
     });
     renderWithClient(<PasswordStepForm />);
     expect(screen.getAllByText("At least 10 characters, with a letter and a digit.").length).toBeGreaterThan(0);
-    await userEvent.type(screen.getByLabelText("Current password"), "temporary-1");
-    await userEvent.type(screen.getByLabelText("New password"), "abcdefghijk");
-    await userEvent.type(screen.getByLabelText("Repeat the new password"), "abcdefghijk");
-    await userEvent.click(screen.getByRole("button", { name: "Set password" }));
+    await userEvent.type(screen.getByLabelText("Current Password"), "temporary-1");
+    await userEvent.type(screen.getByLabelText("New Password"), "abcdefghijk");
+    await userEvent.type(screen.getByLabelText("Repeat the New Password"), "abcdefghijk");
+    await userEvent.click(screen.getByRole("button", { name: "Set Password" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("the password needs at least one digit");
   });
 
   it("the password form follows next_step to the profile", async () => {
     browserApi({ "POST session:/password": { next_step: "confirm_profile" } });
     renderWithClient(<PasswordStepForm />);
-    await userEvent.type(screen.getByLabelText("Current password"), "temporary-1");
-    await userEvent.type(screen.getByLabelText("New password"), "a-better-pass-1");
-    await userEvent.type(screen.getByLabelText("Repeat the new password"), "a-better-pass-1");
-    await userEvent.click(screen.getByRole("button", { name: "Set password" }));
+    await userEvent.type(screen.getByLabelText("Current Password"), "temporary-1");
+    await userEvent.type(screen.getByLabelText("New Password"), "a-better-pass-1");
+    await userEvent.type(screen.getByLabelText("Repeat the New Password"), "a-better-pass-1");
+    await userEvent.click(screen.getByRole("button", { name: "Set Password" }));
     await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/welcome/profile"));
   });
 
@@ -166,11 +166,11 @@ describe("first sign-in", () => {
       "POST /me/profile/confirm": { ok: true },
     });
     renderWithClient(<ProfileStepForm />);
-    const confirm = await screen.findByRole("button", { name: "Confirm and continue" });
+    const confirm = await screen.findByRole("button", { name: "Confirm and Continue" });
     await userEvent.click(confirm);
     expect(await screen.findByText("A mobile number is required.")).toBeInTheDocument();
     expect(api.calls.some((c) => c.path === "/me/profile/confirm")).toBe(false);
-    fireEvent.change(screen.getByLabelText("Mobile number"), { target: { value: "98640 12345" } });
+    fireEvent.change(screen.getByLabelText("Mobile Number"), { target: { value: "98640 12345" } });
     await userEvent.click(confirm);
     await waitFor(() => expect(api.calls.some((c) => c.path === "/me/profile/confirm")).toBe(true));
     const sent = api.calls.find((c) => c.path === "/me/profile/confirm")!.body as Record<string, unknown>;

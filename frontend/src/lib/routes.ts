@@ -3,10 +3,16 @@
  * (Work, Oversight, Settings). An entry shows when the login holds one of its functions (an empty list: everyone
  * signed in) and its screen is built; unbuilt entries stay hidden until their backlog rows. Showing an entry is
  * convenience only: the API decides every figure and action. Every label comes from `messages.ts`.
+ *
+ * Design portal-ui-polish-2, decisions 14 and 15: four entries expand one level (Administration, Data Collection,
+ * Reports, System Health), their children declared here from `ADMIN_TABS`, `DATA_TABS`, `REPORT_TABS` and
+ * `SYSTEM_SECTIONS` and filtered with the same function rule; `NavChild` has no `children`, so no deeper level can be
+ * declared. An entry whose children are all hidden is a plain link. Built from routes and functions only, no API call.
  */
 import type { Me, Permission } from "./api/types";
 import { can, canAny, departmentsOf, readsAudit, tracksDepartment } from "./can";
 import { T } from "./messages";
+import { REPORT_TABS } from "./reports";
 
 /** What the navigation reads of `/me`: the functions, and the memberships where an entry needs them. */
 export type MeLike = Pick<Me, "functions"> & Partial<Pick<Me, "memberships" | "assistant_mode">>;
@@ -16,6 +22,26 @@ export type NavGroupKey = "work" | "oversight" | "settings";
 /** The server figure shown in an entry's pill (decision 4): Case inbox (`working`) from `/inbox/mine/counts`, Case
  * claim from `/inbox/counts`, Alerts (`unread`) from `/alerts/counts`. */
 export type NavCount = "alerts" | "inbox" | "claim";
+
+/** Where the person is: the path, and the hash and query the `/system` sections are told apart by. */
+export interface NavLocation {
+  pathname: string;
+  hash?: string;
+  search?: string;
+}
+
+/**
+ * One row under an expanding entry (decision 15). It has no `children` field: the menu is one level deep by type.
+ * A child is active when the path starts with its `href`, or when its `match` says so.
+ */
+export interface NavChild {
+  key: string;
+  label: string;
+  href: string;
+  functions: readonly Permission[];
+  show?: (me: MeLike) => boolean;
+  match?: (loc: NavLocation) => boolean;
+}
 
 export interface NavEntry {
   key: string;
@@ -27,6 +53,8 @@ export interface NavEntry {
   /** A further condition on `/me` (besides the functions). */
   show?: (me: MeLike) => boolean;
   count?: NavCount;
+  /** The rows one level below (decision 14); after `navGroupsFor` only the visible ones, and absent when none is. */
+  children?: readonly NavChild[];
 }
 
 /**
@@ -85,67 +113,6 @@ export const CLAIM_FUNCTIONS: readonly Permission[] = [
   "cases.transfer_decide",
 ];
 
-export const NAV: readonly NavEntry[] = [
-  { key: "dashboard", label: T.nav.dashboard, href: "/", group: "work", functions: [], built: true },
-  {
-    key: "inbox",
-    label: T.nav.inbox,
-    href: "/inbox",
-    group: "work",
-    functions: CASE_READERS,
-    built: true,
-    count: "inbox",
-  },
-  // design portal-ui-redesign, decision 6: Case claim, built in round 2 (row 102)
-  {
-    key: "claim",
-    label: T.nav.claim,
-    href: "/claim",
-    group: "work",
-    functions: CLAIM_FUNCTIONS,
-    built: true,
-    show: showsInbox,
-    count: "claim",
-  },
-  // design portal-causelist, decision 11: the published lists are court-public, read by every reader of cases
-  { key: "causelist", label: T.nav.causelist, href: "/causelist", group: "work", functions: CASE_READERS, built: true },
-  // design portal-ui-redesign, decision 8: My calendar (round 3, row 103); Alerts is its own entry
-  { key: "calendar", label: T.nav.calendar, href: "/calendar", group: "work", functions: CASE_READERS, built: true },
-  { key: "alerts", label: T.nav.alerts, href: "/alerts", group: "work", functions: CASE_READERS, built: true, count: "alerts" },
-  { key: "search", label: T.nav.search, href: "/search", group: "work", functions: CASE_READERS, built: true },
-  // design assistant, decision 14: after Search, with `assistant.use` while the assistant is on
-  {
-    key: "assistant",
-    label: T.nav.assistant,
-    href: "/assistant",
-    group: "work",
-    functions: ["assistant.use"],
-    built: true,
-    show: showsAssistant,
-  },
-  // design portal-reports, decision 2: the tabs inside come from `GET /reports`; the API decides every report
-  {
-    key: "reports",
-    label: T.nav.reports,
-    href: "/reports",
-    group: "oversight",
-    functions: ["reports.department", "reports.state"],
-    built: true,
-  },
-  // design portal-audit-health, decision 2: only where the API serves the log (State-wide `audit.view`)
-  { key: "audit", label: T.nav.audit, href: "/audit", group: "oversight", functions: ["audit.view"], built: true, show: readsAudit },
-  { key: "data", label: T.nav.data, href: "/data/load", group: "settings", functions: DATA_READERS, built: true },
-  // design api-health-checker, decision 2: System health, after Data collection, for `admin.service_health` only
-  { key: "system", label: T.nav.system, href: "/system", group: "settings", functions: ["admin.service_health"], built: true },
-  { key: "admin", label: T.nav.admin, href: "/admin", group: "settings", functions: ADMIN_FUNCTIONS, built: true },
-];
-
-export const NAV_GROUPS: readonly { key: NavGroupKey; label: string }[] = [
-  { key: "work", label: T.nav.groups.work },
-  { key: "oversight", label: T.nav.groups.oversight },
-  { key: "settings", label: T.nav.groups.settings },
-];
-
 export interface AdminTab {
   key: string;
   label: string;
@@ -196,14 +163,184 @@ export const DATA_TABS: readonly DataTab[] = [
   { key: "discovery", label: T.tabs.data.discovery, href: "/data/discovery", functions: DATA_READERS },
 ];
 
+/** The System Health entry's sections (decision 14): two anchors of `/system` and the Access Token modal. */
+export const SYSTEM_SECTIONS: readonly NavChild[] = [
+  {
+    key: "court",
+    label: T.nav.systemSections.court,
+    href: "/system#court",
+    functions: ["admin.service_health"],
+    match: (loc) => loc.pathname === "/system" && loc.hash === "#court" && !apiOf(loc),
+  },
+  {
+    key: "services",
+    label: T.nav.systemSections.services,
+    href: "/system#services",
+    functions: ["admin.service_health"],
+    match: (loc) => loc.pathname === "/system" && loc.hash === "#services" && !apiOf(loc),
+  },
+  {
+    key: "token",
+    label: T.nav.systemSections.token,
+    href: "/system?api=token&tab=token",
+    functions: ["admin.service_health"],
+    match: (loc) => loc.pathname === "/system" && apiOf(loc) === "token",
+  },
+];
+
+function apiOf(loc: NavLocation): string | null {
+  return new URLSearchParams(loc.search ?? "").get("api");
+}
+
+/** The report children (decision 14): Data Health only with `reports.state`, the rule `GET /reports` applies. */
+const REPORT_FUNCTIONS: Record<string, readonly Permission[]> = {
+  "data-health": ["reports.state"],
+};
+
+export const REPORT_CHILDREN: readonly NavChild[] = REPORT_TABS.map((t) => ({
+  key: t.key,
+  label: t.label,
+  href: t.href,
+  functions: REPORT_FUNCTIONS[t.key] ?? ["reports.department", "reports.state"],
+}));
+
+const asChildren = (tabs: readonly { key: string; label: string; href: string; functions: readonly Permission[] }[]): NavChild[] =>
+  tabs.map((t) => ({ key: t.key, label: t.label, href: t.href, functions: t.functions }));
+
+export const NAV: readonly NavEntry[] = [
+  { key: "dashboard", label: T.nav.dashboard, href: "/", group: "work", functions: [], built: true },
+  {
+    key: "inbox",
+    label: T.nav.inbox,
+    href: "/inbox",
+    group: "work",
+    functions: CASE_READERS,
+    built: true,
+    count: "inbox",
+  },
+  // design portal-ui-redesign, decision 6: Case claim, built in round 2 (row 102)
+  {
+    key: "claim",
+    label: T.nav.claim,
+    href: "/claim",
+    group: "work",
+    functions: CLAIM_FUNCTIONS,
+    built: true,
+    show: showsInbox,
+    count: "claim",
+  },
+  // design portal-causelist, decision 11: the published lists are court-public, read by every reader of cases
+  { key: "causelist", label: T.nav.causelist, href: "/causelist", group: "work", functions: CASE_READERS, built: true },
+  // design portal-ui-redesign, decision 8: My calendar (round 3, row 103); Alerts is its own entry
+  { key: "calendar", label: T.nav.calendar, href: "/calendar", group: "work", functions: CASE_READERS, built: true },
+  { key: "alerts", label: T.nav.alerts, href: "/alerts", group: "work", functions: CASE_READERS, built: true, count: "alerts" },
+  { key: "search", label: T.nav.search, href: "/search", group: "work", functions: CASE_READERS, built: true },
+  // design assistant, decision 14: after Search, with `assistant.use` while the assistant is on
+  {
+    key: "assistant",
+    label: T.nav.assistant,
+    href: "/assistant",
+    group: "work",
+    functions: ["assistant.use"],
+    built: true,
+    show: showsAssistant,
+  },
+  // design portal-reports, decision 2: the tabs inside come from `GET /reports`; the API decides every report
+  {
+    key: "reports",
+    label: T.nav.reports,
+    href: "/reports",
+    group: "oversight",
+    functions: ["reports.department", "reports.state"],
+    built: true,
+    children: REPORT_CHILDREN,
+  },
+  // design portal-audit-health, decision 2: only where the API serves the log (State-wide `audit.view`)
+  { key: "audit", label: T.nav.audit, href: "/audit", group: "oversight", functions: ["audit.view"], built: true, show: readsAudit },
+  {
+    key: "data",
+    label: T.nav.data,
+    href: "/data/load",
+    group: "settings",
+    functions: DATA_READERS,
+    built: true,
+    children: asChildren(DATA_TABS),
+  },
+  // design api-health-checker, decision 2: System health, after Data collection, for `admin.service_health` only
+  {
+    key: "system",
+    label: T.nav.system,
+    href: "/system",
+    group: "settings",
+    functions: ["admin.service_health"],
+    built: true,
+    children: SYSTEM_SECTIONS,
+  },
+  {
+    key: "admin",
+    label: T.nav.admin,
+    href: "/admin",
+    group: "settings",
+    functions: ADMIN_FUNCTIONS,
+    built: true,
+    children: asChildren(ADMIN_TABS),
+  },
+];
+
+export const NAV_GROUPS: readonly { key: NavGroupKey; label: string }[] = [
+  { key: "work", label: T.nav.groups.work },
+  { key: "oversight", label: T.nav.groups.oversight },
+  { key: "settings", label: T.nav.groups.settings },
+];
+
 function visible(me: Pick<Me, "functions"> | null | undefined, functions: readonly Permission[]): boolean {
   return functions.length === 0 ? !!me : canAny(me, functions);
 }
 
+function shown(me: MeLike | null | undefined, item: { functions: readonly Permission[]; show?: (me: MeLike) => boolean }): boolean {
+  return visible(me, item.functions) && (!item.show || (!!me && item.show(me)));
+}
+
+/** The visible entries; an expanding entry keeps only its visible children, and loses `children` when none is. */
 export function navFor(me: MeLike | null | undefined): NavEntry[] {
-  return NAV.filter(
-    (entry) => entry.built && visible(me, entry.functions) && (!entry.show || (!!me && entry.show(me))),
-  );
+  return filterNav(NAV, me);
+}
+
+/** `navFor` over any list of entries (the rule, apart from the declared menu). */
+export function filterNav(entries: readonly NavEntry[], me: MeLike | null | undefined): NavEntry[] {
+  return entries.filter((entry) => entry.built && shown(me, entry)).map((entry) => {
+    if (!entry.children) return entry;
+    const children = entry.children.filter((c) => shown(me, c));
+    if (children.length > 0) return { ...entry, children };
+    const plain: NavEntry = { ...entry };
+    delete plain.children;
+    return plain;
+  });
+}
+
+/** A child is active when the path starts with its `href` or when its `match` says so (decision 15). */
+export function childActive(child: NavChild, loc: NavLocation): boolean {
+  if (child.match) return child.match(loc);
+  return loc.pathname === child.href || loc.pathname.startsWith(child.href + "/");
+}
+
+/** The section of an entry: `/data/load` stands for every `/data/...` page. */
+export function entryActive(entry: Pick<NavEntry, "href">, pathname: string): boolean {
+  if (entry.href === "/") return pathname === "/";
+  const section = "/" + (entry.href.split("/")[1] ?? "");
+  // design case-inbox-merge, decision 12: the case page sits under the Case inbox, as its crumb says
+  if (section === "/inbox" && (pathname === "/cases" || pathname.startsWith("/cases/"))) return true;
+  return pathname === section || pathname.startsWith(section + "/");
+}
+
+/** The key of the active child of an entry, if any. */
+export function activeChild(entry: NavEntry, loc: NavLocation): string | null {
+  return entry.children?.find((c) => childActive(c, loc))?.key ?? null;
+}
+
+/** An expanding entry is on the path when one of its children is active or the person is on one of its pages. */
+export function onPath(entry: NavEntry, loc: NavLocation): boolean {
+  return activeChild(entry, loc) !== null || entryActive(entry, loc.pathname);
 }
 
 export interface NavGroup {

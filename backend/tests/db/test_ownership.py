@@ -420,11 +420,11 @@ def test_seed_has_the_new_functions_and_event(world):
             ).all()
         )
         assert labels == {
-            "admin.scoring": "Scoring weights and bands",
-            "cases.take_over": "Take over a case",
-            "cases.release": "Stop watching",
+            "admin.scoring": "Scoring Weights and Bands",
+            "cases.take_over": "Take Over a Case",
+            "cases.release": "Stop Watching",
         }
-        assert PERMISSION_LABELS[Permission.CASES_RELEASE][0] == "Stop watching"
+        assert PERMISSION_LABELS[Permission.CASES_RELEASE][0] == "Stop Watching"
         enabled = set(
             s.scalars(
                 sa.select(RolePermission.role).where(
@@ -460,7 +460,7 @@ def test_seed_refreshes_a_stale_permission_label(session):
     seed_ref_tables(session, report)
     assert session.execute(
         sa.text("select label from ref_permission where code='cases.release'")
-    ).scalar() == ("Stop watching")
+    ).scalar() == ("Stop Watching")
 
 
 def test_migration_0004_objects(engine):

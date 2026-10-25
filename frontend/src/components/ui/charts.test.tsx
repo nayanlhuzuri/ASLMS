@@ -75,9 +75,9 @@ describe("RateRing", () => {
 
   it("draws no sweep without a value", () => {
     stubMotion(false);
-    render(<RateRing value={null} label="No court calls in 24 h" />);
+    render(<RateRing value={null} label="No Court Calls in 24 Hours" />);
     expect(screen.queryByTestId("ring-sweep")).toBeNull();
-    expect(screen.getByRole("img", { name: "No court calls in 24 h" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "No Court Calls in 24 Hours" })).toBeInTheDocument();
   });
 });
 

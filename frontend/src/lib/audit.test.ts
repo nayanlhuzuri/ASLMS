@@ -87,12 +87,12 @@ describe("checkFilters", () => {
 });
 
 describe("actionGroups", () => {
-  const labels = { custody: "Custody", auth: "Sign-in and password" };
+  const labels = { custody: "Custody", auth: "Sign-in and Password" };
   it("groups codes by prefix, sorted by label, codes sorted, each with its prefix", () => {
     const groups = actionGroups(["custody.sent", "auth.login", "custody.recalled", "custody.sent"], labels);
     expect(groups).toEqual([
       { prefix: "custody.", label: "Custody", codes: ["custody.recalled", "custody.sent"] },
-      { prefix: "auth.", label: "Sign-in and password", codes: ["auth.login"] },
+      { prefix: "auth.", label: "Sign-in and Password", codes: ["auth.login"] },
     ]);
   });
 
@@ -173,5 +173,13 @@ describe("fieldOfError", () => {
   it("anything else goes to the banner", () => {
     expect(fieldOfError("search_timeout", {})).toEqual([]);
     expect(fieldOfError("bad_cursor", {})).toEqual([]);
+  });
+});
+
+describe("action names (design portal-ui-polish-2, decision 13)", () => {
+  it("names Edit Name's action and leaves other codes as they are", async () => {
+    const { actionName } = await import("./audit");
+    expect(actionName("access.type_edited")).toBe("User Type Name Changed");
+    expect(actionName("access.matrix")).toBe("access.matrix");
   });
 });
