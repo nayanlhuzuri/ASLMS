@@ -2,10 +2,10 @@
 
 ```
 slug: session-timeout
-status: awaiting-approval
+status: approved
 author: architect
 date: 2026-10-26
-approved_by:
+approved_by: owner on 2026-10-26, as designed (30 min idle with a 2 min warning, 12 h limit; PDF-viewer and unsaved-draft limits accepted)
 ```
 
 ## Context
