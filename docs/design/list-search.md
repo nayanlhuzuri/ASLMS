@@ -2,10 +2,10 @@
 
 ```
 slug: list-search
-status: awaiting-approval
+status: approved
 author: architect
 date: 2026-10-26
-approved_by: <owner e-mail or name> on YYYY-MM-DD
+approved_by: owner on 2026-10-26, as designed (search and sort, four rounds; with decision 41, recommendations started when a mapping is saved)
 ```
 
 ## Context
@@ -742,6 +742,21 @@ P11. Each has its reason in the tables above.
       (decisions 19-24). Its Data Collection part needs rows 173 and 174 merged.
     - **Round 4 (new row at approval, `list-search-case-page`):** search and sort on the case page (decision 25).
     - The owner's browser check of the four rounds becomes a separate row at approval.
+
+41. **Recommendations start when a mapping is saved** (owner decision of 26 Oct 2026, round 1). Today a counsel-code,
+    keyword, name-pattern or watchlist change waits for the 15-minute `rescore-dirty` beat (about 20 minutes in the
+    worst case: up to 15 minutes' wait plus about 6 minutes for a full rescore of 54,000 cases, measured 26 Oct). After
+    the commit of every create, change, deactivate or reactivate of those rules (the routers in
+    `api/routers/matching.py` and the rule routers), call the existing `dispatch_rescore(settings)` exactly as the
+    scoring-settings save does (line 197): it sends `aslms.rescore_if_dirty`, never raises, and falls back to the beat.
+    **One rescore at a time:** `rescore_if_dirty` gains a single-flight guard (a `job_runs` row `rescore` with status
+    `running` started in the last 30 minutes, or a transaction-scoped advisory lock compatible with PgBouncer
+    transaction mode) so a second dispatch while a rescore runs does nothing; when the running rescore finishes it
+    checks `rules_changed_since(its own start)` and, if a rule changed meanwhile, dispatches one more run, so the last
+    mapping is never left for the beat. The save's answer and the mapping page say "Recommendations will update in
+    a few minutes." Tests: a save dispatches once after commit and not on a refused save; two dispatches during a
+    running rescore start one run; a change during a run triggers exactly one follow-up; no broker falls back to the
+    beat.
 
 ## Data
 

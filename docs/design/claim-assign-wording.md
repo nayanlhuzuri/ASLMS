@@ -2,10 +2,10 @@
 
 ```
 slug: claim-assign-wording
-status: awaiting-approval
+status: approved
 author: architect
 date: 2026-10-26
-approved_by: <owner e-mail or name> on YYYY-MM-DD
+approved_by: owner on 2026-10-26, as designed (Assign wording everywhere users read, the reference-data migration)
 ```
 
 ## Context
