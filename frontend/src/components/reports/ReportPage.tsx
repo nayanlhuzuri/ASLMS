@@ -14,7 +14,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useContext, useEffect } from "react";
 
-import { Card, EmptyState, ErrorBanner, Loading } from "@/components/ui";
+import { EmptyState, ErrorBanner, Loading } from "@/components/ui";
 import { api, ApiError } from "@/lib/api/client";
 import { useDepartments, useMe, useReportCatalogue } from "@/lib/api/hooks";
 import type { Report } from "@/lib/api/types";
@@ -22,7 +22,7 @@ import { tracksDepartment } from "@/lib/can";
 import { istDay } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { queryString, type Params } from "@/lib/params";
-import { exportUrl, reportParams, type ReportKey } from "@/lib/reports";
+import { exportUrl, reportParams, scopeLabel, type ReportKey } from "@/lib/reports";
 
 import { ReportForm } from "./ReportForm";
 import { DownloadsSlot, ReportDownloads } from "./ReportsFrame";
@@ -75,8 +75,7 @@ export function ReportPage({ reportKey, params }: { reportKey: ReportKey; params
 
   return (
     <div className="stack">
-      <Card>
-        <ReportForm
+      <ReportForm
         key={queryString(params)}
         reportKey={reportKey}
         item={item}
@@ -88,8 +87,8 @@ export function ReportPage({ reportKey, params }: { reportKey: ReportKey; params
         busy={query.isFetching}
         onShow={(next) => router.push(pathname + queryString(next))}
         onRefresh={() => void query.refetch()}
-        />
-      </Card>
+        summary={loaded ? <span>{T.reports.scopeLine(scopeLabel(query.data, departments))}</span> : null}
+      />
       {firstDepartment || query.isPending ? (
         error ? null : (
           <p className="muted" role="status" aria-live="polite">

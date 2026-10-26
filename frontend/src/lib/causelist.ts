@@ -164,3 +164,38 @@ export function causelistHref(listDate: string, benchId: number | null | undefin
   if (benchId !== null && benchId !== undefined) qs.set("bench_id", String(benchId));
   return `/causelist?${qs.toString()}`;
 }
+
+/** One page of the View Cause List modal's printed entries (design portal-ui-polish-2, decision 25). */
+export const VIEW_PAGE = 100;
+
+/** The tabs of the View Cause List modal (`vtab`). */
+export const VIEW_TABS = ["entries", "pdf"] as const;
+export type ViewTab = (typeof VIEW_TABS)[number];
+
+/** The `view` value of a bench: its bench id, or a court-wide file's list id. */
+export function viewValue(b: Bench): string {
+  if (b.bench_id !== null) return String(b.bench_id);
+  return b.lists[0]?.id ?? "";
+}
+
+/** The bench the `view` value names among the day's benches, if any. */
+export function benchOfView(benches: Bench[], value: string | null | undefined): Bench | null {
+  if (!value) return null;
+  return benches.find((b) => viewValue(b) === value) ?? null;
+}
+
+/** The entries query of a `view` value: `bench_id` for a bench, `list_id` for a court-wide file. */
+export function viewQuery(value: string, offset: number): Record<string, string | number | undefined> {
+  const bench = /^\d+$/.test(value);
+  return {
+    bench_id: bench ? value : undefined,
+    list_id: !bench && UUID.test(value) ? value : undefined,
+    limit: VIEW_PAGE,
+    offset,
+  };
+}
+
+/** The `vtab` of the URL, `entries` unless it names the PDF. */
+export function viewTabOf(value: string | undefined): ViewTab {
+  return value === "pdf" ? "pdf" : "entries";
+}

@@ -458,6 +458,27 @@ describe("Department Cases", () => {
     expect(screen.getByRole("radio", { name: "Active" })).toHaveAttribute("aria-checked", "true");
   });
 
+  it("Layout B: Words is the hero; Unit, Officer, Stage, Next Hearing and Case Type on the right; the count in the strip (portal-ui-polish-2, decision 23)", async () => {
+    const api = browserApi(routes());
+    const { container } = renderWithClient(<InboxFrame tab="department" params={{ q: "ram", year: "2025" }} />);
+    await screen.findByRole("row", { name: "Open WP(C)/1/2026" });
+    const hero = container.querySelector<HTMLElement>("[data-zone='hero']")!;
+    expect(within(hero).getByLabelText(/^Words/)).toHaveValue("ram");
+    const fields = container.querySelector<HTMLElement>("[data-zone='fields']")!;
+    for (const label of ["Unit", "Officer", "Stage", "Next Hearing", "Case Type"]) {
+      expect(within(fields).getByLabelText(label)).toBeInTheDocument();
+    }
+    const more = container.querySelector<HTMLElement>("[data-zone='more']")!;
+    expect(screen.getByRole("button", { name: "More Filters (1)" })).toHaveAttribute("aria-expanded", "true");
+    for (const label of ["Year", "Court", "With", "Action"]) expect(within(more).getByLabelText(label)).toBeInTheDocument();
+    const strip = container.querySelector<HTMLElement>("[data-zone='summary']")!;
+    expect(within(strip).getByText(/cases/)).toBeInTheDocument();
+    expect(within(strip).getByText("Year: 2025")).toBeInTheDocument();
+    const url = lastUrl(api.calls, "/inbox/claimed?");
+    expect(url).toContain("q=ram");
+    expect(url).toContain("year=2025");
+  });
+
   it("Not allotted sends unallotted=true; the chips show with n of m and removing one applies at once", async () => {
     const api = browserApi(routes());
     const { unmount } = renderWithClient(<InboxFrame tab="department" params={{}} />);
@@ -465,7 +486,7 @@ describe("Department Cases", () => {
     await waitFor(() => expect(within(officerSelect).getByRole("option", { name: "Officer One" })).toBeInTheDocument());
     await userEvent.selectOptions(officerSelect, "none");
     await userEvent.selectOptions(screen.getByLabelText("Next Hearing"), "n7");
-    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await userEvent.click(screen.getByRole("button", { name: "Search" }));
     expect(nav.replace).toHaveBeenCalledWith("/inbox/department?next=n7&officer=none");
     unmount();
     renderWithClient(<InboxFrame tab="department" params={{ officer: "none", next: "n7", holder: "elsewhere", action: "overdue" }} />);

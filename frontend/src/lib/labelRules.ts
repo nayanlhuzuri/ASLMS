@@ -132,6 +132,7 @@ export const SENTENCE_EXCEPTIONS: Record<string, string> = {
 /** Functions under label paths, with the sample arguments their result is checked with (path → args). */
 export const LABEL_FUNCTIONS: Record<string, unknown[]> = {
   "users.moreFiltersButton": [1],
+  "kit.moreButton": [2],
   "nav.count": ["Case Inbox", "3"],
   "score.badge": ["Strong Recommendation", "0.91"],
   "own.decideTitle": [true],

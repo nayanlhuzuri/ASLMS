@@ -6,13 +6,13 @@
  * writes the filters to the URL, so a link, a bookmark or Back restores the same search; "Clear" goes to `/audit`;
  * "Refresh" re-reads from the newest entry; "More" follows the API's `next_cursor`. A 403 shows who reads the log
  * and nothing else. Searching writes nothing; the screen shows the rows as the API returns them. On the Work list
- * template (design portal-ui-redesign, decision 26): the filters in a card on top, the rows below as a table that
- * becomes cards on phones.
+ * template (design portal-ui-redesign, decision 26): the filters in Layout B's Filter Card on top (design
+ * portal-ui-polish-2, decision 23), the rows below as a table that becomes cards on phones.
  */
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 
-import { Button, Card, EmptyState, ErrorBanner, Loading, PageHeader } from "@/components/ui";
+import { Button, EmptyState, ErrorBanner, Loading, PageHeader } from "@/components/ui";
 import { api, ApiError } from "@/lib/api/client";
 import { useAuditActions } from "@/lib/api/hooks";
 import type { AuditPage } from "@/lib/api/types";
@@ -86,8 +86,7 @@ export function AuditSearch({ params }: { params: Params }) {
   return (
     <div className="stack">
       <PageHeader title={T.audit.title} subtitle={T.audit.subtitle} />
-      <Card>
-        <AuditFilters
+      <AuditFilters
         key={queryString(apiParams)}
         params={apiParams}
         today={today}
@@ -98,8 +97,7 @@ export function AuditSearch({ params }: { params: Params }) {
         onSearch={(next) => router.push("/audit" + queryString(next))}
         onClear={() => router.push("/audit")}
         onRefresh={() => void queryClient.resetQueries({ queryKey: key, exact: true })}
-        />
-      </Card>
+      />
       {error && fields.length === 0 ? <ErrorBanner error={error} messages={ERROR_TEXTS} onRetry={() => void search.refetch()} /> : null}
       {!urlProblems && search.isPending && !error ? <Loading lines={6} /> : null}
       {search.data && fields.length === 0 ? (

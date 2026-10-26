@@ -512,6 +512,60 @@ function membershipFunctions(url: URL): S["MembershipFunctionsOut"] {
   };
 }
 
+/**
+ * One cause-list day (design portal-ui-polish-2, decisions 23-25): a held day with a bench of two lists (daily with its
+ * PDF, supplementary without), a bench with the longest label and a court-wide file, so the date navigator, the More
+ * Filters panel (two list types, three courts) and the View Cause List modal on `SAMPLE.benchId` are drawn. The
+ * entries come from the synthetic answer.
+ */
+function causelistDay(url: URL): S["CauselistDayOut"] {
+  const date = url.pathname.split("/").pop()!;
+  const list = (id: string, list_type: string, has_pdf: boolean, entries: number): S["CauselistOut"] => ({
+    id,
+    list_type,
+    list_type_text: list_type.toUpperCase(),
+    label: null,
+    napix_causelist_id: 11,
+    source: "napix",
+    entry_count: entries,
+    entries_stored: entries,
+    fetch_status: has_pdf ? "fetched" : "not_available",
+    parse_status: "parsed",
+    has_pdf,
+    version: 1,
+    superseded: false,
+  });
+  const benches: S["CauselistBenchOut"][] = [
+    {
+      bench_id: Number(SAMPLE.benchId),
+      label: "HONOURABLE THE CHIEF JUSTICE, HONOURABLE MR. JUSTICE SOUMITRA SAIKIA",
+      court_nos: ["1"],
+      source: "napix",
+      entries: 58,
+      lists: [list(SAMPLE.causelistId, "daily", true, 51), list("0192a3b4-0000-7000-8000-0000000000c2", "supplementary", false, 7)],
+    },
+    {
+      bench_id: 777,
+      label: "HONOURABLE MRS. JUSTICE MALASRI NANDI",
+      court_nos: ["3"],
+      source: "napix",
+      entries: STRESS.count,
+      lists: [list("0192a3b4-0000-7000-8000-0000000000c3", "daily", true, 40)],
+    },
+    { bench_id: null, label: null, court_nos: ["5"], source: "ghc_website", entries: 2, lists: [list("0192a3b4-0000-7000-8000-0000000000c4", "daily", false, 2)] },
+  ];
+  return {
+    date,
+    state: "held",
+    queue_status: "done",
+    queue_finished_at: null,
+    previous_date: "2026-10-22",
+    next_date: "2026-10-26",
+    totals: { benches: benches.length, lists: 4, entries: 58 + STRESS.count + 2 },
+    benches,
+  };
+}
+
 /** The person's latest audit entries (decision 36). */
 function auditPage(): AuditPage {
   const base = synthFor("/audit")!.body as AuditPage;
@@ -675,6 +729,9 @@ const OVERRIDES: [RegExp, Override][] = [
   [/^\/admin\/users\/[^/]+\/memberships$/, () => userMemberships()],
   [/^\/admin\/users\/[^/]+\/memberships\/[^/]+\/permissions$/, (url) => membershipFunctions(url)],
   [/^\/audit$/, () => auditPage()],
+  // design portal-ui-polish-2, decisions 23-25: the cause-list day and the list PDF the View Cause List modal shows
+  [/^\/causelists\/\d{4}-\d{2}-\d{2}$/, (url) => causelistDay(url)],
+  [/^\/causelists\/lists\/[^/]+\/file$/, () => ({ note: "the browser check stands in for the court's PDF" })],
   [/^\/admin\/counsel-codes\/unmapped$/, () => unmapped()],
   [/^\/admin\/counsel-codes$/, () => counselCodes()],
   [/^\/custody\/held$/, () => held()],

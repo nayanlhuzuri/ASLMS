@@ -319,6 +319,51 @@ const STATES: State[] = [
     },
   },
   {
+    // design portal-ui-polish-2, decisions 21-24: Layout B on the Cause List with More Filters open (List Type, Court)
+    name: "/causelist (More Filters open)",
+    path: `/causelist?date=${SAMPLE.causelistDate}&bench_id=${SAMPLE.benchId}`,
+    open: async (page) => {
+      await page.getByRole("button", { name: /^More Filters/ }).click();
+      await page.getByLabel("List Type").waitFor();
+    },
+  },
+  {
+    // decision 25: the View Cause List modal on its own address, the Printed Entries tab
+    name: "/causelist (View Cause List modal, Printed Entries)",
+    path: `/causelist?date=${SAMPLE.causelistDate}&bench_id=${SAMPLE.benchId}&view=${SAMPLE.benchId}&vtab=entries`,
+    open: async (page) => {
+      await page.getByRole("dialog").first().waitFor();
+      await page.getByRole("dialog").getByRole("table").first().waitFor();
+    },
+  },
+  {
+    // decision 25: the same modal on the Original PDF tab (the list chooser, Download and the browser's viewer)
+    name: "/causelist (View Cause List modal, Original PDF)",
+    path: `/causelist?date=${SAMPLE.causelistDate}&bench_id=${SAMPLE.benchId}&view=${SAMPLE.benchId}&vtab=pdf`,
+    open: async (page) => {
+      await page.getByRole("dialog").first().waitFor();
+      await page.getByRole("dialog").locator("iframe").waitFor();
+    },
+  },
+  {
+    // decisions 21-23: Search on Layout B (Search For as the hero)
+    name: "/search (Layout B)",
+    path: "/search",
+    open: async (page) => {
+      await page.getByRole("search", { name: "Filters" }).waitFor();
+      await page.getByLabel("Search For").waitFor();
+    },
+  },
+  {
+    // decisions 23 and 28: the Audit Log on Layout B with the Office Picker open
+    name: "/audit (Layout B with the Office Picker open)",
+    path: "/audit",
+    open: async (page) => {
+      await page.getByRole("combobox", { name: "Office" }).click();
+      await page.getByRole("listbox", { name: "Offices" }).waitFor();
+    },
+  },
+  {
     // design portal-ui-polish-2, decision 13: Edit Name on the user-type page (the sample type has the 80-character name)
     name: `/admin/access/${SAMPLE.userType} (Edit Name dialog)`,
     path: `/admin/access/${SAMPLE.userType}`,

@@ -15,11 +15,6 @@
   margin-top: var(--label-offset);
 }
 
-.state {
-  font-size: var(--t-sm);
-  color: var(--text-3);
-}
-
 .lists {
   display: flex;
   flex-wrap: wrap;
@@ -224,5 +219,116 @@
 
   .hideOnPhone {
     display: none !important;
+  }
+}
+
+/* Layout B (design portal-ui-polish-2, decisions 23-25): the date navigator as the Filter Card's hero */
+.dateHero {
+  display: grid;
+  gap: var(--s1);
+  justify-items: start;
+  min-width: 0;
+}
+
+.heroCaption {
+  color: var(--text-3);
+  font-size: var(--t-xs);
+  font-weight: 600;
+}
+
+.heroDay {
+  color: var(--text-2);
+  font-size: var(--t-sm);
+  font-weight: 500;
+}
+
+.heroDate {
+  font-size: var(--t-2xl);
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.heroNav {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  margin-top: var(--s2);
+}
+
+.iconButton {
+  width: var(--control-h);
+  padding: 0;
+  justify-content: center;
+}
+
+/* the browser's own date picker, opened by Pick Date (showPicker); not in the tab order */
+.pickInput {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.heroBadge {
+  display: inline-flex;
+  max-width: 100%;
+  margin-top: var(--s2);
+}
+
+.heroView {
+  display: grid;
+  gap: var(--s1);
+  justify-items: start;
+  margin-top: var(--s1);
+}
+
+.heroHint {
+  color: var(--text-3);
+  font-size: var(--t-xs);
+}
+
+.noticeActions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+}
+
+/* the summary strip's Show select, at the end of the line */
+.showSelect {
+  margin-left: auto;
+  min-width: 200px;
+}
+
+/* the View Cause List modal's Original PDF tab */
+.pdfToolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+.pdfFrame {
+  width: 100%;
+  height: min(70vh, 900px);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+
+@media (max-width: 639px) {
+  .heroDate {
+    font-size: var(--t-xl);
+  }
+
+  .showSelect {
+    width: 100%;
+    margin-left: 0;
   }
 }

@@ -4,7 +4,8 @@
  * Layout of the UI kit (design portal-ui-redesign, decisions 10.2, 13, 16 and 17): the card, the page header with
  * the breadcrumb inside the page above the title and at most one primary action, the breadcrumb itself, tabs with
  * the sliding underline, counts and a "More" group, tiles, the headline number (`Kpi`), the collapsible and the
- * Settings template's frame (`SettingsLayout`).
+ * Settings template's frame (`SettingsLayout`), and the Filter Card of Layout B (`FilterCard`, design
+ * portal-ui-polish-2, decision 21).
  */
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -14,7 +15,7 @@ import { formatNumber } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { crumbLabel } from "@/lib/routes";
 
-import { cx, SelectField } from "./controls";
+import { Button, cx, SelectField } from "./controls";
 import s from "./layout.module.css";
 import { useCountUp } from "./motion";
 import { Menu } from "./overlays";
@@ -391,6 +392,131 @@ export function SettingsLayout({
         />
       </div>
       <div className={s.settingsBody}>{children}</div>
+    </div>
+  );
+}
+
+/**
+ * Filter Layout B, "Header Card with Two Zones" (design portal-ui-polish-2, decision 21): the page's one leading
+ * control in the left zone (`hero`, 280 px on laptops, on top below 768 px); the other fields in a grid on the right
+ * (`repeat(auto-fill, minmax(180px, 1fr))`, labels above the boxes) with the actions in the last cell, Search (the
+ * form's submit, when `onSubmit` is given) and More Filters (n), n being the number of set fields inside; More Filters
+ * opens a panel inside the card under the right zone (220 ms, at once under reduced motion), open whenever one of its
+ * fields is set; and the summary strip under the card (the count, the page's quick links, the applied chips with
+ * Clear All). The panel's fields mount on first opening and stay mounted, out of the tab order while closed. The
+ * filters themselves stay in the page's query string; the card only draws them. On phones the card stacks: hero,
+ * fields, actions, and More Filters opens in place.
+ */
+export function FilterCard({
+  label,
+  hero,
+  children,
+  more,
+  moreCount = 0,
+  moreOpen,
+  onMoreToggle,
+  onSubmit,
+  submitLabel = T.kit.search,
+  submitVariant = "primary",
+  actions,
+  summary,
+}: {
+  /** The accessible name of the form (or of the group when there is no submit). */
+  label: string;
+  /** The left zone: the page's one leading control. */
+  hero: ReactNode;
+  /** The right zone's fields. */
+  children?: ReactNode;
+  /** The fields under More Filters (none: no More Filters button). */
+  more?: ReactNode;
+  /** The number of set fields under More Filters (shown in the button; the panel is open while it is above 0). */
+  moreCount?: number;
+  /** Controlled open state of More Filters (default: open after a click, or while `moreCount` is above 0). */
+  moreOpen?: boolean;
+  onMoreToggle?: () => void;
+  /** The form's submit: draws Search in the actions cell. */
+  onSubmit?: () => void;
+  submitLabel?: string;
+  submitVariant?: "primary" | "secondary";
+  /** More buttons after Search and More Filters (Refresh, Clear). */
+  actions?: ReactNode;
+  /** The slim line under the card. */
+  summary?: ReactNode;
+}) {
+  const [userOpen, setUserOpen] = useState(false);
+  const hasMore = more !== undefined && more !== null && more !== false;
+  const open = hasMore && (moreOpen ?? (userOpen || moreCount > 0));
+  const [opened, setOpened] = useState(open);
+  if (open && !opened) setOpened(true);
+  const moreId = useId();
+  const toggle = onMoreToggle ?? (() => setUserOpen((o) => !o));
+  const hasRight = !!children || !!onSubmit || hasMore || !!actions;
+  const hasActions = !!onSubmit || hasMore || !!actions;
+  const zonesClass = cx(s.fcZones, !hasRight && s.fcHeroOnly);
+
+  const zones = (
+    <>
+      <div className={s.fcHero} data-zone="hero">
+        {hero}
+      </div>
+      {hasRight ? (
+        <div className={s.fcRight} data-zone="fields">
+          <div className={s.fcGrid}>
+            {children}
+            {hasActions ? (
+              <div className={s.fcActions} data-zone="actions">
+                {onSubmit ? (
+                  <Button type="submit" variant={submitVariant}>
+                    {submitLabel}
+                  </Button>
+                ) : null}
+                {hasMore ? (
+                  <Button variant="secondary" aria-expanded={open} aria-controls={moreId} onClick={toggle}>
+                    {T.kit.moreButton(moreCount)}
+                  </Button>
+                ) : null}
+                {actions}
+              </div>
+            ) : null}
+          </div>
+          {hasMore ? (
+            <div
+              id={moreId}
+              className={cx(s.fcMore, open && s.fcMoreOpen)}
+              data-zone="more"
+              role="group"
+              aria-label={T.kit.moreTitle}
+              inert={!open}
+              aria-hidden={!open}
+            >
+              <div className={s.fcMoreInner}>{opened ? <div className={s.fcGrid}>{more}</div> : null}</div>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </>
+  );
+
+  return (
+    <div className={s.filterCard} data-filter-card="">
+      {/* always the same element, so the hero is not remounted when the page's data adds a submit */}
+      <form
+        className={zonesClass}
+        role={onSubmit ? "search" : "group"}
+        aria-label={label}
+        noValidate
+        onSubmit={(e) => {
+          e.preventDefault();
+          onSubmit?.();
+        }}
+      >
+        {zones}
+      </form>
+      {summary ? (
+        <div className={s.fcStrip} data-zone="summary">
+          {summary}
+        </div>
+      ) : null}
     </div>
   );
 }

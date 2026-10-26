@@ -4,12 +4,16 @@
  * The choices above a report (design portal-reports, decisions 3-6): the scope ("Whole State" or a department), the
  * period with its quick choices, the holder department and "List the files". "Show report" hands the parameters to
  * the page, which writes them to the URL. The browser checks only that both dates are given, in order and not after
- * today; the range limits are the server's and its refusal is shown under the period fields.
+ * today; the range limits are the server's and its refusal is shown under the period fields. Filter Layout B (design
+ * portal-ui-polish-2, decision 23): the period, or "As Of" today for a report without one, is the card's hero; the
+ * scope, the holder department and "List the cases" sit on the right with Show Report and Refresh; the report's scope
+ * line is the summary strip; the downloads stay in the page header.
  */
-import { useState, type FormEvent } from "react";
+import { useState, type ReactNode } from "react";
 
-import { Button, CheckField, OfficePicker, SelectField, TextField } from "@/components/ui";
+import { Button, CheckField, FilterCard, OfficePicker, SelectField, TextField } from "@/components/ui";
 import type { OfficeChoice, ReportCatalogueItem, ReportDepartment } from "@/lib/api/types";
+import { formatDate } from "@/lib/format";
 import { T } from "@/lib/messages";
 import type { Params } from "@/lib/params";
 import {
@@ -49,6 +53,7 @@ export function ReportForm({
   busy,
   onShow,
   onRefresh,
+  summary,
 }: {
   reportKey: ReportKey;
   item: ReportCatalogueItem;
@@ -62,6 +67,8 @@ export function ReportForm({
   busy?: boolean;
   onShow: (next: Params) => void;
   onRefresh: () => void;
+  /** The summary strip: the scope line of the report on screen. */
+  summary?: ReactNode;
 }) {
   const hasPeriod = reportKey === "hearings-disposals" || reportKey === "data-health";
   const stateScope = item.scopes.includes("state");
@@ -77,8 +84,7 @@ export function ReportForm({
   const [includeCases, setIncludeCases] = useState(params.include_cases === "true");
   const [problem, setProblem] = useState<string | null>(null);
 
-  function submit(e: FormEvent) {
-    e.preventDefault();
+  function submit() {
     const next: Params = {};
     if (reportKey !== "data-health" && department) next.department = department;
     if (hasPeriod) {
@@ -112,33 +118,20 @@ export function ReportForm({
   const shownError = problem ?? periodError ?? null;
   const choices = hasPeriod ? PERIOD_CHOICES[reportKey as "hearings-disposals" | "data-health"] : [];
 
-  return (
-    <form className={s.form} onSubmit={submit} aria-label={T.reports.form} noValidate>
-      {reportKey === "data-health" ? null : stateScope || item.departments.length > 1 ? (
-        <SelectField
-          label={stateScope ? T.reports.scope : T.reports.department}
-          value={department}
-          onChange={(e) => setDepartment(e.target.value)}
-          options={stateScope ? [{ value: "", label: T.reports.wholeState }, ...options] : options}
-        />
-      ) : item.departments.length === 1 ? (
-        <p>
-          {T.reports.department}: {departmentLabel(item.departments[0]!, departments)}
-        </p>
-      ) : null}
-      {hasPeriod ? (
-        <SelectField
-          label={T.reports.period}
-          value={choice}
-          onChange={(e) => {
-            setChoice(e.target.value as PeriodChoice);
-            setProblem(null);
-          }}
-          options={choices.map((c) => ({ value: c, label: T.reports.choices[c] ?? c }))}
-          error={choice === "custom" ? undefined : shownError}
-        />
-      ) : null}
-      {hasPeriod && choice === "custom" ? (
+  // design portal-ui-polish-2, decision 23: Layout B; the period (or "As Of" for a report without one) is the hero
+  const hero = hasPeriod ? (
+    <div className={s.heroFields}>
+      <SelectField
+        label={T.reports.period}
+        value={choice}
+        onChange={(e) => {
+          setChoice(e.target.value as PeriodChoice);
+          setProblem(null);
+        }}
+        options={choices.map((c) => ({ value: c, label: T.reports.choices[c] ?? c }))}
+        error={choice === "custom" ? undefined : shownError}
+      />
+      {choice === "custom" ? (
         <>
           <TextField label={T.reports.from} type="date" value={from} max={today} onChange={(e) => setFrom(e.target.value)} />
           <TextField
@@ -150,6 +143,40 @@ export function ReportForm({
             error={shownError}
           />
         </>
+      ) : null}
+    </div>
+  ) : (
+    <div className={s.asOf}>
+      <span className={s.asOfCaption}>{T.reports.asOf}</span>
+      <span className={s.asOfDate}>{formatDate(today)}</span>
+      <span className={s.asOfNote}>{T.reports.asOfNote}</span>
+    </div>
+  );
+
+  return (
+    <FilterCard
+      label={T.reports.form}
+      hero={hero}
+      onSubmit={submit}
+      submitLabel={T.reports.show}
+      actions={
+        <Button variant="secondary" onClick={onRefresh} busy={busy}>
+          {T.reports.refresh}
+        </Button>
+      }
+      summary={summary}
+    >
+      {reportKey === "data-health" ? null : stateScope || item.departments.length > 1 ? (
+        <SelectField
+          label={stateScope ? T.reports.scope : T.reports.department}
+          value={department}
+          onChange={(e) => setDepartment(e.target.value)}
+          options={stateScope ? [{ value: "", label: T.reports.wholeState }, ...options] : options}
+        />
+      ) : item.departments.length === 1 ? (
+        <p className={s.fixedScope}>
+          {T.reports.department}: {departmentLabel(item.departments[0]!, departments)}
+        </p>
       ) : null}
       {reportKey === "pending-actions" ? (
         <>
@@ -173,12 +200,6 @@ export function ReportForm({
           </div>
         </>
       ) : null}
-      <div className={s.actions}>
-        <Button type="submit">{T.reports.show}</Button>
-        <Button variant="secondary" onClick={onRefresh} busy={busy}>
-          {T.reports.refresh}
-        </Button>
-      </div>
-    </form>
+    </FilterCard>
   );
 }

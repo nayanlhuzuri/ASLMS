@@ -9,12 +9,12 @@
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { Button, DataTable, EmptyState, ErrorBanner, Loading, Pagination, SelectField, TextField } from "@/components/ui";
+import { Button, DataTable, EmptyState, ErrorBanner, FilterCard, Loading, Pagination, SelectField, TextField } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { useMe } from "@/lib/api/hooks";
 import type { CallList, QueueList } from "@/lib/api/types";
 import { can } from "@/lib/can";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, formatNumber } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { useAction } from "@/lib/useAction";
 
@@ -37,6 +37,7 @@ function QueueRows() {
   const queryClient = useQueryClient();
   const action = useAction();
   const [filter, setFilter] = useState({ kind: "", status: "", lane: "", ref: "" });
+  const [ref, setRef] = useState("");
   const [offset, setOffset] = useState(0);
   const rows = useQuery({
     queryKey: ["data-queue", filter, offset],
@@ -57,7 +58,21 @@ function QueueRows() {
   return (
     <section className={`stack ${ds.panel}`} aria-label={T.data.queueRows}>
       <h2>{T.data.queueRows}</h2>
-      <div className="row">
+      {/* design portal-ui-polish-2, decision 23: Layout B with Reference Starts With as the hero (applied by Search);
+          Kind, Status and Lane apply at once; the strip counts the rows shown */}
+      <FilterCard
+        label={T.data.queueFilters}
+        hero={<TextField label={T.data.refPrefix} value={ref} onChange={(e) => setRef(e.target.value)} />}
+        onSubmit={() => set({ ref: ref.trim() })}
+        submitVariant="secondary"
+        summary={
+          rows.data ? (
+            <span aria-live="polite">
+              {T.data.rowsShown(formatNumber(rows.data.items.length), formatNumber(rows.data.total))}
+            </span>
+          ) : null
+        }
+      >
         <SelectField
           label={T.data.kind}
           value={filter.kind}
@@ -79,8 +94,7 @@ function QueueRows() {
           onChange={(e) => set({ lane: e.target.value })}
           options={["request", "daily", "discovery", "load"].map((value) => ({ value, label: T.data.lanes[value] ?? value }))}
         />
-        <TextField label={T.data.refPrefix} value={filter.ref} onChange={(e) => set({ ref: e.target.value })} />
-      </div>
+      </FilterCard>
       <ErrorBanner error={rows.error ?? action.error} onRetry={() => rows.refetch()} />
       {rows.isPending ? <Loading /> : null}
       {rows.data ? (

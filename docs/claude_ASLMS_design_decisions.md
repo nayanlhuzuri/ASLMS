@@ -2622,3 +2622,24 @@ Row 162, design `docs/design/portal-ui-polish-2-admin.md` (a pointer to `docs/de
 - Round 3 (row 163): Filter Layout B, date navigator, View Cause List modal.
 - Row 165: Change Office for keyword, name-pattern and watchlist rows needs an API change; `q` on those three lists.
 - The Compose uicheck run and the design's browser checks are the integrator's and the owner's.
+
+
+## Filter Layout B, date navigator and View Cause List (2026-10-26)
+Row 163, design `docs/design/portal-ui-polish-2-filters.md` (a pointer to `docs/design/portal-ui-polish-2.md`, decisions 21-25, approved by the owner 25 Oct 2026), branch `feature/portal-ui-polish-2-filters`. Round 3 of 3. Frontend only, no migration, no API change.
+
+**Built**
+- **Kit.** `FilterCard` (one form with hero, fields, actions, More Filters and summary zones; auto-fill grid so a phone never scrolls sideways) and `FilterBar layout="card"` with `hero`, `more`, `wordsHint` and `countLine`.
+- **Pages on Layout B.** Search, Department Cases, Cause List, Reports, Audit Log and the Data collection queue; each shows a strip with its count and removable chips.
+- **Cause List.** Date navigator (Previous Day, Next Day), Lists Held from `totals.lists`, Previous List and Next List inside the no-lists notice, and the View Cause List modal (printed entries as a `DataTable`, Original PDF tab with a `probeFile` pre-check in `lib/api/client.ts`, `view` and `vtab` in the address).
+- **Tests.** `filterbar.test.tsx`, `ui.test.tsx`, `causelist.test.tsx`, `audit.test.tsx`, `reports.test.tsx`, `search.test.tsx`, `inbox.test.tsx`, `data.test.tsx`; uicheck fixtures for a held day and five Layout B states (69 passed locally with Chromium against `next dev`).
+
+**Decisions and reasons** (12 deviations are listed with reasons in the design note's "Deviations round 3"; none changes a rule, function, API or what a caller may see)
+1. `FilterCard` is always one `<form>` so the hero is not remounted when data adds the right zone; More Filters fields mount on first opening and leave the tab order while closed.
+2. Department Cases draws only the filters its list already takes; Cause-List Date, Status and Bench of the note's table stay out because they would need API changes.
+3. A court-wide cause-list file has no bench id and is named by its list id in `view`; a tab change replaces the address so Back still closes the modal.
+4. The PDF tab asks for the file first so `no_pdf` and `file_missing` show the API's message; a holder of `documents.download` alone gets Download without the viewer.
+5. Audit Log shows From and To always with quick choices; the Period select is gone and the API's period refusal shows under To. Queue's Reference Starts With now applies on Search.
+6. The Office Picker list is kept inside the viewport near the right edge (found by the browser check).
+
+**Left for later**
+- The Compose uicheck run and the design's browser checks are the integrator's and the owner's.

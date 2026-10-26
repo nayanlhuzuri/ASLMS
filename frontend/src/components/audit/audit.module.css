@@ -1,42 +1,30 @@
 /* The Audit log screen (design portal-audit-health, decisions 4-6): the filter form, the list and the before /
    after table. */
 
-.form {
+/* Layout B (design portal-ui-polish-2, decision 23): the period as the Filter Card's hero, From and To with the quick
+   choices */
+.period {
+  display: grid;
+  gap: var(--s3);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.periodLegend {
+  padding: 0;
+  margin-bottom: var(--s1);
+  color: var(--text-3);
+  font-size: var(--t-xs);
+  font-weight: 600;
+}
+
+.quick {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
-  gap: var(--s3);
-}
-
-.form > * {
-  min-width: min(12rem, 100%);
-}
-
-.more {
-  flex-basis: 100%;
-}
-
-.more > summary {
-  cursor: pointer;
-  margin-bottom: var(--s2);
-}
-
-.moreFields {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s3);
-}
-
-.moreFields > * {
-  min-width: min(12rem, 100%);
-}
-
-.actions {
-  flex-basis: 100%;
-  display: flex;
-  gap: var(--s2);
   align-items: center;
-  flex-wrap: wrap;
+  gap: var(--s2);
 }
 
 .code {

@@ -162,6 +162,21 @@ export async function api<T>(path: string, options: CallOptions = {}): Promise<T
   return (await handle(response)) as T;
 }
 
+/**
+ * Asks for a file through the relay and stops reading once the answer's head arrives: resolves when the file is there
+ * and throws the API's error otherwise, so a screen can show a `no_pdf` or `file_missing` message before the browser's
+ * own viewer opens the address (the View Cause List modal, design portal-ui-polish-2, decision 25).
+ */
+export async function probeFile(path: string, options: CallOptions = {}): Promise<void> {
+  const controller = new AbortController();
+  const response = await send("/api/backend" + withQuery(path, options.query), { signal: controller.signal });
+  if (response.ok) {
+    controller.abort();
+    return;
+  }
+  await handle(response);
+}
+
 /** A list call that also returns the `X-Total-Count` header. */
 export async function apiPage<T>(path: string, options: CallOptions = {}): Promise<{ items: T; total: number }> {
   const response = await send("/api/backend" + withQuery(path, options.query), options);

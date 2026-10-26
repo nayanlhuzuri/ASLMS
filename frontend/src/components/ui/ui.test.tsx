@@ -17,6 +17,7 @@ import {
   DateChip,
   Dialog,
   EmptyState,
+  FilterCard,
   FilterChip,
   Lead,
   LeadIcon,
@@ -634,5 +635,112 @@ describe("CheckField inline (design portal-ui-polish-2, decision 26)", () => {
     expect(inline.className).toMatch(/checkInline/);
     expect(plain).not.toHaveAttribute("data-inline");
     expect(plain.className).not.toMatch(/checkInline/);
+  });
+});
+
+describe("FilterCard (design portal-ui-polish-2, decision 21)", () => {
+  function Card({ moreCount = 0, onSubmit = vi.fn() }: { moreCount?: number; onSubmit?: () => void }) {
+    return (
+      <FilterCard
+        label="Case Filters"
+        hero={<TextField label="Search For" />}
+        onSubmit={onSubmit}
+        more={<TextField label="Year" />}
+        moreCount={moreCount}
+        summary={<span>12 cases match</span>}
+      >
+        <TextField label="Case Type" />
+        <TextField label="Department" />
+      </FilterCard>
+    );
+  }
+
+  it("draws the hero zone, then the fields grid with the actions in its last cell", () => {
+    const { container } = renderWithClient(<Card />);
+    const form = screen.getByRole("search", { name: "Case Filters" });
+    const hero = container.querySelector("[data-zone='hero']")!;
+    const fields = container.querySelector("[data-zone='fields']")!;
+    expect(within(hero as HTMLElement).getByLabelText("Search For")).toBeInTheDocument();
+    expect(within(fields as HTMLElement).getByLabelText("Case Type")).toBeInTheDocument();
+    expect(within(fields as HTMLElement).getByLabelText("Department")).toBeInTheDocument();
+    // the stacked order on phones is the DOM order: hero, fields, actions (the zones carry their classes)
+    expect([...form.children].map((c) => c.getAttribute("data-zone"))).toEqual(["hero", "fields"]);
+    expect(hero.className).toMatch(/fcHero/);
+    expect(fields.className).toMatch(/fcRight/);
+    const grid = fields.firstElementChild!;
+    expect(grid.className).toMatch(/fcGrid/);
+    const actions = grid.lastElementChild!;
+    expect(actions.getAttribute("data-zone")).toBe("actions");
+    expect(within(actions as HTMLElement).getByRole("button", { name: "Search" })).toHaveAttribute("type", "submit");
+    expect(within(actions as HTMLElement).getByRole("button", { name: "More Filters" })).toBeInTheDocument();
+  });
+
+  it("Search submits the form, Enter in a field too", async () => {
+    const onSubmit = vi.fn();
+    renderWithClient(<Card onSubmit={onSubmit} />);
+    await userEvent.click(screen.getByRole("button", { name: "Search" }));
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    await userEvent.type(screen.getByLabelText("Case Type"), "WP(C){Enter}");
+    expect(onSubmit).toHaveBeenCalledTimes(2);
+  });
+
+  it("More Filters opens the panel inside the card and mounts its fields on first opening", async () => {
+    renderWithClient(<Card />);
+    const button = screen.getByRole("button", { name: "More Filters" });
+    expect(button).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByLabelText("Year")).toBeNull();
+    await userEvent.click(button);
+    expect(button).toHaveAttribute("aria-expanded", "true");
+    const panel = document.getElementById(button.getAttribute("aria-controls")!)!;
+    expect(panel).toHaveAttribute("data-zone", "more");
+    expect(within(panel).getByLabelText("Year")).toBeInTheDocument();
+    await userEvent.click(button);
+    expect(button).toHaveAttribute("aria-expanded", "false");
+    expect(panel).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("shows the number of set fields inside and is open while one is set", () => {
+    renderWithClient(<Card moreCount={2} />);
+    const button = screen.getByRole("button", { name: "More Filters (2)" });
+    expect(button).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByLabelText("Year")).toBeInTheDocument();
+  });
+
+  it("draws the summary strip under the card, and no More Filters without fields for it", () => {
+    const { container } = renderWithClient(
+      <FilterCard label="Queue Filters" hero={<TextField label="Reference Starts With" />} summary={<span>3 rows</span>}>
+        <TextField label="Kind" />
+      </FilterCard>,
+    );
+    const strip = container.querySelector("[data-zone='summary']")!;
+    expect(strip).toHaveTextContent("3 rows");
+    expect(strip.className).toMatch(/fcStrip/);
+    expect(screen.queryByRole("button", { name: /More Filters/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Search" })).toBeNull();
+    expect(screen.getByRole("group", { name: "Queue Filters" })).toBeInTheDocument();
+  });
+
+  it("keeps the hero mounted when a submit arrives with the page's data", async () => {
+    function Harness() {
+      const [loaded, setLoaded] = useState(false);
+      return (
+        <FilterCard
+          label="Filters"
+          hero={
+            <button type="button" onClick={() => setLoaded(true)}>
+              Hero
+            </button>
+          }
+          onSubmit={loaded ? () => undefined : undefined}
+        >
+          {loaded ? <TextField label="Bench" /> : null}
+        </FilterCard>
+      );
+    }
+    renderWithClient(<Harness />);
+    const before = screen.getByRole("button", { name: "Hero" });
+    await userEvent.click(before);
+    expect(screen.getByLabelText("Bench")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hero" })).toBe(before);
   });
 });

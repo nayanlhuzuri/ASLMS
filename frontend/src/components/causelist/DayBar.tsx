@@ -1,25 +1,122 @@
 "use client";
 
 /**
- * The date of the Cause list screen (design portal-causelist, decisions 4 and 5): any date, "Previous list" and "Next
- * list" to the nearest dates with lists, and the day's state. On a day not loaded, failed or without a list, holders of
- * `admin.napix_refetch` see "Fetch this day from the court" (the existing `POST /admin/napix/refetch/day`); its 409
- * `already_held` asks before resending with `force`. Nobody else sees the button.
+ * The date of the Cause list screen.
+ *
+ * `DateHero` is the left zone of Layout B (design portal-ui-polish-2, decisions 23-25): the weekday over the date, large;
+ * Previous Day and Next Day as icon buttons with accessible names; Pick Date opening the browser's own date picker
+ * (`showPicker`, focus as the fallback); the "Lists Held: n" badge counting the day's lists from `GET /causelists/{date}`
+ * ("No Lists" in amber when there are none); and View Cause List under it, enabled once a bench is chosen.
+ *
+ * `DayNotice` is the day's state when no list is held (design portal-causelist, decisions 4 and 5): the state's banner
+ * with "Previous List" and "Next List" to the nearest dates with lists, and, on a day not loaded, failed or without a
+ * list, "Fetch this day from the court" for holders of `admin.napix_refetch` (the existing `POST
+ * /admin/napix/refetch/day`); its 409 `already_held` asks before resending with `force`. Nobody else sees the button.
  */
 import { useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useId, useRef, useState } from "react";
 
-import { Button, Dialog, ErrorBanner, Notice, TextField } from "@/components/ui";
+import { Badge, Button, Dialog, ErrorBanner, Notice } from "@/components/ui";
 import { api, ApiError } from "@/lib/api/client";
 import { CAUSELISTS_KEY } from "@/lib/api/hooks";
 import type { CauselistDay } from "@/lib/api/types";
 import { FETCHABLE_STATES } from "@/lib/causelist";
+import { addDays, formatDate, formatNumber, formatWeekday } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { useAction } from "@/lib/useAction";
 
 import s from "./causelist.module.css";
 
-export function DayBar({
+/** The number of lists the day holds (none unless the day's state is `held`). */
+export function listsHeld(day: CauselistDay | undefined): number {
+  if (!day || day.state !== "held") return 0;
+  return day.totals.lists;
+}
+
+function Chevron({ back }: { back?: boolean }) {
+  return (
+    <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d={back ? "m10 4-4 4 4 4" : "m6 4 4 4-4 4"} />
+    </svg>
+  );
+}
+
+export function DateHero({
+  date,
+  day,
+  canView,
+  onDate,
+  onView,
+}: {
+  date: string;
+  day: CauselistDay | undefined;
+  /** A bench is chosen, so View Cause List is enabled. */
+  canView: boolean;
+  onDate: (date: string) => void;
+  onView: () => void;
+}) {
+  const picker = useRef<HTMLInputElement>(null);
+  const hintId = useId();
+  const held = listsHeld(day);
+
+  function pick() {
+    const input = picker.current;
+    if (!input) return;
+    try {
+      input.showPicker();
+    } catch {
+      input.focus();
+    }
+  }
+
+  return (
+    <div className={s.dateHero}>
+      <span className={s.heroCaption}>{T.causelist.listDate}</span>
+      <span className={s.heroDay}>{formatWeekday(date)}</span>
+      <span className={s.heroDate} aria-live="polite">
+        {formatDate(date)}
+      </span>
+      <div className={s.heroNav}>
+        <Button variant="secondary" className={s.iconButton} aria-label={T.causelist.previousDay} title={T.causelist.previousDay} onClick={() => onDate(addDays(date, -1))}>
+          <Chevron back />
+        </Button>
+        <Button variant="secondary" onClick={pick}>
+          {T.causelist.pickDate}
+        </Button>
+        <Button variant="secondary" className={s.iconButton} aria-label={T.causelist.nextDay} title={T.causelist.nextDay} onClick={() => onDate(addDays(date, 1))}>
+          <Chevron />
+        </Button>
+        <input
+          ref={picker}
+          type="date"
+          className={s.pickInput}
+          tabIndex={-1}
+          aria-hidden="true"
+          data-testid="pick-date"
+          value={date}
+          onChange={(e) => {
+            if (e.target.value) onDate(e.target.value);
+          }}
+        />
+      </div>
+      <span className={s.heroBadge}>
+        {held > 0 ? <Badge tone="info">{T.causelist.listsHeld(formatNumber(held))}</Badge> : <Badge tone="warning">{T.causelist.noLists}</Badge>}
+      </span>
+      <div className={s.heroView}>
+        <Button variant="secondary" disabled={!canView} aria-describedby={canView ? undefined : hintId} onClick={onView}>
+          {T.causelist.viewListButton}
+        </Button>
+        {canView ? null : (
+          <span id={hintId} className={s.heroHint}>
+            {T.causelist.viewListHint}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function DayNotice({
   date,
   day,
   canFetch,
@@ -58,33 +155,29 @@ export function DayBar({
 
   const state = day?.state;
   const banner = state && state !== "held" ? T.causelist.banners[state] : null;
+  if (!banner && !queued && !action.error && held === null) return null;
   return (
     <section className="stack" aria-label={T.causelist.date}>
-      <div className={s.bar}>
-        <TextField
-          label={T.causelist.date}
-          type="date"
-          value={date}
-          onChange={(e) => {
-            if (e.target.value) onDate(e.target.value);
-          }}
-        />
-        <Button variant="secondary" disabled={!day?.previous_date} onClick={() => day?.previous_date && onDate(day.previous_date)}>
-          {T.causelist.previousList}
-        </Button>
-        <Button variant="secondary" disabled={!day?.next_date} onClick={() => day?.next_date && onDate(day.next_date)}>
-          {T.causelist.nextList}
-        </Button>
-        {state === "held" ? <span className={s.state}>{T.causelist.states.held}</span> : null}
-      </div>
       {banner ? (
         <Notice>
           <span>{banner}</span>{" "}
-          {canFetch && state && FETCHABLE_STATES.includes(state) ? (
-            <Button variant="secondary" busy={action.busy} onClick={() => void fetchDay(false)}>
-              {T.causelist.fetchDay}
-            </Button>
-          ) : null}
+          <span className={s.noticeActions}>
+            {day?.previous_date ? (
+              <Button variant="link" onClick={() => onDate(day.previous_date!)}>
+                {T.causelist.previousList}
+              </Button>
+            ) : null}
+            {day?.next_date ? (
+              <Button variant="link" onClick={() => onDate(day.next_date!)}>
+                {T.causelist.nextList}
+              </Button>
+            ) : null}
+            {canFetch && state && FETCHABLE_STATES.includes(state) ? (
+              <Button variant="secondary" busy={action.busy} onClick={() => void fetchDay(false)}>
+                {T.causelist.fetchDay}
+              </Button>
+            ) : null}
+          </span>
         </Notice>
       ) : null}
       {queued ? <Notice>{T.causelist.fetchQueued}</Notice> : null}

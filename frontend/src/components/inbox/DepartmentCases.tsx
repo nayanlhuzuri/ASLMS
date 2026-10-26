@@ -17,15 +17,17 @@ import { DataTable, EmptyState, ErrorBanner, Loading, Pagination, SegmentedSwitc
 import { api } from "@/lib/api/client";
 import { INBOX_KEY, useDepartmentPeople } from "@/lib/api/hooks";
 import type { InboxCounts, Ownership, OwnershipList } from "@/lib/api/types";
-import { FIELD_KEYS, LIST_FILTERS, toApiQuery } from "@/lib/filters";
+import { FIELD_KEYS, LIST_FILTERS, toApiQuery, type SharedField } from "@/lib/filters";
 import { T } from "@/lib/messages";
 import { offsetOf, PAGE, type Params } from "@/lib/params";
 import { casePath } from "@/lib/refs";
 
 import { useFilters } from "./common";
-import s from "./inbox.module.css";
 import { isFiltered, useStageOptions } from "./MyCases";
 import { CaseCell, Chevron, CountLine, HolderCell, NextHearingCell, StageCell } from "./rows";
+
+/** Layout B's More Filters on Department cases (design portal-ui-polish-2, decision 23); Case Type is on the right. */
+const DEPARTMENT_MORE: readonly SharedField[] = ["year", "court_no"];
 
 /** `officer=none` in the URL is "Not allotted". */
 export const NOT_ALLOTTED = "none";
@@ -139,10 +141,21 @@ export function DepartmentCases({ params, department, block }: { params: Params;
         value={caseState}
         onChange={(v) => setFilters({ case_state: v === "active" ? undefined : v })}
       />
-      <FilterBar list="department" params={params} own={own} />
-      <div className={s.toolbar}>
-        <CountLine total={list.data?.total} of={unfiltered} filtered={isFiltered(params, DEPARTMENT_KEYS)} />
-      </div>
+      {/* design portal-ui-polish-2, decision 23: Layout B with Words as the hero; Unit, Officer, Stage, Next Hearing and
+          Case Type on the right; Year, Court, File Is With and Action under More Filters */}
+      <FilterBar
+        list="department"
+        layout="card"
+        hero="q"
+        more={DEPARTMENT_MORE}
+        params={params}
+        own={own}
+        wordsLabel={T.filters.wordsShort}
+        wordsHint={T.filters.wordsHint}
+        countLine={
+          list.data ? <CountLine total={list.data.total} of={unfiltered} filtered={isFiltered(params, DEPARTMENT_KEYS)} /> : null
+        }
+      />
       <ErrorBanner error={list.error} onRetry={() => list.refetch()} />
       {list.isPending ? <Loading /> : null}
       {list.data ? (

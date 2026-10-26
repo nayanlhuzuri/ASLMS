@@ -2,30 +2,64 @@
 
 /**
  * The audit log filters (design portal-audit-health, decision 4): Person and "Name contains", Case, Office (a
- * department, then a unit inside it), Action (grouped, with "All … actions" per group), Period with quick choices,
- * and "More filters" (about the user, record type, record id). The browser checks only the name length, the date
- * order and the record id's shape; the API's refusals arrive in `apiErrors` and show under their fields. "Search"
- * hands the non-empty filters to the page, which writes them to the URL.
+ * department, then a unit inside it), Action (grouped, with "All … actions" per group), the period, and "More filters"
+ * (the unit, about the user, record type, record id). The browser checks only the name length, the date order and the
+ * record id's shape; the API's refusals arrive in `apiErrors` and show under their fields. "Search" hands the
+ * non-empty filters to the page, which writes them to the URL.
+ *
+ * Filter Layout B (design portal-ui-polish-2, decision 23): the period is the card's hero, From and To with the quick
+ * choices Today, 7 Days and 30 Days (IST days, today included); Person, Name Contains, Case, Office (the Office Picker)
+ * and Action on the right with Search, Clear and Refresh; Unit, About the User, Record Type and Record ID under More
+ * Filters; the summary strip says "Newest First" (the API is cursor-paged, so there is no total) and shows the applied
+ * filters as chips, each removable, with Clear All.
  */
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 
-import { Button, OfficePicker, SelectField, TextField, type Option } from "@/components/ui";
+import { FilterChips } from "@/components/filters/FilterChips";
+import { Button, FilterCard, OfficePicker, SelectField, TextField, type Option } from "@/components/ui";
 import { useDepartmentPeople, useDepartments } from "@/lib/api/hooks";
 import {
   actionGroups,
   actionName,
   checkFilters,
-  choiceOf,
-  PERIOD_CHOICES,
   periodChoice,
   type ErrorField,
   type FilterProblems,
   type PeriodChoice,
 } from "@/lib/audit";
+import type { Chip } from "@/lib/filters";
 import { T } from "@/lib/messages";
 import type { Params } from "@/lib/params";
 
 import s from "./audit.module.css";
+
+/** The quick choices of the period (decision 23). */
+const QUICK: PeriodChoice[] = ["today", "last_7", "last_30"];
+
+/** The applied filters of the URL as chips (each removes its own keys). */
+export function auditChips(params: Params): Chip[] {
+  const out: Chip[] = [];
+  const add = (keys: string[], label: string, value: string | undefined) => {
+    if (value) out.push({ keys, label: `${label}: ${value}` });
+  };
+  add(["user"], T.audit.person, params.user);
+  add(["actor"], T.audit.actor, params.actor);
+  add(["case"], T.audit.case, params.case);
+  if (params.office) {
+    out.push({
+      keys: ["office", "office_subtree"],
+      label: `${T.audit.office}: ${params.office}${params.office_subtree === "false" ? "" : ` ${T.officePicker.subMarker}`}`,
+    });
+  }
+  add(["action"], T.audit.action, params.action ? actionName(params.action) : undefined);
+  if (params.from || params.to) {
+    out.push({ keys: ["from", "to"], label: `${T.audit.period}: ${params.from ?? "…"} – ${params.to ?? "…"}` });
+  }
+  add(["about_user"], T.audit.aboutUser, params.about_user);
+  add(["entity_type"], T.audit.entityType, params.entity_type);
+  add(["entity_id"], T.audit.entityId, params.entity_id);
+  return out;
+}
 
 export function AuditFilters({
   params,
@@ -64,7 +98,6 @@ export function AuditFilters({
   const [department, setDepartment] = useState(params.office ?? "");
   const [subtree, setSubtree] = useState(params.office_subtree !== "false");
   const [unit, setUnit] = useState("");
-  const [choice, setChoice] = useState<PeriodChoice>(() => choiceOf(params.from, params.to, today));
   const [from, setFrom] = useState(params.from ?? "");
   const [to, setTo] = useState(params.to ?? "");
   const [problems, setProblems] = useState<FilterProblems | null>(initialProblems ?? null);
@@ -82,10 +115,15 @@ export function AuditFilters({
     setTouched((t) => new Set(t).add(name));
   };
 
-  function submit(e: FormEvent) {
-    e.preventDefault();
-    const period = choice === "custom" ? { from, to } : (periodChoice(choice, today) ?? { from: "", to: "" });
-    const found = checkFilters({ actor: form.actor, from: period.from, to: period.to, entity_id: form.entity_id }, today);
+  function setPeriod(nextFrom: string, nextTo: string) {
+    setFrom(nextFrom);
+    setTo(nextTo);
+    setProblems((p) => (p ? { ...p, period: undefined } : p));
+    set("period");
+  }
+
+  function submit() {
+    const found = checkFilters({ actor: form.actor, from, to, entity_id: form.entity_id }, today);
     setProblems(found);
     if (found) return;
     const next: Params = {};
@@ -93,8 +131,8 @@ export function AuditFilters({
     const office = unit || department;
     if (office) next.office = office;
     if (office && !subtree) next.office_subtree = "false";
-    if (period.from) next.from = period.from;
-    if (period.to) next.to = period.to;
+    if (from) next.from = from;
+    if (to) next.to = to;
     onSearch(next);
   }
 
@@ -112,10 +150,111 @@ export function AuditFilters({
   const extraAction: Option[] = form.action && !listed ? [{ value: form.action, label: form.action }] : [];
 
   const periodProblem = problems?.period ? T.audit.periodProblems[problems.period] : apiError("period");
-  const moreOpen = !!(params.about_user || params.entity_type || params.entity_id || problems?.entity_id);
+  const moreCount = [params.about_user, params.entity_type, params.entity_id].filter(Boolean).length;
+  const chips = auditChips(params);
+
+  const hero = (
+    <fieldset className={s.period}>
+      <legend className={s.periodLegend}>{T.audit.period}</legend>
+      <TextField
+        label={T.audit.from}
+        type="date"
+        value={from}
+        max={today}
+        onChange={(e) => setPeriod(e.target.value, to)}
+      />
+      <TextField label={T.audit.to} type="date" value={to} max={today} onChange={(e) => setPeriod(from, e.target.value)} error={periodProblem} />
+      <div className={s.quick} role="group" aria-label={T.audit.quickPeriods}>
+        {QUICK.map((c) => {
+          const p = periodChoice(c, today)!;
+          const on = p.from === from && p.to === to;
+          return (
+            <Button key={c} variant="secondary" aria-pressed={on} onClick={() => setPeriod(p.from, p.to)}>
+              {T.audit.quick[c]}
+            </Button>
+          );
+        })}
+        {from || to ? (
+          <Button variant="link" onClick={() => setPeriod("", "")}>
+            {T.audit.choices.any}
+          </Button>
+        ) : null}
+      </div>
+    </fieldset>
+  );
 
   return (
-    <form className={s.form} onSubmit={submit} aria-label={T.audit.form} noValidate>
+    <FilterCard
+      label={T.audit.form}
+      hero={hero}
+      onSubmit={submit}
+      submitLabel={T.audit.search}
+      actions={
+        <>
+          <Button variant="secondary" onClick={onClear}>
+            {T.audit.clear}
+          </Button>
+          <Button variant="secondary" onClick={onRefresh} busy={busy}>
+            {T.audit.refresh}
+          </Button>
+        </>
+      }
+      moreCount={moreCount}
+      moreOpen={moreCount > 0 || !!problems?.entity_id ? true : undefined}
+      more={
+        <>
+          {known ? (
+            <SelectField
+              label={T.audit.unit}
+              value={unit}
+              onChange={(e) => {
+                setUnit(e.target.value);
+                set("office");
+              }}
+              options={[
+                { value: "", label: T.audit.wholeDepartment },
+                ...units.map((u) => ({ value: u.code, label: `${u.name} (${u.code})` })),
+              ]}
+            />
+          ) : null}
+          <TextField
+            label={T.audit.aboutUser}
+            hint={T.audit.aboutUserHint}
+            value={form.about_user}
+            autoComplete="off"
+            onChange={(e) => set("about_user", { about_user: e.target.value })}
+            error={apiError("about_user")}
+          />
+          <TextField
+            label={T.audit.entityType}
+            value={form.entity_type}
+            maxLength={60}
+            onChange={(e) => set("entity_type", { entity_type: e.target.value })}
+          />
+          <TextField
+            label={T.audit.entityId}
+            value={form.entity_id}
+            className="mono"
+            onChange={(e) => set("entity_id", { entity_id: e.target.value })}
+            error={problems?.entity_id ? T.audit.entityIdProblem : undefined}
+          />
+        </>
+      }
+      summary={
+        <>
+          <span>{T.audit.newestFirst}</span>
+          <FilterChips
+            chips={chips}
+            onRemove={(drop) => {
+              const rest: Params = { ...params };
+              for (const k of drop) delete rest[k];
+              onSearch(rest);
+            }}
+            onClearAll={onClear}
+          />
+        </>
+      }
+    >
       <TextField
         label={T.audit.person}
         hint={T.audit.personHint}
@@ -163,20 +302,6 @@ export function AuditFilters({
         }}
         error={apiError("office")}
       />
-      {known ? (
-        <SelectField
-          label={T.audit.unit}
-          value={unit}
-          onChange={(e) => {
-            setUnit(e.target.value);
-            set("office");
-          }}
-          options={[
-            { value: "", label: T.audit.wholeDepartment },
-            ...units.map((u) => ({ value: u.code, label: `${u.name} (${u.code})` })),
-          ]}
-        />
-      ) : null}
       <SelectField
         label={T.audit.action}
         value={form.action}
@@ -184,77 +309,6 @@ export function AuditFilters({
         options={[{ value: "", label: T.audit.anyAction }, ...extraAction]}
         groups={actionOptions}
       />
-      <SelectField
-        label={T.audit.period}
-        value={choice}
-        onChange={(e) => {
-          setChoice(e.target.value as PeriodChoice);
-          setProblems((p) => (p ? { ...p, period: undefined } : p));
-          set("period");
-        }}
-        options={PERIOD_CHOICES.map((c) => ({ value: c, label: T.audit.choices[c] ?? c }))}
-        error={choice === "custom" ? undefined : periodProblem}
-      />
-      {choice === "custom" ? (
-        <>
-          <TextField
-            label={T.audit.from}
-            type="date"
-            value={from}
-            max={today}
-            onChange={(e) => {
-              setFrom(e.target.value);
-              set("period");
-            }}
-          />
-          <TextField
-            label={T.audit.to}
-            type="date"
-            value={to}
-            max={today}
-            onChange={(e) => {
-              setTo(e.target.value);
-              set("period");
-            }}
-            error={periodProblem}
-          />
-        </>
-      ) : null}
-      <details className={s.more} open={moreOpen || undefined}>
-        <summary>{T.audit.more}</summary>
-        <div className={s.moreFields}>
-          <TextField
-            label={T.audit.aboutUser}
-            hint={T.audit.aboutUserHint}
-            value={form.about_user}
-            autoComplete="off"
-            onChange={(e) => set("about_user", { about_user: e.target.value })}
-            error={apiError("about_user")}
-          />
-          <TextField
-            label={T.audit.entityType}
-            value={form.entity_type}
-            maxLength={60}
-            onChange={(e) => set("entity_type", { entity_type: e.target.value })}
-          />
-          <TextField
-            label={T.audit.entityId}
-            value={form.entity_id}
-            className="mono"
-            onChange={(e) => set("entity_id", { entity_id: e.target.value })}
-            error={problems?.entity_id ? T.audit.entityIdProblem : undefined}
-          />
-        </div>
-      </details>
-      <div className={s.actions}>
-        <Button type="submit">{T.audit.search}</Button>
-        <Button variant="secondary" onClick={onClear}>
-          {T.audit.clear}
-        </Button>
-        <Button variant="secondary" onClick={onRefresh} busy={busy}>
-          {T.audit.refresh}
-        </Button>
-      </div>
-    </form>
+    </FilterCard>
   );
 }

@@ -66,6 +66,10 @@ export const SAMPLE = {
   messageId: "0192a3b4-0000-7000-8000-0000000000m9",
   // the user-type page (design case-workspace-admin, decision 25)
   userType: "dept_officer",
+  // the View Cause List modal (design portal-ui-polish-2, decision 25): a cause-list date, a bench and its daily list
+  causelistDate: "2026-10-23",
+  benchId: "1854",
+  causelistId: "0192a3b4-0000-7000-8000-0000000000c1",
 };
 
 const CODES = ["EDU", "HEALTH", "FIN", "PWD", "HOME"];

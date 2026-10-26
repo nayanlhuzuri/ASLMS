@@ -720,6 +720,10 @@ export const T = {
     matchStrength: "Match Strength",
     filters: "Filters",
     signals: "Signals",
+    // design portal-ui-polish-2, decision 21: the Filter Card (Layout B)
+    search: "Search",
+    moreButton: (n: number) => (n > 0 ? `More Filters (${n})` : "More Filters"),
+    moreTitle: "More Filters",
   },
   // design portal-ui-polish-2, decision 28: the Office Picker
   officePicker: {
@@ -1514,6 +1518,9 @@ export const T = {
   search: {
     title: "Search",
     box: "Search by CINO, case number or party name",
+    // design portal-ui-polish-2, decision 23: the hero of Layout B
+    searchFor: "Search For",
+    searchForHint: "CNR, case number or party name.",
     go: "Search",
     tabs: "Search Sections",
     cases: "Cases",
@@ -1603,13 +1610,6 @@ export const T = {
     noListPublished: "no list published",
     courtWide: "Court-wide List",
     benchNumber: (id: number) => `Bench ${id}`,
-    states: {
-      held: "Lists Held",
-      loading: "Being Fetched From the Court",
-      no_list: "The court published no cause list for this day",
-      failed: "Fetching this day from the court failed",
-      not_loaded: "Not Loaded Yet",
-    } as Record<string, string>,
     banners: {
       loading: "The lists of this day are being fetched from the court. This page shows them once they are stored.",
       no_list: "The court published no cause list for this day.",
@@ -1641,10 +1641,8 @@ export const T = {
     anyListType: "All List Types",
     court: "Court Number",
     allCourts: "All Courts",
-    words: "Words (case number, CNR, party, advocate or counsel code)",
     wordsHint: "At least 3 characters.",
     search: "Search",
-    clear: "Clear",
     show: "Show",
     onlyAll: "All Entries",
     only: {
@@ -1655,8 +1653,6 @@ export const T = {
       claimed: "Claimed",
       visible: "Visible to Me",
     } as Record<string, string>,
-    counts: (c: { entries: number; recommended: number; claimed: number; claimable: number }) =>
-      `${c.entries} entries · ${c.recommended} recommended to you · ${c.claimed} claimed · ${c.claimable} claimable`,
     shown: (n: string) => `${n} shown`,
     table: "Cause-list Entries",
     item: "Item",
@@ -1693,11 +1689,36 @@ export const T = {
     section: "Section",
     remarks: "Remarks",
     openCase: "Open Case Page",
+    // design portal-ui-polish-2, decisions 23-25: Layout B, the date navigator and the View Cause List modal
+    listDate: "List Date",
+    previousDay: "Previous Day",
+    nextDay: "Next Day",
+    pickDate: "Pick Date",
+    listsHeld: (n: string) => `Lists Held: ${n}`,
+    noLists: "No Lists",
+    searchWords: "Search Words",
+    entriesCount: (n: string) => `${n} entries`,
+    recommendedLink: (n: string) => `${n} recommended to you`,
+    claimableLink: (n: string) => `${n} claimable`,
+    showOption: (label: string, n: string) => `${label} (${n})`,
+    viewListButton: "View Cause List",
+    viewListHint: "Choose a bench to view its list.",
+    viewTitle: (bench: string, date: string) => `Cause List: ${bench} · ${date}`,
+    viewTabs: "Cause List Sections",
+    printedTab: "Printed Entries",
+    pdfTab: "Original PDF",
+    chooseList: "List",
+    pdfNeedsFunction: "Viewing or downloading the PDF needs the documents function.",
+    pdfFrame: (list: string) => `Original PDF of the ${list}`,
+    pdfCheckingNote: "Opening the PDF…",
   },
   // the one filter bar (design portal-filters, decisions 9-14)
   filters: {
     form: "Filters",
     words: "Words (case number, CNR, party, advocate or counsel code)",
+    // design portal-ui-polish-2, decision 23: the hero of Layout B carries a short label and the long one as its hint
+    wordsShort: "Words",
+    wordsHint: "Case number, CNR, party, advocate or counsel code.",
     listed: "Cause-list Date",
     next: "Next Hearing",
     caseType: "Case Type",
@@ -2026,6 +2047,9 @@ export const T = {
     form: "Report Choices",
     show: "Show Report",
     refresh: "Refresh",
+    // design portal-ui-polish-2, decision 23: the hero of a report without a period
+    asOf: "As Of",
+    asOfNote: "The report shows the cases as they stand now.",
     scope: "Scope",
     department: "Department",
     wholeState: "Whole State",
@@ -2145,6 +2169,10 @@ export const T = {
       order: "The end date is before the start date.",
       future: "The start date is after today.",
     } as Record<string, string>,
+    // design portal-ui-polish-2, decision 23: the period hero's quick choices and the summary strip
+    quickPeriods: "Quick Periods",
+    quick: { today: "Today", last_7: "7 Days", last_30: "30 Days" } as Record<string, string>,
+    newestFirst: "Newest First",
     more: "More Filters",
     aboutUser: "About the User",
     aboutUserHint: "An e-mail address or a login id: entries about that login and its memberships.",
@@ -2401,6 +2429,9 @@ export const T = {
     allStatuses: "All Statuses",
     allLanes: "All Lanes",
     refPrefix: "Reference Starts With",
+    // design portal-ui-polish-2, decision 23: Layout B on the Queue
+    queueFilters: "Queue Filters",
+    rowsShown: (shown: string, total: string) => `${shown} of ${total} rows shown`,
     duplicates: "Duplicates",
     dupKinds: { review: "Needs Review", merged: "Merged", court: "Court Duplicates" } as Record<string, string>,
     scan: "Scan Now",

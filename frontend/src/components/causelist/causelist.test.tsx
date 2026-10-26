@@ -1,6 +1,6 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { CauselistBench, CauselistDay, CauselistEntries, CauselistEntry, Permission } from "@/lib/api/types";
 import { nav, resetNav } from "@/test/nav";
@@ -165,13 +165,22 @@ describe("the date", () => {
     await waitFor(() => expect(nav.replace).toHaveBeenCalledWith(`/causelist?date=${D}`));
   });
 
-  it("Previous list and Next list move to the API's dates", async () => {
+  it("Previous Day and Next Day move by one day and drop the bench (portal-ui-polish-2, decision 24)", async () => {
     browserApi(routes());
     renderWithClient(<CauseList params={{ date: D, bench_id: "1854", q: "anima" }} />);
-    await userEvent.click(await screen.findByRole("button", { name: "Previous List" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Previous Day" }));
     expect(nav.replace).toHaveBeenLastCalledWith("/causelist?date=2026-10-12&q=anima");
+    await userEvent.click(screen.getByRole("button", { name: "Next Day" }));
+    expect(nav.replace).toHaveBeenLastCalledWith("/causelist?date=2026-10-14&q=anima");
+  });
+
+  it("a day without lists offers Previous List and Next List to the API's dates", async () => {
+    browserApi(routes({ [`GET /causelists/${D}`]: day({ state: "no_list", benches: [] }) }));
+    renderWithClient(<CauseList params={{ date: D }} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Previous List" }));
+    expect(nav.replace).toHaveBeenLastCalledWith("/causelist?date=2026-10-12");
     await userEvent.click(screen.getByRole("button", { name: "Next List" }));
-    expect(nav.replace).toHaveBeenLastCalledWith("/causelist?date=2026-10-20&q=anima");
+    expect(nav.replace).toHaveBeenLastCalledWith("/causelist?date=2026-10-20");
   });
 
   it.each([
@@ -376,20 +385,23 @@ describe("filters", () => {
     });
   });
 
-  it("the toggles and the words reset the offset; the counts line", async () => {
+  it("the summary strip's links, the Show select and the words reset the offset (portal-ui-polish-2, decision 23)", async () => {
     browserApi(routes());
     renderWithClient(<CauseList params={{ date: D, offset: "200" }} />);
-    expect(await screen.findByText("55 entries · 4 recommended to you · 12 claimed · 6 claimable")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Recommended to Me (4)" }));
+    expect(await screen.findByText("55 entries")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "4 recommended to you" }));
     expect(nav.replace).toHaveBeenLastCalledWith(`/causelist?date=${D}&only=recommended`);
-    await userEvent.type(screen.getByLabelText(/^Words/), "SC, REV");
+    await userEvent.click(screen.getByRole("button", { name: "6 claimable" }));
+    expect(nav.replace).toHaveBeenLastCalledWith(`/causelist?date=${D}&only=claimable`);
+    await userEvent.type(screen.getByLabelText(/^Search Words/), "SC, REV");
     await userEvent.click(screen.getByRole("button", { name: "Search" }));
     expect(nav.replace).toHaveBeenLastCalledWith(`/causelist?date=${D}&q=SC%2C+REV`);
   });
 
-  it("the list type choices are the day's types, and choosing one writes list_type", async () => {
+  it("the list type choices (under More Filters) are the day's types, and choosing one writes list_type", async () => {
     browserApi(routes());
     renderWithClient(<CauseList params={{ date: D, bench_id: "1854" }} />);
+    await userEvent.click(await screen.findByRole("button", { name: "More Filters" }));
     const select = await screen.findByLabelText("List Type");
     expect(within(select).getAllByRole("option").map((o) => o.textContent)).toEqual([
       "All List Types",
@@ -486,5 +498,147 @@ describe("corrected lists (court-data-freshness, decision 17)", () => {
     expect(screen.getAllByRole("link", { name: "View" }).some((a) => a.getAttribute("href")?.includes(OLD))).toBe(true);
     await userEvent.click(screen.getByRole("button", { name: "Show the Current List" }));
     expect(nav.replace).toHaveBeenLastCalledWith(`/causelist?date=${D}&bench_id=1854`);
+  });
+});
+
+describe("the date navigator (portal-ui-polish-2, decision 24)", () => {
+  it("shows the weekday over the date, Lists Held from the day's lists, and No Lists on a day without", async () => {
+    browserApi(routes());
+    const { container, unmount } = renderWithClient(<CauseList params={{ date: D }} />);
+    const hero = container.querySelector<HTMLElement>("[data-zone='hero']")!;
+    expect(within(hero).getByText("Tuesday")).toBeInTheDocument();
+    expect(within(hero).getByText("13 Oct 2026")).toBeInTheDocument();
+    expect(await within(hero).findByText("Lists Held: 4")).toBeInTheDocument();
+    unmount();
+    browserApi(routes({ [`GET /causelists/${D}`]: day({ state: "no_list", benches: [], totals: { benches: 0, lists: 0, entries: 0 } }) }));
+    const second = renderWithClient(<CauseList params={{ date: D }} />);
+    const hero2 = second.container.querySelector<HTMLElement>("[data-zone='hero']")!;
+    expect(await within(hero2).findByText("No Lists")).toBeInTheDocument();
+  });
+
+  it("Pick Date opens the browser's picker and a chosen date is written", async () => {
+    browserApi(routes());
+    renderWithClient(<CauseList params={{ date: D }} />);
+    const input = await screen.findByTestId("pick-date");
+    const showPicker = vi.fn();
+    Object.defineProperty(input, "showPicker", { value: showPicker, configurable: true });
+    await userEvent.click(screen.getByRole("button", { name: "Pick Date" }));
+    expect(showPicker).toHaveBeenCalledTimes(1);
+    fireEvent.change(input, { target: { value: "2026-10-09" } });
+    expect(nav.replace).toHaveBeenLastCalledWith("/causelist?date=2026-10-09");
+  });
+
+  it("the Show select replaces the show-only chips and writes only", async () => {
+    browserApi(routes());
+    renderWithClient(<CauseList params={{ date: D }} />);
+    const show = await screen.findByRole("combobox", { name: "Show" });
+    expect(screen.queryByRole("button", { name: "Recommended to Me (4)" })).toBeNull();
+    expect(within(show).getAllByRole("option").map((o) => o.textContent)).toEqual([
+      "All Entries (55)",
+      "Recommended to Me (4)",
+      "Mine (1)",
+      "Claimable (6)",
+      "Unclaimed (30)",
+      "Claimed (12)",
+      "Visible to Me",
+    ]);
+    await userEvent.selectOptions(show, "mine");
+    expect(nav.replace).toHaveBeenLastCalledWith(`/causelist?date=${D}&only=mine`);
+  });
+});
+
+describe("View Cause List (portal-ui-polish-2, decision 25)", () => {
+  const ENTRIES_100 = (call: { path: string }) => {
+    const sp = new URL(call.path, "http://x").searchParams;
+    return sp.get("limit") === "100" ? page([ITEMS[1]!, entry(4, { owner_office_code: "EDU", held_by_you: "primary" })], 140) : page(ITEMS);
+  };
+
+  it("is disabled with All Benches, with the hint, and opens ?view=<bench>&vtab=entries once a bench is chosen", async () => {
+    browserApi(routes());
+    const { unmount } = renderWithClient(<CauseList params={{ date: D }} />);
+    const button = await screen.findByRole("button", { name: "View Cause List" });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAccessibleDescription("Choose a bench to view its list.");
+    unmount();
+    browserApi(routes());
+    renderWithClient(<CauseList params={{ date: D, bench_id: "1854" }} />);
+    await waitFor(() => expect(screen.getByRole("button", { name: "View Cause List" })).toBeEnabled());
+    await userEvent.click(screen.getByRole("button", { name: "View Cause List" }));
+    expect(nav.push).toHaveBeenLastCalledWith(`/causelist?date=${D}&bench_id=1854&view=1854&vtab=entries`);
+  });
+
+  it("shows the bench's printed entries paged by 100 with the page's badges, and Close leaves the page as it was", async () => {
+    const api = browserApi(routes({ [`GET /causelists/${D}/entries`]: ENTRIES_100 }));
+    renderWithClient(<CauseList params={{ date: D, bench_id: "1854", view: "1854", vtab: "entries" }} />);
+    const dialog = await screen.findByRole("dialog", { name: "Cause List: HONOURABLE THE CHIEF JUSTICE · 13 Oct 2026" });
+    expect(within(dialog).getByText("Daily List")).toBeInTheDocument();
+    expect(within(dialog).getByText("Supplementary List")).toBeInTheDocument();
+    const table = await within(dialog).findByRole("table", { name: "Cause-list Entries" });
+    expect(within(table).getByRole("link", { name: "WP(C)/2/2025" })).toHaveAttribute("href", "/cases/ASLMS-GOA-CASE-2026-000002");
+    expect(within(table).getByText("Strong · EDU · 0.95")).toBeInTheDocument();
+    expect(within(table).getByText("Claimed by EDU")).toBeInTheDocument();
+    expect(within(table).getAllByText("MR. A. BORA").length).toBeGreaterThan(0);
+    // Claim stays on the page
+    expect(within(dialog).queryByRole("button", { name: "Claim" })).toBeNull();
+    const sent = api.calls.filter((c) => c.path.includes("limit=100"));
+    expect(Object.fromEntries(new URL(sent[0]!.path, "http://x").searchParams.entries())).toEqual({
+      bench_id: "1854",
+      limit: "100",
+      offset: "0",
+    });
+    await userEvent.click(within(dialog).getByRole("button", { name: "Next" }));
+    await waitFor(() => expect(api.calls.some((c) => c.path.includes("limit=100") && c.path.includes("offset=100"))).toBe(true));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+    expect(nav.replace).toHaveBeenLastCalledWith(`/causelist?date=${D}&bench_id=1854`);
+  });
+
+  it("the Original PDF tab offers a list chooser, the inline viewer with documents.view and Download with documents.download", async () => {
+    const api = browserApi(routes({ [`GET /causelists/lists/${DAILY}/file`]: {} }));
+    renderWithClient(<CauseList params={{ date: D, bench_id: "1854", view: "1854" }} />);
+    const dialog = await screen.findByRole("dialog");
+    const replace = vi.spyOn(window.history, "replaceState");
+    await userEvent.click(within(dialog).getByRole("link", { name: "Original PDF" }));
+    expect(replace).toHaveBeenLastCalledWith(window.history.state, "", `/causelist?date=${D}&bench_id=1854&view=1854&vtab=pdf`);
+    const chooser = within(dialog).getByLabelText("List");
+    expect(within(chooser).getAllByRole("option").map((o) => o.textContent)).toEqual(["Daily List", "Supplementary List"]);
+    const frame = await waitFor(() => {
+      const f = dialog.querySelector("iframe");
+      expect(f).not.toBeNull();
+      return f!;
+    });
+    expect(frame).toHaveAttribute("src", `/api/backend/causelists/lists/${DAILY}/file?disposition=inline`);
+    expect(api.calls.some((c) => c.path === `/causelists/lists/${DAILY}/file?disposition=inline`)).toBe(true);
+    expect(within(dialog).getByRole("link", { name: "Download" })).toHaveAttribute(
+      "href",
+      `/api/backend/causelists/lists/${DAILY}/file?disposition=attachment`,
+    );
+    await userEvent.selectOptions(chooser, SUPP);
+    expect(within(dialog).getByText("PDF not available from the court")).toBeInTheDocument();
+    expect(dialog.querySelector("iframe")).toBeNull();
+    replace.mockRestore();
+  });
+
+  it("without the documents functions the PDF tab says so; a file_missing answer shows the API's message", async () => {
+    browserApi(routes({}, ["cases.view_scope"]));
+    const { unmount } = renderWithClient(<CauseList params={{ date: D, bench_id: "1854", view: "1854", vtab: "pdf" }} />);
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/needs the documents function/)).toBeInTheDocument();
+    expect(dialog.querySelector("iframe")).toBeNull();
+    unmount();
+    browserApi(
+      routes(
+        {
+          [`GET /causelists/lists/${DAILY}/file`]: json(404, {
+            detail: { code: "file_missing", message: "The stored PDF of this list is missing." },
+          }),
+        },
+        ["cases.view_scope", "documents.view"],
+      ),
+    );
+    renderWithClient(<CauseList params={{ date: D, bench_id: "1854", view: "1854", vtab: "pdf" }} />);
+    const second = await screen.findByRole("dialog");
+    expect(await within(second).findByText("The stored PDF of this list is missing.")).toBeInTheDocument();
+    expect(second.querySelector("iframe")).toBeNull();
+    expect(within(second).queryByRole("link", { name: "Download" })).toBeNull();
   });
 });

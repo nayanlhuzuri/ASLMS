@@ -23,7 +23,7 @@ import { api } from "@/lib/api/client";
 import { useMe } from "@/lib/api/hooks";
 import type { CaseSearchList } from "@/lib/api/types";
 import { can } from "@/lib/can";
-import { checkIsOn, legacyParams, MIN_WORDS, toApiQuery } from "@/lib/filters";
+import { checkIsOn, legacyParams, MIN_WORDS, toApiQuery, type SharedField } from "@/lib/filters";
 import { formatNumber } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { offsetOf, PAGE, queryString, type Params } from "@/lib/params";
@@ -35,6 +35,10 @@ import { TextSearch } from "./TextSearch";
 
 /** The local search's fields (`GET /cases/search?field=`); `auto` is the default and is not sent. */
 const SEARCH_FIELDS: readonly string[] = ["cnr", "number", "party", "advocate", "text"];
+
+/** Layout B's More Filters on Search (design portal-ui-polish-2, decision 23): Case Type, Year and Department stay on
+ * the right zone. */
+const SEARCH_MORE: readonly SharedField[] = ["listed", "next", "case_status", "court_no", "bench"];
 
 export function Search({ params }: { params: Params }) {
   const me = useMe();
@@ -88,10 +92,17 @@ function CaseSearch({ params }: { params: Params }) {
   const found = (list.data?.items.length ?? 0) > 0;
   return (
     <section className="stack" aria-label={T.search.cases}>
+      {/* design portal-ui-polish-2, decision 23: Layout B with Search For as the hero; Case Type, Year and Department
+          on the right; the rest of the shared fields under More Filters; the total and the chips in the strip */}
       <FilterBar
         list="search"
+        layout="card"
+        hero="q"
+        more={SEARCH_MORE}
         params={params}
-        wordsLabel={T.search.box}
+        total={list.data?.total}
+        wordsLabel={T.search.searchFor}
+        wordsHint={T.search.searchForHint}
         own={
           words
             ? [

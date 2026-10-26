@@ -31,11 +31,11 @@ const TEXTS = {
   list: (listType: string) => T.causelist.listTypes[listType] ?? listType,
 };
 
-function caseNo(e: CauselistEntry): string {
+export function caseNo(e: CauselistEntry): string {
   return e.case_no_text ?? e.case?.case_no_text ?? e.case?.ref_no ?? "—";
 }
 
-function CaseCell({ e }: { e: CauselistEntry }) {
+export function CaseCell({ e }: { e: CauselistEntry }) {
   const cnr = e.cnr ?? e.case?.cnr ?? null;
   return (
     <>
@@ -49,7 +49,7 @@ function CaseCell({ e }: { e: CauselistEntry }) {
   );
 }
 
-function Parties({ e }: { e: CauselistEntry }) {
+export function Parties({ e }: { e: CauselistEntry }) {
   return (
     <div className={s.parties}>
       {e.petitioner_text ?? "—"} <span className="muted">{T.causelist.versus}</span> {e.respondent_text ?? "—"}

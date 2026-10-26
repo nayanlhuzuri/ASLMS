@@ -5,22 +5,27 @@
  * bench, see the day's list as published in court order, each entry with its recommendation or owner and Claim. The
  * URL keeps the place (`date`, `bench_id` or `list_id`, `list_type`, `court_no`, `q`, `only`, `offset`), so a
  * bookmarked or shared list reopens as it was; without a date the screen opens on the API's `default_date`. Every
- * row and every fact on it comes from the server, which applies the visibility and claim rules. On the Work list
- * template (design portal-ui-redesign, decision 26): the day bar and the bench choice on top, the show-only choices as
- * chips, the entries with court and item in the fixed leading column, cards on phones and details in a side panel.
+ * row and every fact on it comes from the server, which applies the visibility and claim rules.
+ *
+ * Filter Layout B (design portal-ui-polish-2, decisions 23-25): the date navigator is the card's hero (weekday and date,
+ * Previous Day, Pick Date, Next Day, Lists Held and View Cause List); Bench and Search Words on the right; List Type
+ * and Court under More Filters; the summary strip carries the API's counts, the links that set `only`, the applied
+ * chips and the Show select in place of the show-only chips. View Cause List opens the chosen bench's list in a large
+ * modal on `?view=<bench_id>&vtab=entries|pdf`. The entries keep court and item in the fixed leading column, cards on
+ * phones and details in a side panel.
  */
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 
+import { FilterChips } from "@/components/filters/FilterChips";
 import { useFilters } from "@/components/inbox/common";
 import { ClaimDialog } from "@/components/inbox/dialogs";
 import {
   Badge,
   Button,
-  Chip,
-  ChipGroup,
   EmptyState,
   ErrorBanner,
+  FilterCard,
   Loading,
   Notice,
   PageHeader,
@@ -39,6 +44,7 @@ import {
 import type { CauselistBench, CauselistCounts } from "@/lib/api/types";
 import { can } from "@/lib/can";
 import {
+  benchOfView,
   benchParams,
   benchValueOf,
   chosenBench,
@@ -47,16 +53,23 @@ import {
   ONLY_VALUES,
   toApiQuery,
   validDate,
+  viewTabOf,
+  viewValue,
 } from "@/lib/causelist";
+import type { Chip } from "@/lib/filters";
 import { formatDateTime, formatNumber } from "@/lib/format";
 import { T } from "@/lib/messages";
-import type { Params } from "@/lib/params";
+import { queryString, type Params } from "@/lib/params";
+import { useUrlOverlay } from "@/lib/useUrlOverlay";
 
 import { BenchSelect } from "./BenchSelect";
-import { DayBar } from "./DayBar";
+import { DateHero, DayNotice } from "./DayBar";
 import { EntryTable } from "./EntryTable";
 import { ListStrip, listFileUrl } from "./ListStrip";
+import { ViewCauseList } from "./ViewCauseList";
 import s from "./causelist.module.css";
+
+const PATH = "/causelist";
 
 const COUNTED: Record<string, keyof CauselistCounts | null> = {
   recommended: "recommended",
@@ -82,6 +95,7 @@ export function CauseList({ params }: { params: Params }) {
   const me = useMe();
   const queryClient = useQueryClient();
   const setFilters = useFilters(params);
+  const overlay = useUrlOverlay("view", params, PATH, ["vtab"]);
   const urlDate = validDate(params.date);
   const dates = useCauselistDates(undefined, undefined, !urlDate);
   const date = urlDate ?? dates.data?.default_date;
@@ -111,15 +125,94 @@ export function CauseList({ params }: { params: Params }) {
   // an earlier version opened from a corrected list's link (design court-data-freshness, decision 17)
   const earlier = entries.data?.list?.superseded ? entries.data.list : null;
   const earlierBench = entries.data?.items[0]?.bench_id;
+  const viewBench = benchOfView(benches, overlay.value);
 
   function onDate(next: string) {
     setFilters({ date: next, bench_id: undefined, list_id: undefined, list_type: undefined, court_no: undefined });
   }
 
-  function onWords(e: FormEvent) {
-    e.preventDefault();
-    setFilters({ q: words.trim() || undefined });
+  const chips: Chip[] = [];
+  if (query.q) chips.push({ keys: ["q"], label: `${T.causelist.searchWords}: ${String(query.q)}` });
+  if (query.list_type) {
+    chips.push({ keys: ["list_type"], label: `${T.causelist.listType}: ${T.causelist.listTypes[String(query.list_type)] ?? query.list_type}` });
   }
+  if (query.court_no) chips.push({ keys: ["court_no"], label: `${T.causelist.court}: ${String(query.court_no)}` });
+
+  const moreFields = (
+    <>
+      {types.length > 1 ? (
+        <SelectField
+          label={T.causelist.listType}
+          value={query.list_type ? String(query.list_type) : ""}
+          options={[
+            { value: "", label: T.causelist.anyListType },
+            ...types.map((t) => ({ value: t, label: T.causelist.listTypes[t] ?? t })),
+          ]}
+          onChange={(e) => setFilters({ list_type: e.target.value || undefined })}
+        />
+      ) : null}
+      {courts.length > 1 ? (
+        <SelectField
+          label={T.causelist.court}
+          value={query.court_no ? String(query.court_no) : ""}
+          options={[{ value: "", label: T.causelist.allCourts }, ...courts.map((c) => ({ value: c, label: c }))]}
+          onChange={(e) => setFilters({ court_no: e.target.value || undefined })}
+        />
+      ) : null}
+    </>
+  );
+  const hasMore = held && (types.length > 1 || courts.length > 1);
+
+  const strip =
+    held && counts ? (
+      <>
+        <span aria-live="polite">
+          <strong>{T.causelist.entriesCount(formatNumber(counts.entries))}</strong>
+          {entries.data && (query.q || only) ? ` · ${T.causelist.shown(formatNumber(entries.data.total))}` : ""}
+        </span>
+        <span aria-hidden="true">·</span>
+        <span>
+          <Button variant="link" onClick={() => setFilters({ only: "recommended" })}>
+            {T.causelist.recommendedLink(formatNumber(counts.recommended))}
+          </Button>
+        </span>
+        <span aria-hidden="true">·</span>
+        <span>
+          <Button variant="link" onClick={() => setFilters({ only: "claimable" })}>
+            {T.causelist.claimableLink(formatNumber(counts.claimable))}
+          </Button>
+        </span>
+        <FilterChips
+          chips={chips}
+          onRemove={(drop) => {
+            if (drop.includes("q")) setWords("");
+            setFilters(Object.fromEntries(drop.map((k) => [k, undefined])));
+          }}
+          onClearAll={() => {
+            setWords("");
+            setFilters({ q: undefined, list_type: undefined, court_no: undefined, only: undefined });
+          }}
+        />
+        <span className={s.showSelect}>
+          <SelectField
+            label={T.causelist.show}
+            hideLabel
+            value={only ?? ""}
+            options={[
+              { value: "", label: T.causelist.showOption(T.causelist.onlyAll, formatNumber(counts.entries)) },
+              ...ONLY_VALUES.map((v) => {
+                const key = COUNTED[v];
+                return {
+                  value: v,
+                  label: key ? T.causelist.showOption(T.causelist.only[v] ?? v, formatNumber(counts[key])) : (T.causelist.only[v] ?? v),
+                };
+              }),
+            ]}
+            onChange={(e) => setFilters({ only: e.target.value || undefined })}
+          />
+        </span>
+      </>
+    ) : null;
 
   return (
     <div className="stack">
@@ -131,18 +224,45 @@ export function CauseList({ params }: { params: Params }) {
         ) : null
       ) : (
         <>
-          <DayBar date={date} day={day.data} canFetch={can(me.data, "admin.napix_refetch")} onDate={onDate} />
-          {day.isPending ? <Loading /> : null}
-          <ErrorBanner error={day.error} onRetry={() => day.refetch()} />
-          {benches.length > 0 ? (
-            <div className={s.bar}>
+          <FilterCard
+            label={T.causelist.filters}
+            hero={
+              <DateHero
+                date={date}
+                day={day.data}
+                canView={!!bench && !!viewValue(bench)}
+                onDate={onDate}
+                onView={() => {
+                  if (bench) overlay.open(viewValue(bench), { vtab: "entries" });
+                }}
+              />
+            }
+            onSubmit={held ? () => setFilters({ q: words.trim() || undefined }) : undefined}
+            submitLabel={T.causelist.search}
+            submitVariant="secondary"
+            more={hasMore ? moreFields : null}
+            moreCount={(query.list_type ? 1 : 0) + (query.court_no ? 1 : 0)}
+            summary={strip}
+          >
+            {benches.length > 0 ? (
               <BenchSelect
                 benches={benches}
                 value={benchValueOf(params)}
                 onChange={(v) => setFilters({ ...benchParams(v), list_type: undefined, court_no: undefined })}
               />
-            </div>
-          ) : null}
+            ) : null}
+            {held ? (
+              <TextField
+                label={T.causelist.searchWords}
+                hint={T.causelist.wordsHint}
+                value={words}
+                onChange={(e) => setWords(e.target.value)}
+              />
+            ) : null}
+          </FilterCard>
+          {day.isPending ? <Loading /> : null}
+          <ErrorBanner error={day.error} onRetry={() => day.refetch()} />
+          <DayNotice date={date} day={day.data} canFetch={can(me.data, "admin.napix_refetch")} onDate={onDate} />
           {bench ? (
             <ListStrip
               bench={bench}
@@ -181,72 +301,6 @@ export function CauseList({ params }: { params: Params }) {
               </span>
             </Notice>
           ) : null}
-          {held ? (
-            <section className="stack" aria-label={T.causelist.filters}>
-              <form className={s.bar} onSubmit={onWords} aria-label={T.causelist.filters}>
-                {types.length > 1 ? (
-                  <SelectField
-                    label={T.causelist.listType}
-                    value={query.list_type ? String(query.list_type) : ""}
-                    options={[
-                      { value: "", label: T.causelist.anyListType },
-                      ...types.map((t) => ({ value: t, label: T.causelist.listTypes[t] ?? t })),
-                    ]}
-                    onChange={(e) => setFilters({ list_type: e.target.value || undefined })}
-                  />
-                ) : null}
-                {courts.length > 1 ? (
-                  <SelectField
-                    label={T.causelist.court}
-                    value={query.court_no ? String(query.court_no) : ""}
-                    options={[{ value: "", label: T.causelist.allCourts }, ...courts.map((c) => ({ value: c, label: c }))]}
-                    onChange={(e) => setFilters({ court_no: e.target.value || undefined })}
-                  />
-                ) : null}
-                <TextField
-                  label={T.causelist.words}
-                  hint={T.causelist.wordsHint}
-                  value={words}
-                  onChange={(e) => setWords(e.target.value)}
-                />
-                <Button type="submit" variant="secondary">
-                  {T.causelist.search}
-                </Button>
-                {params.q ? (
-                  <Button
-                    variant="link"
-                    onClick={() => {
-                      setWords("");
-                      setFilters({ q: undefined });
-                    }}
-                  >
-                    {T.causelist.clear}
-                  </Button>
-                ) : null}
-              </form>
-              <ChipGroup label={T.causelist.show}>
-                <Chip on={!only} onClick={() => setFilters({ only: undefined })}>
-                  {T.causelist.onlyAll}
-                  {counts ? ` (${formatNumber(counts.entries)})` : ""}
-                </Chip>
-                {ONLY_VALUES.map((v) => {
-                  const key = COUNTED[v];
-                  return (
-                    <Chip key={v} on={only === v} onClick={() => setFilters({ only: only === v ? undefined : v })}>
-                      {T.causelist.only[v]}
-                      {counts && key ? ` (${formatNumber(counts[key])})` : ""}
-                    </Chip>
-                  );
-                })}
-              </ChipGroup>
-              {counts ? (
-                <p className="muted" aria-live="polite">
-                  {T.causelist.counts(counts)}
-                  {entries.data && (query.q || only) ? ` · ${T.causelist.shown(formatNumber(entries.data.total))}` : ""}
-                </p>
-              ) : null}
-            </section>
-          ) : null}
           {held && entries.isPending ? <Loading /> : null}
           {held ? <ErrorBanner error={entries.error} onRetry={() => entries.refetch()} /> : null}
           {held && entries.data ? (
@@ -265,6 +319,18 @@ export function CauseList({ params }: { params: Params }) {
             )
           ) : null}
           {day.data && !held && benches.length === 0 ? <EmptyState>{T.causelist.nothingHeld}</EmptyState> : null}
+          {viewBench ? (
+            <ViewCauseList
+              date={date}
+              bench={viewBench}
+              initialTab={viewTabOf(params.vtab)}
+              names={names}
+              canView={can(me.data, "documents.view")}
+              canDownload={can(me.data, "documents.download")}
+              hrefOf={(tab) => PATH + queryString({ ...params, view: overlay.value ?? undefined, vtab: tab })}
+              onClose={overlay.close}
+            />
+          ) : null}
         </>
       )}
       {claiming ? (

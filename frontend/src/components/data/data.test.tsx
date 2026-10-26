@@ -825,3 +825,30 @@ describe("lists are DataTables, cards on phones (design portal-ui-polish, decisi
     expect(screen.getAllByRole("table")).toHaveLength(2);
   });
 });
+
+describe("Layout B on the Queue (portal-ui-polish-2, decision 23)", () => {
+  it("Reference Starts With is the hero, applied by Search; Kind, Status and Lane apply at once; the strip counts the rows", async () => {
+    const api = browserApi({
+      "GET /me": makeMe(READER, "central_operator"),
+      "GET /admin/napix/queue": { total: 7, items: [{ id: "q-1", ...QUEUED_DAY, last_error: null, status: "pending" }] },
+      "GET /admin/napix/calls": { items: [], next_cursor: null },
+    });
+    const { container } = renderWithClient(<QueueAndCalls />);
+    const hero = container.querySelector<HTMLElement>("[data-zone='hero']")!;
+    const fields = container.querySelector<HTMLElement>("[data-zone='fields']")!;
+    for (const label of ["Kind", "Status", "Lane"]) expect(within(fields).getByLabelText(label)).toBeInTheDocument();
+    const strip = await waitFor(() => {
+      const el = container.querySelector<HTMLElement>("[data-zone='summary']");
+      expect(el).not.toBeNull();
+      return el!;
+    });
+    expect(strip).toHaveTextContent("1 of 7 rows shown");
+    const queueCalls = () => api.calls.filter((c) => c.path.startsWith("/admin/napix/queue"));
+    await userEvent.type(within(hero).getByLabelText("Reference Starts With"), "2026-10");
+    expect(queueCalls().some((c) => c.url.includes("ref=2026-10"))).toBe(false);
+    await userEvent.click(screen.getByRole("button", { name: "Search" }));
+    await waitFor(() => expect(queueCalls().some((c) => c.url.includes("ref=2026-10"))).toBe(true));
+    await userEvent.selectOptions(within(fields).getByLabelText("Lane"), "load");
+    await waitFor(() => expect(queueCalls().some((c) => c.url.includes("lane=load") && c.url.includes("ref=2026-10"))).toBe(true));
+  });
+});

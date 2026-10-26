@@ -105,7 +105,7 @@ describe("local search", () => {
     const select = await screen.findByLabelText("Case Type");
     await waitFor(() => expect(within(select).getByRole("option", { name: /Crl.A. — Criminal Appeal/ })).toBeInTheDocument());
     await userEvent.selectOptions(select, "WP(C)");
-    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await userEvent.click(screen.getByRole("button", { name: "Search" }));
     expect(nav.replace).toHaveBeenCalledWith("/search?case_type=WP%28C%29");
   });
 
@@ -412,7 +412,7 @@ describe("the filter bar on Search (portal-filters)", () => {
     expect(call.path).toContain("case_status=disposed");
     expect(call.path).toContain("owner=FIN");
     expect(call.path).not.toMatch(/[?&](status|office)=/);
-    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await userEvent.click(screen.getByRole("button", { name: "Search" }));
     expect(nav.replace).toHaveBeenCalledWith("/search?case_status=disposed&owner=FIN");
   });
 
@@ -567,7 +567,7 @@ describe("Only cases I can open is ticked by default (ownership-refinements, dec
     renderWithClient(<Search params={{ q: "RAM KUMAR" }} />);
     await screen.findByRole("link", { name: "WP(C)/2/2026" });
     await userEvent.click(screen.getByRole("checkbox", { name: "Only Cases I Can Open" }));
-    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await userEvent.click(screen.getByRole("button", { name: "Search" }));
     expect(nav.replace).toHaveBeenCalledWith(expect.stringContaining("visible_only=false"));
     const api = browserApi(routes);
     renderWithClient(<Search params={{ q: "RAM KUMAR", visible_only: "false" }} />);
@@ -626,5 +626,36 @@ describe("a court search the database answered (ownership-refinements, decision 
     const panel = await runCnr("court");
     expect(await within(panel).findByText("1 case(s) found; 0 new to the portal.")).toBeInTheDocument();
     expect(within(panel).queryByText(/the court was not asked/)).toBeNull();
+  });
+});
+
+describe("Layout B on Search (portal-ui-polish-2, decision 23)", () => {
+  it("Search For is the hero; Case Type, Year and Department are on the right; the rest under More Filters; the total in the strip", async () => {
+    const api = browserApi({
+      "GET /me": me(READER),
+      "GET /reference/case-types": TYPES,
+      "GET /cases/search": { items: [item(1), item(2)], total: 2 },
+    });
+    const { container } = renderWithClient(<Search params={{ q: "RAM KUMAR", year: "2026" }} />);
+    const hero = container.querySelector<HTMLElement>("[data-zone='hero']")!;
+    expect(within(hero).getByLabelText("Search For")).toHaveValue("RAM KUMAR");
+    const fields = container.querySelector<HTMLElement>("[data-zone='fields']")!;
+    for (const label of ["Case Type", "Year", "Department"]) expect(within(fields).getByLabelText(label)).toBeInTheDocument();
+    expect(within(fields).getByRole("checkbox", { name: "Only Cases I Can Open" })).toBeChecked();
+    expect(screen.queryByLabelText("Status")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "More Filters" }));
+    const more = container.querySelector<HTMLElement>("[data-zone='more']")!;
+    for (const label of ["Cause-list Date", "Next Hearing", "Status", "Court", "Bench (Judge Names)"]) {
+      expect(within(more).getByLabelText(label)).toBeInTheDocument();
+    }
+    const strip = container.querySelector<HTMLElement>("[data-zone='summary']")!;
+    expect(await within(strip).findByText("2 cases match")).toBeInTheDocument();
+    expect(within(strip).getByText("Year: 2026")).toBeInTheDocument();
+    // the same query keys as before
+    const call = api.calls.find((c) => c.path.startsWith("/cases/search"))!;
+    expect(call.url).toContain("q=RAM+KUMAR");
+    expect(call.url).toContain("year=2026");
+    await userEvent.click(screen.getByRole("button", { name: "Search" }));
+    expect(nav.replace).toHaveBeenCalledWith("/search?q=RAM+KUMAR&year=2026");
   });
 });

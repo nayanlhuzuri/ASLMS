@@ -162,7 +162,8 @@ describe("the search", () => {
     await screen.findByRole("table");
     await userEvent.type(screen.getByLabelText("Person"), "ravi@example.org");
     await userEvent.type(screen.getByLabelText("Case"), "ASHC010000012026");
-    await userEvent.selectOptions(screen.getByLabelText("Period"), "today");
+    // design portal-ui-polish-2, decision 23: the period hero's quick choice
+    await userEvent.click(screen.getByRole("button", { name: "Today" }));
     await userEvent.click(screen.getByRole("button", { name: "Search" }));
     expect(nav.push).toHaveBeenCalledTimes(1);
     const url = new URL(nav.push.mock.calls[0]![0] as string, "http://x");
@@ -269,6 +270,8 @@ describe("the search", () => {
     expect(screen.queryByLabelText("Unit")).toBeNull();
     await userEvent.click(await screen.findByRole("combobox", { name: "Office" }));
     await userEvent.click(within(await screen.findByRole("listbox")).getByText("Education"));
+    // Layout B: the unit is under More Filters (design portal-ui-polish-2, decision 23)
+    await userEvent.click(screen.getByRole("button", { name: /^More Filters/ }));
     await screen.findByRole("option", { name: "Accounts (EDU-ACC)" });
     await userEvent.selectOptions(screen.getByLabelText("Unit"), "EDU-ACC");
     await userEvent.click(screen.getByRole("button", { name: "Search" }));
@@ -287,7 +290,7 @@ describe("the search", () => {
     ["not_found", { case: "GHC-MADE-UP" }, "Case", "No case with this reference"],
     ["bad_office", { office: "NOPE" }, "Office", "No office with this code."],
     ["bad_period", { from: "2026-10-01", to: "2026-10-02" }, "To", "from must not be after to"],
-    ["bad_period", { from: addDays(istDay(), -6), to: istDay() }, "Period", "from must not be after to"],
+    ["bad_period", { from: addDays(istDay(), -6), to: istDay() }, "To", "from must not be after to"],
   ] as const)("API refusal %s shows under its field and no list", async (code, params, label, text) => {
     const status = code === "not_found" ? 404 : 400;
     routes(json(status, { detail: { code, message: code === "bad_period" ? "from must not be after to" : "refused" } }));
@@ -329,7 +332,6 @@ describe("the search", () => {
     await userEvent.click(screen.getByRole("button", { name: "Search" }));
     expect(await screen.findByText("Give 2 to 100 characters.")).toBeInTheDocument();
     await userEvent.clear(screen.getByLabelText("Name Contains"));
-    await userEvent.selectOptions(screen.getByLabelText("Period"), "custom");
     await userEvent.type(screen.getByLabelText("From"), "2026-10-05");
     await userEvent.type(screen.getByLabelText("To"), "2026-10-01");
     await userEvent.click(screen.getByRole("button", { name: "Search" }));
@@ -460,5 +462,36 @@ describe("lists are DataTables, cards on phones (design portal-ui-polish, decisi
     renderWithClient(<BeforeAfter before={{ name: "Old name", notes: null }} after={{ name: "New name", notes: null }} />);
     const table = expectDataTable(screen.getByRole("table", { name: "Before and After" }));
     expect(within(table).getByRole("rowheader", { name: "name" }).closest("tr")!.className).toMatch(/changedRow/);
+  });
+});
+
+describe("Layout B on the Audit Log (portal-ui-polish-2, decision 23)", () => {
+  it("the period is the hero with Today, 7 Days and 30 Days; the fields on the right; the rest under More Filters", async () => {
+    const api = routes();
+    const today = istDay();
+    const { container } = renderWithClient(<AuditSearch params={{ actor: "Sharma", entity_type: "case" }} />);
+    await screen.findByRole("table");
+    const hero = container.querySelector<HTMLElement>("[data-zone='hero']")!;
+    expect(within(hero).getByRole("group", { name: "Period" })).toBeInTheDocument();
+    for (const label of ["From", "To"]) expect(within(hero).getByLabelText(label)).toBeInTheDocument();
+    const fields = container.querySelector<HTMLElement>("[data-zone='fields']")!;
+    for (const label of ["Person", "Name Contains", "Case", "Action"]) expect(within(fields).getByLabelText(label)).toBeInTheDocument();
+    expect(within(fields).getByRole("combobox", { name: "Office" })).toBeInTheDocument();
+    // More Filters is open while one of its fields is in the address
+    expect(screen.getByRole("button", { name: "More Filters (1)" })).toHaveAttribute("aria-expanded", "true");
+    const more = container.querySelector<HTMLElement>("[data-zone='more']")!;
+    for (const label of ["About the User", "Record Type", "Record ID"]) expect(within(more).getByLabelText(label)).toBeInTheDocument();
+    // the strip: Newest First (no total) and the applied filters
+    const strip = container.querySelector<HTMLElement>("[data-zone='summary']")!;
+    expect(within(strip).getByText("Newest First")).toBeInTheDocument();
+    expect(within(strip).getByText("Name Contains: Sharma")).toBeInTheDocument();
+    expect(queryOf(auditCalls(api)[0]!)).toEqual({ actor: "Sharma", entity_type: "case", limit: "50" });
+    // 7 Days sets From and To; a chip removes its filter
+    await userEvent.click(within(hero).getByRole("button", { name: "7 Days" }));
+    expect(within(hero).getByLabelText("From")).toHaveValue(addDays(today, -6));
+    expect(within(hero).getByLabelText("To")).toHaveValue(today);
+    expect(within(hero).getByRole("button", { name: "7 Days" })).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(within(strip).getByRole("button", { name: "Remove filter Name Contains: Sharma" }));
+    expect(nav.push).toHaveBeenLastCalledWith("/audit?entity_type=case");
   });
 });

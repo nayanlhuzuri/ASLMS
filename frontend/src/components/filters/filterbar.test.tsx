@@ -162,3 +162,78 @@ describe("FilterBar (portal-filters, decision 9)", () => {
     expect(within(owner).getAllByRole("option").map((o) => o.textContent)).toEqual(["Any Department", "EDU"]);
   });
 });
+
+describe('FilterBar layout="card" (design portal-ui-polish-2, decision 22)', () => {
+  const SEARCH_MORE = ["listed", "next", "case_status", "court_no", "bench"] as const;
+
+  function zone(container: HTMLElement, name: string): HTMLElement {
+    return container.querySelector<HTMLElement>(`[data-zone='${name}']`)!;
+  }
+
+  it("draws the hero in the left zone and the other fields on the right, and writes the same URL keys as the bar", async () => {
+    resetNav("/search");
+    browserApi(ROUTES);
+    const { container } = renderWithClient(
+      <FilterBar list="search" layout="card" hero="q" more={SEARCH_MORE} params={{ tab: "cases" }} wordsLabel="Search For" />,
+    );
+    expect(within(zone(container, "hero")).getByLabelText("Search For")).toBeInTheDocument();
+    const fields = zone(container, "fields");
+    expect(within(fields).queryByLabelText("Search For")).toBeNull();
+    for (const label of ["Case Type", "Year", "Department"]) expect(within(fields).getByLabelText(label)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Cause-list Date")).toBeNull();
+    await userEvent.type(screen.getByLabelText("Search For"), "ram kumar");
+    await userEvent.type(screen.getByLabelText("Year"), "2025");
+    await userEvent.click(screen.getByRole("button", { name: "More Filters" }));
+    await userEvent.selectOptions(screen.getByLabelText("Status"), "disposed");
+    expect(nav.replace).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Search" }));
+    expect(nav.replace).toHaveBeenCalledWith("/search?tab=cases&q=ram+kumar&year=2025&case_status=disposed");
+  });
+
+  it("an own control can be the hero, and the legacy keys are read as the bar reads them", async () => {
+    resetNav("/search");
+    browserApi(ROUTES);
+    const { container } = renderWithClient(
+      <FilterBar
+        list="search"
+        layout="card"
+        hero="visible_only"
+        params={{ status: "disposed", office: "FIN" }}
+        own={[{ key: "visible_only", kind: "check", label: "Only Cases I Can Open", defaultOn: true, offLabel: "Also Cases I Cannot Open" }]}
+      />,
+    );
+    expect(within(zone(container, "hero")).getByRole("checkbox", { name: "Only Cases I Can Open" })).toBeChecked();
+    await userEvent.click(screen.getByRole("button", { name: "Search" }));
+    expect(nav.replace).toHaveBeenCalledWith("/search?case_status=disposed&owner=FIN");
+  });
+
+  it("puts the total and the chips in the summary strip, and a chip removes its filter", async () => {
+    browserApi(ROUTES);
+    const { container } = renderWithClient(
+      <FilterBar list="recommended" layout="card" hero="q" params={{ department: "EDU", year: "2025", q: "ram", offset: "50" }} total={7} />,
+    );
+    const strip = zone(container, "summary");
+    expect(within(strip).getByText("7 cases match")).toBeInTheDocument();
+    const chips = within(strip).getByRole("list", { name: "Applied Filters" });
+    expect(within(chips).getByText("Year: 2025")).toBeInTheDocument();
+    await userEvent.click(within(chips).getByRole("button", { name: "Remove filter Year: 2025" }));
+    expect(nav.replace).toHaveBeenCalledWith("/inbox/recommended?department=EDU&q=ram");
+  });
+
+  it("More Filters counts its set fields and is open while one is set", () => {
+    browserApi(ROUTES);
+    renderWithClient(<FilterBar list="recommended" layout="card" hero="q" params={{ year: "2025", court_no: "3" }} />);
+    const more = screen.getByRole("button", { name: "More Filters (2)" });
+    expect(more).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByLabelText("Year")).toHaveValue("2025");
+  });
+
+  it("validates as the bar does and blocks the request", async () => {
+    browserApi(ROUTES);
+    renderWithClient(<FilterBar list="recommended" layout="card" hero="q" params={{}} />);
+    await userEvent.type(screen.getByLabelText(/^Words/), "ab");
+    await userEvent.click(screen.getByRole("button", { name: "Search" }));
+    expect(nav.replace).not.toHaveBeenCalled();
+    expect(screen.getByLabelText(/^Words/)).toHaveAttribute("aria-invalid", "true");
+  });
+});

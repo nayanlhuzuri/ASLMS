@@ -345,3 +345,135 @@
     display: block;
   }
 }
+
+/* Filter Layout B, the Filter Card (design portal-ui-polish-2, decision 21): the hero zone on the left (280 px), the
+   fields in a grid on the right with the actions in the last cell, More Filters inside the card, the summary strip
+   under it; stacked below 768 px */
+.filterCard {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+}
+
+.fcZones {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  margin: 0;
+}
+
+.fcHeroOnly {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.fcHero {
+  display: grid;
+  gap: var(--s1);
+  align-content: start;
+  min-width: 0;
+  padding: var(--s5);
+  border-right: 1px solid var(--border);
+}
+
+.fcHeroOnly .fcHero {
+  border-right: 0;
+}
+
+/* the hero's own control carries a large value */
+.fcHero input:not([type="checkbox"]):not([type="radio"]),
+.fcHero select {
+  font-size: var(--t-lg);
+  font-weight: 600;
+}
+
+.fcRight {
+  display: grid;
+  align-content: center;
+  min-width: 0;
+  padding: var(--s5);
+}
+
+/* a field row: fields line up by their tops; the actions cell (no label) drops by the label line so its buttons sit
+   level with the boxes */
+.fcGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(180px, 100%), 1fr));
+  gap: var(--s3);
+  align-items: start;
+}
+
+.fcGrid > * {
+  min-width: 0;
+}
+
+.fcGrid:has(label) > :not(:has(label)) {
+  margin-top: var(--label-offset);
+}
+
+.fcActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.fcMore {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--med) var(--ease);
+}
+
+.fcMoreOpen {
+  grid-template-rows: 1fr;
+}
+
+.fcMoreInner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.fcMoreInner > .fcGrid {
+  margin-top: var(--s4);
+  padding-top: var(--s4);
+  border-top: 1px dashed var(--border);
+}
+
+.fcStrip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2) var(--s3);
+  padding: var(--s3) var(--s5);
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: var(--t-sm);
+}
+
+@media (max-width: 767px) {
+  .fcZones {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .fcHero {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .fcHeroOnly .fcHero {
+    border-bottom: 0;
+  }
+}
+
+@media (max-width: 639px) {
+  .fcHero,
+  .fcRight {
+    padding: var(--s4);
+  }
+
+  .fcStrip {
+    padding: var(--s3) var(--s4);
+  }
+}

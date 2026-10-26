@@ -150,9 +150,11 @@ export function OfficePicker({
     const r = el.getBoundingClientRect();
     const room = window.innerHeight - r.bottom;
     const above = room < 240 && r.top > room;
+    const width = Math.max(r.width, Math.min(300, window.innerWidth - 32));
     setPlace({
-      left: r.left,
-      width: Math.max(r.width, Math.min(300, window.innerWidth - 32)),
+      // kept inside the viewport when the box sits near its right edge (a Filter Card's right zone, portal-ui-polish-2)
+      left: Math.max(16, Math.min(r.left, window.innerWidth - 16 - width)),
+      width,
       ...(above ? { bottom: window.innerHeight - r.top + 4 } : { top: r.bottom + 4 }),
     });
   }

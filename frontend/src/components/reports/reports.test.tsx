@@ -165,7 +165,8 @@ describe("scope", () => {
     renderWithClient(<ReportPage reportKey="pending-cases" params={{ department: "EDU" }} />);
     expect(await screen.findByText("Department: Education (EDU)")).toBeInTheDocument();
     expect(screen.queryByLabelText("Department")).toBeNull();
-    expect(await screen.findByText("Scope: Education (EDU)")).toBeInTheDocument();
+    // the scope line in the report header and in the Filter Card's summary strip (portal-ui-polish-2, decision 23)
+    expect(await screen.findAllByText("Scope: Education (EDU)")).toHaveLength(2);
   });
 
   it("a State reader defaults to Whole State and may pick an inactive department by name", async () => {
@@ -179,7 +180,7 @@ describe("scope", () => {
     expect(scope).toHaveValue("");
     expect(within(scope).getByRole("option", { name: "Whole State" })).toBeInTheDocument();
     expect(within(scope).getByRole("option", { name: "Finance (FIN) — inactive" })).toBeInTheDocument();
-    expect(await screen.findByText("Scope: Whole State")).toBeInTheDocument();
+    expect(await screen.findAllByText("Scope: Whole State")).toHaveLength(2);
     expect(reportCalls(api).map((c) => c.path)).toEqual(["/reports/pending-cases"]);
     await userEvent.selectOptions(scope, "FIN");
     await userEvent.click(screen.getByRole("button", { name: "Show Report" }));
@@ -460,7 +461,7 @@ describe("the Report template (design portal-ui-redesign, decision 26)", () => {
     expect(within(group).getByRole("button", { name: "Download PDF" })).toBeDisabled();
     expect(screen.queryByRole("link", { name: "Download Excel" })).toBeNull();
     // the form comes before the results
-    const form = screen.getByRole("form", { name: "Report Choices" });
+    const form = screen.getByRole("search", { name: "Report Choices" });
     release(undefined);
     const xlsx = await within(group).findByRole("link", { name: "Download Excel" });
     expect(xlsx).toHaveAttribute("href", "/api/backend/reports/pending-cases?format=xlsx");
@@ -494,5 +495,51 @@ describe("the data-health call figures (court-data-freshness, decision 20)", () 
     unmount();
     renderWithClient(<ReportView report={health("2026-10-01")} departments={[]} />);
     expect(screen.queryByText(/Calls are kept for/)).toBeNull();
+  });
+});
+
+describe("Layout B on Reports (portal-ui-polish-2, decision 23)", () => {
+  it("a report with a period has Period as its hero; one without has As Of; the scope line is the strip", async () => {
+    resetNav("/reports/hearings-disposals");
+    browserApi({
+      "GET /me": stateMe(),
+      "GET /reports": catalogue(true),
+      "GET /reports/hearings-disposals": report("hearings-disposals"),
+      "GET /reports/pending-cases": report("pending-cases"),
+    });
+    const { container, unmount } = renderWithClient(<ReportPage reportKey="hearings-disposals" params={{}} />);
+    await screen.findByRole("search", { name: "Report Choices" });
+    const hero = container.querySelector<HTMLElement>("[data-zone='hero']")!;
+    expect(within(hero).getByLabelText("Period")).toBeInTheDocument();
+    const fields = container.querySelector<HTMLElement>("[data-zone='fields']")!;
+    expect(within(fields).getByLabelText("Scope")).toBeInTheDocument();
+    expect(within(fields).getByRole("button", { name: "Show Report" })).toHaveAttribute("type", "submit");
+    expect(within(fields).getByRole("button", { name: "Refresh" })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(container.querySelector<HTMLElement>("[data-zone='summary']")).toHaveTextContent("Scope: Whole State"),
+    );
+    unmount();
+    const second = renderWithClient(<ReportPage reportKey="pending-cases" params={{}} />);
+    await screen.findByRole("search", { name: "Report Choices" });
+    const asOf = second.container.querySelector<HTMLElement>("[data-zone='hero']")!;
+    expect(within(asOf).getByText("As Of")).toBeInTheDocument();
+    expect(within(asOf).queryByLabelText("Period")).toBeNull();
+  });
+
+  it("pending actions keeps Holding Department and List the Cases on the right with the same query keys", async () => {
+    resetNav("/reports/pending-actions");
+    browserApi({
+      "GET /me": deptMe(),
+      "GET /reports": catalogue(false),
+      "GET /custody/recipients": { departments: [{ code: "EDU", name: "Education" }], items: [], total: 0 },
+      "GET /reports/pending-actions": report("pending-actions", { scope: "department", department_code: "EDU" }),
+    });
+    const { container } = renderWithClient(<ReportPage reportKey="pending-actions" params={{ department: "EDU" }} />);
+    await screen.findByRole("search", { name: "Report Choices" });
+    const fields = container.querySelector<HTMLElement>("[data-zone='fields']")!;
+    expect(within(fields).getByRole("combobox", { name: "Holder Department" })).toBeInTheDocument();
+    await userEvent.click(within(fields).getByRole("checkbox", { name: "List the Cases" }));
+    await userEvent.click(screen.getByRole("button", { name: "Show Report" }));
+    expect(nav.push).toHaveBeenCalledWith("/reports/pending-actions?department=EDU&include_cases=true");
   });
 });

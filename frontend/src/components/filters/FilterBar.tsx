@@ -8,11 +8,16 @@
  * field and the remaining own controls. Under the form: one chip per applied filter with "Clear all", and the filtered
  * total. Filters live in the query string (`useFilters`, which also resets the page offset); the API checks every value
  * again and its message shows if one still comes back.
+ *
+ * `layout="card"` (design portal-ui-polish-2, decision 22) draws the same form as the kit's `FilterCard` (Filter
+ * Layout B): the `hero` field (a shared field key or an own control's key) in the left zone, the first-row fields in
+ * the right zone with Search and More Filters (n), the "More filters" fields in the card's panel, and the total, the
+ * chips and the note in the summary strip. The URL keys, the chips, the validation and the legacy keys are the bar's.
  */
 import { Fragment, useId, useState, type ReactNode } from "react";
 
 import { useFilters } from "@/components/inbox/common";
-import { Button, CheckField, SegmentedField, SelectField, TextField, type Option } from "@/components/ui";
+import { Button, CheckField, FilterCard, SegmentedField, SelectField, TextField, type Option } from "@/components/ui";
 import { useBenches, useCaseTypes, useDepartments } from "@/lib/api/hooks";
 import {
   CASE_STATUSES,
@@ -72,8 +77,18 @@ export interface FilterBarProps {
   /** The department choices of `owner` (default: every active department). */
   ownerOptions?: Option[];
   wordsLabel?: string;
+  /** A hint under the words box (the card's hero, where the label is short). */
+  wordsHint?: string;
   /** A line under the chips (the Alerts list's case-less note). */
   note?: ReactNode;
+  /** `card`: Filter Layout B, the kit's `FilterCard` (design portal-ui-polish-2, decision 22). */
+  layout?: "bar" | "card";
+  /** With `layout="card"`: the left zone's field, a shared field key or an own control's key. */
+  hero?: string;
+  /** The shared fields under "More filters" on this page (default: the list's). */
+  more?: readonly SharedField[];
+  /** With `layout="card"`: the page's own count line at the head of the summary strip (in place of `total`). */
+  countLine?: ReactNode;
 }
 
 function presetOptions(kind: "listed" | "next", list: ListKey): Option[] {
@@ -142,17 +157,19 @@ function managedKeys(list: ListKey, own: OwnControl[]): string[] {
 }
 
 export function FilterBar(props: FilterBarProps) {
-  const { list, params, own = [], total, noun = "cases", note } = props;
+  const { list, params, own = [], total, noun = "cases", note, layout = "bar", hero } = props;
   const setFilters = useFilters(params);
   const [userOpen, setUserOpen] = useState(false);
   const cfg = LIST_FILTERS[list];
   const p = legacyParams(params, list);
   const hidden = cfg.hidden ?? [];
-  const moreShared = cfg.fields.filter((f) => moreFieldsOf(list).includes(f) && !hidden.includes(f));
-  const moreOwn = own.filter((c) => c.more);
-  const moreSet =
-    moreShared.some((f) => FIELD_KEYS[f].some((k) => !!p[k])) || moreOwn.some((c) => !!params[c.key]);
-  const open = userOpen || moreSet;
+  const moreList = props.more ?? moreFieldsOf(list);
+  const moreShared = cfg.fields.filter((f) => moreList.includes(f) && !hidden.includes(f) && f !== hero);
+  const moreOwn = own.filter((c) => c.more && c.key !== hero);
+  const setShared = moreShared.filter((f) => FIELD_KEYS[f].some((k) => !!p[k]));
+  const setOwn = moreOwn.filter((c) => !!params[c.key]);
+  const moreCount = setShared.length + setOwn.length;
+  const open = userOpen || moreCount > 0;
   const keys = managedKeys(list, own);
   // the form is re-created when the applied filters change (a chip removed, Back), so it always shows the URL
   const signature = keys.map((k) => `${k}=${params[k] ?? ""}`).join("&");
@@ -169,30 +186,51 @@ export function FilterBar(props: FilterBarProps) {
     ...ownChips(params, own),
   ];
   const fixed = new Set(cfg.fixed);
+  const chipRow = (
+    <FilterChips
+      chips={chips}
+      onRemove={(drop) => setFilters(Object.fromEntries(drop.map((k) => [k, undefined])))}
+      onClearAll={() =>
+        setFilters(Object.fromEntries(Object.keys(params).filter((k) => !fixed.has(k)).map((k) => [k, undefined])))
+      }
+    />
+  );
+  const totalLine =
+    total !== undefined && total !== null ? (
+      <p className={s.total} aria-live="polite">
+        {T.filters.match(formatNumber(total), T.filters.nouns[noun] ?? noun)}
+      </p>
+    ) : null;
+  const card = layout === "card";
+  const form = (
+    <FilterForm
+      key={signature}
+      {...props}
+      own={own}
+      moreList={moreList}
+      open={open}
+      moreCount={moreCount}
+      hasMore={moreShared.length + moreOwn.length > 0}
+      onToggle={() => setUserOpen((o) => !o)}
+      onApply={(updates) => setFilters(updates)}
+      summary={
+        card && (chips.length > 0 || note || totalLine || props.countLine) ? (
+          <>
+            {props.countLine ?? totalLine}
+            {chipRow}
+            {note ? <p className="muted">{note}</p> : null}
+          </>
+        ) : null
+      }
+    />
+  );
+  if (card) return form;
   return (
     <div className={s.bar}>
-      <FilterForm
-        key={signature}
-        {...props}
-        own={own}
-        open={open}
-        hasMore={moreShared.length + moreOwn.length > 0}
-        onToggle={() => setUserOpen((o) => !o)}
-        onApply={(updates) => setFilters(updates)}
-      />
-      <FilterChips
-        chips={chips}
-        onRemove={(drop) => setFilters(Object.fromEntries(drop.map((k) => [k, undefined])))}
-        onClearAll={() =>
-          setFilters(Object.fromEntries(Object.keys(params).filter((k) => !fixed.has(k)).map((k) => [k, undefined])))
-        }
-      />
+      {form}
+      {chipRow}
       {note ? <p className="muted">{note}</p> : null}
-      {total !== undefined && total !== null ? (
-        <p className={s.total} aria-live="polite">
-          {T.filters.match(formatNumber(total), T.filters.nouns[noun] ?? noun)}
-        </p>
-      ) : null}
+      {totalLine}
     </div>
   );
 }
@@ -204,14 +242,29 @@ function FilterForm({
   ownRanges = [],
   ownerOptions,
   wordsLabel,
+  wordsHint,
+  layout = "bar",
+  hero,
+  moreList,
   open,
+  moreCount,
   hasMore,
   onToggle,
   onApply,
-}: FilterBarProps & { open: boolean; hasMore: boolean; onToggle: () => void; onApply: (updates: Params) => void }) {
+  summary,
+}: FilterBarProps & {
+  moreList: readonly SharedField[];
+  open: boolean;
+  moreCount: number;
+  hasMore: boolean;
+  onToggle: () => void;
+  onApply: (updates: Params) => void;
+  summary: ReactNode;
+}) {
+  const card = layout === "card";
   const cfg = LIST_FILTERS[list];
   const fields = new Set(cfg.fields);
-  const more = new Set(moreFieldsOf(list));
+  const more = new Set(moreList);
   const hidden = new Set(cfg.hidden ?? []);
   /** Where a shared field is drawn: the first row, "More filters", or nowhere (hidden). */
   const inRow = (f: SharedField) => fields.has(f) && !more.has(f) && !hidden.has(f);
@@ -372,10 +425,11 @@ function FilterForm({
           <TextField
             key="q"
             label={wordsLabel ?? T.filters.words}
+            hint={wordsHint}
             value={form.q ?? ""}
             error={errors.q}
             onChange={(e) => set("q", e.target.value)}
-            style={{ minWidth: 280 }}
+            style={card ? undefined : { minWidth: 280 }}
           />
         );
       case "listed":
@@ -401,7 +455,7 @@ function FilterForm({
             value={form.year ?? ""}
             error={errors.year}
             onChange={(e) => set("year", e.target.value)}
-            style={{ maxWidth: 120 }}
+            style={card ? undefined : { maxWidth: 120 }}
           />
         );
       case "case_status":
@@ -436,7 +490,7 @@ function FilterForm({
               value={form.bench ?? ""}
               error={errors.bench}
               onChange={(e) => set("bench", e.target.value)}
-              style={{ minWidth: 320 }}
+              style={card ? undefined : { minWidth: 320 }}
             />
             <datalist id={datalistId}>
               {(benches.data?.benches ?? []).map((b) => (
@@ -454,6 +508,38 @@ function FilterForm({
 
   const rowShared = FIELD_ORDER.filter(inRow);
   const moreSharedFields = FIELD_ORDER.filter(inMore);
+
+  if (card) {
+    // design portal-ui-polish-2, decision 22: the same fields in the kit's Filter Card
+    const heroShared = FIELD_ORDER.find((f) => f === hero && fields.has(f) && !hidden.has(f));
+    const heroOwn = own.find((c) => c.key === hero);
+    const notHero = (f: SharedField) => f !== hero;
+    const notHeroOwn = (c: OwnControl) => c.key !== hero;
+    return (
+      <FilterCard
+        label={T.filters.form}
+        hero={heroShared ? sharedField(heroShared) : heroOwn ? ownControl(heroOwn) : null}
+        onSubmit={apply}
+        more={
+          hasMore ? (
+            <>
+              {moreSharedFields.filter(notHero).map(sharedField)}
+              {own.filter((c) => c.more && notHeroOwn(c)).map(ownControl)}
+            </>
+          ) : null
+        }
+        moreCount={moreCount}
+        moreOpen={open}
+        onMoreToggle={onToggle}
+        summary={summary}
+      >
+        {rowShared.filter((f) => f === "q" && notHero(f)).map(sharedField)}
+        {own.filter((c) => !c.more && c.first && notHeroOwn(c)).map(ownControl)}
+        {rowShared.filter((f) => f !== "q" && notHero(f)).map(sharedField)}
+        {own.filter((c) => !c.more && !c.first && notHeroOwn(c)).map(ownControl)}
+      </FilterCard>
+    );
+  }
 
   return (
     <form
