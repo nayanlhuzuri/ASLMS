@@ -2,10 +2,10 @@
 
 ```
 slug: data-collection-redesign
-status: awaiting-approval
+status: approved
 author: architect
 date: 2026-10-26
-approved_by:
+approved_by: owner on 2026-10-26, as designed (upper case removed portal-wide, admin.data_load for bulk fetches, the 6-hour rule and the 2,000 cap, three rounds; built right after row 157)
 ```
 
 ## Context
