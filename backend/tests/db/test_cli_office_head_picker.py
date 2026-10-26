@@ -5,6 +5,7 @@ a login with no office is created by the CLI acting as the super admin; exactly 
 
 from __future__ import annotations
 
+import re
 from contextlib import contextmanager
 
 import sqlalchemy as sa
@@ -15,6 +16,16 @@ from aslms.domain.events import AuditLog
 from aslms.domain.org import Office, User, UserMembership
 from aslms.domain.reference import Role
 from aslms.services import memberships
+
+# CI's terminal colours and wraps Typer's error panel ("-" "-no" "-office" in separate ANSI runs), so the
+# assertions read the output without colour codes, panel borders or line breaks, at a wide terminal.
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
+_ENV = {"COLUMNS": "200", "NO_COLOR": "1", "TERM": "dumb"}
+
+
+def _plain(text: str) -> str:
+    return " ".join(re.sub(r"[│╭╮╰╯─]", " ", _ANSI.sub("", text)).split())
+
 
 PW = "given-by-cli-12"
 
@@ -44,7 +55,7 @@ def _patch(world, monkeypatch) -> None:
 
 
 def _users_create(*args: str):
-    return CliRunner().invoke(
+    return CliRunner(env=_ENV).invoke(
         app,
         ["users", "create", "--email", "cli.head@example.org", "--name", "Cli Head", *args, "--password", PW],
     )
@@ -59,12 +70,12 @@ def test_cli_users_create_no_office(world, monkeypatch):
         ["--no-office", "--type", "dept_officer"],
     ):
         r = _users_create(*bad)
-        assert r.exit_code != 0 and "--no-office" in r.output, (bad, r.output)
+        assert r.exit_code != 0 and "--no-office" in _plain(r.output), (bad, r.output)
     r = _users_create("--no-office", "--designation", "Secretary")
     assert r.exit_code != 0
     r = _users_create("--no-office")
     assert r.exit_code == 0, r.output
-    assert "no office yet" in r.output
+    assert "no office yet" in _plain(r.output)
     with world.Session() as s:
         user = s.scalar(sa.select(User).where(User.email == "cli.head@example.org"))
         assert user.office_id is None and user.role is None
@@ -89,21 +100,21 @@ def test_cli_offices_create_existing_head_only(world, monkeypatch):
         "--name",
         "Test D",
     ]
-    r = CliRunner().invoke(app, [*base, "--head-email", "unknown@example.org"], input="")
-    assert r.exit_code != 0 and "aslms users create --no-office" in r.output, r.output
-    assert "Password" not in r.output
+    r = CliRunner(env=_ENV).invoke(app, [*base, "--head-email", "unknown@example.org"], input="")
+    assert r.exit_code != 0 and "aslms users create --no-office" in _plain(r.output), r.output
+    assert "Password" not in _plain(r.output)
     with world.Session() as s:
         assert s.scalar(sa.select(Office.id).where(Office.code == "TESTD")) is None
-    r = CliRunner().invoke(app, base)
-    assert r.exit_code != 0 and "head_required" in r.output
-    r = CliRunner().invoke(app, [*base, "--head-email", "x@example.org", "--head-name", "X"])
+    r = CliRunner(env=_ENV).invoke(app, base)
+    assert r.exit_code != 0 and "head_required" in _plain(r.output)
+    r = CliRunner(env=_ENV).invoke(app, [*base, "--head-email", "x@example.org", "--head-name", "X"])
     assert r.exit_code != 0  # the option is gone
     assert _users_create("--no-office").exit_code == 0
-    r = CliRunner().invoke(
+    r = CliRunner(env=_ENV).invoke(
         app, [*base, "--head-email", "cli.head@example.org", "--head-designation", "Secretary"], input=""
     )
     assert r.exit_code == 0, r.output
-    assert "Password" not in r.output
+    assert "Password" not in _plain(r.output)
     with world.Session() as s:
         head = memberships.head_of(s, s.scalar(sa.select(Office).where(Office.code == "TESTD")))
         user = s.get(User, head.user_id)
