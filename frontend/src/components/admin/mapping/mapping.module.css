@@ -117,6 +117,7 @@
 
 .recommended {
   min-width: 0;
+  container: recommended / inline-size;
 }
 
 .scrollBox {
@@ -126,11 +127,9 @@
   border-radius: var(--r-md);
 }
 
-/* the full width below the codes holds the recommended codes as a grid of cards */
 .recList {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 0 var(--s5);
+  display: flex;
+  flex-direction: column;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -167,13 +166,45 @@
   min-width: 0;
 }
 
-@media (max-width: 1100px) {
-  .codesLayout {
-    grid-template-columns: minmax(0, 1fr);
+/* owner, 26 Oct 2026: one recommended code per row where the box is wide enough: Code | entries and last seen |
+   example case | Office and Map. Anything else in the entry (a "Partly matches" line, an error) takes a full-width
+   line under it. Narrower boxes keep the stacked entry above. */
+@container recommended (min-width: 860px) {
+  .recList > li {
+    display: grid;
+    grid-template-columns: minmax(110px, 0.8fr) minmax(210px, 1.2fr) minmax(190px, 1fr) minmax(320px, 1.6fr);
+    gap: var(--s1) var(--s4);
+    align-items: center;
   }
 
-  .recommended {
-    position: static;
+  .recTop {
+    display: contents;
+  }
+
+  .recTop > :first-child {
+    grid-row: 1;
+    grid-column: 1;
+    overflow-wrap: anywhere;
+  }
+
+  .recTop > :last-child {
+    grid-row: 1;
+    grid-column: 2;
+  }
+
+  .recList > li > a {
+    grid-row: 1;
+    grid-column: 3;
+    overflow-wrap: anywhere;
+  }
+
+  .recList > li > .recMap {
+    grid-row: 1;
+    grid-column: 4;
+  }
+
+  .recList > li > :not(.recTop, a, .recMap) {
+    grid-column: 1 / -1;
   }
 }
 
