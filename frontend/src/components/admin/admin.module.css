@@ -18,11 +18,15 @@
   padding-left: var(--s4);
 }
 
-.fieldset {
-  margin: 0;
-  padding: var(--s4);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
+/* design office-head-picker, decision 11: the head section of New Office and Reactivate, a heading and a field row */
+.headPerson {
+  flex: 2 1 320px;
+  min-width: 0;
+}
+
+.headDesignation {
+  flex: 1 1 220px;
+  min-width: 0;
 }
 
 .groupHead h2,

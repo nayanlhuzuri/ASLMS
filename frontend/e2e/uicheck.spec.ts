@@ -394,6 +394,61 @@ const STATES: State[] = [
       await page.getByRole("dialog", { name: "Edit Name" }).waitFor();
     },
   },
+  {
+    // design office-head-picker, decision 11: New Office with a Department kind, the head section (a heading and a row)
+    name: "/admin/offices/new (Department, head section)",
+    path: "/admin/offices/new",
+    open: async (page) => {
+      await page.getByLabel("Kind").selectOption("department");
+      await page.getByRole("region", { name: "Head of the Department" }).waitFor();
+    },
+  },
+  {
+    // decision 2: the User Picker open, with an offices line, a No Office Yet option and a greyed option
+    name: "/admin/offices/new (User Picker open)",
+    path: "/admin/offices/new",
+    open: async (page) => {
+      await page.getByLabel("Kind").selectOption("department");
+      await page.getByRole("combobox", { name: "Person" }).fill("ri");
+      await page.getByRole("listbox", { name: "People" }).getByRole("option").first().waitFor();
+    },
+  },
+  {
+    // decision 10: the Reactivate dialog with the same head section (`?reactivate=1` opens it)
+    name: `/admin/offices/${SAMPLE.officeCode} (Reactivate dialog)`,
+    path: `/admin/offices/${SAMPLE.officeCode}?reactivate=1`,
+    open: async (page) => {
+      await page.getByRole("dialog", { name: "Reactivate" }).waitFor();
+      await page.getByRole("dialog").getByRole("combobox", { name: "Person" }).waitFor();
+    },
+  },
+  {
+    // decision 9: the head-change request with the Incoming Head picker
+    name: "/admin/tickets/new (Incoming Head)",
+    path: `/admin/tickets/new?department=${SAMPLE.officeCode}&operation=set`,
+    open: async (page) => {
+      await page.getByRole("combobox", { name: "Incoming Head" }).waitFor();
+    },
+  },
+  {
+    // decision 15: New User for a new e-mail with No Office Yet ticked (`?no_office=1`)
+    name: "/admin/users/new (No Office Yet ticked)",
+    path: "/admin/users/new?no_office=1&return=%2Fadmin%2Foffices%2Fnew",
+    open: async (page) => {
+      await page.getByLabel("E-mail").fill("new.head@assam.gov.in");
+      await page.getByRole("button", { name: "Check E-mail" }).click();
+      await page.getByLabel("No Office Yet").waitFor();
+    },
+  },
+  {
+    // decision 17: the Users list with More Filters' No Office Yet on
+    name: "/admin/users (No Office Yet filter)",
+    path: "/admin/users?no_office=true",
+    open: async (page) => {
+      await page.getByRole("button", { name: /^More Filters/ }).click();
+      await page.getByLabel("No Office Yet").waitFor();
+    },
+  },
 ];
 
 test.describe("interaction states", () => {

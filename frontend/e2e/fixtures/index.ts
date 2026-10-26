@@ -351,6 +351,15 @@ function labels(): S["ReferenceLabelsOut"] {
   return {
     ...base,
     user_types: USER_TYPES.map(([code, label]) => ({ code, label, description: `${label}: functions by module`, assignable: code !== "super_admin" })),
+    // design office-head-picker: the kinds New Office offers, so the Department head section can be drawn
+    office_kinds: [
+      { code: "state", label: "State" },
+      { code: "department", label: "Department" },
+      { code: "central", label: "Central Agency" },
+      { code: "advocate_general", label: "Advocate General" },
+      { code: "directorate", label: "Directorate" },
+      { code: "unit", label: "Unit" },
+    ],
   };
 }
 
@@ -439,6 +448,8 @@ function users(): UserOut[] {
     row(0, { is_active: true, last_login_at: "2026-10-21T05:30:00Z" }),
     row(1, { is_active: true, last_login_at: null }),
     row(2, { is_active: false, last_login_at: "2026-09-01T05:30:00Z" }),
+    // design office-head-picker, decisions 15-17: a login with no office yet (the User Picker's No Office Yet option)
+    row(3, { is_active: true, last_login_at: null, office: null, role: null, designation: null, memberships: [], full_name: "Rupam Jyoti Kalita" }),
   ];
 }
 
@@ -770,6 +781,10 @@ function tidy(path: string, body: unknown): unknown {
 /** The answer to one request of the page to `/api/backend/…` (the API path after that prefix). */
 export function answer(method: string, url: URL, apiPath: string): Answer {
   if (method !== "GET") return { status: 405, body: { detail: "the browser check never acts" }, problem: `${method} ${apiPath}` };
+  // design office-head-picker: New User's e-mail check for a new person answers 404, as the API does
+  if (apiPath === "/admin/users/lookup" && (url.searchParams.get("email") ?? "").startsWith("new.")) {
+    return { status: 404, body: { detail: "no such user" } };
+  }
   for (const [pattern, make] of OVERRIDES) if (pattern.test(apiPath)) return { status: 200, body: make(url) };
   const synthetic = synthFor(apiPath);
   if (!synthetic) return { status: 404, body: { detail: "no fixture" }, problem: `GET ${apiPath}${url.search}` };

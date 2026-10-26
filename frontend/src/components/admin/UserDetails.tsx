@@ -239,7 +239,12 @@ function UserHeader({ user, me, primary }: { user: UserOut; me: Me; primary: Mem
         : { key: "on", label: T.userDetails.signInOn, onSelect: () => void setEnabled(true) },
     );
   }
-  const meta = primary ? [primary.designation, primary.office.name].filter(Boolean).join(" · ") : T.userDetails.noOfficeLine;
+  // design office-head-picker, decision 17: a login that has never held an office says so
+  const meta = primary
+    ? [primary.designation, primary.office.name].filter(Boolean).join(" · ")
+    : user.office === null
+      ? T.userDetails.noOfficeYetLine
+      : T.userDetails.noOfficeLine;
 
   return (
     <div className={a.umHead}>
@@ -371,7 +376,9 @@ function OfficeCards({
   return (
     <div className="stack">
       <ErrorBanner error={action.error} />
-      {memberships.length === 0 ? <EmptyState>{T.users.noMembership}</EmptyState> : null}
+      {memberships.length === 0 ? (
+        <EmptyState>{user.office === null ? T.userDetails.noOfficeYetEmpty : T.users.noMembership}</EmptyState>
+      ) : null}
       <ul className={a.mcards} aria-label={T.userDetails.tabs.offices}>
         {memberships.map((m) => {
           const active = m.is_active !== false;

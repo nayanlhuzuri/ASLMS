@@ -61,10 +61,13 @@ class Designation(TimestampMixin, MasterMixin, CreatedByMixin, Base):
 
 class User(TimestampMixin, MasterMixin, CreatedByMixin, Base):
     """A login (design `user-memberships`, decision 1). `office_id`, `role`, `designation` and `designation_id`
-    mirror the primary membership: written only by `services/memberships.py`, never read for authorisation."""
+    mirror the primary membership: written only by `services/memberships.py`, never read for authorisation.
+    Design `office-head-picker`, decision 16: `office_id` and `role` are NULL together only for a login created
+    with no office yet, until its first membership writes the mirror (never back to NULL)."""
 
     __tablename__ = "users"
     __table_class__ = TableClass.MASTER
+    __table_args__ = (CheckConstraint("(office_id IS NULL) = (role IS NULL)", name="placed"),)
     id: Mapped[uuid.UUID] = uuid_pk()
     email: Mapped[str] = mapped_column(String(254), nullable=False, unique=True)
     mobile: Mapped[str | None] = mapped_column(String(20))
@@ -72,8 +75,8 @@ class User(TimestampMixin, MasterMixin, CreatedByMixin, Base):
     full_name: Mapped[str] = mapped_column(String(200), nullable=False)
     designation: Mapped[str | None] = mapped_column(String(200))
     designation_id: Mapped[uuid.UUID | None] = uuid_fk("designations.id", nullable=True, use_alter=True)
-    office_id: Mapped[uuid.UUID] = uuid_fk("offices.id")
-    role: Mapped[Role] = ref_code(Role, "ref_role")
+    office_id: Mapped[uuid.UUID | None] = uuid_fk("offices.id", nullable=True)
+    role: Mapped[Role | None] = ref_code(Role, "ref_role", nullable=True)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     must_confirm_profile: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
     # design `otp-and-profile` (migration 0010): access tokens issued before `password_changed_at` are refused;

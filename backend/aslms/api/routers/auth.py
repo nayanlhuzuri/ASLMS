@@ -38,14 +38,15 @@ def membership_list(session: Session, user: User, *, functions: bool = False) ->
 
 def user_out(session: Session, user: User, *, functions: bool = False) -> schemas.UserOut:
     """The login with its memberships. `role`, `office` and `designation` are the primary membership's (the
-    mirror, kept at the last values when the login has no membership): display only."""
-    office = session.get(Office, user.office_id)  # display
+    mirror, kept at the last values when the login has no membership): display only. Both are null for a login
+    with no office yet (design `office-head-picker`, decision 16)."""
+    office = session.get(Office, user.office_id) if user.office_id is not None else None  # display
     return schemas.UserOut(
         id=user.id,
         email=user.email,
         full_name=user.full_name,
         role=user.role,  # display
-        office=schemas.OfficeOut.from_office(office),
+        office=schemas.OfficeOut.from_office(office) if office is not None else None,
         designation=user.designation,
         mobile=user.mobile,
         is_active=user.is_active,

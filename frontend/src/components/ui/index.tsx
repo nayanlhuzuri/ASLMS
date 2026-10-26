@@ -11,3 +11,4 @@ export * from "./motion";
 export * from "./overlays";
 export * from "./charts";
 export * from "./OfficePicker";
+export * from "./UserPicker";

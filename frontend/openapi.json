@@ -11717,7 +11717,8 @@
         "type": "object"
       },
       "HeadIn": {
-        "description": "The head of a department being created or reactivated: an existing login by e-mail, or a new login\n(e-mail, name, password).",
+        "additionalProperties": false,
+        "description": "The head of a department being created or reactivated (design `office-head-picker`, decision 6): an existing\nlogin, by `user_id` (the portal) or by exact `email` (the CLI), exactly one of the two, including a login with\nno office yet. The new-login fields (`full_name`, `password`, `mobile`) are retired and answer 422.",
         "properties": {
           "designation": {
             "anyOf": [
@@ -11744,52 +11745,30 @@
             "title": "Designation Id"
           },
           "email": {
-            "format": "email",
-            "title": "Email",
-            "type": "string"
-          },
-          "full_name": {
             "anyOf": [
               {
-                "maxLength": 200,
-                "minLength": 2,
+                "format": "email",
                 "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Full Name"
+            "title": "Email"
           },
-          "mobile": {
+          "user_id": {
             "anyOf": [
               {
-                "maxLength": 20,
+                "format": "uuid",
                 "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Mobile"
-          },
-          "password": {
-            "anyOf": [
-              {
-                "maxLength": 200,
-                "minLength": 10,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Password"
+            "title": "User Id"
           }
         },
-        "required": [
-          "email"
-        ],
         "title": "HeadIn",
         "type": "object"
       },
@@ -23086,10 +23065,17 @@
             "title": "Mobile"
           },
           "office_code": {
-            "maxLength": 40,
-            "minLength": 1,
-            "title": "Office Code",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Office Code"
           },
           "password": {
             "maxLength": 200,
@@ -23098,15 +23084,21 @@
             "type": "string"
           },
           "role": {
-            "$ref": "#/components/schemas/Role"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Role"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "with `office_code`; both null create a login with no office yet (Super Administrator)"
           }
         },
         "required": [
           "email",
           "password",
-          "full_name",
-          "role",
-          "office_code"
+          "full_name"
         ],
         "title": "UserCreateIn",
         "type": "object"
@@ -23128,7 +23120,14 @@
             "type": "array"
           },
           "role": {
-            "$ref": "#/components/schemas/Role"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Role"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "user_id": {
             "format": "uuid",
@@ -23247,7 +23246,15 @@
             "type": "boolean"
           },
           "office": {
-            "$ref": "#/components/schemas/OfficeOut"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OfficeOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the primary membership's office (display); null only for a login with no office yet (office-head-picker)"
           },
           "profile_confirmed_at": {
             "anyOf": [
@@ -23262,7 +23269,15 @@
             "title": "Profile Confirmed At"
           },
           "role": {
-            "$ref": "#/components/schemas/Role"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Role"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the primary membership's type (display); null only for a login with no office yet (office-head-picker)"
           }
         },
         "required": [
@@ -30871,7 +30886,7 @@
     },
     "/admin/users": {
       "get": {
-        "description": "Logins with an active membership in the caller's scope (optionally under `office`), each with all of its\nmemberships (decision 8). Design `portal-shell`, decision 16b: `q` (2+ characters, name or e-mail), `role`\n(of an active membership in scope), `include_ended` (State-wide scope only: logins with no active membership\ntoo), `limit` (1-200) and `offset`; `X-Total-Count` counts the same filters. Without `limit` every row.\nDesign case-workspace-admin, decision 23: `status` — `active` (sign-in on and signed in at least once),\n`not_signed_in` (on, never signed in) or `off` (sign-in turned off). Design `portal-ui-polish-2`, decision 30:\n`subtree=false` narrows `office` to that office exactly (default `true`, its whole subtree).",
+        "description": "Logins with an active membership in the caller's scope (optionally under `office`), each with all of its\nmemberships (decision 8). Design `portal-shell`, decision 16b: `q` (2+ characters, name or e-mail), `role`\n(of an active membership in scope), `include_ended` (State-wide scope only: logins with no active membership\ntoo), `limit` (1-200) and `offset`; `X-Total-Count` counts the same filters. Without `limit` every row.\nDesign case-workspace-admin, decision 23: `status` — `active` (sign-in on and signed in at least once),\n`not_signed_in` (on, never signed in) or `off` (sign-in turned off). Design `portal-ui-polish-2`, decision 30:\n`subtree=false` narrows `office` to that office exactly (default `true`, its whole subtree). Design\n`office-head-picker`, decision 17: a State-wide caller's list without `office` or `role` also lists logins with\nno office yet; `no_office=true` lists only those (State-wide scope only, else 403 `scope`; 400 `bad_field` with\n`office` or `role`).",
         "operationId": "list_users_admin_users_get",
         "parameters": [
           {
@@ -30966,6 +30981,18 @@
             }
           },
           {
+            "description": "only logins with no office yet (State-wide scope only)",
+            "in": "query",
+            "name": "no_office",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "only logins with no office yet (State-wide scope only)",
+              "title": "No Office",
+              "type": "boolean"
+            }
+          },
+          {
             "in": "query",
             "name": "limit",
             "required": false,
@@ -31029,6 +31056,7 @@
         ]
       },
       "post": {
+        "description": "A login with its first membership (`office_code` and `role`), or with both null a login with no office yet\n(design `office-head-picker`, decision 15): the Super Administrator only (403 `super_admin_only`); a\ndesignation or functions with no office answer 400 `bad_field`; only one of the two, 400 `bad_field`.",
         "operationId": "create_admin_users_post",
         "requestBody": {
           "content": {

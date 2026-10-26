@@ -738,6 +738,25 @@ export const T = {
     inactiveBadge: "Inactive",
     loadingNote: "Loading the offices…",
   },
+  // design office-head-picker, decision 2: the User Picker
+  userPicker: {
+    placeholder: "Type a name or e-mail",
+    minimumNote: "Type at least 2 letters of a name or e-mail",
+    noneNote: (q: string) => `No person matches “${q}”`,
+    firstNote: "Showing the first 20 — type more to narrow",
+    loadingNote: "Searching…",
+    listAria: "People",
+    clearAria: "Clear person",
+    headBadge: "Head",
+    noOfficeYetBadge: "No Office Yet",
+    noActiveOfficeBadge: "No Active Office",
+    moreNote: (n: number) => `+ ${n} more`,
+    signInOffNote: "Sign-in Off — turn it on in Users",
+    superAdminNote: "Super Administrator — holds no other office",
+    worksElsewhereNote: (code: string) => `Works in ${code}; a head sits at the department office`,
+    adminNote: "Department Administrator — only the Super Administrator can name them head",
+    currentHeadNote: "Already the head of this department",
+  },
   // the score badge text from the API's band, never from comparing numbers (decision 10.6)
   score: {
     high: "Strong",
@@ -753,6 +772,9 @@ export const T = {
     chooseDepartment: "Department",
     noDashboard: "There is no case dashboard for your login.",
     noDashboardText: "Your functions do not include reading cases. Use the screens in the navigation.",
+    // design office-head-picker, decision 19: a login with no office yet
+    noOfficeTitle: "No Office Yet",
+    noOfficeText: "Your login is ready. You will see cases once you are added to an office or named head of a department.",
     blockFailed: "This block could not be loaded.",
     tickets: "Tickets Awaiting Action",
     ticketsOpen: "Open Tickets",
@@ -936,6 +958,11 @@ export const T = {
     moreFiltersButton: (n: number) => (n > 0 ? `More Filters (${n})` : "More Filters"),
     moreFiltersTitle: "More Filters",
     open: "Open",
+    // design office-head-picker, decisions 15 and 17: logins with no office yet
+    noOfficeYet: "No Office Yet",
+    noOfficeYetHint:
+      "For a person who will be named head of a department being created. They can sign in, but see nothing until they have an office.",
+    filterNoOffice: "No Office Yet",
   },
   // design portal-ui-polish-2, decisions 31-37: the User Details modal
   userDetails: {
@@ -960,6 +987,8 @@ export const T = {
     signInNotice:
       "Sign-in uses a 6-digit code sent to this e-mail address every time. Changing the address needs a code sent to the new one.",
     noOfficeLine: "No active office",
+    noOfficeYetLine: "No Office Yet",
+    noOfficeYetEmpty: "No Office Yet. Add an office here, or name this person head when you create their department.",
     primaryBadge: "Primary",
     activeBadge: "Active",
     endedBadge: "Ended",
@@ -1081,9 +1110,13 @@ export const T = {
     reason: "Reason",
     tree: "Office Tree",
     detail: "Office",
-    headSection: "Head of the Department (Required for a Department)",
-    headIntro:
-      "The head is named when the department is created. Give the e-mail of an existing ASLMS login, or a new e-mail with the name, a temporary password and a designation: the person changes the password at the first sign-in.",
+    // design office-head-picker, decisions 1, 4, 8 and 11: the head chosen from current logins
+    headSection: "Head of the Department",
+    headIntro: "Choose a person who already has an ASLMS login. One person may head several departments.",
+    headPerson: "Person",
+    headDesignation: "Designation in This Department",
+    headDesignationHint: "Missing post? The Super Administrator adds it under Administration → Designations.",
+    addUserLink: "Not in ASLMS Yet? Add a New User in Users",
     hints: {
       code: "A short code that never changes: capital letters, digits and hyphens, 2 to 40 characters. For example EDU for a department, EDU-DSE for one of its directorates.",
       name: "The full official name, for example School Education Department.",
@@ -1277,6 +1310,13 @@ export const T = {
     opReplace: "Replace the Head",
     opEnd: "End the Head Without a Successor",
     incomingEmail: "E-mail of the Incoming Head",
+    // design office-head-picker, decision 9
+    incomingHead: "Incoming Head",
+    otherOffice: "Someone From Another Office",
+    otherOfficeHint: "Their exact e-mail; it is checked before the request is sent.",
+    otherOfficeFound: (name: string) => `Found: ${name}.`,
+    otherOfficeMissing: "No login uses this e-mail.",
+    checkEmail: "Check E-mail",
     outgoingType: "The Outgoing Head Becomes",
     submit: "Submit",
     openCount: (n: string) => `${n} open`,

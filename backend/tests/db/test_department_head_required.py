@@ -14,16 +14,27 @@ from aslms.domain.ownership import Recommendation, RecommendationOrigin, ScoreBa
 from aslms.domain.reference import Permission, Role
 from aslms.services import access, memberships, offices, tickets
 from aslms.services.access import Conflict
+from aslms.services.audit import Actor
 from aslms.services.recipients import Resolver
+from aslms.services.users import create_user
 from tests.db.docs_support import make_api
 from tests.db.world import PW, make_case
 
-NEW_HEAD = {
-    "email": "head.agri@example.org",
-    "full_name": "Head Agri",
-    "designation": "Secretary",
-    "password": PW,
-}
+NEW_HEAD = {"email": "head.agri@example.org", "designation": "Secretary"}
+
+
+def add_head_login(s) -> None:
+    """The head AGRI is created with, made first as a login with no office yet (design `office-head-picker`)."""
+    if memberships.lookup(s, NEW_HEAD["email"]) is None:
+        create_user(
+            s,
+            Actor.system("test"),
+            email=NEW_HEAD["email"],
+            password=PW,
+            full_name="Head Agri",
+            role=None,
+            office=None,
+        )
 
 
 def end_head(s, root, code):
@@ -43,13 +54,14 @@ def end_head(s, root, code):
 
 def test_creation_names_the_head_in_one_transaction(world, monkeypatch):
     with world.Session() as s:
+        add_head_login(s)
         actor, root = world.actor(s, "root")
         goa = world.office(s, "GOA")
         with pytest.raises(offices.HeadRequired):
             offices.create_office(
                 s, actor, root, code="AGRI", name="Agriculture", kind="department", parent=goa
             )
-        # a new login
+        # a login with no office yet, created first (office-head-picker)
         agri = offices.create_office(
             s, actor, root, code="AGRI", name="Agriculture", kind="department", parent=goa, head=NEW_HEAD
         )
@@ -102,6 +114,7 @@ def test_creation_names_the_head_in_one_transaction(world, monkeypatch):
 
 def test_deactivation_needs_the_head_ended_first(world):
     with world.Session() as s:
+        add_head_login(s)
         actor, root = world.actor(s, "root")
         agri = offices.create_office(
             s,

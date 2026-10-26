@@ -2730,3 +2730,31 @@ Row 157 `case-ref-court-prefix`; design `docs/design/case-ref-court-prefix.md`; 
 **Left for later**
 - Apply 0028 with the `migrate` step after the merge, then `docker compose build`.
 - Codes for the Supreme Court (`SCI`) and district courts are set when those courts are added.
+
+## Office head picker (2026-10-27)
+
+Backlog row 176 `office-head-picker`; design `docs/design/office-head-picker.md` (approved by the owner, 26 Oct 2026).
+
+**What was built**
+- Migration 0029: `users.office_id` and `users.role` nullable, kept together by CHECK `ck_users_placed`. NULL means the login has never held an office; the first membership becomes primary and writes the mirror. The downgrade refuses, naming the count, while such a login exists.
+- `HeadIn` takes `user_id` or `email` (exactly one) with `designation` / `designation_id`; `full_name`, `password` and `mobile` answer 422. `offices.resolve_head` checks the person before anything is written and fills the designation text from its id. No login is created from the office forms.
+- `POST /admin/users` with `office_code` and `role` both null creates a login with no office (Super Administrator only, 403 `super_admin_only`). `GET /admin/users` lists such logins by default for a State-wide caller and has a `no_office` filter. `UserOut.office`, `UserOut.role` and `UserFunctionsOut.role` are nullable.
+- Portal: kit `UserPicker` (combobox over `GET /admin/users?q=&limit=20`), the Head of the Department section on New Office and Reactivate, the head-change request on the same picker, the No Office Yet tick, badge, filter and empty states, and a dashboard card for a login with no office.
+- CLI: `aslms users create --no-office`; `aslms offices create --head-email` names an existing login only.
+- Tests: `test_office_head_picker.py`, `test_cli_office_head_picker.py`, `test_migration_0029.py`, `userPicker.test.tsx`, `officeHeadPicker.test.tsx`, and six uicheck states.
+
+**Decisions and reasons**
+1. The owner chose "create the user first": the head is picked from existing logins, so one person can head several departments. Keeping new-login fields beside the picker was rejected.
+2. The head stays required; "Name the Head Later" and `login_no_office` are withdrawn. A login with no office or no active office may be named head.
+3. Only the Super Administrator creates a login with no office, because such a login sits outside every department's scope and only the Super Administrator creates departments.
+4. NULL mirror columns with a migration, rather than placeholder values, so no office or type is recorded that the person never held.
+5. No new endpoint and no new audit action; the existing `user.create`, `membership.added`, `ticket.approved` and `office.create` / `office.reactivate` rows cover it.
+6. A login with no office signs in, changes its password and confirms its profile like an exited login, but holds no function and sees nothing.
+7. The designation is a dropdown of the State-wide designations, optional on the server for the CLI.
+
+**Deviations** (also in the design note's Deviations): the new tests sit in new files rather than the files the note listed; the service also refuses the retired fields (400 `bad_field`); the ticket form's greyed reasons follow decision 9, not decision 2's generic text; a Cancel button was added to New Office; `?return=` follows only portal paths; options carry an `aria-label`; the CLI refuses `--no-office` with `--designation`.
+
+**Left for later**
+- Add Admin and Swap Admin dialogs on `UserPicker` (new backlog row 184, `office-head-picker-admin-swap`).
+- Apply 0029 with the `migrate` step after the merge, then `docker compose build`.
+

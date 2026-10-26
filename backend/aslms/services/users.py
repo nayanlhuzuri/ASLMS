@@ -83,13 +83,15 @@ def end_codes(session: Session, user: User, at: datetime | None = None) -> int:
 
 
 def user_summary(user: User) -> dict:
-    """The login as audited (the mirror columns name its primary membership)."""
+    """The login as audited (the mirror columns name its primary membership; null for a login with no office yet,
+    design `office-head-picker`, decision 16)."""
+    role = user.role
     return {
         "id": str(user.id),
         "email": user.email,
         "full_name": user.full_name,
-        "role": user.role.value if isinstance(user.role, Role) else str(user.role),
-        "office_id": str(user.office_id),
+        "role": None if role is None else role.value if isinstance(role, Role) else str(role),
+        "office_id": str(user.office_id) if user.office_id is not None else None,
         "designation": user.designation,
         "is_active": user.is_active,
     }
@@ -102,13 +104,23 @@ def create_user(
     email: str,
     password: str,
     full_name: str,
-    role: Role,
-    office: Office,
+    role: Role | None,
+    office: Office | None,
     designation: str | None = None,
     designation_id: uuid.UUID | None = None,
     mobile: str | None = None,
     must_confirm_profile: bool = True,
 ) -> User:
+    """A login with its first membership (`role` at `office`), or, with both None, a login with no office yet
+    (design `office-head-picker`, decisions 15-16, 20): the mirror columns stay NULL, no membership is written, and
+    the audit row carries `no_office: true`. Who may create which is checked by the caller."""
+    if (role is None) != (office is None):
+        raise UserError(
+            "a type and an office go together; give both, or neither for a login with no office yet"
+        )
+    no_office = office is None
+    if no_office and (designation or designation_id is not None):
+        raise UserError("the designation belongs to an office")
     email = email.strip().lower()
     if not EMAIL_RE.match(email):
         raise UserError("not an e-mail address")
@@ -116,14 +128,14 @@ def create_user(
         raise UserError("a user with this e-mail already exists")
     if designation_id is not None and session.get(Designation, designation_id) is None:
         raise UserError("unknown designation")
-    if not office.is_active:
+    if office is not None and not office.is_active:
         raise UserError(f"the office {office.code} is inactive")
     user = User(
         email=email,
         password_hash=hash_password(password),
         full_name=full_name.strip()[:200],
         role=role,
-        office_id=office.id,
+        office_id=office.id if office is not None else None,
         designation=(designation or None) and designation.strip()[:200],
         designation_id=designation_id,
         mobile=(mobile or None) and mobile.strip()[:20],
@@ -134,23 +146,32 @@ def create_user(
     )
     session.add(user)
     session.flush()
-    from aslms.services import memberships
+    if office is not None:
+        from aslms.services import memberships
 
-    memberships.insert_membership(
-        session,
-        actor,
-        user,
-        office=office,
-        role=role,
-        designation=user.designation,
-        designation_id=designation_id,
-        audit=False,
-    )
-    write_audit(session, actor, "user.create", "user", user.id, after=user_summary(user))
+        memberships.insert_membership(
+            session,
+            actor,
+            user,
+            office=office,
+            role=role,
+            designation=user.designation,
+            designation_id=designation_id,
+            audit=False,
+        )
+    after = user_summary(user)
+    if no_office:
+        after["no_office"] = True
+    write_audit(session, actor, "user.create", "user", user.id, after=after)
     session.add(
         Event(
             type=EventType.USER_CREATED,
-            payload={"user_id": str(user.id), "email": email, "role": role.value, "office": office.code},
+            payload={
+                "user_id": str(user.id),
+                "email": email,
+                "role": role.value if role is not None else None,
+                "office": office.code if office is not None else None,
+            },
             dedupe_key=f"user_created:{user.id}",
             visibility=EventVisibility.SCOPED,
         )

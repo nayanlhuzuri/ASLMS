@@ -18,15 +18,17 @@ import {
   EmptyState,
   ErrorBanner,
   Loading,
+  OfficePicker,
   Pagination,
   SelectField,
   Tabs,
   TextArea,
   TextField,
+  UserPicker,
 } from "@/components/ui";
-import { api } from "@/lib/api/client";
+import { api, ApiError } from "@/lib/api/client";
 import { labelOf, useLabels, useMe } from "@/lib/api/hooks";
-import type { TicketDetail, TicketDocument, TicketList } from "@/lib/api/types";
+import type { Me, TicketDetail, TicketDocument, TicketList, UserChoice, UserLookup, UserOut } from "@/lib/api/types";
 import { can, isSuperAdmin } from "@/lib/can";
 import { formatDate, formatDateTime, formatNumber } from "@/lib/format";
 import { T } from "@/lib/messages";
@@ -36,8 +38,8 @@ import { useAction } from "@/lib/useAction";
 
 import a from "./admin.module.css";
 
-import { assignableOptions, DesignationInput, PAGE_SIZE } from "./Users";
-
+import { DEPARTMENT_TIER } from "./Offices";
+import { assignableOptions, PAGE_SIZE, useDesignations } from "./Users";
 
 function statusBadge(status: string) {
   const tone = status === "approved" ? "success" : status === "rejected" ? "danger" : status === "open" ? "warning" : undefined;
@@ -344,32 +346,98 @@ export function TicketView({ ticketRef }: { ticketRef: string }) {
   );
 }
 
-/** A head-change proposal: set (no head yet), replace, or end (super admin only); the outgoing head is retyped. */
-export function NewTicketForm() {
+/** Whether the login's view of users is State-wide (the super admin, or a State-office membership with `users.view`). */
+export function stateWideUsers(me: Me | undefined): boolean {
+  if (isSuperAdmin(me)) return true;
+  return !!me?.memberships?.some((m) => m.is_active !== false && m.office.kind === "state" && (m.functions ?? []).includes("users.view"));
+}
+
+type Operation = "set" | "replace" | "end";
+
+/** The incoming head of the request (decision 9): their membership in the department, else their e-mail. */
+export function incomingOf(person: UserChoice, department: string, designation: { id: string; name: string } | undefined) {
+  const inDept = (person.memberships ?? []).find((m) => m.is_active !== false && m.department_code === department);
+  const named = { designation: designation?.name ?? null, designation_id: designation?.id ?? null };
+  return inDept ? { membership_id: inDept.id, ...named } : { email: person.email, ...named };
+}
+
+/**
+ * A head-change proposal: set (no head yet), replace, or end (super admin only); the outgoing head is retyped. Design
+ * office-head-picker, decision 9: the department from the Office Picker (fixed to a department admin's own), the
+ * incoming head from the User Picker with the designation dropdown, and "Someone From Another Office" (an exact e-mail)
+ * for a requester whose view is not State-wide. `department` and `operation` may come from the address.
+ */
+export function NewTicketForm({ department: initialDepartment, operation: initialOperation }: { department?: string; operation?: string } = {}) {
   const router = useRouter();
   const me = useMe();
   const labels = useLabels();
+  const designations = useDesignations();
   const superAdmin = isSuperAdmin(me.data);
+  const stateWide = stateWideUsers(me.data);
   const ownDepartment =
     me.data?.memberships?.find((m) => m.role === "dept_admin" && m.is_active !== false)?.department_code ?? "";
-  const [department, setDepartment] = useState("");
-  const [operation, setOperation] = useState<"set" | "replace" | "end">("set");
-  const [email, setEmail] = useState("");
-  const [designation, setDesignation] = useState("");
+  const [department, setDepartment] = useState((initialDepartment ?? "").trim().toUpperCase());
+  const [operation, setOperation] = useState<Operation>(
+    initialOperation === "replace" || initialOperation === "end" ? (initialOperation as Operation) : "set",
+  );
+  const [person, setPerson] = useState<UserChoice | null>(null);
+  const [designationId, setDesignationId] = useState("");
+  const [otherOpen, setOtherOpen] = useState(false);
+  const [otherEmail, setOtherEmail] = useState("");
+  const [other, setOther] = useState<UserLookup | null | undefined>(undefined);
   const [roleTo, setRoleTo] = useState("dept_officer");
   const [remark, setRemark] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [docDate, setDocDate] = useState("");
   const save = useAction();
-  const dept = (department || ownDepartment).trim().toUpperCase();
+  const check = useAction();
+  const fixed = !superAdmin && !!ownDepartment;
+  const dept = (fixed ? ownDepartment : department).trim().toUpperCase();
   const officerTypes = assignableOptions(labels.data?.user_types).filter((o) =>
     ["dept_officer", "directorate_user", "standing_counsel", "referral_reviewer"].includes(o.value),
   );
+  const heads = useQuery({
+    queryKey: ["admin", "users", "heads", dept],
+    queryFn: () => api<UserOut[]>("/admin/users", { query: { office: dept, role: "dept_head" } }),
+    enabled: !!dept && operation !== "end",
+  });
+  const currentHeads = new Set((heads.data ?? []).map((h) => h.id));
+  const designation = designations.data?.find((d) => d.id === designationId);
+
+  function blocked(u: UserChoice): string | null {
+    if (currentHeads.has(u.id)) return T.userPicker.currentHeadNote;
+    const inDept = (u.memberships ?? []).find((m) => m.is_active !== false && m.department_code === dept);
+    if (!inDept) return null;
+    if (inDept.office.code !== dept) return T.userPicker.worksElsewhereNote(inDept.office.code);
+    if (inDept.role === "dept_admin" && !superAdmin) return T.userPicker.adminNote;
+    return null;
+  }
+
+  async function lookUp() {
+    setOther(undefined);
+    await check.run(async () => {
+      try {
+        setOther(await api<UserLookup>("/admin/users/lookup", { query: { email: otherEmail.trim() } }));
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 404) setOther(null);
+        else throw err;
+      }
+    });
+  }
+
+  const usingOther = otherOpen && !!other;
+  const incomingReady = operation === "end" || ((usingOther || !!person) && !!designationId);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     const request: Record<string, unknown> = { operation, department_code: dept, request_remark: remark.trim() || null };
-    if (operation !== "end") request.incoming = { email: email.trim(), designation: designation.trim() || null };
+    if (operation !== "end") {
+      request.incoming = usingOther
+        ? { email: otherEmail.trim(), designation: designation?.name ?? null, designation_id: designation?.id ?? null }
+        : person
+          ? incomingOf(person, dept, designation)
+          : null;
+    }
     if (operation !== "set") request.outgoing = { mode: "retype", role_to: roleTo };
     if (file) request.files = [{ doc_type: "government_order", doc_date: docDate || null }];
     const form = new FormData();
@@ -389,19 +457,79 @@ export function NewTicketForm() {
     <form className="card stack" onSubmit={submit} aria-label={T.tickets.newTicket}>
       <h2>{T.tickets.newTicket}</h2>
       <div className="row">
-        <TextField label={T.tickets.department} required value={department || ownDepartment} onChange={(e) => setDepartment(e.target.value)} />
+        <OfficePicker
+          label={T.tickets.department}
+          purpose="users"
+          kinds={[...DEPARTMENT_TIER]}
+          required
+          disabled={fixed}
+          value={dept || null}
+          onChange={(code) => setDepartment(code ?? "")}
+        />
         <SelectField
           label={T.tickets.operation}
           value={operation}
           options={operations}
-          onChange={(e) => setOperation(e.target.value as "set" | "replace" | "end")}
+          onChange={(e) => setOperation(e.target.value as Operation)}
         />
       </div>
       {operation !== "end" ? (
-        <div className="row">
-          <TextField label={T.tickets.incomingEmail} type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-          <DesignationInput value={designation} onChange={setDesignation} />
-        </div>
+        <>
+          <div className="row">
+            <div className={a.headPerson}>
+              <UserPicker
+                label={T.tickets.incomingHead}
+                required={!usingOther}
+                disabled={usingOther}
+                includeWithoutOffice={stateWide}
+                value={person}
+                onChange={setPerson}
+                blocked={blocked}
+              />
+            </div>
+            <div className={a.headDesignation}>
+              <SelectField
+                label={T.offices.headDesignation}
+                hint={T.offices.headDesignationHint}
+                required
+                value={designationId}
+                placeholder=""
+                options={(designations.data ?? []).map((d) => ({ value: d.id, label: d.name }))}
+                onChange={(e) => setDesignationId(e.target.value)}
+              />
+            </div>
+          </div>
+          {!stateWide ? (
+            otherOpen ? (
+              <div className="stack">
+                <div className="row">
+                  <TextField
+                    label={T.tickets.otherOffice}
+                    hint={T.tickets.otherOfficeHint}
+                    type="email"
+                    value={otherEmail}
+                    onChange={(e) => {
+                      setOtherEmail(e.target.value);
+                      setOther(undefined);
+                    }}
+                  />
+                  <Button variant="secondary" busy={check.busy} disabled={!otherEmail.trim()} onClick={() => void lookUp()}>
+                    {T.tickets.checkEmail}
+                  </Button>
+                </div>
+                {other ? <p>{T.tickets.otherOfficeFound(other.full_name)}</p> : null}
+                {other === null ? <p className="muted">{T.tickets.otherOfficeMissing}</p> : null}
+                <ErrorBanner error={check.error} />
+              </div>
+            ) : (
+              <p>
+                <Button variant="link" onClick={() => setOtherOpen(true)}>
+                  {T.tickets.otherOffice}
+                </Button>
+              </p>
+            )
+          ) : null}
+        </>
       ) : null}
       {operation !== "set" ? (
         <SelectField label={T.tickets.outgoingType} value={roleTo} options={officerTypes} onChange={(e) => setRoleTo(e.target.value)} />
@@ -418,7 +546,7 @@ export function NewTicketForm() {
       </div>
       <ErrorBanner error={save.error} />
       <div>
-        <Button type="submit" busy={save.busy} disabled={!dept}>
+        <Button type="submit" busy={save.busy} disabled={!dept || !incomingReady}>
           {T.tickets.submit}
         </Button>
       </div>

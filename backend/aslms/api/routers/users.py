@@ -92,6 +92,7 @@ def list_users(
     role: Role | None = None,
     status_: Literal["active", "not_signed_in", "off"] | None = Query(None, alias="status"),
     include_ended: bool = False,
+    no_office: bool = Query(False, description="only logins with no office yet (State-wide scope only)"),
     limit: int | None = None,
     offset: int = 0,
     session: Session = Depends(get_session),
@@ -103,18 +104,28 @@ def list_users(
     too), `limit` (1-200) and `offset`; `X-Total-Count` counts the same filters. Without `limit` every row.
     Design case-workspace-admin, decision 23: `status` — `active` (sign-in on and signed in at least once),
     `not_signed_in` (on, never signed in) or `off` (sign-in turned off). Design `portal-ui-polish-2`, decision 30:
-    `subtree=false` narrows `office` to that office exactly (default `true`, its whole subtree)."""
+    `subtree=false` narrows `office` to that office exactly (default `true`, its whole subtree). Design
+    `office-head-picker`, decision 17: a State-wide caller's list without `office` or `role` also lists logins with
+    no office yet; `no_office=true` lists only those (State-wide scope only, else 403 `scope`; 400 `bad_field` with
+    `office` or `role`)."""
     if q is not None and len(q.strip()) < 2:
         raise _bad_field("q needs at least 2 characters")
     if limit is not None and not 1 <= limit <= 200:
         raise _bad_field("limit must be between 1 and 200")
     if offset < 0:
         raise _bad_field("offset must be 0 or more")
+    if no_office and (office or role is not None):
+        raise _bad_field("no_office cannot be combined with office or role")
     roots = _scope_roots(session, caller)
     if include_ended and roots is not None:
         raise HTTPException(
             status.HTTP_403_FORBIDDEN,
             {"code": "scope", "message": "only a State-wide view lists logins without an active membership"},
+        )
+    if no_office and roots is not None:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            {"code": "scope", "message": "only a State-wide view lists logins with no office yet"},
         )
     if roots is not None and not roots:
         response.headers["X-Total-Count"] = "0"
@@ -142,6 +153,10 @@ def list_users(
     condition = filtered.exists()
     if include_ended and not office and role is None:
         condition = condition | ~membership.exists()
+    elif roots is None and not office and role is None:
+        condition = condition | User.office_id.is_(None)  # a login with no office yet (office-head-picker)
+    if no_office:
+        condition = User.office_id.is_(None)
     stmt = select(User).where(condition)
     if q is not None:
         pattern = _like(q.strip())
@@ -190,6 +205,15 @@ def create(
     session: Session = Depends(get_session),
     caller: User = Depends(require(Permission.USERS_CREATE)),
 ) -> schemas.UserOut:
+    """A login with its first membership (`office_code` and `role`), or with both null a login with no office yet
+    (design `office-head-picker`, decision 15): the Super Administrator only (403 `super_admin_only`); a
+    designation or functions with no office answer 400 `bad_field`; only one of the two, 400 `bad_field`."""
+    if (body.office_code is None) != (body.role is None):
+        raise _bad_field(
+            "office_code and role go together; give both, or neither for a login with no office yet"
+        )
+    if body.office_code is None:
+        return _create_without_office(body, request, session, caller)
     office = session.scalar(
         select(Office).where(Office.code == body.office_code.strip().upper(), Office.is_active.is_(True))
     )
@@ -232,6 +256,32 @@ def create(
             access.set_override(
                 session, actor, caller, user, perm, PermissionEffect.GRANT, reason="granted at creation"
             )
+    except HANDLED as exc:
+        raise http_error(exc) from exc
+    return user_out(session, user)
+
+
+def _create_without_office(
+    body: schemas.UserCreateIn, request: Request, session: Session, caller: User
+) -> schemas.UserOut:
+    try:
+        sup = access.super_admin_member(session, caller)
+        if sup is None:
+            raise access.Forbidden(
+                "only the Super Administrator creates a login with no office", "super_admin_only"
+            )
+        if body.designation or body.designation_id is not None or body.functions:
+            raise _bad_field("the designation and functions belong to an office")
+        user = create_user(
+            session,
+            access.actor_as(actor_of(request, caller, session), sup),
+            email=body.email,
+            password=body.password,
+            full_name=body.full_name,
+            role=None,
+            office=None,
+            mobile=body.mobile,
+        )
     except HANDLED as exc:
         raise http_error(exc) from exc
     return user_out(session, user)
@@ -365,7 +415,7 @@ def _functions_out(session: Session, user: User) -> schemas.UserFunctionsOut:
     overrides = memberships.overrides_out(session, primary) if primary is not None else []
     return schemas.UserFunctionsOut(
         user_id=user.id,
-        role=primary.role if primary is not None else user.role,  # display
+        role=primary.role if primary is not None else user.role,  # display; null with no office yet
         functions=sorted(access.membership_functions(session, primary, user)) if primary is not None else [],
         overrides=[schemas.OverrideOut(**o) for o in overrides],
     )

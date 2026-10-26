@@ -13,6 +13,8 @@ hierarchy, designations, and the first department admins.
 - Memberships (design `user-memberships`, decisions 14 and 24): a department has at most one admin
   (`add_department_admin` answers 409 `admin_exists`; the swap is `memberships.replace_department_admin`) and
   is created or reactivated with its head, in one transaction, recorded as an approved head-change ticket.
+- The head (design `office-head-picker`, decisions 6-8) is an existing login, by id or exact e-mail, including a
+  login with no office yet; no login is created from here. The person is checked before anything is written.
 """
 
 from __future__ import annotations
@@ -291,9 +293,9 @@ def create_office(
     valid_from: date | None = None,
     head: dict | None = None,
 ) -> Office:
-    """A Department-tier office needs `head` (decision 24 of `user-memberships`): an existing login by e-mail
-    (with designation) or a new login (e-mail, name, designation, password); the office and the head membership
-    are created together and recorded as an approved head-change ticket."""
+    """A Department-tier office needs `head` (decision 24 of `user-memberships`): an existing login by `user_id`
+    or `email`, with `designation` / `designation_id` (design `office-head-picker`, decision 6); the office and the
+    head membership are created together and recorded as an approved head-change ticket."""
     kind = _as_kind(kind)
     assert_can_manage_office(session, actor_user, parent=parent, kind=kind)
     if kind == OfficeKind.STATE:
@@ -316,6 +318,7 @@ def create_office(
         raise OfficeError(f"{code} is a court's code in case numbers and cannot be an office code")
     if kind in DEPARTMENT_TIER_KINDS and not head:
         raise HeadRequired("a department is created with its head")
+    chosen = resolve_head(session, head) if kind in DEPARTMENT_TIER_KINDS else None
     office = Office(
         code=code,
         name=name[:200],
@@ -332,8 +335,8 @@ def create_office(
     session.flush()
     session.refresh(office)
     head_after = None
-    if kind in DEPARTMENT_TIER_KINDS:
-        head_after = _set_head(session, actor, actor_user, office, head)
+    if chosen is not None:
+        head_after = _set_head(session, actor, actor_user, office, chosen)
     write_audit(
         session,
         actor,
@@ -347,14 +350,83 @@ def create_office(
     return office
 
 
-def _set_head(session: Session, actor: Actor, actor_user: User, office: Office, head: dict | None) -> dict:
+HEAD_KEYS = frozenset({"user_id", "email", "designation", "designation_id"})
+RETIRED_HEAD_KEYS = ("full_name", "password", "mobile")
+
+
+@dataclass
+class ChosenHead:
+    """The resolved head of a department being created or reactivated (design `office-head-picker`, decision 7)."""
+
+    user: User
+    designation: str | None
+    designation_id: uuid.UUID | None
+
+
+def resolve_head(session: Session, head: dict | None) -> ChosenHead:
+    """The existing login named by `head` (`user_id` or exact `email`, exactly one) and its designation, checked
+    before anything is written: unknown → 400 `bad_field`, disabled → 409 `login_inactive`, the Super
+    Administrator → 409 `super_admin_single`. A login with no office yet, or none after an exit, is accepted.
+    When only `designation_id` is given the text is the designation's name (decision 4)."""
+    from aslms.services import memberships
+    from aslms.services.memberships import MembershipError
+
+    if not head:
+        raise HeadRequired("a department is created or reactivated with its head")
+    retired = [k for k in RETIRED_HEAD_KEYS if k in head]
+    if retired:
+        raise MembershipError(
+            "bad_field",
+            f"{retired[0]} is retired: the head is an existing login; add the person in Users first",
+        )
+    unknown = sorted(set(head) - HEAD_KEYS)
+    if unknown:
+        raise MembershipError("bad_field", f"unknown head field {unknown[0]}")
+    user_id, email = head.get("user_id"), head.get("email")
+    if (user_id is None) == (email is None):
+        raise MembershipError("bad_field", "name the head by exactly one of user_id or email")
+    if user_id is not None:
+        try:
+            user = session.get(User, user_id if isinstance(user_id, uuid.UUID) else uuid.UUID(str(user_id)))
+        except ValueError:
+            user = None
+        if user is None:
+            raise MembershipError("bad_field", "no such user")
+    else:
+        user = memberships.lookup(session, email)
+        if user is None:
+            raise MembershipError("bad_field", "no login with this e-mail; add the person in Users first")
+    if not user.is_active:
+        raise access.Conflict("login_inactive", "the chosen person's sign-in is turned off")
+    if access.is_super_admin(user):
+        raise access.Conflict("super_admin_single", "the Super Administrator holds no other office")
+    designation = (head.get("designation") or "").strip() or None
+    designation_id = head.get("designation_id")
+    if designation_id is not None:
+        try:
+            designation_id = (
+                designation_id if isinstance(designation_id, uuid.UUID) else uuid.UUID(str(designation_id))
+            )
+        except ValueError:
+            designation_id = None
+        row = session.get(Designation, designation_id) if designation_id is not None else None
+        if row is None:
+            raise MembershipError("bad_field", "unknown designation")
+        if designation is None:
+            designation = row.name
+    return ChosenHead(user=user, designation=designation, designation_id=designation_id)
+
+
+def _set_head(session: Session, actor: Actor, actor_user: User, office: Office, chosen: ChosenHead) -> dict:
     """The head of a department being created or reactivated, by the super admin: applied at once and
     recorded as an approved `head_change` ticket (`operation=set`)."""
     from aslms.services import tickets
 
-    if not head or not head.get("email"):
-        raise HeadRequired("the head is named by e-mail")
-    incoming = {k: v for k, v in head.items() if v is not None}
+    incoming = {
+        "user": str(chosen.user.id),
+        "designation": chosen.designation,
+        "designation_id": chosen.designation_id,
+    }
     ticket = tickets.record_direct_set(session, actor, actor_user, office, incoming)
     return {"ticket_ref": ticket.ref_no, **(ticket.result or {}).get("incoming", {})}
 
@@ -437,13 +509,14 @@ def reactivate_office(
     parent = session.get(Office, office.parent_id) if office.parent_id else None
     if parent is None or not parent.is_active:
         raise OfficeError("the parent office is inactive; reactivate it first")
+    chosen = resolve_head(session, head) if dept_tier else None
     before = office_summary(office)
     office.is_active = True
     office.deactivated_at = None
     office.valid_to = None
     office.updated_by = actor.user_id
     session.flush()
-    head_after = _set_head(session, actor, actor_user, office, head) if dept_tier else None
+    head_after = _set_head(session, actor, actor_user, office, chosen) if chosen is not None else None
     write_audit(
         session,
         actor,

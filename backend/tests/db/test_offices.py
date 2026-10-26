@@ -13,7 +13,7 @@ from aslms.core.clock import today_ist
 from aslms.domain.cases import FirstSeenSource
 from aslms.domain.courts import Court
 from aslms.domain.events import AuditLog, Event
-from aslms.domain.org import Designation, Office, PermissionEffect, RolePermission
+from aslms.domain.org import Designation, Office, PermissionEffect, RolePermission, User
 from aslms.domain.ownership import CaseOwnership, OwnershipStatus
 from aslms.domain.reference import OfficeKind, Permission, Role
 from aslms.domain.workflow import Custody
@@ -31,14 +31,13 @@ SYS = Actor.system("test")
 PW = "correct-horse-battery-7"
 
 
-def head(code: str) -> dict:
-    """A new login as the head of a department being created (design `user-memberships`, decision 24)."""
-    return {
-        "email": f"head.{code.lower()}@example.org",
-        "full_name": f"Head {code}",
-        "designation": "Commissioner & Secretary",
-        "password": PW,
-    }
+def head(session, code: str) -> dict:
+    """The head of a department being created (design `user-memberships`, decision 24): a login with no office yet,
+    created first (design `office-head-picker`, decision 1), named by e-mail."""
+    email = f"head.{code.lower()}@example.org"
+    if session.scalar(sa.select(User.id).where(User.email == email)) is None:
+        create_user(session, SYS, email=email, password=PW, full_name=f"Head {code}", role=None, office=None)
+    return {"email": email, "designation": "Commissioner & Secretary"}
 
 
 def end_head(session, sup, dept) -> None:
@@ -80,7 +79,14 @@ def world(session):
     )
     sup_actor = access.actor_for(sup, goa)
     edu = offices.create_office(
-        session, sup_actor, sup, code="edu", name="Education", kind="department", parent=goa, head=head("EDU")
+        session,
+        sup_actor,
+        sup,
+        code="edu",
+        name="Education",
+        kind="department",
+        parent=goa,
+        head=head(session, "EDU"),
     )
     health = offices.create_office(
         session,
@@ -90,7 +96,7 @@ def world(session):
         name="Health",
         kind=OfficeKind.DEPARTMENT,
         parent=goa,
-        head=head("HEALTH"),
+        head=head(session, "HEALTH"),
     )
     admin = create_user(
         session,
@@ -369,7 +375,7 @@ def test_add_department_admin(session, world):
         name="Agriculture",
         kind="department",
         parent=world["goa"],
-        head=head("AGRI"),
+        head=head(session, "AGRI"),
     )
     end_head(session, sup, agri)
     offices.deactivate_office(session, actor, sup, agri)

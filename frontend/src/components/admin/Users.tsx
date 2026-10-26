@@ -8,6 +8,10 @@
  * a wide side panel on `?user=<id>` with the existing user sections and "Open full page"; "Add user", the page's one
  * primary, opens the new-user flow in the same panel (`?user=new`): an exact e-mail lookup first, which offers "add a
  * membership to this person" instead of a duplicate. Every rule stays on the server.
+ *
+ * Design office-head-picker (decisions 15 and 17): the super admin's New User has "No Office Yet" (a login with no
+ * office, to be named head of a department being created; `?no_office=1` starts it ticked, `?return=` goes back with
+ * `?head=<id>`); the list shows such a login with a No Office Yet badge and More Filters has a No Office Yet filter.
  */
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
@@ -34,6 +38,7 @@ import type { Designation, MembershipOut, Role, UserLookup, UserOut, UserTypeLab
 import { can, isSuperAdmin } from "@/lib/can";
 import { T } from "@/lib/messages";
 import { offsetOf, queryString, type Params } from "@/lib/params";
+import { safeNext } from "@/lib/safeNext";
 import { useAction } from "@/lib/useAction";
 import { useUrlOverlay } from "@/lib/useUrlOverlay";
 
@@ -90,6 +95,8 @@ export function primaryMembership(u: UserOut): MembershipOut | undefined {
 /** Decision 23: one badge per active membership's type, at most two and "+n". */
 export function TypeBadges({ user, types }: { user: UserOut; types?: UserTypeLabel[] }) {
   const roles = [...new Set((user.memberships ?? []).filter((m) => m.is_active !== false).map((m) => m.role))];
+  // design office-head-picker, decision 17: never held an office (the exited login keeps "No Active Office")
+  if (roles.length === 0 && user.office === null) return <Badge>{T.users.noOfficeYet}</Badge>;
   if (roles.length === 0) return <span className="muted">{T.users.noMembership}</span>;
   return (
     <span className={a.types}>
@@ -113,7 +120,7 @@ function NewUserPanel({ open, onClose, onCreated }: { open: boolean; onClose: ()
 }
 
 /** The list's own filters in the address (design portal-ui-polish-2, decision 31: the modal keeps the list behind). */
-export const USER_LIST_KEYS = ["q", "role", "office", "subtree", "status", "include_ended", "offset"] as const;
+export const USER_LIST_KEYS = ["q", "role", "office", "subtree", "status", "include_ended", "no_office", "offset"] as const;
 
 export function listParamsOf(params: Params): Params {
   const out: Params = {};
@@ -128,6 +135,7 @@ interface Filters {
   subtree: boolean;
   status: string;
   includeEnded: boolean;
+  noOffice: boolean;
 }
 
 function filtersOf(params: Params): Filters {
@@ -138,6 +146,7 @@ function filtersOf(params: Params): Filters {
     subtree: params.subtree !== "false",
     status: params.status ?? "",
     includeEnded: params.include_ended === "true",
+    noOffice: params.no_office === "true",
   };
 }
 
@@ -149,6 +158,7 @@ function paramsOf(f: Filters): Params {
     subtree: f.office && !f.subtree ? "false" : undefined,
     status: f.status || undefined,
     include_ended: f.includeEnded ? "true" : undefined,
+    no_office: f.noOffice ? "true" : undefined,
   };
 }
 
@@ -173,11 +183,13 @@ export function UsersList({ params = {}, userId }: { params?: Params; userId?: s
       apiPage<UserOut[]>("/admin/users", {
         query: {
           q: filters.q.trim() || undefined,
-          office: filters.office || undefined,
-          subtree: filters.office && !filters.subtree ? false : undefined,
-          role: filters.role || undefined,
+          // No Office Yet stands alone: the server refuses it with an office or a user type (decision 17)
+          office: (!filters.noOffice && filters.office) || undefined,
+          subtree: !filters.noOffice && filters.office && !filters.subtree ? false : undefined,
+          role: (!filters.noOffice && filters.role) || undefined,
           status: filters.status || undefined,
           include_ended: filters.includeEnded || undefined,
+          no_office: filters.noOffice || undefined,
           limit: PAGE_SIZE,
           offset,
         },
@@ -292,7 +304,7 @@ function UsersToolbar({
 }) {
   const [draft, setDraft] = useState<Filters>(initial);
   const [shortQuery, setShortQuery] = useState(false);
-  const moreCount = draft.includeEnded ? 1 : 0;
+  const moreCount = (draft.includeEnded ? 1 : 0) + (draft.noOffice ? 1 : 0);
   const [moreOpen, setMoreOpen] = useState(moreCount > 0);
   const moreId = useId();
 
@@ -367,6 +379,11 @@ function UsersToolbar({
             checked={draft.includeEnded}
             onChange={(e) => setDraft({ ...draft, includeEnded: e.target.checked })}
           />
+          <CheckField
+            label={T.users.filterNoOffice}
+            checked={draft.noOffice}
+            onChange={(e) => setDraft({ ...draft, noOffice: e.target.checked })}
+          />
         </div>
       ) : null}
     </form>
@@ -433,10 +450,23 @@ export function MembershipFields({
   );
 }
 
-/** `onDone` (the side panel): open the person's User Details; without it the person's address. */
-export function NewUserForm({ onDone }: { onDone?: (id: string) => void } = {}) {
+/** Where New User goes back to with the new person (`?return=`, decision 8): an address in the portal only. */
+export function returnWithHead(back: string, id: string): string {
+  const path = safeNext(back);
+  return `${path}${path.includes("?") ? "&" : "?"}head=${encodeURIComponent(id)}`;
+}
+
+/**
+ * `onDone` (the side panel): open the person's User Details; without it the person's address. `noOffice` starts the
+ * No Office Yet tick on (the super admin's only), `returnTo` is where to go back with `?head=<id>` (decision 8).
+ */
+export function NewUserForm({ onDone, noOffice: startNoOffice = false, returnTo }: { onDone?: (id: string) => void; noOffice?: boolean; returnTo?: string } = {}) {
   const router = useRouter();
+  const me = useMe();
   const labels = useLabels();
+  const superAdmin = isSuperAdmin(me.data);
+  const [noOffice, setNoOffice] = useState(startNoOffice);
+  const withoutOffice = superAdmin && noOffice;
   const [email, setEmail] = useState("");
   const [found, setFound] = useState<UserLookup | null | undefined>(undefined);
   const [name, setName] = useState("");
@@ -445,7 +475,8 @@ export function NewUserForm({ onDone }: { onDone?: (id: string) => void } = {}) 
   const [membership, setMembership] = useState<MembershipDraft>({ office: "", designation: "", role: "" });
   const lookup = useAction();
   const save = useAction();
-  const done = (id: string) => (onDone ? onDone(id) : router.push(`/admin/users/${id}`));
+  const done = (id: string) =>
+    returnTo ? router.push(returnWithHead(returnTo, id)) : onDone ? onDone(id) : router.push(`/admin/users/${id}`);
 
   async function check(e: FormEvent) {
     e.preventDefault();
@@ -481,15 +512,17 @@ export function NewUserForm({ onDone }: { onDone?: (id: string) => void } = {}) 
     const out = await save.run(() =>
       api<UserOut>("/admin/users", {
         method: "POST",
-        body: {
-          email: email.trim(),
-          full_name: name.trim(),
-          password,
-          role: membership.role as Role,
-          office_code: membership.office.trim(),
-          designation: membership.designation.trim() || null,
-          mobile: mobile.trim() || null,
-        },
+        body: withoutOffice
+          ? { email: email.trim(), full_name: name.trim(), password, role: null, office_code: null, mobile: mobile.trim() || null }
+          : {
+              email: email.trim(),
+              full_name: name.trim(),
+              password,
+              role: membership.role as Role,
+              office_code: membership.office.trim(),
+              designation: membership.designation.trim() || null,
+              mobile: mobile.trim() || null,
+            },
       }),
     );
     if (out.ok) done(out.value.id);
@@ -535,6 +568,12 @@ export function NewUserForm({ onDone }: { onDone?: (id: string) => void } = {}) 
       {found === null ? (
         <form className="stack" onSubmit={create}>
           <p className="muted">{T.users.noSuchPerson}</p>
+          {superAdmin ? (
+            <div>
+              <CheckField label={T.users.noOfficeYet} checked={noOffice} onChange={(e) => setNoOffice(e.target.checked)} />
+              <p className="muted">{T.users.noOfficeYetHint}</p>
+            </div>
+          ) : null}
           <div className="row">
             <TextField label={T.auth.fullName} required value={name} onChange={(e) => setName(e.target.value)} />
             <TextField
@@ -548,7 +587,7 @@ export function NewUserForm({ onDone }: { onDone?: (id: string) => void } = {}) 
             />
             <TextField label={T.users.mobile} type="tel" value={mobile} onChange={(e) => setMobile(e.target.value)} />
           </div>
-          <MembershipFields value={membership} onChange={setMembership} types={labels.data?.user_types} />
+          {withoutOffice ? null : <MembershipFields value={membership} onChange={setMembership} types={labels.data?.user_types} />}
           <ErrorBanner error={save.error} />
           <Button type="submit" busy={save.busy}>
             {T.users.create}

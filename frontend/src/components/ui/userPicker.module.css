@@ -1,0 +1,69 @@
+/* The User Picker (design office-head-picker, decision 2): the Office Picker's box and list (officePicker.module.css)
+   with a person's lines: the name and the greyed e-mail, the offices line, and the reason a greyed option cannot be
+   chosen. Option lines wrap; nothing overflows at 375 px. */
+
+.field {
+  min-width: 0;
+}
+
+.option {
+  align-items: flex-start;
+}
+
+.lines {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.who {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--s2);
+  min-width: 0;
+}
+
+.name {
+  overflow-wrap: anywhere;
+}
+
+.email {
+  color: var(--text-3);
+  font-size: var(--t-xs);
+  overflow-wrap: anywhere;
+}
+
+.offices {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--s3);
+  row-gap: 2px;
+  font-size: var(--t-xs);
+  color: var(--text-2);
+}
+
+.office {
+  overflow-wrap: anywhere;
+}
+
+.more {
+  color: var(--text-3);
+}
+
+.reason {
+  font-size: var(--t-xs);
+  color: var(--text-3);
+  font-style: italic;
+}
+
+.blocked {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.chosen {
+  display: block;
+  min-width: 0;
+}

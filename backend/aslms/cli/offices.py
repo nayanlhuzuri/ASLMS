@@ -1,7 +1,8 @@
 """`aslms offices …`: departments, directorates and units from the command line, so a fresh deployment can be
 bootstrapped without the portal. Acts as the single active super admin (required: every office write is
-attributed and audited to a user). A department is created with its head (`--head-email`, and for a new login
-`--head-name`; the password is prompted, never echoed); `list --missing-head` lists departments without one."""
+attributed and audited to a user). A department is created with its head (`--head-email`, an existing login,
+including one created with `aslms users create --no-office`; design `office-head-picker`, decision 21);
+`list --missing-head` lists departments without one."""
 
 from __future__ import annotations
 
@@ -36,12 +37,13 @@ def create(
     kind: str = typer.Option(..., "--kind", help="one of: " + ", ".join(k.value for k in OfficeKind)),
     parent: str = typer.Option(..., "--parent", help="parent office code (GOA for a department)"),
     notes: str | None = typer.Option(None, "--notes"),
-    head_email: str | None = typer.Option(None, "--head-email", help="the head (required for a department)"),
-    head_name: str | None = typer.Option(None, "--head-name", help="the head's name, for a new login"),
+    head_email: str | None = typer.Option(
+        None, "--head-email", help="the head, an existing login (required for a department)"
+    ),
     head_designation: str | None = typer.Option(None, "--head-designation"),
 ) -> None:
-    """Create an office under a parent (acting as the super admin). A Department-tier office needs its head:
-    an existing login by e-mail, or a new login (name and a prompted password)."""
+    """Create an office under a parent (acting as the super admin). A Department-tier office needs its head: an
+    existing login by e-mail, including one with no office yet."""
     with session_scope() as s:
         actor, actor_user = _super_admin(s)
         head = None
@@ -54,14 +56,11 @@ def create(
                 raise typer.BadParameter(
                     "head_required: a department is created with its head (--head-email)"
                 )
-            head = {"email": head_email, "designation": head_designation}
             if memberships.lookup(s, head_email) is None:
-                if not head_name:
-                    raise typer.BadParameter("--head-name is needed for a new login")
-                head["full_name"] = head_name
-                head["password"] = typer.prompt(
-                    "Password for the head's new login", hide_input=True, confirmation_prompt=True
+                raise typer.BadParameter(
+                    f"no login {head_email}: add the person first with `aslms users create --no-office`"
                 )
+            head = {"email": head_email, "designation": head_designation}
         try:
             office = offices.create_office(
                 s,

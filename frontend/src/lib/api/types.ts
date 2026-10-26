@@ -7,6 +7,8 @@ export type Permission = S["Permission"];
 export type Role = S["Role"];
 export type Me = S["MeOut"];
 export type UserOut = S["UserOut"];
+/** A person in the User Picker (design office-head-picker, decision 2): a row of `GET /admin/users`. */
+export type UserChoice = Pick<UserOut, "id" | "email" | "full_name" | "is_active" | "office" | "memberships">;
 export type MembershipOut = S["MembershipOut"];
 export type ProfileOut = S["ProfileOut"];
 export type NotificationPreferences = S["NotificationPreferencesOut"];

@@ -74,6 +74,10 @@ def world(engine):
             role=Role.DEPT_OFFICER,
             office=dse,
         )
+        # the head FIN is created with: a login with no office yet (design `office-head-picker`, decision 1)
+        create_user(
+            s, sys, email="head.fin@example.org", password=PW, full_name="Head FIN", role=None, office=None
+        )
         ready_all(s)
         s.commit()
     settings = Settings(
@@ -91,12 +95,7 @@ EMPTY_FP = hashlib.sha256(b"").hexdigest()  # the exit fingerprint of a membersh
 
 def fin_head() -> dict:
     """The head named when FIN is created (design `user-memberships`, decision 24)."""
-    return {
-        "email": "head.fin@example.org",
-        "full_name": "Head FIN",
-        "designation": "Secretary",
-        "password": PW,
-    }
+    return {"email": "head.fin@example.org", "designation": "Secretary"}
 
 
 def end_head(api, root, code: str) -> None:

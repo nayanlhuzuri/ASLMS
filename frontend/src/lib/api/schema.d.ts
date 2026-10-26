@@ -1817,11 +1817,19 @@ export interface paths {
          *     too), `limit` (1-200) and `offset`; `X-Total-Count` counts the same filters. Without `limit` every row.
          *     Design case-workspace-admin, decision 23: `status` — `active` (sign-in on and signed in at least once),
          *     `not_signed_in` (on, never signed in) or `off` (sign-in turned off). Design `portal-ui-polish-2`, decision 30:
-         *     `subtree=false` narrows `office` to that office exactly (default `true`, its whole subtree).
+         *     `subtree=false` narrows `office` to that office exactly (default `true`, its whole subtree). Design
+         *     `office-head-picker`, decision 17: a State-wide caller's list without `office` or `role` also lists logins with
+         *     no office yet; `no_office=true` lists only those (State-wide scope only, else 403 `scope`; 400 `bad_field` with
+         *     `office` or `role`).
          */
         get: operations["list_users_admin_users_get"];
         put?: never;
-        /** Create */
+        /**
+         * Create
+         * @description A login with its first membership (`office_code` and `role`), or with both null a login with no office yet
+         *     (design `office-head-picker`, decision 15): the Super Administrator only (403 `super_admin_only`); a
+         *     designation or functions with no office answer 400 `bad_field`; only one of the two, 400 `bad_field`.
+         */
         post: operations["create_admin_users_post"];
         delete?: never;
         options?: never;
@@ -8090,25 +8098,19 @@ export interface components {
         };
         /**
          * HeadIn
-         * @description The head of a department being created or reactivated: an existing login by e-mail, or a new login
-         *     (e-mail, name, password).
+         * @description The head of a department being created or reactivated (design `office-head-picker`, decision 6): an existing
+         *     login, by `user_id` (the portal) or by exact `email` (the CLI), exactly one of the two, including a login with
+         *     no office yet. The new-login fields (`full_name`, `password`, `mobile`) are retired and answer 422.
          */
         HeadIn: {
             /** Designation */
             designation?: string | null;
             /** Designation Id */
             designation_id?: string | null;
-            /**
-             * Email
-             * Format: email
-             */
-            email: string;
-            /** Full Name */
-            full_name?: string | null;
-            /** Mobile */
-            mobile?: string | null;
-            /** Password */
-            password?: string | null;
+            /** Email */
+            email?: string | null;
+            /** User Id */
+            user_id?: string | null;
         };
         /** HeaderOut */
         HeaderOut: {
@@ -11757,10 +11759,11 @@ export interface components {
             /** Mobile */
             mobile?: string | null;
             /** Office Code */
-            office_code: string;
+            office_code?: string | null;
             /** Password */
             password: string;
-            role: components["schemas"]["Role"];
+            /** @description with `office_code`; both null create a login with no office yet (Super Administrator) */
+            role?: components["schemas"]["Role"] | null;
         };
         /** UserFunctionsOut */
         UserFunctionsOut: {
@@ -11768,7 +11771,7 @@ export interface components {
             functions: components["schemas"]["Permission"][];
             /** Overrides */
             overrides: components["schemas"]["OverrideOut"][];
-            role: components["schemas"]["Role"];
+            role: components["schemas"]["Role"] | null;
             /**
              * User Id
              * Format: uuid
@@ -11820,10 +11823,12 @@ export interface components {
             must_change_password: boolean;
             /** Must Confirm Profile */
             must_confirm_profile: boolean;
-            office: components["schemas"]["OfficeOut"];
+            /** @description the primary membership's office (display); null only for a login with no office yet (office-head-picker) */
+            office: components["schemas"]["OfficeOut"] | null;
             /** Profile Confirmed At */
             profile_confirmed_at?: string | null;
-            role: components["schemas"]["Role"];
+            /** @description the primary membership's type (display); null only for a login with no office yet (office-head-picker) */
+            role: components["schemas"]["Role"] | null;
         };
         /** UserPatchIn */
         UserPatchIn: {
@@ -16659,6 +16664,8 @@ export interface operations {
                 role?: components["schemas"]["Role"] | null;
                 status?: ("active" | "not_signed_in" | "off") | null;
                 include_ended?: boolean;
+                /** @description only logins with no office yet (State-wide scope only) */
+                no_office?: boolean;
                 limit?: number | null;
                 offset?: number;
             };

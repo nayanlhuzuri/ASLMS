@@ -10,6 +10,7 @@ import type {
   Permission,
   PoolCase,
   Recommendation,
+  Role,
   Transfer,
 } from "@/lib/api/types";
 
@@ -29,7 +30,7 @@ export const ADMIN_FNS: Permission[] = [
 
 export const REF = "ASLMS-GHC-CASE-2026-000001";
 
-export function membership(code: string, functions: Permission[], primary = true, role: Me["user"]["role"] = "dept_admin") {
+export function membership(code: string, functions: Permission[], primary = true, role: Role = "dept_admin") {
   return {
     id: `m-${code}`,
     office: { code, name: code, kind: "department" },

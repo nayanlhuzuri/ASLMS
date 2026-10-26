@@ -7,7 +7,7 @@ import uuid
 from datetime import date, datetime
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 from aslms.domain.reference import OfficeKind, Permission, Role
 
@@ -47,8 +47,14 @@ class UserOut(BaseModel):
     id: uuid.UUID
     email: str
     full_name: str
-    role: Role
-    office: OfficeOut
+    role: Role | None = Field(
+        description="the primary membership's type (display); null only for a login with no office yet "
+        "(office-head-picker)"
+    )
+    office: OfficeOut | None = Field(
+        description="the primary membership's office (display); null only for a login with no office yet "
+        "(office-head-picker)"
+    )
     designation: str | None
     mobile: str | None
     is_active: bool
@@ -85,8 +91,11 @@ class UserCreateIn(BaseModel):
     email: EmailStr
     password: str = Field(min_length=10, max_length=200)
     full_name: str = Field(min_length=2, max_length=200)
-    role: Role
-    office_code: str = Field(min_length=1, max_length=40)
+    role: Role | None = Field(
+        None,
+        description="with `office_code`; both null create a login with no office yet (Super Administrator)",
+    )
+    office_code: str | None = Field(None, min_length=1, max_length=40)
     designation: str | None = Field(None, max_length=200)
     designation_id: uuid.UUID | None = None
     mobile: str | None = Field(None, max_length=20)
@@ -127,7 +136,7 @@ class OverrideOut(BaseModel):
 
 class UserFunctionsOut(BaseModel):
     user_id: uuid.UUID
-    role: Role
+    role: Role | None
     functions: list[Permission]
     overrides: list[OverrideOut]
 
@@ -1877,15 +1886,22 @@ class MembershipDocumentOut(BaseModel):
 
 
 class HeadIn(BaseModel):
-    """The head of a department being created or reactivated: an existing login by e-mail, or a new login
-    (e-mail, name, password)."""
+    """The head of a department being created or reactivated (design `office-head-picker`, decision 6): an existing
+    login, by `user_id` (the portal) or by exact `email` (the CLI), exactly one of the two, including a login with
+    no office yet. The new-login fields (`full_name`, `password`, `mobile`) are retired and answer 422."""
 
-    email: EmailStr
-    full_name: str | None = Field(None, min_length=2, max_length=200)
+    model_config = ConfigDict(extra="forbid")
+
+    user_id: uuid.UUID | None = None
+    email: EmailStr | None = None
     designation: str | None = Field(None, max_length=200)
     designation_id: uuid.UUID | None = None
-    mobile: str | None = Field(None, max_length=20)
-    password: str | None = Field(None, min_length=10, max_length=200)
+
+    @model_validator(mode="after")
+    def _one_person(self) -> HeadIn:
+        if (self.user_id is None) == (self.email is None):
+            raise ValueError("name the head by exactly one of user_id or email")
+        return self
 
 
 class OfficeReactivateIn(BaseModel):

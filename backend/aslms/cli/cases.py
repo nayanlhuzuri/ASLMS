@@ -63,5 +63,6 @@ def show(
         rprint(
             f"status={case.status.value} provisional={case.is_provisional} merged={case.merged_into_case_id}"
         )
-        rprint(f"bases for {user.email} ({user.role.value}): {basis}")
+        role = user.role.value if user.role is not None else "no office"
+        rprint(f"bases for {user.email} ({role}): {basis}")
         rprint("[green]visible[/green]" if basis else "[red]not visible[/red]")

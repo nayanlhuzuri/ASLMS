@@ -5,11 +5,16 @@
  * placement rules allow, the API refuses the rest; a department-tier office with its head), edit, deactivate (the
  * API's dependency counts shown on 409), reactivate; the department admin and head; the first department admin
  * and the admin swap (super admin, `users.create`).
+ *
+ * Design office-head-picker (decisions 1, 4, 8, 10 and 11): the head is chosen with the User Picker from people who
+ * already have a login, with the designation from the State-wide list; "Not in ASLMS Yet?" keeps the half-filled form
+ * in `sessionStorage` (`aslms.officeDraft`, no secret in it), opens New User with No Office Yet ticked, and comes back
+ * with `?head=<id>` (Reactivate: `?reactivate=1` opens the dialog again).
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 
 import {
   Badge,
@@ -24,10 +29,11 @@ import {
   SelectField,
   TextArea,
   TextField,
+  UserPicker,
 } from "@/components/ui";
 import { api, ApiError } from "@/lib/api/client";
 import { labelOf, useLabels, useMe } from "@/lib/api/hooks";
-import type { OfficeDetail, OfficeKind, OfficeNode, UserLookup, UserOut } from "@/lib/api/types";
+import type { Designation, OfficeDetail, OfficeKind, OfficeNode, UserChoice, UserLookup, UserOut } from "@/lib/api/types";
 import { can, isSuperAdmin, readsAudit } from "@/lib/can";
 import { formatDate, formatNumber } from "@/lib/format";
 import { T } from "@/lib/messages";
@@ -36,7 +42,7 @@ import { useAction } from "@/lib/useAction";
 
 import a from "./admin.module.css";
 
-import { DesignationInput } from "./Users";
+import { DesignationInput, useDesignations } from "./Users";
 
 export const DEPARTMENT_TIER: readonly string[] = ["department", "central", "advocate_general"];
 
@@ -94,46 +100,125 @@ export function OfficesTree() {
   );
 }
 
-interface HeadDraft {
-  email: string;
-  full_name: string;
-  password: string;
-  designation: string;
-  mobile: string;
+export interface HeadDraft {
+  user: UserChoice | null;
+  designationId: string;
 }
 
-const EMPTY_HEAD: HeadDraft = { email: "", full_name: "", password: "", designation: "", mobile: "" };
+export const EMPTY_HEAD: HeadDraft = { user: null, designationId: "" };
 
-function headBody(h: HeadDraft) {
-  return {
-    email: h.email.trim(),
-    full_name: h.full_name.trim() || null,
-    password: h.password || null,
-    designation: h.designation.trim() || null,
-    mobile: h.mobile.trim() || null,
-  };
+/** `head` of `POST /admin/offices` and of the reactivation (decision 6): always the person's id. */
+export function headBody(h: HeadDraft, designations: Designation[] | undefined) {
+  const d = designations?.find((x) => x.id === h.designationId);
+  return { user_id: h.user?.id ?? null, designation_id: h.designationId || null, designation: d?.name ?? null };
 }
 
-function HeadFields({ value, onChange }: { value: HeadDraft; onChange: (v: HeadDraft) => void }) {
+export function headReady(h: HeadDraft): boolean {
+  return !!h.user && !!h.designationId;
+}
+
+export const OFFICE_DRAFT_KEY = "aslms.officeDraft";
+
+/** The half-filled New Office form (decision 8): no secret in it. */
+export interface OfficeDraft {
+  code: string;
+  name: string;
+  kind: string;
+  parent: string;
+  validFrom: string;
+  notes: string;
+  designationId: string;
+}
+
+function readDraft(): OfficeDraft | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(OFFICE_DRAFT_KEY);
+    return raw ? (JSON.parse(raw) as OfficeDraft) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeDraft(draft: OfficeDraft) {
+  try {
+    window.sessionStorage.setItem(OFFICE_DRAFT_KEY, JSON.stringify(draft));
+  } catch {
+    // storage refused (private mode): the form is simply not kept
+  }
+}
+
+export function clearOfficeDraft() {
+  try {
+    window.sessionStorage.removeItem(OFFICE_DRAFT_KEY);
+  } catch {
+    // nothing kept
+  }
+}
+
+/** The address of New User for a person who is not in ASLMS yet, coming back to `back` (decision 8). */
+export function addUserHref(back: string): string {
+  return `/admin/users/new?no_office=1&return=${encodeURIComponent(back)}`;
+}
+
+/** Puts the person of `?head=<id>` in the picker (decision 8: back from New User). */
+function usePickedHead(headId: string | null | undefined, set: (user: UserChoice) => void) {
+  const picked = useQuery({
+    queryKey: ["admin", "users", headId, "picked-head"],
+    queryFn: () => api<UserOut>(`/admin/users/${encodeURIComponent(headId ?? "")}`),
+    enabled: !!headId,
+  });
+  const data = picked.data;
+  useEffect(() => {
+    if (data) set(data);
+    // the setter is the page's state update; only a new answer applies
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
+}
+
+/** Decision 11: a heading, one muted line, the User Picker and the Designation dropdown on one row, the link below. */
+export function HeadSection({
+  value,
+  onChange,
+  addUser,
+}: {
+  value: HeadDraft;
+  onChange: (v: HeadDraft) => void;
+  addUser: { href: string; onFollow?: () => void };
+}) {
+  const designations = useDesignations();
   return (
-    <fieldset className={`stack ${a.fieldset}`}>
-      <legend>{T.offices.headSection}</legend>
+    <section className="stack" aria-label={T.offices.headSection}>
+      <h3>{T.offices.headSection}</h3>
       <p className="muted">{T.offices.headIntro}</p>
       <div className="row">
-        <TextField label={T.users.email} type="email" required value={value.email} onChange={(e) => onChange({ ...value, email: e.target.value })} />
-        <TextField label={T.auth.fullName} value={value.full_name} onChange={(e) => onChange({ ...value, full_name: e.target.value })} />
-        <TextField
-          label={T.users.tempPassword}
-          type="password"
-          autoComplete="new-password"
-          hint={T.users.tempPasswordHint}
-          value={value.password}
-          onChange={(e) => onChange({ ...value, password: e.target.value })}
-        />
-        <DesignationInput value={value.designation} onChange={(designation) => onChange({ ...value, designation })} />
-        <TextField label={T.users.mobile} type="tel" value={value.mobile} onChange={(e) => onChange({ ...value, mobile: e.target.value })} />
+        <div className={a.headPerson}>
+          <UserPicker
+            label={T.offices.headPerson}
+            required
+            includeWithoutOffice
+            value={value.user}
+            onChange={(user) => onChange({ ...value, user })}
+          />
+        </div>
+        <div className={a.headDesignation}>
+          <SelectField
+            label={T.offices.headDesignation}
+            hint={T.offices.headDesignationHint}
+            required
+            value={value.designationId}
+            placeholder=""
+            options={(designations.data ?? []).map((d) => ({ value: d.id, label: d.name }))}
+            onChange={(e) => onChange({ ...value, designationId: e.target.value })}
+          />
+        </div>
       </div>
-    </fieldset>
+      <p>
+        <Link href={addUser.href} onClick={addUser.onFollow}>
+          {T.offices.addUserLink}
+        </Link>
+      </p>
+    </section>
   );
 }
 
@@ -141,10 +226,26 @@ export function NewOfficeForm() {
   const router = useRouter();
   const params = useSearchParams();
   const labels = useLabels();
-  const [form, setForm] = useState({ code: "", name: "", kind: "", parent: params.get("parent") ?? "", notes: "", validFrom: "" });
-  const [head, setHead] = useState<HeadDraft>(EMPTY_HEAD);
+  const designations = useDesignations();
+  // the half-filled form kept before "Not in ASLMS Yet?" (decision 8); New User comes back by a client navigation
+  const [kept] = useState(readDraft);
+  const [form, setForm] = useState(() => ({
+    code: kept?.code ?? "",
+    name: kept?.name ?? "",
+    kind: kept?.kind ?? "",
+    parent: kept?.parent || (params.get("parent") ?? ""),
+    notes: kept?.notes ?? "",
+    validFrom: kept?.validFrom ?? "",
+  }));
+  const [head, setHead] = useState<HeadDraft>({ user: null, designationId: kept?.designationId ?? "" });
   const save = useAction();
   const needsHead = DEPARTMENT_TIER.includes(form.kind);
+  const headId = params.get("head");
+  usePickedHead(headId, (user) => setHead((h) => ({ ...h, user })));
+
+  function keepDraft() {
+    writeDraft({ ...form, designationId: head.designationId });
+  }
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -158,11 +259,19 @@ export function NewOfficeForm() {
           parent_code: form.parent.trim().toUpperCase(),
           notes: form.notes.trim() || null,
           valid_from: form.validFrom || null,
-          head: needsHead ? headBody(head) : null,
+          head: needsHead ? headBody(head, designations.data) : null,
         },
       }),
     );
-    if (out.ok) router.push(`/admin/offices/${encodeURIComponent(out.value.code)}`);
+    if (out.ok) {
+      clearOfficeDraft();
+      router.push(`/admin/offices/${encodeURIComponent(out.value.code)}`);
+    }
+  }
+
+  function cancel() {
+    clearOfficeDraft();
+    router.push("/admin/offices");
   }
 
   return (
@@ -192,11 +301,16 @@ export function NewOfficeForm() {
         <TextField label={T.offices.validFrom} hint={T.offices.hints.validFrom} type="date" value={form.validFrom} onChange={(e) => setForm({ ...form, validFrom: e.target.value })} />
       </div>
       <TextArea label={T.offices.notes} hint={T.offices.hints.notes} rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
-      {needsHead ? <HeadFields value={head} onChange={setHead} /> : null}
+      {needsHead ? (
+        <HeadSection value={head} onChange={setHead} addUser={{ href: addUserHref("/admin/offices/new"), onFollow: keepDraft }} />
+      ) : null}
       <ErrorBanner error={save.error} />
-      <div>
-        <Button type="submit" busy={save.busy}>
+      <div className="actions">
+        <Button type="submit" busy={save.busy} disabled={needsHead && !headReady(head)}>
           {T.offices.create}
+        </Button>
+        <Button variant="secondary" onClick={cancel}>
+          {T.cancel}
         </Button>
       </div>
     </form>
@@ -220,9 +334,10 @@ function InUseCounts({ error }: { error: unknown }) {
   );
 }
 
-export function OfficeDetailView({ code }: { code: string }) {
+export function OfficeDetailView({ code, reactivate: reopen, head: headId }: { code: string; reactivate?: boolean; head?: string }) {
   const me = useMe();
   const labels = useLabels();
+  const designations = useDesignations();
   const queryClient = useQueryClient();
   const key = ["admin", "office", code];
   const office = useQuery({ queryKey: key, queryFn: () => api<OfficeDetail>(`/admin/offices/${encodeURIComponent(code)}`) });
@@ -239,9 +354,10 @@ export function OfficeDetailView({ code }: { code: string }) {
   });
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ name: "", notes: "" });
-  const [reactivating, setReactivating] = useState(false);
+  const [reactivating, setReactivating] = useState(!!reopen);
   const [head, setHead] = useState<HeadDraft>(EMPTY_HEAD);
   const action = useAction();
+  usePickedHead(headId, (user) => setHead((h) => ({ ...h, user })));
   const manage = can(me.data, "offices.manage");
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["admin"] });
@@ -274,7 +390,7 @@ export function OfficeDetailView({ code }: { code: string }) {
     const out = await action.run(() =>
       api(`/admin/offices/${encodeURIComponent(code)}/reactivate`, {
         method: "POST",
-        body: isDept ? { head: headBody(head) } : null,
+        body: isDept ? { head: headBody(head, designations.data) } : null,
       }),
     );
     if (out.ok) {
@@ -377,11 +493,17 @@ export function OfficeDetailView({ code }: { code: string }) {
       ) : null}
       <Dialog open={reactivating} title={T.offices.reactivate} onClose={() => setReactivating(false)}>
         <form className="stack" onSubmit={reactivate}>
-          <HeadFields value={head} onChange={setHead} />
+          <HeadSection
+            value={head}
+            onChange={setHead}
+            addUser={{ href: addUserHref(`/admin/offices/${encodeURIComponent(code)}?reactivate=1`) }}
+          />
           <ErrorBanner error={action.error} />
-          <Button type="submit" busy={action.busy}>
-            {T.offices.reactivate}
-          </Button>
+          <div>
+            <Button type="submit" busy={action.busy} disabled={!headReady(head)}>
+              {T.offices.reactivate}
+            </Button>
+          </div>
         </form>
       </Dialog>
     </div>

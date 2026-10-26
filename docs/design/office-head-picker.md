@@ -580,3 +580,36 @@ Each state has no `doubled-heading` or `gutter` finding, the field-row rule hold
 ## Open questions
 
 None. The open question of the blocked revision is answered with (A), logins without an office (owner, 26 Oct 2026).
+
+## Deviations
+
+Written by the developer at build time (27 Oct 2026). None changes a business rule or an API field.
+
+1. **Migration number.** 0029, as the note foresaw: row 157's 0028 merged first.
+2. **Where the tests live.** The new pytest cases are in `tests/db/test_office_head_picker.py`,
+   `tests/db/test_cli_office_head_picker.py` and `tests/db/test_migration_0029.py`, and the new vitest cases in
+   `components/ui/userPicker.test.tsx` and `components/admin/officeHeadPicker.test.tsx` (the `NoDashboard` card
+   included), rather than spread over the files the note lists. The existing office and head tests
+   (`test_offices.py`, `test_department_head_required.py`, `test_api_offices.py`) that named a head as a new login now
+   create the person first as a login with no office, as the owner's flow does.
+3. **The service refuses the retired fields too.** The API answers 422 through `HeadIn`; a direct service caller that
+   passes `full_name`, `password` or `mobile` in `head` gets 400 `bad_field` ("… is retired: the head is an existing
+   login; add the person in Users first"). The person is resolved by `offices.resolve_head` before the office row is
+   written, so a refusal leaves nothing behind even outside a rolled-back request.
+4. **The ticket form's greyed reasons.** Decision 9 decides what a member of the department means: at the department
+   office they are named by `membership_id`, elsewhere in the department they are greyed ("Works in <code>; a head sits
+   at the department office"); a department admin is greyed for a requester who is not the Super Administrator; the
+   current head is greyed. Decision 2's generic "Already in this department as <type>" is therefore not used. The
+   designation dropdown is required on the ticket form as on the office forms (decision 4). For a department admin the
+   Department picker is shown fixed to their own department.
+5. **A Cancel button on New Office.** The draft is cleared "on Create Office or Cancel"; the form had no Cancel, so a
+   secondary Cancel (back to Offices) was added. Create Office stays the one primary.
+6. **The return address.** `?return=` is followed only when it is a portal path (`safeNext`); anything else goes to
+   the dashboard with `?head=`.
+7. **Options carry a name.** Each User Picker option has an `aria-label` of the name, the e-mail and, when greyed, the
+   reason, so a screen reader reads the person and not the highlighted fragments.
+8. **CLI.** `aslms users create --no-office --designation …` is refused (the designation belongs to an office), as the
+   API refuses it.
+9. **uicheck fixtures.** The labels fixture names the office kinds (so New Office can choose Department), the Users
+   fixture has one login with no office yet, and New User's e-mail check for a `new.*` address answers 404 as the API
+   does.

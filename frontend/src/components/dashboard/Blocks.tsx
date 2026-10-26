@@ -492,6 +492,17 @@ export function TicketsBlock({ data }: { data: TicketCounts }) {
 
 export function NoDashboard({ me }: { me: Me }) {
   const entries = navFor(me).filter((e) => e.href !== "/");
+  // design office-head-picker, decision 19: a login with no office yet (or none left) holds no function
+  if ((me.memberships ?? []).filter((m) => m.is_active !== false).length === 0) {
+    return (
+      <Card title={T.dash.noOfficeTitle}>
+        <p>{T.dash.noOfficeText}</p>
+        <p>
+          <Link href="/profile">{T.shell.profile}</Link>
+        </p>
+      </Card>
+    );
+  }
   return (
     <Card title={T.dash.noDashboard}>
       <p>{T.dash.noDashboardText}</p>

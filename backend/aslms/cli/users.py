@@ -116,14 +116,36 @@ def replace_super_admin(
 def create(
     email: str = typer.Option(..., "--email"),
     full_name: str = typer.Option(..., "--name"),
-    role: str = typer.Option(..., "--type", help="user type: " + ", ".join(r.value for r in Role)),
-    office: str = typer.Option(..., "--office", help="office code"),
+    role: str | None = typer.Option(None, "--type", help="user type: " + ", ".join(r.value for r in Role)),
+    office: str | None = typer.Option(None, "--office", help="office code"),
+    no_office: bool = typer.Option(
+        False,
+        "--no-office",
+        help="a login with no office yet, to be named head of a department being created",
+    ),
     designation: str | None = typer.Option(None, "--designation"),
     password: str = typer.Option(..., "--password", prompt=True, hide_input=True, confirmation_prompt=True),
 ) -> None:
-    """Create a user with a type in an office (acting as the super admin)."""
+    """Create a user with a type in an office, or with `--no-office` a login with no office yet (acting as the
+    super admin; design `office-head-picker`, decision 21). Exactly one form: `--type` and `--office`, or
+    `--no-office`."""
+    if no_office == bool(role or office) or (not no_office and not (role and office)):
+        raise typer.BadParameter("give --type and --office, or --no-office")
+    if no_office and designation:
+        raise typer.BadParameter("the designation belongs to an office; leave it out with --no-office")
     with session_scope() as s:
         actor, actor_user = _actor(s)
+        if no_office:
+            if actor_user is None:
+                raise typer.BadParameter("there is no super admin yet; run create-super-admin first")
+            try:
+                user = create_user(
+                    s, actor, email=email, password=password, full_name=full_name, role=None, office=None
+                )
+            except UserError as exc:
+                raise typer.BadParameter(str(exc)) from exc
+            rprint(f"[green]created {user.email} (no office yet)[/green]")
+            return
         off = _office(s, office)
         try:
             r = Role(role)
