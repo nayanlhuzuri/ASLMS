@@ -2669,3 +2669,18 @@ Row 154, design `docs/design/partial-code-match.md` (approved by the owner 25 Oc
 **Left for later**
 - Apply 0027 with the `migrate` step after the merge, then rebuild.
 - The per-code weight override and Notes field leaving the mapping form belong to row 153's polish rounds.
+
+## Department Mapping layout, owner changes (2026-10-26)
+Owner requests of 26 Oct 2026 after looking at round 2 (row 162); commits c21e158 and 76b2084 on `main`, frontend
+styles and markup only, no API or rule change.
+
+**Decisions and reasons**
+1. Recommended From Cause Lists moves from the side column below the Counsel Codes list (changes design
+   `portal-ui-polish-2` decision 42's layout, not its content): the side column squeezed both lists.
+2. Each recommended code is one row where the box is at least 860 px wide: Code | entries and last seen |
+   example case | Office and Map; a "Partly matches" line or an error takes a full-width line under it;
+   narrower boxes keep the stacked entry. A card grid was tried first and the owner found it confusing.
+3. The codes, keywords and watchlist tables and the recommended list each scroll inside a box of at most
+   min(60vh, 560px), a keyboard-reachable labelled region, so a long list never stretches the page.
+4. The add rows' narrow column (Code, CNR, Kind) is 220 px, not 180 px: a field's own minimum width is 200 px,
+   so the box used to spill into the gap before Office.
