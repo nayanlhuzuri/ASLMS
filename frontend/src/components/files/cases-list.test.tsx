@@ -9,7 +9,7 @@ import { browserApi, expectDataTable, json, makeMe, renderWithClient } from "@/t
 import { Held } from "./Held";
 import { Sent } from "./Sent";
 
-function summary(id: string, caseNo: string, ref = `ASLMS/GOA/CASE/2026/${id}`): CaseSummary {
+function summary(id: string, caseNo: string, ref = `ASLMS/GHC/CASE/2026/${id}`): CaseSummary {
   return {
     id,
     ref_no: ref,
@@ -139,7 +139,7 @@ describe("the custody lists of the Case inbox (case-workspace-admin, decisions 1
   it("Show: With me calls scope=me; With my offices sends scope=office at once, through the URL; All leaves the list", async () => {
     const api = browserApi({ "GET /custody/held": held([{ case: summary("c1", "WP(C)/1/2026"), card: card() }]) });
     const { unmount } = renderWithClient(<Held tab="with-me" params={{ held: "me" }} />);
-    expect(await screen.findByRole("link", { name: "WP(C)/1/2026" })).toHaveAttribute("href", "/cases/ASLMS-GOA-CASE-2026-c1");
+    expect(await screen.findByRole("link", { name: "WP(C)/1/2026" })).toHaveAttribute("href", "/cases/ASLMS-GHC-CASE-2026-c1");
     const call = api.calls.find((c) => c.path.startsWith("/custody/held"))!;
     expect(call.path).toContain("scope=me");
     expect(call.path).not.toContain("overdue");
@@ -287,7 +287,7 @@ describe("the custody lists of the Case inbox (case-workspace-admin, decisions 1
     expect(within(panel).getByText("Section Officer, Secondary Education")).toBeInTheDocument();
     expect(within(panel).getByText("Joint Secretary, EDU")).toBeInTheDocument();
     for (const label of ["With", "Action Needed", "Since", "Due By", "From"]) expect(within(panel).getByText(label)).toBeInTheDocument();
-    expect(within(panel).getByRole("link", { name: "Open Case Page" })).toHaveAttribute("href", "/cases/ASLMS-GOA-CASE-2026-c1");
+    expect(within(panel).getByRole("link", { name: "Open Case Page" })).toHaveAttribute("href", "/cases/ASLMS-GHC-CASE-2026-c1");
     expect(panel.querySelectorAll("[data-variant='primary']")).toHaveLength(1);
     await userEvent.click(within(panel).getByRole("button", { name: "Close" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());

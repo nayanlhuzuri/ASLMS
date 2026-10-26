@@ -54,19 +54,24 @@ def _rows(engine, *, only_new: bool = False) -> list[tuple]:
 
 def _seed(engine) -> None:
     """Today's seed. On a database below 0027 (no `weight_counsel_code_partial`, design partial-code-match) its
-    scoring-settings step is left out: the settings are not what these tests are about."""
+    scoring-settings step is left out, and below 0028 (no `courts.ref_code`, design case-ref-court-prefix) its courts
+    step: neither is what these tests are about."""
     with engine.connect() as conn:
-        has_partial = conn.execute(
+        has_partial, has_ref_code = conn.execute(
             sa.text(
                 "select exists (select 1 from information_schema.columns where table_name = 'scoring_settings' "
-                "and column_name = 'weight_counsel_code_partial')"
+                "and column_name = 'weight_counsel_code_partial'), "
+                "exists (select 1 from information_schema.columns where table_name = 'courts' "
+                "and column_name = 'ref_code')"
             )
-        ).scalar()
+        ).one()
     with ExitStack() as stack:
         if not has_partial:
             stack.enter_context(
                 patch.object(seed_module.scoring_settings, "seed_default", lambda s, report: None)
             )
+        if not has_ref_code:
+            stack.enter_context(patch.object(seed_module, "seed_courts", lambda s, report: None))
         with sessionmaker(bind=engine)() as s:
             seed_all(s)
             s.commit()

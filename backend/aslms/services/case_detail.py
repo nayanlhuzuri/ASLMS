@@ -36,6 +36,7 @@ from aslms.domain.ownership import CaseOwnership, OwnershipRole, OwnershipStatus
 from aslms.domain.reference import EventType, Permission, RefEventType
 from aslms.domain.workflow import CaseNote
 from aslms.services import access, inbox, stages, workflow_actions
+from aslms.services.refno import current_case_ref_no
 from aslms.services.visibility import (
     alert_document_condition,
     alert_note_condition,
@@ -735,6 +736,19 @@ def _timeline_stmt(session: Session, user: User | None, case: Case, *, unrestric
     return stmt.where(or_(Event.type.in_(types), dept_rows & mine, docs))
 
 
+# design case-ref-court-prefix, decision 22: the payload keys that hold a case number are shown as the current number
+# (an old `GOA` number becomes `GHC`); the stored payload is never changed
+TIMELINE_CASE_REF_KEYS = ("merged_ref_no", "into_ref_no", "from_ref_no", "to_ref_no")
+
+
+def _present_payload(payload: dict | None) -> dict:
+    out = dict(payload or {})
+    for key in TIMELINE_CASE_REF_KEYS:
+        if isinstance(out.get(key), str):
+            out[key] = current_case_ref_no(out[key])
+    return out
+
+
 def timeline(session: Session, user: User, case: Case, *, limit=None, offset=None) -> Page:
     require_visible(session, user, case)
     stmt = _timeline_stmt(session, user, case).order_by(Event.occurred_at.desc(), Event.id.desc())
@@ -766,7 +780,7 @@ def timeline(session: Session, user: User, case: Case, *, limit=None, offset=Non
                 "icon_key": ref.icon_key if ref else None,
                 "occurred_at": e.occurred_at,
                 "actor_name": actors.get(e.actor_user_id) if e.actor_user_id else None,
-                "payload": e.payload or {},
+                "payload": _present_payload(e.payload),
             }
         )
     return Page(items, total)

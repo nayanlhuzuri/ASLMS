@@ -106,7 +106,7 @@ def test_list_is_own_notifications_only(api, world, alerted):
     assert api.get("/alerts?kind=new_order", headers=off1).json()["total"] == 0
     assert api.get("/alerts?severity=high&unread=true", headers=off1).json()["total"] == 1
     assert api.get(f"/alerts?case={alerted['edu_case_ref']}", headers=off1).json()["total"] == 1
-    assert api.get("/alerts?case=ASLMS-GOA-CASE-1999-999999", headers=off1).json()["total"] == 0
+    assert api.get("/alerts?case=ASLMS-GHC-CASE-1999-999999", headers=off1).json()["total"] == 0
     assert api.get("/alerts?kind=nonsense", headers=off1).status_code == 400
     # detail by id and by ref_no; the other department's alert answers 404
     r = api.get(f"/alerts/{alerted['edu_alert_ref']}", headers=off1)

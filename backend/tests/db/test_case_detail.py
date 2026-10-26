@@ -358,7 +358,7 @@ def test_detail_endpoints_answer_404_and_401(api, world, loaded, path):
     health = login(api, "health_off")
     assert api.get(f"/cases/{loaded}{path}", headers=health).status_code == 404
     assert api.get(f"/cases/{uuid.uuid4()}{path}", headers=health).status_code == 404
-    assert api.get(f"/cases/ASLMS-GOA-CASE-2099-000001{path}", headers=health).status_code == 404
+    assert api.get(f"/cases/ASLMS-GHC-CASE-2099-000001{path}", headers=health).status_code == 404
     assert api.get(f"/cases/{loaded}{path}").status_code == 401
     assert api.get(f"/cases/{loaded}{path}", headers=login(api, "edu_off1")).status_code == 200
 

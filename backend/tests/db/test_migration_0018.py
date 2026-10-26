@@ -35,13 +35,13 @@ def test_0018_upgrade_and_downgrade(db_url, engine):
     with sessionmaker(bind=engine)() as s:
         seed_all(s)
         s.commit()
+        # made at head: the ORM's courts carry `ref_code` (migration 0028), which a database at 0017 has not
+        case = make_case(s)
+        s.commit()
+        case_id = case.id
     command.downgrade(cfg, "0017")
     try:
         assert "next_date_status" not in _cols(engine, "orders")
-        with sessionmaker(bind=engine)() as s:
-            case = make_case(s)
-            s.commit()
-            case_id = case.id
         with engine.begin() as conn:
             conn.execute(
                 sa.text(

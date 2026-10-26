@@ -26,6 +26,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from aslms.core.clock import today_ist
+from aslms.domain.courts import Court
 from aslms.domain.events import Event, EventVisibility
 from aslms.domain.org import Designation, Office, User, UserMembership
 from aslms.domain.ownership import CaseOwnership, OwnershipStatus
@@ -310,6 +311,9 @@ def create_office(
         )
     if find_office(session, code) is not None:
         raise DuplicateCode(f"an office with code {code} already exists")
+    if session.scalar(select(Court.id).where(Court.ref_code == code).limit(1)) is not None:
+        # design case-ref-court-prefix, decision 3: `ASLMS/GHC/NOTE/…` would read as a court's number
+        raise OfficeError(f"{code} is a court's code in case numbers and cannot be an office code")
     if kind in DEPARTMENT_TIER_KINDS and not head:
         raise HeadRequired("a department is created with its head")
     office = Office(

@@ -10,8 +10,8 @@ import { browserApi, expectDataTable, json, makeMe, renderWithClient, type Brows
 
 import { ReviewList } from "./ReviewList";
 
-const CASE = { id: "c-1", ref_no: "ASLMS/GOA/CASE/2026/000001", cnr: "ASHC010012342026", case_no_text: "WP(C)/1234/2026" };
-const CASE_PATH = "/cases/ASLMS-GOA-CASE-2026-000001";
+const CASE = { id: "c-1", ref_no: "ASLMS/GHC/CASE/2026/000001", cnr: "ASHC010012342026", case_no_text: "WP(C)/1234/2026" };
+const CASE_PATH = "/cases/ASLMS-GHC-CASE-2026-000001";
 const SOON = addDays(todayIst(), 10);
 const LATER = addDays(todayIst(), 20);
 
@@ -35,7 +35,7 @@ function enterItem(extra: Partial<NextDateReviewItem> = {}): NextDateReviewItem 
   return {
     kind: "enter",
     id: "o-9",
-    case: { ...CASE, id: "c-2", ref_no: "ASLMS/GOA/CASE/2026/000002", case_no_text: "WA/55/2026" },
+    case: { ...CASE, id: "c-2", ref_no: "ASLMS/GHC/CASE/2026/000002", case_no_text: "WA/55/2026" },
     order: { id: "o-9", order_no: "2", order_date: "2026-10-13", document_id: null },
     phrase: "List after the next date fixed in WP(C)/9/2026.",
     rule: "conflicting_dates",
@@ -191,7 +191,7 @@ describe("the actions (portal-next-dates, decisions 5-7, 9, 16, 17)", () => {
     expect(keys).toContain(JSON.stringify(["next-dates"]));
     expect(keys).toContain(JSON.stringify(["dashboard"]));
     expect(keys).toContain(JSON.stringify(["alerts"]));
-    expect(keys.some((k) => k.includes(CASE.ref_no) || k.includes("ASLMS-GOA-CASE-2026-000001"))).toBe(true);
+    expect(keys.some((k) => k.includes(CASE.ref_no) || k.includes("ASLMS-GHC-CASE-2026-000001"))).toBe(true);
   });
 
   it("Not correct posts only the filled fields and names the entered date", async () => {
@@ -224,7 +224,7 @@ describe("the actions (portal-next-dates, decisions 5-7, 9, 16, 17)", () => {
 
   it("Enter date posts the order the item stands for", async () => {
     const api = browserApi(
-      routes([enterItem()], { "POST /cases/ASLMS-GOA-CASE-2026-000002/next-dates": json(201, { next_date: SOON }) }),
+      routes([enterItem()], { "POST /cases/ASLMS-GHC-CASE-2026-000002/next-dates": json(201, { next_date: SOON }) }),
     );
     renderWithClient(<ReviewList params={{}} />);
     await userEvent.click(await screen.findByRole("button", { name: "Enter date for WA/55/2026" }));
@@ -240,13 +240,13 @@ describe("the actions (portal-next-dates, decisions 5-7, 9, 16, 17)", () => {
     await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(/is the next date of WA\/55\/2026\./));
     const post = api.calls.find((c) => c.method === "POST")!;
-    expect(post.path).toBe("/cases/ASLMS-GOA-CASE-2026-000002/next-dates");
+    expect(post.path).toBe("/cases/ASLMS-GHC-CASE-2026-000002/next-dates");
     expect(post.body).toEqual({ next_date: SOON, note: "As told in court", order: "o-9" });
   });
 
   it("a refused date, an entered date and a released case are said in words, in the dialog", async () => {
     let answer: Response = json(400, { detail: { code: "bad_field", message: "next_date is at most 548 days ahead" } });
-    browserApi(routes([enterItem()], { "POST /cases/ASLMS-GOA-CASE-2026-000002/next-dates": () => answer }));
+    browserApi(routes([enterItem()], { "POST /cases/ASLMS-GHC-CASE-2026-000002/next-dates": () => answer }));
     renderWithClient(<ReviewList params={{}} />);
     await userEvent.click(await screen.findByRole("button", { name: "Enter date for WA/55/2026" }));
     const dialog = screen.getByRole("dialog");

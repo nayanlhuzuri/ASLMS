@@ -270,7 +270,7 @@ describe("Working on (case-inbox-merge, decisions 8 and 9)", () => {
       "Case Details",
     ]);
     const row1 = screen.getByRole("row", { name: "Details of WP(C)/1/2026" });
-    expect(within(row1).getByRole("link", { name: "WP(C)/1/2026" })).toHaveAttribute("href", "/cases/ASLMS-GOA-CASE-2026-000001");
+    expect(within(row1).getByRole("link", { name: "WP(C)/1/2026" })).toHaveAttribute("href", "/cases/ASLMS-GHC-CASE-2026-000001");
     expect(within(row1).getByText("Overdue")).toBeInTheDocument();
     expect(within(row1).getByText("48 Hours")).toBeInTheDocument();
     expect(within(row1).getByText("Parawise comments")).toBeInTheDocument();
@@ -289,7 +289,7 @@ describe("Working on (case-inbox-merge, decisions 8 and 9)", () => {
     const api = browserApi(
       routes({
         "GET /inbox/mine": { items: [myCase(1, { custody: brief() }), myCase(2)], total: 2 },
-        "GET /cases/ASLMS-GOA-CASE-2026-000001/custody": {
+        "GET /cases/ASLMS-GHC-CASE-2026-000001/custody": {
           card: { remark: "please send parawise comments" },
           items: [],
           total: 1,
@@ -303,7 +303,7 @@ describe("Working on (case-inbox-merge, decisions 8 and 9)", () => {
     expect(await within(panel).findByText("please send parawise comments")).toBeInTheDocument();
     for (const label of ["With", "Action Needed", "Since", "Due By", "From"]) expect(within(panel).getByText(label)).toBeInTheDocument();
     expect(within(panel).getByText("Under Secretary, Education (you)")).toBeInTheDocument();
-    const custodyCalls = api.calls.filter((c) => c.path.startsWith("/cases/ASLMS-GOA-CASE-2026-000001/custody"));
+    const custodyCalls = api.calls.filter((c) => c.path.startsWith("/cases/ASLMS-GHC-CASE-2026-000001/custody"));
     expect(custodyCalls).toHaveLength(1);
     expect(custodyCalls[0]!.path).toContain("order=desc");
     expect(custodyCalls[0]!.path).toContain("limit=1");
@@ -314,7 +314,7 @@ describe("Working on (case-inbox-merge, decisions 8 and 9)", () => {
     await userEvent.click(screen.getByRole("row", { name: "Details of WP(C)/2/2026" }));
     const panel2 = await screen.findByRole("dialog", { name: "Case Details" });
     expect(within(panel2).getByText("No remark.")).toBeInTheDocument();
-    expect(api.calls.some((c) => c.path.startsWith("/cases/ASLMS-GOA-CASE-2026-000002/custody"))).toBe(false);
+    expect(api.calls.some((c) => c.path.startsWith("/cases/ASLMS-GHC-CASE-2026-000002/custody"))).toBe(false);
   });
 
   it("Show: With me reads /custody/held?scope=me, With my offices scope=office; All reads /inbox/mine", async () => {
@@ -421,7 +421,7 @@ describe("own work: Claimed by me and Disposed", () => {
     expect(within(screen.getByRole("row", { name: "Open WP(C)/2/2026" })).getByText("No stage set")).toBeInTheDocument();
     expect(lastUrl(api.calls, "/inbox/mine?")).toContain("view=claimed");
     await userEvent.click(row);
-    expect(nav.push).toHaveBeenCalledWith("/cases/ASLMS-GOA-CASE-2026-000001");
+    expect(nav.push).toHaveBeenCalledWith("/cases/ASLMS-GHC-CASE-2026-000001");
   });
 
   it("an empty view says when items appear", async () => {
@@ -519,7 +519,7 @@ describe("Department Cases", () => {
     browserApi(routes());
     renderWithClient(<InboxFrame tab="department" params={{}} />);
     await userEvent.click(await screen.findByRole("row", { name: "Open WP(C)/1/2026" }));
-    expect(nav.push).toHaveBeenCalledWith("/cases/ASLMS-GOA-CASE-2026-000001");
+    expect(nav.push).toHaveBeenCalledWith("/cases/ASLMS-GHC-CASE-2026-000001");
     expect(screen.queryByRole("button", { name: /release|return|unclaim/i })).toBeNull();
   });
 

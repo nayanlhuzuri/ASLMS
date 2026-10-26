@@ -100,7 +100,7 @@ function watch(extra: Partial<Watch> = {}): Watch {
   return {
     id: "w-1",
     cnr: "ASHC010012342025",
-    case_ref: "ASLMS/GOA/CASE/2025/000001",
+    case_ref: "ASLMS/GHC/CASE/2025/000001",
     office: { code: "EDU", name: "Education" },
     reason: "asked by the department",
     weight_override: null,
@@ -257,7 +257,7 @@ describe("counsel codes (design portal-ui-polish-2, decisions 39-42)", () => {
 
   it("Recommended From Cause Lists is always shown; Map posts the code with the chosen office and the code leaves", async () => {
     const unmapped: UnmappedCode[] = [
-      { code: "SC, PWD", entries: 1240, last_listed: "2026-10-09", example_case_ref: "ASLMS/GOA/CASE/2026/000042", partial_matches: [] },
+      { code: "SC, PWD", entries: 1240, last_listed: "2026-10-09", example_case_ref: "ASLMS/GHC/CASE/2026/000042", partial_matches: [] },
       { code: "SC, AGRI", entries: 12, last_listed: "2026-10-01", example_case_ref: null, partial_matches: [] },
     ];
     const api = browserApi({
@@ -273,7 +273,7 @@ describe("counsel codes (design portal-ui-polish-2, decisions 39-42)", () => {
     expect(within(panel).getByText("2 to review")).toBeInTheDocument();
     expect(within(panel).getByText("Nothing is mapped automatically.")).toBeInTheDocument();
     expect(calls(api, "GET", "/admin/counsel-codes/unmapped")[0]!.url).toContain("limit=100");
-    expect(within(panel).getByRole("link", { name: "ASLMS/GOA/CASE/2026/000042" })).toHaveAttribute("href", "/search?q=ASLMS%2FGOA%2FCASE%2F2026%2F000042");
+    expect(within(panel).getByRole("link", { name: "ASLMS/GHC/CASE/2026/000042" })).toHaveAttribute("href", "/search?q=ASLMS%2FGHC%2FCASE%2F2026%2F000042");
     expect(within(panel).getByText(/1,240 entries · last seen/)).toBeInTheDocument();
     const map = within(panel).getByRole("form", { name: "Map SC, PWD" });
     expect(within(map).getByRole("button", { name: "Map SC, PWD" })).toBeDisabled();
@@ -495,7 +495,7 @@ describe("watchlist", () => {
         json(201, ++n === 1 ? { ...watch({ id: "w-2", case_ref: null }), dossier_queued: true } : { ...watch({ id: "w-3" }), dossier_queued: false }),
     });
     renderWithClient(<Watchlist />);
-    expect(await screen.findByRole("link", { name: "ASLMS/GOA/CASE/2025/000001" })).toHaveAttribute("href", "/search?q=ASLMS%2FGOA%2FCASE%2F2025%2F000001");
+    expect(await screen.findByRole("link", { name: "ASLMS/GHC/CASE/2025/000001" })).toHaveAttribute("href", "/search?q=ASLMS%2FGHC%2FCASE%2F2025%2F000001");
     const form = screen.getByRole("form", { name: "Watchlist" });
     expect(within(form).queryByLabelText(/Reason/)).toBeNull();
     expect(within(form).queryByLabelText(/Weight/)).toBeNull();

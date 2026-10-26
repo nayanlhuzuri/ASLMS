@@ -17,7 +17,7 @@ import { browserApi, makeMe, renderWithClient } from "@/test/render";
 import { CalendarRedirect } from "./CalendarRedirect";
 import { MyCalendar } from "./MyCalendar";
 
-const CASE = { id: "c1", ref_no: "ASLMS/GOA/CASE/2026/000001", cnr: null, case_no_text: "WP(C)/1/2026" };
+const CASE = { id: "c1", ref_no: "ASLMS/GHC/CASE/2026/000001", cnr: null, case_no_text: "WP(C)/1/2026" };
 
 function item(date: string, kind: MyCalendarItem["kind"], extra: Partial<MyCalendarItem> = {}): MyCalendarItem {
   return {
@@ -160,7 +160,7 @@ describe("My calendar (portal-ui-redesign, decision 8)", () => {
       expect(lead).toHaveAttribute("data-lead", "lead");
       expect(within(lead).getByText(badge)).toBeInTheDocument();
     }
-    expect(within(rows[0]!).getByRole("link", { name: "WP(C)/1/2026" })).toHaveAttribute("href", "/cases/ASLMS-GOA-CASE-2026-000001");
+    expect(within(rows[0]!).getByRole("link", { name: "WP(C)/1/2026" })).toHaveAttribute("href", "/cases/ASLMS-GHC-CASE-2026-000001");
     expect(within(rows[0]!).getByText("Court 3 · item 14 · Admission")).toBeInTheDocument();
     expect(within(rows[1]!).getByText("Parawise comments")).toBeInTheDocument();
     expect(within(rows[2]!).getByRole("link", { name: "Open the Review" })).toHaveAttribute("href", "/alerts/next-dates?q=c3");

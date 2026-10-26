@@ -398,7 +398,7 @@ describe("Activity (decision 36)", () => {
             action: "ownership.claim",
             entity_type: "case",
             entity_id: null,
-            case: { id: "c-1", ref_no: "ASLMS/EDU/CASE/2026/000001", cnr: null, case_no_text: "WP(C)/2987/2026" },
+            case: { id: "c-1", ref_no: "ASLMS/GHC/CASE/2026/000001", cnr: null, case_no_text: "WP(C)/2987/2026" },
             actor: { user_id: "u-9", name: "Ravi Das", designation: null, office_code: "EDU" },
             ip: null,
             user_agent: null,

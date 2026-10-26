@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import type { CaseDetail, CaseOwnershipView, DocumentItem, Note, Ownership, OwnershipActions, Permission } from "@/lib/api/types";
+import { caseDetail as detail } from "@/test/caseDetail";
 import { resetNav } from "@/test/nav";
 import { browserApi, expectDataTable, json, makeMe, PRIMARY_SELECTOR, renderWithClient } from "@/test/render";
 import { CustodyTab } from "@/components/workflow/CustodyTab";
@@ -18,139 +19,9 @@ import { Overview } from "./Overview";
 import { Parties } from "./Parties";
 import { Timeline } from "./Timeline";
 
-const REF = "ASLMS-GOA-CASE-2026-000001";
+const REF = "ASLMS-GHC-CASE-2026-000001";
 const BASE = `/cases/${REF}`;
 const READ: Permission[] = ["cases.view_scope", "documents.view", "documents.download"];
-
-function detail(extra: Partial<CaseDetail> = {}): CaseDetail {
-  return {
-    id: "c-1",
-    ref_no: "ASLMS/GOA/CASE/2026/000001",
-    access_basis: ["owner"],
-    acts: [{ act_name_as_listed: "Constitution of India", national_act_code: "C001", section: "226" }],
-    advocates: [
-      { name_as_listed: "A. Das", side: "petitioner", counsel_code: null, bar_reg_no: null, is_current: true },
-      { name_as_listed: "SC, EDU", side: "respondent", counsel_code: "SC,EDU", bar_reg_no: null, is_current: true },
-    ],
-    applications: [{ ia_number: "IA(C)/1/2026", filing_date: "2026-02-01", party_name: "RAM", status: "pending" }],
-    bench: { bench_id: 2048, bench_name: "Single Bench", judge_names: "Hon'ble Justice X" },
-    claimable: false,
-    classification: {
-      bench_id: null,
-      bench_name: "Single Bench",
-      bench_type_code: 1,
-      category: "Service",
-      category_code: 12,
-      coram: "Justice X",
-      coram_designation: "Judge",
-      judicial_branch: "Civil",
-      napix_bench_id: 2048,
-      sub_category: "Transfer",
-    },
-    counts: { documents: 2, hearings: 7, links: 1, listings: 3, my_drafts: 0, notes: 4, orders: 5, timeline: 12 },
-    workflow: { note_mode: null, upload: false, set_stage: false, next_dates: false },
-    court: { est_code: "GAHC01", name: "Principal Seat at Guwahati" },
-    court_transfers: [{ from_court_text: "Court 1", to_court_text: "Court 3", transfer_date: "2026-03-01" }],
-    custody: {
-      can_recall: true,
-      can_send: true,
-      due_date: "2026-10-10",
-      holder_office: { code: "EDU-DSE", name: "Secondary Education" },
-      holder_user: { id: "u-7", full_name: "Officer One", designation: "SO" },
-      leg_seq_no: 2,
-      overdue: true,
-      overdue_days: 2,
-      pending_action: "prepare_reply",
-      pending_action_label: "Prepare reply",
-      reason: null,
-      remark: "Please draft the affidavit",
-      sent_by: { name: "Edu Admin", designation: "Under Secretary", office_code: "EDU" },
-      since: "2026-10-01T10:00:00Z",
-    },
-    dossier_status: "fetched",
-    identity: {
-      cnr: "ASHC010012342026",
-      court_est_name: "Gauhati High Court",
-      case_type_id: null,
-      case_type_text: "WP(C)",
-      reg_no: 1234,
-      reg_year: 2026,
-      case_no_text: "WP(C)/1234/2026",
-      filing_case_type_id: null,
-      filing_case_type_text: "WP(C)",
-      filing_no: 900,
-      filing_year: 2026,
-      filing_no_text: "WP(C)/900/2026",
-      filing_date: "2026-01-10",
-      registration_date: "2026-01-12",
-      date_first_list: "2026-01-20",
-    },
-    lower_courts: [{ case_no_text: "OA 1/2025", court_name: "Tribunal", decision_date: "2025-12-01", level: "tribunal" }],
-    merged_into_ref_no: null,
-    objections: [{ seq: 1, scrutiny_date: "2026-01-11", objection: "Index missing", compliance_by_date: null, receipt_date: null }],
-    ownership: {
-      primary: { office_code: "EDU", office_name: "Education", unit: null, officer: null, claimed_at: "2026-09-01T10:00:00Z" },
-      watchers: [],
-    },
-    parties: [
-      { name: "RAM KUMAR", party_no: 1, role: "petitioner", address: null, has_legal_heir: null, is_current: true },
-      { name: "STATE OF ASSAM", party_no: 1, role: "respondent", address: null, has_legal_heir: null, is_current: true },
-      { name: "DIRECTOR", party_no: 2, role: "respondent", address: null, has_legal_heir: null, is_current: true },
-    ],
-    parties_as_printed: {
-      petitioner_summary: "RAM KUMAR",
-      respondent_summary: "STATE OF ASSAM AND 1 OTHER",
-      pet_advocate: "A. Das",
-      res_advocate: "SC, EDU",
-    },
-    place: {
-      district_id: null,
-      district_name_as_listed: "Kamrup",
-      filing_district_code: 1,
-      filing_state_code: 18,
-      fir_no: null,
-      fir_year: null,
-      main_matter_text: null,
-      police_st_code: null,
-      police_station: null,
-      state_id: null,
-      state_name_as_listed: "Assam",
-      uniform_code: null,
-    },
-    portal: {
-      closed_at: null,
-      created_at: "2026-01-20T10:00:00Z",
-      created_by: null,
-      dossier_stale: false,
-      first_seen_source: "causelist",
-      is_provisional: false,
-      is_tracked: true,
-      last_full_refresh_at: "2026-10-01T10:00:00Z",
-      last_status_refresh_at: "2026-10-11T10:00:00Z",
-      merged_into_case_id: null,
-      updated_at: "2026-10-11T10:00:00Z",
-      updated_by: null,
-    },
-    stage: { label: "Reply due", office_code: "EDU", phase: "pleadings", response_mode: "reply", set_at: "2026-10-01T10:00:00Z", stage: "reply_due" },
-    status: {
-      status: "pending",
-      date_filing_disp: null,
-      date_judgement_pronounced: null,
-      date_judgement_reserved: null,
-      disposal_date: null,
-      disposal_nature: null,
-      disposal_type: null,
-      goshwara_no: "G-17",
-      last_hearing_date: "2026-09-25",
-      next_hearing_date: "2026-11-20",
-      next_purpose: "For orders",
-      reason_for_rej: null,
-      short_order: null,
-    },
-    writ_info: [{ appellate_authority: "Division Bench", appellate_case_number: "WA/5/2026" }],
-    ...extra,
-  } as CaseDetail;
-}
 
 function actions(extra: Partial<OwnershipActions> = {}): OwnershipActions {
   return {
@@ -258,11 +129,11 @@ describe("the frame", () => {
   });
 
   it("a merged case links to the surviving case instead of tabs", async () => {
-    browserApi({ "GET /me": me(), [`GET ${BASE}`]: detail({ merged_into_ref_no: "ASLMS/GOA/CASE/2026/000009" }) });
+    browserApi({ "GET /me": me(), [`GET ${BASE}`]: detail({ merged_into_ref_no: "ASLMS/GHC/CASE/2026/000009" }) });
     renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
-    expect(await screen.findByRole("link", { name: "Open ASLMS/GOA/CASE/2026/000009" })).toHaveAttribute(
+    expect(await screen.findByRole("link", { name: "Open ASLMS/GHC/CASE/2026/000009" })).toHaveAttribute(
       "href",
-      "/cases/ASLMS-GOA-CASE-2026-000009",
+      "/cases/ASLMS-GHC-CASE-2026-000009",
     );
     expect(screen.queryByRole("navigation", { name: "Case Sections" })).toBeNull();
   });
@@ -768,8 +639,8 @@ describe("tabs", () => {
   });
 
   it("linked cases: hidden ones are text, the graph draws nodes and edges and says when truncated", async () => {
-    const visibleCase = { id: "c-2", ref_no: "ASLMS/GOA/CASE/2026/000002", cnr: "ASHC010000022026", case_no_text: "WA/2/2026", is_provisional: false, petitioner_summary: null, respondent_summary: null, status: "pending", next_hearing_date: null, last_listed_on: null, last_listing: null };
-    const hiddenCase = { ...visibleCase, id: "c-3", ref_no: "ASLMS/GOA/CASE/2026/000003", case_no_text: "WP(C)/3/2026" };
+    const visibleCase = { id: "c-2", ref_no: "ASLMS/GHC/CASE/2026/000002", cnr: "ASHC010000022026", case_no_text: "WA/2/2026", is_provisional: false, petitioner_summary: null, respondent_summary: null, status: "pending", next_hearing_date: null, last_listed_on: null, last_listing: null };
+    const hiddenCase = { ...visibleCase, id: "c-3", ref_no: "ASLMS/GHC/CASE/2026/000003", case_no_text: "WP(C)/3/2026" };
     const api = browserApi({
       "GET /me": me(),
       [`GET ${BASE}`]: detail(),
@@ -781,7 +652,7 @@ describe("tabs", () => {
       },
       [`GET ${BASE}/links/graph`]: {
         nodes: [
-          { key: "c-1", case: { ...visibleCase, id: "c-1", ref_no: "ASLMS/GOA/CASE/2026/000001", case_no_text: "WP(C)/1234/2026" }, case_no_text: "WP(C)/1234/2026", visible: true },
+          { key: "c-1", case: { ...visibleCase, id: "c-1", ref_no: "ASLMS/GHC/CASE/2026/000001", case_no_text: "WP(C)/1234/2026" }, case_no_text: "WP(C)/1234/2026", visible: true },
           { key: "c-2", case: visibleCase, case_no_text: "WA/2/2026", visible: true },
           { key: "c-3", case: hiddenCase, case_no_text: "WP(C)/3/2026", visible: false },
         ],
@@ -794,13 +665,13 @@ describe("tabs", () => {
     });
     const { container } = renderWithClient(<Links caseRef={REF} />);
     const table = await screen.findByRole("table", { name: "Linked Cases" });
-    expect(within(table).getByRole("link", { name: "WA/2/2026" })).toHaveAttribute("href", "/cases/ASLMS-GOA-CASE-2026-000002");
+    expect(within(table).getByRole("link", { name: "WA/2/2026" })).toHaveAttribute("href", "/cases/ASLMS-GHC-CASE-2026-000002");
     expect(within(table).getByText("WP(C)/3/2026").closest("a")).toBeNull();
     await screen.findByText("The graph is cut short; not every connected case is drawn.");
     expect(container.querySelectorAll("[data-node]")).toHaveLength(3);
     expect(container.querySelectorAll("[data-edge]")).toHaveLength(2);
     const svg = screen.getByRole("img", { name: "Relationship Graph" });
-    expect(within(svg).getByRole("link", { name: "WA/2/2026" })).toHaveAttribute("href", "/cases/ASLMS-GOA-CASE-2026-000002");
+    expect(within(svg).getByRole("link", { name: "WA/2/2026" })).toHaveAttribute("href", "/cases/ASLMS-GHC-CASE-2026-000002");
     expect(within(svg).queryByRole("link", { name: "WP(C)/3/2026" })).toBeNull();
     expect(api.calls.some((c) => c.url.includes("/links/graph?depth=2"))).toBe(true);
   });
@@ -1259,7 +1130,7 @@ describe("the Audit trail link (portal-audit-health, decision 7)", () => {
     await userEvent.click(await screen.findByRole("button", { name: "More Actions" }));
     expect(await screen.findByRole("menuitem", { name: "Audit Trail" })).toHaveAttribute(
       "href",
-      "/audit?case=ASLMS%2FGOA%2FCASE%2F2026%2F000001",
+      "/audit?case=ASLMS%2FGHC%2FCASE%2F2026%2F000001",
     );
   });
 
@@ -1296,7 +1167,7 @@ describe("next dates from orders on the case page (portal-next-dates, decisions 
   const REVIEW_ITEM = {
     kind: "confirm",
     id: "nd-2",
-    case: { id: "c-1", ref_no: "ASLMS/GOA/CASE/2026/000001", cnr: "ASHC010012342026", case_no_text: "WP(C)/1234/2026" },
+    case: { id: "c-1", ref_no: "ASLMS/GHC/CASE/2026/000001", cnr: "ASHC010012342026", case_no_text: "WP(C)/1234/2026" },
     order: { id: "o-5", order_no: "5", order_date: "2026-10-14", document_id: null },
     phrase: "List after two weeks.",
     rule: "list_after_period",
@@ -1533,7 +1404,7 @@ describe("round 1 and round 3 advisories (design portal-ui-polish, decisions 2, 
     const bare = detail({ identity: { ...detail().identity, case_no_text: null } });
     browserApi({ "GET /me": me(), [`GET ${BASE}`]: bare });
     const { unmount } = renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
-    const h1 = await screen.findByRole("heading", { level: 1, name: "ASLMS/GOA/CASE/2026/000001" });
+    const h1 = await screen.findByRole("heading", { level: 1, name: "ASLMS/GHC/CASE/2026/000001" });
     expect(h1).toHaveClass("mono");
     expect(h1).not.toHaveClass("cno");
     unmount();

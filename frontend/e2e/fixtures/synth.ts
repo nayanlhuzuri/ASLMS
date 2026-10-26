@@ -54,8 +54,8 @@ const PLAIN = {
 
 /** The ids, codes and dates the dynamic routes and the stress rows share. */
 export const SAMPLE = {
-  caseRef: "ASLMS/GOA/CASE/2026/000001",
-  caseRefPath: "ASLMS-GOA-CASE-2026-000001",
+  caseRef: "ASLMS/GHC/CASE/2026/000001",
+  caseRefPath: "ASLMS-GHC-CASE-2026-000001",
   userId: "0192a3b4-0000-7000-8000-000000000009",
   officeCode: "EDU",
   ticketRef: "TKT/EDU/2026/0001",
@@ -118,7 +118,7 @@ function stringFor(key: string, parent: string, format: string | undefined, idx:
   if (format === "uuid" || k === "id" || k.endsWith("_id")) return uuid(`${parent}.${key}`, idx);
   if (/petitioner|respondent|parties|party_line|party_name|^party$/.test(k)) return v.party;
   if (k === "case_no_text" || k === "case_no" || k === "label" && p.includes("case")) return idx === 0 ? STRESS.caseNo : `${PLAIN.caseNo.slice(0, 3)}${55 + idx}/2026`;
-  if (k === "ref_no") return idx === 0 ? SAMPLE.caseRef : `ASLMS/GOA/CASE/2026/00000${2 + idx}`;
+  if (k === "ref_no") return idx === 0 ? SAMPLE.caseRef : `ASLMS/GHC/CASE/2026/00000${2 + idx}`;
   if (k === "cnr") return `ASHC01${String(12345 + idx).padStart(6, "0")}2025`;
   if (k.includes("designation")) return v.designation;
   if ((k === "name" || k === "office_name" || k === "department_name") && /office|department|holder|unit|court|directorate/.test(p + k))

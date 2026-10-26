@@ -50,7 +50,6 @@ from aslms.integration.napix.hc import NapixHighCourt, advocate_rows
 from aslms.services import case_dedupe, matching, napix_window, queue
 from aslms.services.audit import Actor, write_audit
 from aslms.services.cases import (
-    ROOT_OFFICE,
     ApplyReport,
     apply_dossier,
     get_or_create_case,
@@ -329,12 +328,11 @@ def store_search_rows(
     *,
     source: FirstSeenSource = FirstSeenSource.SEARCH,
     origin: RecommendationOrigin = RecommendationOrigin.SEARCH,
-    ref_office: str = ROOT_OFFICE,
 ) -> StoreReport:
     """Decision 9: rows with a valid `cino` become cases (`source = search`), the search fields fill only empty
     columns (a dossier is authoritative); then the vector is refreshed and the cases scored. Department discovery
-    passes its own `source`, `origin` and the office the new cases' `ref_no` is allocated on (design
-    `department-discovery`, decisions 7-9); a person's search keeps the defaults."""
+    passes its own `source` and `origin` (design `department-discovery`, decisions 7 and 9); a person's search keeps
+    the defaults. New cases are numbered on the court (design `case-ref-court-prefix`, decision 4)."""
     report = StoreReport()
     changed: list[uuid.UUID] = []
     seen: set[str] = set()
@@ -355,9 +353,7 @@ def store_search_rows(
         type_name = as_text(row.get("type_name"), 60)
         reg_no, reg_year = as_int(row.get("reg_no")), as_int(row.get("reg_year"))
         case_no = case_no_text(type_name, reg_no, reg_year)
-        case, created = get_or_create_case(
-            session, court, cnr=cino, case_no=case_no, source=source, ref_office=ref_office
-        )
+        case, created = get_or_create_case(session, court, cnr=cino, case_no=case_no, source=source)
         touched = created
         touched |= _fill_empty(case, "petitioner_summary", as_text(row.get("pet_name")))
         touched |= _fill_empty(case, "respondent_summary", as_text(row.get("res_name")))

@@ -18,7 +18,7 @@ import { CaseAlerts } from "./CaseAlerts";
 import { CustodyActions } from "./CustodyDialogs";
 import { CustodyTab } from "./CustodyTab";
 
-const REF = "ASLMS-GOA-CASE-2026-000001";
+const REF = "ASLMS-GHC-CASE-2026-000001";
 const BASE = `/cases/${REF}`;
 const READ: Permission[] = ["cases.view_scope", "documents.view", "documents.download", "notes.add", "documents.upload"];
 
@@ -46,7 +46,7 @@ function card(extra: Partial<CustodyCard> = {}): CustodyCard {
 function detail(extra: Partial<CaseDetail> = {}): CaseDetail {
   return {
     id: "c-1",
-    ref_no: "ASLMS/GOA/CASE/2026/000001",
+    ref_no: "ASLMS/GHC/CASE/2026/000001",
     access_basis: ["owner"],
     counts: { documents: 0, hearings: 0, links: 0, listings: 0, my_drafts: 0, notes: 0, orders: 0, timeline: 0 },
     workflow: { note_mode: "permanent", upload: true, set_stage: true, next_dates: false },

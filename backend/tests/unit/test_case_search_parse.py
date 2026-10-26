@@ -15,10 +15,10 @@ def test_auto_detects_identifiers():
     u = uuid.uuid4()
     p = parse_query(str(u))
     assert p.kind == "id" and p.id == u and p.match == "id"
-    p = parse_query("ASLMS/GOA/CASE/2026/001842")
-    assert p.kind == "ref_no" and p.ref_no == "ASLMS/GOA/CASE/2026/001842"
+    p = parse_query("ASLMS/GHC/CASE/2026/001842")
+    assert p.kind == "ref_no" and p.ref_no == "ASLMS/GHC/CASE/2026/001842"
     p = parse_query("aslms-goa-case-2026-001842")
-    assert p.kind == "ref_no" and p.ref_no == "ASLMS/GOA/CASE/2026/001842"
+    assert p.kind == "ref_no" and p.ref_no == "ASLMS/GHC/CASE/2026/001842"
     p = parse_query("gahc010129772026")
     assert p.kind == "cnr" and p.cnr == "GAHC010129772026" and p.match == "cnr"
 

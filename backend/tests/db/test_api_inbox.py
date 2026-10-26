@@ -264,7 +264,7 @@ def test_claim_by_ref_forms_and_ownership_visibility(api, world):
     assert api.post(f"/cases/{x_id}/claim", json={}, headers=admin).status_code == 201
     assert api.post(f"/cases/{y_ref}/claim", json={}, headers=admin).status_code == 201
     assert api.post(f"/cases/{z_cnr}/claim", json={}, headers=admin).status_code == 201
-    assert api.post("/cases/ASLMS-GOA-CASE-2099-999999/claim", json={}, headers=admin).status_code == 404
+    assert api.post("/cases/ASLMS-GHC-CASE-2099-999999/claim", json={}, headers=admin).status_code == 404
     r = api.post(f"/cases/{x_id}/claim", json={}, headers=admin)
     assert r.status_code == 409 and r.json()["detail"]["code"] == "already_claimed"
     # the ownership view: the owner sees it, a department with no recommendation does not, State-wide does

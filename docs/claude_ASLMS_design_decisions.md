@@ -2691,3 +2691,42 @@ styles and markup only, no API or rule change.
    min(60vh, 560px), a keyboard-reachable labelled region, so a long list never stretches the page.
 4. The add rows' narrow column (Code, CNR, Kind) is 220 px, not 180 px: a field's own minimum width is 200 px,
    so the box used to spill into the gap before Office.
+
+## Case numbers on the court's code (2026-10-27)
+Row 157 `case-ref-court-prefix`; design `docs/design/case-ref-court-prefix.md`; migration 0028.
+
+**Built**
+- DB_STANDARD v1.3 and `schema.md`: a system-made case number is `ASLMS/<court code>/CASE/<year>/<number>`, for example
+  `ASLMS/GHC/CASE/2026/054584`. The one-time renumbering is the only exception to "never changed".
+- Migration 0028: `courts.ref_code` (`GHC` on all four Gauhati High Court establishments), CHECK
+  `ck_courts_ref_code_format`, exclusion `ex_courts_ref_code_one_court` (one code per court of record, through
+  `btree_gist`), CHECK `ck_cases_ref_no_court` against new `GOA` case numbers. Existing cases moved from
+  `ASLMS/GOA/CASE/` to `ASLMS/GHC/CASE/` keeping year and number, with `updated_at` kept (trigger disabled for the
+  step) and search vectors recomputed. The `CASE` counters moved to `GHC` (the greater of the counter and the highest
+  number held). One summary audit row `case.ref_renumbered`. The downgrade is reversible and refuses when a case
+  number carries a court code other than `GHC`.
+- `services/refno.py` numbers on the court; every creation path, department discovery included, goes through
+  `get_or_create_case` and is refused when the court has no code. The bench sync gives a new Gauhati High Court
+  establishment `GHC` and skips one it cannot map. An office code equal to a court code is refused.
+- Old `GOA` case numbers resolve by rule in `resolve_case_ref` and in the case filters, the audit and alert `case=`
+  filters and the CLI `--case` options; this does not widen visibility. The timeline shows the current number for a
+  stored payload. The portal replaces an old case number in the address with the new one.
+
+**Decisions and reasons**
+1. The prefix names the court because not every case is a Government of Assam matter. The Supreme Court's code will be
+   `SCI`, never `SC`, which means Standing Counsel in cause lists.
+2. Year and number are kept, so a person can still match a number to the old one by eye.
+3. Discovery cases are numbered on the court like all others; this supersedes `department-discovery` decision 8
+   (`ASLMS/EDU/CASE/...`).
+4. Events, audit rows and job results keep the numbers of their time (append-only history). Notes, documents,
+   tickets, transfers, next dates and alerts are unchanged and keep their office codes.
+5. The migration stops, changing nothing, when the rule cannot map every case (a department-prefixed case, a case
+   on another court, an office named `GHC`, an existing `GHC` counter); the tests cover each stop.
+
+**Deviations**
+- The design said "the next free number (0027 or later)"; 0026 and 0027 were taken, so it is 0028.
+- The extension `btree_gist` is created by the migration; it is recorded under Extensions in `schema.md`.
+
+**Left for later**
+- Apply 0028 with the `migrate` step after the merge, then `docker compose build`.
+- Codes for the Supreme Court (`SCI`) and district courts are set when those courts are added.

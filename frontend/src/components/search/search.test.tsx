@@ -15,7 +15,7 @@ function item(n: number, extra: Partial<CaseSearchItem> = {}, caseExtra: Partial
   return {
     case: {
       id: `c-${n}`,
-      ref_no: `ASLMS/GOA/CASE/2026/00000${n}`,
+      ref_no: `ASLMS/GHC/CASE/2026/00000${n}`,
       cnr: `ASHC01000${n}002026`,
       case_no_text: `WP(C)/${n}/2026`,
       is_provisional: false,
@@ -73,7 +73,7 @@ describe("local search", () => {
     renderWithClient(<Search params={{}} />);
     expect(await screen.findByRole("link", { name: "WP(C)/1/2026" })).toHaveAttribute(
       "href",
-      "/cases/ASLMS-GOA-CASE-2026-000001",
+      "/cases/ASLMS-GHC-CASE-2026-000001",
     );
     expect(screen.getByRole("heading", { name: /Your Cases/ })).toBeInTheDocument();
     expect(api.calls.some((c) => c.path.startsWith("/cases?") || c.path === "/cases")).toBe(true);
@@ -129,7 +129,7 @@ describe("local search", () => {
   });
 
   it("Claim on a result reads the case's ownership and offers its claim_departments", async () => {
-    const own = "/cases/ASLMS-GOA-CASE-2026-000003";
+    const own = "/cases/ASLMS-GHC-CASE-2026-000003";
     const api = browserApi({
       "GET /me": me(SEARCHER),
       "GET /reference/case-types": TYPES,
@@ -158,7 +158,7 @@ describe("local search", () => {
   });
 
   it("Claim on a result shows the API's message when the ownership answers 404", async () => {
-    const own = "/cases/ASLMS-GOA-CASE-2026-000003";
+    const own = "/cases/ASLMS-GHC-CASE-2026-000003";
     const api = browserApi({
       "GET /me": me(SEARCHER),
       "GET /reference/case-types": TYPES,
@@ -181,7 +181,7 @@ describe("local search", () => {
       "GET /cases/search": { items: [item(4, { match: "cnr" })], total: 1 },
     });
     renderWithClient(<Search params={{ q: "ASHC010004002026" }} />);
-    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/cases/ASLMS-GOA-CASE-2026-000004"));
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/cases/ASLMS-GHC-CASE-2026-000004"));
   });
 
   it("the text tab shows only with documents.view", async () => {
@@ -263,7 +263,7 @@ describe("court search", () => {
       "GET /reference/case-types": TYPES,
       "GET /cases/search": { items: [], total: 0 },
       "POST /cases/search-court": () => pending,
-      "POST /cases/ASLMS-GOA-CASE-2026-000005/fetch-court": item(5, { match: "cnr" }),
+      "POST /cases/ASLMS-GHC-CASE-2026-000005/fetch-court": item(5, { match: "cnr" }),
     });
     renderWithClient(<Search params={{ q: "RAM KUMAR" }} />);
     const panel = await screen.findByRole("region", { name: "Search the Court" });
@@ -294,7 +294,7 @@ describe("court search", () => {
     expect(within(panel).getByText(/WP\(C\) 77\/2025 — X vs Y/)).toBeInTheDocument();
     await userEvent.click(within(panel).getByRole("button", { name: "Fetch Details" }));
     await waitFor(() => expect(within(panel).queryByRole("button", { name: "Fetch Details" })).toBeNull());
-    expect(api.calls.some((c) => c.method === "POST" && c.path === "/cases/ASLMS-GOA-CASE-2026-000005/fetch-court")).toBe(true);
+    expect(api.calls.some((c) => c.method === "POST" && c.path === "/cases/ASLMS-GHC-CASE-2026-000005/fetch-court")).toBe(true);
   });
 });
 
@@ -311,7 +311,7 @@ describe("court search by advocate name and filing number (search-court-advocate
         items: [item(5, { dossier_status: "not_fetched", match: "advocate" })],
         unmatched: [],
       },
-      "POST /cases/ASLMS-GOA-CASE-2026-000005/fetch-court": item(5, { match: "advocate" }),
+      "POST /cases/ASLMS-GHC-CASE-2026-000005/fetch-court": item(5, { match: "advocate" }),
       ...extra,
     });
   }
@@ -349,7 +349,7 @@ describe("court search by advocate name and filing number (search-court-advocate
     });
     await userEvent.click(within(panel).getByRole("button", { name: "Fetch Details" }));
     await waitFor(() => expect(within(panel).queryByRole("button", { name: "Fetch Details" })).toBeNull());
-    expect(api.calls.some((c) => c.method === "POST" && c.path === "/cases/ASLMS-GOA-CASE-2026-000005/fetch-court")).toBe(true);
+    expect(api.calls.some((c) => c.method === "POST" && c.path === "/cases/ASLMS-GHC-CASE-2026-000005/fetch-court")).toBe(true);
   });
 
   it("Filing number sends kind filing with the filing case type, number and year", async () => {
@@ -518,7 +518,7 @@ describe("the Work list template on Search (portal-ui-redesign, decision 26)", (
     const panel = await screen.findByRole("dialog", { name: "WP(C)/1/2026" });
     expect(within(panel).getByText("Owned by EDU")).toBeInTheDocument();
     expect(within(panel).getByText("ASHC010001002026")).toBeInTheDocument();
-    expect(within(panel).getByRole("link", { name: "Open Case Page" })).toHaveAttribute("href", "/cases/ASLMS-GOA-CASE-2026-000001");
+    expect(within(panel).getByRole("link", { name: "Open Case Page" })).toHaveAttribute("href", "/cases/ASLMS-GHC-CASE-2026-000001");
     await userEvent.click(within(panel).getByRole("button", { name: "Close" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });

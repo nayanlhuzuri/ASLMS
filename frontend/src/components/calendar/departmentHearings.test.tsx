@@ -9,7 +9,7 @@ import { browserApi, json, makeMe, renderWithClient } from "@/test/render";
 
 import { DepartmentHearings as Calendar } from "./DepartmentHearings";
 
-const CASE = { id: "c1", ref_no: "ASLMS/GOA/CASE/2026/000001", cnr: null, case_no_text: "WP(C)/1/2026" };
+const CASE = { id: "c1", ref_no: "ASLMS/GHC/CASE/2026/000001", cnr: null, case_no_text: "WP(C)/1/2026" };
 
 function item(date: string, extra: Partial<CalendarItem> = {}): CalendarItem {
   return {

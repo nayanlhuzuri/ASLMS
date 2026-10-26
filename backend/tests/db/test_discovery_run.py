@@ -1,6 +1,6 @@
 """The `party_search` handler through the queue runner against the scripted gateway (design `department-discovery`,
-decisions 6-9 and 11): the sample's three rows are stored as discovery cases with their `ref_no` on the term's
-department (on `GOA` when two departments share the term), recorded as hits (a second run only bumps
+decisions 6-9 and 11): the sample's three rows are stored as discovery cases numbered on the court
+(`ASLMS/GHC/CASE/…`, design `case-ref-court-prefix` decision 4), recorded as hits (a second run only bumps
 `last_found_at`), their dossiers queued in the discovery lane at 41; the call is logged in the discovery lane with no
 person and the response kept; no audit row; a 628 is a done row with no rows; a term without an active rule ends
 `skipped` with no call; a malformed `cino` is counted, never stored; after the dossier the engine recommends with
@@ -108,7 +108,8 @@ def test_a_search_stores_records_and_queues_dossiers(world, napix, tmp_path):
         cases = s.scalars(sa.select(Case).where(Case.cnr.in_(SAMPLE_CNRS))).all()
         assert len(cases) == 3  # the I.A. row included
         assert {FirstSeenSource(c.first_seen_source) for c in cases} == {FirstSeenSource.DISCOVERY}
-        assert all(c.ref_no.startswith("ASLMS/EDU/CASE/") for c in cases)
+        # numbered on the court, not on the term's department (design case-ref-court-prefix, decision 4)
+        assert all(c.ref_no.startswith("ASLMS/GHC/CASE/") for c in cases)
         term = s.scalar(sa.select(DiscoveryTerm).where(DiscoveryTerm.term == "JANIFA KAIFEE AHMED"))
         assert (term.searches_done, term.cases_found) == (1, 3) and term.last_searched_at is not None
         hits = s.scalars(sa.select(DiscoveryHit).where(DiscoveryHit.term_id == term.id)).all()
@@ -136,14 +137,14 @@ def test_a_search_stores_records_and_queues_dossiers(world, napix, tmp_path):
             assert s.scalar(sa.select(sa.func.count()).where(Case.cnr.in_(SAMPLE_CNRS))) == 3
 
 
-def test_two_departments_allocate_on_goa(world, napix, tmp_path):
+def test_two_departments_number_on_the_court(world, napix, tmp_path):
     _rule(world, "edu_admin", "EDU", "JANIFA KAIFEE AHMED", kind=None)
     _rule(world, "health_admin", "HEALTH", "JANIFA KAIFEE AHMED", kind="exact")
     rep = _run(world.Session, napix, tmp_path, kinds=[FetchKind.PARTY_SEARCH], max_items=1)
     assert rep.done == 1, rep.items
     with world.Session() as s:
         cases = s.scalars(sa.select(Case).where(Case.cnr.in_(SAMPLE_CNRS))).all()
-        assert len(cases) == 3 and all(c.ref_no.startswith("ASLMS/GOA/CASE/") for c in cases)
+        assert len(cases) == 3 and all(c.ref_no.startswith("ASLMS/GHC/CASE/") for c in cases)
 
 
 def test_a_held_case_is_only_recorded(world, napix, tmp_path):

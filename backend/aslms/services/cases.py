@@ -56,9 +56,7 @@ from aslms.services.napix_values import (
     leading_code,
     numbered_values,
 )
-from aslms.services.refno import allocate_ref_no
-
-ROOT_OFFICE = "GOA"
+from aslms.services.refno import allocate_case_ref_no, current_case_ref_no
 
 
 def _now() -> datetime:
@@ -105,13 +103,12 @@ def get_or_create_case(
     cnr: str | None,
     case_no: str | None,
     source: FirstSeenSource,
-    ref_office: str = ROOT_OFFICE,
 ) -> tuple[Case, bool]:
     """A case by CNR, or a provisional case by its printed number when the list gave no CNR. Never fabricates a
     CNR. Creation takes the advisory lock on (court, compact number) and looks again, so two transactions cannot
-    create two rows for one printed number (decision 13). A new case's `ref_no` is allocated on `ref_office` (the
-    root by default; a discovery search passes the term's department, design `department-discovery` decision 8).
-    Returns (case, created)."""
+    create two rows for one printed number (decision 13). A new case's `ref_no` is allocated on the court's code
+    however the case is created (`ASLMS/GHC/CASE/…`; design `case-ref-court-prefix`, decision 4); a court without a
+    code raises `CourtCodeMissing`. Returns (case, created)."""
     from aslms.services import case_dedupe
 
     case = find_case(session, court, cnr=cnr, case_no=case_no)
@@ -130,7 +127,7 @@ def get_or_create_case(
         cnr=cnr,
         court_id=court.id,
         case_no_text=case_no,
-        ref_no=allocate_ref_no(session, ref_office, "CASE"),
+        ref_no=allocate_case_ref_no(session, court),
         first_seen_source=source,
         is_provisional=True,
     )
@@ -817,7 +814,7 @@ _CNR_RE = re.compile(r"^[A-Z]{4}\d{12}$")
 
 
 def ref_no_from_url(ref: str) -> str | None:
-    """`ASLMS-GOA-CASE-2026-001842` (the URL form) or `ASLMS/GOA/CASE/2026/001842` → the slash form. Office
+    """`ASLMS-GHC-CASE-2026-001842` (the URL form) or `ASLMS/GHC/CASE/2026/001842` → the slash form. Office
     codes may contain hyphens, so the last three segments are taken from the right."""
     s = (ref or "").strip().upper()
     if s.startswith("ASLMS/"):
@@ -831,7 +828,8 @@ def ref_no_from_url(ref: str) -> str | None:
 
 
 def resolve_case_ref(session: Session, ref: str) -> Case:
-    """A case by id, `ref_no` (slash or dash form) or CNR (DB_STANDARD §3). Unknown → CaseNotFound."""
+    """A case by id, `ref_no` (slash or dash form, an old `GOA` case number included: DB_STANDARD §3a) or CNR
+    (DB_STANDARD §3). Unknown → CaseNotFound."""
     s = (ref or "").strip()
     case = None
     try:
@@ -839,7 +837,7 @@ def resolve_case_ref(session: Session, ref: str) -> Case:
     except ValueError:
         ref_no = ref_no_from_url(s)
         if ref_no is not None:
-            case = session.scalar(select(Case).where(Case.ref_no == ref_no))
+            case = session.scalar(select(Case).where(Case.ref_no == current_case_ref_no(ref_no)))
         elif _CNR_RE.match(s.upper()):
             case = session.scalar(select(Case).where(Case.cnr == s.upper()))
     if case is None:

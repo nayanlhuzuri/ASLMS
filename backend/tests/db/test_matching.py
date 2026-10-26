@@ -333,7 +333,7 @@ def test_unmapped_codes(world):
         out = matching.unmapped_codes(s)
         assert [u.code for u in out] == ["SC, REVENUE"]
         assert out[0].entries == 2 and out[0].last_listed == date(2025, 1, 6)
-        assert out[0].example_case_ref.startswith("ASLMS/GOA/CASE/")
+        assert out[0].example_case_ref.startswith("ASLMS/GHC/CASE/")
 
 
 # ------------------------------------------------------------------------------------------------ ownership-refinements

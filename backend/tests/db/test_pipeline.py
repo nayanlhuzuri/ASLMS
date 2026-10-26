@@ -146,7 +146,7 @@ def test_causelist_day_and_dossiers(clean_db, napix, engine, tmp_path):
         case = s.get(Case, entry.case_id)
         assert (
             case.is_provisional
-            and case.ref_no.startswith("ASLMS/GOA/CASE/")
+            and case.ref_no.startswith("ASLMS/GHC/CASE/")
             and case.case_type_text == "WP(C)"
         )
         assert case.reg_no == 4189 and case.reg_year == 2016 and case.case_type_id is not None

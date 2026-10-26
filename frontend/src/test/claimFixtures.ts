@@ -27,7 +27,7 @@ export const ADMIN_FNS: Permission[] = [
   "documents.download",
 ];
 
-export const REF = "ASLMS-GOA-CASE-2026-000001";
+export const REF = "ASLMS-GHC-CASE-2026-000001";
 
 export function membership(code: string, functions: Permission[], primary = true, role: Me["user"]["role"] = "dept_admin") {
   return {
@@ -67,7 +67,7 @@ export function block(code: string | null, extra: Partial<InboxCounts> = {}): In
 export function summary(n: number, extra: Partial<CaseSummary> = {}): CaseSummary {
   return {
     id: `c-${n}`,
-    ref_no: `ASLMS/GOA/CASE/2026/00000${n}`,
+    ref_no: `ASLMS/GHC/CASE/2026/00000${n}`,
     cnr: `ASHC01000${n}002026`,
     case_no_text: `WP(C)/${n}/2026`,
     is_provisional: false,
@@ -182,7 +182,7 @@ export function ownershipView(a: OwnershipActions, extra: Partial<CaseOwnershipV
 export function caseDetail(extra: Partial<CaseDetail> = {}): CaseDetail {
   return {
     id: "c-1",
-    ref_no: "ASLMS/GOA/CASE/2026/000001",
+    ref_no: "ASLMS/GHC/CASE/2026/000001",
     identity: {
       cnr: "ASHC010001002026",
       court_est_name: "Gauhati High Court",

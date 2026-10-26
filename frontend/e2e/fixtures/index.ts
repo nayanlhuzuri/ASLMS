@@ -303,7 +303,7 @@ function report(key: string): Report {
   ];
   const row = (i: number) => ({
     case: i === 0 ? STRESS.caseNo : `WA/${55 + i}/2026`,
-    ref_no: i === 0 ? SAMPLE.caseRef : `ASLMS/GOA/CASE/2026/00000${2 + i}`,
+    ref_no: i === 0 ? SAMPLE.caseRef : `ASLMS/GHC/CASE/2026/00000${2 + i}`,
     petitioner: i === 0 ? STRESS.party : "RAM KUMAR DAS",
     department: i === 0 ? STRESS.office : "Education",
     filed: "2025-01-10",

@@ -27,7 +27,7 @@ from aslms.services import access, case_dedupe
 from aslms.services import ownership as own
 from aslms.services.audit import Actor
 from aslms.services.causelists import store_pdf
-from aslms.services.refno import allocate_ref_no
+from aslms.services.refno import allocate_case_ref_no
 from aslms.services.reporting_common import today_ist
 from aslms.services.storage import LocalStore
 from tests.db import docs_support as ds
@@ -368,7 +368,7 @@ def test_fetch_details_queues_request_lane(api, world):
         merged = Case(
             court_id=court.id,
             case_no_text="WA/50/2025",
-            ref_no=allocate_ref_no(s, "GOA", "CASE"),
+            ref_no=allocate_case_ref_no(s, court),
             is_provisional=True,
         )
         s.add(merged)
@@ -492,7 +492,7 @@ def test_duplicates_endpoints_and_scan(api, world):
             Case(
                 court_id=court.id,
                 case_no_text="WP(C)/61/2025",
-                ref_no=allocate_ref_no(s, "GOA", "CASE"),
+                ref_no=allocate_case_ref_no(s, court),
                 is_provisional=True,
             )
         )

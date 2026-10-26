@@ -38,6 +38,7 @@ from aslms.services.audit_search import to_ist
 from aslms.services.case_filters import CNR_RE
 from aslms.services.napix_reference import INPUTS, PDF_APIS, InputSpec, sample_key
 from aslms.services.napix_samples import NoSample, Sample
+from aslms.services.refno import current_case_ref_no
 from aslms.services.reporting_common import with_timeout
 from aslms.services.visibility import access_basis
 
@@ -676,7 +677,8 @@ def params_shown(
     ref_no = (after.get("sample") or {}).get("case_ref_no")
     if not ref_no:
         return True
-    case_id = session.scalar(select(Case.id).where(Case.ref_no == ref_no))
+    # a send recorded before the renumbering of 25 Oct 2026 names the case by its old number (case-ref-court-prefix)
+    case_id = session.scalar(select(Case.id).where(Case.ref_no == current_case_ref_no(ref_no)))
     return case_id is not None and bool(access_basis(session, user, case_id))
 
 

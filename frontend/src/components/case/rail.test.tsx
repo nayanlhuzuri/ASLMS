@@ -9,7 +9,7 @@ import { browserApi, makeMe, PRIMARY_SELECTOR, renderWithClient } from "@/test/r
 import { CaseFrame } from "./CaseFrame";
 import { Rail, type RailAction } from "./Rail";
 
-const REF = "ASLMS-GOA-CASE-2026-000001";
+const REF = "ASLMS-GHC-CASE-2026-000001";
 const BASE = `/cases/${REF}`;
 
 function card(extra: Partial<CustodyCard> = {}): CustodyCard {
@@ -36,7 +36,7 @@ function card(extra: Partial<CustodyCard> = {}): CustodyCard {
 function detail(extra: Partial<CaseDetail> = {}): CaseDetail {
   return {
     id: "c-1",
-    ref_no: "ASLMS/GOA/CASE/2026/000001",
+    ref_no: "ASLMS/GHC/CASE/2026/000001",
     identity: { case_no_text: "WP(C)/1234/2026" },
     custody: card(),
     workflow: { note_mode: "draft", upload: true, set_stage: true, next_dates: true },

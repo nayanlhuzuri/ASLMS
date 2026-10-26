@@ -26,8 +26,8 @@
  */
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
-import { useRef, useState, type ReactNode } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { OwnershipDialogs, type DialogKind } from "@/components/inbox/dialogs";
 import { EnterNextDate } from "@/components/nextdates/Dialogs";
@@ -45,7 +45,7 @@ import { cardHolder, hearingCountdown, withText } from "@/lib/cases";
 import { formatDate, hearingBadge } from "@/lib/format";
 import { NEXT_DATE_ERRORS, T } from "@/lib/messages";
 import { queryString, type Params } from "@/lib/params";
-import { apiCasePath, casePath } from "@/lib/refs";
+import { apiCasePath, casePath, currentCaseHref } from "@/lib/refs";
 import { CASE_TABS, showsAssistant } from "@/lib/routes";
 import { useAction } from "@/lib/useAction";
 import { RAIL_MIN_WORKSPACE, useElementWidth, useMediaQuery, WIDE_CASE_PAGE } from "@/lib/useMediaQuery";
@@ -415,6 +415,17 @@ function Workspace({ caseRef, c, children }: { caseRef: string; c: CaseDetail; c
 
 export function CaseFrame({ caseRef, children }: { caseRef: string; children: ReactNode }) {
   const query = useCase(caseRef);
+  const router = useRouter();
+  const pathname = usePathname() ?? "";
+  const search = useSearchParams()?.toString() ?? "";
+  const refNo = query.data?.ref_no;
+  // an old case number in the address (a mail link sent before the renumbering) gives way to the current one
+  // (design case-ref-court-prefix, decision 20)
+  useEffect(() => {
+    if (!refNo) return;
+    const href = currentCaseHref(pathname, search, caseRef, refNo);
+    if (href) router.replace(href);
+  }, [caseRef, pathname, refNo, router, search]);
   if (query.isPending) return <Loading />;
   if (query.error instanceof ApiError && query.error.status === 404) {
     return <EmptyState>{T.case.notFound}</EmptyState>;

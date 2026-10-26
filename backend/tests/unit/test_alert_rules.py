@@ -96,7 +96,7 @@ def test_dedupe_keys():
 
 
 CASE = SimpleNamespace(
-    case_no_text="WP(C)/123/2025", cnr="GAHC010000012025", ref_no="ASLMS/GOA/CASE/2026/000001"
+    case_no_text="WP(C)/123/2025", cnr="GAHC010000012025", ref_no="ASLMS/GHC/CASE/2026/000001"
 )
 
 
@@ -147,10 +147,10 @@ def test_render_mail_and_digest_carry_link_not_text():
         due_at=datetime(2026, 10, 8, 5, 0, tzinfo=UTC),
     )
     subject, text = r.render_mail(
-        alert, CASE, "Gauhati High Court", "http://portal/", "ASLMS-GOA-CASE-2026-000001"
+        alert, CASE, "Gauhati High Court", "http://portal/", "ASLMS-GHC-CASE-2026-000001"
     )
     assert subject.startswith("[ASLMS CRITICAL]")
-    assert "GAHC010000012025" in text and "http://portal/cases/ASLMS-GOA-CASE-2026-000001" in text
+    assert "GAHC010000012025" in text and "http://portal/cases/ASLMS-GHC-CASE-2026-000001" in text
     assert "08 Oct 2026 10:30 IST" in text
     subject, text = r.render_digest(
         date(2026, 10, 6),
@@ -160,7 +160,7 @@ def test_render_mail_and_digest_carry_link_not_text():
                 [
                     {
                         "title": "New order of 01 Oct 2026: WP(C)/1/2025",
-                        "case_ref": "ASLMS-GOA-CASE-2026-000001",
+                        "case_ref": "ASLMS-GHC-CASE-2026-000001",
                     }
                 ],
             )
@@ -177,7 +177,7 @@ def test_render_mail_and_digest_carry_link_not_text():
 # ------------------------------------------------------------------ design alerts-visibility-roles, decisions 5, 7, 9
 
 
-LISTED_CASE = SimpleNamespace(case_no_text="WP(C)/123/2026", cnr=None, ref_no="ASLMS/GOA/CASE/2026/000001")
+LISTED_CASE = SimpleNamespace(case_no_text="WP(C)/123/2026", cnr=None, ref_no="ASLMS/GHC/CASE/2026/000001")
 
 
 def test_new_note_text_names_kind_ref_and_author_only():

@@ -31,7 +31,7 @@ function found(n: number, extra: Partial<DiscoveryCase> = {}): DiscoveryCase {
   return {
     case: {
       id: `c-${n}`,
-      ref_no: `ASLMS/EDU/CASE/2026/00000${n}`,
+      ref_no: `ASLMS/GHC/CASE/2026/00000${n}`,
       cnr: `GAHC0100000${n}2026`,
       case_no_text: `CONT.CAS(C)/${n}/2026`,
       is_provisional: false,
@@ -99,7 +99,7 @@ describe("Court search tab", () => {
   });
 
   it("lists the names and opens a name's cases with Claim through the claim dialog", async () => {
-    const own = "/cases/ASLMS-EDU-CASE-2026-000001";
+    const own = "/cases/ASLMS-GHC-CASE-2026-000001";
     const api = browserApi({
       "GET /me": makeMe(ADMIN, "dept_admin"),
       "GET /admin/discovery/terms": { items: [term(), term({ id: "t-2", term: "ANIL BORA", active: false })], total: 2 },

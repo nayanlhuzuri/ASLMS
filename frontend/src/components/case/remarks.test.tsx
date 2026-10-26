@@ -9,7 +9,7 @@ import { browserApi, makeMe, renderWithClient, type BrowserCall } from "@/test/r
 import { CaseFrame } from "./CaseFrame";
 import { RemarksPanel } from "./Remarks";
 
-const REF = "ASLMS-GOA-CASE-2026-000001";
+const REF = "ASLMS-GHC-CASE-2026-000001";
 const BASE = `/cases/${REF}`;
 
 function card(extra: Partial<CustodyCard> = {}): CustodyCard {
@@ -256,7 +256,7 @@ describe("?remarks=all on the case page (decision 15)", () => {
       "GET /me": makeMe(["cases.view_scope"]),
       [`GET ${BASE}`]: {
         id: "c-1",
-        ref_no: "ASLMS/GOA/CASE/2026/000001",
+        ref_no: "ASLMS/GHC/CASE/2026/000001",
         identity: { case_no_text: "WP(C)/1234/2026" },
         custody: card(),
         workflow: { note_mode: null, upload: false, set_stage: false, next_dates: false },

@@ -7,8 +7,8 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Integer, String, Text, UniqueConstraint, text
-from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy import CheckConstraint, DateTime, Integer, String, Text, UniqueConstraint, func, text
+from sqlalchemy.dialects.postgresql import ARRAY, ExcludeConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from aslms.db.base import Base, DeactivateMixin, TableClass, TimestampMixin, pg_enum, uuid_fk, uuid_pk
@@ -30,10 +30,21 @@ class CourtLevel(enum.StrEnum):
 
 
 class Court(TimestampMixin, DeactivateMixin, Base):
-    """An establishment (`est_code`), e.g. GAHC01 Principal Seat at Guwahati."""
+    """An establishment (`est_code`), e.g. GAHC01 Principal Seat at Guwahati. `ref_code` is the court's short code
+    in case reference numbers (`GHC` on all four Gauhati High Court establishments; design `case-ref-court-prefix`):
+    establishments of one High Court share it, two different courts never do."""
 
     __tablename__ = "courts"
     __table_class__ = TableClass.MASTER
+    __table_args__ = (
+        CheckConstraint("ref_code ~ '^[A-Z][A-Z0-9]{1,9}$' AND ref_code <> 'GOA'", name="ref_code_format"),
+        ExcludeConstraint(
+            ("ref_code", "="),
+            (func.coalesce(text("high_court_id"), text("id")), "<>"),
+            name="ex_courts_ref_code_one_court",
+            using="gist",
+        ),
+    )
     id: Mapped[uuid.UUID] = uuid_pk()
     est_code: Mapped[str] = mapped_column(String(10), nullable=False, unique=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
@@ -43,6 +54,7 @@ class Court(TimestampMixin, DeactivateMixin, Base):
     court_level: Mapped[CourtLevel] = mapped_column(
         pg_enum(CourtLevel, "court_level"), nullable=False, server_default="hc"
     )
+    ref_code: Mapped[str] = mapped_column(String(10), nullable=False)
 
 
 class Bench(TimestampMixin, DeactivateMixin, Base):

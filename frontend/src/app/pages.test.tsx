@@ -65,7 +65,7 @@ function layoutsOf(file: string): string[] {
   return out;
 }
 
-const SAMPLE: Record<string, string> = { ref: "ASLMS-GOA-CASE-2026-000001", id: "u-9", code: "EDU", role: "dept_officer" };
+const SAMPLE: Record<string, string> = { ref: "ASLMS-GHC-CASE-2026-000001", id: "u-9", code: "EDU", role: "dept_officer" };
 const PARAMS = { params: Promise.resolve(SAMPLE), searchParams: Promise.resolve({}) };
 
 type Component = (props: Record<string, unknown>) => ReactNode | Promise<ReactNode>;

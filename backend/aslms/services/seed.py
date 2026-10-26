@@ -354,6 +354,8 @@ def seed_places(session: Session, report: SeedReport) -> State:
 
 GAUHATI_HC_NAPIX_STATE_CODE = 18  # NAPIX state master, verified live 1 Oct 2026
 # est_code, bench master bench_id, bench_name — from docs/specs/samples/bench_master_2026-09-03.json
+# the court's code in case numbers (design case-ref-court-prefix, decision 2): one code for the whole High Court
+GAUHATI_HC_REF_CODE = "GHC"
 GAUHATI_HC_COURTS = [
     ("GAHC01", 1, "Principal Seat at Guwahati"),
     ("GAHC02", 2, "Kohima Bench"),
@@ -380,6 +382,7 @@ def seed_courts(session: Session, report: SeedReport) -> HighCourt:
                     napix_bench_no=bench_no,
                     bench_location=bench_name,
                     court_level=CourtLevel.HC,
+                    ref_code=GAUHATI_HC_REF_CODE,
                 )
             )
             report.add("courts")

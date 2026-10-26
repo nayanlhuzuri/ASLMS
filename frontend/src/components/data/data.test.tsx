@@ -216,7 +216,7 @@ describe("fetching from the court", () => {
   const held = {
     case: {
       id: "c-1",
-      ref_no: "ASLMS/GOA/CASE/2026/000001",
+      ref_no: "ASLMS/GHC/CASE/2026/000001",
       cnr: "GAHC010129772026",
       case_no_text: "WP(C)/3600/2026",
       is_provisional: false,
@@ -248,7 +248,7 @@ describe("fetching from the court", () => {
     await userEvent.type(within(form).getByLabelText("CNR"), "gahc010129772026");
     await userEvent.click(within(form).getByRole("button", { name: "Fetch" }));
     const dialog = await screen.findByRole("dialog", { name: "Already in the Database" });
-    expect(within(dialog).getByText(/ASLMS\/GOA\/CASE\/2026\/000001: details fetched 8 Oct 2026/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/ASLMS\/GHC\/CASE\/2026\/000001: details fetched 8 Oct 2026/)).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(api.calls.filter((c) => c.path === "/admin/data-load/fetch")).toHaveLength(1);
@@ -281,7 +281,7 @@ describe("fetching from the court", () => {
               },
             }),
       "POST /admin/data-load/fetch-details": {
-        items: [{ ref: "ASLMS/GOA/CASE/2026/000001", case: found, state: "queued", queue: null }],
+        items: [{ ref: "ASLMS/GHC/CASE/2026/000001", case: found, state: "queued", queue: null }],
       },
     });
     renderWithClient(<LoadConsole />);
@@ -293,14 +293,14 @@ describe("fetching from the court", () => {
     const dialog = await screen.findByRole("dialog", { name: "Searched Before" });
     expect(within(dialog).getByText(/10 Oct 2026, 11:00 \(4 cases stored\). 2 held cases match locally./)).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole("button", { name: "Fetch Anyway" }));
-    const box = await screen.findByRole("checkbox", { name: "ASLMS/GOA/CASE/2026/000001" });
+    const box = await screen.findByRole("checkbox", { name: "ASLMS/GHC/CASE/2026/000001" });
     const details = screen.getByRole("button", { name: "Fetch Details" });
     expect(details).toBeDisabled();
     await userEvent.click(box);
     await userEvent.click(details);
     expect(await screen.findByText("1 cases queued for details.")).toBeInTheDocument();
     expect(api.calls.find((c) => c.path === "/admin/data-load/fetch-details")?.body).toEqual({
-      cases: ["ASLMS/GOA/CASE/2026/000001"],
+      cases: ["ASLMS/GHC/CASE/2026/000001"],
       force: false,
     });
   });
@@ -621,8 +621,8 @@ describe("duplicates", () => {
     items: [
       {
         kind: "review",
-        case: { id: "p", ref_no: "ASLMS/GOA/CASE/2026/000009", cnr: null, case_no_text: "WPC/3600/2026" },
-        other: { id: "c", ref_no: "ASLMS/GOA/CASE/2026/000002", cnr: "GAHC010129772026", case_no_text: "WP(C)/3600/2026" },
+        case: { id: "p", ref_no: "ASLMS/GHC/CASE/2026/000009", cnr: null, case_no_text: "WPC/3600/2026" },
+        other: { id: "c", ref_no: "ASLMS/GHC/CASE/2026/000002", cnr: "GAHC010129772026", case_no_text: "WP(C)/3600/2026" },
         at: "2026-10-11T03:00:00+05:30",
         reasons: "portal records on the provisional case: case_ownership",
       },
@@ -633,7 +633,7 @@ describe("duplicates", () => {
     browserApi({ "GET /me": makeMe(READER), "GET /admin/data-load/duplicates": LIST });
     const { unmount } = renderWithClient(<Duplicates />);
     expect(await screen.findByText("portal records on the provisional case: case_ownership")).toBeInTheDocument();
-    expect(screen.getByText("ASLMS/GOA/CASE/2026/000009")).toBeInTheDocument();
+    expect(screen.getByText("ASLMS/GHC/CASE/2026/000009")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Scan Now" })).toBeNull();
     unmount();
     const api = browserApi({
@@ -786,8 +786,8 @@ describe("lists are DataTables, cards on phones (design portal-ui-polish, decisi
         items: [
           {
             kind: "review",
-            case: { id: "p", ref_no: "ASLMS/GOA/CASE/2026/000009", cnr: null, case_no_text: "WPC/3600/2026" },
-            other: { id: "c", ref_no: "ASLMS/GOA/CASE/2026/000002", cnr: "GAHC010129772026", case_no_text: "WP(C)/3600/2026" },
+            case: { id: "p", ref_no: "ASLMS/GHC/CASE/2026/000009", cnr: null, case_no_text: "WPC/3600/2026" },
+            other: { id: "c", ref_no: "ASLMS/GHC/CASE/2026/000002", cnr: "GAHC010129772026", case_no_text: "WP(C)/3600/2026" },
             at: "2026-10-11T03:00:00+05:30",
             reasons: "portal records on the provisional case",
           },

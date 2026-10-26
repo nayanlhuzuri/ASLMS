@@ -44,6 +44,7 @@ AGENCY_NAMES = {"CBI", "NIA", "C/O 99 APO"}
 @dataclass
 class MasterReport:
     counts: dict[str, dict[str, int]] = field(default_factory=dict)
+    errors: list[str] = field(default_factory=list)
 
     def add(self, master: str, **kw: int) -> None:
         d = self.counts.setdefault(master, {"rows": 0, "inserted": 0, "updated": 0, "deactivated": 0})
@@ -147,6 +148,11 @@ def sync_bench_master(
     session: Session, rows: list[dict[str, Any]], high_court: HighCourt, report: MasterReport
 ) -> None:
     existing = {c.est_code: c for c in session.scalars(select(Court)).all()}
+    # the code a new establishment takes in case numbers: its High Court's existing one (design
+    # case-ref-court-prefix, "Data"); never from NAPIX, never made up
+    hc_codes = sorted(
+        {c.ref_code for c in existing.values() if c.high_court_id == high_court.id and c.ref_code}
+    )
     seen: set[str] = set()
     for row in rows:
         est, no, name = (
@@ -161,6 +167,12 @@ def sync_bench_master(
         c = existing.get(est)
         full = f"{high_court.name}, {name}"
         if c is None:
+            if len(hc_codes) != 1:
+                report.errors.append(
+                    f"bench {est} ({name}) skipped: {high_court.name} has "
+                    f"{'no court code' if not hc_codes else 'more than one court code'} for case numbers"
+                )
+                continue
             session.add(
                 Court(
                     est_code=est,
@@ -169,6 +181,7 @@ def sync_bench_master(
                     napix_bench_no=no,
                     bench_location=name,
                     court_level=CourtLevel.HC,
+                    ref_code=hc_codes[0],
                 )
             )
             report.add("bench", inserted=1)

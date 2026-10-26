@@ -191,7 +191,7 @@ def test_linked_case_and_watchlist():
     rs = ruleset(rule("watchlist", "ASHC010001232025"))
     ev = CaseEvidence(
         cnr="ASHC010001232025",
-        linked=[LinkedCase(uuid.uuid4(), "ASLMS/GOA/CASE/2026/000001", "WP(C)/1/2025", {EDU})],
+        linked=[LinkedCase(uuid.uuid4(), "ASLMS/GHC/CASE/2026/000001", "WP(C)/1/2025", {EDU})],
     )
     out = score_case(rs, ev)
     kinds = {s["kind"] for s in out[EDU].signals}

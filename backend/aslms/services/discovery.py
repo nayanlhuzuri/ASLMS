@@ -687,11 +687,10 @@ async def run_party_search(
     session: Session, hc: NapixHighCourt, court: Court, ref: str, origin: QueueOrigin | None = None
 ) -> tuple[dict[str, Any], bool]:
     """Decision 7: (1) a term without an active rule ends `skipped` with no call; (2) Search by Party Name through
-    the integration layer (628 is a valid empty answer); (3) the rows are stored with source and origin `discovery`
-    and the `ref_no` office of the term (its department when it has one, else `GOA`); rows without a valid CNR are
-    counted, never stored; (4) each stored case is recorded in `discovery_hits`; (5) a discovery dossier (41) is
+    the integration layer (628 is a valid empty answer); (3) the rows are stored with source and origin `discovery`,
+    new cases numbered on the court like every case (design `case-ref-court-prefix`, decision 4, superseding
+    `department-discovery` decision 8); rows without a valid CNR are counted, never stored; (4) each stored case is recorded in `discovery_hits`; (5) a discovery dossier (41) is
     queued for each stored case without one; (6) the term's counters. Writes no audit row."""
-    from aslms.services.cases import ROOT_OFFICE
     from aslms.services.court_search import store_search_rows
 
     try:
@@ -708,14 +707,8 @@ async def run_party_search(
         rows = await hc.search_party(value, year, PEND_DISP)
     except NapixNotFound:
         rows = []
-    ref_office = depts[0].code if len(depts) == 1 else ROOT_OFFICE
     report = store_search_rows(
-        session,
-        court,
-        rows,
-        source=FirstSeenSource.DISCOVERY,
-        origin=RecommendationOrigin.DISCOVERY,
-        ref_office=ref_office,
+        session, court, rows, source=FirstSeenSource.DISCOVERY, origin=RecommendationOrigin.DISCOVERY
     )
     stored: list[Case] = []
     seen: set[uuid.UUID] = set()

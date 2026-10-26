@@ -9,7 +9,8 @@ ownership). `parse` validates and normalises; `conditions` turns a `CaseFilters`
 building: no write, no audit. This module imports neither `case_search` nor `inbox` (both import it).
 
 `q` is read by `parse_query` (moved here from `case_search`): a UUID -> id; `ASLMS/...` or `ASLMS-...` ->
-`ref_no`; `^[A-Z]{4}\\d{12}$` -> CNR; `<type> <no>/<year>` or `<type>/<no>/<year>` -> case number (the type
+`ref_no` (an old `GOA` case number read as its current number, DB_STANDARD §3a);
+`^[A-Z]{4}\\d{12}$` -> CNR; `<type> <no>/<year>` or `<type>/<no>/<year>` -> case number (the type
 compared with `case_types.short_name` and `aliases` and with `cases.case_type_text`, upper-cased without white
 space; the same compact string against `filing_no_text`); anything else -> words over `cases.search_vector`
 (weight A parties, B advocates, AB text). The tsquery is built in Python from `[0-9A-Za-z]+` words (at most 8,
@@ -32,6 +33,7 @@ from aslms.domain.courts import CaseType
 from aslms.domain.ownership import CaseOwnership, OwnershipRole, OwnershipStatus
 from aslms.services.cases import ref_no_from_url
 from aslms.services.offices import find_office
+from aslms.services.refno import current_case_ref_no
 from aslms.services.visibility import is_department
 
 MIN_QUERY = 3
@@ -168,7 +170,7 @@ def parse_query(q: str | None, field_: str | None = "auto") -> ParsedQuery:
         pass
     ref_no = ref_no_from_url(raw)
     if ref_no is not None:
-        return ParsedQuery("ref_no", raw, "ref_no", ref_no=ref_no)
+        return ParsedQuery("ref_no", raw, "ref_no", ref_no=current_case_ref_no(ref_no))
     if CNR_RE.match(upper):
         return ParsedQuery("cnr", raw, "cnr", cnr=upper)
     parsed = _number(raw, upper)

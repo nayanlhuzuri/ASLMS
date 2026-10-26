@@ -214,7 +214,7 @@ def test_total_is_capped_at_ten_thousand(world):
                 INSERT INTO cases (cnr, court_id, case_no_text, ref_no, status, petitioner_summary,
                                    first_seen_source, is_provisional, search_vector)
                 SELECT 'CAPX' || lpad(g::text, 12, '0'), :court, 'WP(C)/' || g || '/2020',
-                       'ASLMS/GOA/CASE/2020/' || lpad(g::text, 6, '0'), 'pending', 'CAPPED PARTY',
+                       'ASLMS/GHC/CASE/2020/' || lpad(g::text, 6, '0'), 'pending', 'CAPPED PARTY',
                        'causelist', false, setweight(to_tsvector('simple', 'capped party'), 'A')
                 FROM generate_series(1, 10001) g
                 """

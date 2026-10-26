@@ -484,7 +484,7 @@ def test_fetch_court_resolves_a_provisional_case_by_number(api, world, types):
             case_type_text="WA",
             reg_no=435,
             reg_year=2024,
-            ref_no="ASLMS/GOA/CASE/2025/900001",
+            ref_no="ASLMS/GHC/CASE/2025/900001",
             first_seen_source=FirstSeenSource.CAUSELIST,
             is_provisional=True,
         )
@@ -495,7 +495,7 @@ def test_fetch_court_resolves_a_provisional_case_by_number(api, world, types):
             case_type_text="WA",
             reg_no=999,
             reg_year=2024,
-            ref_no="ASLMS/GOA/CASE/2025/900002",
+            ref_no="ASLMS/GHC/CASE/2025/900002",
             first_seen_source=FirstSeenSource.CAUSELIST,
             is_provisional=True,
         )

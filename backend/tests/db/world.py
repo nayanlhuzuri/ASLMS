@@ -25,7 +25,7 @@ from aslms.domain.org import Office, User, UserMembership
 from aslms.domain.reference import OfficeKind, Role
 from aslms.services import access, memberships
 from aslms.services.audit import Actor
-from aslms.services.refno import allocate_ref_no
+from aslms.services.refno import allocate_case_ref_no
 from aslms.services.seed import seed_all
 from aslms.services.users import hash_password
 from tests.db.conftest import wipe
@@ -147,7 +147,7 @@ def make_case(
         cnr=cnr if cnr is not None else f"ASHC01{n:06d}2025",
         court_id=court.id,
         case_no_text=case_no or f"WP(C)/{n}/2025",
-        ref_no=allocate_ref_no(s, "GOA", "CASE"),
+        ref_no=allocate_case_ref_no(s, court),
         status=status,
         petitioner_summary=pet,
         respondent_summary=res,

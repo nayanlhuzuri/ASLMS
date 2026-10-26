@@ -43,15 +43,15 @@ def test_code_outside_the_ref_set_is_rejected(session):
 
 def test_ref_no_format_and_sequence(session):
     seed_all(session)
-    a = allocate_ref_no(session, "GOA", RecordType.CASE.value)
-    b = allocate_ref_no(session, "GOA", RecordType.CASE.value)
+    a = allocate_ref_no(session, "GHC", RecordType.CASE.value)
+    b = allocate_ref_no(session, "GHC", RecordType.CASE.value)
     c = allocate_ref_no(session, "GOA", RecordType.REQ.value)
     assert parse_ref_no(a) is not None
     office, rtype, year, n = parse_ref_no(a)
-    assert office == "GOA" and rtype == "CASE" and n == 1
+    assert office == "GHC" and rtype == "CASE" and n == 1
     assert parse_ref_no(b)[3] == 2
     assert parse_ref_no(c)[3] == 1
-    assert a == f"ASLMS/GOA/CASE/{year}/000001"
+    assert a == f"ASLMS/GHC/CASE/{year}/000001"
 
 
 def test_unknown_record_type_is_rejected(session):

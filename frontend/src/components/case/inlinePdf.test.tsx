@@ -24,7 +24,7 @@ vi.mock("@/lib/documents", async (importOriginal) => {
   };
 });
 
-const REF = "ASLMS-GOA-CASE-2026-000001";
+const REF = "ASLMS-GHC-CASE-2026-000001";
 const BASE = `/cases/${REF}`;
 const READ: Permission[] = ["cases.view_scope", "documents.view", "documents.download"];
 

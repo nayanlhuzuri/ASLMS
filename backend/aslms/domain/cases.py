@@ -9,6 +9,7 @@ from datetime import date, datetime
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Date,
     DateTime,
     Index,
@@ -58,6 +59,12 @@ class Case(TimestampMixin, RefNoMixin, CreatedByMixin, Base):
         Index("ix_cases_case_no_compact", text(r"upper(regexp_replace(case_no_text, '\s', '', 'g'))")),
         # the disposals of a period (design reports-dashboards, migration 0012)
         Index("ix_cases_disposal_date", "disposal_date", postgresql_where=text("disposal_date IS NOT NULL")),
+        # numbered on the court's code, never GOA (design case-ref-court-prefix, decision 12); that the code is
+        # the case's own court is a service rule (services/refno.py::allocate_case_ref_no)
+        CheckConstraint(
+            "ref_no ~ '^ASLMS/[A-Z][A-Z0-9]{1,9}/CASE/[0-9]{4}/[0-9]{6}$' AND ref_no NOT LIKE 'ASLMS/GOA/%'",
+            name="ref_no_court",
+        ),
     )
     id: Mapped[uuid.UUID] = uuid_pk()
     cnr: Mapped[str | None] = mapped_column(String(16), unique=True)  # null only when provisional

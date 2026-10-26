@@ -17,8 +17,8 @@ describe("timeline lines", () => {
     expect(timelineDetail("case_taken_over", { from_user_name: "A", to_user_name: "B", office_code: "EDU" })).toBe(
       "A → B · EDU",
     );
-    expect(timelineDetail("case_merged", { merged_ref_no: "ASLMS/GOA/CASE/2026/000009" })).toBe(
-      "Provisional ASLMS/GOA/CASE/2026/000009 merged into this case",
+    expect(timelineDetail("case_merged", { merged_ref_no: "ASLMS/GHC/CASE/2026/000009" })).toBe(
+      "Provisional ASLMS/GHC/CASE/2026/000009 merged into this case",
     );
   });
 

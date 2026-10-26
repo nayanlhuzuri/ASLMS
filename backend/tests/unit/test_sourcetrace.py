@@ -62,7 +62,7 @@ def _court() -> Court:
 
 
 def _case(cnr: str | None = "ASHC010012342025") -> Case:
-    return Case(id=uuid.uuid4(), cnr=cnr, case_no_text="WP(C)/1234/2025", ref_no="ASLMS/GOA/CASE/2026/000001")
+    return Case(id=uuid.uuid4(), cnr=cnr, case_no_text="WP(C)/1234/2025", ref_no="ASLMS/GHC/CASE/2026/000001")
 
 
 def _order_doc(case: Case) -> tuple[Document, Order]:

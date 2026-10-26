@@ -119,7 +119,7 @@ def test_invisible_case_is_404(api, world, case_id):
         data={"kind": "general", "body": "x", "visibility": "case_scope"},
     )
     assert r.status_code == 404
-    assert api.get("/cases/ASLMS-GOA-CASE-2099-000001/custody", headers=hf).status_code == 404
+    assert api.get("/cases/ASLMS-GHC-CASE-2099-000001/custody", headers=hf).status_code == 404
 
 
 def test_function_checks(api, world, case_id):

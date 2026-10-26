@@ -12,6 +12,7 @@ import { join, relative, sep } from "node:path";
 
 import { pageChecks, type PageFinding } from "./checks";
 import { answer, SAMPLE } from "./fixtures";
+import { OLD_CASE_REF_PATH } from "./fixtures/legacy";
 import { kept, runDir, slug, writeResult, type Finding } from "./results";
 
 const APP = join(__dirname, "..", "src", "app");
@@ -146,6 +147,27 @@ test.describe("every page", () => {
       if (OLD_FILES[route]) expect(redirect, `${route} leads to its Case inbox tab`).toBe(OLD_FILES[route]);
     });
   }
+});
+
+/**
+ * Design case-ref-court-prefix, decision 20: an old case number in the address (a mail link sent before the
+ * renumbering) opens the case and the portal replaces the address with the current number, keeping the tab and the
+ * query. The fixtures answer any case path with the sample case, whose `ref_no` is the current number.
+ */
+test("an old case number lands on the current address", async ({ page }) => {
+  const width = widthOf(page);
+  const name = `/cases/${OLD_CASE_REF_PATH}/orders (old case number)`;
+  const run = await watch(page, name, width, false);
+  const visit = await run(async () => {
+    await page.goto(`/cases/${OLD_CASE_REF_PATH}/orders?page=1`);
+    await page.waitForURL((u) => u.pathname === `/cases/${SAMPLE.caseRefPath}/orders`);
+  });
+  const landed = new URL(page.url());
+  const redirect = landed.pathname + landed.search;
+  const findings = kept(visit.findings, true);
+  writeResult({ name, width, screenshot: null, redirect, findings });
+  expect(redirect).toBe(`/cases/${SAMPLE.caseRefPath}/orders?page=1`);
+  expect(findings, JSON.stringify(findings, null, 2)).toEqual([]);
 });
 
 interface State {

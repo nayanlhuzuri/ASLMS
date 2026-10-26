@@ -1,4 +1,4 @@
-# ASLMS Database Standard (v1.2, 30 Sep 2026 — approved for execution)
+# ASLMS Database Standard (v1.3, 25 Oct 2026 — approved for execution)
 
 Binding standard for every table, column, key and identifier in ASLMS v2 (`backend/`). It is written against
 the database that exists today: migrations `0001_phase1_core`, `0002_ownership_unit`, `0003_phase2_workflow`,
@@ -8,7 +8,9 @@ Where this document and the Plan (`docs/Legal_Case_Monitoring_Portal_Plan.docx`)
 the conflict is logged in `docs/claude_ASLMS_design_decisions.md` before anything is built.
 
 Version history: v1.0/v1.1 (29 Sep) were drafted against the September prototype's 56-table schema and are
-superseded; v1.2 maps the same decisions onto the real inventory.
+superseded; v1.2 maps the same decisions onto the real inventory. v1.3 (25 Oct 2026) amends §3: a case number carries
+the court's code (`courts.ref_code`) instead of `GOA`, and records the owner's one-time renumbering of the
+existing case numbers (design `case-ref-court-prefix`); §3a is new.
 
 Sources: PostgreSQL community conventions; RFC 9562 (UUID v7); RFC 3339 / ISO 8601; MeitY *Metadata and
 Data Standards* (MDDS); Local Government Directory (LGD) codes; the eCourts CNR; eOffice file numbering as
@@ -67,22 +69,35 @@ the parent's id, not a new identity). Lookup tables use `code` as their key (§7
 Records people quote carry `ref_no varchar(40) NOT NULL UNIQUE` in the Secretariat's pattern:
 
 ```
-ASLMS/<OFFICE>/<TYPE>/<YYYY>/<NNNNNN>      e.g. ASLMS/GOA/CASE/2026/001842, ASLMS/EDU/REQ/2026/000042
+ASLMS/<OFFICE>/<TYPE>/<YYYY>/<NNNNNN>      e.g. ASLMS/GHC/CASE/2026/001842, ASLMS/EDU/NOTE/2026/000042
 ```
-`OFFICE` = `offices.code` of the allocating office, or `GOA` when the system creates the record before any
-department owns it. `TYPE` from `ref_record_type`. Sequence per (office, type, year) in `ref_sequences`
-(Appendix C). Allocated once at insert; never changed on claim, transfer or merge. Accepted by the API
-wherever an `id` is (`services/cases.py::resolve_case_ref` accepts `id`, `ref_no` or CNR).
+`OFFICE` is the code of the allocating office, from `offices.code`. For `TYPE = CASE` it is instead the
+**court's code**, `courts.ref_code` of the case's court (`GHC` for the Gauhati High Court; later `SCI` for
+the Supreme Court of India and a short code for each district court). The court's code is used however the
+case is created: cause list, dossier, court search, watchlist, data load or department discovery. `TYPE`
+comes from `ref_record_type`. There is one sequence per (code, type, year) in `ref_sequences` (Appendix C);
+its column `office_code` holds the office code, or the court code for `CASE`. A `ref_no` is at most 40
+characters. **A number is allocated once at insert and never changed: not on claim, transfer or merge.** The
+only exception was the owner's one-time renumbering of 25 Oct 2026 (design `case-ref-court-prefix`). On
+development data, `ASLMS/GOA/CASE/<YYYY>/<NNNNNN>` became `ASLMS/GHC/CASE/<YYYY>/<NNNNNN>` with the same year
+and number. The API still accepts the old numbers (§3a). The API accepts a `ref_no` wherever it accepts an `id`
+(`resolve_case_ref` accepts an `id`, a `ref_no`, an old `GOA` case number or a CNR).
 
 | TYPE | table | allocating office |
 |---|---|---|
-| `CASE` | cases | `GOA` (daily cycle, search, link); the claiming office when created by discovery |
+| `CASE` | cases | the court's code (`courts.ref_code`) |
 | `REQ` | requests | `from_office_id` |
 | `NOTE` | case_notes | author's office |
 | `DOC` | documents where `doc_group in (court_filing, internal)` | uploader's office |
 | `TRF` | ownership_transfers | `from_office_id` |
 | `NXT` | next_dates where `source = manual` | reviewer's office |
 | `ALR` | alerts | `GOA` |
+
+An office code may not equal a court code (`services/offices.py`).
+
+**§3a Old case numbers.** A case number of the form `ASLMS/GOA/CASE/<YYYY>/<NNNNNN>`, in the slash or dash form,
+names the case `ASLMS/GHC/CASE/<YYYY>/<NNNNNN>`. Every `GOA` case number ever issued was a Gauhati High Court case.
+No `GOA` case number is allocated again (CHECK `ck_cases_ref_no_court`).
 
 Court identifiers (CNR, `case_no_text`, `order_no`, `napix_causelist_id`) are stored exactly as issued.
 

@@ -137,6 +137,8 @@ def sync_masters_cmd() -> None:
             rprint(
                 f"  {master:<10} rows {c['rows']:>5}  +{c['inserted']}  ~{c['updated']}  -{c['deactivated']}"
             )
+        for error in rep.errors:
+            rprint(f"  [red]{error}[/red]")
 
     asyncio.run(go())
 

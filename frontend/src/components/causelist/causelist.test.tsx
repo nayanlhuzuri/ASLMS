@@ -102,7 +102,7 @@ function entry(n: number, extra: Partial<CauselistEntry> = {}): CauselistEntry {
     resolution_status: "resolved",
     case: {
       id: `c-${n}`,
-      ref_no: `ASLMS/GOA/CASE/2026/00000${n}`,
+      ref_no: `ASLMS/GHC/CASE/2026/00000${n}`,
       cnr: `ASHC0100000${n}2025`,
       case_no_text: `WP(C)/${n}/2025`,
       is_provisional: false,
@@ -315,7 +315,7 @@ describe("the entries", () => {
     expect(within(connected).queryByText("3")).toBeNull();
     expect(within(connected).queryByRole("link")).toBeNull();
     expect(within(connected).getByText("WP(C)/3/2025")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "WP(C)/2/2025" })).toHaveAttribute("href", "/cases/ASLMS-GOA-CASE-2026-000002");
+    expect(screen.getByRole("link", { name: "WP(C)/2/2025" })).toHaveAttribute("href", "/cases/ASLMS-GHC-CASE-2026-000002");
     const noCase = screen.getByText("WP(C)/999/2026").closest("tr")!;
     expect(within(noCase).getByText("provisional")).toBeInTheDocument();
   });
@@ -335,7 +335,7 @@ describe("the entries", () => {
   });
 
   it("Claim shows only when claimable, reads the case's ownership, and a success re-reads the entries", async () => {
-    const own = "/cases/ASLMS-GOA-CASE-2026-000002";
+    const own = "/cases/ASLMS-GHC-CASE-2026-000002";
     const api = browserApi(
       routes({
         [`GET ${own}/ownership`]: {
@@ -450,7 +450,7 @@ describe("the Work list template (portal-ui-redesign, decision 26)", () => {
     expect(within(panel).getByText("MR. A. BORA")).toBeInTheDocument();
     expect(within(panel).getByText("SC, REVENUE", { selector: "span" })).toBeInTheDocument();
     expect(within(panel).getByText("FOR ADMISSION")).toBeInTheDocument();
-    expect(within(panel).getByRole("link", { name: "Open Case Page" })).toHaveAttribute("href", "/cases/ASLMS-GOA-CASE-2026-000004");
+    expect(within(panel).getByRole("link", { name: "Open Case Page" })).toHaveAttribute("href", "/cases/ASLMS-GHC-CASE-2026-000004");
     await userEvent.click(within(panel).getByRole("button", { name: "Close" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
@@ -574,7 +574,7 @@ describe("View Cause List (portal-ui-polish-2, decision 25)", () => {
     expect(within(dialog).getByText("Daily List")).toBeInTheDocument();
     expect(within(dialog).getByText("Supplementary List")).toBeInTheDocument();
     const table = await within(dialog).findByRole("table", { name: "Cause-list Entries" });
-    expect(within(table).getByRole("link", { name: "WP(C)/2/2025" })).toHaveAttribute("href", "/cases/ASLMS-GOA-CASE-2026-000002");
+    expect(within(table).getByRole("link", { name: "WP(C)/2/2025" })).toHaveAttribute("href", "/cases/ASLMS-GHC-CASE-2026-000002");
     expect(within(table).getByText("Strong · EDU · 0.95")).toBeInTheDocument();
     expect(within(table).getByText("Claimed by EDU")).toBeInTheDocument();
     expect(within(table).getAllByText("MR. A. BORA").length).toBeGreaterThan(0);

@@ -40,7 +40,7 @@ function row(id: string, extra: Partial<AuditRow> = {}): AuditRow {
     action: "ownership.claim",
     entity_type: "case_ownership",
     entity_id: "0192a3b4-5c6d-7e8f-9a0b-1c2d3e4f5a6b",
-    case: { id: "c-1", ref_no: "ASLMS/GOA/CASE/2026/000001", cnr: "ASHC010000012026", case_no_text: "WP(C)/1/2026" },
+    case: { id: "c-1", ref_no: "ASLMS/GHC/CASE/2026/000001", cnr: "ASHC010000012026", case_no_text: "WP(C)/1/2026" },
     actor: { user_id: "u-7", name: "Anita Sharma", designation: "Under Secretary", office_code: "EDU" },
     ip: "10.0.0.5",
     user_agent: "Mozilla/5.0",
@@ -214,7 +214,7 @@ describe("the search", () => {
     expect(within(first!).getByRole("link", { name: "EDU" })).toHaveAttribute("href", "/audit?from=2026-10-01&office=EDU");
     expect(within(first!).getByRole("link", { name: "WP(C)/1/2026" })).toHaveAttribute(
       "href",
-      "/cases/ASLMS-GOA-CASE-2026-000001",
+      "/cases/ASLMS-GHC-CASE-2026-000001",
     );
     expect(within(first!).getByRole("link", { name: /View the entry/ })).toHaveAttribute("href", "/audit/r-1");
     expect(within(second!).getByText("System")).toBeInTheDocument();
@@ -395,7 +395,7 @@ describe("the entry page", () => {
     expect(within(rowOf("body")).getAllByText("Text not kept in the log (42 characters; fingerprint abcdef012345)")).toHaveLength(2);
     expect(screen.getByRole("link", { name: "All Entries for This Case" })).toHaveAttribute(
       "href",
-      "/audit?case=ASLMS%2FGOA%2FCASE%2F2026%2F000001",
+      "/audit?case=ASLMS%2FGHC%2FCASE%2F2026%2F000001",
     );
     expect(screen.getByRole("link", { name: "All Entries by This Person" })).toHaveAttribute("href", "/audit?user=u-7");
     expect(screen.getByRole("link", { name: "All Entries for This Record" })).toHaveAttribute(

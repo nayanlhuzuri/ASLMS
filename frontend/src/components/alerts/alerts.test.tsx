@@ -9,7 +9,7 @@ import { browserApi, json, labels, makeMe, renderWithClient } from "@/test/rende
 import { AlertList } from "./AlertList";
 import { AlertsFrame } from "./AlertsFrame";
 
-const CASE = { id: "c1", ref_no: "ASLMS/GOA/CASE/2026/000001", cnr: "ASHC010012342026", case_no_text: "WP(C)/1234/2026" };
+const CASE = { id: "c1", ref_no: "ASLMS/GHC/CASE/2026/000001", cnr: "ASHC010012342026", case_no_text: "WP(C)/1234/2026" };
 
 function alert(extra: Partial<AlertItem> = {}): AlertItem {
   return {
@@ -145,7 +145,7 @@ describe("the alert list (portal-files-alerts, decisions 7-9)", () => {
     const api = browserApi(routes([alert()]));
     renderWithClient(<AlertList params={{}} />);
     await userEvent.click(await screen.findByRole("link", { name: "WP(C)/1234/2026" }));
-    await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/cases/ASLMS-GOA-CASE-2026-000001"));
+    await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/cases/ASLMS-GHC-CASE-2026-000001"));
     const post = api.calls.findIndex((c) => c.method === "POST" && c.path === "/alerts/read");
     expect(post).toBeGreaterThanOrEqual(0);
     expect(api.calls[post]!.body).toEqual({ alert_ids: ["a-1"] });
@@ -155,7 +155,7 @@ describe("the alert list (portal-files-alerts, decisions 7-9)", () => {
     browserApi(routes([alert()], { "POST /alerts/read": json(500, { detail: "boom" }) }));
     renderWithClient(<AlertList params={{}} />);
     await userEvent.click(await screen.findByRole("link", { name: "WP(C)/1234/2026" }));
-    await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/cases/ASLMS-GOA-CASE-2026-000001"));
+    await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/cases/ASLMS-GHC-CASE-2026-000001"));
   });
 
   it("a case_visible: false row shows the case as text with the line, never a link", async () => {
