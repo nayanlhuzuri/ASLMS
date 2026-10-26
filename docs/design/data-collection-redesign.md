@@ -2,10 +2,10 @@
 
 ```
 slug: data-collection-redesign
-status: awaiting-approval
+status: approved
 author: architect
 date: 2026-10-26
-approved_by:
+approved_by: owner on 2026-10-26, the four-tab revision as designed (decisions 3, 4, 23, 24, 30, 31, 49, 50 and 52 accepted)
 ```
 
 **History of this note**

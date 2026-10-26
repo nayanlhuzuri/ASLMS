@@ -2,10 +2,10 @@
 
 ```
 slug: data-collection-redesign-tabs
-status: awaiting-approval
+status: approved
 author: architect
 date: 2026-10-26
-approved_by:
+approved_by: owner on 2026-10-26, as round 2 of the revised data-collection-redesign
 ```
 
 This is a pointer note. The whole design is **[data-collection-redesign.md](data-collection-redesign.md)**. The owner
