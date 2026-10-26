@@ -17,6 +17,7 @@ reviewed like code.
 | `reviewer` | Reviews the branch diff against `CLAUDE.md`, `DB_STANDARD.md`, the design note and security; findings are `blocking` or `advisory`, each with a failure scenario. | review findings (in the cycle report) |
 | `scribe` | Appends the decisions-log entry, the as-built lines in `schema.md`, the backlog status and the "Current focus" block of `CLAUDE.md`. | docs |
 | `integrator` | Final gates (`ruff check`, `pytest -q`, `docker compose build`), squash-merge into `main`, tag, cycle report. | `main`, `docs/reports/<date>-<slug>.md` |
+| `security-auditor` | Outside the cycle, on request: an independent cyber security audit of the whole application (authentication, the backend-for-frontend, access control, injection, files, SSRF, NAPIX, the assistant, headers, infrastructure, supply chain). Read-only; proves findings with local tests against the test database; never touches live data, `.env` or NAPIX. | `docs/audits/<date>-security-audit.md` |
 
 ## The cycle
 
@@ -53,6 +54,7 @@ gitleaks, ruff and pytest against a Postgres service, the portal checks, the Com
 | `/team-design <slug>` | The architect only; produces or refreshes the design note |
 | `/team-approve <slug>` | Marks the design approved (note, backlog, decisions log) |
 | `/team-review` | The reviewer alone on the current branch |
+| `/security-audit [scope]` | The security auditor on `main`: a vulnerability report with severity, exploit scenario and fix |
 | `/team-status` | Backlog, open design notes, branches, last reports, load progress |
 
 ## Guardrails (hooks in `.claude/settings.json`, enforced by the harness, not by prompts)
