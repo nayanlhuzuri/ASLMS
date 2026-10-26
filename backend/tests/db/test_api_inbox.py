@@ -360,7 +360,7 @@ def test_scoring_settings_endpoints(api, world, monkeypatch):
     root = login(api, "root")
     admin = login(api, "edu_admin")
     r = api.get("/admin/scoring-settings", headers=root)
-    assert r.status_code == 200 and r.json()["version"] == 1 and r.json()["engine_version"] == "1.1"
+    assert r.status_code == 200 and r.json()["version"] == 1 and r.json()["engine_version"] == "2.1"
     assert r.json()["thresholds"] == {"strong": 0.85, "possible": 0.5}
     assert api.get("/admin/scoring-settings", headers=admin).status_code == 200
     assert api.get("/admin/scoring-settings", headers=login(api, "edu_off1")).status_code == 403
@@ -371,6 +371,7 @@ def test_scoring_settings_endpoints(api, world, monkeypatch):
             "watchlist": 0.75,
             "linked_case": 0.7,
             "keyword": 0.4,
+            "counsel_code_partial": 0.6,
         },
         "thresholds": {"strong": 0.96, "possible": 0.5},
         "reason": "stricter strong band",
@@ -382,7 +383,7 @@ def test_scoring_settings_endpoints(api, world, monkeypatch):
     r = api.put("/admin/scoring-settings", json=body, headers=root)
     assert r.status_code == 200, r.text
     assert r.json()["version"] == 2 and r.json()["changed"] is True and r.json()["rescore_dispatched"] is True
-    assert r.json()["applies_within_minutes"] == 15 and r.json()["engine_version"] == "1.2"
+    assert r.json()["applies_within_minutes"] == 15 and r.json()["engine_version"] == "2.2"
     assert r.json()["updated_by"]["full_name"] == "Root" and len(calls) == 1
     assert api.put("/admin/scoring-settings", json=body, headers=root).status_code == 409  # stale version
     r = api.put("/admin/scoring-settings", json={**body, "expected_version": 2}, headers=root)

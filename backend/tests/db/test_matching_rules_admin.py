@@ -163,3 +163,35 @@ def test_watchlist(world):
         )
         assert audit_actions(s, held.id) == ["watchlist.create", "watchlist.deactivate"]
         assert s.scalar(sa.select(sa.func.count()).select_from(OfficeWatchlist)) == 2
+
+
+def test_unmapped_lists_partly_matching_with_scope(world):
+    """Design partial-code-match, decision 16: `SC, EDU, DSE` stays listed; its partial matches are the mappings in
+    the caller's office subtree (all of them for the super admin)."""
+    from datetime import date
+
+    from aslms.services import matching
+    from tests.db.test_case_visibility import entry_with_codes
+
+    with world.Session() as s:
+        s.add(CounselCode(code="SC, EDU", office_id=world.offices["EDU"].id))
+        s.add(CounselCode(code="SC, DSE", office_id=world.offices["HEALTH"].id))
+        case = make_case(s)
+        entry_with_codes(s, case, ["SC, EDU, DSE"], list_date=date(2026, 10, 23))
+        s.flush()
+
+        def partial(key):
+            _, user = world.actor(s, key)
+            rows = matching.unmapped_codes(s, scope=mr.counsel_code_scope(s, user))
+            return {u.code: u.partial_matches for u in rows}
+
+        edu = {"code": "SC, EDU", "office_code": "EDU", "relation": "contained"}
+        health = {"code": "SC, DSE", "office_code": "HEALTH", "relation": "contained"}
+        assert partial("root") == {"SC, EDU, DSE": [edu, health]}  # department code, then rule text
+        assert partial("edu_admin") == {"SC, EDU, DSE": [edu]}
+        assert partial("health_admin") == {"SC, EDU, DSE": [health]}
+        s.execute(sa.update(CounselCode).where(CounselCode.code == "SC, DSE").values(is_active=False))
+        assert partial("health_admin") == {"SC, EDU, DSE": []}, "another department's mapping stays unseen"
+        _, officer = world.actor(s, "edu_off1")
+        with pytest.raises(access.Forbidden):
+            mr.counsel_code_scope(s, officer)

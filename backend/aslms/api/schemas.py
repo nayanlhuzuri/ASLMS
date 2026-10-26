@@ -373,6 +373,8 @@ class ScoringWeightsIn(BaseModel):
     watchlist: float = Field(gt=0, le=1)
     linked_case: float = Field(gt=0, le=1)
     keyword: float = Field(gt=0, le=1)
+    # design partial-code-match, decisions 10 to 12: required; the service keeps it inside the possible band
+    counsel_code_partial: float = Field(gt=0, le=1)
 
 
 class ScoringThresholdsIn(BaseModel):
@@ -441,11 +443,21 @@ class CounselCodeListOut(BaseModel):
     total: int
 
 
+class PartialMatchOut(BaseModel):
+    """A mapped code (in the caller's office subtree) that an unmapped printed code partly matches (design
+    partial-code-match, decision 16)."""
+
+    code: str
+    office_code: str
+    relation: Literal["contained", "contains", "same_parts"]
+
+
 class UnmappedCodeOut(BaseModel):
     code: str
     entries: int
     last_listed: date | None
     example_case_ref: str | None
+    partial_matches: list[PartialMatchOut] = []
 
 
 class KeywordIn(BaseModel):

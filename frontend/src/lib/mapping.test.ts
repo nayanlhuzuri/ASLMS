@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { ApiError } from "./api/client";
 import { changedFields, given, isCnr, isRootOffice, officeRequired, scoringErrors, weightBody } from "./mapping";
 
-const VALID = { counsel_code: 0.9, name_pattern: 0.6, watchlist: 0.95, linked_case: 0.5, keyword: 0.4, strong: 0.85, possible: 0.5 };
+const VALID = { counsel_code: 0.9, counsel_code_partial: 0.6, name_pattern: 0.6, watchlist: 0.95, linked_case: 0.5, keyword: 0.4, strong: 0.85, possible: 0.5 };
 
 describe("isCnr", () => {
   it("accepts four letters and twelve digits after trim and upper case", () => {
@@ -57,13 +57,25 @@ describe("scoringErrors", () => {
     expect(scoringErrors({ ...VALID, possible: 0.85 }).possible).toBeTruthy();
     expect(scoringErrors({ ...VALID, possible: 0.9 }).possible).toBeTruthy();
   });
+
+  it("keeps the partial code weight inside the possible band and below the counsel code weight", () => {
+    const band = "The partial code weight must be at least Possible and below Strong.";
+    const below = "The partial code weight must be below the counsel code weight.";
+    expect(scoringErrors({ ...VALID, counsel_code_partial: 0.5 })).toEqual({});
+    expect(scoringErrors({ ...VALID, counsel_code_partial: 0.45 }).counsel_code_partial).toBe(band);
+    expect(scoringErrors({ ...VALID, counsel_code_partial: 0.85 }).counsel_code_partial).toBe(band);
+    expect(scoringErrors({ ...VALID, possible: 0.7 }).counsel_code_partial).toBe(band);
+    expect(scoringErrors({ ...VALID, counsel_code_partial: 0.95, strong: 0.99 }).counsel_code_partial).toBe(below);
+    expect(scoringErrors({ ...VALID, counsel_code_partial: 0.9, strong: 0.99 }).counsel_code_partial).toBe(below);
+    expect(scoringErrors({ ...VALID, counsel_code_partial: "" }).counsel_code_partial).toBe("Enter a number greater than 0 and at most 1.");
+  });
 });
 
 describe("changedFields", () => {
   const v = (weights: Partial<typeof VALID>) => {
     const all = { ...VALID, ...weights };
     return {
-      weights: { counsel_code: all.counsel_code, name_pattern: all.name_pattern, watchlist: all.watchlist, linked_case: all.linked_case, keyword: all.keyword },
+      weights: { counsel_code: all.counsel_code, counsel_code_partial: all.counsel_code_partial, name_pattern: all.name_pattern, watchlist: all.watchlist, linked_case: all.linked_case, keyword: all.keyword },
       thresholds: { strong: all.strong, possible: all.possible },
     };
   };
@@ -72,6 +84,12 @@ describe("changedFields", () => {
     expect(changedFields(v({ keyword: 0.45, strong: 0.8 }), v({}))).toEqual(["keyword", "strong"]);
     expect(changedFields(v({}), v({}))).toEqual([]);
     expect(changedFields(v({}), null)).toEqual([]);
+  });
+
+  it("marks the partial code weight against a version written before it existed", () => {
+    const old = v({});
+    delete (old.weights as Record<string, number>).counsel_code_partial;
+    expect(changedFields(v({}), old)).toEqual(["counsel_code_partial"]);
   });
 });
 

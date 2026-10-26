@@ -4,6 +4,12 @@ writes `case_ownership`: a case belongs to a department only after the departmen
 
 - Signals: counsel codes (cause-list entries and current dossier advocates), keywords and name patterns (party
   names), linked cases actively owned by the department, the department's watchlist.
+- Partial counsel codes (design `partial-code-match`): a printed code that no active mapping names exactly, compared
+  with each department's code as a set of comma-separated parts (respondent markers removed, dots significant). The
+  department's code inside the printed one, the printed one inside the department's, or the same parts in another
+  form gives a `counsel_code_partial` signal at the global partial weight (a possible match alone). The smaller part
+  set must hold a part outside the generic stop-list; an exact match wins, and a department with an exact signal
+  loses its partial ones.
 - Score per department: the strongest weight within each signal kind, combined by noisy OR
   (`1 - prod(1 - w_kind)`), rounded to 3 decimals. Weights and band thresholds come from the current
   `scoring_settings` version; a rule's own `weight` overrides its kind's setting.
@@ -23,10 +29,11 @@ from __future__ import annotations
 import re
 import uuid
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 
 import structlog
 from psycopg.errors import DeadlockDetected
@@ -63,7 +70,7 @@ from aslms.services.cases import emit_event, normalise_name
 
 log = structlog.get_logger(__name__)
 
-ENGINE_VERSION = "1"
+ENGINE_VERSION = "2"  # design partial-code-match, decision 17
 CNR_RE = re.compile(r"^[A-Z]{4}\d{12}$")
 MATCHING_ACTOR = Actor.system("matching")
 DEPARTMENT_TIER_KINDS = frozenset({OfficeKind.DEPARTMENT, OfficeKind.CENTRAL, OfficeKind.ADVOCATE_GENERAL})
@@ -76,6 +83,40 @@ NEVER_AGAIN = frozenset(
     }
 )
 REGEX_MAX = 300
+
+# design partial-code-match, decision 4: a parenthesised respondent-number group, or an unclosed one at the end
+ANNOTATION_RE = re.compile(r"\(\s*R[\s.\-]*\d[^)]*\)?")
+# decision 5: counsel designations and State names seen in the dev data (25 Oct 2026), plus the owner's examples;
+# every active single-part generic State code extends the list at run time
+GENERIC_PARTS: frozenset[str] = frozenset(
+    {
+        "SC",
+        "SR. SC",
+        "STANDING COUNSEL",
+        "GA",
+        "SR. GA",
+        "SR.GA",
+        "SR. GA ADV.",
+        "PP",
+        "ADDL. PP",
+        "AG",
+        "ADDL. AG",
+        "ADDL AG",
+        "SR. AG",
+        "CGC",
+        "SR. CGC",
+        "DY.S.G.I.",
+        "AMICUS CURIAE",
+        "LEGAL AID COUNSEL",
+        "ASSAM",
+        "NAGALAND",
+        "MIZORAM",
+        "AP",
+        "A P",
+        "MANIPUR",
+    }
+)
+Relation = Literal["contained", "contains", "same_parts"]
 
 
 # ------------------------------------------------------------------------------------------------ pure helpers
@@ -128,6 +169,61 @@ def engine_version(settings: ss.Settings) -> str:
     return f"{ENGINE_VERSION}.{settings.version}"
 
 
+def code_parts(code: str | None) -> frozenset[str]:
+    """The comparison form of a counsel code (design partial-code-match, decisions 1 and 4): normalised, respondent
+    markers removed, split on commas into a set of stripped, non-empty parts."""
+    s = ANNOTATION_RE.sub(" ", normalise_counsel_code(code))
+    s = s.strip().rstrip(", ").strip()
+    return frozenset(p for p in (t.strip() for t in s.split(",")) if p)
+
+
+def partial_relation(
+    dept_parts: frozenset[str], printed_parts: frozenset[str], generic: frozenset[str] | set[str]
+) -> Relation | None:
+    """Decision 2. Called only when the two normalised strings differ. The smaller set must hold a part that is not
+    generic."""
+    if not dept_parts or not printed_parts:
+        return None
+
+    def specific(parts: frozenset[str]) -> bool:
+        return any(p not in generic for p in parts)
+
+    if dept_parts == printed_parts:
+        return "same_parts" if specific(dept_parts) else None
+    if dept_parts < printed_parts:
+        return "contained" if specific(dept_parts) else None
+    if printed_parts < dept_parts:
+        return "contains" if specific(printed_parts) else None
+    return None
+
+
+def _list_date_text(value: Any) -> str | None:
+    if isinstance(value, date):
+        d = value
+    else:
+        try:
+            d = date.fromisoformat(str(value))
+        except (TypeError, ValueError):
+            return None
+    return f"{d.day} {d:%b %Y}"
+
+
+def partial_reason(dept_code: str, printed: str, relation: str, where: str, ref: Any) -> str:
+    """The sentence shown in Case Claim's "Why this is suggested" (decision 13)."""
+    ref = ref if isinstance(ref, dict) else {}
+    if where == "case_advocates":
+        side = ref.get("side")
+        place = f"in the case's advocate list ({side} side)" if side else "in the case's advocate list"
+    else:
+        day = _list_date_text(ref.get("list_date"))
+        place = f"on the cause list of {day}" if day else "on a cause list"
+    if relation == "contained":
+        return f"Code {dept_code} found inside {printed} {place}"
+    if relation == "contains":
+        return f"Code {printed} {place} is part of {dept_code}"
+    return f"Code {printed} {place} has the same parts as {dept_code}"
+
+
 def _word_regex(term: str) -> re.Pattern[str]:
     return re.compile(r"(?<![A-Z0-9])" + re.escape(term) + r"(?![A-Z0-9])")
 
@@ -148,6 +244,11 @@ class Rule:
     weight: float  # effective: the rule's override, else the kind's setting
     pattern_kind: str | None = None
     regex: re.Pattern[str] | None = field(default=None, compare=False, hash=False)
+    parts: frozenset[str] = frozenset()  # counsel_code rules: the comparison form (design partial-code-match)
+
+    def __post_init__(self) -> None:
+        if self.kind == "counsel_code" and not self.parts:
+            object.__setattr__(self, "parts", code_parts(self.text))
 
 
 @dataclass
@@ -159,6 +260,55 @@ class RuleSet:
     patterns: list[Rule] = field(default_factory=list)
     watch: dict[str, list[Rule]] = field(default_factory=dict)
     departments: dict[uuid.UUID, str] = field(default_factory=dict)  # active Department-tier offices
+    # design partial-code-match, decisions 5 and 9: filled on first use from `codes` and `generic_codes`
+    generic_parts: frozenset[str] = frozenset()
+    partial_index: dict[str, list[Rule]] = field(default_factory=dict)
+    _partial_cache: dict[str, list[tuple[Rule, str]]] = field(default_factory=dict, repr=False)
+    _prepared: bool = field(default=False, repr=False)
+
+    def _prepare(self) -> None:
+        extra: set[str] = set()
+        for code in self.generic_codes:
+            parts = code_parts(code)
+            if len(parts) == 1:
+                extra |= parts
+        self.generic_parts = GENERIC_PARTS | extra
+        index: dict[str, list[Rule]] = defaultdict(list)
+        for rule in self.codes.values():
+            for part in rule.parts:
+                if part not in self.generic_parts:
+                    index[part].append(rule)
+        self.partial_index = dict(index)
+        self._partial_cache = {}
+        self._prepared = True
+
+    def partial_matches(self, printed: str) -> list[tuple[Rule, str]]:
+        """Every department code rule that partly matches the normalised printed code, with its relation, ordered
+        by department code then rule text. Nothing when the printed code is mapped exactly or is a generic code
+        (decisions 6 and 7), or when all its parts are generic."""
+        if not self._prepared:
+            self._prepare()
+        if printed in self.codes or printed in self.generic_codes:
+            return []
+        cached = self._partial_cache.get(printed)
+        if cached is not None:
+            return cached
+        pp = code_parts(printed)
+        out: list[tuple[Rule, str]] = []
+        if pp and any(p not in self.generic_parts for p in pp):
+            candidates: dict[str, Rule] = {}
+            for part in pp:
+                for rule in self.partial_index.get(part, ()):
+                    candidates.setdefault(rule.text, rule)
+            for rule in candidates.values():
+                if rule.text == printed:
+                    continue
+                rel = partial_relation(rule.parts, pp, self.generic_parts)
+                if rel is not None:
+                    out.append((rule, rel))
+            out.sort(key=lambda m: (m[0].department_code, m[0].text))
+        self._partial_cache[printed] = out
+        return out
 
     @classmethod
     def load(cls, session: Session) -> RuleSet:
@@ -238,6 +388,7 @@ class RuleSet:
             rule = make(row, "watchlist", row.cnr.upper())
             if rule is not None:
                 rs.watch.setdefault(rule.text, []).append(rule)
+        rs._prepare()
         return rs
 
 
@@ -421,18 +572,53 @@ def score_case(rules: RuleSet, evidence: CaseEvidence) -> dict[uuid.UUID, Scored
             )
         )
 
-    for code, ref in evidence.entry_codes:
-        if code in rules.generic_codes:
-            continue
-        rule = rules.codes.get(code)
-        if rule is not None:
-            add(rule, code, "causelist_entry", ref)
-    for code, ref in evidence.advocate_codes:
-        if code in rules.generic_codes:
-            continue
-        rule = rules.codes.get(code)
-        if rule is not None:
-            add(rule, code, "case_advocates", ref)
+    w_partial = round(
+        rules.settings.weights.get("counsel_code_partial", ss.DEFAULTS.weights["counsel_code_partial"]), 3
+    )
+
+    def add_partial(rule: Rule, printed: str, relation: str, where: str, ref: Any) -> None:
+        """Design partial-code-match, decisions 9, 10 and 13: the global partial weight, never the rule's
+        override."""
+        key = ("counsel_code_partial", rule.id, rule.text, rule.department_id, where)
+        if key in seen:
+            return
+        seen.add(key)
+        hits.append(
+            _Hit(
+                rule.department_id,
+                rule.department_code,
+                "counsel_code_partial",
+                w_partial,
+                rule.office_code,
+                rule.office_depth,
+                {
+                    "kind": "counsel_code_partial",
+                    "rule_id": str(rule.id) if rule.id else None,
+                    "rule_office_code": rule.office_code,
+                    "weight": w_partial,
+                    "matched": rule.text,
+                    "printed": printed,
+                    "relation": relation,
+                    "where": where,
+                    "ref": ref,
+                    "reason": partial_reason(rule.text, printed, relation, where, ref),
+                },
+            )
+        )
+
+    for codes, where in (
+        (evidence.entry_codes, "causelist_entry"),
+        (evidence.advocate_codes, "case_advocates"),
+    ):
+        for code, ref in codes:
+            if code in rules.generic_codes:
+                continue
+            rule = rules.codes.get(code)
+            if rule is not None:
+                add(rule, code, where, ref)
+                continue
+            for prule, relation in rules.partial_matches(code):
+                add_partial(prule, code, relation, where, ref)
     for name, where, ref in evidence.names:
         if not name:
             continue
@@ -480,6 +666,9 @@ def score_case(rules: RuleSet, evidence: CaseEvidence) -> dict[uuid.UUID, Scored
         by_dept[h.department_id].append(h)
     out: dict[uuid.UUID, ScoredOffice] = {}
     for dept_id, dept_hits in by_dept.items():
+        if any(h.kind == "counsel_code" for h in dept_hits):
+            # decision 8: one code signal family per department, the exact one
+            dept_hits = [h for h in dept_hits if h.kind != "counsel_code_partial"]
         best: dict[str, float] = {}
         for h in dept_hits:
             best[h.kind] = max(best.get(h.kind, 0.0), h.weight)
@@ -852,12 +1041,19 @@ class UnmappedCode:
     entries: int
     last_listed: date | None
     example_case_ref: str | None
+    partial_matches: list[dict[str, str]] = field(default_factory=list)
 
 
-def unmapped_codes(session: Session, *, limit: int = 200) -> list[UnmappedCode]:
+PARTIAL_MATCHES_SHOWN = 5
+
+
+def unmapped_codes(
+    session: Session, *, limit: int = 200, scope: Callable[[uuid.UUID], bool] | None = None
+) -> list[UnmappedCode]:
     """Codes seen in cause-list entries and current dossier advocates with no active mapping (generic codes
     are mappings too), normalised, most frequent first. `entries` counts cause-list entries plus dossier
-    advocate rows."""
+    advocate rows. Each code carries up to 5 mapped codes it partly matches (design partial-code-match, decision
+    16), only those whose office passes `scope` (None: every mapping, for the super admin)."""
     mapped = {
         normalise_counsel_code(c)
         for c in session.scalars(select(CounselCode.code).where(CounselCode.is_active.is_(True))).all()
@@ -905,12 +1101,25 @@ def unmapped_codes(session: Session, *, limit: int = 200) -> list[UnmappedCode]:
         if example_ids
         else {}
     )
+    rules = RuleSet.load(session) if ordered else None
+
+    def partly(code: str) -> list[dict[str, str]]:
+        found = []
+        for rule, relation in rules.partial_matches(code):
+            if scope is not None and not scope(rule.office_id):
+                continue
+            found.append({"code": rule.text, "office_code": rule.office_code, "relation": relation})
+            if len(found) == PARTIAL_MATCHES_SHOWN:
+                break
+        return found
+
     return [
         UnmappedCode(
             code=k,
             entries=v["n"],
             last_listed=v["last"],
             example_case_ref=refs.get(uuid.UUID(v["example"])) if v["example"] else None,
+            partial_matches=partly(k),
         )
         for k, v in ordered
     ]

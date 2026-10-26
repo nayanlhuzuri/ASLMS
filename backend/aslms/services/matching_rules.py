@@ -18,6 +18,7 @@ counsel codes (`admin.counsel_codes`), keywords and name patterns (`admin.keywor
 from __future__ import annotations
 
 import uuid
+from collections.abc import Callable
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
@@ -326,6 +327,25 @@ def list_counsel_codes(
     if not include_inactive:
         stmt = stmt.where(CounselCode.is_active.is_(True))
     return list(session.scalars(stmt.order_by(CounselCode.code)).all())
+
+
+def counsel_code_scope(session: Session, actor_user: User) -> Callable[[uuid.UUID], bool] | None:
+    """The office-id predicate of `list_counsel_codes` (the caller's memberships holding `admin.counsel_codes`,
+    with their subtrees), for the unmapped panel's partial matches (design partial-code-match, decision 16); None
+    for the super admin, who sees every mapping."""
+    access.require(session, actor_user, Permission.ADMIN_COUNSEL_CODES)
+    if access.is_super_admin(actor_user):
+        return None
+    roots = _scope_roots(session, actor_user, Permission.ADMIN_COUNSEL_CODES)
+    seen: dict[uuid.UUID, bool] = {}
+
+    def in_scope(office_id: uuid.UUID) -> bool:
+        if office_id not in seen:
+            office = session.get(Office, office_id)
+            seen[office_id] = office is not None and any(access.subtree_contains(r, office) for r in roots)
+        return seen[office_id]
+
+    return in_scope
 
 
 # ------------------------------------------------------------------------------------------------ keywords

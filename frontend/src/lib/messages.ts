@@ -1147,6 +1147,9 @@ export const T = {
     entries: "Entries",
     lastSeen: "Last Seen",
     entriesLine: (n: string, last: string) => `${n} entries · last seen ${last}`,
+    // design partial-code-match, decision 16: the mappings in the caller's scope that the printed code partly matches
+    partlyMatches: (items: { code: string; office_code: string }[]) =>
+      `Partly matches ${items.map((i) => `${i.code} (${i.office_code})`).join("; ")}`,
     example: "Example Case",
     map: "Map",
     mapCode: (code: string) => `Map ${code}`,
@@ -1191,6 +1194,7 @@ export const T = {
     weights: "Weights",
     fields: {
       counsel_code: "Counsel Code",
+      counsel_code_partial: "Partial Counsel Code",
       name_pattern: "Name Pattern",
       watchlist: "Watchlist",
       linked_case: "Linked Case",
@@ -1206,6 +1210,8 @@ export const T = {
     saveSettings: "Save Changes",
     weightExplain: {
       counsel_code: "A code in the advocate column of the cause list, mapped to the department.",
+      counsel_code_partial:
+        "A department's code found inside a longer printed code, or a printed code that is part of the department's code. Stays in the possible band and below the counsel code weight.",
       name_pattern: "A party name that matches one of the department's name patterns.",
       watchlist: "A case the department has asked to follow.",
       linked_case: "A case linked to one the department already holds.",

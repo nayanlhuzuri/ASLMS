@@ -114,7 +114,7 @@ function watch(extra: Partial<Watch> = {}): Watch {
 function settings(version: number, extra: Partial<ScoringSettings> = {}): ScoringSettings {
   return {
     version,
-    weights: { counsel_code: 0.9, name_pattern: 0.6, watchlist: 0.95, linked_case: 0.5, keyword: 0.4 },
+    weights: { counsel_code: 0.9, counsel_code_partial: 0.6, name_pattern: 0.6, watchlist: 0.95, linked_case: 0.5, keyword: 0.4 },
     thresholds: { strong: 0.85, possible: 0.5 },
     reason: version === 0 ? null : "initial",
     valid_from: version === 0 ? null : "2026-10-01T05:00:00Z",
@@ -257,8 +257,8 @@ describe("counsel codes (design portal-ui-polish-2, decisions 39-42)", () => {
 
   it("Recommended From Cause Lists is always shown; Map posts the code with the chosen office and the code leaves", async () => {
     const unmapped: UnmappedCode[] = [
-      { code: "SC, PWD", entries: 1240, last_listed: "2026-10-09", example_case_ref: "ASLMS/GOA/CASE/2026/000042" },
-      { code: "SC, AGRI", entries: 12, last_listed: "2026-10-01", example_case_ref: null },
+      { code: "SC, PWD", entries: 1240, last_listed: "2026-10-09", example_case_ref: "ASLMS/GOA/CASE/2026/000042", partial_matches: [] },
+      { code: "SC, AGRI", entries: 12, last_listed: "2026-10-01", example_case_ref: null, partial_matches: [] },
     ];
     const api = browserApi({
       "GET /me": deptAdmin(),
@@ -283,6 +283,48 @@ describe("counsel codes (design portal-ui-polish-2, decisions 39-42)", () => {
     expect(calls(api, "POST", "/admin/counsel-codes")[0]!.body).toEqual({ code: "SC, PWD", office_code: "EDU", is_generic_state: false });
     await waitFor(() => expect(within(panel).queryByText("SC, PWD")).toBeNull());
     expect(within(panel).getByText("SC, AGRI")).toBeInTheDocument();
+  });
+
+  it("a partly matching code says so, and with one match in scope its picker starts on that office", async () => {
+    const unmapped: UnmappedCode[] = [
+      {
+        code: "SC, EDU, DSE",
+        entries: 40,
+        last_listed: "2026-10-23",
+        example_case_ref: null,
+        partial_matches: [{ code: "SC, EDU", office_code: "EDU", relation: "contained" }],
+      },
+      {
+        code: "EDU",
+        entries: 3,
+        last_listed: "2026-10-20",
+        example_case_ref: null,
+        partial_matches: [
+          { code: "SC, EDU", office_code: "EDU", relation: "contains" },
+          { code: "SC, EDU, DSE", office_code: "EDU-DSE", relation: "contains" },
+        ],
+      },
+    ];
+    const api = browserApi({
+      "GET /me": deptAdmin(),
+      "GET /admin/offices/choices": choices([EDU, DSE]),
+      "GET /admin/counsel-codes": { items: [], total: 0 },
+      "GET /admin/counsel-codes/unmapped": unmapped,
+      "POST /admin/counsel-codes": json(201, { ...code({ id: "cc-6", code: "SC, EDU, DSE" }), applies_within_minutes: 15 }),
+    });
+    renderWithClient(<CounselCodes />);
+    const panel = await screen.findByRole("complementary", { name: "Recommended From Cause Lists" });
+    expect(await within(panel).findByText("Partly matches SC, EDU (EDU)")).toBeInTheDocument();
+    expect(within(panel).getByText("Partly matches SC, EDU (EDU); SC, EDU, DSE (EDU-DSE)")).toBeInTheDocument();
+    // one match: the picker starts on EDU and nothing is sent until Map is pressed
+    const single = within(panel).getByRole("form", { name: "Map SC, EDU, DSE" });
+    expect(within(single).getByRole("button", { name: "Map SC, EDU, DSE" })).toBeEnabled();
+    expect(calls(api, "POST", "/admin/counsel-codes")).toHaveLength(0);
+    // two matches: no pre-fill
+    expect(within(within(panel).getByRole("form", { name: "Map EDU" })).getByRole("button", { name: "Map EDU" })).toBeDisabled();
+    await userEvent.click(within(single).getByRole("button", { name: "Map SC, EDU, DSE" }));
+    await waitFor(() => expect(calls(api, "POST", "/admin/counsel-codes")).toHaveLength(1));
+    expect(calls(api, "POST", "/admin/counsel-codes")[0]!.body).toEqual({ code: "SC, EDU, DSE", office_code: "EDU", is_generic_state: false });
   });
 
   it("a failing recommended report shows the API's message with Retry; a 403 on adding shows the server's message", async () => {
@@ -531,7 +573,7 @@ describe("scoring (decisions 40 and 43)", () => {
     expect(screen.getByRole("img", { name: /No Recommendation 50%, Possible Match 35%, Strong 15%/ })).toBeInTheDocument();
   });
 
-  it("Save Changes asks for the reason and sends all seven values with the loaded version", async () => {
+  it("Save Changes asks for the reason and sends all eight values with the loaded version", async () => {
     const api = scorer({ "PUT /admin/scoring-settings": { ...settings(4), changed: true, rescore_dispatched: true, applies_within_minutes: 15 } });
     renderWithClient(<Scoring />);
     const keywordInput = await screen.findByRole("spinbutton", { name: "Keyword" });
@@ -548,11 +590,47 @@ describe("scoring (decisions 40 and 43)", () => {
     await userEvent.click(within(dialog).getByRole("button", { name: "Save Changes" }));
     expect(await screen.findByText(/Saved as version 4\. Recommendations are rescored within 15 minutes; rescoring has started/)).toBeInTheDocument();
     expect(calls(api, "PUT", "/admin/scoring-settings")[0]!.body).toEqual({
-      weights: { counsel_code: 0.9, name_pattern: 0.6, watchlist: 0.95, linked_case: 0.5, keyword: 0.45 },
+      weights: { counsel_code: 0.9, counsel_code_partial: 0.6, name_pattern: 0.6, watchlist: 0.95, linked_case: 0.5, keyword: 0.45 },
       thresholds: { strong: 0.85, possible: 0.5 },
       reason: "keywords were too weak",
       expected_version: 3,
     });
+  });
+
+  it("shows six weights with the partial counsel code, and checks its band before saving", async () => {
+    const api = scorer();
+    renderWithClient(<Scoring />);
+    const partial = await screen.findByRole("spinbutton", { name: "Partial Counsel Code" });
+    expect(partial).toHaveValue(0.6);
+    expect(screen.getByRole("slider", { name: "Partial Counsel Code, slider" })).toBeInTheDocument();
+    expect(screen.getAllByRole("slider")).toHaveLength(6);
+    expect(screen.getByText(/Stays in the possible band and below the counsel code weight/)).toBeInTheDocument();
+    await userEvent.clear(partial);
+    await userEvent.type(partial, "0.9");
+    await userEvent.click(screen.getByRole("button", { name: "Save Changes" }));
+    expect(await screen.findByText("The partial code weight must be at least Possible and below Strong.")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    const strong = screen.getByLabelText("Strong Recommendation From");
+    await userEvent.clear(strong);
+    await userEvent.type(strong, "0.99");
+    await userEvent.clear(partial);
+    await userEvent.type(partial, "0.95");
+    await userEvent.click(screen.getByRole("button", { name: "Save Changes" }));
+    expect(await screen.findByText("The partial code weight must be below the counsel code weight.")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(calls(api, "PUT", "/admin/scoring-settings")).toHaveLength(0);
+  });
+
+  it("the history shows a dash for a version written before the partial weight existed", async () => {
+    const v1 = settings(1, { valid_to: "2026-10-05T05:00:00Z", weights: { counsel_code: 0.9, name_pattern: 0.6, watchlist: 0.95, linked_case: 0.5, keyword: 0.4 } });
+    const v2 = settings(2, { reason: "Partial counsel-code match added (design partial-code-match), partial weight 0.600" });
+    scorer({ "GET /admin/scoring-settings": v2, "GET /admin/scoring-settings/history": { items: [v2, v1], total: 2 } });
+    renderWithClient(<Scoring />);
+    const history = await screen.findByRole("table", { name: "History (2)" });
+    const rows = within(history).getAllByRole("row");
+    expect(within(history).getByRole("columnheader", { name: "Partial Counsel Code" })).toBeInTheDocument();
+    expect(within(rows[2]!).getByText("—", { selector: ".mono" })).toBeInTheDocument();
+    expect(within(rows[1]!).getAllByText("(changed)")).toHaveLength(1);
   });
 
   it("refuses Possible at or above Strong; Discard restores the loaded values", async () => {

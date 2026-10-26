@@ -213,8 +213,8 @@ def test_effective_weight_override_and_setting():
     assert out[EDU].signals[0]["weight"] == 0.5
     overridden = ruleset(rule("keyword", "EDUCATION", weight=0.6))
     assert score_case(overridden, CaseEvidence(names=[("EDUCATION", "x", {})]))[EDU].score == 0.6
-    assert engine_version(custom) == "1.2"
-    assert engine_version(ss.DEFAULTS) == "1.0"
+    assert engine_version(custom) == "2.2"  # design partial-code-match, decision 17
+    assert engine_version(ss.DEFAULTS) == "2.0"
 
 
 def test_inactive_office_rules_are_not_in_the_ruleset():

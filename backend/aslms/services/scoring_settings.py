@@ -1,5 +1,7 @@
-"""Scoring settings (design `recommend-and-claim`, decision 21): the five signal-kind weights and the two band
-thresholds of the matching engine, edited by the super admin (function `admin.scoring`).
+"""Scoring settings (design `recommend-and-claim`, decision 21): the six signal-kind weights and the two band
+thresholds of the matching engine, edited by the super admin (function `admin.scoring`). The partial counsel-code
+weight (design `partial-code-match`, decisions 10 to 12) is kept inside the possible band and below the counsel-code
+weight; versions written before migration 0027 have no partial weight (NULL) and read without the key.
 
 `scoring_settings` is a versioned master table: each save inserts a new version (`is_current = true`) and
 closes the previous one (`is_current = false`, `valid_to`); values are never updated in place and rows are
@@ -20,7 +22,7 @@ from aslms.domain.reference import EventType, Permission
 from aslms.services import access
 from aslms.services.audit import Actor, write_audit
 
-KINDS = ("counsel_code", "name_pattern", "watchlist", "linked_case", "keyword")
+KINDS = ("counsel_code", "counsel_code_partial", "name_pattern", "watchlist", "linked_case", "keyword")
 DEFAULT_REASON = "Plan §4.2 defaults"
 
 
@@ -44,6 +46,7 @@ DEFAULTS = Settings(
     version=0,
     weights={
         "counsel_code": 0.950,
+        "counsel_code_partial": 0.600,
         "name_pattern": 0.800,
         "watchlist": 0.750,
         "linked_case": 0.700,
@@ -61,7 +64,9 @@ def _f(value) -> float:
 def from_row(row: ScoringSettings) -> Settings:
     return Settings(
         version=row.version,
-        weights={k: _f(getattr(row, f"weight_{k}")) for k in KINDS},
+        weights={
+            k: _f(getattr(row, f"weight_{k}")) for k in KINDS if getattr(row, f"weight_{k}") is not None
+        },
         threshold_strong=_f(row.threshold_strong),
         threshold_possible=_f(row.threshold_possible),
     )
@@ -114,6 +119,14 @@ def validate(
             raise SettingsError(f"the weight of {k} must be greater than 0 and at most 1")
     if not (0 < float(threshold_possible) < float(threshold_strong) <= 1):
         raise SettingsError("thresholds must satisfy 0 < possible < strong <= 1")
+    # design partial-code-match, decision 12: a partial match alone is always a possible match
+    partial = _f(weights["counsel_code_partial"])
+    if not (_f(threshold_possible) <= partial < _f(threshold_strong)):
+        raise SettingsError(
+            "the partial code weight must be at least the possible threshold and below the strong threshold"
+        )
+    if not (partial < _f(weights["counsel_code"])):
+        raise SettingsError("the partial code weight must be below the counsel code weight")
     if not (reason or "").strip():
         raise SettingsError("a reason is required")
 

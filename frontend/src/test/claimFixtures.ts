@@ -103,6 +103,31 @@ export function rec(n: number, extra: Partial<Recommendation> = {}): Recommendat
   };
 }
 
+/** A possible match from a partial counsel code alone (design partial-code-match): the server's reason, 0.600. */
+export const PARTIAL_REASON = "Code SC, EDU found inside SC, EDU, DSE on the cause list of 23 Oct 2026";
+
+export function partialRec(n: number, extra: Partial<Recommendation> = {}): Recommendation {
+  return rec(n, {
+    score: 0.6,
+    band: "medium",
+    signals: [
+      {
+        kind: "counsel_code_partial",
+        rule_id: null,
+        rule_office_code: "EDU",
+        weight: 0.6,
+        matched: "SC, EDU",
+        printed: "SC, EDU, DSE",
+        relation: "contained",
+        where: "causelist_entry",
+        ref: { list_date: "2026-10-23", sr_no: 7 },
+        reason: PARTIAL_REASON,
+      },
+    ],
+    ...extra,
+  });
+}
+
 export function poolItem(n: number, extra: Partial<PoolCase> = {}): PoolCase {
   return { case: summary(n), best_score: 0.42, best_office_code: "FIN", dismissed_by: ["HEALTH"], ...extra };
 }

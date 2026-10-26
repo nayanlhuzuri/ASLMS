@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import importlib.util
 import uuid
+from contextlib import ExitStack
+from unittest.mock import patch
 
 import pytest
 import sqlalchemy as sa
@@ -16,6 +18,7 @@ from alembic.migration import MigrationContext
 from sqlalchemy.orm import sessionmaker
 
 from aslms.db.base import Base
+from aslms.services import seed as seed_module
 from aslms.services.seed import seed_all
 from tests.db.conftest import BACKEND, alembic_config, head_revision, wipe_if_migrated
 
@@ -50,9 +53,23 @@ def _rows(engine, *, only_new: bool = False) -> list[tuple]:
 
 
 def _seed(engine) -> None:
-    with sessionmaker(bind=engine)() as s:
-        seed_all(s)
-        s.commit()
+    """Today's seed. On a database below 0027 (no `weight_counsel_code_partial`, design partial-code-match) its
+    scoring-settings step is left out: the settings are not what these tests are about."""
+    with engine.connect() as conn:
+        has_partial = conn.execute(
+            sa.text(
+                "select exists (select 1 from information_schema.columns where table_name = 'scoring_settings' "
+                "and column_name = 'weight_counsel_code_partial')"
+            )
+        ).scalar()
+    with ExitStack() as stack:
+        if not has_partial:
+            stack.enter_context(
+                patch.object(seed_module.scoring_settings, "seed_default", lambda s, report: None)
+            )
+        with sessionmaker(bind=engine)() as s:
+            seed_all(s)
+            s.commit()
 
 
 def _version(engine) -> str:

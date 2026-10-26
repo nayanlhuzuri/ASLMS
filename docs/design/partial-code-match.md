@@ -450,3 +450,33 @@ e. **The stop-list.** These tokens, taken from the dev data, count as generic fo
    adds more by entering a single-part generic State code. *Recommended: accept as listed* (decision 5), including
    `AG`, which alone denotes the Advocate General and must not reach the department mapping `SC, AG` (the
    Accountant General).
+
+## Deviations
+Recorded by the developer while building (26 Oct 2026).
+
+1. **Migration number 0027.** 0026 went to `portal_ui_polish_2` (row 153) first, so the migration is
+   `0027_partial_code_match.py` (decision 11 allows the next free number). Every "0026" of this note reads "0027":
+   the audit rows carry `after.migration = "0027"` and `"0027-downgrade"`, the actor is `migration 0027`, and
+   `schema.md` names 0027.
+2. **Label in Title Case.** The Scoring tab's label is "Partial Counsel Code", not "Partial counsel code", following
+   the Title Case rule for labels of row 153 (the neighbouring label is "Counsel Code"). The hint text is as written.
+3. **The scope predicate lives in `services/matching_rules.py`.** `counsel_code_scope(session, user)` returns the
+   office-id predicate of `list_counsel_codes` (None for the super admin) and requires `admin.counsel_codes`. The
+   router passes it to `matching.unmapped_codes(scope=...)`. It sits in the service so that
+   `test_matching_rules_admin.py` can test the scoping, where "Services" said `matching_rules` would not change.
+4. **What decision 12 implies for exact matches.** The partial weight must be at least the possible threshold and
+   below the counsel-code weight, so the counsel-code weight is always above the possible threshold. No settings save
+   can push an exact code match out of the band any more; only the code's own weight override can. The existing
+   test `test_settings_change_rescore_changes_band_and_expires` now expires the engine row through the code's
+   override (0.3) instead of through a threshold of 0.96.
+5. **Wording when a fact is missing.** `partial_reason` says "on a cause list" for a cause-list ref without a date,
+   and "in the case's advocate list" for an advocate ref without a side.
+6. **The migration's event insert is guarded.** It inserts only when `ref_event_type` has `config_changed`, which
+   every seeded database has, so the migration cannot fail on a database whose reference data was never seeded.
+7. **Where the inbox test lives.** The test that `GET /inbox/recommended` returns the partial signal with its
+   `reason` (and that the per-case scores carry it too) is in the new `test_api_matching.py`, next to the other API
+   tests of this item, not in `test_api_inbox.py`. `test_api_inbox.py` only gains the sixth weight in its PUT body
+   and the `2.x` engine versions.
+8. **An older migration test seeds without the settings.** `test_migration_0016.py` runs today's seed on a database
+   downgraded to 0015, where `scoring_settings` has no partial column yet. Its `_seed` helper now leaves out the
+   scoring-settings step when the column is missing. The settings are not what that test checks.

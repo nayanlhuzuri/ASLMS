@@ -8,6 +8,9 @@
  * seen in cause lists with no mapping, each with its own picker and Map. Nothing is mapped automatically: Map is a
  * person's decision. A code mapped to the root office is generic (recognised, recommends no department); the forms
  * send `is_generic_state` exactly when the root office is chosen. Notes and weights are never sent (decision 39).
+ * A code that partly matches mappings in the caller's scope says so ("Partly matches SC, EDU (EDU)"), and with exactly
+ * one such mapping its picker starts on that office; Map still sends nothing until pressed (design partial-code-match,
+ * decision 16).
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type FormEvent } from "react";
@@ -239,7 +242,8 @@ export function RecommendedCodes({ onMapped, onConflict }: { onMapped: (row: Cou
 }
 
 function RecommendedCode({ item, onMapped, onConflict }: { item: UnmappedCode; onMapped: (row: CounselCode) => void; onConflict: () => void }) {
-  const [office, setOffice] = useState<string | null>(null);
+  const partial = item.partial_matches ?? [];
+  const [office, setOffice] = useState<string | null>(partial.length === 1 ? partial[0]!.office_code : null);
   const [chosen, setChosen] = useState<OfficeChoice | undefined>(undefined);
   const action = useAction();
 
@@ -265,6 +269,7 @@ function RecommendedCode({ item, onMapped, onConflict }: { item: UnmappedCode; o
         <span className="mono">{item.code}</span>
         <span className="muted">{T.mapping.entriesLine(formatNumber(item.entries), formatDate(item.last_listed))}</span>
       </div>
+      {partial.length > 0 ? <span className="muted">{T.mapping.partlyMatches(partial)}</span> : null}
       {item.example_case_ref ? <SearchLink ref_no={item.example_case_ref} /> : null}
       <form className={s.recMap} onSubmit={map} aria-label={T.mapping.mapCode(item.code)}>
         <OfficePicker label={T.mapping.officeFor(item.code)} hideLabel purpose="counsel_codes" value={office} onChange={setOffice} onChoose={setChosen} />

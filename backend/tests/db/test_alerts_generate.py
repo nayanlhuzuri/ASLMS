@@ -646,3 +646,53 @@ def test_suggestion_event_without_target_or_closed_is_skipped(world):
         s.commit()
         c = _scan(s)
         assert c["alerts_new"] == 0 and c["skipped_other"] == 2
+
+
+# ------------------------------------------------------------------------------------------------ partial-code-match
+
+
+def test_possible_match_raises_no_alert(world):
+    """Design partial-code-match, decision 14: the `recommendation_made` event of a partial-only `medium` row raises
+    no alert; a partial match plus a name pattern (`high`) raises one; the digest counts the possible match."""
+    from aslms.domain.ownership import (
+        CounselCode,
+        OfficeNamePattern,
+        PatternKind,
+        Recommendation,
+        RecommendationOrigin,
+    )
+    from aslms.services import matching
+    from aslms.services import notifications as notif
+
+    with world.Session() as s:
+        s.add(CounselCode(code="SC, EDU", office_id=world.offices["EDU"].id))
+        case = make_case(s)
+        entry_with_codes(s, case, ["SC, EDU, DSE"], pet="RAMEN KALITA")
+        s.flush()
+        matching.score_cases(s, [case.id], origin=RecommendationOrigin.CAUSE_LIST)
+        s.commit()
+        (rec,) = s.scalars(sa.select(Recommendation).where(Recommendation.case_id == case.id)).all()
+        assert rec.band == ScoreBand.MEDIUM and float(rec.score) == 0.6
+        c = _scan(s)
+        assert c["alerts_new"] == 0 and h.alerts_of(s, case) == []
+        digests = notif.build_digests(s, today=TODAY, now=NOW, record_run=False)
+        assert digests["built"] >= 1
+        from aslms.domain.alerts import Digest
+
+        body = s.scalar(sa.select(Digest.body).where(Digest.user_id == world.users["edu_admin"].id))
+        assert "Possible matches awaiting a decision in your department's inbox: 1" in body
+        s.rollback()
+        s.add(
+            OfficeNamePattern(
+                pattern="RAMEN KALITA", kind=PatternKind.EXACT, office_id=world.offices["EDU"].id
+            )
+        )
+        s.flush()
+        matching.score_cases(s, [case.id], origin=RecommendationOrigin.RESCORE)
+        s.commit()
+        s.refresh(rec)
+        assert rec.band == ScoreBand.HIGH and float(rec.score) == 0.92
+        c = _scan(s, 1)
+        assert c["alerts_new"] == 1
+        (a,) = h.alerts_of(s, case, AlertKind.RECOMMENDATION)
+        assert a.office_id == world.offices["EDU"].id

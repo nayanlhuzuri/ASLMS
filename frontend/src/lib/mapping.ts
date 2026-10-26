@@ -37,7 +37,8 @@ export function officeDepth(office: { path: string }): number {
   return office.path.split("/").length - 1;
 }
 
-export const WEIGHT_KINDS = ["counsel_code", "name_pattern", "watchlist", "linked_case", "keyword"] as const;
+// design partial-code-match, decision 10: the partial counsel-code weight follows the counsel-code weight
+export const WEIGHT_KINDS = ["counsel_code", "counsel_code_partial", "name_pattern", "watchlist", "linked_case", "keyword"] as const;
 export type WeightKind = (typeof WEIGHT_KINDS)[number];
 export const THRESHOLDS = ["strong", "possible"] as const;
 export type Threshold = (typeof THRESHOLDS)[number];
@@ -49,7 +50,11 @@ export interface ScoringValues {
   thresholds: Record<string, number>;
 }
 
-/** The browser-side checks of the scoring form (decision 8): each value in (0, 1] and 0 < possible < strong ≤ 1. */
+/**
+ * The browser-side checks of the scoring form (decision 8): each value in (0, 1] and 0 < possible < strong ≤ 1; the
+ * partial counsel-code weight at or above Possible, below Strong and below the counsel-code weight (design
+ * partial-code-match, decision 12), so a partial match alone is always a possible match.
+ */
 export function scoringErrors(values: Record<ScoringField, number | string>): Partial<Record<ScoringField, string>> {
   const out: Partial<Record<ScoringField, string>> = {};
   const num = (f: ScoringField) => (typeof values[f] === "string" && String(values[f]).trim() === "" ? NaN : Number(values[f]));
@@ -60,6 +65,13 @@ export function scoringErrors(values: Record<ScoringField, number | string>): Pa
   const strong = num("strong");
   const possible = num("possible");
   if (!out.strong && !out.possible && !(possible < strong)) out.possible = "Possible must be below Strong.";
+  const partial = num("counsel_code_partial");
+  if (!out.counsel_code_partial && !out.strong && !out.possible && !(possible <= partial && partial < strong)) {
+    out.counsel_code_partial = "The partial code weight must be at least Possible and below Strong.";
+  }
+  if (!out.counsel_code_partial && !out.counsel_code && !(partial < num("counsel_code"))) {
+    out.counsel_code_partial = "The partial code weight must be below the counsel code weight.";
+  }
   return out;
 }
 

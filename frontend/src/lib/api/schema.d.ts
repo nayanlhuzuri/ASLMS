@@ -153,8 +153,8 @@ export interface paths {
         };
         /**
          * Unmapped Counsel Codes
-         * @description Codes seen in cause lists and dossiers with no mapping, most frequent first. Nothing is mapped
-         *     automatically.
+         * @description Codes seen in cause lists and dossiers with no mapping, most frequent first, each with the mappings in the
+         *     caller's office subtree that it partly matches. Nothing is mapped automatically.
          */
         get: operations["unmapped_counsel_codes_admin_counsel_codes_unmapped_get"];
         put?: never;
@@ -10059,6 +10059,22 @@ export interface components {
             status: string;
             unit: components["schemas"]["OfficeRefOut"] | null;
         };
+        /**
+         * PartialMatchOut
+         * @description A mapped code (in the caller's office subtree) that an unmapped printed code partly matches (design
+         *     partial-code-match, decision 16).
+         */
+        PartialMatchOut: {
+            /** Code */
+            code: string;
+            /** Office Code */
+            office_code: string;
+            /**
+             * Relation
+             * @enum {string}
+             */
+            relation: "contained" | "contains" | "same_parts";
+        };
         /** PartiesOut */
         PartiesOut: {
             /** Advocates */
@@ -10888,6 +10904,8 @@ export interface components {
         ScoringWeightsIn: {
             /** Counsel Code */
             counsel_code: number;
+            /** Counsel Code Partial */
+            counsel_code_partial: number;
             /** Keyword */
             keyword: number;
             /** Linked Case */
@@ -11674,6 +11692,11 @@ export interface components {
             example_case_ref: string | null;
             /** Last Listed */
             last_listed: string | null;
+            /**
+             * Partial Matches
+             * @default []
+             */
+            partial_matches: components["schemas"]["PartialMatchOut"][];
         };
         /** UnmatchedRowOut */
         UnmatchedRowOut: {

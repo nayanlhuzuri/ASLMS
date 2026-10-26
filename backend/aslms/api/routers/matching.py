@@ -239,11 +239,13 @@ def unmapped_counsel_codes(
     session: Session = Depends(get_session),
     caller: User = Depends(require(Permission.ADMIN_COUNSEL_CODES)),
 ) -> list[schemas.UnmappedCodeOut]:
-    """Codes seen in cause lists and dossiers with no mapping, most frequent first. Nothing is mapped
-    automatically."""
+    """Codes seen in cause lists and dossiers with no mapping, most frequent first, each with the mappings in the
+    caller's office subtree that it partly matches. Nothing is mapped automatically."""
     return [
         schemas.UnmappedCodeOut(**u.__dict__)
-        for u in matching.unmapped_codes(session, limit=max(1, min(limit, 1000)))
+        for u in matching.unmapped_codes(
+            session, limit=max(1, min(limit, 1000)), scope=matching_rules.counsel_code_scope(session, caller)
+        )
     ]
 
 

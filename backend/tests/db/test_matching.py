@@ -98,7 +98,7 @@ def test_cause_list_scores_and_recommends_idempotently(world):
         assert rec.office_id == world.offices["EDU"].id and rec.band == ScoreBand.HIGH
         assert rec.origin == RecommendationOrigin.CAUSE_LIST and rec.actor_name == "matching"
         score = s.scalar(sa.select(CaseOfficeScore).where(CaseOfficeScore.case_id == rec.case_id))
-        assert float(score.score) == 0.95 and score.engine_version == "1.1"
+        assert float(score.score) == 0.95 and score.engine_version == "2.1"
         assert score.signals[0]["ref"] == {"list_date": "2025-01-06", "sr_no": 1}
         assert len(made_events(s)) == 1
         load_list(s, [entry(1, "ASHC010000012025", "WP(C)/1/2025", codes=["SC,EDU", "GA, ASSAM"])])
@@ -425,3 +425,147 @@ def test_claimed_elsewhere_is_never_reopened(world):
         assert [(r.office_id, r.status) for r in rows] == [
             (world.offices["HEALTH"].id, RecommendationStatus.CLAIMED_ELSEWHERE)
         ]
+
+
+# ------------------------------------------------------------------------------------------------ partial-code-match
+
+
+def test_partial_match_writes_medium_recommendation_never_ownership(world):
+    """Design partial-code-match, decisions 2, 14 and 19: a case listed with `SC, EDU, DSE` against EDU's mapped
+    `SC, EDU` gets the partial signal and an engine `medium` recommendation; no ownership and no audit row."""
+    from aslms.domain.events import AuditLog
+    from aslms.domain.ownership import CaseOwnership
+
+    with world.Session() as s:
+        s.add(CounselCode(code="SC, EDU", office_id=world.offices["EDU"].id))
+        s.flush()
+        audits = s.scalar(sa.select(sa.func.count()).select_from(AuditLog))
+        load_list(s, [entry(1, "ASHC010000712025", "WP(C)/71/2025", codes=["SC, EDU, DSE"])])
+        s.commit()
+        (rec,) = recs(s)
+        assert rec.office_id == world.offices["EDU"].id and rec.band == ScoreBand.MEDIUM
+        assert float(rec.score) == 0.6 and rec.status == RecommendationStatus.RECOMMENDED
+        score = s.scalar(sa.select(CaseOfficeScore).where(CaseOfficeScore.case_id == rec.case_id))
+        (signal,) = score.signals
+        assert signal["kind"] == "counsel_code_partial" and signal["relation"] == "contained"
+        assert signal["matched"] == "SC, EDU" and signal["printed"] == "SC, EDU, DSE"
+        assert signal["reason"] == "Code SC, EDU found inside SC, EDU, DSE on the cause list of 6 Jan 2025"
+        assert score.engine_version == "2.1"
+        assert s.scalar(sa.select(sa.func.count()).select_from(CaseOwnership)) == 0
+        assert s.scalar(sa.select(sa.func.count()).select_from(AuditLog)) == audits
+        (made,) = made_events(s)
+        assert made.payload["band"] == "medium"
+
+
+def test_partial_match_respects_claimed_and_dismissed(world):
+    with world.Session() as s:
+        s.add(CounselCode(code="SC, EDU", office_id=world.offices["EDU"].id))
+        claimed = make_case(s)
+        dismissed = make_case(s)
+        for case in (claimed, dismissed):
+            s.add(
+                CaseAdvocate(
+                    case_id=case.id,
+                    side=AdvocateSide.RESPONDENT,
+                    name_as_listed="EDU",
+                    counsel_code="EDU",
+                )
+            )
+        s.flush()
+        h_actor, h_admin = world.actor(s, "health_admin")
+        ownership.claim(s, h_actor, h_admin, claimed)  # ever owned: no engine recommendation
+        matching.score_cases(s, [dismissed.id], origin=RecommendationOrigin.CAUSE_LIST)
+        (rec,) = recs(s, dismissed.id)
+        assert rec.band == ScoreBand.MEDIUM
+        actor, admin = world.actor(s, "edu_admin")
+        ownership.dismiss(s, actor, admin, dismissed, reason="not ours")
+        s.commit()
+    matching.rescore_all(world.Session)
+    with world.Session() as s:
+        assert [r for r in recs(s, claimed.id) if r.office_id == world.offices["EDU"].id] == []
+        assert (
+            s.scalar(
+                sa.select(CaseOfficeScore.score).where(
+                    CaseOfficeScore.case_id == claimed.id,
+                    CaseOfficeScore.office_id == world.offices["EDU"].id,
+                )
+            )
+            is not None
+        ), "the score is still written"
+        assert [r.status for r in recs(s, dismissed.id)] == [RecommendationStatus.DISMISSED]
+
+
+def test_rescore_all_applies_partial_after_settings_version(world):
+    """After a new settings version (as migration 0027 inserts), the full rescore writes the partial rows and a
+    `job_runs` `rescore` naming the new version; the dirty rescore then runs once and stops."""
+    from aslms.domain.ownership import ScoringSettings
+    from aslms.services import scoring_settings as ss
+
+    assert matching.rescore_if_dirty(world.Session) is not None
+    with world.Session() as s:
+        s.add(CounselCode(code="SC, EDU", office_id=world.offices["EDU"].id))
+        case = make_case(s)
+        s.add(
+            CaseAdvocate(
+                case_id=case.id,
+                side=AdvocateSide.RESPONDENT,
+                name_as_listed="SC, EDU (R-2, 3)",
+                counsel_code="SC, EDU (R-2, 3)",
+            )
+        )
+        s.flush()
+        cur = ss.current_row(s)
+        cur.is_current = False
+        cur.valid_to = sa.func.now()
+        s.flush()
+        s.add(
+            ScoringSettings(
+                version=2,
+                weight_counsel_code=0.95,
+                weight_name_pattern=0.8,
+                weight_watchlist=0.75,
+                weight_linked_case=0.7,
+                weight_keyword=0.4,
+                weight_counsel_code_partial=0.6,
+                threshold_strong=0.85,
+                threshold_possible=0.5,
+                reason="Partial counsel-code match added (design partial-code-match), partial weight 0.600",
+                is_current=True,
+            )
+        )
+        s.commit()
+    report = matching.rescore_all(world.Session)
+    assert report.settings_version == 2 and report.recommended_new == 1
+    with world.Session() as s:
+        score = s.scalar(sa.select(CaseOfficeScore).where(CaseOfficeScore.case_id == case.id))
+        assert score.engine_version == "2.2" and score.signals[0]["relation"] == "same_parts"
+        run = s.scalars(sa.select(JobRun).where(JobRun.job == "rescore").order_by(JobRun.started_at)).all()[
+            -1
+        ]
+        assert run.counters["settings_version"] == 2 and run.status.value == "succeeded"
+    assert matching.rescore_if_dirty(world.Session) is None
+
+
+def test_unmapped_codes_carry_partial_matches(world):
+    with world.Session() as s:
+        s.add(CounselCode(code="SC, EDU", office_id=world.offices["EDU-DSE"].id))
+        s.add(CounselCode(code="SC, HEALTH", office_id=world.offices["HEALTH"].id))
+        s.flush()
+        load_list(
+            s,
+            [
+                entry(1, "ASHC010000722025", "WP(C)/72/2025", codes=["SC, EDU, DSE", "SC, EDU"]),
+                entry(2, "ASHC010000732025", "WP(C)/73/2025", codes=["SC, REVENUE"]),
+            ],
+        )
+        s.commit()
+        out = {u.code: u.partial_matches for u in matching.unmapped_codes(s)}
+        assert out == {
+            "SC, EDU, DSE": [{"code": "SC, EDU", "office_code": "EDU-DSE", "relation": "contained"}],
+            "SC, REVENUE": [],
+        }
+        health = world.offices["HEALTH"].id
+        scoped = {
+            u.code: u.partial_matches for u in matching.unmapped_codes(s, scope=lambda oid: oid == health)
+        }
+        assert scoped == {"SC, EDU, DSE": [], "SC, REVENUE": []}

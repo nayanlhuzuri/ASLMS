@@ -14,6 +14,14 @@ describe("signal chips", () => {
     expect(signalText(signal)).toBe(chip);
   });
 
+  it("a partial code shows the server's reason, or its fields without one", () => {
+    const reason = "Code SC, EDU found inside SC, EDU, DSE on the cause list of 23 Oct 2026";
+    expect(signalText({ kind: "counsel_code_partial", matched: "SC, EDU", printed: "SC, EDU, DSE", relation: "contained", reason, weight: 0.6 })).toBe(reason);
+    expect(signalText({ kind: "counsel_code_partial", matched: "SC, EDU", printed: "SC, EDU, DSE" })).toBe("Partial code: SC, EDU in SC, EDU, DSE");
+    expect(signalText({ kind: "counsel_code_partial", matched: "SC, EDU" })).toBe("Partial code: SC, EDU");
+    expect(signalText({ kind: "counsel_code_partial" })).toBe("Partial code");
+  });
+
   it("an unknown kind shows its name and match, never raw JSON", () => {
     expect(signalText({ kind: "new_kind", matched: "x", ref: { a: 1 } })).toBe("new kind: x");
     expect(signalText({})).toBe("Signal");

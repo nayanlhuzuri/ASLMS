@@ -22,6 +22,8 @@ import {
   caseDetail,
   membership,
   ownershipView,
+  PARTIAL_REASON,
+  partialRec,
   poolItem,
   rec,
   REF,
@@ -205,6 +207,16 @@ describe("the details modal", () => {
     await userEvent.click(within(dialog).getByRole("tab", { name: "Linked Cases" }));
     const link = await within(dialog).findByRole("link", { name: "WP(C)/5/2026" });
     expect(link).toHaveAttribute("target", "_blank");
+  });
+
+  it("a partial counsel-code match lists its reason with 0.600 and the meter reads the score", async () => {
+    browserApi(routes(caseRoutes(ownershipView(actions(), { recommendations: [partialRec(1)] }))));
+    renderWithClient(<ClaimFrame tab="recommended" params={{ case: REF }} />);
+    const dialog = await screen.findByRole("dialog", { name: "WP(C)/1/2026" });
+    const why = await within(dialog).findByRole("complementary", { name: "Why This Is Suggested" });
+    expect(within(why).getByText(PARTIAL_REASON)).toBeInTheDocument();
+    expect(within(why).getByText("0.600")).toBeInTheDocument();
+    expect(within(why).getByRole("meter", { name: "Match Strength" })).toHaveAttribute("aria-valuenow", "0.6");
   });
 
   it("the modal's footer has one primary", async () => {

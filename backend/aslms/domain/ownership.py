@@ -58,6 +58,13 @@ class ScoringSettings(TimestampMixin, CreatedByMixin, Base):
             "threshold_possible > 0 AND threshold_possible < threshold_strong AND threshold_strong <= 1",
             name="thresholds",
         ),
+        # design partial-code-match, decision 11: NULL only on versions written before migration 0027
+        CheckConstraint(
+            "weight_counsel_code_partial IS NULL OR "
+            "(weight_counsel_code_partial > 0 AND weight_counsel_code_partial <= 1)",
+            name="partial",
+        ),
+        CheckConstraint("NOT is_current OR weight_counsel_code_partial IS NOT NULL", name="partial_current"),
         CheckConstraint("is_current = (valid_to IS NULL)", name="current"),
         Index("ix_scoring_settings_current", "is_current", unique=True, postgresql_where=text("is_current")),
     )
@@ -68,6 +75,7 @@ class ScoringSettings(TimestampMixin, CreatedByMixin, Base):
     weight_watchlist: Mapped[float] = mapped_column(Numeric(4, 3), nullable=False)
     weight_linked_case: Mapped[float] = mapped_column(Numeric(4, 3), nullable=False)
     weight_keyword: Mapped[float] = mapped_column(Numeric(4, 3), nullable=False)
+    weight_counsel_code_partial: Mapped[float | None] = mapped_column(Numeric(4, 3))
     threshold_strong: Mapped[float] = mapped_column(Numeric(4, 3), nullable=False)
     threshold_possible: Mapped[float] = mapped_column(Numeric(4, 3), nullable=False)
     reason: Mapped[str] = mapped_column(Text, nullable=False)

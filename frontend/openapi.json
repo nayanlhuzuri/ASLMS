@@ -17827,6 +17827,35 @@
         "title": "OwnershipOut",
         "type": "object"
       },
+      "PartialMatchOut": {
+        "description": "A mapped code (in the caller's office subtree) that an unmapped printed code partly matches (design\npartial-code-match, decision 16).",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "office_code": {
+            "title": "Office Code",
+            "type": "string"
+          },
+          "relation": {
+            "enum": [
+              "contained",
+              "contains",
+              "same_parts"
+            ],
+            "title": "Relation",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "office_code",
+          "relation"
+        ],
+        "title": "PartialMatchOut",
+        "type": "object"
+      },
       "PartiesOut": {
         "properties": {
           "advocates": {
@@ -20375,6 +20404,12 @@
             "title": "Counsel Code",
             "type": "number"
           },
+          "counsel_code_partial": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 1.0,
+            "title": "Counsel Code Partial",
+            "type": "number"
+          },
           "keyword": {
             "exclusiveMinimum": 0.0,
             "maximum": 1.0,
@@ -20405,7 +20440,8 @@
           "name_pattern",
           "watchlist",
           "linked_case",
-          "keyword"
+          "keyword",
+          "counsel_code_partial"
         ],
         "title": "ScoringWeightsIn",
         "type": "object"
@@ -22861,6 +22897,14 @@
               }
             ],
             "title": "Last Listed"
+          },
+          "partial_matches": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/PartialMatchOut"
+            },
+            "title": "Partial Matches",
+            "type": "array"
           }
         },
         "required": [
@@ -24332,7 +24376,7 @@
     },
     "/admin/counsel-codes/unmapped": {
       "get": {
-        "description": "Codes seen in cause lists and dossiers with no mapping, most frequent first. Nothing is mapped\nautomatically.",
+        "description": "Codes seen in cause lists and dossiers with no mapping, most frequent first, each with the mappings in the\ncaller's office subtree that it partly matches. Nothing is mapped automatically.",
         "operationId": "unmapped_counsel_codes_admin_counsel_codes_unmapped_get",
         "parameters": [
           {

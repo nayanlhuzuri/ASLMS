@@ -1,5 +1,7 @@
 """Scoring settings (recommend-and-claim, decision 21): seed, versioned updates, the audit row and event, the
-function check, validation, the CHECKs and the partial index, and a full rescore that follows a change."""
+function check, validation, the CHECKs and the partial index, and a full rescore that follows a change. The partial
+counsel-code weight (design partial-code-match, decisions 10 to 12): saved, versioned and audited, kept inside the
+possible band and below the counsel-code weight, absent from versions written before it existed."""
 
 from __future__ import annotations
 
@@ -109,8 +111,8 @@ def test_stale_identical_and_invalid(world):
 def test_checks_and_partial_index(session):
     insert = (
         "INSERT INTO scoring_settings (version, weight_counsel_code, weight_name_pattern, weight_watchlist, "
-        "weight_linked_case, weight_keyword, threshold_strong, threshold_possible, reason, is_current, valid_to) "
-        "VALUES (:v, 0.9, 0.8, 0.7, 0.7, 0.4, :s, :p, 'x', :c, :vt)"
+        "weight_linked_case, weight_keyword, weight_counsel_code_partial, threshold_strong, threshold_possible, "
+        "reason, is_current, valid_to) VALUES (:v, 0.9, 0.8, 0.7, 0.7, 0.4, 0.6, :s, :p, 'x', :c, :vt)"
     )
     with pytest.raises(sa.exc.IntegrityError, match="ck_scoring_settings_thresholds"):
         with session.begin_nested():
@@ -177,10 +179,12 @@ def test_settings_change_rescore_changes_band_and_expires(world):
         assert len(made) == 2  # created high, then changed to medium
         assert (
             s.scalar(sa.select(CaseOfficeScore.engine_version).where(CaseOfficeScore.case_id == case_id))
-            == "1.2"
+            == "2.2"
         )
-        actor, root = world.actor(s, "root")
-        ss.update(s, actor, root, **_values(strong=0.99, possible=0.96, expected=2))
+        # design partial-code-match, decision 12: the partial weight sits at or above the possible threshold and
+        # below the counsel-code weight, so no settings save can push an exact code match below the band; the
+        # code's own override (an `admin.scoring` action) can
+        s.execute(sa.update(CounselCode).where(CounselCode.code == "SC, EDU").values(weight=0.3))
         s.commit()
     matching.rescore_all(world.Session)
     with world.Session() as s:
@@ -205,3 +209,88 @@ def test_rescore_if_dirty_after_settings_change(world):
     with world.Session() as s:
         runs = s.scalars(sa.select(JobRun).where(JobRun.job == "rescore").order_by(JobRun.started_at)).all()
         assert len(runs) == 2 and runs[-1].counters["settings_version"] == 2
+
+
+# ------------------------------------------------------------------------------------------------ partial weight
+
+
+def test_partial_weight_saved_versioned_audited(world):
+    with world.Session() as s:
+        actor, root = world.actor(s, "root")
+        after, changed = ss.update(s, actor, root, **_values(weights={"counsel_code_partial": 0.65}))
+        s.commit()
+        assert changed and after.version == 2 and after.weights["counsel_code_partial"] == 0.65
+        v2 = s.scalar(sa.select(ScoringSettings).where(ScoringSettings.version == 2))
+        assert float(v2.weight_counsel_code_partial) == 0.65 and v2.is_current
+        audit = s.scalar(sa.select(AuditLog).where(AuditLog.action == "scoring_settings.update"))
+        assert set(audit.after["weights"]) == set(ss.KINDS) and len(audit.after["weights"]) == 6
+        assert audit.before["weights"]["counsel_code_partial"] == 0.6
+        assert audit.after["weights"]["counsel_code_partial"] == 0.65
+        event = s.scalar(sa.select(Event).where(Event.type == EventType.CONFIG_CHANGED))
+        assert event.payload == {
+            "entity": "scoring_settings",
+            "id": str(v2.id),
+            "action": "update",
+            "version": 2,
+        }
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        _values(weights={"counsel_code_partial": 0.45}),  # below the possible threshold 0.5
+        _values(weights={"counsel_code_partial": 0.85}),  # equal to the strong threshold
+        _values(weights={"counsel_code_partial": 0.96}, strong=0.97),  # above the counsel code weight
+        _values(possible=0.7),  # the possible threshold raised above the partial weight 0.6
+    ],
+)
+def test_partial_weight_band_rules(world, values):
+    with world.Session() as s:
+        actor, root = world.actor(s, "root")
+        with pytest.raises(ss.SettingsError, match="partial code weight"):
+            ss.update(s, actor, root, **values)
+        assert s.scalar(sa.select(sa.func.count()).select_from(ScoringSettings)) == 1
+
+
+def test_partial_weight_equal_to_counsel_code_refused(world):
+    with world.Session() as s:
+        actor, root = world.actor(s, "root")
+        bad = _values(weights={"counsel_code": 0.8, "counsel_code_partial": 0.8}, strong=0.9)
+        with pytest.raises(ss.SettingsError, match="below the counsel code weight"):
+            ss.update(s, actor, root, **bad)
+        ok = _values(weights={"counsel_code": 0.8, "counsel_code_partial": 0.799}, strong=0.9)
+        assert ss.update(s, actor, root, **ok)[1] is True
+
+
+def test_history_shows_absent_partial_for_old_versions(world):
+    with world.Session() as s:
+        actor, root = world.actor(s, "root")
+        ss.update(s, actor, root, **_values(strong=0.9))
+        s.flush()
+        # version 1 as a pre-0027 database holds it: no partial weight
+        s.execute(sa.text("UPDATE scoring_settings SET weight_counsel_code_partial = NULL WHERE version = 1"))
+        old = s.scalar(sa.select(ScoringSettings).where(ScoringSettings.version == 1))
+        s.refresh(old)
+        assert "counsel_code_partial" not in ss.from_row(old).weights
+        assert len(ss.from_row(old).weights) == 5
+        rows, total = ss.history(s, root)
+        assert total == 2
+        by_version = {r.version: ss.from_row(r).weights for r in rows}
+        assert by_version[2]["counsel_code_partial"] == 0.6 and "counsel_code_partial" not in by_version[1]
+
+
+def test_partial_checks(session):
+    insert = (
+        "INSERT INTO scoring_settings (version, weight_counsel_code, weight_name_pattern, weight_watchlist, "
+        "weight_linked_case, weight_keyword, weight_counsel_code_partial, threshold_strong, threshold_possible, "
+        "reason, is_current, valid_to) VALUES (:v, 0.9, 0.8, 0.7, 0.7, 0.4, :w, 0.85, 0.5, 'x', :c, :vt)"
+    )
+    with pytest.raises(sa.exc.IntegrityError, match="ck_scoring_settings_partial"):
+        with session.begin_nested():
+            session.execute(sa.text(insert), {"v": 80, "w": 0, "c": False, "vt": "2026-01-01"})
+    session.execute(sa.text("DELETE FROM scoring_settings"))
+    with pytest.raises(sa.exc.IntegrityError, match="ck_scoring_settings_partial_current"):
+        with session.begin_nested():
+            session.execute(sa.text(insert), {"v": 81, "w": None, "c": True, "vt": None})
+    session.execute(sa.text(insert), {"v": 82, "w": None, "c": False, "vt": "2026-01-01"})
+    session.execute(sa.text(insert), {"v": 83, "w": 0.6, "c": True, "vt": None})

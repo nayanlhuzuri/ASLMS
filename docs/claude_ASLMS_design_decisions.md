@@ -2644,3 +2644,28 @@ Row 163, design `docs/design/portal-ui-polish-2-filters.md` (a pointer to `docs/
 
 **Left for later**
 - The Compose uicheck run and the design's browser checks are the integrator's and the owner's.
+
+
+## Partial counsel-code match (2026-10-26)
+Row 154, design `docs/design/partial-code-match.md` (approved by the owner 25 Oct 2026 with answers a-e), branch `feature/partial-code-match`. Owner decision of 25 Oct 2026: an exact counsel code stays a strong recommendation; a partial match is also recommended, lower, as a possible match the department decides on by claiming.
+
+**Built**
+- **Matching engine** (`services/matching.py`, `matching_rules.py`): a printed code that no active mapping names exactly is compared with each department's code as a set of comma-separated parts (respondent markers removed, dots significant). Contained, contains or same parts gives a `counsel_code_partial` signal carrying `printed`, `relation` and a server-written `reason`. Engine version 2.
+- **Scoring settings**: sixth weight `weight_counsel_code_partial` (default 0.600), kept by the service inside the possible band and below the counsel-code weight; versions and history as before.
+- **Migration 0027** (`0027_partial_code_match.py`): the column, two CHECKs and, on a database with settings, a new version with an audit row and a `config_changed` event. `schema.md` was extended first; `frontend/openapi.json` regenerated.
+- **API**: the unmapped-codes report lists partly matching mappings in the caller's office subtree; signals reach `GET /inbox/recommended` and the per-case scores.
+- **Portal**: the Scoring tab shows the sixth weight with the band checks and a dash in history for older versions; Case Claim's Why box shows the reason with its 0.600 contribution; the Recommended From Cause Lists panel says Partly matches and pre-fills the office when exactly one mapping is in scope.
+- **Tests**: `test_matching.py`, `test_api_matching.py`, `test_matching_rules_admin.py`, `test_alerts_generate.py`; vitest `mapping.test.tsx`, `claim.test.tsx`, `signals.test.ts`, `mapping.test.ts`.
+
+**Decisions and reasons**
+1. The smaller part set must hold a part outside the generic stop-list (extendable by single-part generic State codes), so `AG` or `SC` alone never reaches `SC, AG`.
+2. An exact match wins and a department with an exact signal loses its partial ones; several departments may each get a possible match.
+3. No alert for a possible match; nothing is ever assigned automatically.
+4. Because the partial weight must sit between the possible threshold and the counsel-code weight, no settings save can push an exact match out of its band; the existing expiry test now uses the code's own override.
+
+**Deviations** (8 in the design note's Deviations, none changes a rule)
+- Migration is 0027, not 0026 (0026 went to row 153); label "Partial Counsel Code" in Title Case; `counsel_code_scope` sits in `matching_rules.py`; reason wording without a date or side; the migration's event insert is guarded; the inbox test lives in `test_api_matching.py`; `test_migration_0016.py` seeds without settings when the column is missing.
+
+**Left for later**
+- Apply 0027 with the `migrate` step after the merge, then rebuild.
+- The per-code weight override and Notes field leaving the mapping form belong to row 153's polish rounds.
