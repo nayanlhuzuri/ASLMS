@@ -137,63 +137,65 @@ export function KeywordsAndPatterns() {
         rows.length === 0 ? (
           <EmptyState>{T.mapping.empty}</EmptyState>
         ) : (
-          <DataTable
-            caption={T.mapping.wordsCaption}
-            rows={rows}
-            rowKey={(r) => r.key}
-            columns={[
-              {
-                key: "text",
-                header: T.mapping.wordLabel,
-                primary: true,
-                cell: (r) => (r.type === "pattern" ? <span className="mono">{r.text}</span> : r.text),
-              },
-              {
-                key: "kind",
-                header: T.mapping.kind,
-                cell: (r) => (r.type === "keyword" ? T.mapping.kindShort.keyword : (T.mapping.kindShort[r.row.kind] ?? r.row.kind)),
-              },
-              { key: "office", header: T.mapping.office, cell: (r) => <OfficeCell office={r.row.office} /> },
-              {
-                key: "discover",
-                header: T.discovery.searchCourt,
-                cell: (r) => (
-                  <DiscoverCell
-                    path={r.type === "keyword" ? `/admin/keywords/${r.row.id}` : `/admin/name-patterns/${r.row.id}`}
-                    row={r.row}
-                    label={r.text}
-                    onDone={() => void refresh()}
-                  />
-                ),
-              },
-              {
-                key: "status",
-                header: T.mapping.status,
-                width: "var(--lead-w)",
-                cell: (r) => (r.row.is_active ? <Badge tone="success">{T.active}</Badge> : <Badge>{T.inactive}</Badge>),
-              },
-              {
-                key: "actions",
-                header: <span className="visually-hidden">{T.mapping.actions}</span>,
-                label: T.mapping.actions,
-                width: "var(--s7)",
-                align: "right",
-                cell: (r) => (
-                  <RuleMenu<Keyword | NamePattern>
-                    path={r.type === "keyword" ? `/admin/keywords/${r.row.id}` : `/admin/name-patterns/${r.row.id}`}
-                    active={r.row.is_active}
-                    label={r.text}
-                    confirmText={T.mapping.ruleConfirm}
-                    onDone={(row) => {
-                      setNotice(T.mapping.appliesWithin(row.applies_within_minutes ?? 15));
-                      void refresh();
-                    }}
-                    onConflict={() => void refresh()}
-                  />
-                ),
-              },
-            ]}
-          />
+          <div className={s.scrollBox} tabIndex={0} role="region" aria-label={T.mapping.wordsCaption}>
+            <DataTable
+              caption={T.mapping.wordsCaption}
+              rows={rows}
+              rowKey={(r) => r.key}
+              columns={[
+                {
+                  key: "text",
+                  header: T.mapping.wordLabel,
+                  primary: true,
+                  cell: (r) => (r.type === "pattern" ? <span className="mono">{r.text}</span> : r.text),
+                },
+                {
+                  key: "kind",
+                  header: T.mapping.kind,
+                  cell: (r) => (r.type === "keyword" ? T.mapping.kindShort.keyword : (T.mapping.kindShort[r.row.kind] ?? r.row.kind)),
+                },
+                { key: "office", header: T.mapping.office, cell: (r) => <OfficeCell office={r.row.office} /> },
+                {
+                  key: "discover",
+                  header: T.discovery.searchCourt,
+                  cell: (r) => (
+                    <DiscoverCell
+                      path={r.type === "keyword" ? `/admin/keywords/${r.row.id}` : `/admin/name-patterns/${r.row.id}`}
+                      row={r.row}
+                      label={r.text}
+                      onDone={() => void refresh()}
+                    />
+                  ),
+                },
+                {
+                  key: "status",
+                  header: T.mapping.status,
+                  width: "var(--lead-w)",
+                  cell: (r) => (r.row.is_active ? <Badge tone="success">{T.active}</Badge> : <Badge>{T.inactive}</Badge>),
+                },
+                {
+                  key: "actions",
+                  header: <span className="visually-hidden">{T.mapping.actions}</span>,
+                  label: T.mapping.actions,
+                  width: "var(--s7)",
+                  align: "right",
+                  cell: (r) => (
+                    <RuleMenu<Keyword | NamePattern>
+                      path={r.type === "keyword" ? `/admin/keywords/${r.row.id}` : `/admin/name-patterns/${r.row.id}`}
+                      active={r.row.is_active}
+                      label={r.text}
+                      confirmText={T.mapping.ruleConfirm}
+                      onDone={(row) => {
+                        setNotice(T.mapping.appliesWithin(row.applies_within_minutes ?? 15));
+                        void refresh();
+                      }}
+                      onConflict={() => void refresh()}
+                    />
+                  ),
+                },
+              ]}
+            />
+          </div>
         )
       ) : null}
     </section>

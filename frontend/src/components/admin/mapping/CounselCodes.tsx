@@ -94,48 +94,50 @@ export function CounselCodes() {
             list.data.items.length === 0 ? (
               <EmptyState>{T.mapping.empty}</EmptyState>
             ) : (
-              <DataTable
-                caption={T.mapping.codes}
-                rows={list.data.items}
-                rowKey={(row) => row.id}
-                columns={[
-                  { key: "code", header: T.mapping.code, primary: true, cell: (row) => <span className="mono">{row.code}</span> },
-                  { key: "office", header: T.mapping.office, cell: (row) => <OfficeCell office={row.office} /> },
-                  { key: "generic", header: T.mapping.generic, cell: (row) => (row.is_generic_state ? T.yes : "—") },
-                  {
-                    key: "status",
-                    header: T.mapping.status,
-                    width: "var(--lead-w)",
-                    cell: (row) => (row.is_active ? <Badge tone="success">{T.active}</Badge> : <Badge>{T.inactive}</Badge>),
-                  },
-                  { key: "updated", header: T.mapping.updated, cell: (row) => formatDateTime(row.updated_at) },
-                  {
-                    key: "actions",
-                    header: <span className="visually-hidden">{T.mapping.actions}</span>,
-                    label: T.mapping.actions,
-                    width: "var(--s7)",
-                    align: "right",
-                    cell: (row) =>
-                      row.is_generic_state && !editableGeneric ? null : (
-                      <RuleMenu<CounselCode>
-                        path={`/admin/counsel-codes/${row.id}`}
-                        active={row.is_active}
-                        label={row.code}
-                        confirmText={T.mapping.ruleConfirm}
-                        onDone={(r) => saved(r)}
-                        onConflict={() => void refresh()}
-                        office={{
-                          purpose: "counsel_codes",
-                          current: row.office.code,
-                          // a generic code stays generic (the root office); any other code moves among departments
-                          kinds: row.is_generic_state ? ["state"] : undefined,
-                          body: (_choice, code) => ({ office_code: code }),
-                        }}
-                      />
-                    ),
-                  },
-                ]}
-              />
+              <div className={s.scrollBox} tabIndex={0} role="region" aria-label={T.mapping.codes}>
+                <DataTable
+                  caption={T.mapping.codes}
+                  rows={list.data.items}
+                  rowKey={(row) => row.id}
+                  columns={[
+                    { key: "code", header: T.mapping.code, primary: true, cell: (row) => <span className="mono">{row.code}</span> },
+                    { key: "office", header: T.mapping.office, cell: (row) => <OfficeCell office={row.office} /> },
+                    { key: "generic", header: T.mapping.generic, cell: (row) => (row.is_generic_state ? T.yes : "—") },
+                    {
+                      key: "status",
+                      header: T.mapping.status,
+                      width: "var(--lead-w)",
+                      cell: (row) => (row.is_active ? <Badge tone="success">{T.active}</Badge> : <Badge>{T.inactive}</Badge>),
+                    },
+                    { key: "updated", header: T.mapping.updated, cell: (row) => formatDateTime(row.updated_at) },
+                    {
+                      key: "actions",
+                      header: <span className="visually-hidden">{T.mapping.actions}</span>,
+                      label: T.mapping.actions,
+                      width: "var(--s7)",
+                      align: "right",
+                      cell: (row) =>
+                        row.is_generic_state && !editableGeneric ? null : (
+                        <RuleMenu<CounselCode>
+                          path={`/admin/counsel-codes/${row.id}`}
+                          active={row.is_active}
+                          label={row.code}
+                          confirmText={T.mapping.ruleConfirm}
+                          onDone={(r) => saved(r)}
+                          onConflict={() => void refresh()}
+                          office={{
+                            purpose: "counsel_codes",
+                            current: row.office.code,
+                            // a generic code stays generic (the root office); any other code moves among departments
+                            kinds: row.is_generic_state ? ["state"] : undefined,
+                            body: (_choice, code) => ({ office_code: code }),
+                          }}
+                        />
+                      ),
+                    },
+                  ]}
+                />
+              </div>
             )
           ) : null}
         </div>
@@ -221,11 +223,13 @@ export function RecommendedCodes({ onMapped, onConflict }: { onMapped: (row: Cou
             list.data.length === 0 ? (
               <EmptyState>{T.mapping.noUnmapped}</EmptyState>
             ) : (
-              <ul className={s.recList}>
-                {list.data.map((u) => (
-                  <RecommendedCode key={u.code} item={u} onMapped={onMapped} onConflict={onConflict} />
-                ))}
-              </ul>
+              <div className={s.scrollBox} tabIndex={0} role="region" aria-label={T.mapping.recommendedTitle}>
+                <ul className={s.recList}>
+                  {list.data.map((u) => (
+                    <RecommendedCode key={u.code} item={u} onMapped={onMapped} onConflict={onConflict} />
+                  ))}
+                </ul>
+              </div>
             )
           ) : null}
         </div>

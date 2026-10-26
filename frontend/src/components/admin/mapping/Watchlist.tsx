@@ -70,44 +70,46 @@ export function Watchlist() {
         rows.length === 0 ? (
           <EmptyState>{T.mapping.empty}</EmptyState>
         ) : (
-          <DataTable
-            caption={T.mapping.watchlist}
-            rows={rows}
-            rowKey={(row) => row.id}
-            columns={[
-              { key: "cnr", header: T.mapping.cnr, primary: true, cell: (row) => <span className="mono">{row.cnr}</span> },
-              { key: "case", header: T.mapping.case, cell: (row) => <SearchLink ref_no={row.case_ref} /> },
-              { key: "office", header: T.mapping.office, cell: (row) => <OfficeCell office={row.office} /> },
-              { key: "reason", header: T.mapping.reason, cell: (row) => row.reason ?? "—" },
-              {
-                key: "status",
-                header: T.mapping.status,
-                width: "var(--lead-w)",
-                cell: (row) => (row.is_active ? <Badge tone="success">{T.active}</Badge> : <Badge>{T.inactive}</Badge>),
-              },
-              { key: "updated", header: T.mapping.updated, cell: (row) => formatDateTime(row.updated_at) },
-              {
-                key: "actions",
-                header: <span className="visually-hidden">{T.mapping.actions}</span>,
-                label: T.mapping.actions,
-                width: "var(--s7)",
-                align: "right",
-                cell: (row) => (
-                  <RuleMenu<Watch>
-                    path={`/admin/watchlist/${row.id}`}
-                    active={row.is_active}
-                    label={row.cnr}
-                    confirmText={T.mapping.watchConfirm}
-                    onDone={(r) => {
-                      setNotice(savedLine(r));
-                      void refresh();
-                    }}
-                    onConflict={() => void refresh()}
-                  />
-                ),
-              },
-            ]}
-          />
+          <div className={s.scrollBox} tabIndex={0} role="region" aria-label={T.mapping.watchlist}>
+            <DataTable
+              caption={T.mapping.watchlist}
+              rows={rows}
+              rowKey={(row) => row.id}
+              columns={[
+                { key: "cnr", header: T.mapping.cnr, primary: true, cell: (row) => <span className="mono">{row.cnr}</span> },
+                { key: "case", header: T.mapping.case, cell: (row) => <SearchLink ref_no={row.case_ref} /> },
+                { key: "office", header: T.mapping.office, cell: (row) => <OfficeCell office={row.office} /> },
+                { key: "reason", header: T.mapping.reason, cell: (row) => row.reason ?? "—" },
+                {
+                  key: "status",
+                  header: T.mapping.status,
+                  width: "var(--lead-w)",
+                  cell: (row) => (row.is_active ? <Badge tone="success">{T.active}</Badge> : <Badge>{T.inactive}</Badge>),
+                },
+                { key: "updated", header: T.mapping.updated, cell: (row) => formatDateTime(row.updated_at) },
+                {
+                  key: "actions",
+                  header: <span className="visually-hidden">{T.mapping.actions}</span>,
+                  label: T.mapping.actions,
+                  width: "var(--s7)",
+                  align: "right",
+                  cell: (row) => (
+                    <RuleMenu<Watch>
+                      path={`/admin/watchlist/${row.id}`}
+                      active={row.is_active}
+                      label={row.cnr}
+                      confirmText={T.mapping.watchConfirm}
+                      onDone={(r) => {
+                        setNotice(savedLine(r));
+                        void refresh();
+                      }}
+                      onConflict={() => void refresh()}
+                    />
+                  ),
+                },
+              ]}
+            />
+          </div>
         )
       ) : null}
     </section>

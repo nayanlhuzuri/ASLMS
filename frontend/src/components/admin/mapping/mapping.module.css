@@ -56,8 +56,13 @@
   flex: 1 1 200px;
 }
 
+/* the narrow column is at least as wide as a field's own minimum (200px), so the box never spills into the gap */
 .addRow > .narrow {
-  flex: 0 1 180px;
+  flex: 0 1 220px;
+}
+
+.addRow > .narrow > * {
+  min-width: 0;
 }
 
 .addRow > button,
@@ -95,11 +100,12 @@
   background: var(--surface);
 }
 
+/* owner, 26 Oct 2026: the codes on top and Recommended From Cause Lists below, each list scrolling inside its own
+   box so a long list never stretches the page */
 .codesLayout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
-  gap: var(--s4);
-  align-items: start;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
 }
 
 .codesMain {
@@ -110,14 +116,21 @@
 }
 
 .recommended {
-  position: sticky;
-  top: var(--s4);
   min-width: 0;
 }
 
+.scrollBox {
+  max-height: min(60vh, 560px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: var(--r-md);
+}
+
+/* the full width below the codes holds the recommended codes as a grid of cards */
 .recList {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 0 var(--s5);
   margin: 0;
   padding: 0;
   list-style: none;
