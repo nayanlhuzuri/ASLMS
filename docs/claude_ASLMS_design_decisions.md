@@ -2786,3 +2786,29 @@ Backlog row 178 `claim-assign-wording`; design `docs/design/claim-assign-wording
 **Left for later**
 - Apply 0030 with the `migrate` step after the merge, then `init` (seed) and `docker compose build`.
 - The owner's browser check in the design note's Verification.
+
+## Office head picker follow-ups (2026-10-27)
+Backlog row 185 `office-head-picker-followups`; design `docs/design/office-head-picker-followups.md` (approved by the owner, 27 Oct 2026, as designed). The four advisories of the row 176 review. Frontend and tests only; no migration, no API or schema change.
+
+**What was built**
+- New Office: the kept form is restored only when the address carries `?draft=1` (the link to New User and its Back and Cancel return use it); without the marker any stored draft is cleared and the form starts from the address. An explicit `?parent=` always wins over the draft. New User opened from an office form has a secondary Cancel that returns to the form.
+- `usersStateWide(me)` in `frontend/src/lib/can.ts` mirrors the server rule (Super Administrator or `cases.view_all`, as `access.user_scope_roots`); `Tickets.tsx` uses it in place of the wider `stateWideUsers`, so a State-office `users.view` holder without `cases.view_all` no longer gets a failing picker and keeps "Someone From Another Office".
+- User Picker and Office Picker: an error state ("could not be loaded") with Try Again for network and 5xx failures, in place of "No person matches"; a 4xx shows the message with no Try Again.
+- `?reactivate=1` opens Reactivate only when the office is inactive, Department-tier and the caller holds `offices.manage`; otherwise the address is cleaned and no dialog opens.
+- Tests: a backend test pinning the State-wide user-list rule for a State-office reader without `cases.view_all` (`test_api_users_list.py`), vitest additions (`officeHeadPicker`, `userPicker`, `officePicker`, `can`), and a new uicheck state `/admin/offices/new (User Picker search failed)`.
+
+**Decisions and reasons**
+1. A marker in the address, not an expiry time, decides whether a draft is restored: an expiry still shows a stale draft inside the window and hides a fresh one after it.
+2. The screen mirrors the server's rule in one helper rather than adding a `/me` field; display only, the server still decides.
+3. Failed searches are told apart from empty ones; retrying is offered only where it can help (not for 4xx).
+
+**Deviations** (also in the design note)
+- Cancel on New User sits in the action row beside whichever primary is shown, alone before the e-mail check.
+- The Office Picker follows the 4xx rule too (no Try Again on 4xx).
+- A small `.retry` class in `officePicker.module.css`; `PickerRetry` and `retryable` live in `OfficePicker.tsx` and are imported by the User Picker.
+- The address is cleaned only when it carried `?reactivate=1` or `?head=`.
+- The uicheck fixtures answer an inactive Department-tier office for `/admin/offices/<code>`.
+- Two extra tests (empty form under `?draft=1` with nothing stored; Office Picker 4xx).
+
+**Left for later**
+- The owner's browser check in the design note's Verification. `docker compose build` after the merge.

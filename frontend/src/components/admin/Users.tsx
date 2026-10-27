@@ -459,6 +459,7 @@ export function returnWithHead(back: string, id: string): string {
 /**
  * `onDone` (the side panel): open the person's User Details; without it the person's address. `noOffice` starts the
  * No Office Yet tick on (the super admin's only), `returnTo` is where to go back with `?head=<id>` (decision 8).
+ * With `returnTo`, a secondary Cancel goes back there with no person (office-head-picker-followups, decision 3).
  */
 export function NewUserForm({ onDone, noOffice: startNoOffice = false, returnTo }: { onDone?: (id: string) => void; noOffice?: boolean; returnTo?: string } = {}) {
   const router = useRouter();
@@ -477,6 +478,12 @@ export function NewUserForm({ onDone, noOffice: startNoOffice = false, returnTo 
   const save = useAction();
   const done = (id: string) =>
     returnTo ? router.push(returnWithHead(returnTo, id)) : onDone ? onDone(id) : router.push(`/admin/users/${id}`);
+  // the way back to the office form that opened New User, which restores itself (`?draft=1` or `?reactivate=1`)
+  const cancel = returnTo ? (
+    <Button variant="secondary" onClick={() => router.push(safeNext(returnTo))}>
+      {T.cancel}
+    </Button>
+  ) : null;
 
   async function check(e: FormEvent) {
     e.preventDefault();
@@ -560,9 +567,12 @@ export function NewUserForm({ onDone, noOffice: startNoOffice = false, returnTo 
           </ul>
           <MembershipFields value={membership} onChange={setMembership} types={labels.data?.user_types} />
           <ErrorBanner error={save.error} />
-          <Button type="submit" busy={save.busy}>
-            {T.users.addMembershipInstead}
-          </Button>
+          <div className="actions">
+            <Button type="submit" busy={save.busy}>
+              {T.users.addMembershipInstead}
+            </Button>
+            {cancel}
+          </div>
         </form>
       ) : null}
       {found === null ? (
@@ -589,11 +599,15 @@ export function NewUserForm({ onDone, noOffice: startNoOffice = false, returnTo 
           </div>
           {withoutOffice ? null : <MembershipFields value={membership} onChange={setMembership} types={labels.data?.user_types} />}
           <ErrorBanner error={save.error} />
-          <Button type="submit" busy={save.busy}>
-            {T.users.create}
-          </Button>
+          <div className="actions">
+            <Button type="submit" busy={save.busy}>
+              {T.users.create}
+            </Button>
+            {cancel}
+          </div>
         </form>
       ) : null}
+      {found === undefined && cancel ? <div className="actions">{cancel}</div> : null}
     </section>
   );
 }

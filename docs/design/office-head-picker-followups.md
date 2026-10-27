@@ -289,3 +289,29 @@ Try Again fit the list width at 375 px, and there is one primary per page.
 
 None. The four findings are screen behaviour against rules that are already decided (row 176 decisions 3, 7 and 8, and
 `access.user_scope_roots`); none needs a new business rule, API field or SourceTrace endpoint.
+
+## Deviations
+
+Written by the developer at build time (27 Oct 2026). None changes a business rule or an API field.
+
+1. **Where New User's Cancel sits.** Decision 3 puts it "next to the primary". New User has a primary only after the
+   e-mail check (Create User, or Add a Membership to This Person for a known e-mail), so Cancel sits in the same action row as
+   whichever of the two is shown, and alone under the e-mail row before the check. There is one Cancel on the page at a
+   time and the primary stays the only one.
+2. **The Office Picker keeps the 4xx rule.** Decision 6 says "the same Try Again"; it follows decision 5's rule too, so a
+   4xx on `GET /admin/offices/choices` shows "The offices could not be loaded." with no Try Again, and Enter does not ask
+   again.
+3. **One small class in the shared module.** Try Again sits in a `.retry` wrapper (padding only) added to
+   `officePicker.module.css`, which both pickers already use; no new CSS module. The button and the shared
+   `retryable(error)` test live in `OfficePicker.tsx` as `PickerRetry` and `retryable`, and the User Picker imports
+   them.
+4. **The address is cleaned only when it carried something.** `router.replace("/admin/offices/<code>", { scroll: false })`
+   runs when the dialog closes or the address is refused, and only when the page was opened with `?reactivate=1` or
+   `?head=`; a dialog opened from the Reactivate button changes no address.
+5. **The browser check's sample office.** The fixtures now answer `GET /admin/offices/<code>` with an inactive
+   Department-tier office (`officeDetail()` in `e2e/fixtures/index.ts`), so the existing state
+   `/admin/offices/EDU (Reactivate dialog)` still opens under decision 7, and `GET /admin/users?q=fail` answers 500 for
+   the new state `/admin/offices/new (User Picker search failed)`. The every-page check of `/admin/offices/EDU`
+   therefore renders an inactive office with the Reactivate button.
+6. **Extra tests.** Besides the listed ones: "with ?draft=1 and nothing stored, the form starts empty" and the Office
+   Picker's 4xx case.

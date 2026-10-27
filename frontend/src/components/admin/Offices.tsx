@@ -10,6 +10,10 @@
  * already have a login, with the designation from the State-wide list; "Not in ASLMS Yet?" keeps the half-filled form
  * in `sessionStorage` (`aslms.officeDraft`, no secret in it), opens New User with No Office Yet ticked, and comes back
  * with `?head=<id>` (Reactivate: `?reactivate=1` opens the dialog again).
+ *
+ * Design office-head-picker-followups: the draft is restored only on the way back from New User, marked `?draft=1`
+ * in the address, and an explicit `?parent=` wins over it (decisions 1-2); `?reactivate=1` opens the dialog only when
+ * Reactivate is really possible, once, and the address is cleaned afterwards (decision 7).
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
@@ -19,6 +23,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import {
   Badge,
   Button,
+  Notice,
   buttonClass,
   CheckField,
   Dialog,
@@ -118,6 +123,9 @@ export function headReady(h: HeadDraft): boolean {
 }
 
 export const OFFICE_DRAFT_KEY = "aslms.officeDraft";
+
+/** New Office with the kept draft (decision 1 of office-head-picker-followups): where New User comes back to. */
+export const NEW_OFFICE_DRAFT_PATH = "/admin/offices/new?draft=1";
 
 /** The half-filled New Office form (decision 8): no secret in it. */
 export interface OfficeDraft {
@@ -227,13 +235,19 @@ export function NewOfficeForm() {
   const params = useSearchParams();
   const labels = useLabels();
   const designations = useDesignations();
-  // the half-filled form kept before "Not in ASLMS Yet?" (decision 8); New User comes back by a client navigation
-  const [kept] = useState(readDraft);
+  // the half-filled form kept before "Not in ASLMS Yet?" (decision 8), read only on the way back from New User
+  // (`?draft=1`, office-head-picker-followups decision 1); any other opening discards a stale draft
+  const [kept] = useState(() => {
+    if (params.get("draft") === "1") return readDraft();
+    clearOfficeDraft();
+    return null;
+  });
   const [form, setForm] = useState(() => ({
     code: kept?.code ?? "",
     name: kept?.name ?? "",
     kind: kept?.kind ?? "",
-    parent: kept?.parent || (params.get("parent") ?? ""),
+    // decision 2: the address's parent wins over the draft's
+    parent: params.get("parent") || kept?.parent || "",
     notes: kept?.notes ?? "",
     validFrom: kept?.validFrom ?? "",
   }));
@@ -245,6 +259,12 @@ export function NewOfficeForm() {
 
   function keepDraft() {
     writeDraft({ ...form, designationId: head.designationId });
+    // Back from New User lands on the marked address too (Next keeps useSearchParams in step with replaceState)
+    try {
+      window.history.replaceState(null, "", NEW_OFFICE_DRAFT_PATH);
+    } catch {
+      // history refused: New User's Cancel and Create still come back to the marked address
+    }
   }
 
   async function submit(e: FormEvent) {
@@ -302,7 +322,7 @@ export function NewOfficeForm() {
       </div>
       <TextArea label={T.offices.notes} hint={T.offices.hints.notes} rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
       {needsHead ? (
-        <HeadSection value={head} onChange={setHead} addUser={{ href: addUserHref("/admin/offices/new"), onFollow: keepDraft }} />
+        <HeadSection value={head} onChange={setHead} addUser={{ href: addUserHref(NEW_OFFICE_DRAFT_PATH), onFollow: keepDraft }} />
       ) : null}
       <ErrorBanner error={save.error} />
       <div className="actions">
@@ -335,6 +355,7 @@ function InUseCounts({ error }: { error: unknown }) {
 }
 
 export function OfficeDetailView({ code, reactivate: reopen, head: headId }: { code: string; reactivate?: boolean; head?: string }) {
+  const router = useRouter();
   const me = useMe();
   const labels = useLabels();
   const designations = useDesignations();
@@ -354,11 +375,38 @@ export function OfficeDetailView({ code, reactivate: reopen, head: headId }: { c
   });
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ name: "", notes: "" });
-  const [reactivating, setReactivating] = useState(!!reopen);
+  const [reactivating, setReactivating] = useState(false);
   const [head, setHead] = useState<HeadDraft>(EMPTY_HEAD);
   const action = useAction();
   usePickedHead(headId, (user) => setHead((h) => ({ ...h, user })));
   const manage = can(me.data, "offices.manage");
+  // office-head-picker-followups, decision 7: reactivating a Department-tier office is the Super Administrator's
+  // alone (the server answers 403 `super_admin_only` to anyone else); a directorate or unit, any `offices.manage`
+  const mayReactivateDept = manage && isSuperAdmin(me.data);
+
+  // decision 7: `?reactivate=1` is consulted once, when the office and /me are there (state adjusted while rendering);
+  // it opens the dialog only when Reactivate can succeed, and a later deactivation never opens it by itself
+  const [consulted, setConsulted] = useState(false);
+  const [refused, setRefused] = useState(false);
+  if (reopen && !consulted && office.data && me.data) {
+    setConsulted(true);
+    if (office.data.is_active === false && isDept && mayReactivateDept) setReactivating(true);
+    else setRefused(true);
+  }
+  const fromAddress = !!reopen || !!headId;
+  const officePath = `/admin/offices/${encodeURIComponent(code)}`;
+  // a refused address is cleaned at once, so a reload or Back does not try again
+  useEffect(() => {
+    if (refused && fromAddress) router.replace(officePath, { scroll: false });
+    // only the refusal triggers it; the router and the path are stable for the page
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refused]);
+
+  /** Closes the dialog (Reactivate done, or closed) and drops `?reactivate=1&head=` from the address. */
+  function closeReactivate() {
+    setReactivating(false);
+    if (fromAddress) router.replace(officePath, { scroll: false });
+  }
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["admin"] });
 
@@ -394,7 +442,7 @@ export function OfficeDetailView({ code, reactivate: reopen, head: headId }: { c
       }),
     );
     if (out.ok) {
-      setReactivating(false);
+      closeReactivate();
       await refresh();
     }
   }
@@ -408,6 +456,7 @@ export function OfficeDetailView({ code, reactivate: reopen, head: headId }: { c
           </h2>
           {o.is_active === false ? <Badge tone="warning">{T.inactive}</Badge> : <Badge tone="success">{T.active}</Badge>}
         </div>
+        {refused && o.is_active !== false ? <Notice>{T.offices.alreadyActive}</Notice> : null}
         {editing ? (
           <form className="stack" onSubmit={saveEdit}>
             <TextField label={T.offices.name} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
@@ -471,9 +520,11 @@ export function OfficeDetailView({ code, reactivate: reopen, head: headId }: { c
                 {T.offices.deactivate}
               </Button>
             ) : isDept ? (
-              <Button variant="secondary" onClick={() => setReactivating(true)}>
-                {T.offices.reactivate}
-              </Button>
+              mayReactivateDept ? (
+                <Button variant="secondary" onClick={() => setReactivating(true)}>
+                  {T.offices.reactivate}
+                </Button>
+              ) : null
             ) : (
               <Button variant="secondary" busy={action.busy} onClick={() => reactivate()}>
                 {T.offices.reactivate}
@@ -491,7 +542,7 @@ export function OfficeDetailView({ code, reactivate: reopen, head: headId }: { c
           onChanged={refresh}
         />
       ) : null}
-      <Dialog open={reactivating} title={T.offices.reactivate} onClose={() => setReactivating(false)}>
+      <Dialog open={reactivating} title={T.offices.reactivate} onClose={closeReactivate}>
         <form className="stack" onSubmit={reactivate}>
           <HeadSection
             value={head}

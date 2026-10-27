@@ -159,14 +159,19 @@ describe("New Office with a Department-tier kind (decisions 1, 4, 8, 11)", () =>
     await waitFor(() => expect(within(screen.getByLabelText("Designation in This Department")).getAllByRole("option")).toHaveLength(3));
     await userEvent.selectOptions(screen.getByLabelText("Designation in This Department"), "d-sec");
     const link = screen.getByRole("link", { name: "Not in ASLMS Yet? Add a New User in Users" });
-    expect(link).toHaveAttribute("href", "/admin/users/new?no_office=1&return=%2Fadmin%2Foffices%2Fnew");
+    // office-head-picker-followups, decision 1: the link keeps the draft under ?draft=1
+    expect(link).toHaveAttribute("href", "/admin/users/new?no_office=1&return=%2Fadmin%2Foffices%2Fnew%3Fdraft%3D1");
     link.addEventListener("click", (e) => e.preventDefault());
     await userEvent.click(link);
     const kept = JSON.parse(window.sessionStorage.getItem(OFFICE_DRAFT_KEY) ?? "{}");
     expect(kept).toMatchObject({ code: "AGRI", name: "Agriculture", kind: "department", designationId: "d-sec" });
     expect(Object.keys(kept).some((k) => /password/i.test(k))).toBe(false);
+    // the current history entry is replaced, so Back from New User lands on the marked address
+    expect(window.location.pathname + window.location.search).toBe("/admin/offices/new?draft=1");
+    window.history.replaceState(null, "", "/");
     unmount();
-    resetNav("/admin/offices/new", "head=u-9");
+    // back from New User restores the draft and picks the person
+    resetNav("/admin/offices/new", "draft=1&head=u-9");
     renderWithClient(<NewOfficeForm />);
     expect(screen.getByLabelText("Code")).toHaveValue("AGRI");
     expect(screen.getByLabelText("Name")).toHaveValue("Agriculture");
@@ -184,6 +189,83 @@ describe("New Office with a Department-tier kind (decisions 1, 4, 8, 11)", () =>
     await userEvent.selectOptions(screen.getByLabelText("Kind"), "directorate");
     expect(screen.queryByRole("region", { name: "Head of the Department" })).toBeNull();
     expect(screen.queryByRole("combobox", { name: "Person" })).toBeNull();
+  });
+});
+
+describe("the kept draft (office-head-picker-followups, decisions 1-3)", () => {
+  const DRAFT = { code: "OLD", name: "Old Draft", kind: "department", parent: "AGR", validFrom: "", notes: "", designationId: "d-sec" };
+
+  async function parentShows(name: string) {
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Parent Office" })).toHaveValue(name));
+  }
+
+  it("a stale draft never beats ?parent=", async () => {
+    window.sessionStorage.setItem(OFFICE_DRAFT_KEY, JSON.stringify(DRAFT));
+    resetNav("/admin/offices/new", "parent=EDU");
+    routes(superAdmin());
+    renderWithClient(<NewOfficeForm />);
+    await parentShows("Education");
+    expect(screen.getByLabelText("Code")).toHaveValue("");
+    expect(screen.getByLabelText("Name")).toHaveValue("");
+    expect(screen.getByLabelText("Kind")).toHaveValue("");
+    expect(window.sessionStorage.getItem(OFFICE_DRAFT_KEY)).toBeNull();
+  });
+
+  it("Back or Cancel restores without a person", async () => {
+    window.sessionStorage.setItem(OFFICE_DRAFT_KEY, JSON.stringify({ ...DRAFT, parent: "HEALTH" }));
+    resetNav("/admin/offices/new", "draft=1");
+    const api = routes(superAdmin());
+    renderWithClient(<NewOfficeForm />);
+    expect(screen.getByLabelText("Code")).toHaveValue("OLD");
+    expect(screen.getByLabelText("Name")).toHaveValue("Old Draft");
+    await parentShows("Health");
+    await waitFor(() => expect(screen.getByLabelText("Designation in This Department")).toHaveValue("d-sec"));
+    expect(screen.getByRole("combobox", { name: "Person" })).toHaveValue("");
+    expect(api.calls.some((c) => /^\/admin\/users\/[^?]/.test(c.path))).toBe(false);
+  });
+
+  it("the address parent wins inside a draft", async () => {
+    window.sessionStorage.setItem(OFFICE_DRAFT_KEY, JSON.stringify(DRAFT));
+    resetNav("/admin/offices/new", "draft=1&parent=EDU");
+    routes(superAdmin());
+    renderWithClient(<NewOfficeForm />);
+    expect(screen.getByLabelText("Code")).toHaveValue("OLD");
+    await parentShows("Education");
+  });
+
+  it("with ?draft=1 and nothing stored, the form starts empty", async () => {
+    resetNav("/admin/offices/new", "draft=1");
+    routes(superAdmin());
+    renderWithClient(<NewOfficeForm />);
+    expect(screen.getByLabelText("Code")).toHaveValue("");
+    expect(screen.getByLabelText("Kind")).toHaveValue("");
+  });
+
+  it("New User: Cancel goes back without a person", async () => {
+    resetNav("/admin/users/new", "no_office=1&return=%2Fadmin%2Foffices%2Fnew%3Fdraft%3D1");
+    routes(superAdmin(), { "GET /admin/users/lookup": json(404, { detail: "no such user" }) });
+    renderWithClient(<NewUserForm noOffice returnTo="/admin/offices/new?draft=1" />);
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(nav.push).toHaveBeenCalledWith("/admin/offices/new?draft=1");
+    // next to the one primary once the e-mail is checked
+    await userEvent.type(screen.getByLabelText("E-mail"), "nirmal@example.org");
+    await userEvent.click(screen.getByRole("button", { name: "Check E-mail" }));
+    const create = await screen.findByRole("button", { name: "Create User" });
+    const actions = create.parentElement!;
+    expect(within(actions).getByRole("button", { name: "Cancel" })).toHaveAttribute("data-variant", "secondary");
+    expect(screen.getAllByRole("button", { name: "Cancel" })).toHaveLength(1);
+    expect(document.querySelectorAll("[data-variant='primary']")).toHaveLength(1);
+  });
+
+  it("New User without returnTo has no Cancel", async () => {
+    resetNav("/admin/users/new");
+    routes(superAdmin(), { "GET /admin/users/lookup": json(404, { detail: "no such user" }) });
+    renderWithClient(<NewUserForm />);
+    expect(screen.queryByRole("button", { name: "Cancel" })).toBeNull();
+    await userEvent.type(screen.getByLabelText("E-mail"), "nirmal@example.org");
+    await userEvent.click(screen.getByRole("button", { name: "Check E-mail" }));
+    await screen.findByRole("button", { name: "Create User" });
+    expect(screen.queryByRole("button", { name: "Cancel" })).toBeNull();
   });
 });
 
@@ -223,6 +305,95 @@ describe("the Reactivate dialog (decision 10)", () => {
     expect(api.calls.find((c) => c.method === "POST")!.body).toEqual({
       head: { user_id: "u-2", designation_id: "d-sec", designation: "Secretary" },
     });
+    // office-head-picker-followups, decision 7: done, the address is cleaned
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/admin/offices/AGRI", { scroll: false }));
+  });
+});
+
+describe("?reactivate=1 opens the dialog only when Reactivate is possible (office-head-picker-followups, decision 7)", () => {
+  const OFFICE = {
+    id: "o-9",
+    code: "AGRI",
+    name: "Agriculture",
+    kind: "department",
+    tier: "department",
+    path: "GOA/AGRI",
+    parent_code: "GOA",
+    is_active: false,
+    valid_from: "2026-01-01",
+    notes: null,
+    counts: { children: 0, users: 0, ownership: 0, custody: 0 },
+  };
+
+  function officeRoutes(me: ReturnType<typeof makeMe>, office: unknown, extra: Record<string, unknown> = {}) {
+    return routes(me, { "GET /admin/offices/AGRI": office, "GET /admin/offices/AGRI/admins": [], ...extra });
+  }
+
+  async function refused() {
+    await screen.findByRole("heading", { name: /Agriculture/ });
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/admin/offices/AGRI", { scroll: false }));
+    expect(screen.queryByRole("dialog", { name: "Reactivate" })).toBeNull();
+  }
+
+  beforeEach(() => resetNav("/admin/offices/AGRI", "reactivate=1"));
+
+  it("an active office: no dialog, and the already-active notice shows", async () => {
+    officeRoutes(superAdmin(), { ...OFFICE, is_active: true });
+    renderWithClient(<OfficeDetailView code="AGRI" reactivate />);
+    await refused();
+    expect(screen.getByText("This office is already active, so there is nothing to reactivate.")).toBeInTheDocument();
+  });
+
+  it("an inactive directorate: no dialog and no notice", async () => {
+    officeRoutes(superAdmin(), { ...OFFICE, kind: "directorate", tier: "directorate" });
+    renderWithClient(<OfficeDetailView code="AGRI" reactivate />);
+    await refused();
+    expect(screen.queryByText(/already active/)).toBeNull();
+    // a directorate keeps the direct Reactivate
+    expect(screen.getByRole("button", { name: "Reactivate" })).toBeInTheDocument();
+  });
+
+  it("a caller without offices.manage: no dialog", async () => {
+    officeRoutes(superAdmin(SUPER_FNS.filter((f) => f !== "offices.manage")), OFFICE);
+    renderWithClient(<OfficeDetailView code="AGRI" reactivate />);
+    await refused();
+  });
+
+  it("a department admin holding offices.manage: no dialog, and no Reactivate button on a Department-tier office", async () => {
+    officeRoutes(deptAdmin(), OFFICE);
+    renderWithClient(<OfficeDetailView code="AGRI" reactivate />);
+    await refused();
+    expect(screen.queryByRole("button", { name: "Reactivate" })).toBeNull();
+    expect(screen.getByRole("link", { name: "New Office" })).toBeInTheDocument();
+  });
+
+  it("the Super Administrator on an inactive Department-tier office: the dialog opens; closing it cleans the address", async () => {
+    resetNav("/admin/offices/AGRI", "reactivate=1&head=u-2");
+    officeRoutes(superAdmin(), OFFICE, { "GET /admin/users/u-2": RANI });
+    renderWithClient(<OfficeDetailView code="AGRI" reactivate head="u-2" />);
+    const dialog = await screen.findByRole("dialog", { name: "Reactivate" });
+    await waitFor(() => expect(within(dialog).getByRole("combobox", { name: "Person" })).toHaveValue("Rani Bora"));
+    expect(nav.replace).not.toHaveBeenCalled();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Reactivate" })).toBeNull());
+    expect(nav.replace).toHaveBeenCalledWith("/admin/offices/AGRI", { scroll: false });
+  });
+
+  it("a deactivation after a refused ?reactivate=1 never opens the dialog", async () => {
+    let active = true;
+    officeRoutes(superAdmin(), () => ({ ...OFFICE, is_active: active }), {
+      "POST /admin/offices/AGRI/deactivate": () => {
+        active = false;
+        return { ...OFFICE, is_active: false };
+      },
+    });
+    renderWithClient(<OfficeDetailView code="AGRI" reactivate />);
+    await refused();
+    expect(screen.getByText(/already active/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Deactivate" }));
+    await screen.findByRole("button", { name: "Reactivate" });
+    expect(screen.queryByRole("dialog", { name: "Reactivate" })).toBeNull();
+    expect(screen.queryByText(/already active/)).toBeNull();
   });
 });
 
@@ -283,6 +454,41 @@ describe("the head-change request (decision 9)", () => {
     expect(requestOf(api).department_code).toBe("EDU");
     // Someone From Another Office: an exact e-mail checked with the lookup
     expect(screen.getByRole("button", { name: "Someone From Another Office" })).toBeInTheDocument();
+  });
+
+  it("a State-office users.view holder without cases.view_all: no include_ended, and Someone From Another Office", async () => {
+    // office-head-picker-followups, decision 4: the server's rule (`access.user_scope_roots`), not the State office
+    const fns: Permission[] = ["users.view", "users.create", "users.propose_head"];
+    const reader = makeMe(fns, "state_oversight", {
+      memberships: [
+        {
+          id: "m-st",
+          office: { code: "GOA", name: "Government of Assam", kind: "state" },
+          department_code: null,
+          designation: null,
+          role: "state_oversight",
+          is_primary: true,
+          is_active: true,
+          functions: fns,
+        },
+      ],
+    });
+    resetNav("/admin/tickets/new", "department=EDU");
+    const api = routes(reader);
+    renderWithClient(<NewTicketForm department="EDU" />);
+    await pick("Incoming Head", "ra", "Ravi Das");
+    const search = api.calls.find((c) => c.path.startsWith("/admin/users?q=ra"))!;
+    expect(search.path).not.toContain("include_ended");
+    expect(screen.getByRole("button", { name: "Someone From Another Office" })).toBeInTheDocument();
+  });
+
+  it("the Super Administrator sends include_ended=true and sees no Someone From Another Office", async () => {
+    resetNav("/admin/tickets/new", "department=EDU");
+    const api = routes(superAdmin());
+    renderWithClient(<NewTicketForm department="EDU" />);
+    await pick("Incoming Head", "ra", "Ravi Das");
+    expect(api.calls.some((c) => c.path === "/admin/users?q=ra&limit=20&include_ended=true")).toBe(true);
+    expect(screen.queryByRole("button", { name: "Someone From Another Office" })).toBeNull();
   });
 
   it("Someone From Another Office checks the exact e-mail and sends it", async () => {

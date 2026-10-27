@@ -10,7 +10,7 @@ export function canAny(me: Pick<Me, "functions"> | null | undefined, fns: readon
 }
 
 /** Display only: the API decides what the super admin may do. */
-export function isSuperAdmin(me: Pick<Me, "memberships"> | null | undefined): boolean {
+export function isSuperAdmin(me: Partial<Pick<Me, "memberships">> | null | undefined): boolean {
   return !!me?.memberships?.some((m) => m.role === "super_admin" && m.is_active !== false);
 }
 
@@ -64,4 +64,13 @@ export function readsAudit(me: (Pick<Me, "functions"> & Partial<Pick<Me, "member
     const fns = m.functions ?? [];
     return fns.includes("audit.view") && fns.includes("cases.view_all");
   });
+}
+
+/**
+ * Whether the login's view of users is State-wide (design office-head-picker-followups, decision 4): the Super
+ * Administrator or a holder of `cases.view_all`, the server's `access.user_scope_roots` rule, which alone may list
+ * logins without an active membership (`include_ended`, `no_office`; anyone else gets 403 `scope`). Display only.
+ */
+export function usersStateWide(me: (Pick<Me, "functions"> & Partial<Pick<Me, "memberships">>) | null | undefined): boolean {
+  return isSuperAdmin(me) || can(me, "cases.view_all");
 }

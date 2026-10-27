@@ -22,6 +22,7 @@ import type {
   Note,
   NoteList,
   OfficeChoices,
+  OfficeDetail,
   Permission,
   PermissionInfo,
   Report,
@@ -481,6 +482,12 @@ function officeChoices(url: URL): OfficeChoices {
   return { purpose, items: items.filter((o) => o.is_active || purpose === "audit") };
 }
 
+/** The sample office's page (design office-head-picker-followups, decision 7): an inactive Department-tier office. */
+function officeDetail(): OfficeDetail {
+  const base = synth({ $ref: "#/components/schemas/OfficeDetailOut" }) as OfficeDetail;
+  return { ...base, code: SAMPLE.officeCode, kind: "department", tier: "department", parent_code: "GOA", is_active: false };
+}
+
 /** A person with two active offices and one ended (decision 34), as `GET /admin/users/{id}/memberships` answers. */
 function userMemberships(): MembershipOut[] {
   return [
@@ -736,6 +743,9 @@ const OVERRIDES: [RegExp, Override][] = [
   [/^\/admin\/users$/, () => users()],
   // design portal-ui-polish-2, decisions 28-42: the Office Picker, the User Details modal and Department Mapping
   [/^\/admin\/offices\/choices$/, (url) => officeChoices(url)],
+  // design office-head-picker-followups, decision 7: the sample office is an inactive department, so `?reactivate=1`
+  // opens the Reactivate dialog for the Super Administrator
+  [/^\/admin\/offices\/(?!tree$|choices$)[^/]+$/, () => officeDetail()],
   [/^\/admin\/users\/[^/]+$/, () => users()[0]],
   [/^\/admin\/users\/[^/]+\/memberships$/, () => userMemberships()],
   [/^\/admin\/users\/[^/]+\/memberships\/[^/]+\/permissions$/, (url) => membershipFunctions(url)],
@@ -784,6 +794,10 @@ export function answer(method: string, url: URL, apiPath: string): Answer {
   // design office-head-picker: New User's e-mail check for a new person answers 404, as the API does
   if (apiPath === "/admin/users/lookup" && (url.searchParams.get("email") ?? "").startsWith("new.")) {
     return { status: 404, body: { detail: "no such user" } };
+  }
+  // design office-head-picker-followups, decision 5: the User Picker's search for "fail" answers 500 (the error state)
+  if (apiPath === "/admin/users" && url.searchParams.get("q") === "fail") {
+    return { status: 500, body: { detail: { code: "internal", message: "the browser check's failed search" } } };
   }
   for (const [pattern, make] of OVERRIDES) if (pattern.test(apiPath)) return { status: 200, body: make(url) };
   const synthetic = synthFor(apiPath);

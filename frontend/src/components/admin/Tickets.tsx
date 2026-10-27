@@ -28,8 +28,8 @@ import {
 } from "@/components/ui";
 import { api, ApiError } from "@/lib/api/client";
 import { labelOf, useLabels, useMe } from "@/lib/api/hooks";
-import type { Me, TicketDetail, TicketDocument, TicketList, UserChoice, UserLookup, UserOut } from "@/lib/api/types";
-import { can, isSuperAdmin } from "@/lib/can";
+import type { TicketDetail, TicketDocument, TicketList, UserChoice, UserLookup, UserOut } from "@/lib/api/types";
+import { can, isSuperAdmin, usersStateWide } from "@/lib/can";
 import { formatDate, formatDateTime, formatNumber } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { refPath } from "@/lib/refs";
@@ -346,12 +346,6 @@ export function TicketView({ ticketRef }: { ticketRef: string }) {
   );
 }
 
-/** Whether the login's view of users is State-wide (the super admin, or a State-office membership with `users.view`). */
-export function stateWideUsers(me: Me | undefined): boolean {
-  if (isSuperAdmin(me)) return true;
-  return !!me?.memberships?.some((m) => m.is_active !== false && m.office.kind === "state" && (m.functions ?? []).includes("users.view"));
-}
-
 type Operation = "set" | "replace" | "end";
 
 /** The incoming head of the request (decision 9): their membership in the department, else their e-mail. */
@@ -373,7 +367,8 @@ export function NewTicketForm({ department: initialDepartment, operation: initia
   const labels = useLabels();
   const designations = useDesignations();
   const superAdmin = isSuperAdmin(me.data);
-  const stateWide = stateWideUsers(me.data);
+  // design office-head-picker-followups, decision 4: the server's rule for listing logins with no office
+  const stateWide = usersStateWide(me.data);
   const ownDepartment =
     me.data?.memberships?.find((m) => m.role === "dept_admin" && m.is_active !== false)?.department_code ?? "";
   const [department, setDepartment] = useState((initialDepartment ?? "").trim().toUpperCase());

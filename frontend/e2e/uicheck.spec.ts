@@ -450,6 +450,18 @@ const STATES: State[] = [
     },
   },
   {
+    // design office-head-picker-followups, decision 5: the search failed (the fixture answers 500), so the list says
+    // so with Try Again under it, never "No person matches"; the note and the button fit the list at 375 px
+    name: "/admin/offices/new (User Picker search failed)",
+    path: "/admin/offices/new",
+    open: async (page) => {
+      await page.getByLabel("Kind").selectOption("department");
+      await page.getByRole("combobox", { name: "Person" }).fill("fail");
+      await page.getByRole("listbox", { name: "People" }).getByText("The search did not work.").waitFor({ timeout: 15_000 });
+      await page.getByRole("button", { name: "Try Again" }).waitFor();
+    },
+  },
+  {
     // decision 10: the Reactivate dialog with the same head section (`?reactivate=1` opens it)
     name: `/admin/offices/${SAMPLE.officeCode} (Reactivate dialog)`,
     path: `/admin/offices/${SAMPLE.officeCode}?reactivate=1`,

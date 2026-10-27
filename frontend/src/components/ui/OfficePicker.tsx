@@ -12,6 +12,10 @@
  *
  * The offices come from `GET /admin/offices/choices?purpose=` (`purpose`) or from the page (`options`, the Reports
  * catalogue). Showing an office is convenience only: every write and filter checks again on the server.
+ *
+ * Design office-head-picker-followups, decision 6: when the list cannot be fetched, the list says so ("The offices
+ * could not be loaded.", announced through a visually hidden status) with Try Again (not after a 4xx), never "No
+ * office matches".
  */
 import {
   useEffect,
@@ -26,11 +30,12 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
+import { ApiError } from "@/lib/api/client";
 import { useOfficeChoices } from "@/lib/api/hooks";
 import type { OfficeChoice, OfficePurpose } from "@/lib/api/types";
 import { T } from "@/lib/messages";
 
-import { CheckField, cx } from "./controls";
+import { Button, CheckField, cx } from "./controls";
 import c from "./controls.module.css";
 import { Badge } from "./feedback";
 import s from "./officePicker.module.css";
@@ -42,6 +47,25 @@ export function filterOffices(options: OfficeChoice[], query: string): OfficeCho
   const q = query.trim().toLowerCase();
   if (!q) return options;
   return options.filter((o) => o.name.toLowerCase().includes(q) || o.code.toLowerCase().includes(q));
+}
+
+/** Whether asking again may help (design office-head-picker-followups, decisions 5-6): never after a 4xx. */
+export function retryable(error: unknown): boolean {
+  return !(error instanceof ApiError && error.status >= 400 && error.status < 500);
+}
+
+/**
+ * Try Again under a picker's list (decisions 5-6): inside the popover, outside the `listbox`; its mouse-down keeps the
+ * focus in the box, so the list stays open.
+ */
+export function PickerRetry({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className={s.retry}>
+      <Button variant="secondary" size="sm" onMouseDown={(e) => e.preventDefault()} onClick={onRetry}>
+        {T.retry}
+      </Button>
+    </div>
+  );
 }
 
 /** The text with the first occurrence of the query marked. */
@@ -123,6 +147,10 @@ export function OfficePicker({
   const minDepth = all.length ? Math.min(...all.map((o) => o.depth)) : 0;
   const chosen = value ? all.find((o) => o.code === value) : undefined;
   const hasChildren = !!chosen && all.some((o) => o.parent_code === chosen.code);
+  // decision 6: the server's list failed (a retry in flight shows the loading note)
+  const failed = !given && choices.isError && !choices.isFetching;
+  const canRetry = failed && retryable(choices.error);
+  const loading = !given && (choices.isPending || (choices.isError && choices.isFetching));
 
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState<string | null>(null);
@@ -232,6 +260,7 @@ export function OfficePicker({
         if (!open) return;
         e.preventDefault();
         if (shown[active]) choose(shown[active]!);
+        else if (canRetry) void choices.refetch();
         return;
       case "Escape":
         if (!open) return;
@@ -254,7 +283,7 @@ export function OfficePicker({
       <ul ref={list} id={listId} role="listbox" aria-label={T.officePicker.listAria} className={s.list}>
         {shown.length === 0 ? (
           <li className={s.none} role="presentation">
-            {choices.isPending && !given ? T.officePicker.loadingNote : T.officePicker.noMatch}
+            {loading ? T.officePicker.loadingNote : failed ? T.officePicker.errorNote : T.officePicker.noMatch}
           </li>
         ) : (
           shown.map((o, i) => (
@@ -284,6 +313,7 @@ export function OfficePicker({
           ))
         )}
       </ul>
+      {canRetry && shown.length === 0 ? <PickerRetry onRetry={() => void choices.refetch()} /> : null}
       <div className={s.foot}>{T.officePicker.footNote}</div>
     </div>
   ) : null;
@@ -365,6 +395,9 @@ export function OfficePicker({
           {error}
         </span>
       ) : null}
+      <span className="visually-hidden" role="status">
+        {open && failed ? T.officePicker.errorNote : ""}
+      </span>
       {popover && host ? createPortal(popover, host) : null}
     </div>
   );

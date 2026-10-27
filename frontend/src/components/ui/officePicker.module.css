@@ -166,6 +166,11 @@
   color: var(--text-3);
 }
 
+/* Try Again under a list whose fetch failed (design office-head-picker-followups, decisions 5-6; the User Picker too) */
+.retry {
+  padding: 0 var(--s2) var(--s2);
+}
+
 .foot {
   padding: var(--s2) var(--s3);
   border-top: 1px solid var(--border);

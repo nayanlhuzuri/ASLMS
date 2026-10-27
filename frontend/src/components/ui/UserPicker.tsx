@@ -12,6 +12,10 @@
  * line under it. The list opens in a portal under the box (above it when there is no room), inside the nearest
  * dialog. Keys: Down, Up, Home, End, Enter chooses, Escape closes keeping the value, Tab closes. Showing a person is
  * convenience only: the server checks every rule again.
+ *
+ * Design office-head-picker-followups, decision 5: a failed search says so in the list ("You cannot search people
+ * from this form." for a 403, else "The search did not work."), announced through a visually hidden status, with Try
+ * Again (and Enter) for anything but a 4xx; never "No person matches". The chosen person is kept.
  */
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -26,7 +30,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
-import { apiPage } from "@/lib/api/client";
+import { ApiError, apiPage } from "@/lib/api/client";
 import { labelOf, useLabels } from "@/lib/api/hooks";
 import type { MembershipOut, UserChoice, UserTypeLabel } from "@/lib/api/types";
 import { T } from "@/lib/messages";
@@ -34,6 +38,7 @@ import { T } from "@/lib/messages";
 import { cx } from "./controls";
 import c from "./controls.module.css";
 import { Badge } from "./feedback";
+import { PickerRetry, retryable } from "./OfficePicker";
 import s from "./officePicker.module.css";
 import u from "./userPicker.module.css";
 
@@ -274,7 +279,8 @@ export function UserPicker({
       case "Enter":
         if (!open) return;
         e.preventDefault();
-        choose(active);
+        if (failed && canRetry) void people.refetch();
+        else choose(active);
         return;
       case "Escape":
         if (!open) return;
@@ -292,10 +298,18 @@ export function UserPicker({
   const describedBy = [hint ? hintId : null, error ? errorId : null].filter(Boolean).join(" ") || undefined;
   const total = people.data?.total ?? 0;
 
+  // decision 5, the order of the notes: minimum, waiting or loading (a retry in flight too), error, none
+  const failed = people.isError && !people.isFetching;
+  const canRetry = failed && retryable(people.error);
   let note: string | null = null;
+  let errorNote: string | null = null;
   if (typed.length < 2) note = T.userPicker.minimumNote;
-  else if (!enough || settled !== typed || people.isPending) note = T.userPicker.loadingNote;
-  else if (shown.length === 0) note = T.userPicker.noneNote(typed);
+  else if (!enough || settled !== typed || people.isPending || (people.isError && people.isFetching)) note = T.userPicker.loadingNote;
+  else if (failed) {
+    errorNote =
+      people.error instanceof ApiError && people.error.status === 403 ? T.userPicker.forbiddenNote : T.userPicker.errorNote;
+    note = errorNote;
+  } else if (shown.length === 0) note = T.userPicker.noneNote(typed);
 
   const popover = open ? (
     <div className={cx(s.pop, host === document.body && s.popTop)} style={place} data-ui="user-picker-list">
@@ -340,6 +354,7 @@ export function UserPicker({
           })
         )}
       </ul>
+      {errorNote && canRetry ? <PickerRetry onRetry={() => void people.refetch()} /> : null}
       {!note && total > shown.length ? <div className={s.foot}>{T.userPicker.firstNote}</div> : null}
     </div>
   ) : null;
@@ -418,6 +433,9 @@ export function UserPicker({
           {error}
         </span>
       ) : null}
+      <span className="visually-hidden" role="status">
+        {open ? (errorNote ?? "") : ""}
+      </span>
       {popover && host ? createPortal(popover, host) : null}
     </div>
   );

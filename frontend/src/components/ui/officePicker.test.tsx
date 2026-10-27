@@ -171,3 +171,43 @@ describe("the Office Picker (design portal-ui-polish-2, decision 28)", () => {
     expect(within(old).getByText("Inactive")).toBeInTheDocument();
   });
 });
+
+/** The picker's visually hidden status (the harness's `<output>` is a status too). */
+const statusSpan = () => document.querySelector<HTMLElement>("span[role='status']")!;
+
+describe("a failed choices load (design office-head-picker-followups, decision 6)", () => {
+  it('a failed choices load shows the error note and Try Again, not "No office matches"', async () => {
+    let fail = true;
+    const api = browserApi({
+      "GET /admin/offices/choices": (call: { path: string }) =>
+        fail ? new Response(JSON.stringify({ detail: "boom" }), { status: 500, headers: { "content-type": "application/json" } }) : { purpose: new URL(call.path, "http://x").searchParams.get("purpose"), items: TREE },
+    });
+    renderWithClient(<Harness />);
+    const box = await screen.findByRole("combobox", { name: "Office" });
+    await userEvent.click(box);
+    const list = await screen.findByRole("listbox", { name: "Offices" });
+    await waitFor(() => expect(within(list).getByText("The offices could not be loaded.")).toBeInTheDocument());
+    expect(screen.queryByText("No office matches")).toBeNull();
+    expect(statusSpan()).toHaveTextContent("The offices could not be loaded.");
+    const retry = screen.getByRole("button", { name: "Try Again" });
+    expect(list.contains(retry)).toBe(false);
+    fail = false;
+    await userEvent.click(retry);
+    await waitFor(() => expect(within(screen.getByRole("listbox")).getAllByRole("option")).toHaveLength(4));
+    expect(api.calls.filter((c) => c.path.startsWith("/admin/offices/choices"))).toHaveLength(2);
+    expect(box).toHaveFocus();
+  });
+
+  it("a 403 shows the error note with no Try Again; Enter does not ask again", async () => {
+    const api = browserApi({
+      "GET /admin/offices/choices": () => new Response(JSON.stringify({ detail: { code: "forbidden", message: "no" } }), { status: 403, headers: { "content-type": "application/json" } }),
+    });
+    renderWithClient(<Harness />);
+    const box = await screen.findByRole("combobox", { name: "Office" });
+    await userEvent.click(box);
+    await within(await screen.findByRole("listbox")).findByText("The offices could not be loaded.");
+    expect(screen.queryByRole("button", { name: "Try Again" })).toBeNull();
+    await userEvent.keyboard("{Enter}");
+    expect(api.calls.filter((c) => c.path.startsWith("/admin/offices/choices"))).toHaveLength(1);
+  });
+});

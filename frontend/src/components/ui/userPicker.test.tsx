@@ -165,3 +165,110 @@ describe("the User Picker (design office-head-picker, decision 2)", () => {
     await waitFor(() => expect(screen.getByText("No person matches “zz”")).toBeInTheDocument());
   });
 });
+
+/** The picker's visually hidden status (the harness's `<output>` is a status too). */
+const statusSpan = () => document.querySelector<HTMLElement>("span[role='status']")!;
+
+describe("a failed search (design office-head-picker-followups, decision 5)", () => {
+  /** The search answers `statuses` in turn, then the people. */
+  function failing(...statuses: number[]) {
+    let n = 0;
+    return browserApi({
+      "GET /reference/labels": labels(),
+      "GET /admin/users": () => {
+        const status = statuses[n++];
+        return status ? json(status, { detail: { code: status === 403 ? "scope" : "internal", message: "no" } }) : json(200, ALL, { "x-total-count": "5" });
+      },
+    });
+  }
+
+  it('a failed search shows the error note, not "No person matches"', async () => {
+    failing(500);
+    renderWithClient(<Harness />);
+    await userEvent.type(screen.getByRole("combobox", { name: "Person" }), "ra");
+    const list = await screen.findByRole("listbox", { name: "People" });
+    await waitFor(() => expect(within(list).getByText("The search did not work.")).toBeInTheDocument());
+    expect(screen.queryByText(/No person matches/)).toBeNull();
+    const retry = screen.getByRole("button", { name: "Try Again" });
+    // inside the popover, outside the listbox
+    expect(list.contains(retry)).toBe(false);
+    expect(retry.closest("[data-ui='user-picker-list']")).not.toBeNull();
+  });
+
+  it("Try Again refetches, and the options then show", async () => {
+    const api = failing(500);
+    renderWithClient(<Harness />);
+    const box = screen.getByRole("combobox", { name: "Person" });
+    await userEvent.type(box, "ra");
+    await userEvent.click(await screen.findByRole("button", { name: "Try Again" }));
+    expect(await screen.findAllByRole("option")).toHaveLength(5);
+    expect(searches(api)).toHaveLength(2);
+    expect(box).toHaveFocus();
+    expect(screen.queryByRole("button", { name: "Try Again" })).toBeNull();
+  });
+
+  it("Enter with the error note refetches", async () => {
+    const api = failing(503);
+    renderWithClient(<Harness />);
+    await userEvent.type(screen.getByRole("combobox", { name: "Person" }), "ra");
+    await within(await screen.findByRole("listbox")).findByText("The search did not work.");
+    await userEvent.keyboard("{Enter}");
+    expect(await screen.findAllByRole("option")).toHaveLength(5);
+    expect(searches(api)).toHaveLength(2);
+    expect(screen.getByTestId("value")).toHaveTextContent("");
+  });
+
+  it("a 403 shows the forbidden note and no Try Again", async () => {
+    failing(403);
+    renderWithClient(<Harness includeWithoutOffice />);
+    await userEvent.type(screen.getByRole("combobox", { name: "Person" }), "ra");
+    expect(await screen.findAllByText("You cannot search people from this form.")).not.toHaveLength(0);
+    expect(screen.queryByRole("button", { name: "Try Again" })).toBeNull();
+    expect(screen.queryByText("The search did not work.")).toBeNull();
+  });
+
+  it('the error text is in the role="status" span', async () => {
+    failing(500);
+    renderWithClient(<Harness />);
+    expect(statusSpan()).toHaveTextContent("");
+    await userEvent.type(screen.getByRole("combobox", { name: "Person" }), "ra");
+    await waitFor(() => expect(statusSpan()).toHaveTextContent("The search did not work."));
+    expect(statusSpan()).toHaveClass("visually-hidden");
+    // the note in the list stays presentational
+    expect(within(screen.getByRole("listbox")).getByText("The search did not work.")).toHaveAttribute("role", "presentation");
+  });
+
+  it("a chosen value survives a failed search", async () => {
+    failing(0, 500);
+    renderWithClient(<Harness />);
+    const box = screen.getByRole("combobox", { name: "Person" });
+    await userEvent.type(box, "ra");
+    await userEvent.click((await screen.findAllByRole("option"))[0]!);
+    expect(screen.getByTestId("value")).toHaveTextContent("u-1");
+    await userEvent.clear(box);
+    await userEvent.type(box, "zz");
+    await within(await screen.findByRole("listbox")).findByText("The search did not work.");
+    expect(screen.getByTestId("value")).toHaveTextContent("u-1");
+    await userEvent.keyboard("{Escape}");
+    expect(box).toHaveValue("Ravi Das");
+  });
+
+  it("the order of the notes holds: minimum, loading, error, none", async () => {
+    let answer = 500;
+    browserApi({
+      "GET /reference/labels": labels(),
+      "GET /admin/users": () => (answer === 500 ? json(500, { detail: "boom" }) : json(200, [], { "x-total-count": "0" })),
+    });
+    renderWithClient(<Harness />);
+    const box = screen.getByRole("combobox", { name: "Person" });
+    await userEvent.type(box, "r");
+    expect(screen.getByText("Type at least 2 letters of a name or e-mail")).toBeInTheDocument();
+    await userEvent.type(box, "a");
+    expect(screen.getByText("Searching…")).toBeInTheDocument();
+    await within(await screen.findByRole("listbox")).findByText("The search did not work.");
+    answer = 200;
+    await userEvent.click(screen.getByRole("button", { name: "Try Again" }));
+    await waitFor(() => expect(screen.getByText("No person matches “ra”")).toBeInTheDocument());
+    expect(screen.queryByText("The search did not work.")).toBeNull();
+  });
+});

@@ -737,6 +737,8 @@ export const T = {
     subMarker: "+ sub",
     inactiveBadge: "Inactive",
     loadingNote: "Loading the offices…",
+    // design office-head-picker-followups, decision 6: the list could not be fetched
+    errorNote: "The offices could not be loaded.",
   },
   // design office-head-picker, decision 2: the User Picker
   userPicker: {
@@ -756,6 +758,9 @@ export const T = {
     worksElsewhereNote: (code: string) => `Works in ${code}; a head sits at the department office`,
     adminNote: "Department Administrator — only the Super Administrator can name them head",
     currentHeadNote: "Already the head of this department",
+    // design office-head-picker-followups, decision 5: a failed search is never "No person matches"
+    errorNote: "The search did not work.",
+    forbiddenNote: "You cannot search people from this form.",
   },
   // the score badge text from the API's band, never from comparing numbers (decision 10.6)
   score: {
@@ -1117,6 +1122,8 @@ export const T = {
     headDesignation: "Designation in This Department",
     headDesignationHint: "Missing post? The Super Administrator adds it under Administration → Designations.",
     addUserLink: "Not in ASLMS Yet? Add a New User in Users",
+    // design office-head-picker-followups, decision 7: ?reactivate=1 on an office that is active
+    alreadyActive: "This office is already active, so there is nothing to reactivate.",
     hints: {
       code: "A short code that never changes: capital letters, digits and hyphens, 2 to 40 characters. For example EDU for a department, EDU-DSE for one of its directorates.",
       name: "The full official name, for example School Education Department.",

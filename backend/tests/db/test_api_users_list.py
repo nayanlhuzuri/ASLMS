@@ -4,8 +4,15 @@
 from __future__ import annotations
 
 import pytest
+import sqlalchemy as sa
 
-from tests.db.portal_support import build_api, headers
+from aslms.domain.org import Office, PermissionEffect, User
+from aslms.domain.reference import Permission, Role
+from aslms.services import access
+from aslms.services.audit import Actor
+from aslms.services.users import create_user
+from tests.db.auth_support import ready
+from tests.db.portal_support import PW, build_api, headers
 
 
 @pytest.fixture()
@@ -106,3 +113,52 @@ def test_subtree_false_narrows_to_the_office(api):
     h_edu = headers(api, "admin.edu@example.org")
     r = api.get("/admin/users", params={"office": "HEALTH", "subtree": "false"}, headers=h_edu)
     assert _emails(r) == []
+
+
+def _state_reader(api, *, view_all: bool) -> dict:
+    """A login whose only membership is at the State office (State Oversight Officer, holding `users.view`), with
+    `cases.view_all` denied unless `view_all` (design `office-head-picker-followups`, decision 4)."""
+    email = "state.reader@example.org"
+    with api.app.state.session_factory() as s:
+        goa = s.scalar(sa.select(Office).where(Office.code == "GOA"))
+        reader = create_user(
+            s,
+            Actor.system("test"),
+            email=email,
+            password=PW,
+            full_name="State Reader",
+            role=Role.STATE_OVERSIGHT,
+            office=goa,
+        )
+        s.flush()
+        root = s.scalar(sa.select(User).where(User.email == "root@example.org"))
+        if not view_all:
+            access.set_override(
+                s,
+                Actor(root.id, "Root"),
+                root,
+                reader,
+                Permission.CASES_VIEW_ALL,
+                PermissionEffect.DENY,
+                reason="test",
+            )
+        s.commit()
+    ready(api, email)
+    return headers(api, email)
+
+
+def test_include_ended_state_office_reader_without_view_all_403(api):
+    """The server rule the ticket form mirrors (`usersStateWide`): a State-office `users.view` holder without
+    `cases.view_all` is not State-wide for the user list."""
+    h = _state_reader(api, view_all=False)
+    for params in ({"include_ended": "true"}, {"no_office": "true"}):
+        r = api.get("/admin/users", params=params, headers=h)
+        assert r.status_code == 403 and r.json()["detail"]["code"] == "scope", params
+    r = api.get("/admin/users", params={"q": "sharma", "limit": 20}, headers=h)
+    assert _emails(r) == ["anita.sharma@example.org"]
+
+
+def test_include_ended_view_all_holder_allowed(api):
+    h = _state_reader(api, view_all=True)
+    r = api.get("/admin/users", params={"include_ended": "true", "q": "gone"}, headers=h)
+    assert _emails(r) == ["gone.away@example.org"]
