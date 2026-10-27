@@ -167,7 +167,7 @@ function cover() {
   const meta = table(["Document", "Details"], [
     ["Title", "ASLMS Software Documentation"],
     ["Owner", "Government of Assam"],
-    ["Version", "1.0"],
+    ["Version", "1.1"],
     ["Date", "27 October 2026"],
     ["Status", "Submitted for review"],
     ["Classification", "For official use"],
@@ -222,10 +222,10 @@ function brochure() {
     ["Hearings and alerts", "Bell and e-mail alerts, a personal calendar, department hearings and next dates read from orders for confirmation."],
     ["Cause list", "Any date and bench in court order, with each entry’s recommendation or owner, a Claim button and the original list."],
     ["Notes and documents", "Append-only notes with corrections linked to the original; uploads checked by content and scanned for viruses; visibility per item."],
-    ["Case Assistant", "Questions answered from court orders with every source cited by page. Prepared for the in-house SourceTrace service."],
+    ["Case Assistant", "Questions answered from court orders with every source cited by page. Prepared for the in-house SourceTrace service, with an approved local model on Government machines in the meantime."],
     ["Dashboards and reports", "Personal, department and State dashboards; four reports with Excel and PDF export."],
     ["Administration", "Offices in the government hierarchy, users and memberships, user types and functions, department mapping and scoring."],
-    ["Data collection", "Progress and coverage of the court data, the historical load, single-case fetch and duplicates."],
+    ["Data collection", "Live overview with progress and finish estimates, collection on request, and automatic collection with load control."],
     ["System health", "The state of every court API and ASLMS service, with a limited, audited live test."],
     ["Audit log", "Every significant action, searchable by person, case, office and date, with before-and-after values."],
   ], 3, [[PALE, NAVY], [PALE_TEAL, TEAL], [PALE_GOLD, GOLD]]));
@@ -243,10 +243,10 @@ function brochure() {
 const C = [];
 function add(...xs) { xs.flat().forEach((x) => C.push(x)); }
 
-const TOC_PAGES = { "1. Introduction": 6, "2. System overview": 7, "3. Users, roles and access": 9, "4. Functional description": 11, "5. Court data integration (NAPIX)": 15, "6. Case Assistant and SourceTrace": 17, "7. System architecture": 18, "8. Data design": 20, "9. Security": 22, "10. Non-functional characteristics": 24, "11. Deployment and operations": 25, "12. Quality assurance": 26, "13. Status, variations from the plan and planned enhancements": 27, "Annexure A. Scheduled jobs": 29, "Annexure B. Functions": 30, "Annexure C. Court APIs": 33, "Annexure D. Glossary": 34 };
+const TOC_PAGES = { "1. Introduction": 6, "2. System overview": 7, "3. Users, roles and access": 9, "4. Functional description": 11, "5. Court data integration (NAPIX)": 16, "6. Case Assistant and SourceTrace": 18, "7. System architecture": 20, "8. Data design": 22, "9. Security": 24, "10. Non-functional characteristics": 26, "11. Deployment and operations": 27, "12. Quality assurance": 28, "13. Status, variations from the plan and planned enhancements": 29, "Annexure A. Scheduled jobs": 31, "Annexure B. Functions": 32, "Annexure C. Court APIs": 35, "Annexure D. Glossary": 36 };
 function documentControl() {
   add(H1("Document control"));
-  add(table(["Version", "Date", "Description"], [["1.0", "27 October 2026", "First issue for submission: product overview, requirements and design of the system as built, security, operations and planned enhancements."]], [1400, 2200, CW - 3600]));
+  add(table(["Version", "Date", "Description"], [["1.0", "27 October 2026", "First issue for submission: product overview, requirements and design of the system as built, security, operations and planned enhancements."], ["1.1", "27 October 2026", "Data collection console (first part) in service; the local-model Case Assistant approved as a variation from the plan; status figures and planned enhancements brought up to date."]], [1400, 2200, CW - 3600]));
   add(H3("Contents"));
   [
     "1. Introduction", "2. System overview", "3. Users, roles and access", "4. Functional description", "5. Court data integration (NAPIX)",
@@ -301,14 +301,15 @@ function s2() {
     ["Notes are append-only", "A note is never edited or deleted. A correction is a new note linked to the original."],
     ["No deletion of legal records", "Cases, orders, documents and notes are kept. Documents can be archived, not deleted. Offices are deactivated, not deleted."],
     ["Everything significant audited", "Ownership decisions, file movements, notes, uploads, user and configuration changes, court searches and exports write an audit record."],
-    ["AI only through SourceTrace", "No cloud AI and no local AI model; the system refuses to start if an AI runtime is found. Only court orders and court filings may ever go to SourceTrace, never notes or internal documents."],
+    ["No cloud AI", "AI goes through SourceTrace or, as approved on 27 October 2026, a local model on Government machines (section 6.4). No cloud AI service is ever used, and no AI runtime may be installed inside the ASLMS server software. Only court orders and court filings may ever go to SourceTrace, never notes or internal documents."],
   ], [2600, CW - 2600], { boldFirst: true }));
   add(H2("2.4 The system in context"));
-  add(P("People use ASLMS through a web browser. ASLMS runs on government servers and connects to three outside services:"));
+  add(P("People use ASLMS through a web browser. ASLMS runs on government servers and connects to the following outside services:"));
   add(table(["Outside service", "Purpose", "Direction"], [
     ["NAPIX (eCourts, Gauhati High Court)", "Cause lists, case records, status, orders, searches and reference lists", "ASLMS calls out; encrypted"],
     ["Government e-mail relay", "Sign-in codes, alerts and the daily digest", "ASLMS sends"],
     ["SourceTrace (in-house AI service)", "Case Assistant answers from court orders and filings", "Prepared; connects when its API documentation is available"],
+    ["Local model service (Ollama, on Government machines)", "Case Assistant answers until SourceTrace is connected (section 6.4)", "Approved; being built. ASLMS calls it on a private address"],
   ], [3000, 4038, 2600]));
 }
 
@@ -442,7 +443,12 @@ function s4() {
   add(B("**Department mapping:** counsel codes with the unmapped-codes panel, keywords and name patterns, the watchlist, and the scoring weights and bands with their history."));
 
   add(H2("4.14 Data collection and system health"));
-  add(P("The data collection screens show what the system holds and what is left to fetch: progress and coverage of cause lists, case records and orders, the historical load (start, pause, resume and order), the fetch of a single case, failures and duplicates. The system health screen shows the state of each of the 17 court APIs from the call log, ten ASLMS services, and a live test of one court API that is limited, guarded and audited."));
+  add(P("The data collection console shows what the system holds and what is left to fetch, in tabs:"));
+  add(B("**Overview:** honest counts of cause-list days, case records and orders across all collection work, two finish estimates (case records, and every order as well) worked out from the measured pace, a month-by-month table and a live refresh while collection runs."));
+  add(B("**Collect Now:** collection on request, such as fetching a single case or a period."));
+  add(B("**Automatic Collection:** load control (start, pause, resume and the collection order) through confirmation dialogs, the daily schedule in plain words, and the search by department names."));
+  add(P("A tab for problems and fixes, immediate manual requests and an Update From the Court button follow (section 13.3). The failures and duplicates screens remain available."));
+  add(P("The system health screen shows the state of each of the 17 court APIs from the call log, ten ASLMS services, and a live test of one court API that is limited, guarded and audited."));
 
   add(H2("4.15 Audit log"));
   add(P("The Super Administrator and the Auditor can search every audited action by person, case, office, action and date, newest first, and open each entry to see the values before and after. Links lead to the audit trail from each case, person and office page. Reading the audit log is not itself audited, and audit records cannot be changed."));
@@ -486,7 +492,7 @@ function s5() {
 
 function s6() {
   add(H1("6. Case Assistant and SourceTrace"));
-  add(P("All AI in ASLMS goes through SourceTrace, the Government’s in-house retrieval-augmented generation service, through a defined connector interface. No cloud AI service and no local AI model is used, and the system refuses to start if an AI runtime is found among its installed software."));
+  add(P("AI in ASLMS goes through SourceTrace, the Government’s in-house retrieval-augmented generation service, through a defined connector interface. Until SourceTrace is connected, a local model running on Government machines may answer the Case Assistant instead, as approved on 27 October 2026 (section 6.4). No cloud AI service is ever used, and the system refuses to start if an AI runtime is found among its own installed software."));
   add(H2("6.1 What is sent, and what never is"));
   add(table(["May be sent to SourceTrace", "Never sent"], [
     ["Court orders and judgments, with their case details", "Case notes and their attachments"],
@@ -502,6 +508,17 @@ function s6() {
   add(B("Conversations are private to the person who held them; no administrator or auditor can read them."));
   add(B("Every question, answer and court-record opening writes an audit record with lengths, fingerprints and identifiers, never the text."));
   add(B("Each user may ask 30 questions an hour, one at a time."));
+  add(H2("6.4 Approved alternative: a local model on Government machines"));
+  add(P("Because SourceTrace is not yet available, the owner approved on 27 October 2026 a local model, served by Ollama on the ASLMS host or another Government server, as the Case Assistant’s answering engine until SourceTrace is connected. It is allowed in production and recorded as a variation from the plan (section 13.2). It is being built in two parts."));
+  add(table(["Rule", "How it works"], [
+    ["Nothing leaves Government machines", "The model runs locally; a cloud model name or address stops the system from starting, and in production the model must be on a private address."],
+    ["Court information by default", "In every scope the model reads only court information: orders, permitted court filings, and case details and hearings."],
+    ["Internal records only when switched on", "On a case’s own page, the officer may switch on “Include This Case’s Internal Records”. Only then, and only for that case, the model also reads its notes, file movement and department documents that the officer may see. Drafts are never read. Switching on is audited and marked on the conversation."],
+    ["Sources checked", "ASLMS picks the passages; the model writes only from them and must cite them. The server checks every citation and withholds an answer without a valid source. Every source stays visible beside the answer."],
+    ["My work questions", "From the Assistant page, questions about the officer’s own work (pending actions, due dates, hearings, alerts, new orders) are answered from the same lists the portal shows, never from note contents."],
+    ["SourceTrace unchanged", "SourceTrace keeps the plan’s rule: court orders and court filings only."],
+  ], [2800, CW - 2800], { boldFirst: true }));
+  add(P("The default model is qwen3.5:4b, which runs on a graphics card with 8 GB of memory and answers in a few seconds; a larger model can be set for the pilot server. The assistant informs and never acts: it cannot send files, change stages or write notes."));
 }
 
 function s7() {
@@ -688,6 +705,7 @@ function s13() {
   add(H1("13. Status, variations from the plan and planned enhancements"));
   add(H2("13.1 Status"));
   add(P("The core and workflow functions of the plan are built and running in development, with the historical load of court data from 1 January 2025 in progress. Deployment arrangements (proxy, backups, monitoring, connection pooling, continuous integration) are built and await the pilot checks."));
+  add(P("On 27 October 2026 the system held about 74,500 cases with their full court records, the cause lists of 562 of the 665 days since 1 January 2025, and about 139,000 of some 370,000 court orders. The data collection console estimates that the cause lists and case records will be complete on 28 October 2026 and every order by 10 November 2026, at the court’s allowance of 1,000 calls an hour."));
   add(H2("13.2 Variations from the approved plan"));
   add(table(["Plan", "As built", "Reason"], [
     ["Migrate the data collected by the earlier system", "The database starts empty and is filled only from the official court interface, user actions and discovery", "Every record traceable to the official source; no inherited errors"],
@@ -696,12 +714,15 @@ function s13() {
     ["Requests between offices", "Sending the file with a pending action and a due date", "One simpler mechanism covering the same need"],
     ["SMS for high-priority alerts", "In-app and e-mail; SMS refused until a gateway is provided", "No SMS gateway available yet"],
     ["One-time password at sign-in", "Six-digit code by e-mail at every sign-in", "Uses the government mail relay"],
-    ["Case Assistant in phase 3", "Screens and rules built; preview mode until SourceTrace is connected", "Built early so the connector is the only remaining step"],
+    ["Case Assistant in phase 3", "Screens and rules built; preview mode until SourceTrace or the local model is connected", "Built early so the connector is the only remaining step"],
+    ["All AI through SourceTrace; no local model", "A local model on Government machines answers the Case Assistant until SourceTrace is connected, allowed in production; internal records of a case only when the officer switches them on for that case (approved 27 October 2026, being built)", "SourceTrace not yet available; no court or internal text leaves Government machines"],
   ], [2800, 3638, 3200]));
   add(H2("13.3 Planned enhancements"));
   add(table(["Enhancement", "Description"], [
-    ["Session time-out", "Sign-out after 30 minutes without activity, with a two-minute warning, and a 12-hour limit on any session, enforced on the server"],
-    ["Data collection console", "Four tabs: live statistics with progress, immediate manual collection, automatic collection including search by department names, and problems and fixes"],
+    ["Session time-out", "Sign-out after 30 minutes without activity, with a two-minute warning, and a 12-hour limit on any session, enforced on the server (built; in final review)"],
+    ["Next hearing highlighted", "One date badge for the next hearing on the case page, case lists and dashboards, coloured by how soon: today and tomorrow, within a week, later, passed, none (built; in review)"],
+    ["Case Assistant with a local model", "The approved local-model alternative described in section 6.4 (being built)"],
+    ["Data collection console", "First part in service (overview, collect now, automatic collection); still to come: problems and fixes, immediate manual requests carried out at once"],
     ["Update from the court", "Update a case and fetch its orders at once from the case and claim screens, at priority, behind a function held by the Super Administrator by default"],
     ["Search and sort in every list", "Search and sorting in every list of the portal, and the complete list of recommended counsel codes"],
     ["SourceTrace connector", "The real connection for the Case Assistant and the ingestion of court orders and filings, when the API documentation is received"],
@@ -783,6 +804,7 @@ function annexD() {
     ["Counsel code", "The standing counsel code printed on a cause list, for example “SC, EDU”"],
     ["SourceTrace", "The Government’s in-house AI (retrieval-augmented generation) service for the Case Assistant"],
     ["Preview mode", "The Case Assistant’s development stand-in: text search over stored court records, with no AI; refused in production"],
+    ["Local model, Ollama", "An AI model running on Government machines, served by the Ollama software; the approved Case Assistant engine until SourceTrace is connected"],
     ["Hourly allowance", "The number of court calls ASLMS may make per hour (about 1,000)"],
   ], [2600, CW - 2600], { boldFirst: true }));
 }
