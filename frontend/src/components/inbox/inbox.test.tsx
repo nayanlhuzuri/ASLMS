@@ -2,7 +2,7 @@
  * The Case inbox = the user's own work (design portal-ui-redesign, decisions 5 and 10.4; round 2, row 102; design
  * case-inbox-merge: the Cases list folded in): the six tabs per login with their counts, Working on (the lead badge,
  * Show, Overdue only and the side panel with the remark), the own-work rows of Claimed by me and Disposed, Department
- * cases with the full filter bar (Not allotted sends `unallotted=true`), and the old addresses. Recommended, the pool
+ * cases with the full filter bar (Not Assigned Yet sends `unallotted=true`), and the old addresses. Recommended, the pool
  * and Transfers are tested with Case claim (`components/claim/claim.test.tsx`); the held and sent lists in
  * `components/files/cases-list.test.tsx`.
  */
@@ -435,7 +435,7 @@ describe("own work: Claimed by me and Disposed", () => {
 describe("Department Cases", () => {
   beforeEach(() => resetNav("/inbox/department"));
 
-  it("the filter grid: Search, Unit, Officer, Stage, Next hearing; More filters slides open with the rest", async () => {
+  it("the filter grid: Search, Responsible Unit, Dealing Officer, Stage, Next hearing; More filters slides open with the rest", async () => {
     browserApi(routes());
     renderWithClient(<InboxFrame tab="department" params={{}} />);
     const row = await screen.findByRole("row", { name: "Open WP(C)/1/2026" });
@@ -443,7 +443,7 @@ describe("Department Cases", () => {
     expect(within(row).getByText("Officer One", { exact: false })).toBeInTheDocument();
     expect(within(row).getByText("Affidavit filed")).toBeInTheDocument();
     expect(within(row).getByText("Health Officer", { exact: false })).toBeInTheDocument();
-    for (const label of ["Unit", "Officer", "Stage", "Next Hearing"]) expect(screen.getByLabelText(label)).toBeInTheDocument();
+    for (const label of ["Responsible Unit", "Dealing Officer", "Stage", "Next Hearing"]) expect(screen.getByLabelText(label)).toBeInTheDocument();
     expect(screen.getByLabelText(/^Words/)).toBeInTheDocument();
     const next = screen.getByLabelText("Next Hearing");
     expect(within(next).getAllByRole("option").map((o) => o.textContent)).toEqual([
@@ -458,14 +458,14 @@ describe("Department Cases", () => {
     expect(screen.getByRole("radio", { name: "Active" })).toHaveAttribute("aria-checked", "true");
   });
 
-  it("Layout B: Words is the hero; Unit, Officer, Stage, Next Hearing and Case Type on the right; the count in the strip (portal-ui-polish-2, decision 23)", async () => {
+  it("Layout B: Words is the hero; Responsible Unit, Dealing Officer, Stage, Next Hearing and Case Type on the right; the count in the strip (portal-ui-polish-2, decision 23)", async () => {
     const api = browserApi(routes());
     const { container } = renderWithClient(<InboxFrame tab="department" params={{ q: "ram", year: "2025" }} />);
     await screen.findByRole("row", { name: "Open WP(C)/1/2026" });
     const hero = container.querySelector<HTMLElement>("[data-zone='hero']")!;
     expect(within(hero).getByLabelText(/^Words/)).toHaveValue("ram");
     const fields = container.querySelector<HTMLElement>("[data-zone='fields']")!;
-    for (const label of ["Unit", "Officer", "Stage", "Next Hearing", "Case Type"]) {
+    for (const label of ["Responsible Unit", "Dealing Officer", "Stage", "Next Hearing", "Case Type"]) {
       expect(within(fields).getByLabelText(label)).toBeInTheDocument();
     }
     const more = container.querySelector<HTMLElement>("[data-zone='more']")!;
@@ -479,10 +479,10 @@ describe("Department Cases", () => {
     expect(url).toContain("year=2025");
   });
 
-  it("Not allotted sends unallotted=true; the chips show with n of m and removing one applies at once", async () => {
+  it("Not Assigned Yet sends unallotted=true; the chips show with n of m and removing one applies at once", async () => {
     const api = browserApi(routes());
     const { unmount } = renderWithClient(<InboxFrame tab="department" params={{}} />);
-    const officerSelect = await screen.findByLabelText("Officer");
+    const officerSelect = await screen.findByLabelText("Dealing Officer");
     await waitFor(() => expect(within(officerSelect).getByRole("option", { name: "Officer One" })).toBeInTheDocument());
     await userEvent.selectOptions(officerSelect, "none");
     await userEvent.selectOptions(screen.getByLabelText("Next Hearing"), "n7");
@@ -497,10 +497,24 @@ describe("Department Cases", () => {
     }
     expect(url).not.toContain("officer_user_id");
     const chips = screen.getByRole("list", { name: "Applied Filters" });
-    expect(within(chips).getByText("Officer: Not Allotted")).toBeInTheDocument();
+    expect(within(chips).getByText("Dealing Officer: Not Assigned Yet")).toBeInTheDocument();
     expect(within(chips).getByText("With: Another Department")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Remove filter Officer: Not Allotted" }));
+    await userEvent.click(screen.getByRole("button", { name: "Remove filter Dealing Officer: Not Assigned Yet" }));
     expect(nav.replace).toHaveBeenLastCalledWith("/inbox/department?next=n7&holder=elsewhere&action=overdue");
+  });
+
+  it("DepartmentCases wording: Responsible Unit · Dealing Officer, Not Assigned, Not Assigned Yet (claim-assign-wording, decision 5)", async () => {
+    browserApi(routes({ "GET /inbox/claimed": { items: [ownership(1), ownership(2, { unit: null, officer: null })], total: 2 } }));
+    renderWithClient(<InboxFrame tab="department" params={{}} />);
+    await screen.findByRole("row", { name: "Open WP(C)/1/2026" });
+    expect(screen.getByRole("columnheader", { name: "Responsible Unit · Dealing Officer" })).toBeInTheDocument();
+    const bare = screen.getByRole("row", { name: "Open WP(C)/2/2026" });
+    expect(within(bare).getByText("Not Assigned")).toBeInTheDocument();
+    const officerSelect = screen.getByLabelText("Dealing Officer");
+    expect(within(officerSelect).getByRole("option", { name: "Not Assigned Yet" })).toHaveValue("none");
+    expect(within(officerSelect).getByRole("option", { name: "Anyone" })).toHaveValue("");
+    expect(within(screen.getByLabelText("Responsible Unit")).getByRole("option", { name: "Any Unit" })).toHaveValue("");
+    expect(document.body.textContent).not.toMatch(/allot/i);
   });
 
   it("an officer chosen sends officer_user_id; Disposed is the Status switch", async () => {

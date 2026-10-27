@@ -395,10 +395,27 @@ describe("the overview and the ownership card", () => {
     renderWithClient(<Overview caseRef={REF} />);
     await openOwnership();
     const card = await screen.findByRole("region", { name: "Ownership" });
-    await within(card).findByRole("button", { name: "Allot" });
+    await within(card).findByRole("button", { name: "Assign" });
     const buttons = within(card).getAllByRole("button").map((b) => b.textContent);
-    expect(buttons).toEqual(["Allot", "Request Transfer"]);
+    expect(buttons).toEqual(["Assign", "Request Transfer"]);
     expect(within(card).queryByRole("button", { name: /release|return|pool/i })).toBeNull();
+  });
+
+  it("OwnershipCard labels: Responsible unit and Dealing officer; an empty part is omitted (claim-assign-wording, decision 4)", async () => {
+    const view = ownership(actions(), {
+      watchers: [{ ...ownership(actions()).primary!, id: "o-2", role: "watcher", office_code: "HEALTH", unit: null, officer: null }],
+    });
+    browserApi(overviewRoutes(detail(), view));
+    renderWithClient(<Overview caseRef={REF} />);
+    await openOwnership();
+    const card = await screen.findByRole("region", { name: "Ownership" });
+    const primary = (await within(card).findByText("Officer Two", { exact: false })).closest("li, p, div")!;
+    expect(primary.textContent).toContain("Responsible unit EDU-DSE");
+    expect(primary.textContent).toContain("Dealing officer Officer Two");
+    expect(card.textContent).not.toMatch(/allot/i);
+    // the HEALTH watcher has neither: no label shows for it
+    const labels = card.textContent!.match(/Responsible unit|Dealing officer/g) ?? [];
+    expect(labels).toEqual(["Responsible unit", "Dealing officer"]);
   });
 
   it("claim with two departments asks which one", async () => {
@@ -441,7 +458,7 @@ describe("the overview and the ownership card", () => {
     await openOwnership();
     await userEvent.click(await screen.findByRole("button", { name: "Take Over" }));
     const dialog = screen.getByRole("dialog", { name: "Take Over This Case" });
-    expect(within(dialog).getByText(/allotted to Officer Two/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/Officer Two is the dealing officer\. Take the case over\?/)).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole("button", { name: "Take Over" }));
     await waitFor(() =>
       expect(api.calls.find((c) => c.method === "POST")?.body).toEqual({ office_code: "EDU", expected_officer_user_id: "u-8" }),
@@ -841,7 +858,7 @@ describe("the department that acts (portal-cases-followups)", () => {
     await waitFor(() => expect(posted(api, `${BASE}/suggest`)).toEqual([{ office_code: "FIN", reason: "theirs" }]));
   });
 
-  it("allot with two departments shows the chosen department's unit and officer and sends its code", async () => {
+  it("assign (allot) with two departments shows the chosen department's unit and officer and sends its code", async () => {
     const api = browserApi({
       ...overviewRoutes(detail(), twoRows(actions({ allot: true, allot_departments: ["EDU", "HEALTH"] }))),
       "GET /custody/recipients": (call: { url: string }) =>
@@ -852,9 +869,9 @@ describe("the department that acts (portal-cases-followups)", () => {
     });
     renderWithClient(<Overview caseRef={REF} />);
     await openOwnership();
-    await userEvent.click(await screen.findByRole("button", { name: "Allot" }));
-    const dialog = screen.getByRole("dialog", { name: "Allot This Case" });
-    expect(within(dialog).queryByLabelText("Officer")).toBeNull(); // nothing until the department is chosen
+    await userEvent.click(await screen.findByRole("button", { name: "Assign" }));
+    const dialog = screen.getByRole("dialog", { name: "Assign This Case" });
+    expect(within(dialog).queryByLabelText("Dealing Officer")).toBeNull(); // nothing until the department is chosen
     await userEvent.selectOptions(within(dialog).getByLabelText("For"), "EDU");
     expect(within(dialog).getByRole("option", { name: "Keep As Is (EDU-DSE)" })).toBeInTheDocument();
     expect(within(dialog).getByRole("option", { name: "Keep As Is (Officer Two)" })).toBeInTheDocument();
@@ -862,9 +879,34 @@ describe("the department that acts (portal-cases-followups)", () => {
     expect(within(dialog).getByRole("option", { name: "Keep As Is (Health Officer)" })).toBeInTheDocument();
     expect(within(dialog).queryByRole("option", { name: "Keep As Is (Officer Two)" })).toBeNull();
     await waitFor(() => expect(within(dialog).getByRole("option", { name: "New Officer, HEALTH" })).toBeInTheDocument());
-    await userEvent.selectOptions(within(dialog).getByLabelText("Officer"), "u-10");
-    await userEvent.click(within(dialog).getByRole("button", { name: "Allot" }));
+    await userEvent.selectOptions(within(dialog).getByLabelText("Dealing Officer"), "u-10");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Assign" }));
     await waitFor(() => expect(posted(api, `${BASE}/allot`)).toEqual([{ office_code: "HEALTH", officer_user_id: "u-10" }]));
+  });
+
+  it("AllotDialog wording: Assign This Case, Keep As Is, Whole Department and No Dealing Officer (claim-assign-wording, decision 3)", async () => {
+    const api = browserApi({
+      ...overviewRoutes(detail(), ownership(actions({ allot: true, allot_departments: ["EDU"] }))),
+      "GET /custody/recipients": { departments: [], units: [{ code: "EDU-DSE", name: "Secondary Education" }], total: 0, items: [] },
+      [`POST ${BASE}/allot`]: {},
+    });
+    renderWithClient(<Overview caseRef={REF} />);
+    await openOwnership();
+    await userEvent.click(await screen.findByRole("button", { name: "Assign" }));
+    const dialog = screen.getByRole("dialog", { name: "Assign This Case" });
+    expect(within(dialog).getByText(/Choose who in the department handles this case\./)).toBeInTheDocument();
+    const unit = within(dialog).getByLabelText("Responsible Unit");
+    const officer = within(dialog).getByLabelText("Dealing Officer");
+    expect(unit.closest(".row")).toBe(officer.closest(".row"));
+    expect(within(unit).getAllByRole("option").map((o) => o.textContent).slice(0, 2)).toEqual(["Keep As Is (EDU-DSE)", "Whole Department"]);
+    expect(within(officer).getAllByRole("option").map((o) => o.textContent).slice(0, 2)).toEqual(["Keep As Is (Officer Two)", "No Dealing Officer"]);
+    expect(within(dialog).getByRole("button", { name: "Assign" })).toBeDisabled(); // both Keep As Is
+    await userEvent.selectOptions(unit, within(unit).getByRole("option", { name: "Whole Department" }));
+    await userEvent.selectOptions(officer, within(officer).getByRole("option", { name: "No Dealing Officer" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Assign" }));
+    await waitFor(() =>
+      expect(posted(api, `${BASE}/allot`)).toEqual([{ office_code: "EDU", unit_code: null, officer_user_id: null }]),
+    );
   });
 
   it("take over with two departments sends the chosen code and that row's officer", async () => {
@@ -876,22 +918,22 @@ describe("the department that acts (portal-cases-followups)", () => {
     await openOwnership();
     await userEvent.click(await screen.findByRole("button", { name: "Take Over" }));
     const dialog = screen.getByRole("dialog", { name: "Take Over This Case" });
-    expect(within(dialog).queryByText(/allotted to/)).toBeNull();
+    expect(within(dialog).queryByText(/is the dealing officer/)).toBeNull();
     await userEvent.selectOptions(within(dialog).getByLabelText("For"), "HEALTH");
-    expect(within(dialog).getByText(/allotted to Health Officer/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/Health Officer is the dealing officer/)).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole("button", { name: "Take Over" }));
     await waitFor(() =>
       expect(posted(api, `${BASE}/take-over`)).toEqual([{ office_code: "HEALTH", expected_officer_user_id: "u-9" }]),
     );
   });
 
-  it("no Allot or Take over button without a department list", async () => {
+  it("no Assign or Take over button without a department list", async () => {
     browserApi(overviewRoutes(detail(), ownership(actions({ request_transfer: true, transfer_from: "EDU" }))));
     renderWithClient(<Overview caseRef={REF} />);
     await openOwnership();
     const card = await screen.findByRole("region", { name: "Ownership" });
     await within(card).findByRole("button", { name: "Request Transfer" });
-    expect(within(card).queryByRole("button", { name: "Allot" })).toBeNull();
+    expect(within(card).queryByRole("button", { name: "Assign" })).toBeNull();
     expect(within(card).queryByRole("button", { name: "Take Over" })).toBeNull();
   });
 

@@ -7,8 +7,8 @@
  * (`decide_transfer`, with the transfer's id). A State-wide reader who may not act sees Close only.
  *
  * Pressing an action opens no second dialog: the footer turns into a short inline step, sliding up, with Back and
- * Confirm. Claim: an optional note (at most 500) and, with `cases.allot` in that department, an optional unit and
- * officer; Dismiss: an optional reason; Suggest elsewhere: the target department and a required reason; Accept or
+ * Confirm. Claim: an optional note (at most 500) and, with `cases.allot` in that department, the Assign Now section
+ * (responsible unit and dealing officer, design claim-assign-wording); Dismiss: an optional reason; Suggest elsewhere: the target department and a required reason; Accept or
  * Decline: an optional note. The fields, limits, refusal texts and request bodies are the ownership dialogs' (portal-cases
  * decision 7); every action names the selected department; an `office_required` answer opens the department choice.
  * Confirm is refused while a call is running, so a second click never sends twice.
@@ -16,10 +16,10 @@
 import { useRef, useState } from "react";
 
 import {
+  ClaimAssignNow,
   DepartmentChoice,
   departmentOptions,
   MAX_REASON,
-  officerOptions,
   useOfficeRequired,
   useOwnershipCall,
 } from "@/components/inbox/dialogs";
@@ -221,23 +221,7 @@ function InlineStep({
           />
           <TextArea label={T.own.claimNote} maxLength={MAX_REASON} value={note} onChange={(e) => setNote(e.target.value)} />
           {canAllot ? (
-            <fieldset className="stack">
-              <legend>{T.own.allotOptional}</legend>
-              <SelectField
-                label={T.own.unit}
-                options={(people.data?.units ?? []).map((u) => ({ value: u.code, label: `${u.code} — ${u.name}` }))}
-                placeholder={T.own.noUnit}
-                value={unit}
-                onChange={(e) => setUnit(e.target.value)}
-              />
-              <SelectField
-                label={T.own.officer}
-                options={officerOptions(people.data?.items)}
-                placeholder={T.own.noOfficer}
-                value={officer}
-                onChange={(e) => setOfficer(e.target.value)}
-              />
-            </fieldset>
+            <ClaimAssignNow people={people.data} unit={unit} officer={officer} onUnit={setUnit} onOfficer={setOfficer} />
           ) : null}
         </>
       ) : null}

@@ -72,6 +72,14 @@ def test_codes(api):
     assert labels["hearing"] == "Hearing note"
 
 
+def test_custody_reason_label_assigned(api):
+    """Design claim-assign-wording, decision 7: the custody reason `allotted` keeps its code and reads "Assigned"."""
+    body = api.get("/workflow/codes", headers=w.login(api, "edu_off1")).json()
+    labels = {r["code"]: r["label"] for r in body["custody_reasons"]}
+    assert labels["allotted"] == "Assigned"
+    assert not any("allot" in label.lower() for label in labels.values())
+
+
 def test_send_recall_and_the_custody_tab(api, world, case_id):
     h1 = w.login(api, "edu_off1")
     r = _send(api, h1, case_id, world, "fin_off", due_date=str(w.in_days(5)))

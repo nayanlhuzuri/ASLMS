@@ -351,7 +351,7 @@ def test_ownership_alerts(world):
         s.commit()
         (allotted,) = h.alerts_of(s, case)
         assert allotted.kind == AlertKind.OWNERSHIP and allotted.data["event"] == "allotted"
-        assert allotted.title.startswith("Case allotted") and allotted.severity == Severity.NORMAL
+        assert allotted.title.startswith("Case assigned") and allotted.severity == Severity.NORMAL
         assert h.recipient_emails(s, allotted) == {"off1.edu@example.org"}
         # take-over by off2: the previous officer is told, the taker is not
         actor, off2 = world.actor(s, "edu_off2")

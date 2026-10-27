@@ -926,7 +926,7 @@ def _validate_assignments(
     missing = [k for k in current if k not in out]
     if missing:
         raise Conflict(
-            "unassigned_items", "every allotted case and case with them needs a target", items=missing
+            "unassigned_items", "every assigned case and case with them needs a target", items=missing
         )
     return out
 

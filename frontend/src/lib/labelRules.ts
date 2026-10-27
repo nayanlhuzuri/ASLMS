@@ -110,6 +110,8 @@ export const SENTENCE_EXCEPTIONS: Record<string, string> = {
   "case.bases.pool": "a part of the comma-joined line of access bases",
   "case.bases.allotted": "a part of the comma-joined line of access bases",
   "case.bases.counsel": "a part of the comma-joined line of access bases",
+  "case.responsibleUnit": "a part of the ownership card line (design claim-assign-wording, decision 4)",
+  "case.dealingOfficer": "a part of the ownership card line (design claim-assign-wording, decision 4)",
   "discovery.notYetSearched": "a value shown in place of a date",
   "reports.inactive": "a marker after an office name",
   "reports.withFiles": "a fragment completing a sentence",

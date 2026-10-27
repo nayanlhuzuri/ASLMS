@@ -276,3 +276,28 @@ and stack at 375 px.
 ## Open questions
 
 None.
+
+## Deviations
+Recorded by the developer while building (27 Oct 2026); none changes a decision above.
+1. **Migration number.** 0029 went to `office-head-picker`, so the reference-data migration is
+   `0030_claim_assign_wording.py` (revises 0029); the test file is `test_migration_0030_assign_labels.py`, which also
+   holds `test_seed_relabels_assign_permission`. The seed gains `EVENT_TYPE_LABELS` (the `ref_event_type` label of
+   `allotted` for fresh databases) beside `EVENT_TIMELINE_LABELS`.
+2. **Two more function descriptions.** The guard of decision 9 covers `access_seed.py`, so the descriptions of
+   `cases.view_scope` ("Cases owned by, assigned to, or sent to the offices you belong to.") and `cases.take_over`
+   ("Take over a case assigned to a colleague in the same department.") say "assigned" too; `aslms seed` refreshes
+   them with the other permission labels. The help line of `aslms users memberships end` and the report docstring
+   read "assigned" as well.
+3. **Function codes inside a sentence.** `ownership.py` refuses with "cases.allot is not enabled for you in <dept>",
+   which names the function code. The backend guard strips dotted function codes (`cases.allot`) before applying the
+   "allot" rule, as it already skips bare code strings; no other exception and no allow-list.
+4. **Hints in the Assign dialog.** The Assign dialog's two fields carry the same hints as the claim dialogs, so the
+   fields read the same wherever they appear. The shared pieces are `AssignSection` and `ClaimAssignNow` in
+   `components/inbox/dialogs.tsx`; the row's `flex: 1 1 220px` is `.assignRow` in `inbox.module.css`.
+5. **Ownership card labels.** "Responsible unit" and "Dealing officer" are parts of the card line in sentence case, as
+   decision 4 writes them, so they are listed in `SENTENCE_EXCEPTIONS` of `labelRules.ts` with that reason.
+6. **uicheck states.** The Assign dialog state opens the dialog from the header's More Actions menu (the same
+   `AllotDialog`), which is present at 375, 768 and 1280 px; the ownership card sits in a collapsed section on
+   phones. Both states choose a department when the dialog asks, so the field row shows. `e2e/checks.ts` has no
+   `doubled-heading` or `gutter` finding kind; the states are checked by the existing kinds, including the field-row
+   alignment. The e2e fixture's custody leg label for `allotted` reads "Assigned".

@@ -363,7 +363,7 @@ def memberships_end(
         help='JSON file: {"items_fingerprint": ..., "assignments": [{"key", "to_membership", ...}]}',
     ),
 ) -> None:
-    """End a membership with the per-item exit (every allotted case and case with them needs a target)."""
+    """End a membership with the per-item exit (every assigned case and case with them needs a target)."""
     with session_scope() as s:
         actor, actor_user = _actor(s)
         if actor_user is None:

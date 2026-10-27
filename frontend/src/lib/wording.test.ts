@@ -5,6 +5,10 @@
  * fails unless an allow-list entry explains it, and a deny-list phrase fails even then. The allow-list covers only the
  * uploaded or downloaded computer-file sense and the legal verb ("File in court", "to file their reply"); the reviewer
  * checks every entry. Internal names (`components/files/*`, the nav key `files`, query keys) are code, not text.
+ *
+ * The second rule (design claim-assign-wording, decision 9): "allot" in any form (`\ballot(s|ted|ting|ment|ments)?\b`,
+ * any case) fails in the same messages.ts values and component JSX text, with no allow-list: the portal's word is
+ * "Assign" (the codes, API paths and fields keep "allot").
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -15,6 +19,11 @@ import { describe, expect, it } from "vitest";
 const SRC = resolve(__dirname, "..");
 
 const WORD = /\bfiles?\b/i;
+export const ALLOT = /\ballot(s|ted|ting|ment|ments)?\b/i;
+
+export function saysAllot(text: string): boolean {
+  return ALLOT.test(text);
+}
 
 /** [pattern, reason]: the computer-file sense and the legal verb only. */
 export const ALLOW: [RegExp, string][] = [
@@ -103,6 +112,29 @@ describe("the wording guard", () => {
     expect(offends("File in court")).toBe(false);
     expect(offends("Case received")).toBe(false);
     expect(offends("the PDF file is with you")).toBe(true);
+  });
+
+  it("checks the 'allot' rule itself", () => {
+    expect(saysAllot("Allot Now (Optional)")).toBe(true);
+    expect(saysAllot("Not allotted")).toBe(true);
+    expect(saysAllot("2 allotment(s)")).toBe(true);
+    expect(saysAllot("The case is ALLOTTED")).toBe(true);
+    expect(saysAllot("Assign Now (Optional)")).toBe(false);
+    expect(saysAllot("Ballots and lottery")).toBe(false);
+  });
+
+  it("finds no 'allot' in messages.ts", () => {
+    const bad = stringsOf(join(SRC, "lib", "messages.ts")).filter((s) => saysAllot(s.text));
+    expect(bad).toEqual([]);
+  });
+
+  it("finds no 'allot' in the JSX text of the components", () => {
+    const bad = componentFiles(join(SRC, "components")).flatMap((f) =>
+      jsxTextOf(f)
+        .filter((s) => saysAllot(s.text))
+        .map((s) => ({ file: f.slice(SRC.length + 1), ...s })),
+    );
+    expect(bad).toEqual([]);
   });
 
   it("finds no custody-sense 'file' in messages.ts", () => {

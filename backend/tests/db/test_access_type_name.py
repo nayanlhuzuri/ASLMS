@@ -67,7 +67,7 @@ def test_rename_writes_one_audit_row_and_changes_nothing_else(api, world):
     row = rows[0]
     assert row.entity_type == "ref_role" and row.entity_id is None
     assert row.before["code"] == "dept_officer" and row.before["label"] == "Department Officer"
-    assert row.before["description"].startswith("Works on allotted cases")
+    assert row.before["description"].startswith("Works on cases assigned to them")
     assert row.after == {
         "code": "dept_officer",
         "label": "Department Officer (Legal)",

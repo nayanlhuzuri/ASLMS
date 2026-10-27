@@ -682,7 +682,7 @@ function custodyHistory(url: URL): CustodyHistory {
     ["sent", "Sent"],
     ["recalled", "Recalled"],
     ["sent", "Sent"],
-    ["allotted", "Allotted"],
+    ["allotted", "Assigned"],
     ["claimed", "Claimed"],
   ];
   const legs: CustodyLeg[] = reasons.map(([reason, label], i) => ({

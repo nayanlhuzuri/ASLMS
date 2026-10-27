@@ -128,7 +128,22 @@ def test_pending_cases_department_groups_by_unit(world):
         assert rep.scope == "department" and rep.department_code == "EDU"
         rows = {r["group_code"]: r["total"] for r in _section(rep, "by_group").rows}
         assert rows == {"DEPT": 2, "EDU-DSE": 2}
-        assert _section(rep, "by_group").rows[0]["group"] == "Department office / not allotted"
+        assert _section(rep, "by_group").rows[0]["group"] == "Whole department (no responsible unit)"
+
+
+def test_reports_unit_grouping_labels(world):
+    """Design claim-assign-wording, decision 7: the department-scope grouping columns name the responsible unit and
+    the `DEPT` row reads "Whole department (no responsible unit)"; the code `DEPT` stays."""
+    with world.Session() as s:
+        claim(s, world, new_case(s), unit="EDU-DSE")
+        claim(s, world, new_case(s))
+        rep = reports.pending_cases(s, world.user(s, "edu_admin"), _scope(s, world, "edu_admin"))
+        section = _section(rep, "by_group")
+        labels = {c.key: c.label for c in section.columns}
+        assert labels["group_code"] == "Responsible unit code" and labels["group"] == "Responsible unit"
+        dept = next(r for r in section.rows if r["group_code"] == "DEPT")
+        assert dept["group"] == "Whole department (no responsible unit)"
+        assert not any("allot" in c.label.lower() for c in section.columns)
 
 
 def test_transferred_case_counts_for_current_owner(world):

@@ -89,7 +89,7 @@ CUSTODY_REASONS = (
 )
 CUSTODY_REASON_LABELS = {
     "claimed": "Claimed",
-    "allotted": "Allotted",
+    "allotted": "Assigned",  # design claim-assign-wording, decision 7
     "taken_over": "Taken over",
     "transferred": "Transferred",
     "sent": "Sent",

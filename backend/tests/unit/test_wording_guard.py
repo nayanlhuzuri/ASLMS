@@ -3,7 +3,12 @@ custody sense. The `ast` scan reads every string constant and f-string piece of 
 code constants such as "file" or "files" skipped); the rendered title and body of every workflow alert event are checked
 too. A text containing `\\bfiles?\\b` fails unless an allow-list entry matches it, and a deny-list phrase fails even then.
 The allow-list covers only the uploaded or exported computer-file sense and the legal verb ("File in court"); the
-reviewer checks every entry. Internal code names (`custody`, `holder_*`, the `file` codes) are not text users read."""
+reviewer checks every entry. Internal code names (`custody`, `holder_*`, the `file` codes) are not text users read.
+
+The second rule (design claim-assign-wording, decision 9): "allot" in any form (`\\ballot(s|ted|ting|ment|ments)?\\b`,
+any case) fails in the same strings of the same modules plus `aslms/services/ownership.py`, with no allow-list; the
+portal's word is "Assign". Code-like strings (`allotted`, `ownership.allot`) and docstrings are skipped as above, and a
+dotted function code inside a sentence (`cases.allot is not enabled …`) is a code name, not a word users read."""
 
 from __future__ import annotations
 
@@ -32,6 +37,9 @@ MODULES = [
 
 WORD = re.compile(r"\bfiles?\b", re.IGNORECASE)
 CODE = re.compile(r"^[a-z0-9_.:{}]+$")
+ALLOT = re.compile(r"\ballot(s|ted|ting|ment|ments)?\b", re.IGNORECASE)
+DOTTED_CODE = re.compile(r"\b[a-z][a-z_]*\.[a-z][a-z_.]*\b")
+ALLOT_MODULES = [*MODULES, "aslms/services/ownership.py"]
 
 # (regex, reason): the computer-file sense and the legal verb only
 ALLOW: list[tuple[str, str]] = [
@@ -70,6 +78,11 @@ def offends(text: str) -> bool:
     for pattern, _ in ALLOW:
         stripped = re.sub(pattern, "", stripped, flags=re.IGNORECASE)
     return bool(WORD.search(stripped))
+
+
+def says_allot(text: str) -> bool:
+    """True when `text` uses "allot" in any form outside a dotted function code (design claim-assign-wording)."""
+    return bool(ALLOT.search(DOTTED_CODE.sub("", text)))
 
 
 def _docstring_nodes(tree: ast.AST) -> set[int]:
@@ -114,6 +127,24 @@ def test_module_strings(module):
     assert bad == [], f"{module}: custody-sense 'file' in user text: {bad}"
 
 
+def test_allot_self_check():
+    assert says_allot("Case allotted: WP(C)/1/2026")
+    assert says_allot("Allot Cases")
+    assert says_allot("Department office / not allotted")
+    assert says_allot("2 allotments")
+    assert not says_allot("Case assigned: WP(C)/1/2026")
+    assert not says_allot("cases.allot is not enabled for you in EDU")
+    assert not says_allot("ownership.reallotted_on_exit")
+    assert CODE.match("allotted") and CODE.match("ownership.allot")
+
+
+@pytest.mark.parametrize("module", ALLOT_MODULES)
+def test_module_strings_no_allot(module):
+    source = (BACKEND / module).read_text(encoding="utf-8")
+    bad = [(line, text) for line, text in strings_of(source) if says_allot(text)]
+    assert bad == [], f"{module}: 'allot' in user text (the portal's word is Assign): {bad}"
+
+
 def _payloads() -> list[dict]:
     base = {
         "case_label": "WP(C)/1/2026",
@@ -141,4 +172,5 @@ def test_rendered_workflow_alerts():
         title, body = alert_rules.render_workflow(payload, payload["case_label"])
         for text in (title, body or ""):
             assert not offends(text), (payload["event"], text)
+            assert not says_allot(text), (payload["event"], text)
         assert "Case" in title, (payload["event"], title)

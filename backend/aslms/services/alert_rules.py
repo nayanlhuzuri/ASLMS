@@ -267,11 +267,11 @@ def render_alert(kind: AlertKind | str, case: Any, data: dict[str, Any]) -> tupl
     elif kind == AlertKind.OWNERSHIP:
         sub = d.get("event") or "ownership"
         if sub == "allotted":
-            title = f"Case allotted: {label}"
-            body = f"Allotted to {d.get('officer_name') or d.get('unit_code') or 'your unit'} by {d.get('actor_name') or 'the department'}."
+            title = f"Case assigned: {label}"
+            body = f"Assigned to {d.get('officer_name') or d.get('unit_code') or 'your unit'} by {d.get('actor_name') or 'the department'}."
         elif sub == "case_taken_over":
             title = f"Case taken over by {d.get('to_user_name') or 'a colleague'}: {label}"
-            body = f"The case allotted to you was taken over by {d.get('to_user_name') or 'a colleague'}."
+            body = f"The case assigned to you was taken over by {d.get('to_user_name') or 'a colleague'}."
         elif sub == "transfer_requested":
             title = f"Transfer requested by {d.get('from_office_code') or '?'}: {label}"
             body = f"{d.get('from_office_code') or 'A department'} asks {d.get('to_office_code') or 'your department'} to take the case."

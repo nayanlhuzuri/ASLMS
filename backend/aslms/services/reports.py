@@ -70,7 +70,7 @@ ColumnKind = Literal["text", "int", "date", "days"]
 ACTIVE_STATUSES = (CaseStatus.PENDING, CaseStatus.UNKNOWN)
 NOT_CLAIMED_RECOMMENDED = ("NC-REC", "Not claimed — recommended")
 NOT_CLAIMED_NONE = ("NC-NONE", "Not claimed — no recommendation")
-NOT_ALLOTTED = ("DEPT", "Department office / not allotted")
+NOT_ALLOTTED = ("DEPT", "Whole department (no responsible unit)")  # design claim-assign-wording
 CALL_LOG_NOTE = (
     "NAPIX call-log rows exist only from the first live call; calls are kept for NAPIX_CALL_LOG_KEEP_DAYS (2 years by "
     "default), so earlier days show no call figures."
@@ -365,7 +365,7 @@ def _group_keys(scope: Scope, po, case_id):
 
 class _Groups:
     """The group rows of a report in decision 5's order: State — every department row, then the two not-claimed
-    rows; department — "Department office / not allotted", then the units by path."""
+    rows; department — "Whole department (no responsible unit)", then the units by path."""
 
     def __init__(self, session: Session, scope: Scope) -> None:
         self.session = session
@@ -409,7 +409,7 @@ class _Groups:
 def _group_columns(scope: Scope) -> list[Column]:
     if scope.department is None:
         return [Column("group_code", "Department code"), Column("group", "Department")]
-    return [Column("group_code", "Unit code"), Column("group", "Unit")]
+    return [Column("group_code", "Responsible unit code"), Column("group", "Responsible unit")]
 
 
 def _totals(columns: list[Column], rows: list[dict[str, Any]], label_key: str, label: str = "Total") -> dict:

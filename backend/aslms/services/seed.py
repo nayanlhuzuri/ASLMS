@@ -128,7 +128,9 @@ ROLE_DESCRIPTIONS = {
     Role.DEPT_ADMIN: (
         "Manages the department's users, counsel codes and keywords; reviews recommendations and claims cases."
     ),
-    Role.DEPT_OFFICER: "Works on allotted cases: moves the case, adds notes and documents, and receives alerts.",
+    Role.DEPT_OFFICER: (
+        "Works on cases assigned to them: moves the case, adds notes and documents, and receives alerts."
+    ),  # design claim-assign-wording, decision 8 (migration 0030)
     Role.DIRECTORATE_USER: "Works on the cases of their own directorate.",
     Role.REFERRAL_REVIEWER: (
         "Reviews cases with a department officer's reviewing functions, without ownership or the case's movement."
@@ -179,6 +181,11 @@ TRACKING_CARD_EVENTS = {
 EVENT_TIMELINE_LABELS = {
     EventType.LISTING_CHANGED: "Cause list corrected",  # design court-data-freshness, migration 0023
     EventType.CUSTODY_MOVED: "Case moved",  # design case-workspace-admin, decision 4 (migration 0025)
+    EventType.ALLOTTED: "Assigned",  # design claim-assign-wording, decision 8 (migration 0030)
+}
+# event-type labels that differ from the code (new rows only)
+EVENT_TYPE_LABELS = {
+    EventType.ALLOTTED: "Assigned",  # design claim-assign-wording, decision 8 (migration 0030)
 }
 
 
@@ -206,10 +213,13 @@ def _extra_columns(model: type, member: enum.Enum) -> dict:
     if model is RefNoteKind and member in NOTE_KIND_LABELS:
         return {"label": NOTE_KIND_LABELS[member]}
     if model is RefEventType:
-        return {
+        out = {
             "timeline_label": EVENT_TIMELINE_LABELS.get(member, _label(member.value)),
             "is_tracking_card": member in TRACKING_CARD_EVENTS,
         }
+        if member in EVENT_TYPE_LABELS:
+            out["label"] = EVENT_TYPE_LABELS[member]
+        return out
     return {}
 
 

@@ -29,8 +29,18 @@ function Row({ o }: { o: Ownership }) {
   return (
     <>
       <strong className="mono">{o.office_code ?? "—"}</strong>
-      {o.unit ? <span className="mono"> · {o.unit.code}</span> : null}
-      {o.officer ? <span> · {o.officer.full_name}</span> : null}
+      {o.unit ? (
+        <span>
+          {" · "}
+          {T.case.responsibleUnit} <span className="mono">{o.unit.code}</span>
+        </span>
+      ) : null}
+      {o.officer ? (
+        <span>
+          {" · "}
+          {T.case.dealingOfficer} {o.officer.full_name}
+        </span>
+      ) : null}
       <span className="muted"> · {T.case.claimedOn(formatDate(o.claimed_at))}</span>
     </>
   );

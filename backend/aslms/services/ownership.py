@@ -913,11 +913,11 @@ def _check_take_over(
     if row is None:
         raise NotVisible("no such case")
     if row.officer_user_id is None:
-        raise OwnershipConflict("not_allotted", "the case is not allotted to an officer; allot it instead")
+        raise OwnershipConflict("not_allotted", "the case has no dealing officer; assign it instead")
     if row.officer_user_id == taker.id:
         raise OwnershipConflict("already_holder", "you already hold this case")
     if expected_officer_user_id is not None and expected_officer_user_id != row.officer_user_id:
-        raise OwnershipConflict("stale", "the case was allotted to someone else meanwhile")
+        raise OwnershipConflict("stale", "the case was assigned to someone else meanwhile")
     return taker, dept, row
 
 
@@ -1675,7 +1675,7 @@ def reallot_on_exit(
     chose (the officer field only; no custody leg — the file is its own exit item). The caller holds the case
     row lock. Event `allotted` with `on_exit: true`; audit `ownership.reallotted_on_exit`."""
     if row.officer_user_id != from_user.id or OwnershipStatus(row.status) != OwnershipStatus.ACTIVE:
-        raise OwnershipConflict("stale", "the case is no longer allotted to the leaving officer")
+        raise OwnershipConflict("stale", "the case is no longer assigned to the leaving officer")
     dept = session.get(Office, row.office_id)
     before = ownership_summary(session, row)
     row.officer_user_id = to_member.id

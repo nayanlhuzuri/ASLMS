@@ -12,7 +12,7 @@
  *   phones, where the badge stays);
  * - the actions at the right: at most one primary, chosen in a fixed order among the flags the server returns (Send
  *   case by `custody.can_send`, else Claim by `ownership.actions.claim`, else Accept transfer by `decide_transfer`);
- *   a "More actions" menu with Recall case, Enter next date, Claim, Accept transfer, Allot, Take over, Request
+ *   a "More actions" menu with Recall case, Enter next date, Claim, Accept transfer, Assign, Take over, Request
  *   transfer, Stop watching, Suggest, Dismiss and Audit trail, each by its existing flag or function. Add note, Upload
  *   and Set stage are only in the rail's Quick actions, so no action shows twice. The API still decides every call;
  * - the banners for provisional, merged and not-yet-fetched cases;

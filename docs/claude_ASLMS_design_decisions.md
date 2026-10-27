@@ -2758,3 +2758,30 @@ Backlog row 176 `office-head-picker`; design `docs/design/office-head-picker.md`
 - Add Admin and Swap Admin dialogs on `UserPicker` (new backlog row 184, `office-head-picker-admin-swap`).
 - Apply 0029 with the `migrate` step after the merge, then `docker compose build`.
 
+## Assign wording in place of Allot (2026-10-27)
+
+Backlog row 178 `claim-assign-wording`; design `docs/design/claim-assign-wording.md` (approved by the owner, 26 Oct 2026, "Keep it, make it clear"); migration 0030.
+
+**What was built**
+- Portal: "Assign Now (Optional)" with one explanatory line and the fields "Responsible Unit" (empty choice "Whole Department") and "Dealing Officer" (empty choice "No Dealing Officer Yet") on one row in the case claim modal and the inbox Claim dialog (no fieldset); the "Assign This Case" dialog; the ownership card line with labelled parts; Department Cases column "Responsible Unit · Dealing Officer", "Not Assigned" and the matching filters; dashboard, inbox, exit-dialog and error texts.
+- Server texts: alert and e-mail ("Case assigned: ..."), the custody reason label "Assigned", the `cases.allot` function label "Assign Cases" and two more function descriptions, report grouping labels, and the error messages in `ownership.py` and `memberships.py`.
+- Migration 0030 (reference data only): relabels the `allotted` event type and the `dept_officer` description, each only while it still holds the seeded text; reversible under the same condition; no audit row. `seed.py` carries the new texts for fresh databases.
+- Guards: an "allot" rule in `wording.test.ts` and `test_wording_guard.py`, with no allow-list.
+- Tests: `test_migration_0030_assign_labels.py`, `test_assign_alert_text.py`, additions to `test_api_workflow.py`, `test_reports.py`, `test_alerts_generate.py`, the vitest claim, inbox, dialogs, case and wording tests, and two uicheck states.
+
+**Decisions and reasons**
+1. The portal says "Assign"; codes, API paths, fields, event types and audit actions keep "allot". A rename would break the API and audit history for a wording change.
+2. The section explains itself and points to Send Case for passing a case on for an action, using the portal's own words.
+3. Rows already written (alerts, audit) keep their stored text; they are records.
+4. Wording only: no rule, visibility or API change; the plan's "cases allotted to them" is deviated from in words, not in meaning.
+
+**Deviations** (also in the design note)
+- The note asked for no migration beyond the two labels; its number is 0030, because 0029 went to `office-head-picker`.
+- Two more function descriptions and the seed's `EVENT_TYPE_LABELS` were reworded because the guard covers them.
+- The backend guard strips dotted function codes (`cases.allot`) inside a sentence before applying the rule.
+- The Assign dialog carries the claim dialogs' hints; "Responsible unit" and "Dealing officer" on the card are in `SENTENCE_EXCEPTIONS`.
+- The uicheck Assign state opens from More Actions, present at all three widths.
+
+**Left for later**
+- Apply 0030 with the `migrate` step after the merge, then `init` (seed) and `docker compose build`.
+- The owner's browser check in the design note's Verification.

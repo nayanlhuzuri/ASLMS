@@ -267,7 +267,7 @@ describe("the details modal", () => {
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
     await userEvent.type(within(step).getByLabelText("Note (Optional)"), "ours");
     await waitFor(() => expect(within(step).getByRole("option", { name: /Officer One/ })).toBeInTheDocument());
-    await userEvent.selectOptions(within(step).getByLabelText("Officer"), "u-7");
+    await userEvent.selectOptions(within(step).getByLabelText("Dealing Officer"), "u-7");
     await userEvent.click(within(step).getByRole("button", { name: "Claim for EDU" }));
     await waitFor(() => expect(posts(api.calls)).toHaveLength(1));
     expect(posts(api.calls)[0]!.body).toEqual({ office_code: "EDU", note: "ours", officer_user_id: "u-7" });
@@ -277,6 +277,37 @@ describe("the details modal", () => {
     expect(screen.getByRole("link", { name: "Open Case Page" })).toHaveAttribute("href", BASE);
   });
 
+  it("claim modal: Assign Now section (design claim-assign-wording, decision 2)", async () => {
+    const api = browserApi(
+      routes({
+        ...caseRoutes(ownershipView(actions({ claim: true, claim_departments: ["EDU"] }))),
+        [`POST ${BASE}/claim`]: json(201, {}),
+      }),
+    );
+    renderWithClient(<ClaimFrame tab="recommended" params={{ case: REF }} />);
+    const dialog = await screen.findByRole("dialog", { name: "WP(C)/1/2026" });
+    await userEvent.click(await within(dialog).findByRole("button", { name: "Claim for EDU" }));
+    const step = within(dialog).getByRole("group", { name: "Claim This Case" });
+    expect(within(step).getByRole("heading", { name: "Assign Now (Optional)", level: 4 })).toBeInTheDocument();
+    expect(within(step).getByText(/Choose who in the department handles this case\. They will see it in their inbox\./)).toBeInTheDocument();
+    expect(within(step).getByText(/use Send Case on the case page/)).toBeInTheDocument();
+    const unit = within(step).getByLabelText("Responsible Unit");
+    const officer = within(step).getByLabelText("Dealing Officer");
+    expect(within(unit).getByRole("option", { name: "Whole Department" })).toHaveValue("");
+    expect(within(officer).getByRole("option", { name: "No Dealing Officer Yet" })).toHaveValue("");
+    expect(within(step).getByText("The officer who deals with the case day to day.")).toBeInTheDocument();
+    expect(dialog.querySelector("fieldset, legend")).toBeNull();
+    // the two fields share one field row
+    expect(unit.closest(".row")).not.toBeNull();
+    expect(unit.closest(".row")).toBe(officer.closest(".row"));
+    await waitFor(() => expect(within(unit).getByRole("option", { name: /EDU-DSE/ })).toBeInTheDocument());
+    await userEvent.selectOptions(unit, "EDU-DSE");
+    await userEvent.selectOptions(officer, "u-7");
+    await userEvent.click(within(step).getByRole("button", { name: "Claim for EDU" }));
+    await waitFor(() => expect(posts(api.calls)).toHaveLength(1));
+    expect(posts(api.calls)[0]!.body).toEqual({ office_code: "EDU", unit_code: "EDU-DSE", officer_user_id: "u-7" });
+  });
+
   it("the allot fields show only with cases.allot; Back returns to the footer", async () => {
     const fns = ADMIN_FNS.filter((f) => f !== "cases.allot");
     browserApi(routes({ "GET /me": admin(fns), ...caseRoutes(ownershipView(actions({ claim: true, claim_departments: ["EDU"] }))) }));
@@ -284,7 +315,8 @@ describe("the details modal", () => {
     const dialog = await screen.findByRole("dialog", { name: "WP(C)/1/2026" });
     await userEvent.click(await within(dialog).findByRole("button", { name: "Claim for EDU" }));
     const step = within(dialog).getByRole("group", { name: "Claim This Case" });
-    expect(within(step).queryByLabelText("Officer")).toBeNull();
+    expect(within(step).queryByLabelText("Dealing Officer")).toBeNull();
+    expect(within(step).queryByRole("heading", { name: "Assign Now (Optional)" })).toBeNull();
     await userEvent.click(within(step).getByRole("button", { name: "Back" }));
     expect(within(dialog).getByRole("button", { name: "Claim for EDU" })).toBeInTheDocument();
   });

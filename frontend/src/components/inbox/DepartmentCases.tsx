@@ -4,7 +4,7 @@
  * Department cases (design portal-ui-redesign, decision 5; API A3): the department's claimed cases for the readers
  * the server reads whole (`whole_department` on `/inbox/counts`: `cases.claim` or `cases.allot` in the membership, or a
  * State-wide reader). It replaces the old Claimed tab. Active and Disposed are the Status switch (default Active). The
- * full filter bar of the mock-up: Search, Unit, Officer (with "Not allotted", sent as `unallotted=true`), Stage, Next
+ * full filter bar of the mock-up: Search, Responsible Unit, Dealing Officer (with "Not Assigned Yet", sent as `unallotted=true`), Stage, Next
  * hearing (Any date / This week / Next 30 days / Choose dates…); "More filters": Case type, Year, Court, File is with,
  * Action; removable chips, "Clear all" and "n of m cases". Rows: the case, unit · officer, stage, next hearing and who
  * holds the file; a row opens the case page. Allot stays on the case page (its ownership actions).
@@ -29,7 +29,7 @@ import { CaseCell, Chevron, CountLine, HolderCell, NextHearingCell, StageCell } 
 /** Layout B's More Filters on Department cases (design portal-ui-polish-2, decision 23); Case Type is on the right. */
 const DEPARTMENT_MORE: readonly SharedField[] = ["year", "court_no"];
 
-/** `officer=none` in the URL is "Not allotted". */
+/** `officer=none` in the URL is "Not Assigned Yet" (no dealing officer; sent as `unallotted=true`). */
 export const NOT_ALLOTTED = "none";
 
 const DEPARTMENT_KEYS = [
@@ -55,7 +55,7 @@ export function departmentQuery(params: Params): Record<string, string | undefin
 }
 
 function AllotmentCell({ row }: { row: Ownership }) {
-  if (!row.unit && !row.officer) return <span className="muted">{T.inbox.notAllotted}</span>;
+  if (!row.unit && !row.officer) return <span className="muted">{T.inbox.notAssigned}</span>;
   return (
     <span>
       {row.unit ? <span className="mono">{row.unit.code}</span> : null}
@@ -102,7 +102,7 @@ export function DepartmentCases({ params, department, block }: { params: Params;
       key: "officer",
       kind: "select",
       label: T.inbox.officer,
-      options: [{ value: NOT_ALLOTTED, label: T.inbox.notAllotted }, ...[...officers.entries()].map(([value, label]) => ({ value, label }))],
+      options: [{ value: NOT_ALLOTTED, label: T.inbox.notAssignedYet }, ...[...officers.entries()].map(([value, label]) => ({ value, label }))],
       placeholder: T.inbox.anyOfficer,
       first: true,
     },

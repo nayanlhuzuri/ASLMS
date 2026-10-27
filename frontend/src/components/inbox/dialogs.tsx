@@ -2,9 +2,9 @@
 
 /**
  * The ownership dialogs (design portal-cases, decision 7), shared by the inbox and the case page: Claim, Dismiss,
- * Suggest department, Allot, Take over, Stop watching, Request transfer, Accept / Decline and Withdraw. Nothing is
- * claimed, allotted or transferred without the user pressing the button and confirming here; nothing is pre-selected
- * that would claim for a department the user did not choose. Every refusal shows the API's code as a message, then the
+ * Suggest department, Assign (`allot`), Take over, Stop watching, Request transfer, Accept / Decline and Withdraw.
+ * Nothing is claimed, assigned or transferred without the user pressing the button and confirming here; nothing is
+ * pre-selected that would claim for a department the user did not choose. Every refusal shows the API's code as a message, then the
  * inbox lists, the counts, the case and the dashboard are read again. There is no release or return-to-pool action.
  *
  * One rule for the department that acts (design portal-cases-followups, decisions 4-6): the case page passes the
@@ -12,16 +12,18 @@
  * sent; several give a required select with nothing pre-selected; an `office_required` answer opens the same select.
  */
 import { useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import { CheckField, ConfirmDialog, ErrorBanner, Loading, SelectField, TextArea, type Option } from "@/components/ui";
 import { api, ApiError } from "@/lib/api/client";
 import { caseKey, INBOX_KEY, useCaseTitle, useDepartmentPeople, useDepartments, useMe, useOwnership } from "@/lib/api/hooks";
-import type { Ownership, Recipient } from "@/lib/api/types";
+import type { Ownership, Recipient, RecipientList } from "@/lib/api/types";
 import { canIn, isSuperAdmin } from "@/lib/can";
 import { T } from "@/lib/messages";
 import { apiCasePath } from "@/lib/refs";
 import { useAction } from "@/lib/useAction";
+
+import ib from "./inbox.module.css";
 
 export const MAX_REASON = 500;
 const KEEP = "__keep__";
@@ -74,6 +76,59 @@ export function officerOptions(items: Recipient[] | undefined): Option[] {
     });
   }
   return out;
+}
+
+// ------------------------------------------------------------------------------------------------ assign (codes keep "allot")
+
+/**
+ * The department's choice of who handles the case (design claim-assign-wording, decisions 2 and 3): the claim dialogs'
+ * "Assign Now (Optional)" heading (an `h4`, no fieldset), the explanation line, and the Responsible Unit and Dealing
+ * Officer fields side by side in one field row where the dialog is wide enough, stacked below that.
+ */
+export function AssignSection({ heading = false, children }: { heading?: boolean; children: ReactNode }) {
+  return (
+    <div className="stack">
+      {heading ? <h4 className={ib.assignHeading}>{T.own.assignOptional}</h4> : null}
+      <p className={`muted ${ib.assignExplain}`}>{T.own.assignExplain}</p>
+      <div className={`row ${ib.assignRow}`}>{children}</div>
+    </div>
+  );
+}
+
+/** The claim dialogs' Assign Now section: empty means Whole Department and No Dealing Officer Yet (nothing is sent). */
+export function ClaimAssignNow({
+  people,
+  unit,
+  officer,
+  onUnit,
+  onOfficer,
+}: {
+  people: RecipientList | undefined;
+  unit: string;
+  officer: string;
+  onUnit: (v: string) => void;
+  onOfficer: (v: string) => void;
+}) {
+  return (
+    <AssignSection heading>
+      <SelectField
+        label={T.own.unit}
+        hint={T.own.unitHint}
+        options={(people?.units ?? []).map((u) => ({ value: u.code, label: `${u.code} — ${u.name}` }))}
+        placeholder={T.own.noUnit}
+        value={unit}
+        onChange={(e) => onUnit(e.target.value)}
+      />
+      <SelectField
+        label={T.own.officer}
+        hint={T.own.officerHint}
+        options={officerOptions(people?.items)}
+        placeholder={T.own.noOfficer}
+        value={officer}
+        onChange={(e) => onOfficer(e.target.value)}
+      />
+    </AssignSection>
+  );
 }
 
 // ------------------------------------------------------------------------------------------------ the department that acts
@@ -275,23 +330,7 @@ export function ClaimDialog({
       ) : null}
       <TextArea label={T.own.claimNote} maxLength={MAX_REASON} value={note} onChange={(e) => setNote(e.target.value)} />
       {canAllot ? (
-        <fieldset className="stack">
-          <legend>{T.own.allotOptional}</legend>
-          <SelectField
-            label={T.own.unit}
-            options={(people.data?.units ?? []).map((u) => ({ value: u.code, label: `${u.code} — ${u.name}` }))}
-            placeholder={T.own.noUnit}
-            value={unit}
-            onChange={(e) => setUnit(e.target.value)}
-          />
-          <SelectField
-            label={T.own.officer}
-            options={officerOptions(people.data?.items)}
-            placeholder={T.own.noOfficer}
-            value={officer}
-            onChange={(e) => setOfficer(e.target.value)}
-          />
-        </fieldset>
+        <ClaimAssignNow people={people.data} unit={unit} officer={officer} onUnit={setUnit} onOfficer={setOfficer} />
       ) : null}
     </ConfirmDialog>
   );
@@ -485,12 +524,13 @@ export function AllotDialog({
         }}
       />
       {office ? (
-        <>
+        <AssignSection>
           <SelectField
             label={T.own.unit}
+            hint={T.own.unitHint}
             options={[
               { value: KEEP, label: keep(now?.unit?.code) },
-              { value: CLEAR, label: T.own.clearValue },
+              { value: CLEAR, label: T.own.clearUnit },
               ...(people.data?.units ?? []).map((u) => ({ value: u.code, label: `${u.code} — ${u.name}` })),
             ]}
             value={unit}
@@ -498,15 +538,16 @@ export function AllotDialog({
           />
           <SelectField
             label={T.own.officer}
+            hint={T.own.officerHint}
             options={[
               { value: KEEP, label: keep(now?.officer?.full_name) },
-              { value: CLEAR, label: T.own.clearValue },
+              { value: CLEAR, label: T.own.clearOfficer },
               ...officerOptions(people.data?.items),
             ]}
             value={officer}
             onChange={(e) => setOfficer(e.target.value)}
           />
-        </>
+        </AssignSection>
       ) : null}
     </ConfirmDialog>
   );

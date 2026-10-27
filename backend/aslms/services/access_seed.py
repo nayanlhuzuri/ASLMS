@@ -47,7 +47,7 @@ PERMISSION_LABELS: dict[P, tuple[str, str]] = {
     P.ADMIN_DESIGNATIONS: ("Manage Designations", "Keep the State-wide list of posts up to date."),
     P.CASES_VIEW_SCOPE: (
         "See the Office's Cases",
-        "Cases owned by, allotted to, or sent to the offices you belong to.",
+        "Cases owned by, assigned to, or sent to the offices you belong to.",
     ),
     P.CASES_VIEW_ALL: ("See All Cases", "Every case in the State, in every department."),
     P.CASES_VIEW_PRIVATE_ALL: (
@@ -66,11 +66,14 @@ PERMISSION_LABELS: dict[P, tuple[str, str]] = {
     ),
     P.CASES_TRANSFER_REQUEST: ("Ask for a Transfer", "Ask another department to take over a claimed case."),
     P.CASES_TRANSFER_DECIDE: ("Decide Transfers", "Accept or refuse a transfer asked of the department."),
-    P.CASES_ALLOT: ("Allot Cases", "Give a case of the department to an officer to work on."),
+    P.CASES_ALLOT: (
+        "Assign Cases",
+        "Choose the responsible unit and the dealing officer for a case of the department.",
+    ),
     P.CASES_RELEASE: ("Stop Watching", "End the department's watching role on a case."),
     P.CASES_TAKE_OVER: (
         "Take Over a Case",
-        "Take over a case allotted to a colleague in the same department.",
+        "Take over a case assigned to a colleague in the same department.",
     ),
     P.CUSTODY_MOVE: (
         "Send Cases Held by an Office",

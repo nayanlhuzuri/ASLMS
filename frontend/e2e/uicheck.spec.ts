@@ -223,6 +223,24 @@ const STATES: State[] = [
     },
   },
   {
+    // design claim-assign-wording, decision 2: Claim pressed, so the claim step and its Assign Now row show (one line
+    // at 1280 px, stacked at 375 px)
+    name: "/claim/recommended (case claim modal, Assign Now)",
+    path: `/claim/recommended?case=${SAMPLE.caseRefPath}`,
+    open: async (page) => {
+      const dialog = page.getByRole("dialog").first();
+      await dialog.waitFor();
+      await dialog.getByRole("button", { name: /^Claim( for .+)?$/ }).first().click();
+      const pick = dialog.locator("select").filter({ has: page.locator("option", { hasText: "Choose a Department" }) });
+      if ((await pick.count()) > 0) {
+        const value = await pick.first().locator("option").nth(1).getAttribute("value");
+        if (value) await pick.first().selectOption(value);
+      }
+      await dialog.getByRole("heading", { name: "Assign Now (Optional)" }).waitFor();
+      await dialog.getByLabel("Dealing Officer").waitFor();
+    },
+  },
+  {
     name: "/system (API card)",
     path: "/system?api=cnr",
     open: async (page) => {
@@ -261,6 +279,24 @@ const STATES: State[] = [
     open: async (page) => {
       await page.getByRole("button", { name: "Send Case" }).first().click();
       await page.getByRole("dialog").first().waitFor();
+    },
+  },
+  {
+    // design claim-assign-wording, decision 3: the Assign dialog (from More Actions, present at every width), with a
+    // department chosen so the Responsible Unit and Dealing Officer row shows
+    name: `/cases/${SAMPLE.caseRefPath} (Assign dialog)`,
+    path: `/cases/${SAMPLE.caseRefPath}`,
+    open: async (page) => {
+      await page.getByRole("button", { name: "More Actions" }).first().click();
+      await page.getByRole("menuitem", { name: "Assign" }).click();
+      const dialog = page.getByRole("dialog", { name: "Assign This Case" });
+      await dialog.waitFor();
+      const pick = dialog.getByLabel("For", { exact: true });
+      if ((await pick.count()) > 0) {
+        const value = await pick.locator("option").nth(1).getAttribute("value");
+        if (value) await pick.selectOption(value);
+      }
+      await dialog.getByLabel("Dealing Officer").waitFor();
     },
   },
   {
