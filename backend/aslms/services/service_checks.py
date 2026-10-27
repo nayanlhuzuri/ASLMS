@@ -5,7 +5,10 @@ Each check returns a status (`ok` / `warn` / `down` / `unknown`), a one-line hea
 alerts agree. The network probes (Redis, the direct database probe, ClamAV, the web portal and the document store)
 run in parallel threads, each within `OPS_PROBE_TIMEOUT_SECONDS`; the database readings run on the request's session.
 A check that raises becomes `unknown` with the exception's class name only. Never calls NAPIX; never returns a URL, a
-password or a host credential; writes nothing but one temporary probe file in the store. Not audited (a read)."""
+password or a host credential; writes nothing but one temporary probe file in the store. Not audited (a read).
+
+Design `assistant-ollama`, decision 17: an eleventh check, "Case Assistant Model", only with `ASSISTANT_MODE=ollama`.
+It reads `/api/version`, `/api/tags` and `/api/ps` only (never generates, never loads) and never shows the address."""
 
 from __future__ import annotations
 
@@ -28,6 +31,7 @@ from sqlalchemy.orm import Session
 import aslms
 from aslms.core.config import Settings
 from aslms.domain.ops import FetchQueueItem, FetchStatus, JobRun, JobStatus
+from aslms.integration.ollama import ModelState, OllamaClient, expires_label
 from aslms.services.audit_search import to_ist
 
 PROCESS_STARTED = datetime.now(UTC)
@@ -56,6 +60,7 @@ LABELS = {
     "backups": "Backups",
     "store": "Document store",
     "web": "Web portal",
+    "assistant_model": "Case Assistant Model",
 }
 # the Prometheus rules' numbers (decision 10)
 CONNECTIONS_WARN = 0.8  # PostgresConnectionsHigh
@@ -127,6 +132,7 @@ class Probes:
     store: Callable[[Path], None]
     disk: Callable[[str], Any]
     db_head: Callable[[Settings], str | None]
+    assistant_model: Callable[[Settings], ModelState] | None = None
 
 
 def redis_probe(settings: Settings) -> dict[str, Any]:
@@ -195,6 +201,12 @@ def db_head(settings: Settings) -> str | None:
     return _HEAD["head"]
 
 
+def assistant_model_probe(settings: Settings) -> ModelState:
+    """`/api/version`, `/api/tags` and `/api/ps` of the Ollama server (decision 17 of `assistant-ollama`)."""
+    client = OllamaClient(settings.assistant_ollama_url)
+    return client.state_sync(settings.assistant_ollama_model, timeout=settings.ops_probe_timeout_seconds)
+
+
 def default_probes() -> Probes:
     return Probes(
         redis=redis_probe,
@@ -204,6 +216,7 @@ def default_probes() -> Probes:
         store=store_probe,
         disk=shutil.disk_usage,
         db_head=db_head,
+        assistant_model=assistant_model_probe,
     )
 
 
@@ -475,6 +488,54 @@ def check_web(up: bool | None, ms: int) -> Check:
 # ------------------------------------------------------------------------------------------------ the run
 
 
+GPU_WORDS = {"full": "Fully", "partial": "Partly", "none": "No"}
+
+
+def check_assistant_model(settings: Settings, state: ModelState | None, error: str | None, ms: int) -> Check:
+    """Decision 17: `ok` loaded; `warn` held but not loaded, a version below 0.40, or the model only partly on the GPU;
+    `down` unreachable, missing, not local, or the cloud rule broken. Facts: Ollama Version, Model, Loaded, On GPU and
+    Kept Loaded Until — never the address."""
+    from aslms.services.assistant_ollama import cloud_problems
+
+    model = settings.assistant_ollama_model
+    if cloud_problems(settings):
+        return Check(
+            "assistant_model",
+            "down",
+            "The model setting points at a cloud model or address; the Case Assistant is off",
+            [_f("Model", "refused")],
+            ms,
+        )
+    if state is None or error is not None or not state.reachable:
+        return Check("assistant_model", "down", "Cannot reach the model server", [_f("Model", model)], ms)
+    expires = expires_label(state.expires_at)
+    facts = [
+        _f("Ollama Version", state.version or "—"),
+        _f("Model", model),
+        _f("Loaded", "Yes" if state.loaded else "No"),
+        _f("On GPU", GPU_WORDS.get(state.on_gpu or "", "—")),
+        _f(
+            "Kept Loaded Until",
+            (
+                "while the server runs"
+                if expires is not None and expires.year >= 2200
+                else (_when(expires) if expires is not None else "—")
+            ),
+        ),
+    ]
+    if state.reason == "missing":
+        return Check("assistant_model", "down", "The model is not on the model server", facts, ms)
+    if not state.local:
+        return Check("assistant_model", "down", "The model is not held on the model server itself", facts, ms)
+    if not state.loaded:
+        return Check("assistant_model", "warn", "The model is on the server but not loaded yet", facts, ms)
+    if not state.version_ok:
+        return Check("assistant_model", "warn", "Ollama is older than 0.40", facts, ms)
+    if state.on_gpu in ("partial", "none"):
+        return Check("assistant_model", "warn", "The model is loaded but not fully on the GPU", facts, ms)
+    return Check("assistant_model", "ok", "Loaded and ready", facts, ms)
+
+
 def _timed(fn: Callable[[], Any]) -> tuple[Any, str | None, int]:
     started = time.perf_counter()
     try:
@@ -493,7 +554,7 @@ def _safe(key: str, fn: Callable[[], Check]) -> Check:
 def run_all(
     session: Session, settings: Settings, now: datetime | None = None, probes: Probes | None = None
 ) -> list[dict[str, Any]]:
-    """The ten checks, in decision 10's order."""
+    """The ten checks, in decision 10's order, and the Case Assistant Model in ollama mode (`assistant-ollama`)."""
     now = now or datetime.now(UTC)
     probes = probes or default_probes()
     timeout = settings.ops_probe_timeout_seconds
@@ -517,7 +578,10 @@ def run_all(
         else None,
         "store": store,
     }
-    pool = ThreadPoolExecutor(max_workers=6, thread_name_prefix="service-check")
+    ollama_mode = (getattr(settings, "assistant_mode", "off") or "off") == "ollama"
+    if ollama_mode and probes.assistant_model is not None:
+        jobs["assistant_model"] = lambda: probes.assistant_model(settings)
+    pool = ThreadPoolExecutor(max_workers=7, thread_name_prefix="service-check")
     futures = {k: pool.submit(_timed, fn) for k, fn in jobs.items() if fn is not None}
     deadline = time.monotonic() + timeout + 1
     try:
@@ -555,4 +619,11 @@ def run_all(
         checks["web"] = _safe("web", lambda: check_web(bool(up) if err is None else False, ms))
     else:
         checks["web"] = check_web(None, 0)
-    return [checks[k].to_dict() for k in ORDER]
+    order = list(ORDER)
+    if ollama_mode:
+        state, err, ms = res("assistant_model")
+        checks["assistant_model"] = _safe(
+            "assistant_model", lambda: check_assistant_model(settings, state, err, ms)
+        )
+        order.append("assistant_model")
+    return [checks[k].to_dict() for k in order]

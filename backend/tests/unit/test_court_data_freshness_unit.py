@@ -210,6 +210,10 @@ CURRENT = re.compile(r"CURRENT_LIST|superseded_at IS NULL|superseded_at\.is_\(No
 # decision 12's deliberate exceptions: an earlier version opened by its id, the case's listings (flagged), load counts
 EXCEPTIONS = {
     ("case_detail", "listings"),
+    (
+        "assistant_sources",
+        "case_details",
+    ),  # design assistant-ollama 3(a): the case page's listings, rows flagged
     ("causelist_view", "entries"),  # its place (`_place`) adds the rule unless a list is named
     ("causelist_view", "base"),
     ("causelist_view", "_validate"),

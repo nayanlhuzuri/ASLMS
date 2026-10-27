@@ -70,10 +70,10 @@ class MeOut(BaseModel):
     user: UserOut
     memberships: list[MembershipOut] = Field(default_factory=list)
     functions: list[Permission]
-    assistant_mode: Literal["off", "preview", "sourcetrace"] = Field(
+    assistant_mode: Literal["off", "preview", "sourcetrace", "ollama"] = Field(
         "off",
         description="the Case Assistant's state for the portal (design assistant): off (also while SourceTrace is "
-        "chosen but not implemented), preview or sourcetrace",
+        "chosen but not implemented), preview, sourcetrace or ollama (a local model, design assistant-ollama)",
     )
 
 
@@ -4318,18 +4318,37 @@ class AssistantLimitsOut(BaseModel):
     messages_per_conversation: int
 
 
+class AssistantEngineOut(BaseModel):
+    """The local model's readiness (design assistant-ollama, decision 13); `reason` when not ready: `not_loaded`,
+    `unreachable`, `missing`, `not_local` or `cloud`."""
+
+    kind: Literal["ollama"]
+    model: str
+    readiness: Literal["ready", "loading", "unavailable"]
+    reason: str | None = None
+
+
 class AssistantStatusOut(BaseModel):
     """`GET /assistant/status` (design assistant, decision 2): `state` `not_implemented` while `sourcetrace` is
-    chosen and no connector exists (row 36); `banner` the notice every Assistant screen shows."""
+    chosen and no connector exists (row 36); `banner` the notice every Assistant screen shows. Design
+    assistant-ollama: `engine` the local model's readiness (reading it may start a load), `internal_records` `switch`
+    in ollama mode (the case tab's "Include This Case's Internal Records") and `never` otherwise."""
 
-    mode: Literal["off", "preview", "sourcetrace"]
+    mode: Literal["off", "preview", "sourcetrace", "ollama"]
     state: Literal["off", "preview", "not_implemented", "ready"]
     banner: str | None
     limits: AssistantLimitsOut
     scopes: list[Literal["case", "my_cases", "research"]]
+    engine: AssistantEngineOut | None = None
+    internal_records: Literal["switch", "never"] = "never"
 
 
 class AssistantAskIn(BaseModel):
+    """Extra fields are refused (422): no client flag can ask for internal records (design assistant-ollama,
+    decision 4); the server decides from the stored conversation alone."""
+
+    model_config = ConfigDict(extra="forbid")
+
     question: str = Field(max_length=4000)
     scope: Literal["case", "my_cases", "research"]
     case: str | None = Field(None, max_length=100, description="case id, ref_no or CNR; only for scope case")
@@ -4351,6 +4370,11 @@ class AssistantConversationOut(BaseModel):
     last_message_at: datetime | None
     created_at: datetime
     message_count: int
+    internal_included_at: datetime | None = Field(
+        None,
+        description="when the asker switched on this case's internal records (design assistant-ollama); null when "
+        "court-only",
+    )
 
 
 class AssistantConversationListOut(BaseModel):
@@ -4369,17 +4393,33 @@ class AssistantCitationCaseOut(BaseModel):
 
 class AssistantOpenOut(BaseModel):
     """`document`: an API file route (the portal adds its relay prefix and `#page=`); `court_order`: the court-record
-    view of a cited order of a case the reader cannot open (`/assistant/court-orders/{id}?message=`)."""
+    view of a cited order of a case the reader cannot open (`/assistant/court-orders/{id}?message=`); `case_tab`: a
+    portal path of the case page (the notes tab for a note, the custody tab for the file movement, the details tab for
+    Case Details)."""
 
-    kind: Literal["document", "court_order"]
+    kind: Literal["document", "court_order", "case_tab"]
     href: str
 
 
+class AssistantCitedNoteOut(BaseModel):
+    id: uuid.UUID
+    seq_no: int
+    kind_label: str
+    corrected_by_seq_no: int | None = None
+
+
 class AssistantCitationOut(BaseModel):
+    """Design assistant-ollama, decisions 8 and 9: `label` (`S1`..) and `cited` on local-model answers (every source
+    given is listed; `cited` false under "Other Sources Given"); `context` the text given to the model (court kinds as
+    stored; Case Details and internal kinds re-rendered at read time; null when unavailable); `internal` for the
+    department's own records."""
+
     document_id: uuid.UUID | None
     order_id: uuid.UUID | None = None
     case: AssistantCitationCaseOut
-    source_kind: Literal["court_order", "court_filing"]
+    source_kind: Literal[
+        "court_order", "court_filing", "case_details", "note", "file_movement", "department_document"
+    ]
     doc_type_label: str | None
     doc_date: date | None
     order_no: str | None = None
@@ -4392,6 +4432,27 @@ class AssistantCitationOut(BaseModel):
         description="set when the source is no longer available to the reader; every field naming it is then null",
     )
     open: AssistantOpenOut | None
+    label: str | None = None
+    cited: bool = True
+    context: str | None = None
+    note: AssistantCitedNoteOut | None = None
+    internal: bool = False
+    what: Literal["note_attachment"] | None = None
+    visibility: Literal["case_scope", "counsel_shared", "private_to_office"] | None = Field(
+        None,
+        description="an internal record's own setting (a file movement with remarks counts as private_to_office); "
+        "the portal presets Copy to note to the narrowest of the cited records",
+    )
+
+
+class AssistantEngineBriefOut(BaseModel):
+    kind: Literal["ollama"]
+    model: str | None = None
+
+
+class AssistantChecksOut(BaseModel):
+    invalid_markers: int = 0
+    cut_short: bool = False
 
 
 class AssistantErrorOut(BaseModel):
@@ -4408,7 +4469,11 @@ class AssistantMessageOut(BaseModel):
     created_at: datetime
     content: str | None
     hidden_reason: str | None = None
-    mode: Literal["preview", "sourcetrace"] | None = None
+    engine: AssistantEngineBriefOut | None = None
+    checks: AssistantChecksOut | None = None
+    internal_used: bool = False
+    suggest_internal: bool = False
+    mode: Literal["preview", "sourcetrace", "ollama"] | None = None
     outcome: Literal["answered", "no_match", "failed"] | None = None
     error: AssistantErrorOut | None = None
     reply_to_id: uuid.UUID | None = None
@@ -4419,6 +4484,22 @@ class AssistantAskOut(BaseModel):
     conversation: AssistantConversationOut
     question: AssistantMessageOut
     answer: AssistantMessageOut
+
+
+class AssistantInternalIn(BaseModel):
+    """`POST /assistant/internal-records` (design assistant-ollama, decision 4)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    case: str = Field(max_length=100, description="case id, ref_no or CNR")
+    conversation_id: uuid.UUID | None = None
+
+
+class AssistantInternalOut(BaseModel):
+    conversation_id: uuid.UUID
+    case_id: uuid.UUID
+    internal_included_at: datetime
+    new_conversation: bool
 
 
 class AssistantThreadOut(BaseModel):

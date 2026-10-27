@@ -42,6 +42,23 @@ from aslms.db.session import get_apart_sessionmaker, get_sessionmaker
 from aslms.services.db_guard import refuse_superuser
 
 
+def warm_assistant_model(app: FastAPI) -> threading.Thread | None:
+    """Design `assistant-ollama`, decision 13: in ollama mode, a background readiness check at start, which loads the
+    model when it is held but not loaded. Never blocks the start; nothing when another mode is set."""
+    from aslms.services import assistant as assistant_svc
+
+    settings = app.state.settings
+    if assistant_svc.portal_mode(settings) != "ollama":
+        return None
+    connector = assistant_svc.assistant_connector(settings, app.state.session_factory)
+    readiness = getattr(connector, "readiness", None)
+    if readiness is None:
+        return None
+    thread = threading.Thread(target=readiness, name="ollama-warm", daemon=True)
+    thread.start()
+    return thread
+
+
 def create_app(settings: Settings | None = None, session_factory=None, apart_session_factory=None) -> FastAPI:
     settings = settings or get_settings()
 
@@ -53,6 +70,7 @@ def create_app(settings: Settings | None = None, session_factory=None, apart_ses
         refuse_superuser(settings.database_url_sync, is_prod=settings.is_prod)
         # Part B, decision 24: request metrics on the internal port (Compose: 9100; 0 opens nothing)
         api_metrics.start_server(settings.api_metrics_port)
+        warm_assistant_model(app)
         yield
 
     # decision 4: the API documentation only in development; app.openapi() still works for the snapshot tool

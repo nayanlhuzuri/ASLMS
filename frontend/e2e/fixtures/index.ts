@@ -89,8 +89,9 @@ function me(): Me {
     user: { ...base.user, id: SAMPLE.userId, full_name: "Anita Sharma Baruah", role: "super_admin", is_active: true, must_change_password: false, must_confirm_profile: false, memberships: MEMBERSHIPS },
     functions: ALL_FUNCTIONS,
     memberships: MEMBERSHIPS,
-    // the Case Assistant shows only while it is on (design assistant, decision 14)
-    assistant_mode: "preview",
+    // the Case Assistant shows only while it is on (design assistant, decision 14); the local model's state, its
+    // banner, scope notes and the case tab's switch (design assistant-ollama, decision 14)
+    assistant_mode: "ollama",
   };
 }
 
@@ -729,6 +730,18 @@ type Override = (url: URL) => unknown;
 /** Overrides by API path (exact) or pattern. */
 const OVERRIDES: [RegExp, Override][] = [
   [/^\/me$/, () => me()],
+  // design assistant-ollama, decision 14: the Assistant screens in the local model's state, the model ready
+  [
+    /^\/assistant\/status$/,
+    () => ({
+      ...(synthFor("/assistant/status")!.body as Record<string, unknown>),
+      mode: "ollama",
+      state: "ready",
+      banner: null,
+      internal_records: "switch",
+      engine: { kind: "ollama", model: "qwen3.5:4b", readiness: "ready", reason: null },
+    }),
+  ],
   // design data-collection-redesign, decision 41: no department name is registered yet (the dev database today)
   [
     /^\/admin\/discovery$/,

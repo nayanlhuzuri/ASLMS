@@ -76,6 +76,9 @@ def test_status_and_me_assistant_mode(world, api, tmp_path):
             "messages_per_conversation": 200,
         },
         "scopes": ["case", "my_cases", "research"],
+        # design assistant-ollama: no local engine and no internal records outside ollama mode
+        "engine": None,
+        "internal_records": "never",
     }
     # preview with APP_ENV=prod answers off too: a unit test (a prod app refuses the test database superuser)
     for mode, extra, me_mode, state in (
@@ -123,6 +126,14 @@ def test_ask_and_read_back_shapes(world, api, case_ids):
         "available",
         "unavailable_reason",
         "open",
+        # design assistant-ollama: the local model's fields, empty on a preview answer
+        "label",
+        "cited",
+        "context",
+        "note",
+        "internal",
+        "what",
+        "visibility",
     }
     assert cit["case"]["visible"] is True and cit["available"] is True
     kinds = {c["source_kind"] for c in a["citations"]}

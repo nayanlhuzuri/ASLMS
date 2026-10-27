@@ -354,3 +354,102 @@
     line-height: 1.5;
   }
 }
+
+/* design assistant-ollama, decision 14: the local model's answer, its sources and the internal-records switch */
+.kindLine {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  align-items: center;
+  font-size: var(--t-xs);
+  font-weight: 600;
+  color: var(--text-3);
+}
+
+.given {
+  margin-top: var(--s1);
+  font-size: var(--t-sm);
+}
+
+.given summary,
+.uncited summary {
+  cursor: pointer;
+  color: var(--accent);
+}
+
+.givenText {
+  margin: var(--s2) 0 0;
+  padding: var(--s3);
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--font-sans);
+  font-size: var(--t-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+
+.uncited {
+  margin-top: var(--s3);
+  font-size: var(--t-sm);
+}
+
+.marker {
+  font-size: var(--t-xs);
+  font-weight: 600;
+  text-decoration: none;
+  vertical-align: super;
+}
+
+.marker:hover,
+.marker:focus-visible {
+  text-decoration: underline;
+}
+
+.suggest {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+  align-items: center;
+  margin-top: var(--s2);
+  padding: var(--s2) var(--s3);
+  background: var(--amber-soft);
+  border-radius: var(--r-md);
+  font-size: var(--t-sm);
+}
+
+.scopeNote {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.included {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--s3);
+  border: 1px solid var(--amber);
+  background: var(--amber-soft);
+  border-radius: var(--r-lg);
+}
+
+.included p {
+  margin: var(--s1) 0 0;
+}
+
+.includedHere {
+  margin: var(--s2) 0;
+  padding: var(--s1) var(--s3);
+  text-align: center;
+  font-size: var(--t-xs);
+  font-weight: 600;
+  color: var(--amber);
+  border-top: 1px dashed var(--amber);
+}

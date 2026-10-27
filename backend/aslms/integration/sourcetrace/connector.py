@@ -133,7 +133,12 @@ class AskRequest:
 @dataclass(frozen=True)
 class Citation:
     """A source of an answer, by reference: the preview names the document id; SourceTrace its own reference,
-    mapped back by the service. `locator` is SourceTrace's own, verbatim."""
+    mapped back by the service. `locator` is SourceTrace's own, verbatim.
+
+    The local model (design `assistant-ollama`, decision 8) lists every source it was given: `label` (`S1`..),
+    `cited` (whether the answer cites it), `context` (the exact court text given to the model, court kinds only),
+    `source_kind` and `record` (a reference to a Case Details source or an internal record, never its text). The
+    defaults keep every earlier caller's behaviour."""
 
     reference: str
     document_id: uuid.UUID | None = None
@@ -142,6 +147,11 @@ class Citation:
     related: bool = False
     locator: dict[str, Any] | None = None
     rank: float | None = None
+    label: str | None = None
+    cited: bool = True
+    context: str | None = None
+    source_kind: str | None = None
+    record: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)

@@ -12,7 +12,7 @@ import type {
   Me,
   Permission,
 } from "@/lib/api/types";
-import { highlights, noteText, sourceLink } from "@/lib/assistant";
+import { groupSources, highlights, kindLabel, markers, narrowestVisibility, noteText, sourceLink } from "@/lib/assistant";
 import { ASSISTANT_ERRORS } from "@/lib/messages";
 import { CASE_TABS, navFor, showsAssistant } from "@/lib/routes";
 import { caseDetail, REF } from "@/test/claimFixtures";
@@ -38,6 +38,8 @@ function status(extra: Partial<AssistantStatus> = {}): AssistantStatus {
     banner: PREVIEW,
     limits: { questions_per_hour: 30, used_last_hour: 4, question_max_chars: 2000, messages_per_conversation: 200 },
     scopes: ["case", "my_cases", "research"],
+    engine: null,
+    internal_records: "never",
     ...extra,
   };
 }
@@ -69,6 +71,13 @@ function cite(extra: Partial<AssistantCitation> = {}): AssistantCitation {
     related: false,
     available: true,
     open: { kind: "document", href: "/cases/c-1/orders/o-1/file?disposition=inline" },
+    label: null,
+    cited: true,
+    context: null,
+    note: null,
+    internal: false,
+    what: null,
+    visibility: null,
     ...extra,
   };
 }
@@ -85,7 +94,17 @@ const OTHER = cite({
 });
 
 function question(id = "q-1", content = "what did the court direct"): AssistantMessage {
-  return { id, role: "user", created_at: "2026-10-23T10:12:00Z", content, citations: [] };
+  return {
+    id,
+    role: "user",
+    created_at: "2026-10-23T10:12:00Z",
+    content,
+    citations: [],
+    engine: null,
+    checks: null,
+    internal_used: false,
+    suggest_internal: false,
+  };
 }
 
 function answer(extra: Partial<AssistantMessage> = {}): AssistantMessage {
@@ -98,6 +117,10 @@ function answer(extra: Partial<AssistantMessage> = {}): AssistantMessage {
     outcome: "answered",
     error: null,
     hidden_reason: null,
+    engine: null,
+    checks: null,
+    internal_used: false,
+    suggest_internal: false,
     reply_to_id: "q-1",
     citations: [cite(), OTHER],
     ...extra,
@@ -425,5 +448,231 @@ describe("the helpers", () => {
     expect(noteText(answer({ content: "text", citations: [cite()] }))).toBe(
       "text\n\nFrom the court records:\n[1] Order of 12 Mar 2026, No. 5, page 2 (WP(C)/1/2026): “The respondents shall file an affidavit within four weeks.”",
     );
+  });
+});
+
+// ------------------------------------------------------------------------------------------------ the local model
+// design assistant-ollama, round 1 (decisions 4, 8 to 10 and 14)
+
+const OLLAMA_BANNER =
+  "Answers are written by a local AI model on the Government's own servers, from the records found. The model can make mistakes: check every answer against the cited order or record before relying on it.";
+
+function ollamaStatus(extra: Partial<AssistantStatus> = {}): AssistantStatus {
+  return status({
+    mode: "ollama",
+    state: "ready",
+    banner: OLLAMA_BANNER,
+    internal_records: "switch",
+    engine: { kind: "ollama", model: "qwen3.5:4b", readiness: "ready", reason: null },
+    ...extra,
+  });
+}
+
+const DETAILS = cite({
+  document_id: null,
+  order_id: null,
+  source_kind: "case_details",
+  doc_type_label: null,
+  doc_date: null,
+  order_no: null,
+  page: null,
+  passage: null,
+  label: "S1",
+  cited: true,
+  context: "Case number: WP(C)/1/2026; Status: pending",
+  open: { kind: "case_tab", href: "/cases/c-1/details" },
+});
+const ORDER = cite({ label: "S2", cited: true, context: "The respondents shall file an affidavit within four weeks." });
+const NOTE = cite({
+  document_id: null,
+  order_id: null,
+  source_kind: "note",
+  doc_type_label: null,
+  doc_date: "2026-10-01",
+  order_no: null,
+  page: null,
+  passage: null,
+  label: "S3",
+  cited: true,
+  internal: true,
+  visibility: "private_to_office",
+  note: { id: "n-1", seq_no: 4, kind_label: "General", corrected_by_seq_no: null },
+  context: "Note 4, General, 01 Oct 2026, by Under Secretary, EDU\nOur stand is to contest.",
+  open: { kind: "case_tab", href: "/cases/c-1/notes#note-4" },
+});
+const UNCITED = cite({ document_id: "d-9", order_id: "o-9", label: "S4", cited: false, related: true, context: "other text" });
+
+function localAnswer(extra: Partial<AssistantMessage> = {}): AssistantMessage {
+  return answer({
+    mode: "ollama",
+    content: "The court directed an affidavit [S2]. According to the department's note, we contest [S3].",
+    engine: { kind: "ollama", model: "qwen3.5:4b" },
+    checks: { invalid_markers: 1, cut_short: true },
+    internal_used: true,
+    citations: [DETAILS, ORDER, NOTE, UNCITED],
+    ...extra,
+  });
+}
+
+const CASE_CONV = conv({ scope: "case", case: { id: "c-1", ref_no: REF, case_no_text: "WP(C)/1/2026" } });
+
+function localRoutes(extra: Record<string, unknown> = {}, c: AssistantConversation = CASE_CONV) {
+  return {
+    "GET /me": me("ollama"),
+    "GET /assistant/status": ollamaStatus(),
+    ["GET " + BASE]: caseDetail({ workflow: { note_mode: "permanent", upload: true, set_stage: true, next_dates: false } } as Partial<CaseDetail>),
+    "GET /assistant/conversations": { total: 1, items: [c] },
+    "GET /assistant/conversations/k-1": thread([question(), localAnswer()], c),
+    "GET /workflow/codes": { note_kinds: [{ code: "general", label: "General", selectable: true }], limits: { note_max_chars: 20000, attachments_max_files: 5 } },
+    "GET /documents/types": { items: [], upload: { max_bytes: 1000, extensions: [".pdf"] } },
+    ["GET " + BASE + "/documents"]: { items: [], total: 0 },
+    ...extra,
+  };
+}
+
+describe("the local model (design assistant-ollama)", () => {
+  it("shows the banner, court information only by default and the switch with its confirmation on the case tab", async () => {
+    const api = browserApi(
+      localRoutes({
+        "POST /assistant/internal-records": {
+          conversation_id: "k-1",
+          case_id: "c-1",
+          internal_included_at: "2026-10-27T10:00:00Z",
+          new_conversation: false,
+        },
+      }),
+    );
+    resetNav(BASE + "/assistant");
+    renderWithClient(<CaseAssistant caseRef={REF} />);
+    expect(await screen.findByText(OLLAMA_BANNER)).toBeInTheDocument();
+    expect(screen.getByText(/Court information only\.$/)).toBeInTheDocument();
+    const button = await screen.findByRole("button", { name: "Include This Case's Internal Records" });
+    await userEvent.click(button);
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/Drafts are never read\. You cannot switch this off in this conversation/)).toBeInTheDocument();
+    expect(api.calls.some((c) => c.path.startsWith("/assistant/internal-records"))).toBe(false); // nothing without Include
+    await userEvent.click(within(dialog).getByRole("button", { name: "Include" }));
+    await waitFor(() => expect(api.calls.some((c) => c.method === "POST" && c.path.startsWith("/assistant/internal-records"))).toBe(true));
+    const post = api.calls.find((c) => c.path.startsWith("/assistant/internal-records"))!;
+    expect(post.body).toEqual({ case: REF, conversation_id: "k-1" });
+  });
+
+  it("after the switch: the banner with its time, Start a Court-Only Conversation and the mark in the thread", async () => {
+    const c = conv({ ...CASE_CONV, internal_included_at: "2026-10-23T10:12:00Z" });
+    browserApi(localRoutes({}, c));
+    resetNav(BASE + "/assistant");
+    renderWithClient(<CaseAssistant caseRef={REF} />);
+    expect(await screen.findByText("Internal Records of This Case Included")).toBeInTheDocument();
+    expect(screen.getByText(/pending actions and department documents you can open\. Drafts are never read\./)).toBeInTheDocument();
+    expect(await screen.findByText("Internal records included from here")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Include This Case's Internal Records" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Start a Court-Only Conversation" }));
+    expect(await screen.findByText("Ask a Question")).toBeInTheDocument(); // a new, empty conversation
+  });
+
+  it("answers carry the Local Model badge, markers linking to sources, both groups and the text given", async () => {
+    browserApi(localRoutes());
+    resetNav(BASE + "/assistant");
+    renderWithClient(<CaseAssistant caseRef={REF} />);
+    const box = await screen.findByRole("log", { name: "Conversation" });
+    expect(await within(box).findByText("Local Model")).toBeInTheDocument();
+    expect(within(box).getByText("qwen3.5:4b")).toBeInTheDocument();
+    expect(within(box).getAllByText("Assistant (Local Model)").length).toBeGreaterThan(0);
+    expect(within(box).getByText("Uses internal records of this case")).toBeInTheDocument();
+    expect(within(box).getByText("A reference to a source that was not given was removed.")).toBeInTheDocument();
+    expect(within(box).getByText("Answer Cut Short")).toBeInTheDocument();
+    expect(within(box).getByText("Written by a local AI model from the sources below. Check it against the cited order or record.")).toBeInTheDocument();
+    const marker = within(box).getByRole("link", { name: "Go to source S3" });
+    expect(marker).toHaveAttribute("href", "#src-a-1-S3");
+    const panel = screen.getByRole("complementary", { name: "Sources Used" });
+    expect(within(panel).getByRole("list", { name: "Court Record" })).toBeInTheDocument();
+    const internal = within(panel).getByRole("list", { name: "Internal Records" });
+    expect(within(internal).getByText("Internal")).toBeInTheDocument();
+    expect(within(internal).getByRole("link", { name: /Note 4, General/ })).toHaveAttribute("href", "/cases/c-1/notes#note-4");
+    expect(within(panel).getByText("Other Sources Given (Not Cited)")).toBeInTheDocument();
+    expect(within(panel).getAllByText("Text Given to the Model").length).toBe(4);
+    expect(panel.querySelector("#src-a-1-S3")).not.toBeNull();
+  });
+
+  it("the suggestion offers the switch and does nothing without the click", async () => {
+    const api = browserApi(
+      localRoutes({
+        "GET /assistant/conversations/k-1": thread(
+          [question(), localAnswer({ suggest_internal: true, internal_used: false, citations: [DETAILS, ORDER] })],
+          CASE_CONV,
+        ),
+      }),
+    );
+    resetNav(BASE + "/assistant");
+    renderWithClient(<CaseAssistant caseRef={REF} />);
+    expect(await screen.findByText("This may be in your internal records. Include them?")).toBeInTheDocument();
+    expect(api.calls.some((c) => c.path.startsWith("/assistant/internal-records"))).toBe(false);
+  });
+
+  it("never offers the switch on the Assistant page", async () => {
+    browserApi({ ...pageRoutes([conv()], [question(), localAnswer()]), "GET /me": me("ollama"), "GET /assistant/status": ollamaStatus() });
+    renderWithClient(<AssistantPage />);
+    expect(await screen.findByText("Court information only. Notes and internal records are never used here.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Include This Case's Internal Records" })).toBeNull();
+  });
+
+  it("without the read guard the case tab never shows the switch", async () => {
+    browserApi(localRoutes({ "GET /me": me("ollama", ["documents.view", "assistant.use", "notes.add"]) }));
+    resetNav(BASE + "/assistant");
+    renderWithClient(<CaseAssistant caseRef={REF} />);
+    await screen.findByText(OLLAMA_BANNER);
+    expect(screen.queryByRole("button", { name: "Include This Case's Internal Records" })).toBeNull();
+  });
+
+  it("conversation list items switched on are marked", async () => {
+    const marked = conv({ internal_included_at: "2026-10-23T10:12:00Z" });
+    browserApi({ ...pageRoutes([marked], [question(), localAnswer()]), "GET /me": me("ollama"), "GET /assistant/status": ollamaStatus() });
+    renderWithClient(<AssistantPage />);
+    const list = await screen.findByRole("complementary", { name: "Conversations" });
+    expect(await within(list).findByText("Internal Records Included")).toBeInTheDocument();
+  });
+
+  it("readiness notices and the refusals are in words", async () => {
+    browserApi({
+      ...pageRoutes([], []),
+      "GET /me": me("ollama"),
+      "GET /assistant/status": ollamaStatus({ engine: { kind: "ollama", model: "qwen3.5:4b", readiness: "loading", reason: "not_loaded" } }),
+    });
+    renderWithClient(<AssistantPage />);
+    expect(await screen.findByText(/The Case Assistant is starting/)).toBeInTheDocument();
+    expect(ASSISTANT_ERRORS.assistant_loading!({})).toBe("The Case Assistant is starting. Try again in a minute.");
+    expect(ASSISTANT_ERRORS.assistant_unavailable!({})).toBe("The Case Assistant's model is not available at the moment. Try again later.");
+    expect(ASSISTANT_ERRORS.assistant_busy!({})).toBe("The Case Assistant is busy with another question. Try again shortly.");
+    expect(ASSISTANT_ERRORS.no_internal_records!({})).toBe("There are no internal records of this case that you can open.");
+  });
+
+  it("Copy to note presets the narrowest visibility of the cited internal records and warns", async () => {
+    browserApi(localRoutes());
+    resetNav(BASE + "/assistant");
+    renderWithClient(<CaseAssistant caseRef={REF} />);
+    const box = await screen.findByRole("log", { name: "Conversation" });
+    await userEvent.click(await within(box).findByRole("button", { name: "Copy to Note" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("This answer draws on internal records. Choose who may read the note with care.")).toBeInTheDocument();
+    const checked = within(dialog).getAllByRole("radio").find((r) => (r as HTMLInputElement).checked) as HTMLInputElement;
+    expect(checked.value).toBe("private_to_office");
+    const note = (await within(dialog).findByLabelText("Note")) as HTMLTextAreaElement;
+    expect(note.value).not.toContain("other text"); // uncited sources are not copied
+  });
+
+  it("the helpers: markers, groups, kinds and the narrowest visibility", () => {
+    expect(markers("a [S1] b [S12].")).toEqual([
+      { text: "a " },
+      { text: "[S1]", label: "S1" },
+      { text: " b " },
+      { text: "[S12]", label: "S12" },
+      { text: "." },
+    ]);
+    const g = groupSources([DETAILS, ORDER, NOTE, UNCITED].map((c, i) => ({ c, n: i + 1 })));
+    expect([g.court.length, g.internal.length, g.uncited.length]).toEqual([2, 1, 1]);
+    expect(kindLabel(cite({ source_kind: "department_document", what: "note_attachment" }))).toBe("Note Attachment");
+    expect(kindLabel(NOTE)).toBe("Note");
+    expect(narrowestVisibility(localAnswer())).toBe("private_to_office");
+    expect(narrowestVisibility(answer())).toBeNull();
   });
 });

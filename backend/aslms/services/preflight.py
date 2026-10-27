@@ -21,8 +21,14 @@ Two rules are fatal at every `APP_ENV` (design pre-pilot-hardening, decisions 2 
 `test` or `prod` (refused when the settings load; `aslms ops preflight` reports it by name), and a libpq older than 17
 (`libpq_floor`: PgBouncer transaction pooling with protocol-level prepared statements needs it; a build defect).
 A third is fatal everywhere too (design followups-oct, decision 25): `no_local_model`, an installed onnxruntime (or a
-PyMuPDF add-on that brings one) or its marker bytes in the installed `pymupdf` package. The connection budget
-(`connection_budget`, decision 4) is an error in prod and a warning otherwise.
+PyMuPDF add-on that brings one) or its marker bytes in the installed `pymupdf` package, and (design `assistant-ollama`,
+decision 15) a model runtime (`llama-cpp-python`, `torch`, `transformers`, `vllm`, `gpt4all`, `ctransformers`): no
+model inside ASLMS's processes; the only model is the Ollama server named by `ASSISTANT_OLLAMA_URL`
+(ASSISTANT_MODE=ollama), on Government infrastructure. A fourth (decision 12): `no_cloud_model`, an
+`ASSISTANT_OLLAMA_MODEL` naming a cloud model or an `ASSISTANT_OLLAMA_URL` on ollama.com, with user information or a
+query. In ollama mode the address must resolve to loopback, private or link-local addresses only (an error in prod, a
+warning otherwise; a name that does not resolve is a warning). The connection budget (`connection_budget`, decision 4)
+is an error in prod and a warning otherwise.
 
 A finding names the variable and the rule; it never carries a value."""
 
@@ -204,6 +210,7 @@ def check(settings: Any, component: str = "init") -> list[Finding]:
     raw.extend(_monitoring_rules(settings))
     findings = [Finding(level, variable, message) for variable, message in raw]
     findings.extend(assistant_rules(settings))
+    findings.extend(ollama_rules(settings))
     warning = alert_mail_warning(settings)
     if warning:
         findings.append(warning)
@@ -219,8 +226,11 @@ def check(settings: Any, component: str = "init") -> list[Finding]:
     return findings
 
 
-# "no local model" (CLAUDE.md: all AI goes through SourceTrace; design followups-oct, decisions 24 and 25): nothing
-# that brings an onnxruntime may be installed, and the PDF library must not carry one linked into its native code
+# "no local model" (CLAUDE.md: all AI goes through the Case Assistant connector interface; design followups-oct,
+# decisions 24 and 25, and assistant-ollama, decision 15): no model inside ASLMS's processes — nothing that brings an
+# onnxruntime or a model runtime may be installed, and the PDF library must not carry one linked into its native code;
+# the only model is the Ollama server named by ASSISTANT_OLLAMA_URL (ASSISTANT_MODE=ollama), on Government
+# infrastructure
 MODEL_DISTRIBUTIONS = ("onnxruntime", "pymupdf-layout", "pymupdf4llm")
 MODEL_MARKERS = (b"onnxruntime", b"OrtGetApiBase", b".onnx")
 _CHUNK = 1 << 20
@@ -235,6 +245,16 @@ def _distribution_names() -> list[str]:
         if name:
             names.append(name)
     return names
+
+
+# design assistant-ollama, decision 15: model runtimes and libraries never run inside ASLMS's processes
+RUNTIME_DISTRIBUTIONS = ("llama-cpp-python", "torch", "transformers", "vllm", "gpt4all", "ctransformers")
+
+
+def runtime_distributions(names: list[str] | None = None) -> list[str]:
+    """Installed distributions that are a model runtime (decision 15 of `assistant-ollama`)."""
+    names = _distribution_names() if names is None else [n.lower().replace("_", "-") for n in names]
+    return sorted(n for n in set(names) if n in RUNTIME_DISTRIBUTIONS)
 
 
 def model_distributions(names: list[str] | None = None) -> list[str]:
@@ -278,6 +298,11 @@ def no_local_model(names: list[str] | None = None, pymupdf_root: Any = "default"
     found = model_distributions(names)
     if found:
         return Finding(FATAL, "no_local_model", f"onnxruntime found in the installed distribution {found[0]}")
+    runtimes = runtime_distributions(names)
+    if runtimes:
+        return Finding(
+            FATAL, "no_local_model", f"a model runtime found in the installed distribution {runtimes[0]}"
+        )
     hit = file_with_marker(_pymupdf_dir() if pymupdf_root == "default" else pymupdf_root)
     if hit is not None:
         return Finding(FATAL, "no_local_model", f"onnxruntime found in {hit}")
@@ -341,6 +366,74 @@ def assistant_rules(settings: Any) -> list[Finding]:
                 )
             ]
     return []
+
+
+def _resolve(host: str) -> list[str] | None:
+    import socket
+
+    try:
+        return sorted({info[4][0] for info in socket.getaddrinfo(host, None)})
+    except (OSError, UnicodeError):
+        return None
+
+
+def _private(address: str) -> bool:
+    import ipaddress
+
+    try:
+        ip = ipaddress.ip_address(address.split("%", 1)[0])
+    except ValueError:
+        return False
+    if ip.is_loopback or ip.is_link_local:
+        return True
+    if ip.version == 4:
+        return any(ip in ipaddress.ip_network(n) for n in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"))
+    return ip in ipaddress.ip_network("fc00::/7")
+
+
+def ollama_rules(settings: Any, resolve: Any = None) -> list[Finding]:
+    """Design `assistant-ollama`, decision 12. `no_cloud_model` (fatal at every `APP_ENV`): a cloud model name or tag,
+    or an address on ollama.com, with user information or a query. In ollama mode, the address must resolve only to
+    loopback, private (RFC 1918, fc00::/7) or link-local addresses (an error in prod, a warning otherwise; a name that
+    does not resolve is a warning), and `ASSISTANT_OLLAMA_TIMEOUT_SECONDS` above `ASSISTANT_TIMEOUT_SECONDS` less 5 is a
+    warning (the model's share is cut). Lines name the variables, never their values."""
+    from urllib.parse import urlsplit
+
+    from aslms.services.assistant_ollama import cloud_problems
+
+    findings = [Finding(FATAL, "no_cloud_model", f"{var} {why}") for var, why in cloud_problems(settings)]
+    mode = (getattr(settings, "assistant_mode", "off") or "off").strip().lower()
+    if mode != "ollama" or findings:
+        return findings
+    level = ERROR if getattr(settings, "app_env", "dev") == "prod" else WARNING
+    host = urlsplit(settings.assistant_ollama_url).hostname or ""
+    addresses = (resolve or _resolve)(host)
+    if addresses is None:
+        findings.append(
+            Finding(
+                WARNING,
+                "ASSISTANT_OLLAMA_URL",
+                "does not resolve; the Case Assistant model cannot be reached",
+            )
+        )
+    elif not addresses or not all(_private(a) for a in addresses):
+        findings.append(
+            Finding(
+                level,
+                "ASSISTANT_OLLAMA_URL",
+                "resolves to an address that is not loopback, private or link-local; the model must run on the "
+                "ASLMS host or a Government server on the private network",
+            )
+        )
+    if float(settings.assistant_ollama_timeout_seconds) > float(settings.assistant_timeout_seconds) - 5:
+        findings.append(
+            Finding(
+                WARNING,
+                "ASSISTANT_OLLAMA_TIMEOUT_SECONDS",
+                "is more than ASSISTANT_TIMEOUT_SECONDS less 5; the model gets at most ASSISTANT_TIMEOUT_SECONDS less 5",
+            )
+        )
+    return findings
 
 
 def libpq_floor(version: int | None = None) -> Finding | None:

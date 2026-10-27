@@ -17,6 +17,11 @@
 # on the host or through an SSH tunnel, never through the proxy. Profile `monitoring-host` adds node-exporter and cadvisor on a Linux VM.
 # ASLMS_READONLY_PASSWORD, GRAFANA_ADMIN_PASSWORD and FLOWER_BASIC_AUTH are required.
 #
+# The Case Assistant's local model (design assistant-ollama, decision 16): with ASSISTANT_MODE=ollama the api reaches
+# Ollama on the host at http://host.docker.internal:11434 (`extra_hosts` on api and init); optionally the `ollama`
+# service in profile `ollama` (ASSISTANT_OLLAMA_URL=http://ollama:11434), with a GPU only through
+# compose.ollama-gpu.yml. Never a cloud model; runbook section "The local Case Assistant model (Ollama)".
+#
 # Migrations: `init` migrates only a fresh, empty database. An upgrade is explicit: build, `docker compose stop api
 # worker scheduler web pgbouncer`, `docker compose --profile ops run --rm migrate`, then `docker compose up -d`.
 # Database roles (DB_STANDARD §8): init, migrate and backup alone connect as POSTGRES_USER; api, worker and
@@ -210,6 +215,9 @@ services:
       postgres:
         condition: service_healthy
     command: sh -c "aslms ops preflight && aslms ops store-check && aslms ops db-guard && aslms db-roles && aslms seed"
+    # preflight resolves ASSISTANT_OLLAMA_URL (design assistant-ollama, decision 12)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: "no"
     <<: *hardening
     logging: *logging
@@ -249,6 +257,9 @@ services:
     networks:
       - default
       - portal
+    # the Case Assistant's local model on the host, when ASSISTANT_MODE=ollama (design assistant-ollama, decision 16)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     # X-Forwarded-For is trusted only from the web container (design portal-shell, decision 7): audit rows then
     # carry the browser's address, which the proxy writes and web forwards (decision 8).
     command: uvicorn aslms.api.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips ${WEB_IP:-172.28.0.10}
@@ -689,6 +700,30 @@ services:
       - no-new-privileges:true
     logging: *logging
 
+  ollama:
+    # optional (design assistant-ollama, decision 16): the Case Assistant's local model inside Compose, profile
+    # `ollama`, with ASSISTANT_OLLAMA_URL=http://ollama:11434. No published port and no env_file: no secret reaches
+    # it. Pull the model once with `docker compose exec ollama ollama pull qwen3.5:4b`. CPU only unless
+    # compose.ollama-gpu.yml is added to COMPOSE_FILE. Never `ollama signin`, never OLLAMA_DEBUG (prompts can hold
+    # notes). The tag is pinned to a 0.40.x release; the owner confirms it in the live check.
+    image: ollama/ollama:0.40.0
+    profiles: ["ollama"]
+    environment:
+      OLLAMA_KEEP_ALIVE: "-1"
+      OLLAMA_NUM_PARALLEL: "1"
+    volumes:
+      - ollama_models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    logging: *logging
+
 networks:
   # postgres, redis, clamav and the backend services
   default: {}
@@ -706,3 +741,4 @@ volumes:
   prometheus_v3:
   alertmanager_v3:
   grafana_v3:
+  ollama_models:

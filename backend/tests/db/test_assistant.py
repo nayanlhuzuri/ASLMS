@@ -841,6 +841,14 @@ GONE_FILING = {
     "available": False,
     "unavailable_reason": svc.UNAVAILABLE,
     "open": None,
+    # design assistant-ollama: the extended citation shape, naming nothing either
+    "label": None,
+    "cited": True,
+    "context": None,
+    "note": None,
+    "internal": False,
+    "what": None,
+    "visibility": None,
 }
 
 
@@ -1146,7 +1154,14 @@ def test_cli_ask_refused_in_prod_and_prints_citations(world, scene, monkeypatch)
 def test_check_counts_zero(world, scene, monkeypatch):
     sup.ask(world, "edu_off1", "quokka", "case", case=scene["a"])
     with world.Session() as s:
-        assert svc.check(s) == {"citations_out_of_rule": 0, "case_conversations_without_case": 0}
+        assert svc.check(s) == {
+            "citations_out_of_rule": 0,
+            "case_conversations_without_case": 0,
+            # design assistant-ollama, "Data": three more counts
+            "internal_citations_out_of_reach": 0,
+            "internal_citations_of_another_case": 0,
+            "citations_of_unknown_kind": 0,
+        }
     attachment = _filing(
         world,
         scene,

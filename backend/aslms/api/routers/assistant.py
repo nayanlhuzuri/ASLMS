@@ -1,6 +1,7 @@
 """The Case Assistant (design `assistant`, "API"): the status, a question with its answer, the caller's own
-conversations, and the court-record view of a cited court order. Every endpoint needs `assistant.use`. Errors carry
-`{code, message}`; 429 adds `retry_after` and `Retry-After`. Unknown and not visible both answer 404.
+conversations, the court-record view of a cited court order, and (design `assistant-ollama`) the switch "Include This
+Case's Internal Records". Every endpoint needs `assistant.use`. Errors carry `{code, message}`; 429 and the 503s
+`assistant_loading` and `assistant_busy` add `retry_after` and `Retry-After`. Unknown and not visible both answer 404.
 
 A question runs in three short steps (`services/assistant.py`): the request's own transaction is committed before the
 connector is called, so no transaction is held while a person waits (decision 9). Conversations are private: no
@@ -34,6 +35,7 @@ use = require(Permission.ASSISTANT_USE)
 NOT_FOUND = (NotVisibleCase, CaseNotFound, svc.ConversationNotFound, svc.CourtOrderNotFound)
 HANDLED = (*NOT_FOUND, svc.AssistantError, DocumentError, FileMissing)
 ERRORS = {
+    403: {"model": schemas.ErrorOut},
     404: {"model": schemas.ErrorOut},
     409: {"model": schemas.ErrorOut},
     422: {"model": schemas.ErrorOut},
@@ -43,9 +45,9 @@ ERRORS = {
 
 
 def _http(exc: Exception) -> HTTPException:
-    if isinstance(exc, svc.AssistantLimit):
+    if isinstance(exc, svc.AssistantLimit | svc.AssistantLoading | svc.AssistantBusy):
         return HTTPException(
-            status.HTTP_429_TOO_MANY_REQUESTS,
+            exc.http_status,
             {"code": exc.code, "message": str(exc), "retry_after": exc.retry_after},
             headers={"Retry-After": str(exc.retry_after)},
         )
@@ -82,8 +84,11 @@ def get_status(
     request: Request, session: Session = Depends(get_session), user: User = Depends(use)
 ) -> schemas.AssistantStatusOut:
     """The mode, the state (`not_implemented` while SourceTrace is chosen and no connector exists), the banner, the
-    limits with the caller's questions of the last hour, and the scopes."""
-    return schemas.AssistantStatusOut(**svc.status(session, user, request.app.state.settings))
+    limits with the caller's questions of the last hour, the scopes, and in ollama mode the local model's readiness
+    (`engine`; reading it may start loading the model) and `internal_records` `switch`."""
+    return schemas.AssistantStatusOut(
+        **svc.status(session, user, request.app.state.settings, connector=_connector(request))
+    )
 
 
 @router.post("/ask", response_model=schemas.AssistantAskOut, responses=ERRORS)
@@ -101,8 +106,10 @@ def ask(
     `case` outside the case scope, refused before the case is looked up, or a scope or case other than the
     conversation's); 404 (a case unknown or not visible, answered alike, or a conversation not the caller's); 422
     `bad_question` (length, control characters with `reason` `control_characters`); 409 `question_in_flight` (one
-    unanswered question per user across all conversations) / `conversation_full`; 429 `assistant_limit`. Audited
-    without the text."""
+    unanswered question per user across all conversations) / `conversation_full`; 429 `assistant_limit`. In ollama
+    mode: 503 `assistant_loading` (`Retry-After` 30), `assistant_unavailable` and `assistant_busy` (`Retry-After` 5),
+    none stored or counted; internal records only for a case-scope conversation switched on through
+    `POST /assistant/internal-records` (extra fields are refused with 422). Audited without the text."""
     case_id: uuid.UUID | None = None
     try:
         if body.case and body.scope != "case":
@@ -141,6 +148,51 @@ def ask(
         )
     except HANDLED as exc:
         raise _http(exc) from exc
+
+
+@router.post("/internal-records", response_model=schemas.AssistantInternalOut, responses=ERRORS)
+def include_internal(
+    body: schemas.AssistantInternalIn,
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(use),
+) -> schemas.AssistantInternalOut:
+    """Switch on "Include This Case's Internal Records" for the caller's own case-tab conversation of `case`
+    (`conversation_id`), or for a new empty one (design assistant-ollama, decision 4). From then on that conversation's
+    questions also read the case's notes, file movement with remarks, pending actions and department documents the
+    caller may open on the case page (never drafts, never another case's). It cannot be switched off: a court-only
+    conversation is a new conversation. Idempotent (200 with the existing time, no second audit row). 422
+    `internal_unavailable` outside ollama mode; 404 when the case is unknown or not visible, or the conversation is not
+    the caller's; 422 `scope_mismatch` for a conversation of another case or scope; 403 `internal_not_permitted`
+    without `cases.view_scope` or `cases.view_all`; 422 `no_internal_records` when the caller can open none. No model
+    call. Audited `assistant.internal_included` (ids only)."""
+    connector = _connector(request)
+    mode = svc.mode_of(connector) if connector is not None else "off"
+    try:
+        if mode != "ollama":
+            raise svc.InternalUnavailable(
+                "internal records can be included only when the local model answers"
+            )
+        case_row = resolve_case_ref(session, body.case)
+        if not visibility.can_view_case(session, user, case_row):
+            raise CaseNotFound("no such case")
+        case_id = case_row.id
+    except HANDLED as exc:
+        raise _http(exc) from exc
+    actor = actor_of(request, user, session)
+    session.commit()
+    try:
+        out = svc.include_internal(
+            request.app.state.session_factory,
+            actor,
+            user,
+            case=case_id,
+            conversation_id=body.conversation_id,
+            mode=mode,
+        )
+    except HANDLED as exc:
+        raise _http(exc) from exc
+    return schemas.AssistantInternalOut(**out)
 
 
 @router.get("/conversations", response_model=schemas.AssistantConversationListOut, responses=ERRORS)

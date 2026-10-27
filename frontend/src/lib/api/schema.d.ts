@@ -2443,8 +2443,10 @@ export interface paths {
          *     `case` outside the case scope, refused before the case is looked up, or a scope or case other than the
          *     conversation's); 404 (a case unknown or not visible, answered alike, or a conversation not the caller's); 422
          *     `bad_question` (length, control characters with `reason` `control_characters`); 409 `question_in_flight` (one
-         *     unanswered question per user across all conversations) / `conversation_full`; 429 `assistant_limit`. Audited
-         *     without the text.
+         *     unanswered question per user across all conversations) / `conversation_full`; 429 `assistant_limit`. In ollama
+         *     mode: 503 `assistant_loading` (`Retry-After` 30), `assistant_unavailable` and `assistant_busy` (`Retry-After` 5),
+         *     none stored or counted; internal records only for a case-scope conversation switched on through
+         *     `POST /assistant/internal-records` (extra fields are refused with 422). Audited without the text.
          */
         post: operations["ask_assistant_ask_post"];
         delete?: never;
@@ -2541,6 +2543,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/assistant/internal-records": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Include Internal
+         * @description Switch on "Include This Case's Internal Records" for the caller's own case-tab conversation of `case`
+         *     (`conversation_id`), or for a new empty one (design assistant-ollama, decision 4). From then on that conversation's
+         *     questions also read the case's notes, file movement with remarks, pending actions and department documents the
+         *     caller may open on the case page (never drafts, never another case's). It cannot be switched off: a court-only
+         *     conversation is a new conversation. Idempotent (200 with the existing time, no second audit row). 422
+         *     `internal_unavailable` outside ollama mode; 404 when the case is unknown or not visible, or the conversation is not
+         *     the caller's; 422 `scope_mismatch` for a conversation of another case or scope; 403 `internal_not_permitted`
+         *     without `cases.view_scope` or `cases.view_all`; 422 `no_internal_records` when the caller can open none. No model
+         *     call. Audited `assistant.internal_included` (ids only).
+         */
+        post: operations["include_internal_assistant_internal_records_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/assistant/status": {
         parameters: {
             query?: never;
@@ -2551,7 +2581,8 @@ export interface paths {
         /**
          * Get Status
          * @description The mode, the state (`not_implemented` while SourceTrace is chosen and no connector exists), the banner, the
-         *     limits with the caller's questions of the last hour, and the scopes.
+         *     limits with the caller's questions of the last hour, the scopes, and in ollama mode the local model's readiness
+         *     (`engine`; reading it may start loading the model) and `internal_records` `switch`.
          */
         get: operations["get_status_assistant_status_get"];
         put?: never;
@@ -4901,7 +4932,11 @@ export interface components {
             /** Status */
             status: string | null;
         };
-        /** AssistantAskIn */
+        /**
+         * AssistantAskIn
+         * @description Extra fields are refused (422): no client flag can ask for internal records (design assistant-ollama,
+         *     decision 4); the server decides from the stored conversation alone.
+         */
         AssistantAskIn: {
             /**
              * Case
@@ -4941,6 +4976,19 @@ export interface components {
             /** Ref No */
             ref_no: string;
         };
+        /** AssistantChecksOut */
+        AssistantChecksOut: {
+            /**
+             * Cut Short
+             * @default false
+             */
+            cut_short: boolean;
+            /**
+             * Invalid Markers
+             * @default 0
+             */
+            invalid_markers: number;
+        };
         /**
          * AssistantCitationCaseOut
          * @description `id` only when the reader can open the case; CNR and case number are court-public.
@@ -4955,17 +5003,38 @@ export interface components {
             /** Visible */
             visible: boolean;
         };
-        /** AssistantCitationOut */
+        /**
+         * AssistantCitationOut
+         * @description Design assistant-ollama, decisions 8 and 9: `label` (`S1`..) and `cited` on local-model answers (every source
+         *     given is listed; `cited` false under "Other Sources Given"); `context` the text given to the model (court kinds as
+         *     stored; Case Details and internal kinds re-rendered at read time; null when unavailable); `internal` for the
+         *     department's own records.
+         */
         AssistantCitationOut: {
             /** Available */
             available: boolean;
             case: components["schemas"]["AssistantCitationCaseOut"];
+            /**
+             * Cited
+             * @default true
+             */
+            cited: boolean;
+            /** Context */
+            context?: string | null;
             /** Doc Date */
             doc_date: string | null;
             /** Doc Type Label */
             doc_type_label: string | null;
             /** Document Id */
             document_id: string | null;
+            /**
+             * Internal
+             * @default false
+             */
+            internal: boolean;
+            /** Label */
+            label?: string | null;
+            note?: components["schemas"]["AssistantCitedNoteOut"] | null;
             open: components["schemas"]["AssistantOpenOut"] | null;
             /** Order Id */
             order_id?: string | null;
@@ -4981,12 +5050,33 @@ export interface components {
              * Source Kind
              * @enum {string}
              */
-            source_kind: "court_order" | "court_filing";
+            source_kind: "court_order" | "court_filing" | "case_details" | "note" | "file_movement" | "department_document";
             /**
              * Unavailable Reason
              * @description set when the source is no longer available to the reader; every field naming it is then null
              */
             unavailable_reason?: string | null;
+            /**
+             * Visibility
+             * @description an internal record's own setting (a file movement with remarks counts as private_to_office); the portal presets Copy to note to the narrowest of the cited records
+             */
+            visibility?: ("case_scope" | "counsel_shared" | "private_to_office") | null;
+            /** What */
+            what?: "note_attachment" | null;
+        };
+        /** AssistantCitedNoteOut */
+        AssistantCitedNoteOut: {
+            /** Corrected By Seq No */
+            corrected_by_seq_no?: number | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind Label */
+            kind_label: string;
+            /** Seq No */
+            seq_no: number;
         };
         /** AssistantConversationListOut */
         AssistantConversationListOut: {
@@ -5008,6 +5098,11 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /**
+             * Internal Included At
+             * @description when the asker switched on this case's internal records (design assistant-ollama); null when court-only
+             */
+            internal_included_at?: string | null;
             /** Last Message At */
             last_message_at: string | null;
             /** Message Count */
@@ -5079,12 +5174,76 @@ export interface components {
             case_visible: boolean;
             order: components["schemas"]["AssistantCourtOrderOut"];
         };
+        /** AssistantEngineBriefOut */
+        AssistantEngineBriefOut: {
+            /**
+             * Kind
+             * @constant
+             */
+            kind: "ollama";
+            /** Model */
+            model?: string | null;
+        };
+        /**
+         * AssistantEngineOut
+         * @description The local model's readiness (design assistant-ollama, decision 13); `reason` when not ready: `not_loaded`,
+         *     `unreachable`, `missing`, `not_local` or `cloud`.
+         */
+        AssistantEngineOut: {
+            /**
+             * Kind
+             * @constant
+             */
+            kind: "ollama";
+            /** Model */
+            model: string;
+            /**
+             * Readiness
+             * @enum {string}
+             */
+            readiness: "ready" | "loading" | "unavailable";
+            /** Reason */
+            reason?: string | null;
+        };
         /** AssistantErrorOut */
         AssistantErrorOut: {
             /** Family */
             family: string | null;
             /** Message */
             message: string;
+        };
+        /**
+         * AssistantInternalIn
+         * @description `POST /assistant/internal-records` (design assistant-ollama, decision 4).
+         */
+        AssistantInternalIn: {
+            /**
+             * Case
+             * @description case id, ref_no or CNR
+             */
+            case: string;
+            /** Conversation Id */
+            conversation_id?: string | null;
+        };
+        /** AssistantInternalOut */
+        AssistantInternalOut: {
+            /**
+             * Case Id
+             * Format: uuid
+             */
+            case_id: string;
+            /**
+             * Conversation Id
+             * Format: uuid
+             */
+            conversation_id: string;
+            /**
+             * Internal Included At
+             * Format: date-time
+             */
+            internal_included_at: string;
+            /** New Conversation */
+            new_conversation: boolean;
         };
         /** AssistantLimitsOut */
         AssistantLimitsOut: {
@@ -5103,6 +5262,7 @@ export interface components {
          *     see). A failed answer carries `error` in words.
          */
         AssistantMessageOut: {
+            checks?: components["schemas"]["AssistantChecksOut"] | null;
             /** Citations */
             citations: components["schemas"]["AssistantCitationOut"][];
             /** Content */
@@ -5112,6 +5272,7 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            engine?: components["schemas"]["AssistantEngineBriefOut"] | null;
             error?: components["schemas"]["AssistantErrorOut"] | null;
             /** Hidden Reason */
             hidden_reason?: string | null;
@@ -5120,8 +5281,13 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /**
+             * Internal Used
+             * @default false
+             */
+            internal_used: boolean;
             /** Mode */
-            mode?: ("preview" | "sourcetrace") | null;
+            mode?: ("preview" | "sourcetrace" | "ollama") | null;
             /** Outcome */
             outcome?: ("answered" | "no_match" | "failed") | null;
             /** Reply To Id */
@@ -5131,11 +5297,18 @@ export interface components {
              * @enum {string}
              */
             role: "user" | "assistant" | "system";
+            /**
+             * Suggest Internal
+             * @default false
+             */
+            suggest_internal: boolean;
         };
         /**
          * AssistantOpenOut
          * @description `document`: an API file route (the portal adds its relay prefix and `#page=`); `court_order`: the court-record
-         *     view of a cited order of a case the reader cannot open (`/assistant/court-orders/{id}?message=`).
+         *     view of a cited order of a case the reader cannot open (`/assistant/court-orders/{id}?message=`); `case_tab`: a
+         *     portal path of the case page (the notes tab for a note, the custody tab for the file movement, the details tab for
+         *     Case Details).
          */
         AssistantOpenOut: {
             /** Href */
@@ -5144,22 +5317,31 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "document" | "court_order";
+            kind: "document" | "court_order" | "case_tab";
         };
         /**
          * AssistantStatusOut
          * @description `GET /assistant/status` (design assistant, decision 2): `state` `not_implemented` while `sourcetrace` is
-         *     chosen and no connector exists (row 36); `banner` the notice every Assistant screen shows.
+         *     chosen and no connector exists (row 36); `banner` the notice every Assistant screen shows. Design
+         *     assistant-ollama: `engine` the local model's readiness (reading it may start a load), `internal_records` `switch`
+         *     in ollama mode (the case tab's "Include This Case's Internal Records") and `never` otherwise.
          */
         AssistantStatusOut: {
             /** Banner */
             banner: string | null;
+            engine?: components["schemas"]["AssistantEngineOut"] | null;
+            /**
+             * Internal Records
+             * @default never
+             * @enum {string}
+             */
+            internal_records: "switch" | "never";
             limits: components["schemas"]["AssistantLimitsOut"];
             /**
              * Mode
              * @enum {string}
              */
-            mode: "off" | "preview" | "sourcetrace";
+            mode: "off" | "preview" | "sourcetrace" | "ollama";
             /** Scopes */
             scopes: ("case" | "my_cases" | "research")[];
             /**
@@ -9139,11 +9321,11 @@ export interface components {
         MeOut: {
             /**
              * Assistant Mode
-             * @description the Case Assistant's state for the portal (design assistant): off (also while SourceTrace is chosen but not implemented), preview or sourcetrace
+             * @description the Case Assistant's state for the portal (design assistant): off (also while SourceTrace is chosen but not implemented), preview, sourcetrace or ollama (a local model, design assistant-ollama)
              * @default off
              * @enum {string}
              */
-            assistant_mode: "off" | "preview" | "sourcetrace";
+            assistant_mode: "off" | "preview" | "sourcetrace" | "ollama";
             /** Functions */
             functions: components["schemas"]["Permission"][];
             /** Memberships */
@@ -18378,6 +18560,15 @@ export interface operations {
                     "application/json": components["schemas"]["AssistantAskOut"];
                 };
             };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
             /** @description Not Found */
             404: {
                 headers: {
@@ -18446,6 +18637,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AssistantConversationListOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
                 };
             };
             /** @description Not Found */
@@ -18518,6 +18718,15 @@ export interface operations {
                     "application/json": components["schemas"]["AssistantThreadOut"];
                 };
             };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
             /** @description Not Found */
             404: {
                 headers: {
@@ -18585,6 +18794,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AssistantCourtOrderViewOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
                 };
             };
             /** @description Not Found */
@@ -18659,6 +18877,93 @@ export interface operations {
             };
             /** @description Bad Request */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    include_internal_assistant_internal_records_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssistantInternalIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantInternalOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

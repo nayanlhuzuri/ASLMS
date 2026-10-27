@@ -18,6 +18,16 @@
  *   case's primary); New conversation and Copy to note are secondary. Copy to note shows on a case-scope answer when
  *   the case allows a note, and fills the note dialog with the answer and its references.
  * Every refusal and failure is in words (`ASSISTANT_ERRORS`, `ASSISTANT_FAILURES`). The API decides everything.
+ *
+ * Design assistant-ollama (round 1, decision 14), in ollama mode: the local-model banner; "Court information only" by
+ * default everywhere; on the case tab only, and only for a reader holding the case page's read guard, the secondary
+ * "Include This Case's Internal Records" with its confirmation, then the "Internal Records of This Case Included"
+ * banner with "Start a Court-Only Conversation" (a new conversation) and the mark "Internal records included from
+ * here" in the thread; the suggestion line on an answer flagged `suggest_internal` (it does nothing without the click);
+ * each answer's Local Model badge and model name, its `[S#]` markers linking to their sources, the Court Record and
+ * Internal Records groups with the uncited sources apart, "Text Given to the Model", the removed-reference and
+ * cut-short lines; the readiness notices; Copy to note preset to the narrowest visibility of the cited internal records
+ * with its warning. The server decides what is read; nothing here widens it.
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
@@ -30,6 +40,7 @@ import {
   CharCounter,
   Chip,
   ChipGroup,
+  ConfirmDialog,
   EmptyState,
   ErrorBanner,
   Loading,
@@ -47,15 +58,32 @@ import type {
   AssistantAsk,
   AssistantCitation,
   AssistantConversationList,
+  AssistantInternal,
   AssistantMessage,
   AssistantScope,
   AssistantStatus,
   AssistantThread,
 } from "@/lib/api/types";
-import { highlights, noteText, otherCaseName, questionsLeft, scopesFor, sourceLink, sourceWords } from "@/lib/assistant";
+import {
+  groupSources,
+  highlights,
+  isInternal,
+  kindLabel,
+  markers,
+  narrowestVisibility,
+  noteText,
+  otherCaseName,
+  questionsLeft,
+  scopesFor,
+  sourceId,
+  sourceLink,
+  sourceWords,
+  switchedBefore,
+} from "@/lib/assistant";
+import { canAny } from "@/lib/can";
 import { formatDateTime } from "@/lib/format";
 import { ASSISTANT_ERRORS, ASSISTANT_FAILURES, T } from "@/lib/messages";
-import { showsAssistant } from "@/lib/routes";
+import { CASE_READERS, showsAssistant } from "@/lib/routes";
 
 import s from "./assistant.module.css";
 
@@ -91,8 +119,28 @@ function fetchList(screen: "case" | "page", scope: AssistantScope, caseRef: stri
 export function AssistantBanner({ status }: { status: AssistantStatus | undefined }) {
   if (!status) return null;
   if (status.state === "preview") return <Notice tone="warning">{A.previewBanner}</Notice>;
+  if (status.state === "ready" && status.mode === "ollama") return <Notice>{A.ollamaBanner}</Notice>;
   if (status.state === "ready") return <Notice>{A.sourcetraceBanner}</Notice>;
   return null;
+}
+
+/** The local model's readiness in words (decision 13): a notice while it starts or when it cannot be reached. */
+function ReadinessNotice({ status }: { status: AssistantStatus | undefined }) {
+  const readiness = status?.engine?.readiness;
+  if (readiness === "loading") return <Notice tone="warning">{A.loadingNotice}</Notice>;
+  if (readiness === "unavailable") return <Notice tone="warning">{A.unavailableNotice}</Notice>;
+  return null;
+}
+
+/** "Text Given to the Model" under a local-model source (decision 9: re-rendered by the server at read time). */
+function TextGiven({ c }: { c: AssistantCitation }) {
+  if (!c.label) return null;
+  return (
+    <details className={s.given}>
+      <summary>{A.textGiven}</summary>
+      {c.context ? <pre className={s.givenText}>{c.context}</pre> : <p className={s.hint}>{A.noTextGiven}</p>}
+    </details>
+  );
 }
 
 function Passage({ text }: { text: string | null | undefined }) {
@@ -117,12 +165,14 @@ function SourceItem({
   messageId: string;
   currentCaseId?: string | null;
 }) {
+  const id = sourceId(messageId, c.label, n);
+  const num = c.label ?? String(n);
   if (!c.available) {
     // the API names nothing of a source the reader can no longer reach (no type, date, page or case)
     return (
-      <li className={s.source}>
+      <li className={s.source} id={id}>
         <span className={s.num} aria-hidden="true">
-          {n}
+          {num}
         </span>
         <div className={s.sourceBody}>
           <span className={s.muted}>{A.unavailable}</span>
@@ -134,11 +184,17 @@ function SourceItem({
   const other = otherCaseName(c, currentCaseId);
   const title = sourceWords(c);
   return (
-    <li className={s.source}>
+    <li className={s.source} id={id}>
       <span className={s.num} aria-hidden="true">
-        {n}
+        {num}
       </span>
       <div className={s.sourceBody}>
+        {c.label ? (
+          <span className={s.kindLine}>
+            {kindLabel(c)}
+            {isInternal(c) ? <Badge tone="warning">{A.internalBadge}</Badge> : null}
+          </span>
+        ) : null}
         {link ? (
           link.newTab ? (
             <a className={s.sourceTitle} href={link.href} target="_blank" rel="noopener noreferrer" aria-label={`${A.openSource(n)}: ${title}`}>
@@ -154,13 +210,55 @@ function SourceItem({
         )}
         {other ? <span className="cno muted">{other}</span> : null}
         <Passage text={c.passage} />
+        <TextGiven c={c} />
       </div>
     </li>
   );
 }
 
+function Items({
+  items,
+  m,
+  currentCaseId,
+  label,
+}: {
+  items: { c: AssistantCitation; n: number }[];
+  m: AssistantMessage;
+  currentCaseId?: string | null;
+  label?: string;
+}) {
+  if (!items.length) return null;
+  return (
+    <ul className={s.sources} aria-label={label}>
+      {items.map(({ c, n }) => (
+        <SourceItem key={`${m.id}-${n}`} c={c} n={n} messageId={m.id} currentCaseId={currentCaseId} />
+      ))}
+    </ul>
+  );
+}
+
+/** A local model's sources (decision 8): cited ones grouped Court Record and Internal Records, the rest collapsed. */
+function LocalSourceList({ m, currentCaseId }: { m: AssistantMessage; currentCaseId?: string | null }) {
+  const g = groupSources(m.citations.map((c, i) => ({ c, n: i + 1 })));
+  return (
+    <>
+      {g.court.length ? <p className={s.group}>{A.courtGroup}</p> : null}
+      <Items items={g.court} m={m} currentCaseId={currentCaseId} label={A.courtGroup} />
+      {g.internal.length ? <p className={s.group}>{A.internalGroup}</p> : null}
+      <Items items={g.internal} m={m} currentCaseId={currentCaseId} label={A.internalGroup} />
+      {g.uncited.length ? (
+        <details className={s.uncited}>
+          <summary>{A.uncited}</summary>
+          <Items items={g.uncited} m={m} currentCaseId={currentCaseId} label={A.uncited} />
+        </details>
+      ) : null}
+    </>
+  );
+}
+
 /** The sources of one answer, the related orders of other cases apart (decision 14). */
 function SourceList({ m, currentCaseId }: { m: AssistantMessage; currentCaseId?: string | null }) {
+  if (m.mode === "ollama") return <LocalSourceList m={m} currentCaseId={currentCaseId} />;
   const own = m.citations.map((c, i) => ({ c, n: i + 1 })).filter((x) => !x.c.related);
   const related = m.citations.map((c, i) => ({ c, n: i + 1 })).filter((x) => x.c.related);
   return (
@@ -186,12 +284,31 @@ function SourceList({ m, currentCaseId }: { m: AssistantMessage; currentCaseId?:
   );
 }
 
+/** A local-model answer with each `[S#]` marker a link to its source (decision 14). */
+function MarkedText({ m }: { m: AssistantMessage }) {
+  const labels = new Set(m.citations.map((c) => c.label).filter(Boolean));
+  return (
+    <p className={s.text}>
+      {markers(m.content ?? "").map((seg, i) =>
+        seg.label && labels.has(seg.label) ? (
+          <a key={i} className={s.marker} href={`#${sourceId(m.id, seg.label, 0)}`} aria-label={A.marker(seg.label)}>
+            {seg.text}
+          </a>
+        ) : (
+          <span key={i}>{seg.text}</span>
+        ),
+      )}
+    </p>
+  );
+}
+
 function answerBody(m: AssistantMessage) {
   if (m.content === null) return <p className={s.text}>{m.hidden_reason ?? A.hidden}</p>;
   if (m.outcome === "failed") {
     const family = m.error?.family ?? "error";
     return <p className={s.text}>{ASSISTANT_FAILURES[family] ?? m.error?.message ?? m.content}</p>;
   }
+  if (m.mode === "ollama") return <MarkedText m={m} />;
   return <p className={s.text}>{m.content}</p>;
 }
 
@@ -202,6 +319,7 @@ function AnswerCard({
   selected,
   onSelect,
   onCopy,
+  onInclude,
   currentCaseId,
 }: {
   m: AssistantMessage;
@@ -210,15 +328,21 @@ function AnswerCard({
   selected: boolean;
   onSelect: () => void;
   onCopy: (() => void) | null;
+  /** the suggestion's button (decision 4): only offered, never pressed for the reader */
+  onInclude: (() => void) | null;
   currentCaseId?: string | null;
 }) {
   const sources = m.citations.length;
+  const local = m.mode === "ollama";
   return (
     <div className={s.answer} data-selected={selected} aria-label={`${A.answerBy[m.mode ?? "preview"] ?? A.answerBy.preview} ${n}`} role="group">
       <div className={s.answerHead}>
         {m.mode === "preview" ? <Badge>{A.previewBadge}</Badge> : null}
+        {local ? <Badge tone="info">{A.localModel}</Badge> : null}
+        {local && m.engine?.model ? <span className="cno">{m.engine.model}</span> : null}
         <span>{A.outcomes[m.outcome ?? "answered"] ?? m.outcome}</span>
         <span>· {formatDateTime(m.created_at)}</span>
+        {local && m.checks?.cut_short ? <Badge tone="warning">{A.cutShort}</Badge> : null}
         {total > 1 && sources > 0 && !selected ? (
           <button type="button" className={s.choose} onClick={onSelect}>
             {A.chooseAnswer(n)}
@@ -226,6 +350,17 @@ function AnswerCard({
         ) : null}
       </div>
       {answerBody(m)}
+      {local && m.content !== null && m.outcome !== "failed" ? <p className={s.hint}>{A.localLine}</p> : null}
+      {local && m.internal_used && m.content !== null ? <p className={s.hint}>{A.usesInternal}</p> : null}
+      {local && (m.checks?.invalid_markers ?? 0) > 0 ? <p className={s.hint}>{A.removedReference}</p> : null}
+      {onInclude && m.suggest_internal ? (
+        <div className={s.suggest}>
+          <span>{A.suggestInternal}</span>
+          <Button variant="secondary" size="sm" onClick={onInclude}>
+            {A.includeInternal}
+          </Button>
+        </div>
+      ) : null}
       {sources > 0 ? (
         <div className={s.inlineSources}>
           <SourceList m={m} currentCaseId={currentCaseId} />
@@ -249,6 +384,9 @@ function Thread({
   selectedId,
   onSelect,
   onCopy,
+  onInclude,
+  includedAt,
+  asking,
   currentCaseId,
   scrollRef,
 }: {
@@ -258,11 +396,19 @@ function Thread({
   selectedId: string | null;
   onSelect: (id: string) => void;
   onCopy: ((m: AssistantMessage) => void) | null;
+  onInclude: (() => void) | null;
+  /** when this conversation's internal records were switched on (decision 4) */
+  includedAt: string | null;
+  asking: string;
   currentCaseId?: string | null;
   scrollRef: React.RefObject<HTMLDivElement | null>;
 }) {
   const answers = messages.filter((m) => m.role === "assistant");
   const answered = new Set(answers.map((m) => m.reply_to_id));
+  // the mark sits before the first question asked after the switch (earlier answers stay court-only)
+  const firstAfter = includedAt ? messages.find((m) => m.role === "user" && switchedBefore(includedAt, m.created_at)) : undefined;
+  const markAtEnd = !!includedAt && !firstAfter;
+  const mark = <p className={s.includedHere}>{A.includedHere}</p>;
   // the box stays mounted while a conversation loads, so its height and focus do not jump
   return (
     <div ref={scrollRef} className={s.thread} tabIndex={0} role="log" aria-label={A.conversation} aria-live="polite">
@@ -275,12 +421,15 @@ function Thread({
       ) : null}
       {messages.map((m) =>
         m.role === "user" ? (
-          <div key={m.id} className={s.msg}>
-            <div className={s.who}>{A.you}</div>
-            <div className={s.bubble}>
-              <div className={s.question}>{m.content}</div>
-              {/* a question whose answer was never recorded (the process stopped between the two steps) */}
-              {!answered.has(m.id) ? <p className={s.hint}>{A.noAnswer}</p> : null}
+          <div key={m.id}>
+            {firstAfter?.id === m.id ? mark : null}
+            <div className={s.msg}>
+              <div className={s.who}>{A.you}</div>
+              <div className={s.bubble}>
+                <div className={s.question}>{m.content}</div>
+                {/* a question whose answer was never recorded (the process stopped between the two steps) */}
+                {!answered.has(m.id) ? <p className={s.hint}>{A.noAnswer}</p> : null}
+              </div>
             </div>
           </div>
         ) : (
@@ -294,12 +443,14 @@ function Thread({
                 selected={m.id === selectedId}
                 onSelect={() => onSelect(m.id)}
                 onCopy={onCopy && m.outcome === "answered" && m.content !== null ? () => onCopy(m) : null}
+                onInclude={onInclude}
                 currentCaseId={currentCaseId}
               />
             </div>
           </div>
         ),
       )}
+      {markAtEnd && messages.length > 0 ? mark : null}
       {pending !== null ? (
         <>
           <div className={s.msg}>
@@ -310,7 +461,7 @@ function Thread({
           </div>
           <div className={s.msg} role="status">
             <div className={s.who} />
-            <div className={cx(s.bubble, s.muted)}>{A.asking}</div>
+            <div className={cx(s.bubble, s.muted)}>{asking}</div>
           </div>
         </>
       ) : null}
@@ -336,6 +487,7 @@ function Composer({
   status,
   primary,
   scope,
+  extra,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -344,7 +496,10 @@ function Composer({
   status: AssistantStatus | undefined;
   primary: boolean;
   scope: AssistantScope;
+  /** beside the scope note: the case tab's "Include This Case's Internal Records" (decision 14) */
+  extra?: React.ReactNode;
 }) {
+  const local = status?.mode === "ollama";
   const max = status?.limits.question_max_chars ?? 2000;
   const left = questionsLeft(status);
   function submit(e: FormEvent) {
@@ -375,9 +530,16 @@ function Composer({
           {A.ask}
         </Button>
       </div>
-      <p className={s.hint}>
-        {A.scopeHint[scope]} {A.neverSent}
-      </p>
+      {local ? (
+        <div className={s.scopeNote}>
+          <p className={s.hint}>{A.ollamaScopeHint[scope]}</p>
+          {extra}
+        </div>
+      ) : (
+        <p className={s.hint}>
+          {A.scopeHint[scope]} {A.neverSent}
+        </p>
+      )}
     </form>
   );
 }
@@ -402,7 +564,11 @@ function Workspace({
 }) {
   const queryClient = useQueryClient();
   const status = useAssistantStatus();
+  const me = useMe();
   const scopes = scopesFor(screen);
+  const [confirming, setConfirming] = useState(false);
+  const [includeBusy, setIncludeBusy] = useState(false);
+  const [includeError, setIncludeError] = useState<unknown>(null);
   const [scope, setScope] = useState<AssistantScope>(scopes[0]!);
   const [picked, setPicked] = useState<Picked>({});
   const [selected, setSelected] = useState<string | null>(null);
@@ -523,9 +689,48 @@ function Workspace({
   }
 
 
+  // design assistant-ollama, decision 4: the switch is the server's state of this case-tab conversation
+  const local = status.data?.mode === "ollama";
+  const includedAt = current && scope === "case" ? (thread.data?.conversation.internal_included_at ?? null) : null;
+  const mayInclude =
+    screen === "case" &&
+    scope === "case" &&
+    local &&
+    status.data?.internal_records === "switch" &&
+    canAny(me.data, CASE_READERS) &&
+    !!caseRef;
+  const offerInclude = mayInclude && !includedAt;
+
+  async function include() {
+    if (!caseRef) return;
+    setIncludeBusy(true);
+    setIncludeError(null);
+    try {
+      const out = await api<AssistantInternal>("/assistant/internal-records", {
+        method: "POST",
+        body: { case: caseRef, conversation_id: current ?? undefined },
+      });
+      setPicked((p) => ({ ...p, case: out.conversation_id }));
+      setConfirming(false);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: threadKey(out.conversation_id) }),
+        queryClient.invalidateQueries({ queryKey: ["assistant", "conversations"] }),
+      ]);
+    } catch (err) {
+      setIncludeError(err);
+    } finally {
+      setIncludeBusy(false);
+    }
+  }
+
   const canCopy = screen === "case" && scope === "case" && !!noteMode;
   const copyMessage = copying ? (answers.find((m) => m.id === copying) ?? null) : null;
   const currentCaseId = screen === "case" ? caseId : null;
+  const includeButton = offerInclude ? (
+    <Button variant="secondary" size="sm" onClick={() => setConfirming(true)} disabled={pending !== null}>
+      {A.includeInternal}
+    </Button>
+  ) : null;
 
   const switcher =
     scopes.length > 1 ? (
@@ -550,6 +755,17 @@ function Workspace({
           {A.newConversation}
         </Button>
       </div>
+      {includedAt ? (
+        <div className={s.included} role="status">
+          <div>
+            <b>{A.includedBanner}</b> <span className={s.hint}>{A.includedSince(formatDateTime(includedAt))}</span>
+            <p className={s.hint}>{A.includedLine}</p>
+          </div>
+          <Button variant="secondary" size="sm" onClick={newConversation} disabled={pending !== null}>
+            {A.courtOnlyConversation}
+          </Button>
+        </div>
+      ) : null}
       <Thread
         messages={messages}
         pending={pending}
@@ -560,6 +776,9 @@ function Workspace({
           setSelected(id);
         }}
         onCopy={canCopy ? (m) => setCopying(m.id) : null}
+        onInclude={offerInclude ? () => setConfirming(true) : null}
+        includedAt={includedAt}
+        asking={local ? A.askingOllama : A.asking}
         currentCaseId={currentCaseId}
         scrollRef={scrollRef}
       />
@@ -574,6 +793,7 @@ function Workspace({
         </ChipGroup>
       ) : null}
       <ErrorBanner error={error} messages={ASSISTANT_ERRORS} />
+      {!confirming ? <ErrorBanner error={includeError} messages={ASSISTANT_ERRORS} /> : null}
       {notice ? <Notice>{notice}</Notice> : null}
       <Composer
         value={question}
@@ -583,6 +803,7 @@ function Workspace({
         status={status.data}
         primary={screen === "page"}
         scope={scope}
+        extra={includeButton}
       />
     </div>
   );
@@ -593,6 +814,7 @@ function Workspace({
     <div className={s.workspace}>
       {screen === "page" ? <PageHeader title={A.title} subtitle={A.subtitle} actions={switcher} /> : null}
       <AssistantBanner status={status.data} />
+      <ReadinessNotice status={status.data} />
       {screen === "case" ? switcher : null}
       {screen === "page" ? (
         <div className={s.pageGrid} data-view={view}>
@@ -614,6 +836,7 @@ function Workspace({
                         onClick={() => openConversation(c.id)}
                       >
                         {c.title ?? A.conversation}
+                        {c.internal_included_at ? <Badge tone="warning">{A.includedMark}</Badge> : null}
                         <small>{formatDateTime(c.last_message_at ?? c.created_at)}</small>
                       </button>
                     </li>
@@ -638,9 +861,29 @@ function Workspace({
           caseRef={caseRef}
           mode={noteMode}
           initialBody={copyMessage ? noteText(copyMessage) : undefined}
+          initialVisibility={copyMessage ? (narrowestVisibility(copyMessage) ?? undefined) : undefined}
+          warning={copyMessage?.internal_used ? A.copyInternalWarning : undefined}
           onClose={() => setCopying(null)}
           onDone={(text) => setNotice(text)}
         />
+      ) : null}
+      {mayInclude ? (
+        <ConfirmDialog
+          open={confirming}
+          title={A.includeTitle}
+          onClose={() => {
+            setConfirming(false);
+            setIncludeError(null);
+          }}
+          onConfirm={() => void include()}
+          busy={includeBusy}
+          error={includeError}
+          messages={ASSISTANT_ERRORS}
+          confirmLabel={A.include}
+          cancelLabel={A.cancel}
+        >
+          <p>{A.includeText}</p>
+        </ConfirmDialog>
       ) : null}
     </div>
   );

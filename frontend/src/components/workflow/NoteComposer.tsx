@@ -58,6 +58,7 @@ export function NoteComposer({
   onCancel,
   secondaryOnly = false,
   initialBody,
+  initialVisibility,
 }: {
   caseRef: string;
   /** On the case page itself, whose header holds the one primary (decision 16; design portal-ui-polish): the submit is
@@ -73,6 +74,8 @@ export function NoteComposer({
   onCancel?: () => void;
   /** The text the note starts with (the Case Assistant's "Copy to note", design assistant, decision 13). */
   initialBody?: string;
+  /** A preset setting (Copy to note of an answer citing internal records, design assistant-ollama, decision 10). */
+  initialVisibility?: string;
 }) {
   const codes = useWorkflowCodes();
   const types = useDocumentTypes(mode === "permanent" && !draft);
@@ -83,7 +86,7 @@ export function NoteComposer({
   const fixedVisibility = correcting?.visibility ?? null;
   const [kind, setKind] = useState(draft?.kind ?? fixedKind ?? "");
   const [body, setBody] = useState(draft?.body ?? initialBody ?? "");
-  const [visibility, setVisibility] = useState(draft?.visibility ?? fixedVisibility ?? "");
+  const [visibility, setVisibility] = useState(draft?.visibility ?? fixedVisibility ?? initialVisibility ?? "");
   const [links, setLinks] = useState<string[]>(draft?.documents.map((d) => d.id) ?? []);
   const [files, setFiles] = useState<{ file: File; type: string }[]>([]);
   const [fileError, setFileError] = useState<string | null>(null);

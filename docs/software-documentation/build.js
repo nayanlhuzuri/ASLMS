@@ -222,7 +222,7 @@ function brochure() {
     ["Hearings and alerts", "Bell and e-mail alerts, a personal calendar, department hearings and next dates read from orders for confirmation."],
     ["Cause list", "Any date and bench in court order, with each entry’s recommendation or owner, a Claim button and the original list."],
     ["Notes and documents", "Append-only notes with corrections linked to the original; uploads checked by content and scanned for viruses; visibility per item."],
-    ["Case Assistant", "Questions answered from court orders with every source cited by page. Prepared for the in-house SourceTrace service, with an approved local model on Government machines in the meantime."],
+    ["Case Assistant", "Questions answered from court records with every source cited. Prepared for the in-house SourceTrace service; until it is connected, answers may be written by a local model on Government servers, never a cloud service."],
     ["Dashboards and reports", "Personal, department and State dashboards; four reports with Excel and PDF export."],
     ["Administration", "Offices in the government hierarchy, users and memberships, user types and functions, department mapping and scoring."],
     ["Data collection", "Live overview with progress and finish estimates, collection on request, and automatic collection with load control."],
@@ -301,7 +301,7 @@ function s2() {
     ["Notes are append-only", "A note is never edited or deleted. A correction is a new note linked to the original."],
     ["No deletion of legal records", "Cases, orders, documents and notes are kept. Documents can be archived, not deleted. Offices are deactivated, not deleted."],
     ["Everything significant audited", "Ownership decisions, file movements, notes, uploads, user and configuration changes, court searches and exports write an audit record."],
-    ["No cloud AI", "AI goes through SourceTrace or, as approved on 27 October 2026, a local model on Government machines (section 6.4). No cloud AI service is ever used, and no AI runtime may be installed inside the ASLMS server software. Only court orders and court filings may ever go to SourceTrace, never notes or internal documents."],
+    ["No cloud AI. AI only through SourceTrace or, until it is available, a local model on Government servers", "No cloud AI service or cloud model, and no AI runtime inside ASLMS itself; the system refuses to start if one is found or a cloud model is configured. Only court orders and court filings may ever go to SourceTrace, never notes or internal documents. The local model reads one case\’s internal records only after the officer switches them on in that case\’s Assistant tab."],
   ], [2600, CW - 2600], { boldFirst: true }));
   add(H2("2.4 The system in context"));
   add(P("People use ASLMS through a web browser. ASLMS runs on government servers and connects to the following outside services:"));
@@ -309,7 +309,7 @@ function s2() {
     ["NAPIX (eCourts, Gauhati High Court)", "Cause lists, case records, status, orders, searches and reference lists", "ASLMS calls out; encrypted"],
     ["Government e-mail relay", "Sign-in codes, alerts and the daily digest", "ASLMS sends"],
     ["SourceTrace (in-house AI service)", "Case Assistant answers from court orders and filings", "Prepared; connects when its API documentation is available"],
-    ["Local model service (Ollama, on Government machines)", "Case Assistant answers until SourceTrace is connected (section 6.4)", "Approved; being built. ASLMS calls it on a private address"],
+    ["Local model (Ollama)", "Case Assistant answers written by a local AI model on the ASLMS host or a Government server, until SourceTrace is connected", "Built; switched on by a setting, never a cloud model"],
   ], [3000, 4038, 2600]));
 }
 
@@ -492,7 +492,7 @@ function s5() {
 
 function s6() {
   add(H1("6. Case Assistant and SourceTrace"));
-  add(P("AI in ASLMS goes through SourceTrace, the Government’s in-house retrieval-augmented generation service, through a defined connector interface. Until SourceTrace is connected, a local model running on Government machines may answer the Case Assistant instead, as approved on 27 October 2026 (section 6.4). No cloud AI service is ever used, and the system refuses to start if an AI runtime is found among its own installed software."));
+  add(P("All AI in ASLMS goes through the Case Assistant’s connector interface. SourceTrace, the Government’s in-house retrieval-augmented generation service, is the intended AI. Until it is available, the owner has allowed (27 October 2026) one alternative for Case Assistant questions only: a local AI model served by Ollama on the ASLMS host or a server the Government controls, reached over the network. No cloud AI service or cloud model is used, no AI runtime runs inside ASLMS itself, and the system refuses to start if one is found or a cloud model is configured."));
   add(H2("6.1 What is sent, and what never is"));
   add(table(["May be sent to SourceTrace", "Never sent"], [
     ["Court orders and judgments, with their case details", "Case notes and their attachments"],
@@ -500,12 +500,15 @@ function s6() {
     ["", "File remarks, drafts, cause-list files and department uploads kept private"],
   ], [CW / 2, CW / 2]));
   add(P("The rule is enforced in three places, including the database. Ingestion records are append-only, with automatic retries and a screen listing failures."));
-  add(H2("6.2 Current status: preview mode"));
-  add(P("The Case Assistant screens, conversations, scopes, citations and privacy rules are built. The SourceTrace API documentation is awaited, so the connector to the real service is not yet built. Until then, in development and test only, a preview mode answers by full-text search over the stored court text on the ASLMS server and shows the matching passages with the line “Preview: passages found in the court records, not an AI answer.” Nothing leaves the server. Preview mode is refused in production."));
+  add(P("The local model follows its own, narrower rule. By default, in every scope, it reads court information only: court orders, the court filings the officer may open, and the case details and hearings. On a case’s Assistant tab, and only there, the officer may press “Include This Case’s Internal Records”; from then on, in that conversation only, the model also reads that case’s saved notes, file movement with remarks, pending actions and department documents that the officer may open on the case page. Drafts are never read, another case’s records are never read, the switch is recorded in the audit log, and it cannot be switched off within the conversation."));
+  add(H2("6.2 Current status: preview mode and the local model"));
+  add(P("The Case Assistant screens, conversations, scopes, citations and privacy rules are built. The SourceTrace API documentation is awaited, so the connector to the real service is not yet built. In development and test, a preview mode answers by full-text search over the stored court text on the ASLMS server and shows the matching passages with the line “Preview: passages found in the court records, not an AI answer.” Nothing leaves the server. Preview mode is refused in production."));
+  add(P("The local-model mode is built and allowed in production as the fallback until SourceTrace is connected. ASLMS finds the passages and records itself and gives them to the model as numbered sources; the model only writes the answer. Every sentence must cite its source; the server removes references to sources that were not given, and an answer with no valid reference is replaced by a fixed line. Each answer shows which sources were court records and which were internal, and the text that was given to the model."));
   add(H2("6.3 Privacy rules"));
   add(B("Court information from NAPIX is open to every Case Assistant user. A cited order of a case the person cannot open is shown on a read-only court-record page with public facts only, never the owner, notes, file or documents; each opening is audited."));
   add(B("Department uploads, court filings included, appear only for people who may already see that document."));
   add(B("Conversations are private to the person who held them; no administrator or auditor can read them."));
+  add(B("An answer that drew on an internal record the person can no longer open is hidden when read again."));
   add(B("Every question, answer and court-record opening writes an audit record with lengths, fingerprints and identifiers, never the text."));
   add(B("Each user may ask 30 questions an hour, one at a time."));
   add(H2("6.4 Approved alternative: a local model on Government machines"));
@@ -544,7 +547,7 @@ function s7() {
     ["Reverse proxy", "nginx, with TLS"],
     ["Monitoring", "Prometheus, Alertmanager, Grafana, Flower and exporters for the database, Redis, PgBouncer and ASLMS operations"],
     ["Deployment", "Docker containers with Docker Compose"],
-    ["AI (when connected)", "SourceTrace, through its API"],
+    ["AI", "SourceTrace through its API when connected; until then, optionally, a local model (Ollama) on the ASLMS host or a Government server"],
   ], [3000, CW - 3000], { boldFirst: true }));
   add(H2("7.3 Services"));
   add(table(["Service", "Role"], [
@@ -632,7 +635,7 @@ function s9() {
   add(B("Redis is password-protected and memory-only. Monitoring screens are not exposed to the network."));
   add(H2("9.7 Data protection"));
   add(B("All data is kept on government infrastructure; no public cloud service is used."));
-  add(B("No case data is sent to any cloud AI service; only court orders and court filings may go to the in-house SourceTrace service (section 6)."));
+  add(B("No case data is sent to any cloud AI service; only court orders and court filings may go to the in-house SourceTrace service, and the local model on Government servers reads one case’s internal records only after the officer switches them on (section 6)."));
   add(B("E-mails never contain note text or document names."));
   add(H2("9.8 Security review"));
   add(P("Every change is reviewed against these rules before it is accepted, and the source repository is scanned for secrets on every change (section 12). An independent security audit of the whole application, with proof-of-concept tests and a findings report, is scheduled before the pilot."));
@@ -714,8 +717,9 @@ function s13() {
     ["Requests between offices", "Sending the file with a pending action and a due date", "One simpler mechanism covering the same need"],
     ["SMS for high-priority alerts", "In-app and e-mail; SMS refused until a gateway is provided", "No SMS gateway available yet"],
     ["One-time password at sign-in", "Six-digit code by e-mail at every sign-in", "Uses the government mail relay"],
-    ["Case Assistant in phase 3", "Screens and rules built; preview mode until SourceTrace or the local model is connected", "Built early so the connector is the only remaining step"],
-    ["All AI through SourceTrace; no local model", "A local model on Government machines answers the Case Assistant until SourceTrace is connected, allowed in production; internal records of a case only when the officer switches them on for that case (approved 27 October 2026, being built)", "SourceTrace not yet available; no court or internal text leaves Government machines"],
+    ["Case Assistant in phase 3", "Screens and rules built; preview mode until SourceTrace is connected", "Built early so the connector is the only remaining step"],
+    ["All AI through SourceTrace", "Case Assistant answers written by a local model (Ollama) on Government servers until SourceTrace is connected; no cloud AI", "SourceTrace not yet available; owner’s decision of 27 Oct 2026"],
+    ["Notes and internal documents never sent to the AI", "Unchanged for SourceTrace. By default the local model reads court information only; it reads one case’s internal records (never drafts) only after the officer presses Include This Case’s Internal Records in that case’s Assistant tab (recorded in the audit log), and only what the officer may open", "Owner’s decision of 27 Oct 2026: officers work on their own case’s notes"],
   ], [2800, 3638, 3200]));
   add(H2("13.3 Planned enhancements"));
   add(table(["Enhancement", "Description"], [
@@ -804,7 +808,7 @@ function annexD() {
     ["Counsel code", "The standing counsel code printed on a cause list, for example “SC, EDU”"],
     ["SourceTrace", "The Government’s in-house AI (retrieval-augmented generation) service for the Case Assistant"],
     ["Preview mode", "The Case Assistant’s development stand-in: text search over stored court records, with no AI; refused in production"],
-    ["Local model, Ollama", "An AI model running on Government machines, served by the Ollama software; the approved Case Assistant engine until SourceTrace is connected"],
+    ["Ollama", "The software that serves the Case Assistant’s local AI model on the ASLMS host or a Government server, used until SourceTrace is connected"],
     ["Hourly allowance", "The number of court calls ASLMS may make per hour (about 1,000)"],
   ], [2600, CW - 2600], { boldFirst: true }));
 }

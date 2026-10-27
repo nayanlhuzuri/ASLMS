@@ -1523,3 +1523,69 @@ point is decided above.
     new-order alerts, since no other existing list shows them.
 14. **The pilot machine.** Which machine runs the model for the pilot: a GPU at the State Data Centre, or the host.
     This is needed to deploy, not to build; without a GPU, answers are slow (decision 16).
+
+## Deviations
+
+Round 1 (row 188), recorded by the developer on 27 Oct 2026. Each is the smallest reasonable choice where the note was
+silent, or a conflict with an existing guard.
+
+1. **"File movement" in the portal reads "journey".** The portal's wording guard (design `case-workspace-admin`,
+   decision 6) refuses "file movement" in any text users read, and the case page already calls the custody trail the
+   "Journey". So the source kind label is "Journey of This Case", the confirmation reads "this case's notes, its
+   journey with remarks, pending actions and department documents", the included line reads "Notes, the journey,
+   pending actions and department documents you can open", and the `internal_not_permitted` text says "notes and
+   journey". The API code stays `file_movement`, and the model-facing source header stays "File Movement (Internal)".
+2. **`CitationOut.visibility`** (new, nullable): an internal record's own setting, so the portal can preset Copy to
+   note to the narrowest of the cited records (decision 10). A note or a department document gives its own setting;
+   the journey counts as `private_to_office` when its remarks were given (a remark needs a working basis) and as
+   `case_scope` otherwise.
+3. **`CitationOut.internal` and `CitationOut.what`** (`note_attachment` or null) let the portal group the sources and
+   label a note attachment; **`AssistantOpenOut.kind` gains `case_tab`**, a portal path of the case page:
+   `/cases/{id}/notes#note-N` for a note, `/cases/{id}/custody` for the journey, `/cases/{id}/details` for Case
+   Details (only when the reader can open the case).
+4. **Where things live.** The three readiness refusals are raised by the connector as `ModelLoading`,
+   `ModelUnavailable` and `ModelBusy` (in `services/assistant_ollama.py`) and translated by the service into
+   `AssistantLoading`, `AssistantUnavailable` and `AssistantBusy`, to avoid an import cycle. The cloud rule's check
+   for settings, `cloud_problems`, is in `services/assistant_ollama.py`, so `services/assistant.py` and
+   `services/preflight.py` never import `integration.ollama` (decision 11's list of three importers holds).
+5. **Case Details need the read guard in every scope.** `ask` and `ask_case` take a keyword `details`, set by the
+   service from `cases.view_scope` / `cases.view_all` at transaction A (decision 5); `AskRequest` gains no field.
+6. **A failed ollama answer** stores `model_info` `{engine, model}` only, so its Local Model badge still shows.
+7. **`visible_count`** counts the journey as one record when the case has any custody leg, plus the visible notes and
+   the visible department documents.
+8. **Department documents** are uploads of group `internal` of the case and note attachments of the case's notes the
+   asker may read, each under the document rule, clean, not archived and with extracted text. A private court filing
+   is not among them (not in decision 3(b)'s list). Their pages share what the journey and the notes leave of
+   `ASSISTANT_OLLAMA_INTERNAL_CHARS`, each page at most 3,000 characters.
+9. **`aslms assistant check`** prints five counts in round 1 (the sixth is round 2's). Count (4) also counts an
+   internal citation on a conversation that has no case.
+10. **Readiness `not_local`** also covers a `/api/tags` entry carrying `remote_host` or `remote_model` (Ollama's cloud
+    stubs), besides a size under 100 MB.
+11. **Two existing guards were extended:** the court-data-freshness reader check lists `assistant_sources.case_details`
+    beside `case_detail.listings` (it reads every listing with corrected-list rows marked, decision 3(a)), and the
+    SourceTrace-contract importer list adds `services/assistant_ollama.py` and `integration/ollama/client.py` (the
+    client maps errors onto the contract's types, decision 11). Three existing shape tests of row 14 gained the new
+    fields.
+12. **Compose image tag** `ollama/ollama:0.40.0` is assumed as "a 0.40.x tag"; the owner confirms it in the live check.
+13. **Ollama's fields were not observed** (Verification 9 and 10): no Ollama server was reachable from the build, and no
+    test calls one. The client follows the published API and the owner's `/api/chat` test; the decisions-log entry says
+    so, and the owner's live check records the observed names.
+14. **uicheck:** the fixtures answer every Assistant screen in the ollama state (`/me.assistant_mode` `ollama`, status
+    `ollama` with the model ready and `internal_records` `switch`), rather than adding a separate state; no interaction
+    state opens the confirmation dialog.
+15. **Software documentation:** regenerated with the decision-1 changes; `TOC_PAGES` was not checked against a
+    rendered copy (no document renderer on the build machine). The scribe or the owner checks it.
+16. **History** keeps the service's `ASSISTANT_HISTORY_TURNS` for reading, and the connector sends at most
+    `ASSISTANT_OLLAMA_HISTORY_TURNS` (2) turns, markers removed.
+17. **Round 2 is not on this branch.** The tests marked round 2 in the Tests section (`tests/db/test_assistant_work.py`,
+    `test_tool_schemas_strict`, `test_keyword_choice_table` and the My Work portal tests) belong to row 189
+    `assistant-ollama-work`, its own cycle by decision 24, built on this branch's connector, slot and citation check
+    after row 188 merges. Round 1 has no `assistant_work` module, no `my_work` scope and no migration 00MM, so these
+    tests are written with that code in row 189.
+18. **Portal smoke on a private container.** The shared Compose `web` serves the owner's environment, so the smoke ran
+    on a separate container instead: the branch's `frontend/` built as a private image tag, run on port 3100 with no
+    api behind it (the pages load their data in the browser), `backend/tools/portal_smoke.py --base
+    http://localhost:3100`, and that container's own log scanned with the script's error pattern; the container and
+    image were removed afterwards. Result on 27 Oct 2026: all 90 pages HTTP 200, including `/assistant`,
+    `/assistant/orders/[id]` and `/cases/[id]/assistant`, and no error lines. The integrator's run on the rebuilt
+    Compose `web` after the merge still applies.

@@ -23,10 +23,11 @@ import uuid
 from collections.abc import Iterable
 from typing import Any, Literal
 
-from sqlalchemy import ColumnElement, and_, exists, literal, not_, select
+from sqlalchemy import ColumnElement, String, and_, exists, func, literal, not_, select
 from sqlalchemy.orm import Session, aliased
 
-from aslms.domain.cases import Case, CaseAct, CaseAdvocate, CaseParty, CaseStatus, PartyRole
+from aslms.domain.cases import Case, CaseAct, CaseAdvocate, CaseHearing, CaseParty, CaseStatus, PartyRole
+from aslms.domain.causelists import Causelist, CauselistEntry
 from aslms.domain.courts import Court
 from aslms.domain.documents import Document, DocumentText, Order, SourcetraceStatus, Visibility
 from aslms.domain.org import User
@@ -35,7 +36,7 @@ from aslms.services.my_cases import my_cases_condition
 from aslms.services.sourcetrace_ingest import filing_nature, has_cnr, order_nature
 
 Scope = Literal["case", "my_cases", "research"]
-Mode = Literal["preview", "sourcetrace"]
+Mode = Literal["preview", "sourcetrace", "ollama"]
 OrdersCorpus = Literal["focus", "focus_and_related", "all"]
 
 _ORDER = aliased(Order, name="asst_order")
@@ -117,8 +118,9 @@ def court_filing_condition(
 
 
 def mode_condition(mode: Mode) -> ColumnElement[bool]:
-    """Preview: the document has searchable stored text. Sourcetrace: SourceTrace holds it."""
-    if mode == "preview":
+    """Preview and ollama (design `assistant-ollama`, decision 2: the same search): the document has searchable stored
+    text. Sourcetrace: SourceTrace holds it."""
+    if mode in ("preview", "ollama"):
         return exists(
             select(literal(1))
             .select_from(DocumentText)
@@ -253,6 +255,94 @@ def case_contexts(session: Session, case_ids: list[uuid.UUID]) -> list[dict[str,
                 "next_hearing_date": c.next_hearing_date,
             }
         )
+    return out
+
+
+def _v(value: Any) -> Any:
+    return value.value if hasattr(value, "value") else value
+
+
+def case_details(
+    session: Session, case_ids: list[uuid.UUID], *, hearings: int, listings: int
+) -> list[dict[str, Any]]:
+    """Design `assistant-ollama`, decision 3(a): the "Case Details (Court Record)" of each case, in the order of
+    `case_ids`: the court-public facts of `case_contexts`, plus the last `hearings` hearings (business date, next date,
+    purpose, bench, short order text as held) and the last `listings` listings (list date, list type, bench, court
+    number and printed item; rows of a list replaced by a corrected one marked `superseded`). The same tables as
+    `case_detail.hearings` and `case_detail.listings`; nothing internal: no owner, recommendation, stage, custody or
+    `ref_no`. Imports no connector."""
+    out = case_contexts(session, case_ids)
+    ids = [c["case_id"] for c in out]
+    if not ids:
+        return out
+    by_case_h: dict[uuid.UUID, list[dict[str, Any]]] = {i: [] for i in ids}
+    if hearings > 0:
+        ranked = (
+            select(
+                CaseHearing,
+                func.row_number()
+                .over(
+                    partition_by=CaseHearing.case_id,
+                    order_by=(CaseHearing.business_date.desc().nulls_last(), CaseHearing.purpose),
+                )
+                .label("rn"),
+            )
+            .where(CaseHearing.case_id.in_(ids))
+            .subquery()
+        )
+        h_alias = aliased(CaseHearing, ranked)
+        for h in session.scalars(
+            select(h_alias).where(ranked.c.rn <= hearings).order_by(ranked.c.case_id, ranked.c.rn)
+        ).all():
+            by_case_h[h.case_id].append(
+                {
+                    "business_date": h.business_date,
+                    "next_date": h.hearing_date,
+                    "purpose": h.purpose or None,
+                    "bench": h.bench_text,
+                    "short_order": h.short_order_text,
+                }
+            )
+    by_case_l: dict[uuid.UUID, list[dict[str, Any]]] = {i: [] for i in ids}
+    if listings > 0:
+        ranked_l = (
+            select(
+                CauselistEntry.case_id.label("case_id"),
+                Causelist.list_date.label("list_date"),
+                Causelist.list_type.label("list_type"),
+                func.coalesce(Causelist.bench_label, CauselistEntry.bench_text).label("bench"),
+                CauselistEntry.court_no.label("court_no"),
+                func.coalesce(CauselistEntry.printed_sr_no, func.cast(CauselistEntry.sr_no, String)).label(
+                    "item"
+                ),
+                (Causelist.superseded_at.is_not(None)).label("superseded"),
+                func.row_number()
+                .over(
+                    partition_by=CauselistEntry.case_id,
+                    order_by=(Causelist.list_date.desc(), Causelist.version.desc(), CauselistEntry.sr_no),
+                )
+                .label("rn"),
+            )
+            .join(Causelist, Causelist.id == CauselistEntry.causelist_id)
+            .where(CauselistEntry.case_id.in_(ids))
+            .subquery()
+        )
+        for row in session.execute(
+            select(ranked_l).where(ranked_l.c.rn <= listings).order_by(ranked_l.c.case_id, ranked_l.c.rn)
+        ).all():
+            by_case_l[row.case_id].append(
+                {
+                    "list_date": row.list_date,
+                    "list_type": _v(row.list_type),
+                    "bench": row.bench,
+                    "court_no": row.court_no,
+                    "item": row.item,
+                    "superseded": bool(row.superseded),
+                }
+            )
+    for c in out:
+        c["hearings"] = by_case_h.get(c["case_id"], [])
+        c["listings"] = by_case_l.get(c["case_id"], [])
     return out
 
 

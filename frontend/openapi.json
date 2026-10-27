@@ -1445,6 +1445,8 @@
         "type": "object"
       },
       "AssistantAskIn": {
+        "additionalProperties": false,
+        "description": "Extra fields are refused (422): no client flag can ask for internal records (design assistant-ollama,\ndecision 4); the server decides from the stored conversation alone.",
         "properties": {
           "case": {
             "anyOf": [
@@ -1549,6 +1551,22 @@
         "title": "AssistantCaseBriefOut",
         "type": "object"
       },
+      "AssistantChecksOut": {
+        "properties": {
+          "cut_short": {
+            "default": false,
+            "title": "Cut Short",
+            "type": "boolean"
+          },
+          "invalid_markers": {
+            "default": 0,
+            "title": "Invalid Markers",
+            "type": "integer"
+          }
+        },
+        "title": "AssistantChecksOut",
+        "type": "object"
+      },
       "AssistantCitationCaseOut": {
         "description": "`id` only when the reader can open the case; CNR and case number are court-public.",
         "properties": {
@@ -1601,6 +1619,7 @@
         "type": "object"
       },
       "AssistantCitationOut": {
+        "description": "Design assistant-ollama, decisions 8 and 9: `label` (`S1`..) and `cited` on local-model answers (every source\ngiven is listed; `cited` false under \"Other Sources Given\"); `context` the text given to the model (court kinds as\nstored; Case Details and internal kinds re-rendered at read time; null when unavailable); `internal` for the\ndepartment's own records.",
         "properties": {
           "available": {
             "title": "Available",
@@ -1608,6 +1627,22 @@
           },
           "case": {
             "$ref": "#/components/schemas/AssistantCitationCaseOut"
+          },
+          "cited": {
+            "default": true,
+            "title": "Cited",
+            "type": "boolean"
+          },
+          "context": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Context"
           },
           "doc_date": {
             "anyOf": [
@@ -1643,6 +1678,32 @@
               }
             ],
             "title": "Document Id"
+          },
+          "internal": {
+            "default": false,
+            "title": "Internal",
+            "type": "boolean"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssistantCitedNoteOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "open": {
             "anyOf": [
@@ -1706,7 +1767,11 @@
           "source_kind": {
             "enum": [
               "court_order",
-              "court_filing"
+              "court_filing",
+              "case_details",
+              "note",
+              "file_movement",
+              "department_document"
             ],
             "title": "Source Kind",
             "type": "string"
@@ -1722,6 +1787,35 @@
             ],
             "description": "set when the source is no longer available to the reader; every field naming it is then null",
             "title": "Unavailable Reason"
+          },
+          "visibility": {
+            "anyOf": [
+              {
+                "enum": [
+                  "case_scope",
+                  "counsel_shared",
+                  "private_to_office"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "an internal record's own setting (a file movement with remarks counts as private_to_office); the portal presets Copy to note to the narrowest of the cited records",
+            "title": "Visibility"
+          },
+          "what": {
+            "anyOf": [
+              {
+                "const": "note_attachment",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "What"
           }
         },
         "required": [
@@ -1736,6 +1830,41 @@
           "open"
         ],
         "title": "AssistantCitationOut",
+        "type": "object"
+      },
+      "AssistantCitedNoteOut": {
+        "properties": {
+          "corrected_by_seq_no": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corrected By Seq No"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind_label": {
+            "title": "Kind Label",
+            "type": "string"
+          },
+          "seq_no": {
+            "title": "Seq No",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "seq_no",
+          "kind_label"
+        ],
+        "title": "AssistantCitedNoteOut",
         "type": "object"
       },
       "AssistantConversationListOut": {
@@ -1780,6 +1909,19 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "internal_included_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "when the asker switched on this case's internal records (design assistant-ollama); null when court-only",
+            "title": "Internal Included At"
           },
           "last_message_at": {
             "anyOf": [
@@ -2048,6 +2190,72 @@
         "title": "AssistantCourtOrderViewOut",
         "type": "object"
       },
+      "AssistantEngineBriefOut": {
+        "properties": {
+          "kind": {
+            "const": "ollama",
+            "title": "Kind",
+            "type": "string"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "AssistantEngineBriefOut",
+        "type": "object"
+      },
+      "AssistantEngineOut": {
+        "description": "The local model's readiness (design assistant-ollama, decision 13); `reason` when not ready: `not_loaded`,\n`unreachable`, `missing`, `not_local` or `cloud`.",
+        "properties": {
+          "kind": {
+            "const": "ollama",
+            "title": "Kind",
+            "type": "string"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "readiness": {
+            "enum": [
+              "ready",
+              "loading",
+              "unavailable"
+            ],
+            "title": "Readiness",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "kind",
+          "model",
+          "readiness"
+        ],
+        "title": "AssistantEngineOut",
+        "type": "object"
+      },
       "AssistantErrorOut": {
         "properties": {
           "family": {
@@ -2071,6 +2279,66 @@
           "message"
         ],
         "title": "AssistantErrorOut",
+        "type": "object"
+      },
+      "AssistantInternalIn": {
+        "additionalProperties": false,
+        "description": "`POST /assistant/internal-records` (design assistant-ollama, decision 4).",
+        "properties": {
+          "case": {
+            "description": "case id, ref_no or CNR",
+            "maxLength": 100,
+            "title": "Case",
+            "type": "string"
+          },
+          "conversation_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversation Id"
+          }
+        },
+        "required": [
+          "case"
+        ],
+        "title": "AssistantInternalIn",
+        "type": "object"
+      },
+      "AssistantInternalOut": {
+        "properties": {
+          "case_id": {
+            "format": "uuid",
+            "title": "Case Id",
+            "type": "string"
+          },
+          "conversation_id": {
+            "format": "uuid",
+            "title": "Conversation Id",
+            "type": "string"
+          },
+          "internal_included_at": {
+            "format": "date-time",
+            "title": "Internal Included At",
+            "type": "string"
+          },
+          "new_conversation": {
+            "title": "New Conversation",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "conversation_id",
+          "case_id",
+          "internal_included_at",
+          "new_conversation"
+        ],
+        "title": "AssistantInternalOut",
         "type": "object"
       },
       "AssistantLimitsOut": {
@@ -2104,6 +2372,16 @@
       "AssistantMessageOut": {
         "description": "`content` null when hidden (`hidden_reason`: an answer that drew on a court filing the reader can no longer\nsee). A failed answer carries `error` in words.",
         "properties": {
+          "checks": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssistantChecksOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "citations": {
             "items": {
               "$ref": "#/components/schemas/AssistantCitationOut"
@@ -2126,6 +2404,16 @@
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "engine": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssistantEngineBriefOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "error": {
             "anyOf": [
@@ -2153,12 +2441,18 @@
             "title": "Id",
             "type": "string"
           },
+          "internal_used": {
+            "default": false,
+            "title": "Internal Used",
+            "type": "boolean"
+          },
           "mode": {
             "anyOf": [
               {
                 "enum": [
                   "preview",
-                  "sourcetrace"
+                  "sourcetrace",
+                  "ollama"
                 ],
                 "type": "string"
               },
@@ -2204,6 +2498,11 @@
             ],
             "title": "Role",
             "type": "string"
+          },
+          "suggest_internal": {
+            "default": false,
+            "title": "Suggest Internal",
+            "type": "boolean"
           }
         },
         "required": [
@@ -2217,7 +2516,7 @@
         "type": "object"
       },
       "AssistantOpenOut": {
-        "description": "`document`: an API file route (the portal adds its relay prefix and `#page=`); `court_order`: the court-record\nview of a cited order of a case the reader cannot open (`/assistant/court-orders/{id}?message=`).",
+        "description": "`document`: an API file route (the portal adds its relay prefix and `#page=`); `court_order`: the court-record\nview of a cited order of a case the reader cannot open (`/assistant/court-orders/{id}?message=`); `case_tab`: a\nportal path of the case page (the notes tab for a note, the custody tab for the file movement, the details tab for\nCase Details).",
         "properties": {
           "href": {
             "title": "Href",
@@ -2226,7 +2525,8 @@
           "kind": {
             "enum": [
               "document",
-              "court_order"
+              "court_order",
+              "case_tab"
             ],
             "title": "Kind",
             "type": "string"
@@ -2240,7 +2540,7 @@
         "type": "object"
       },
       "AssistantStatusOut": {
-        "description": "`GET /assistant/status` (design assistant, decision 2): `state` `not_implemented` while `sourcetrace` is\nchosen and no connector exists (row 36); `banner` the notice every Assistant screen shows.",
+        "description": "`GET /assistant/status` (design assistant, decision 2): `state` `not_implemented` while `sourcetrace` is\nchosen and no connector exists (row 36); `banner` the notice every Assistant screen shows. Design\nassistant-ollama: `engine` the local model's readiness (reading it may start a load), `internal_records` `switch`\nin ollama mode (the case tab's \"Include This Case's Internal Records\") and `never` otherwise.",
         "properties": {
           "banner": {
             "anyOf": [
@@ -2253,6 +2553,25 @@
             ],
             "title": "Banner"
           },
+          "engine": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssistantEngineOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "internal_records": {
+            "default": "never",
+            "enum": [
+              "switch",
+              "never"
+            ],
+            "title": "Internal Records",
+            "type": "string"
+          },
           "limits": {
             "$ref": "#/components/schemas/AssistantLimitsOut"
           },
@@ -2260,7 +2579,8 @@
             "enum": [
               "off",
               "preview",
-              "sourcetrace"
+              "sourcetrace",
+              "ollama"
             ],
             "title": "Mode",
             "type": "string"
@@ -14641,11 +14961,12 @@
         "properties": {
           "assistant_mode": {
             "default": "off",
-            "description": "the Case Assistant's state for the portal (design assistant): off (also while SourceTrace is chosen but not implemented), preview or sourcetrace",
+            "description": "the Case Assistant's state for the portal (design assistant): off (also while SourceTrace is chosen but not implemented), preview, sourcetrace or ollama (a local model, design assistant-ollama)",
             "enum": [
               "off",
               "preview",
-              "sourcetrace"
+              "sourcetrace",
+              "ollama"
             ],
             "title": "Assistant Mode",
             "type": "string"
@@ -34231,7 +34552,7 @@
     },
     "/assistant/ask": {
       "post": {
-        "description": "Ask a question in one of three scopes: `case` (one case the caller can see; court orders of other cases too\nwith `include_related`), `my_cases` (the caller's own cases) or `research` (every court order, and the court\nfilings the caller may see). Court orders are court-public; court filings follow the document visibility; notes\nand internal documents are never searched or sent. A connector failure is still 200, with `answer.outcome`\n`failed` and `answer.error`. Refused before anything is stored: 503 `assistant_off`; 422 `scope_mismatch` (a\n`case` outside the case scope, refused before the case is looked up, or a scope or case other than the\nconversation's); 404 (a case unknown or not visible, answered alike, or a conversation not the caller's); 422\n`bad_question` (length, control characters with `reason` `control_characters`); 409 `question_in_flight` (one\nunanswered question per user across all conversations) / `conversation_full`; 429 `assistant_limit`. Audited\nwithout the text.",
+        "description": "Ask a question in one of three scopes: `case` (one case the caller can see; court orders of other cases too\nwith `include_related`), `my_cases` (the caller's own cases) or `research` (every court order, and the court\nfilings the caller may see). Court orders are court-public; court filings follow the document visibility; notes\nand internal documents are never searched or sent. A connector failure is still 200, with `answer.outcome`\n`failed` and `answer.error`. Refused before anything is stored: 503 `assistant_off`; 422 `scope_mismatch` (a\n`case` outside the case scope, refused before the case is looked up, or a scope or case other than the\nconversation's); 404 (a case unknown or not visible, answered alike, or a conversation not the caller's); 422\n`bad_question` (length, control characters with `reason` `control_characters`); 409 `question_in_flight` (one\nunanswered question per user across all conversations) / `conversation_full`; 429 `assistant_limit`. In ollama\nmode: 503 `assistant_loading` (`Retry-After` 30), `assistant_unavailable` and `assistant_busy` (`Retry-After` 5),\nnone stored or counted; internal records only for a case-scope conversation switched on through\n`POST /assistant/internal-records` (extra fields are refused with 422). Audited without the text.",
         "operationId": "ask_assistant_ask_post",
         "requestBody": {
           "content": {
@@ -34253,6 +34574,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
           },
           "404": {
             "content": {
@@ -34389,6 +34720,16 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -34507,6 +34848,16 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -34612,6 +34963,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
           },
           "404": {
             "content": {
@@ -34738,6 +35099,16 @@
             },
             "description": "Bad Request"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -34800,9 +35171,106 @@
         ]
       }
     },
+    "/assistant/internal-records": {
+      "post": {
+        "description": "Switch on \"Include This Case's Internal Records\" for the caller's own case-tab conversation of `case`\n(`conversation_id`), or for a new empty one (design assistant-ollama, decision 4). From then on that conversation's\nquestions also read the case's notes, file movement with remarks, pending actions and department documents the\ncaller may open on the case page (never drafts, never another case's). It cannot be switched off: a court-only\nconversation is a new conversation. Idempotent (200 with the existing time, no second audit row). 422\n`internal_unavailable` outside ollama mode; 404 when the case is unknown or not visible, or the conversation is not\nthe caller's; 422 `scope_mismatch` for a conversation of another case or scope; 403 `internal_not_permitted`\nwithout `cases.view_scope` or `cases.view_all`; 422 `no_internal_records` when the caller can open none. No model\ncall. Audited `assistant.internal_included` (ids only).",
+        "operationId": "include_internal_assistant_internal_records_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistantInternalIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistantInternalOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Include Internal",
+        "tags": [
+          "assistant"
+        ]
+      }
+    },
     "/assistant/status": {
       "get": {
-        "description": "The mode, the state (`not_implemented` while SourceTrace is chosen and no connector exists), the banner, the\nlimits with the caller's questions of the last hour, and the scopes.",
+        "description": "The mode, the state (`not_implemented` while SourceTrace is chosen and no connector exists), the banner, the\nlimits with the caller's questions of the last hour, the scopes, and in ollama mode the local model's readiness\n(`engine`; reading it may start loading the model) and `internal_records` `switch`.",
         "operationId": "get_status_assistant_status_get",
         "responses": {
           "200": {

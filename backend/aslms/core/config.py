@@ -154,8 +154,11 @@ class Settings(BaseSettings):
 
     # --- the Case Assistant (design assistant, decisions 2, 5, 6, 7, 8, 9 and 12) ------------------
     # off: no question is taken; preview: PostgreSQL full-text search over the stored court-record text (dev and
-    # test only, refused in prod); sourcetrace: SourceTrace (not implemented until row 36, so it behaves as off)
-    assistant_mode: Literal["off", "preview", "sourcetrace"] = "off"
+    # test only, refused in prod); sourcetrace: SourceTrace (not implemented until row 36, so it behaves as off);
+    # ollama: a local model served by Ollama on the ASLMS host or a Government server (design assistant-ollama), allowed
+    # in prod, never a cloud model; it reads one case's internal records only after the switch on that case's
+    # Assistant tab, and never drafts
+    assistant_mode: Literal["off", "preview", "sourcetrace", "ollama"] = "off"
     assistant_questions_per_hour: int = Field(30, ge=1, le=500)  # per user
     assistant_question_max_chars: int = Field(2000, ge=100, le=2000)
     assistant_messages_per_conversation: int = Field(200, ge=2, le=2000)
@@ -165,6 +168,22 @@ class Settings(BaseSettings):
     assistant_max_filing_sources: int = Field(1000, ge=1, le=10_000)  # the filing allow-list
     assistant_preview_passages: int = Field(8, ge=1, le=50)
     assistant_preview_sql_ms: int = Field(8000, ge=100, le=60_000)  # SET LOCAL statement_timeout
+    # --- the local Case Assistant model (design assistant-ollama, decisions 7, 11 to 13 and 16; no secret, no API key)
+    assistant_ollama_url: str = "http://host.docker.internal:11434"
+    assistant_ollama_model: str = "qwen3.5:4b"
+    assistant_ollama_num_ctx: int = Field(16384, ge=2048, le=131_072)
+    assistant_ollama_num_predict: int = Field(800, ge=64, le=4096)
+    assistant_ollama_keep_alive: str = Field("-1", pattern=r"^-?\d+(s|m|h)?$")
+    assistant_ollama_timeout_seconds: float = Field(30.0, ge=1, le=280)  # the model's share of one question
+    assistant_ollama_slots: int = Field(
+        1, ge=1, le=8
+    )  # questions at once per api process (OLLAMA_NUM_PARALLEL)
+    assistant_ollama_slot_wait_seconds: float = Field(20.0, ge=0, le=60)
+    assistant_ollama_sources: int = Field(6, ge=1, le=12)  # court passages
+    assistant_ollama_source_chars: int = Field(4000, ge=500, le=12_000)
+    assistant_ollama_history_turns: int = Field(2, ge=0, le=6)
+    assistant_ollama_internal_chars: int = Field(12_000, ge=0, le=30_000)  # 0 sends no internal records
+    assistant_ollama_hearings: int = Field(10, ge=0, le=50)  # also applies to listings
 
     # --- dashboards and reports (design reports-dashboards, decisions 2, 5, 12) ------------------
     report_max_range_days: int = Field(366, ge=1, le=1000)  # hearings-disposals period

@@ -248,3 +248,4 @@ export type AssistantMessage = S["AssistantMessageOut"];
 export type AssistantCitation = S["AssistantCitationOut"];
 export type AssistantCourtOrderView = S["AssistantCourtOrderViewOut"];
 export type AssistantScope = AssistantAskIn["scope"];
+export type AssistantInternal = S["AssistantInternalOut"];

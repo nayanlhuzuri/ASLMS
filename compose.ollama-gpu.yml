@@ -1,0 +1,13 @@
+# The Case Assistant's local model on an NVIDIA GPU (design assistant-ollama, decision 16). Add this file to
+# COMPOSE_FILE together with profile `ollama` only on a machine with an NVIDIA GPU and the NVIDIA Container Toolkit;
+# nothing else in ASLMS assumes a GPU, CI included. The runbook section "The local Case Assistant model (Ollama)" has
+# the steps.
+services:
+  ollama:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

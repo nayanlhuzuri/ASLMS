@@ -21,7 +21,17 @@ conversations, the hourly limit, the court-record view of a cited order, and the
 - Audit (decision 10): `assistant.asked` and `assistant.answered` carry digests, ids and counts, never the text;
   `assistant.court_order_opened` for every opening of the court-record view. Reading a conversation writes nothing.
 
-With `services/assistant_preview.py`, the only Case Assistant module that imports the connector."""
+Design `assistant-ollama` (round 1) adds the fourth mode `ollama`, a local model on Government servers, allowed in
+prod (a cloud model name or address answers `off`): readiness and a slot before transaction A (503 `assistant_loading`,
+`assistant_unavailable`, `assistant_busy`, nothing stored), court information in every scope, the citation check, and
+the switch "Include This Case's Internal Records" (`include_internal`): a one-way server-side state of one case-tab
+conversation, after which that conversation's questions also read that case's internal records the asker may open
+(`assistant_internal`), never drafts and never another case's. Internal citations hold references, are accepted only
+under five conditions, and are re-checked at every read (an answer that drew on a record the reader can no longer see
+is hidden).
+
+With `services/assistant_preview.py` and `services/assistant_ollama.py`, the only Case Assistant modules that import
+the connector."""
 
 from __future__ import annotations
 
@@ -31,7 +41,7 @@ import math
 import re
 import time
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 from typing import Any, Literal
 
@@ -43,7 +53,8 @@ from aslms.domain.assistant import AssistantConversation, AssistantMessage, Assi
 from aslms.domain.cases import Case
 from aslms.domain.documents import Document, Order, SourcetraceStatus
 from aslms.domain.org import User
-from aslms.domain.reference import Permission, RefDocType
+from aslms.domain.reference import Permission, RefDocType, RefNoteKind
+from aslms.domain.workflow import CaseNote
 from aslms.integration.sourcetrace import (
     Answer,
     AskRequest,
@@ -60,6 +71,8 @@ from aslms.integration.sourcetrace import (
     get_assistant_connector,
 )
 from aslms.services import access, visibility
+from aslms.services import assistant_internal as internal_records
+from aslms.services import assistant_ollama as ollama
 from aslms.services import assistant_sources as src
 from aslms.services.assistant_preview import PreviewConnector, PreviewTooBroad
 from aslms.services.audit import Actor, write_audit
@@ -78,6 +91,7 @@ MIN_QUESTION = 3
 CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
 MAX_ANSWER = 20_000
 MAX_PASSAGE = 1000
+MAX_CONTEXT = 12_000
 TITLE_CHARS = 80
 IN_FLIGHT_EXTRA_SECONDS = 15
 HOUR = timedelta(hours=1)
@@ -86,7 +100,16 @@ SOURCETRACE_BANNER = (
     "Answers come from SourceTrace. Check every source before relying on it. Do not type note text or internal "
     "remarks into a question."
 )
+OLLAMA_BANNER = (
+    "Answers are written by a local AI model on the Government's own servers, from the records found. The model can "
+    "make mistakes: check every answer against the cited order or record before relying on it."
+)
 HIDDEN_REASON = "This answer drew on a document you can no longer see."
+HIDDEN_INTERNAL = "This answer drew on a record you can no longer see."
+NEW_TITLE = "New Conversation"
+INTERNAL_KINDS = internal_records.INTERNAL_KINDS
+COURT_KINDS = ("court_order", "court_filing")
+SOURCE_KINDS = ("court_order", "court_filing", "case_details", "note", "file_movement", "department_document")
 UNAVAILABLE = "This source is no longer available."
 WITHHELD = "The answer drew on material outside your reach and was withheld."
 FAILURE_MESSAGES = {
@@ -98,7 +121,7 @@ FAILURE_MESSAGES = {
 }
 ANSWERED_OUTCOMES = ("answered", "no_match")
 
-_warned = {"prod_preview": False}
+_warned = {"prod_preview": False, "cloud": False}
 
 
 # ------------------------------------------------------------------------------------------------ errors
@@ -140,6 +163,51 @@ class AssistantLimit(AssistantError):
     def __init__(self, message: str, *, retry_after: int):
         super().__init__(message, retry_after=retry_after)
         self.retry_after = retry_after
+
+
+class AssistantLoading(AssistantError):
+    """Design `assistant-ollama`, decision 13: the model is held but not loaded; a load has started."""
+
+    code, http_status = "assistant_loading", 503
+
+    def __init__(
+        self,
+        message: str = "The Case Assistant is starting; try again in a minute.",
+        *,
+        retry_after: int = 30,
+    ):
+        super().__init__(message, retry_after=retry_after)
+        self.retry_after = retry_after
+
+
+class AssistantUnavailable(AssistantError):
+    code, http_status = "assistant_unavailable", 503
+
+
+class AssistantBusy(AssistantError):
+    code, http_status = "assistant_busy", 503
+
+    def __init__(
+        self, message: str = "The Case Assistant is busy; try again shortly.", *, retry_after: int = 5
+    ):
+        super().__init__(message, retry_after=retry_after)
+        self.retry_after = retry_after
+
+
+class InternalUnavailable(AssistantError):
+    """The switch outside ollama mode."""
+
+    code, http_status = "internal_unavailable", 422
+
+
+class InternalNotPermitted(AssistantError):
+    """The switch without the case page's read guard."""
+
+    code, http_status = "internal_not_permitted", 403
+
+
+class NoInternalRecords(AssistantError):
+    code, http_status = "no_internal_records", 422
 
 
 class ConversationNotFound(LookupError):
@@ -189,27 +257,52 @@ def assistant_state(settings: Settings) -> State:
         return "preview"
     if mode == "sourcetrace":
         return "ready" if connector_state(settings) == "ready" else "not_implemented"
+    if mode == "ollama":
+        # design assistant-ollama, decision 12: a cloud model name or address is never used (preflight refuses it)
+        if ollama.cloud_problems(settings):
+            if not _warned["cloud"]:
+                _warned["cloud"] = True
+                log.warning(
+                    "ASSISTANT_MODE=ollama with a cloud model or address is refused; the Case Assistant is off"
+                )
+            return "off"
+        return "ready"
     return "off"
 
 
+def _mode_name(settings: Settings) -> str:
+    return (getattr(settings, "assistant_mode", "off") or "off").strip().lower()
+
+
 def portal_mode(settings: Settings) -> str:
-    """`/me.assistant_mode`: the state reduced to `off` / `preview` / `sourcetrace`."""
+    """`/me.assistant_mode`: the state reduced to `off` / `preview` / `sourcetrace` / `ollama`."""
     state = assistant_state(settings)
-    return {"preview": "preview", "ready": "sourcetrace"}.get(state, "off")
+    if state == "preview":
+        return "preview"
+    if state == "ready":
+        return "ollama" if _mode_name(settings) == "ollama" else "sourcetrace"
+    return "off"
 
 
 def assistant_connector(settings: Settings, session_factory: sessionmaker) -> AssistantConnector | None:
-    """The preview only in `preview`, the real connector only when `ready`, otherwise None. Never the fake."""
+    """The preview only in `preview`, the Ollama connector (one per process) in `ollama`, the real SourceTrace
+    connector only when `ready`, otherwise None. Never the fake."""
     state = assistant_state(settings)
     if state == "preview":
         return PreviewConnector(session_factory, settings)
     if state == "ready":
+        if _mode_name(settings) == "ollama":
+            return ollama.get_connector(settings, session_factory)
         return get_assistant_connector(settings)
     return None
 
 
 def mode_of(connector: AssistantConnector) -> str:
-    return "preview" if isinstance(connector, PreviewConnector) else "sourcetrace"
+    if isinstance(connector, PreviewConnector):
+        return "preview"
+    if isinstance(connector, ollama.OllamaConnector):
+        return "ollama"
+    return "sourcetrace"
 
 
 def banner(settings: Settings) -> str | None:
@@ -217,7 +310,7 @@ def banner(settings: Settings) -> str | None:
     if state == "preview":
         return PREVIEW_BANNER
     if state == "ready":
-        return SOURCETRACE_BANNER
+        return OLLAMA_BANNER if _mode_name(settings) == "ollama" else SOURCETRACE_BANNER
     return None
 
 
@@ -239,16 +332,31 @@ def _used_last_hour(session: Session, user_id: uuid.UUID, now: datetime) -> tupl
     return int(count or 0), oldest
 
 
-def status(session: Session, user: User, settings: Settings) -> dict[str, Any]:
+def engine(connector: AssistantConnector | None) -> dict[str, Any] | None:
+    """`status.engine` (design `assistant-ollama`, decision 13): the local model's readiness (which may start a
+    load), or None for the other engines."""
+    if not isinstance(connector, ollama.OllamaConnector):
+        return None
+    r = connector.readiness()
+    return {"kind": "ollama", "model": connector.model, "readiness": r.state, "reason": r.reason}
+
+
+def status(
+    session: Session, user: User, settings: Settings, connector: AssistantConnector | None = None
+) -> dict[str, Any]:
     """`GET /assistant/status`: the mode, the state, the banner, the limits with the caller's questions of the
-    last hour, and the scopes."""
+    last hour, the scopes, the engine and where internal records may be included (`switch` in ollama mode, on the
+    case tab only; `never` otherwise)."""
     now = session.scalar(select(func.now()))
     used, _ = _used_last_hour(session, user.id, now)
     state = assistant_state(settings)
+    is_ollama = isinstance(connector, ollama.OllamaConnector)
     return {
-        "mode": settings.assistant_mode,
-        "state": state,
-        "banner": banner(settings),
+        "mode": "ollama" if is_ollama else settings.assistant_mode,
+        "state": "ready" if is_ollama else state,
+        "banner": OLLAMA_BANNER if is_ollama else banner(settings),
+        "engine": engine(connector),
+        "internal_records": "switch" if is_ollama else "never",
         "limits": {
             "questions_per_hour": settings.assistant_questions_per_hour,
             "used_last_hour": used,
@@ -274,6 +382,10 @@ class _Prepared:
     focus_ids: list[uuid.UUID] | None
     filing_ids: set[uuid.UUID]
     request: AskRequest
+    details: bool = False
+    internal_on: bool = False
+    internal: internal_records.InternalRecords | None = None
+    question: str = ""
 
 
 @dataclass
@@ -346,10 +458,17 @@ def _filing_ids(citations: list[dict[str, Any]] | None) -> list[uuid.UUID]:
 
 
 def _history(
-    session: Session, user: User, conversation_id: uuid.UUID, connector_name: str, turns: int
+    session: Session,
+    user: User,
+    conversation_id: uuid.UUID,
+    connector_name: str,
+    turns: int,
+    conversation: AssistantConversation | None = None,
 ) -> list[Turn]:
     """Decision 12: the last `turns` question and answer pairs of the conversation, only the connector's own answers
-    that are still shown to the asker (answered or no match, no filing citation the asker can no longer see)."""
+    that are still shown to the asker (answered or no match, no filing citation the asker can no longer see, and —
+    design `assistant-ollama`, decision 10 — no internal citation the asker can no longer see). One conversation id
+    only: history never crosses conversations."""
     if turns <= 0:
         return []
     answer = aliased(AssistantMessage, name="hist_answer")
@@ -366,7 +485,18 @@ def _history(
         .limit(turns)
     ).all()
     visible = src.visible_filings(session, user, [d for _, _, cits in rows for d in _filing_ids(cits)])
-    out = [Turn(question=q, answer=a) for q, a, cits in rows if all(d in visible for d in _filing_ids(cits))]
+    conv = conversation or session.get(AssistantConversation, conversation_id)
+
+    def shown(cits: list[dict[str, Any]] | None) -> bool:
+        if not all(d in visible for d in _filing_ids(cits)):
+            return False
+        return all(
+            internal_records.recheck(session, user, conv, c)
+            for c in cits or []
+            if c.get("source_kind") in INTERNAL_KINDS
+        )
+
+    out = [Turn(question=q, answer=a) for q, a, cits in rows if shown(cits)]
     return list(reversed(out))
 
 
@@ -442,6 +572,8 @@ def _prepare(
                 retry_after=max(1, math.ceil(wait)),
             )
         new = conv is None
+        if conv is not None and conv.title == NEW_TITLE and not conv.last_message_at:
+            conv.title = q[:TITLE_CHARS]  # the first question of an empty conversation switched on before it
         if conv is None:
             conv = AssistantConversation(
                 user_id=u.id,
@@ -456,12 +588,34 @@ def _prepare(
             s,
             u,
             focus_ids,
-            "preview" if mode == "preview" else "sourcetrace",
+            mode if mode in ("preview", "ollama") else "sourcetrace",
             limit=config.max_filing_sources,
+        )
+        # design assistant-ollama, decisions 4 and 5: case details need the case page's read guard; internal records
+        # only in ollama mode, for the stored case-scope conversation switched on before this question, of its case
+        details = mode == "ollama" and internal_records.read_guard(s, u)
+        internal_on = (
+            mode == "ollama"
+            and scope == "case"
+            and not new
+            and conv.internal_included_at is not None
+            and case_row is not None
+            and conv.case_id == case_row.id
+        )
+        internal = (
+            internal_records.gather(
+                s,
+                u,
+                case_row,
+                q,
+                budget_chars=int(getattr(connector, "settings", None).assistant_ollama_internal_chars),
+            )
+            if internal_on
+            else None
         )
         orders = _orders_corpus(scope, include_related)
         contexts = src.case_contexts(s, focus_ids or [])
-        history = [] if new else _history(s, u, conv.id, str(connector.name), config.history_turns)
+        history = [] if new else _history(s, u, conv.id, str(connector.name), config.history_turns, conv)
         truncated = focus_truncated or filings_truncated
         scope_info = {
             "kind": scope,
@@ -493,6 +647,11 @@ def _prepare(
             "filings_passed": scope_info["filings_passed"],
             "truncated": truncated,
         }
+        if mode == "ollama":
+            after["internal"] = internal_on
+            after["internal_supplied"] = {
+                k: int((internal.counts if internal else {}).get(k, 0)) for k in INTERNAL_KINDS
+            }
         if via:
             after["as_user_id"] = u.id
             after["via"] = via
@@ -528,6 +687,10 @@ def _prepare(
             focus_ids=focus_ids,
             filing_ids={d for d, _ in filings},
             request=request,
+            details=details,
+            internal_on=internal_on,
+            internal=internal,
+            question=q,
         )
         s.commit()
     return prepared
@@ -551,6 +714,7 @@ async def _call(
     config: AssistantConfig,
     *,
     conversation_id: uuid.UUID | None = None,
+    invoke: Any = None,
 ) -> _Result:
     """The call, outside any transaction: the time budget `timeout_seconds`; one retry after
     `SourceTraceUnavailable` after `retry_delay`, only while the budget allows; none after a timeout, a refusal or
@@ -569,7 +733,8 @@ async def _call(
         attempts += 1
         remaining = max(0.001, deadline - time.monotonic())
         try:
-            answer = await asyncio.wait_for(connector.ask(request), timeout=remaining)
+            call = invoke() if invoke is not None else connector.ask(request)
+            answer = await asyncio.wait_for(call, timeout=remaining)
         except PreviewTooBroad as exc:
             return _Result(False, family="timeout", message=str(exc), duration_ms=took(), attempts=attempts)
         except TimeoutError:
@@ -662,6 +827,8 @@ def _map_citations(
     """Decisions 6, 8 and 12: each citation to a document (preview: by document id; sourcetrace: by
     `sourcetrace_ref`), re-checked against the scope that was sent; `NotCitable` for any outside it."""
     out: list[dict[str, Any]] = []
+    if prepared.mode == "ollama":
+        return _map_ollama(session, user, prepared, citations)
     for c in citations:
         doc_id: uuid.UUID | None
         if prepared.mode == "preview":
@@ -713,6 +880,113 @@ def _map_citations(
     return out
 
 
+def _internal_set(prepared: _Prepared) -> dict[str, set]:
+    """What transaction A gathered (decision 8, the fifth condition)."""
+    rec = prepared.internal
+    if rec is None:
+        return {"note": set(), "file_movement": set(), "department_document": set()}
+    return {
+        "note": {str(n.note_id) for n in rec.notes},
+        "file_movement": {str(rec.case_id)} if rec.file_movement is not None else set(),
+        "department_document": {str(d.document_id) for d in rec.documents},
+    }
+
+
+def _map_ollama(
+    session: Session, user: User, prepared: _Prepared, citations: tuple[Citation, ...] | list[Citation]
+) -> list[dict[str, Any]]:
+    """Design `assistant-ollama`, decision 8: every supplied source stored as a citation with `label`, `cited` and
+    `source_kind`. Court kinds by document id, re-checked as the preview's; Case Details only of the focus case or a
+    case of a supplied court source; an internal kind only when the mode is ollama, the conversation is scope `case`,
+    it was switched on before this question's transaction A, the record belongs to the conversation's case and was in
+    the set gathered there. Otherwise `NotCitable` (the whole answer is withheld). References only, never text."""
+    gathered = _internal_set(prepared)
+    court: list[dict[str, Any]] = []
+    rest: list[tuple[int, dict[str, Any]]] = []
+    for pos, c in enumerate(citations):
+        kind = c.source_kind or "court_order"
+        if kind not in SOURCE_KINDS:
+            raise src.NotCitable("a citation of an unknown kind")
+        base = {"source_kind": kind, "label": c.label, "cited": bool(c.cited)}
+        if kind in COURT_KINDS:
+            sub = _Prepared(**{**prepared.__dict__, "mode": "preview"})
+            item = _map_citations(session, user, sub, [replace(c, label=None)])[0]
+            verified = item["source_kind"]  # the rule's own answer, not the connector's word
+            item.update(base)
+            item["source_kind"] = verified
+            if c.context:
+                item["context"] = c.context[:MAX_CONTEXT]
+            court.append(item)
+            rest.append((pos, item))
+            continue
+        record = dict(c.record or {})
+        if kind == "case_details":
+            rest.append((pos, {**base, "case_id": record.get("case_id"), **_details_ref(record)}))
+            continue
+        if not (
+            prepared.mode == "ollama"
+            and prepared.scope == "case"
+            and prepared.internal_on
+            and prepared.case_id is not None
+        ):
+            raise src.NotCitable("internal records are outside this conversation's reach")
+        if kind == "note":
+            ref = str(record.get("note_id") or "")
+            note = session.get(CaseNote, _uuid(ref)) if _uuid(ref) else None
+            if note is None or note.case_id != prepared.case_id or ref not in gathered["note"]:
+                raise src.NotCitable("a note outside the gathered set")
+            chars = record.get("chars") or [0, 0]
+            rest.append(
+                (pos, {**base, "case_id": str(prepared.case_id), "note_id": ref, "chars": list(chars)[:2]})
+            )
+        elif kind == "file_movement":
+            ref = str(record.get("case_id") or "")
+            if ref != str(prepared.case_id) or ref not in gathered["file_movement"]:
+                raise src.NotCitable("a file movement outside the gathered set")
+            rest.append(
+                (
+                    pos,
+                    {
+                        **base,
+                        "case_id": ref,
+                        "legs": list(record.get("legs") or [])[:2],
+                        "remarks": bool(record.get("remarks")),
+                    },
+                )
+            )
+        else:
+            ref = str(record.get("document_id") or c.document_id or "")
+            doc = session.get(Document, _uuid(ref)) if _uuid(ref) else None
+            if doc is None or doc.case_id != prepared.case_id or ref not in gathered["department_document"]:
+                raise src.NotCitable("a department document outside the gathered set")
+            rest.append(
+                (
+                    pos,
+                    {
+                        **base,
+                        "case_id": str(prepared.case_id),
+                        "document_id": ref,
+                        "page": c.page if isinstance(c.page, int) and c.page > 0 else None,
+                        "what": record.get("what") if record.get("what") in ("note_attachment",) else None,
+                    },
+                )
+            )
+    court_cases = {str(i.get("case_id")) for i in court if i.get("case_id")}
+    allowed_cases = court_cases | {str(f) for f in (prepared.focus_ids or [])}
+    for _pos, item in rest:
+        if item["source_kind"] == "case_details" and str(item.get("case_id")) not in allowed_cases:
+            raise src.NotCitable("case details of a case outside the sources")
+    return [item for _pos, item in sorted(rest, key=lambda t: t[0])]
+
+
+def _details_ref(record: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "hearings": int(record.get("hearings") or 0),
+        "listings": int(record.get("listings") or 0),
+        "compact": bool(record.get("compact")),
+    }
+
+
 def _record(
     Session: sessionmaker,
     actor: Actor,
@@ -753,6 +1027,21 @@ def _record(
                 result.raw,
                 result.family,
             )
+            if prepared.mode == "ollama":
+                info = {"engine": "ollama", "model": getattr(connector, "model", None)}
+        if (
+            prepared.mode == "ollama"
+            and prepared.scope == "case"
+            and not prepared.internal_on
+            and outcome in ANSWERED_OUTCOMES
+            and prepared.case_id is not None
+        ):
+            # decision 4: a deterministic keyword check, no model call; a suggestion only, never a switch
+            case_row = s.get(Case, prepared.case_id)
+            info["suggest_internal"] = bool(
+                internal_records.suggests(prepared.question)
+                and internal_records.visible_count(s, u, case_row) > 0
+            )
         if via:
             info["via"] = via
         msg = AssistantMessage(
@@ -767,7 +1056,7 @@ def _record(
             duration_ms=result.duration_ms,
             citations=citations,
             model_info=info or None,
-            response=raw if prepared.mode == "sourcetrace" else None,
+            response=raw if prepared.mode in ("sourcetrace", "ollama") else None,
         )
         s.add(msg)
         conv.last_message_at = s.scalar(select(func.now()))
@@ -790,13 +1079,34 @@ def _record(
                 "attempts": result.attempts,
                 "answer": digest(content),
                 "citations": [
-                    {"document_id": c["document_id"], "order_id": c["order_id"]} for c in citations or []
+                    {"document_id": c.get("document_id"), "order_id": c.get("order_id")}
+                    for c in citations or []
+                    if c.get("source_kind", "court_order") in COURT_KINDS
                 ],
+                **(_ollama_audit(info, citations) if prepared.mode == "ollama" else {}),
             },
         )
         answer_id = msg.id
         s.commit()
     return answer_id, outcome
+
+
+def _ollama_audit(info: dict[str, Any], citations: list[dict[str, Any]] | None) -> dict[str, Any]:
+    """Decision 18: counts per source kind, never text."""
+    supplied = {k: 0 for k in SOURCE_KINDS}
+    cited = {k: 0 for k in SOURCE_KINDS}
+    for c in citations or []:
+        k = c.get("source_kind")
+        if k in supplied:
+            supplied[k] += 1
+            if c.get("cited", True):
+                cited[k] += 1
+    return {
+        "model": info.get("model"),
+        "sources_supplied": supplied,
+        "cited": cited,
+        "invalid_markers": int(info.get("invalid_markers") or 0),
+    }
 
 
 async def ask(
@@ -818,27 +1128,147 @@ async def ask(
     connector failure is stored as a `failed` answer and returned."""
     if connector is None:
         raise AssistantOff("the Case Assistant is off")
-    prepared = _prepare(
-        Session,
-        actor,
-        user,
-        question=question,
-        scope=scope,
-        case=case,
-        conversation_id=conversation_id,
-        include_related=include_related,
-        connector=connector,
-        config=config,
-        via=via,
-    )
-    result = await _call(connector, prepared.request, config, conversation_id=prepared.conversation_id)
-    answer_id, outcome = _record(Session, actor, user, prepared, connector, result, via)
+    slot = await _admit(connector)
+    try:
+        prepared = _prepare(
+            Session,
+            actor,
+            user,
+            question=question,
+            scope=scope,
+            case=case,
+            conversation_id=conversation_id,
+            include_related=include_related,
+            connector=connector,
+            config=config,
+            via=via,
+        )
+        invoke = None
+        if isinstance(connector, ollama.OllamaConnector):
+            if prepared.scope == "case":
+
+                def invoke():
+                    return connector.ask_case(prepared.request, prepared.internal, details=prepared.details)
+
+            else:
+
+                def invoke():
+                    return connector.ask(prepared.request, details=prepared.details)
+
+        result = await _call(
+            connector, prepared.request, config, conversation_id=prepared.conversation_id, invoke=invoke
+        )
+        answer_id, outcome = _record(Session, actor, user, prepared, connector, result, via)
+    finally:
+        if slot is not None:
+            slot.release()
     return AskResult(
         conversation_id=prepared.conversation_id,
         question_id=prepared.question_id,
         answer_id=answer_id,
         outcome=outcome,
     )
+
+
+async def _admit(connector: AssistantConnector) -> ollama.Slot | None:
+    """Design `assistant-ollama`, decision 13: readiness, then a slot, before transaction A. None of the three
+    refusals is stored, counted or audited."""
+    if not isinstance(connector, ollama.OllamaConnector):
+        return None
+    try:
+        return await connector.admission()
+    except ollama.ModelLoading as exc:
+        raise AssistantLoading() from exc
+    except ollama.ModelUnavailable as exc:
+        raise AssistantUnavailable(
+            "The Case Assistant model is not available; try again later.", reason=exc.reason
+        ) from exc
+    except ollama.ModelBusy as exc:
+        raise AssistantBusy() from exc
+
+
+# ------------------------------------------------------------------------------------------------ the switch
+
+
+def include_internal(
+    Session: sessionmaker,
+    actor: Actor,
+    user: User,
+    *,
+    case: Case | uuid.UUID,
+    conversation_id: uuid.UUID | None = None,
+    mode: str,
+) -> dict[str, Any]:
+    """Design `assistant-ollama`, decision 4: switch on "Include This Case's Internal Records" for the asker's own
+    scope-`case` conversation of `case` (or a new empty one, titled "New Conversation"). Ollama mode only
+    (`InternalUnavailable`); the case visible (`NotVisibleCase`) and the read guard held (`InternalNotPermitted`); at
+    least one internal record the asker may open (`NoInternalRecords`); another user's conversation is
+    `ConversationNotFound`, another case's or scope's `ScopeMismatch`. Under the conversation's row lock (the lock
+    transaction A takes); set once from NULL and audited `assistant.internal_included` (ids only); a repeat is
+    idempotent with no second audit row."""
+    if mode != "ollama":
+        raise InternalUnavailable("internal records can be included only when the local model answers")
+    with Session() as s:
+        u = s.get(User, user.id)
+        case_row = s.get(Case, case.id if isinstance(case, Case) else case)
+        if case_row is None or not visibility.can_view_case(s, u, case_row):
+            raise NotVisibleCase("no such case")
+        conv: AssistantConversation | None = None
+        if conversation_id is not None:
+            conv = s.scalar(
+                select(AssistantConversation)
+                .where(AssistantConversation.id == conversation_id, AssistantConversation.user_id == u.id)
+                .with_for_update()
+            )
+            if conv is None:
+                raise ConversationNotFound("no such conversation")
+            if _value(conv.scope) != "case" or conv.case_id != case_row.id:
+                raise ScopeMismatch("the conversation is not this case's case-tab conversation")
+        if not internal_records.read_guard(s, u):
+            raise InternalNotPermitted("you cannot open this case's notes and file movement")
+        if conv is not None and conv.internal_included_at is not None:
+            return {
+                "conversation_id": conv.id,
+                "case_id": case_row.id,
+                "internal_included_at": conv.internal_included_at,
+                "new_conversation": False,
+            }
+        if internal_records.visible_count(s, u, case_row) <= 0:
+            raise NoInternalRecords("you can open no internal record of this case")
+        new = conv is None
+        now = s.scalar(select(func.now()))
+        if conv is None:
+            conv = AssistantConversation(
+                user_id=u.id, case_id=case_row.id, scope=AssistantScope.CASE, title=NEW_TITLE
+            )
+            s.add(conv)
+            s.flush()
+        conv.internal_included_at = now
+        s.flush()
+        after: dict[str, Any] = {
+            "conversation_id": conv.id,
+            "case_id": case_row.id,
+            "new_conversation": new,
+        }
+        if actor.user_id is None or actor.user_id != u.id:
+            after["as_user_id"] = u.id
+        write_audit(
+            s,
+            actor,
+            "assistant.internal_included",
+            "assistant_conversation",
+            conv.id,
+            case_id=case_row.id,
+            after=after,
+        )
+        out = {
+            "conversation_id": conv.id,
+            "case_id": case_row.id,
+            "internal_included_at": now,
+            "new_conversation": new,
+        }
+        s.commit()
+    return out
 
 
 # ------------------------------------------------------------------------------------------------ reading
@@ -877,6 +1307,7 @@ def conversation_out(
         "last_message_at": conv.last_message_at,
         "created_at": conv.created_at,
         "message_count": int(count or 0),
+        "internal_included_at": conv.internal_included_at,
     }
 
 
@@ -975,6 +1406,13 @@ def _unavailable(kind: str) -> dict[str, Any]:
         "available": False,
         "unavailable_reason": UNAVAILABLE,
         "open": None,
+        "label": None,
+        "cited": True,
+        "context": None,
+        "note": None,
+        "internal": False,
+        "what": None,
+        "visibility": None,
     }
 
 
@@ -995,11 +1433,139 @@ def _document_openable_cases(session: Session, user: User, case_ids: set[uuid.UU
     return set(session.scalars(select(Case.id).where(Case.id.in_(case_ids), or_(*conds))).all())
 
 
+def _internal_out(
+    session: Session,
+    user: User,
+    conv: AssistantConversation | None,
+    c: dict[str, Any],
+    doc_labels: dict[str, str],
+    note_labels: dict[str, str],
+) -> dict[str, Any]:
+    """Design `assistant-ollama`, decision 9: an internal citation re-checked under the reader's current rules and its
+    text re-rendered from the record; one that fails names nothing."""
+    kind = c.get("source_kind")
+    if conv is None or not internal_records.recheck(session, user, conv, c):
+        return {**_unavailable(kind), "label": c.get("label"), "cited": bool(c.get("cited", True))}
+    case = session.get(Case, conv.case_id)
+    context = internal_records.render(session, user, conv, c)
+    note_out = None
+    open_: dict[str, Any] | None = None
+    record_visibility: str | None = None
+    doc_id = _uuid(c.get("document_id"))
+    doc_type_label = None
+    doc_date = None
+    if kind == "note":
+        note = session.get(CaseNote, _uuid(c.get("note_id")))
+        kind_code = _value(note.kind)
+        note_out = {
+            "id": note.id,
+            "seq_no": note.seq_no,
+            "kind_label": note_labels.get(kind_code, kind_code),
+            "corrected_by_seq_no": internal_records.corrected_later(session, user, note.id),
+        }
+        doc_date = note.created_at.date() if note.created_at else None
+        record_visibility = _value(note.visibility)
+        open_ = {"kind": "case_tab", "href": f"/cases/{case.id}/notes#note-{note.seq_no}"}
+    elif kind == "file_movement":
+        open_ = {"kind": "case_tab", "href": f"/cases/{case.id}/custody"}
+        # a remark is read only with a working basis: the narrowest setting; the legs alone are the case's
+        record_visibility = "private_to_office" if c.get("remarks") else "case_scope"
+    else:
+        doc = session.get(Document, doc_id)
+        dt = _value(doc.doc_type)
+        doc_type_label = doc_labels.get(dt, dt) if dt else None
+        doc_date = doc.doc_date
+        record_visibility = _value(doc.visibility)
+        open_ = {
+            "kind": "document",
+            "href": f"/documents/{doc_id}/file?disposition="
+            + ("inline" if doc.mime in INLINE_MIMES else "attachment"),
+        }
+    return {
+        "document_id": doc_id,
+        "order_id": None,
+        "case": {"id": case.id, "case_no_text": case.case_no_text, "cnr": case.cnr, "visible": True},
+        "source_kind": kind,
+        "doc_type_label": doc_type_label,
+        "doc_date": doc_date,
+        "order_no": None,
+        "page": c.get("page"),
+        "passage": None,
+        "related": False,
+        "available": True,
+        "unavailable_reason": None,
+        "open": open_,
+        "label": c.get("label"),
+        "cited": bool(c.get("cited", True)),
+        "context": context,
+        "note": note_out,
+        "internal": True,
+        "what": c.get("what"),
+        "visibility": record_visibility,
+    }
+
+
+def _details_out(session: Session, user: User, c: dict[str, Any], visible: set[uuid.UUID]) -> dict[str, Any]:
+    """A Case Details citation: the court-public facts re-read from the court tables at read time."""
+    case_id = _uuid(c.get("case_id"))
+    case = session.get(Case, case_id) if case_id else None
+    if case is None or case.merged_into_case_id is not None:
+        return {**_unavailable("case_details"), "label": c.get("label"), "cited": bool(c.get("cited", True))}
+    compact = bool(c.get("compact"))
+    n = int(c.get("hearings") or 0)
+    rows = src.case_details(session, [case.id], hearings=n, listings=int(c.get("listings") or 0))
+    context = ollama.details_text(rows[0], compact=compact) if rows else None
+    case_visible = case.id in visible
+    return {
+        "document_id": None,
+        "order_id": None,
+        "case": {
+            "id": case.id if case_visible else None,
+            "case_no_text": case.case_no_text,
+            "cnr": case.cnr,
+            "visible": case_visible,
+        },
+        "source_kind": "case_details",
+        "doc_type_label": None,
+        "doc_date": None,
+        "order_no": None,
+        "page": None,
+        "passage": None,
+        "related": False,
+        "available": True,
+        "unavailable_reason": None,
+        "open": {"kind": "case_tab", "href": f"/cases/{case.id}/details"} if case_visible else None,
+        "label": c.get("label"),
+        "cited": bool(c.get("cited", True)),
+        "context": context,
+        "note": None,
+        "internal": False,
+        "what": None,
+        "visibility": None,
+    }
+
+
 def messages_out(session: Session, user: User, msgs: list[AssistantMessage]) -> list[dict[str, Any]]:
     """`MessageOut` for each message: filing citations re-checked against the reader's current document visibility
     (decision 8). A failing one shows only that it is unavailable and hides the answer's text. Court-order citations
     are court-public and stay shown while the order is still in the court-order corpus (the document a current court
-    record, not archived, the order's case not merged); otherwise they show unavailable too."""
+    record, not archived, the order's case not merged); otherwise they show unavailable too. Design
+    `assistant-ollama`, decision 9: internal citations re-checked under the reader's current rules (a failing one,
+    cited or not, hides the answer), their text re-rendered from the record; Case Details re-read from the court
+    tables."""
+    convs = (
+        {
+            c.id: c
+            for c in session.scalars(
+                select(AssistantConversation).where(
+                    AssistantConversation.id.in_({m.conversation_id for m in msgs})
+                )
+            ).all()
+        }
+        if msgs
+        else {}
+    )
+    note_labels = {r.code: r.label for r in session.scalars(select(RefNoteKind)).all()}
     cits = [(m, c) for m in msgs for c in (m.citations or [])]
     doc_ids = {d for _, c in cits if (d := _uuid(c.get("document_id")))}
     order_ids = {o for _, c in cits if (o := _uuid(c.get("order_id")))}
@@ -1037,15 +1603,28 @@ def messages_out(session: Session, user: User, msgs: list[AssistantMessage]) -> 
     openable = _document_openable_cases(session, user, visible)
 
     def citation_out(m: AssistantMessage, c: dict[str, Any]) -> dict[str, Any]:
+        kind = c.get("source_kind") or "court_order"
+        if kind in INTERNAL_KINDS:
+            return _internal_out(session, user, convs.get(m.conversation_id), c, labels, note_labels)
+        if kind == "case_details":
+            return _details_out(session, user, c, visible)
+        extra = {
+            "label": c.get("label"),
+            "cited": bool(c.get("cited", True)),
+            "context": c.get("context"),
+            "note": None,
+            "internal": False,
+            "what": None,
+            "visibility": None,
+        }
         doc_id = _uuid(c.get("document_id"))
         order_id = _uuid(c.get("order_id"))
         case_id = _uuid(c.get("case_id"))
         doc = docs.get(doc_id) if doc_id else None
         order = orders.get(order_id) if order_id else None
-        kind = c.get("source_kind") or "court_order"
         if kind == "court_filing":
             if doc is None or doc_id not in filings:
-                return _unavailable(kind)
+                return {**_unavailable(kind), "label": extra["label"], "cited": extra["cited"]}
             open_ = {
                 "kind": "document",
                 "href": f"/documents/{doc_id}/file?disposition="
@@ -1053,11 +1632,11 @@ def messages_out(session: Session, user: User, msgs: list[AssistantMessage]) -> 
             }
         else:
             if doc is None or order is None or order.document_id != doc_id or doc_id not in in_corpus:
-                return _unavailable(kind)
+                return {**_unavailable(kind), "label": extra["label"], "cited": extra["cited"]}
             case_id = order.case_id
             order_case = cases.get(case_id)
             if order_case is None or order_case.merged_into_case_id is not None:
-                return _unavailable(kind)
+                return {**_unavailable(kind), "label": extra["label"], "cited": extra["cited"]}
             if case_id in openable:
                 open_ = {
                     "kind": "document",
@@ -1087,20 +1666,39 @@ def messages_out(session: Session, user: User, msgs: list[AssistantMessage]) -> 
             "available": True,
             "unavailable_reason": None,
             "open": open_,
+            **extra,
         }
 
     out = []
     for m in msgs:
         items = [citation_out(m, c) for c in (m.citations or [])]
-        hidden = any(not i["available"] for i in items if i["source_kind"] == "court_filing")
+        hidden_internal = any(not i["available"] for i in items if i["source_kind"] in INTERNAL_KINDS)
+        hidden = hidden_internal or any(
+            not i["available"] for i in items if i["source_kind"] == "court_filing"
+        )
         role = _value(m.role)
+        info = m.model_info or {}
+        is_ollama = m.mode == "ollama"
         out.append(
             {
                 "id": m.id,
                 "role": role,
                 "created_at": m.created_at,
                 "content": None if hidden else m.content,
-                "hidden_reason": HIDDEN_REASON if hidden else None,
+                "hidden_reason": (HIDDEN_INTERNAL if hidden_internal else HIDDEN_REASON) if hidden else None,
+                "engine": {"kind": "ollama", "model": info.get("model")} if is_ollama else None,
+                "checks": (
+                    {
+                        "invalid_markers": int(info.get("invalid_markers") or 0),
+                        "cut_short": bool(info.get("cut_short")),
+                    }
+                    if is_ollama
+                    else None
+                ),
+                "internal_used": any(
+                    i["source_kind"] in INTERNAL_KINDS and i.get("cited", True) for i in items
+                ),
+                "suggest_internal": bool(info.get("suggest_internal")),
                 "mode": m.mode,
                 "outcome": m.outcome,
                 "error": (
@@ -1292,9 +1890,13 @@ def court_order_file(
 
 
 def check(session: Session) -> dict[str, int]:
-    """`aslms assistant check`: stored citations naming a document that is not a court order or a court filing (a
-    note attachment, an internal, admin or cause-list document, a private one, or none at all), and conversations
-    with a case scope but no case. Both must be 0."""
+    """`aslms assistant check`: (1) court-kind citations naming a document that is not a court order or a court
+    filing (a note attachment, an internal, admin or cause-list document, a private one, or none at all); (2)
+    conversations with a case scope but no case; and (design `assistant-ollama`, "Data") (3) internal-kind citations on
+    an answer whose mode is not `ollama`, whose conversation's scope is not `case`, or whose question was created before
+    the conversation's `internal_included_at` (or with it null); (4) internal-kind citations naming a record of
+    another case than the conversation's; (5) citations naming a record kind outside the six of round 1. All must be
+    0."""
     bad_citations = int(
         session.scalar(
             text(
@@ -1305,7 +1907,8 @@ def check(session: Session) -> dict[str, int]:
                     CASE WHEN jsonb_typeof(m.citations) = 'array' THEN m.citations ELSE '[]'::jsonb END
                 ) AS c(value)
                 LEFT JOIN documents d ON d.id::text = c.value ->> 'document_id'
-                WHERE NOT coalesce(
+                WHERE coalesce(c.value ->> 'source_kind', 'court_order') IN ('court_order', 'court_filing')
+                AND NOT coalesce(
                     (d.kind = 'order' AND d.doc_group = 'court_record')
                     OR (d.kind = 'upload' AND d.doc_group = 'court_filing' AND d.visibility <> 'private_to_office'),
                     false
@@ -1325,4 +1928,77 @@ def check(session: Session) -> dict[str, int]:
         )
         or 0
     )
-    return {"citations_out_of_rule": bad_citations, "case_conversations_without_case": orphan}
+    internal_out_of_reach = int(
+        session.scalar(
+            text(
+                """
+                SELECT count(*)
+                FROM assistant_messages m
+                JOIN assistant_conversations cv ON cv.id = m.conversation_id
+                JOIN assistant_messages q ON q.id = m.reply_to_id
+                CROSS JOIN LATERAL jsonb_array_elements(
+                    CASE WHEN jsonb_typeof(m.citations) = 'array' THEN m.citations ELSE '[]'::jsonb END
+                ) AS c(value)
+                WHERE c.value ->> 'source_kind' IN ('note', 'file_movement', 'department_document')
+                AND (
+                    m.mode IS DISTINCT FROM 'ollama'
+                    OR cv.scope::text <> 'case'
+                    OR cv.internal_included_at IS NULL
+                    OR q.created_at < cv.internal_included_at
+                )
+                """
+            )
+        )
+        or 0
+    )
+    internal_other_case = int(
+        session.scalar(
+            text(
+                """
+                SELECT count(*)
+                FROM assistant_messages m
+                JOIN assistant_conversations cv ON cv.id = m.conversation_id
+                CROSS JOIN LATERAL jsonb_array_elements(
+                    CASE WHEN jsonb_typeof(m.citations) = 'array' THEN m.citations ELSE '[]'::jsonb END
+                ) AS c(value)
+                LEFT JOIN case_notes n ON c.value ->> 'source_kind' = 'note' AND n.id::text = c.value ->> 'note_id'
+                LEFT JOIN documents d
+                    ON c.value ->> 'source_kind' = 'department_document' AND d.id::text = c.value ->> 'document_id'
+                WHERE c.value ->> 'source_kind' IN ('note', 'file_movement', 'department_document')
+                AND NOT coalesce(
+                    CASE c.value ->> 'source_kind'
+                        WHEN 'note' THEN n.case_id = cv.case_id
+                        WHEN 'department_document' THEN d.case_id = cv.case_id
+                        ELSE (c.value ->> 'case_id') = cv.case_id::text
+                    END,
+                    false
+                )
+                """
+            )
+        )
+        or 0
+    )
+    unknown_kind = int(
+        session.scalar(
+            text(
+                """
+                SELECT count(*)
+                FROM assistant_messages m
+                CROSS JOIN LATERAL jsonb_array_elements(
+                    CASE WHEN jsonb_typeof(m.citations) = 'array' THEN m.citations ELSE '[]'::jsonb END
+                ) AS c(value)
+                WHERE coalesce(c.value ->> 'source_kind', 'court_order') NOT IN (
+                    'court_order', 'court_filing', 'case_details', 'note', 'file_movement', 'department_document'
+                )
+                """
+            )
+        )
+        or 0
+    )
+    return {
+        "citations_out_of_rule": bad_citations,
+        "case_conversations_without_case": orphan,
+        "internal_citations_out_of_reach": internal_out_of_reach,
+        "internal_citations_of_another_case": internal_other_case,
+        "citations_of_unknown_kind": unknown_kind,
+    }

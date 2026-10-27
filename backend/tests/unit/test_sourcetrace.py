@@ -216,6 +216,9 @@ ALLOWED = {
     ("services", "assistant.py"),
     ("services", "assistant_preview.py"),
     ("cli", "assistant.py"),
+    # design assistant-ollama: the local model's connector, and its client mapping errors onto the contract's types
+    ("services", "assistant_ollama.py"),
+    ("ollama", "client.py"),
 }
 
 

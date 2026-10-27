@@ -668,6 +668,60 @@ gitleaks carry the load and the owner is the only person with write access):
 Free's 2,000 private minutes a month cover about 45–60 cycles (check the account's billing page). Artifacts are kept
 7 days.
 
+## 20. The local Case Assistant model (Ollama)
+
+Design `assistant-ollama` (owner, 27 Oct 2026). SourceTrace stays the intended AI (row 36); until it is available the
+Case Assistant may be answered by a local model served by Ollama, with `ASSISTANT_MODE=ollama`. No cloud model is
+allowed: the model runs on the ASLMS host or on a server the Government controls, and no court text leaves Government
+infrastructure. No model, model runtime or model library runs inside ASLMS's own processes (`no_local_model`); the
+only model is the Ollama server named by `ASSISTANT_OLLAMA_URL`.
+
+**Install.** Install Ollama 0.40 or later on the host (or the chosen Government server) and pull the model:
+`ollama pull qwen3.5:4b` (or the model named by `ASSISTANT_OLLAMA_MODEL`). Optionally, run it inside Compose with
+profile `ollama` (`ASSISTANT_OLLAMA_URL=http://ollama:11434`, then `docker compose exec ollama ollama pull
+qwen3.5:4b`), and only on a machine with an NVIDIA GPU add `compose.ollama-gpu.yml` to `COMPOSE_FILE`.
+
+**Where it listens.** Ollama must listen only where the api can reach it and nobody else can:
+- Windows or macOS with Docker Desktop: Ollama's default `127.0.0.1:11434` on the host is reached by the containers
+  as `host.docker.internal` (the default address; `extra_hosts` on `api` and `init`);
+- Linux: set `OLLAMA_HOST=172.17.0.1:11434` (the Docker bridge) in the Ollama service, never `0.0.0.0` on a host with
+  a public address;
+- a separate Government server: listen on the private network only, with the firewall open to the ASLMS host only.
+In prod, `aslms ops preflight` refuses an address that resolves outside loopback, private (RFC 1918, fc00::/7) or
+link-local addresses; a model name or tag holding `cloud`, an address on ollama.com, user information or a query is
+the fatal `no_cloud_model` at every `APP_ENV`.
+
+**Settings on the Ollama server.** `OLLAMA_NUM_PARALLEL` equal to `ASSISTANT_OLLAMA_SLOTS` (1); `OLLAMA_KEEP_ALIVE=-1`
+when it runs in Compose. **Never run `ollama signin`** (it links the server to Ollama's cloud) and **never set
+`OLLAMA_DEBUG`**: it logs prompts, and a prompt can hold a case's notes and remarks.
+
+**Keeping it loaded.** `ASSISTANT_OLLAMA_KEEP_ALIVE=-1` keeps the model in memory (about 3.7 GB of GPU memory for
+`qwen3.5:4b`). The api starts a load in the background at start, and opening the Assistant starts one when the model is
+held but not loaded; meanwhile questions answer 503 `assistant_loading` (about two minutes on a first load). Load it by
+hand with `docker compose exec api aslms assistant warm`; `aslms assistant status` shows the engine. The System health
+screen's "Case Assistant Model" card (ollama mode only) shows the version, model, loaded, on GPU and kept-loaded-until,
+never the address.
+
+**Changing the model.** Pull the new model on the Ollama server, set `ASSISTANT_OLLAMA_MODEL` in `.env`, then restart
+the api with the court-data switch carried: `NAPIX_ENABLED=<as now> docker compose up -d api`. Then run `aslms
+assistant warm`.
+
+**On CPU only.** Without a GPU a 4B model answers in tens of seconds and may pass `ASSISTANT_OLLAMA_TIMEOUT_SECONDS`
+(30 s): questions then fail with "No answer came within …". The pilot needs a GPU host or a GPU server at the State
+Data Centre (owner check 14).
+
+**The internal-records rule.** By default the model reads court information only: court orders, the court filings the
+officer may open, and case details and hearings. On a case's Assistant tab an officer may press "Include This Case's
+Internal Records"; from then on, in that conversation only, the model also reads that case's saved notes, file
+movement with remarks, pending actions and department documents that the officer may open on the case page. Drafts
+are never read, another case's records are never read, and the switch is recorded in the audit log
+(`assistant.internal_included`). It cannot be switched off within the conversation; a court-only conversation is a
+new one. SourceTrace's rule is unchanged: it never receives notes or internal documents.
+
+**Switching back.** Set `ASSISTANT_MODE=off` (or later `sourcetrace`, once row 36 is built) and restart the api with
+the court-data switch carried. Stored local-model answers stay readable; the migration 0032 downgrade refuses while
+any exists (a restore is needed, section 6).
+
 ## Pilot go-live checklist
 
 - [ ] Rows 76, 16, 77 and 78 merged.

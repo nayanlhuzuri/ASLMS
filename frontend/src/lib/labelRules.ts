@@ -133,6 +133,8 @@ export const SENTENCE_EXCEPTIONS: Record<string, string> = {
   "nd.noun": "a noun inside a count sentence",
   "nd.reading.period": "a fragment after a period of days",
   "assistant.suggested.research.0": "a suggested question typed for the person",
+  "assistant.includedHere": "a line marking a point in the conversation (design assistant-ollama, decision 14)",
+  "assistant.usesInternal": "a sentence under an answer (design assistant-ollama, decision 14)",
 };
 
 /** Functions under label paths, with the sample arguments their result is checked with (path → args). */

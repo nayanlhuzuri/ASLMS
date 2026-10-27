@@ -7,7 +7,7 @@
  * `workflow.note_mode`. Notes are never sent to SourceTrace. `initialBody` fills the text for the Case Assistant's
  * "Copy to note" (design assistant, decision 13): the person edits it and saves an ordinary note.
  */
-import { Dialog } from "@/components/ui";
+import { Dialog, Notice } from "@/components/ui";
 import { useCaseTitle } from "@/lib/api/hooks";
 import { T } from "@/lib/messages";
 
@@ -20,6 +20,8 @@ export function NoteDialog({
   onClose,
   onDone,
   initialBody,
+  initialVisibility,
+  warning,
 }: {
   open: boolean;
   caseRef: string;
@@ -27,15 +29,22 @@ export function NoteDialog({
   onClose: () => void;
   onDone: (notice: string) => void;
   initialBody?: string;
+  /** Copy to note of an answer citing internal records: the narrowest setting of those records (design
+   * assistant-ollama, decision 10); the person may still choose another. */
+  initialVisibility?: string;
+  /** A line above the composer (the internal-records warning of Copy to note). */
+  warning?: string;
 }) {
   const subtitle = useCaseTitle(caseRef);
   return (
     <Dialog open={open} title={T.case.noteTitle} subtitle={subtitle} onClose={onClose} wide>
+      {open && warning ? <Notice tone="warning">{warning}</Notice> : null}
       {open ? (
         <NoteComposer
           caseRef={caseRef}
           mode={mode}
           initialBody={initialBody}
+          initialVisibility={initialVisibility}
           onCancel={onClose}
           onDone={(text) => {
             onClose();
