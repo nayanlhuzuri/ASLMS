@@ -902,7 +902,9 @@ The build comes right after row 172 (`data-collection-redesign`), by the owner's
 ## Data
 There are two new migrations, one per round. Neither is hand-edited after it is applied. Each takes the next free
 number at build time: main's head is 0030, and row 169 also plans one. The developer sets `down_revision` and
-records the numbers.
+records the numbers. Set on 27 Oct 2026 when round 1 started: row 169 (`session-timeout`, built in parallel on its
+own branch) holds `0031_session_timeout`, so round 1's migration is **0032**, with `down_revision` 0031 if row 169
+has merged first and 0030 otherwise; the integrator re-points `down_revision` at merge time if the order changes.
 
 **Round 1, migration 00NN** (`00NN_assistant_ollama.py`, hand-written):
 - **The mode CHECK.** Drop `ck_assistant_messages_role_shape` and add it again with `mode IN ('preview',
