@@ -34,7 +34,9 @@ def _request(s, world, remark="the minister's order of 1 Oct"):
 def _ticket_alerts(s, t) -> list[Alert]:
     return list(
         s.scalars(
-            sa.select(Alert).where(Alert.data["ticket_id"].astext == str(t.id)).order_by(Alert.created_at)
+            sa.select(Alert)
+            .where(Alert.data["ticket_id"].astext == str(t.id))
+            .order_by(Alert.created_at, Alert.id)
         )
     )
 

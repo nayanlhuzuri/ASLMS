@@ -56,7 +56,13 @@ def audits(s, case_id) -> list[str]:
 
 
 def events(s, case_id, kind) -> list[Event]:
-    return list(s.scalars(sa.select(Event).where(Event.case_id == case_id, Event.type == kind)))
+    return list(
+        s.scalars(
+            sa.select(Event)
+            .where(Event.case_id == case_id, Event.type == kind)
+            .order_by(Event.occurred_at, Event.id)
+        )
+    )
 
 
 def custody(s, case_id):

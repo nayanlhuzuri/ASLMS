@@ -131,15 +131,19 @@ def drafts(s: Session, case_id) -> list[CaseNoteDraft]:
         s.scalars(
             sa.select(CaseNoteDraft)
             .where(CaseNoteDraft.case_id == case_id)
-            .order_by(CaseNoteDraft.created_at)
+            .order_by(CaseNoteDraft.created_at, CaseNoteDraft.id)
         ).all()
     )
 
 
 def events(s: Session, case_id, kind: EventType) -> list[Event]:
+    """In write order. `occurred_at` is the transaction's `now()`, so every event of one transaction ties on it
+    and Postgres returns ties in heap order; the UUID v7 id, issued in insertion order, breaks the tie."""
     return list(
         s.scalars(
-            sa.select(Event).where(Event.case_id == case_id, Event.type == kind).order_by(Event.occurred_at)
+            sa.select(Event)
+            .where(Event.case_id == case_id, Event.type == kind)
+            .order_by(Event.occurred_at, Event.id)
         ).all()
     )
 

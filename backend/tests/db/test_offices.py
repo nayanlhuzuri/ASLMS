@@ -128,7 +128,9 @@ def audits(session, action: str, entity_id=None) -> list[AuditLog]:
 def events(session, action: str) -> list[Event]:
     return list(
         session.scalars(
-            sa.select(Event).where(Event.type == "config_changed", Event.payload["action"].astext == action)
+            sa.select(Event)
+            .where(Event.type == "config_changed", Event.payload["action"].astext == action)
+            .order_by(Event.occurred_at, Event.id)
         ).all()
     )
 

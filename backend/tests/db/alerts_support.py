@@ -120,7 +120,11 @@ def alerts_of(s: Session, case: Case | None = None, kind=None) -> list[Alert]:
 
 
 def notifications_of(s: Session, alert: Alert, channel: Channel | None = None) -> list[Notification]:
-    stmt = sa.select(Notification).where(Notification.alert_id == alert.id).order_by(Notification.created_at)
+    stmt = (
+        sa.select(Notification)
+        .where(Notification.alert_id == alert.id)
+        .order_by(Notification.created_at, Notification.id)
+    )
     if channel is not None:
         stmt = stmt.where(Notification.channel == channel)
     return list(s.scalars(stmt).all())

@@ -118,7 +118,9 @@ def rows(s: Session, case: Case) -> list[NextDate]:
 def events(s: Session, case: Case, kind: EventType = EventType.NEXT_DATE_EXTRACTED) -> list[Event]:
     return list(
         s.scalars(
-            sa.select(Event).where(Event.case_id == case.id, Event.type == kind).order_by(Event.occurred_at)
+            sa.select(Event)
+            .where(Event.case_id == case.id, Event.type == kind)
+            .order_by(Event.occurred_at, Event.id)
         ).all()
     )
 
@@ -128,7 +130,7 @@ def review_alerts(s: Session, case: Case) -> list[Alert]:
         s.scalars(
             sa.select(Alert)
             .where(Alert.case_id == case.id, Alert.kind == AlertKind.NEXT_DATE_REVIEW)
-            .order_by(Alert.created_at)
+            .order_by(Alert.created_at, Alert.id)
             .execution_options(populate_existing=True)
         ).all()
     )

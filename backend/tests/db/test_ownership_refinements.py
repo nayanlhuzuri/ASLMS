@@ -83,7 +83,13 @@ def dossier_rows(s) -> list[FetchQueueItem]:
 
 
 def events(s, case, kind) -> list[Event]:
-    return list(s.scalars(sa.select(Event).where(Event.case_id == case.id, Event.type == kind)).all())
+    return list(
+        s.scalars(
+            sa.select(Event)
+            .where(Event.case_id == case.id, Event.type == kind)
+            .order_by(Event.occurred_at, Event.id)
+        ).all()
+    )
 
 
 @pytest.fixture()
