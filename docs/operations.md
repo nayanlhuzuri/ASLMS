@@ -100,7 +100,8 @@ Every container's logs are rotated (`json-file`, 20 MB × 5). The backend image 
 5. `docker compose up -d`. `init` runs preflight. On a fresh database it migrates to head, sets the role passwords and
    seeds; then every service starts. Watch it with `docker compose ps` and `docker compose logs init`.
 6. The super admin signs in at `https://<host>/` with the e-mailed code and changes the password. Then clear
-   `ASLMS_SUPERADMIN_PASSWORD` in `.env` (preflight warns while it is set) and run `docker compose up -d` again.
+   `ASLMS_SUPERADMIN_PASSWORD` in `.env` (preflight warns while it is set) and run `docker compose up -d` again,
+   carrying the switch as it is now (`NAPIX_ENABLED=true docker compose up -d` when court data is on; section 11).
 7. Check: `docker compose exec backup aslms ops backup` writes the first backup;
    `docker compose exec backup aslms ops restore-check` passes; `aslms documents scan-check` passes inside `api`.
 
@@ -221,7 +222,10 @@ the server's major version; keep them together. To supply a host without registr
 ```
 docker compose build
 docker save -o aslms-images.tar postgres:16.15 redis:7.4.10-alpine nginx:1.28-alpine clamav/clamav:1.5.4 \
-  aslms-init aslms-api aslms-worker aslms-scheduler aslms-web aslms-backup aslms-migrate
+  aslms-init aslms-api aslms-worker aslms-scheduler aslms-web aslms-backup aslms-migrate \
+  aslms-pgbouncer aslms-ops-exporter
+# with the monitoring profile, also its pinned images from compose.yml (prometheus, alertmanager, grafana, flower,
+# the exporters, node-exporter and cadvisor)
 # on the target
 docker load -i aslms-images.tar
 ```
@@ -320,7 +324,7 @@ backlog row 27) or Mailtrap's sending service with a verified domain. Test with
 ## 15. Troubleshooting
 
 - **`init` exits with a preflight error:** the message names the variable (never the value). Fix `.env` and run
-  `docker compose up -d` again.
+  `docker compose up -d` again, carrying the switch (section 11).
 - **`preflight fatal: no_local_model: onnxruntime found in ...`** (design followups-oct, decision 25): a dependency
   brought an onnxruntime (a neural-network runtime) into the image, or the installed PyMuPDF carries one. ASLMS runs
   no local model (all AI goes through SourceTrace), so the start is refused at every `APP_ENV`. Pin the dependency
@@ -515,7 +519,7 @@ unambiguous patterns in every line) and fails on any of them.
 
 **Upgrades and restores.** PgBouncer keeps `aslms_app` server connections open for a while after its clients stop,
 and `migrate` and `ops restore` refuse while any `aslms_app` session is connected. Stop it with the application
-services (sections 6 and 10). `docker compose up -d` starts it again after `init`.
+services (sections 6 and 10). `docker compose up -d` starts it again after `init` (carrying the switch, section 11).
 
 **Checks.**
 

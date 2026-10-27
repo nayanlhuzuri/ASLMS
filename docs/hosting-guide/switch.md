@@ -1,0 +1,1 @@
+NAPIX_ENABLED=true
