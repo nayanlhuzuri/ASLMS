@@ -40,6 +40,7 @@ export function DepartmentSummary({ d }: { d: DepartmentCustodySummary }) {
       <div className={s.columns}>
         <DataTable
           caption={T.files.byHolderDepartment}
+          showCaption
           rows={d.by_holder_department}
           rowKey={(r) => r.code}
           columns={[
@@ -49,6 +50,7 @@ export function DepartmentSummary({ d }: { d: DepartmentCustodySummary }) {
         />
         <DataTable
           caption={T.files.byHolder}
+          showCaption
           rows={d.by_holder.map((r, i) => ({ ...r, key: `${r.office_code}-${r.user_name ?? ""}-${i}` }))}
           rowKey={(r) => r.key}
           columns={[

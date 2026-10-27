@@ -921,12 +921,28 @@ def _day_totals(session: Session, from_: date, to: date) -> dict[str, int]:
     return out
 
 
+# the case's `dossier` queue row, in any lane: by CNR, or `<est_code>|<case number>` for a provisional case
+# (`napix_admin.dossier_ref`); `uq_fetch_queue_kind_ref` answers each probe
+_DOSSIER_ROW = """
+    EXISTS (SELECT 1 FROM fetch_queue q WHERE q.kind = 'dossier' AND q.status IN ({statuses})
+            AND (q.ref = c.cnr OR q.ref = (SELECT co.est_code FROM courts co WHERE co.id = c.court_id)
+                 || '|' || c.case_no_text))
+"""
+
+
 def _case_totals(session: Session, from_: date, to: date) -> dict[str, int]:
-    listed, with_details, provisional = session.execute(
+    """The cases listed in [from_, to] (current lists, not merged): with details, provisional, and (design
+    `data-collection-redesign`, decision 20) without details, of which `queued` have a pending or running dossier row
+    in any lane and `failed` a failed one."""
+    queued = _DOSSIER_ROW.format(statuses="'pending', 'running'")
+    failed = _DOSSIER_ROW.format(statuses="'failed'")
+    listed, with_details, provisional, n_queued, n_failed = session.execute(
         text(
-            """
+            f"""
             SELECT count(*), count(*) FILTER (WHERE c.last_full_refresh_at IS NOT NULL),
-                   count(*) FILTER (WHERE c.is_provisional)
+                   count(*) FILTER (WHERE c.is_provisional),
+                   count(*) FILTER (WHERE c.last_full_refresh_at IS NULL AND {queued}),
+                   count(*) FILTER (WHERE c.last_full_refresh_at IS NULL AND NOT {queued} AND {failed})
             FROM cases c
             WHERE c.merged_into_case_id IS NULL AND c.id IN (
                 SELECT e.case_id FROM causelist_entries e JOIN causelists cl ON cl.id = e.causelist_id
@@ -935,17 +951,29 @@ def _case_totals(session: Session, from_: date, to: date) -> dict[str, int]:
         ),
         {"f": from_, "t": to},
     ).one()
-    return {"listed": int(listed), "with_details": int(with_details), "provisional": int(provisional)}
+    return {
+        "listed": int(listed),
+        "with_details": int(with_details),
+        "provisional": int(provisional),
+        "without_details": int(listed) - int(with_details),
+        "queued": int(n_queued),
+        "failed": int(n_failed),
+    }
 
 
-def _order_totals(session: Session, from_: date, to: date) -> dict[str, int]:
-    referenced, stored, not_available, waiting = session.execute(
+def _order_totals(session: Session, from_: date | None, to: date | None) -> dict[str, int]:
+    """Orders by `order_date` in [from_, to] (an open end when None): known, stored, not available at the court,
+    waiting (pending with no document) and failed (design `data-collection-redesign`, decision 14)."""
+    referenced, stored, not_available, waiting, failed = session.execute(
         text(
             """
             SELECT count(*), count(*) FILTER (WHERE document_id IS NOT NULL),
                    count(*) FILTER (WHERE download_status = 'not_available' AND document_id IS NULL),
-                   count(*) FILTER (WHERE download_status = 'pending' AND document_id IS NULL)
-            FROM orders WHERE order_date BETWEEN :f AND :t
+                   count(*) FILTER (WHERE download_status = 'pending' AND document_id IS NULL),
+                   count(*) FILTER (WHERE download_status = 'failed' AND document_id IS NULL)
+            FROM orders
+            WHERE (CAST(:f AS date) IS NULL OR order_date >= CAST(:f AS date))
+              AND (CAST(:t AS date) IS NULL OR order_date <= CAST(:t AS date))
             """
         ),
         {"f": from_, "t": to},
@@ -955,6 +983,7 @@ def _order_totals(session: Session, from_: date, to: date) -> dict[str, int]:
         "stored": int(stored),
         "not_available": int(not_available),
         "waiting": int(waiting),
+        "failed": int(failed),
     }
 
 
@@ -1069,6 +1098,413 @@ def progress(session: Session, cfg: Settings, now: datetime | None = None) -> di
     }
 
 
+# ------------------------------------------------------------------------------------------------ overview, pulse
+# design `data-collection-redesign` (round 1): the Overview tab's honest counts across every lane, the live pulse and
+# the estimate in two dates. Reads only, no NAPIX call.
+
+ACTIVE = (FetchStatus.PENDING, FetchStatus.RUNNING)
+PULSE_RECENT = timedelta(minutes=5)
+LIMIT_LOOKBACK = timedelta(hours=24)
+PULSE_RUNNING_MAX = 20
+# Still to Fetch's named parts (decision 14); every other kind is `other`
+LEFT_PARTS = {
+    FetchKind.CAUSELIST_DAY.value: "causelist_days",
+    FetchKind.DOSSIER.value: "case_details",
+    FetchKind.ORDER_PDF.value: "order_pdfs",
+}
+
+
+def position(session: Session) -> dict[str, Any]:
+    """Where the past-months collection is (decision 14): the earliest load-lane cause-list day still pending or
+    running, and its month; None when nothing waits."""
+    q = FetchQueueItem
+    d = session.scalar(
+        select(func.min(q.list_date)).where(
+            q.lane == FetchLane.LOAD, q.kind == FetchKind.CAUSELIST_DAY, q.status.in_(ACTIVE)
+        )
+    )
+    return {"working_on": d, "working_on_month": f"{d.year:04d}-{d.month:02d}" if d else None}
+
+
+def collection_state(session: Session, settings: LoadSettings, period: tuple[date, date] | None) -> str:
+    """`not_started` (no load period), `paused`, `running` (load-lane work pending or running) or `finished`."""
+    if period is None:
+        return "not_started"
+    if settings.paused:
+        return "paused"
+    q = FetchQueueItem
+    active = session.scalar(
+        select(func.count()).select_from(q).where(q.lane == FetchLane.LOAD, q.status.in_(ACTIVE))
+    )
+    return "running" if active else "finished"
+
+
+def _all_cases(session: Session) -> dict[str, int]:
+    """Every case held, not merged (decision 14: cases found are all cases held)."""
+    found, with_details, provisional = session.execute(
+        text(
+            """
+            SELECT count(*), count(*) FILTER (WHERE last_full_refresh_at IS NOT NULL),
+                   count(*) FILTER (WHERE is_provisional)
+            FROM cases WHERE merged_into_case_id IS NULL
+            """
+        )
+    ).one()
+    return {
+        "found": int(found),
+        "with_details": int(with_details),
+        "without_details": int(found) - int(with_details),
+        "provisional": int(provisional),
+    }
+
+
+def waiting_work(session: Session) -> list[dict[str, Any]]:
+    """The queue in every lane by kind (decision 15): waiting rows (`total`) split by lane, fetching and failed.
+    Kinds with no row are left out."""
+    q = FetchQueueItem
+    out: dict[str, dict[str, Any]] = {}
+    for kind, lane, status, n in session.execute(
+        select(q.kind, q.lane, q.status, func.count())
+        .where(q.status.in_([FetchStatus.PENDING, FetchStatus.RUNNING, FetchStatus.FAILED]))
+        .group_by(q.kind, q.lane, q.status)
+    ).all():
+        k = _value(kind)
+        row = out.setdefault(
+            k,
+            {"kind": k, "total": 0, "by_lane": {ln.value: 0 for ln in FetchLane}, "running": 0, "failed": 0},
+        )
+        st = FetchStatus(_value(status))
+        if st == FetchStatus.PENDING:
+            row["total"] += int(n)
+            row["by_lane"][_value(lane)] += int(n)
+        elif st == FetchStatus.RUNNING:
+            row["running"] += int(n)
+        else:
+            row["failed"] += int(n)
+    order = [k.value for k in FetchKind]
+    return sorted(out.values(), key=lambda r: order.index(r["kind"]) if r["kind"] in order else len(order))
+
+
+def still_to_fetch(work: list[dict[str, Any]]) -> dict[str, int]:
+    """Still to Fetch (decision 14): pending and running rows in every lane, the request lane included."""
+    left = {"causelist_days": 0, "case_details": 0, "order_pdfs": 0, "other": 0}
+    for row in work:
+        left[LEFT_PARTS.get(row["kind"], "other")] += row["total"] + row["running"]
+    left["total"] = sum(left.values())
+    return left
+
+
+def problem_counts(
+    session: Session, work: list[dict[str, Any]], cases: dict[str, int], orders: dict[str, int]
+) -> dict[str, int]:
+    """The Problems line (decision 16)."""
+    review = session.scalar(
+        select(func.count())
+        .select_from(SourceFailure)
+        .where(SourceFailure.kind == case_dedupe.FAILURE_KIND, SourceFailure.resolved_at.is_(None))
+    )
+    return {
+        "failed": sum(r["failed"] for r in work),
+        "duplicates_review": int(review or 0),
+        "cases_without_details": cases["without_details"],
+        "orders_not_available": orders["not_available"],
+        "orders_failed": orders["failed"],
+    }
+
+
+def hourly_limit(session: Session, now: datetime) -> int | None:
+    """The hourly limit as the court reports it: the highest remaining count read in the last 24 hours, plus the
+    call that read it. None with no reading."""
+    top = session.scalar(
+        select(func.max(NapixCallLog.rate_limit_remaining)).where(
+            NapixCallLog.called_at >= now - LIMIT_LOOKBACK, NapixCallLog.rate_limit_remaining.isnot(None)
+        )
+    )
+    return int(top) + 1 if top is not None else None
+
+
+@dataclass
+class BasisAll:
+    """The measured figures behind the two-date estimate (decision 21), over every queue lane."""
+
+    window_days: int
+    calls_per_item: dict[str, float | None]
+    finished: dict[str, int]
+    calls: dict[str, int]
+    dossiers_per_day: float | None
+    pdfs_per_dossier: float | None
+    calls_per_hour: float
+    pending: dict[str, int]
+    history_hours: float
+    calls_last_hour: int
+    hourly_limit: int | None
+
+    def as_dict(self) -> dict[str, Any]:
+        return dict(self.__dict__)
+
+
+def measure_all(session: Session, cfg: Settings, now: datetime | None = None) -> BasisAll:
+    """Decision 21: decision 8's rates widened to every queue lane (a call with a lane). Calls per item and PDFs per
+    case come from every lane; dossiers per cause-list day from the load lane (a daily or weekly dossier is not spawned
+    by a day), falling back to every lane; the pace is the queue calls of the last 24 hours. `pending` counts the
+    pending and running rows of the three kinds in every lane."""
+    now = _now(now)
+    window = cfg.data_load_estimate_window_days
+    since = now - timedelta(days=window)
+    queued = NapixCallLog.lane.isnot(None)
+    calls: dict[str, int] = {}
+    for kind, apis in FAMILY.items():
+        calls[kind.value] = int(
+            session.scalar(
+                select(func.count()).where(
+                    queued, NapixCallLog.called_at >= since, NapixCallLog.api.in_(apis)
+                )
+            )
+            or 0
+        )
+    q = FetchQueueItem
+    done = q.status.in_([FetchStatus.DONE, FetchStatus.SKIPPED])
+    finished_rows = dict(
+        session.execute(
+            select(q.kind, func.count()).where(done, q.finished_at >= since).group_by(q.kind)
+        ).all()
+    )
+    finished = {k.value: int(finished_rows.get(k, 0) or 0) for k in LOAD_KINDS}
+    load_days = int(
+        session.scalar(
+            select(func.count()).where(
+                q.lane == FetchLane.LOAD, q.kind == FetchKind.CAUSELIST_DAY, done, q.finished_at >= since
+            )
+        )
+        or 0
+    )
+    load_dossiers = int(
+        session.scalar(
+            select(func.count()).where(
+                q.lane == FetchLane.LOAD, q.kind == FetchKind.DOSSIER, q.created_at >= since
+            )
+        )
+        or 0
+    )
+    spawned = dict(
+        session.execute(
+            select(q.kind, func.count())
+            .where(q.created_at >= since, q.kind.in_([FetchKind.DOSSIER, FetchKind.ORDER_PDF]))
+            .group_by(q.kind)
+        ).all()
+    )
+    pending_rows = dict(
+        session.execute(select(q.kind, func.count()).where(q.status.in_(ACTIVE)).group_by(q.kind)).all()
+    )
+    pending = {k.value: int(pending_rows.get(k, 0) or 0) for k in LOAD_KINDS}
+
+    def rate(num: float, den: int) -> float | None:
+        return round(num / den, 3) if den else None
+
+    first_call = session.scalar(select(func.min(NapixCallLog.called_at)).where(queued))
+    calls_24h = int(
+        session.scalar(
+            select(func.count()).where(queued, NapixCallLog.called_at >= now - timedelta(hours=24))
+        )
+        or 0
+    )
+    calls_1h = int(
+        session.scalar(select(func.count()).where(queued, NapixCallLog.called_at >= now - timedelta(hours=1)))
+        or 0
+    )
+    per_day = rate(load_dossiers, load_days)
+    if per_day is None:
+        per_day = rate(int(spawned.get(FetchKind.DOSSIER, 0) or 0), finished[FetchKind.CAUSELIST_DAY.value])
+    return BasisAll(
+        window_days=window,
+        calls_per_item={k: rate(calls[k], finished[k]) for k in finished},
+        finished=finished,
+        calls=calls,
+        dossiers_per_day=per_day,
+        pdfs_per_dossier=rate(
+            int(spawned.get(FetchKind.ORDER_PDF, 0) or 0), finished[FetchKind.DOSSIER.value]
+        ),
+        calls_per_hour=round(calls_24h / 24, 3),
+        pending=pending,
+        history_hours=round((now - first_call).total_seconds() / 3600, 2) if first_call else 0.0,
+        calls_last_hour=calls_1h,
+        hourly_limit=hourly_limit(session, now),
+    )
+
+
+def _line(needed: float | None, b: BasisAll, now: datetime, reason: str | None) -> dict[str, Any]:
+    if reason is not None or needed is None:
+        return {
+            "finish_at": None,
+            "hours": None,
+            "calls_needed": None,
+            "reason": reason or "not_enough_history",
+        }
+    hours = needed / b.calls_per_hour if needed else 0.0
+    return {
+        "finish_at": to_ist(now + timedelta(hours=hours)),
+        "hours": round(hours, 2),
+        "calls_needed": round(needed, 1),
+        "reason": None,
+    }
+
+
+def compute_two(b: BasisAll, *, paused: bool, gateway_on: bool, now: datetime) -> dict[str, Any]:
+    """Decision 21: two lines from measured rates only. `details`: the cause-list days and case details waiting in
+    every lane, with the dossiers the waiting days will spawn; `all`: those and every order PDF, waiting or still to be
+    spawned. The worker takes details before order PDFs (priorities 40-46 before 60 and 80), so the details finish
+    first at the shared pace. No date, with the reason: `connection_off`, `not_enough_history` (under 24 hours of
+    queue calls, or a kind with work and no measured rate), `no_recent_calls` (work waiting and no queue call in the
+    last hour), and `paused` for the details line."""
+    days = b.pending[FetchKind.CAUSELIST_DAY.value]
+    dossiers = b.pending[FetchKind.DOSSIER.value]
+    pdfs = b.pending[FetchKind.ORDER_PDF.value]
+    cpd = b.calls_per_item.get(FetchKind.CAUSELIST_DAY.value)
+    cdo = b.calls_per_item.get(FetchKind.DOSSIER.value)
+    cpp = b.calls_per_item.get(FetchKind.ORDER_PDF.value)
+    details_needed: float | None = 0.0
+    if days:
+        if cpd is None or cdo is None or b.dossiers_per_day is None:
+            details_needed = None
+        else:
+            details_needed = days * cpd + days * b.dossiers_per_day * cdo
+    if dossiers and details_needed is not None:
+        details_needed = None if cdo is None else details_needed + dossiers * cdo
+    all_needed: float | None = details_needed
+    if all_needed is not None:
+        future_dossiers = dossiers + days * (b.dossiers_per_day or 0.0)
+        future_pdfs = pdfs + future_dossiers * (b.pdfs_per_dossier or 0.0)
+        if future_pdfs:
+            all_needed = None if cpp is None else all_needed + future_pdfs * cpp
+
+    def reason(needed: float | None, *, details: bool) -> str | None:
+        if needed == 0:
+            return None
+        if not gateway_on:
+            return "connection_off"
+        if details and paused:
+            return "paused"
+        if b.history_hours < HISTORY_MIN.total_seconds() / 3600:
+            return "not_enough_history"
+        if b.calls_last_hour == 0 or b.calls_per_hour <= 0:
+            return "no_recent_calls"
+        if needed is None:
+            return "not_enough_history"
+        return None
+
+    return {
+        "details": _line(details_needed, b, now, reason(details_needed, details=True)),
+        "all": _line(all_needed, b, now, reason(all_needed, details=False)),
+        "basis": b.as_dict(),
+    }
+
+
+def estimate_all(
+    session: Session, settings: LoadSettings, cfg: Settings, now: datetime | None = None
+) -> dict[str, Any]:
+    now = _now(now)
+    return compute_two(
+        measure_all(session, cfg, now), paused=settings.paused, gateway_on=bool(cfg.napix_configured), now=now
+    )
+
+
+def overview(session: Session, cfg: Settings, now: datetime | None = None) -> dict[str, Any]:
+    """`GET /admin/data-load/overview` (decisions 14-16, 21): what is held, done and left, in one snapshot under the
+    report statement timeout. `days` counts the calendar days of the load period up to today (any lane: the daily
+    cycle collects the recent ones); `cases` every case held; `orders` every order known, and `in_period` those dated
+    inside the period; `left` the work in every lane; `bulk` is the active bulk request (always None until round
+    3)."""
+    now = _now(now)
+    today = today_ist(now)
+    with_timeout(session, cfg.report_statement_timeout_seconds)
+    settings = current_settings(session)
+    period = load_period(session)
+    days = None
+    in_period = None
+    if period is not None:
+        end = max(period[1], today)
+        t = _day_totals(session, period[0], end)
+        days = {**t, "collected": t["with_lists"] + t["no_list"], "to": end}
+        in_period = _order_totals(session, period[0], period[1])
+    cases = _all_cases(session)
+    orders = {**_order_totals(session, None, None), "in_period": in_period}
+    work = waiting_work(session)
+    return {
+        "as_of": to_ist(now),
+        "napix_enabled": bool(cfg.napix_configured),
+        "settings": settings_dict(settings),
+        "collection": collection_state(session, settings, period),
+        "period": {"from": period[0], "to": period[1]} if period else None,
+        "position": position(session),
+        "days": days,
+        "cases": cases,
+        "orders": orders,
+        "left": still_to_fetch(work),
+        "waiting_work": work,
+        "problems": problem_counts(session, work, cases, orders),
+        "estimate": estimate_all(session, settings, cfg, now),
+        "bulk": None,
+    }
+
+
+def pulse(session: Session, cfg: Settings, now: datetime | None = None) -> dict[str, Any]:
+    """`GET /admin/data-load/pulse` (decisions 17-18), polled every 5 s: the quota window and its calls, the queue by
+    kind in every lane, what is fetching now (kind, lane and start, never a reference), calls in the last 5 minutes,
+    the last call and the request-lane rows waiting or fetching. A handful of indexed counts."""
+    now = _now(now)
+    window = napix_window.current(session, cfg, now)
+    used = napix_window.calls_since(session, window.observed_at)["calls"]
+    q = FetchQueueItem
+    queue_rows = [
+        {"kind": _value(kind), "pending": int(p), "running": int(r)}
+        for kind, p, r in session.execute(
+            select(
+                q.kind,
+                func.count().filter(q.status == FetchStatus.PENDING),
+                func.count().filter(q.status == FetchStatus.RUNNING),
+            )
+            .where(q.status.in_(ACTIVE))
+            .group_by(q.kind)
+            .order_by(q.kind)
+        ).all()
+    ]
+    running = [
+        {"kind": _value(kind), "lane": _value(lane), "started_at": to_ist(started)}
+        for kind, lane, started in session.execute(
+            select(q.kind, q.lane, q.started_at)
+            .where(q.status == FetchStatus.RUNNING)
+            .order_by(q.started_at.desc().nulls_last())
+            .limit(PULSE_RUNNING_MAX)
+        ).all()
+    ]
+    recent = int(
+        session.scalar(select(func.count()).where(NapixCallLog.called_at >= now - PULSE_RECENT)) or 0
+    )
+    requests = int(
+        session.scalar(
+            select(func.count()).select_from(q).where(q.lane == FetchLane.REQUEST, q.status.in_(ACTIVE))
+        )
+        or 0
+    )
+    return {
+        "as_of": to_ist(now),
+        "napix_enabled": bool(cfg.napix_configured),
+        "window": {
+            "status": window.status,
+            "remaining": window.remaining,
+            "used": used,
+            "hourly_limit": hourly_limit(session, now),
+            "next_reset_at": to_ist(window.next_reset_at),
+            "seconds_to_next_reset": window.seconds_to_reset(now),
+        },
+        "queue": queue_rows,
+        "running": running,
+        "calls_last_5_min": recent,
+        "last_call_at": to_ist(session.scalar(select(func.max(NapixCallLog.called_at)))),
+        "requests_active": requests,
+    }
+
+
 # ------------------------------------------------------------------------------------------------ coverage
 
 
@@ -1088,39 +1524,135 @@ def _next_month(d: date) -> date:
     return date(d.year + (d.month == 12), d.month % 12 + 1, 1)
 
 
-def coverage(
-    session: Session, cfg: Settings, from_month: str | None = None, to_month: str | None = None
-) -> list[dict[str, Any]]:
-    """Decision 6: month by month over the given months (default the load period), at most 36 per call, under the
-    report statement timeout (a timeout raises `SearchTimeout`)."""
-    period = load_period(session)
-    if period is None and (from_month is None or to_month is None):
-        if from_month is None and to_month is None:
-            return []
-        raise LoadInputError("bad_period", "give both months: there is no load period yet")
-    first = _month(from_month) if from_month else date(period[0].year, period[0].month, 1)
-    last = _month(to_month) if to_month else date(period[1].year, period[1].month, 1)
-    if first > last:
-        raise LoadInputError("bad_period", "from must not be after to")
+def _months_between(first: date, last: date) -> list[date]:
     months = []
     m = first
     while m <= last:
         months.append(m)
         m = _next_month(m)
+    return months
+
+
+def _default_months(period: tuple[date, date], today: date) -> tuple[date, date]:
+    """The load period's first month to the later of its last month and this month (design
+    `data-collection-redesign`, decision 19: the months then add up with `earlier_orders`), at most 36 months: the
+    oldest are left to `earlier_orders`."""
+    last = max(date(period[1].year, period[1].month, 1), date(today.year, today.month, 1))
+    first = date(period[0].year, period[0].month, 1)
+    floor = last
+    for _ in range(MAX_COVERAGE_MONTHS - 1):
+        floor = date(floor.year - (floor.month == 1), (floor.month - 2) % 12 + 1, 1)
+    return max(first, floor), last
+
+
+def _coverage_months(
+    session: Session, from_month: str | None, to_month: str | None, today: date
+) -> list[date] | None:
+    period = load_period(session)
+    if period is None and (from_month is None or to_month is None):
+        if from_month is None and to_month is None:
+            return None
+        raise LoadInputError("bad_period", "give both months: there is no load period yet")
+    if period is not None:
+        d_first, d_last = _default_months(period, today)
+    first = _month(from_month) if from_month else d_first
+    last = _month(to_month) if to_month else d_last
+    if first > last:
+        raise LoadInputError("bad_period", "from must not be after to")
+    months = _months_between(first, last)
     if len(months) > MAX_COVERAGE_MONTHS:
         raise LoadInputError("bad_period", f"at most {MAX_COVERAGE_MONTHS} months per call")
-    with_timeout(session, cfg.report_statement_timeout_seconds)
+    return months
+
+
+def _timed(fn):
     try:
-        return [_month_figures(session, m) for m in months]
+        return fn()
     except OperationalError as exc:
         if getattr(getattr(exc, "orig", None), "sqlstate", None) == QUERY_CANCELED:
             raise SearchTimeout("the coverage took too long; ask for fewer months") from exc
         raise
 
 
-def _month_figures(session: Session, m: date) -> dict[str, Any]:
+def coverage(
+    session: Session,
+    cfg: Settings,
+    from_month: str | None = None,
+    to_month: str | None = None,
+    today: date | None = None,
+) -> list[dict[str, Any]]:
+    """Decision 6: month by month over the given months (default: the load period's first month to this month,
+    design `data-collection-redesign`, decision 19), at most 36 per call, under the report statement timeout (a
+    timeout raises `SearchTimeout`)."""
+    today = today or today_ist()
+    months = _coverage_months(session, from_month, to_month, today)
+    if months is None:
+        return []
+    with_timeout(session, cfg.report_statement_timeout_seconds)
+    pos = position(session)
+    period = load_period(session)
+    return _timed(lambda: [_month_figures(session, m, today, period, pos) for m in months])
+
+
+def coverage_view(
+    session: Session,
+    cfg: Settings,
+    from_month: str | None = None,
+    to_month: str | None = None,
+    today: date | None = None,
+) -> dict[str, Any]:
+    """`GET /admin/data-load/coverage`: the months, the orders dated before the first month shown
+    (`earlier_orders`, so the rows add up to every order known) and where the past-months collection is
+    (`position`), design `data-collection-redesign`, decisions 19-20."""
+    today = today or today_ist()
+    months = coverage(session, cfg, from_month, to_month, today)
+    earlier = None
+    if months:
+        first = _month(months[0]["month"])
+        earlier = _timed(lambda: _order_totals(session, None, first - timedelta(days=1)))
+    return {"months": months, "earlier_orders": earlier, "position": position(session)}
+
+
+def _month_state(
+    m: date,
+    days: dict[str, int],
+    period: tuple[date, date] | None,
+    pos: dict[str, Any],
+) -> str:
+    """Decision 19's badge: `done` (every day up to today collected), `in_progress`, `not_reached` (inside the load
+    period, after the month it works on), `failed_days` (some days failed, none waiting) or `not_in_load`."""
+    upto = days["calendar"]
+    collected = days["with_lists"] + days["no_list"]
+    if upto > 0 and collected >= upto:
+        return "done"
+    if days["failed"] and not days["waiting"]:
+        return "failed_days"
+    working = pos.get("working_on")
+    in_period = period is not None and m <= period[1] and _month_end(m) >= period[0]
+    if in_period and working is not None:
+        here = date(working.year, working.month, 1)
+        if m > here:
+            return "not_reached"
+        if m == here or days["waiting"]:
+            return "in_progress"
+    if days["waiting"]:
+        return "in_progress"
+    return "not_in_load"
+
+
+def _month_figures(
+    session: Session,
+    m: date,
+    today: date | None = None,
+    period: tuple[date, date] | None = None,
+    pos: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    today = today or today_ist()
     end = _month_end(m)
-    days = _day_totals(session, m, end)
+    if m > today:
+        days = {"calendar": 0, "with_lists": 0, "no_list": 0, "waiting": 0, "failed": 0, "not_queued": 0}
+    else:
+        days = _day_totals(session, m, min(end, today))  # days counted up to today only (decision 20)
     lists, entries, parse_failed = session.execute(
         text(
             """
@@ -1164,10 +1696,18 @@ def _month_figures(session: Session, m: date) -> dict[str, Any]:
         "lists_parse_failed": int(parse_failed),
         "cases": cases,
         "orders": orders,
+        # kept for older clients: the load lane only, by listing date
         "work_left": left,
         "failed": failed,
         "days_covered_pct": round(100.0 * covered / days["calendar"], 1) if days["calendar"] else 0.0,
         "details_pct": round(100.0 * cases["with_details"] / cases["listed"], 1) if cases["listed"] else None,
+        # design data-collection-redesign, decision 20: each column's own date, every lane
+        "left": {
+            "days": max(0, days["calendar"] - covered),
+            "cases": cases["queued"],
+            "order_pdfs": orders["waiting"],
+        },
+        "state": _month_state(m, days, period, pos or {}),
     }
 
 

@@ -3147,6 +3147,11 @@ class CaseTotalsOut(BaseModel):
     listed: int
     with_details: int
     provisional: int
+    # design data-collection-redesign, decision 20: without details, of which queued (a pending or running dossier
+    # row in any lane) and failed
+    without_details: int = 0
+    queued: int = 0
+    failed: int = 0
 
 
 class OrderTotalsOut(BaseModel):
@@ -3154,6 +3159,7 @@ class OrderTotalsOut(BaseModel):
     stored: int
     not_available: int
     waiting: int
+    failed: int = 0  # design data-collection-redesign, decision 14
 
 
 class LoadTotalsOut(BaseModel):
@@ -3238,6 +3244,21 @@ class KindCountsOut(BaseModel):
     order_pdf: int
 
 
+class MonthLeftOut(BaseModel):
+    """Still to fetch in the month by each column's own date, every lane (design data-collection-redesign, decision
+    20): days up to today not collected, cases listed without details with a waiting dossier, orders dated in the
+    month waiting."""
+
+    days: int
+    cases: int
+    order_pdfs: int
+
+
+class LoadPositionOut(BaseModel):
+    working_on: date | None
+    working_on_month: str | None
+
+
 class MonthCoverageOut(BaseModel):
     month: str
     days: DayTotalsOut
@@ -3250,10 +3271,155 @@ class MonthCoverageOut(BaseModel):
     failed: KindCountsOut
     days_covered_pct: float
     details_pct: float | None
+    left: MonthLeftOut | None = None
+    state: Literal["done", "in_progress", "not_reached", "failed_days", "not_in_load"] | None = None
 
 
 class CoverageOut(BaseModel):
+    """Design data-collection-redesign, decisions 19-20: the months (to this month by default), the orders dated
+    before the first month (so the rows add up to every order known) and where the past-months collection is."""
+
     months: list[MonthCoverageOut]
+    earlier_orders: OrderTotalsOut | None = None
+    position: LoadPositionOut | None = None
+
+
+# ------------------------------------------------------------------------------------------------ data collection
+# design data-collection-redesign (round 1): the Overview tab, the pulse and the plain schedule
+
+
+class DataLoadDaysOut(DayTotalsOut):
+    collected: int
+    to: date
+
+
+class DataLoadCasesOut(BaseModel):
+    found: int
+    with_details: int
+    without_details: int
+    provisional: int
+
+
+class DataLoadOrdersOut(OrderTotalsOut):
+    in_period: OrderTotalsOut | None
+
+
+class StillToFetchOut(BaseModel):
+    causelist_days: int
+    case_details: int
+    order_pdfs: int
+    other: int
+    total: int
+
+
+class WaitingWorkOut(BaseModel):
+    kind: str
+    total: int
+    by_lane: LaneCountsOut
+    running: int
+    failed: int
+
+
+class DataProblemsOut(BaseModel):
+    failed: int
+    duplicates_review: int
+    cases_without_details: int
+    orders_not_available: int
+    orders_failed: int
+
+
+class EstimateLineOut(BaseModel):
+    finish_at: datetime | None
+    hours: float | None
+    calls_needed: float | None
+    reason: str | None = Field(
+        None, description="connection_off | paused | not_enough_history | no_recent_calls"
+    )
+
+
+class EstimateAllBasisOut(BaseModel):
+    window_days: int
+    calls_per_item: dict[str, float | None]
+    finished: dict[str, int]
+    calls: dict[str, int]
+    dossiers_per_day: float | None
+    pdfs_per_dossier: float | None
+    calls_per_hour: float
+    pending: dict[str, int]
+    history_hours: float
+    calls_last_hour: int
+    hourly_limit: int | None
+
+
+class EstimateAllOut(BaseModel):
+    details: EstimateLineOut
+    all: EstimateLineOut
+    basis: EstimateAllBasisOut
+
+
+class DataLoadOverviewOut(BaseModel):
+    as_of: datetime
+    napix_enabled: bool
+    settings: DataLoadSettingsOut
+    collection: Literal["running", "paused", "finished", "not_started"]
+    period: LoadPeriodOut | None
+    position: LoadPositionOut
+    days: DataLoadDaysOut | None
+    cases: DataLoadCasesOut
+    orders: DataLoadOrdersOut
+    left: StillToFetchOut
+    waiting_work: list[WaitingWorkOut]
+    problems: DataProblemsOut
+    estimate: EstimateAllOut
+    bulk: dict[str, Any] | None = Field(
+        None, description="the active bulk request (round 3); null until then"
+    )
+
+
+class PulseWindowOut(BaseModel):
+    status: Literal["current", "reset_due", "overdue", "unknown"]
+    remaining: int | None
+    used: int
+    hourly_limit: int | None
+    next_reset_at: datetime | None
+    seconds_to_next_reset: int | None
+
+
+class PulseQueueOut(BaseModel):
+    kind: str
+    pending: int
+    running: int
+
+
+class PulseRunningOut(BaseModel):
+    kind: str
+    lane: str
+    started_at: datetime | None
+
+
+class DataLoadPulseOut(BaseModel):
+    as_of: datetime
+    napix_enabled: bool
+    window: PulseWindowOut
+    queue: list[PulseQueueOut]
+    running: list[PulseRunningOut]
+    calls_last_5_min: int
+    last_call_at: datetime | None
+    requests_active: int
+
+
+class ScheduleEntryOut(BaseModel):
+    key: str
+    when: str
+    what: str
+    last_run_at: datetime | None
+    result: str | None
+    facts: dict[str, Any]
+
+
+class DataLoadScheduleOut(BaseModel):
+    entries: list[ScheduleEntryOut]
+    daily_cycle: list[DailyCycleDayOut]
 
 
 class LoadRangeIn(BaseModel):

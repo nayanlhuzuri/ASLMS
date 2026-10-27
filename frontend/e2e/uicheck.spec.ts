@@ -62,6 +62,10 @@ const OLD_FILES: Record<string, string> = {
   "/cases/with-me": "/inbox/working",
   "/cases/sent": "/inbox/sent",
   "/cases/pending": "/inbox/pending",
+  // design data-collection-redesign, decision 2 (`OLD_DATA_REDIRECTS`): the anchor is not part of the landed path
+  "/data/load": "/data/automatic",
+  "/data/discovery": "/data/automatic",
+  "/data/fetch": "/data/collect",
 };
 
 interface Visit {
@@ -87,7 +91,7 @@ async function watch(page: Page, name: string, width: number, publicPage: boolea
     const apiPath = url.pathname.replace(/^\/api\/backend/, "");
     const reply = session
       ? { status: 405, body: { detail: "the browser check never signs in" }, problem: `${request.method()} ${url.pathname}` }
-      : answer(request.method(), url, apiPath);
+      : answer(request.method(), url, apiPath, request.postData());
     if (reply.problem) add(reply.status === 404 ? "missing-fixture" : "not-get", reply.problem, `answered ${reply.status}`);
     await route.fulfill({ status: reply.status, contentType: "application/json", body: JSON.stringify(reply.body) });
   });
@@ -144,7 +148,7 @@ test.describe("every page", () => {
       const screenshot = redirect ? null : await shoot(page, route, width);
       writeResult({ name: route, width, screenshot, redirect, findings });
       expect(findings, JSON.stringify(findings, null, 2)).toEqual([]);
-      if (OLD_FILES[route]) expect(redirect, `${route} leads to its Case inbox tab`).toBe(OLD_FILES[route]);
+      if (OLD_FILES[route]) expect(redirect, `${route} leads to its new place`).toBe(OLD_FILES[route]);
     });
   }
 });
@@ -495,6 +499,63 @@ const STATES: State[] = [
     open: async (page) => {
       await page.getByRole("button", { name: /^More Filters/ }).click();
       await page.getByLabel("No Office Yet").waitFor();
+    },
+  },
+  // design data-collection-redesign, round 1: the Overview live and Automatic Collection's dialogs and forms
+  {
+    name: "data-overview-running",
+    path: "/data/overview",
+    open: async (page) => {
+      await page.getByRole("heading", { name: "Right Now" }).waitFor();
+      await page.getByRole("table", { name: "Month by Month" }).waitFor();
+    },
+  },
+  {
+    name: "data-automatic-start-new",
+    path: "/data/automatic",
+    open: async (page) => {
+      await page.getByRole("button", { name: "Start a Load" }).click();
+      const dialog = page.getByRole("dialog", { name: "Start a Load" });
+      await dialog.getByLabel("From").fill("2025-02-01");
+      await dialog.getByLabel("To").fill("2025-02-05");
+      await dialog.getByRole("button", { name: "Check These Dates" }).click();
+      await dialog.getByRole("button", { name: "Start Load" }).waitFor();
+    },
+  },
+  {
+    name: "data-automatic-start-nothing-new",
+    path: "/data/automatic",
+    open: async (page) => {
+      await page.getByRole("button", { name: "Start a Load" }).click();
+      const dialog = page.getByRole("dialog", { name: "Start a Load" });
+      await dialog.getByLabel("From").fill("2025-01-01");
+      await dialog.getByLabel("To").fill("2025-01-05");
+      await dialog.getByRole("button", { name: "Check These Dates" }).click();
+      await dialog.getByText(/Nothing new to fetch/).waitFor();
+    },
+  },
+  {
+    name: "data-automatic-pause-dialog",
+    path: "/data/automatic",
+    open: async (page) => {
+      await page.getByRole("button", { name: "Pause" }).click();
+      await page.getByRole("dialog", { name: "Pause the Past-Months Collection" }).getByLabel(/Why Pause It/).fill("quota for searches");
+    },
+  },
+  {
+    name: "data-automatic-priority",
+    path: "/data/automatic",
+    open: async (page) => {
+      const form = page.getByRole("form", { name: "What Goes First" });
+      await form.scrollIntoViewIfNeeded();
+      await form.getByLabel(/^Reason/).fill("verification of the order");
+    },
+  },
+  {
+    name: "data-automatic-no-department-names",
+    path: "/data/automatic#department-names",
+    open: async (page) => {
+      await page.getByText(/No department names are registered yet/).waitFor();
     },
   },
 ];

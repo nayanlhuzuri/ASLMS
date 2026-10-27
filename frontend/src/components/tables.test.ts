@@ -50,3 +50,45 @@ describe("tables (design portal-ui-polish, decision 15)", () => {
     expect(kit).not.toMatch(/export function Table\b/);
   });
 });
+
+/**
+ * The source companion of uicheck's `doubled-heading` rule (design data-collection-redesign, decisions 10 and 12): a
+ * `DataTable` caption is hidden by default, so a table that shows its caption (`showCaption`) must not repeat a
+ * heading, card title or summary of the same file in the same words.
+ */
+describe("doubled headings (design data-collection-redesign, decision 12)", () => {
+  function shownCaptions(text: string): string[] {
+    const out: string[] = [];
+    for (const m of text.matchAll(/<DataTable\b([\s\S]*?)\/>/g)) {
+      const props = m[1]!;
+      if (!/\bshowCaption\b(?!=\{false\})/.test(props)) continue;
+      const caption = /caption=\{([^}]+)\}/.exec(props);
+      if (caption) out.push(caption[1]!.trim());
+    }
+    return out;
+  }
+
+  function headings(text: string): Set<string> {
+    const out = new Set<string>();
+    for (const m of text.matchAll(/<h[1-4][^>]*>\s*\{([^}]+)\}\s*<\/h[1-4]>/g)) out.add(m[1]!.trim());
+    for (const m of text.matchAll(/\b(?:title|summary)=\{([^}]+)\}/g)) out.add(m[1]!.trim());
+    return out;
+  }
+
+  it("no shown caption repeats a heading of its file", () => {
+    const doubled = SOURCES.flatMap(({ file, text }) => {
+      const heads = headings(text);
+      return shownCaptions(text)
+        .filter((c) => heads.has(c))
+        .map((c) => `${file}: ${c}`);
+    });
+    expect(doubled).toEqual([]);
+  });
+
+  it("the rule sees a doubled heading and passes a distinct one", () => {
+    const bad = '<h2>{T.a}</h2>\n<DataTable caption={T.a} showCaption rows={r} rowKey={k} columns={c} />';
+    const good = '<h2>{T.a}</h2>\n<DataTable caption={T.a} rows={r} rowKey={k} columns={c} />';
+    expect(shownCaptions(bad).filter((c) => headings(bad).has(c))).toEqual(["T.a"]);
+    expect(shownCaptions(good)).toEqual([]);
+  });
+});

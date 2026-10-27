@@ -18,7 +18,7 @@ from aslms.api.deps import actor_of, apart_factory, get_session, napix_request, 
 from aslms.api.errors import detail
 from aslms.domain.org import User
 from aslms.domain.reference import Permission
-from aslms.services import case_search, data_load
+from aslms.services import case_search, data_load, schedules
 from aslms.services.access import Forbidden
 from aslms.services.audit_search import to_ist
 from aslms.services.court_search import CourtSearchError, CourtSearchFailure
@@ -94,10 +94,39 @@ def get_coverage(
     """Month by month (`YYYY-MM`, default the load period, at most 36 months): days, lists, entries, cases with and
     without details, orders, work left and failures; 503 `search_timeout` when the query takes too long."""
     try:
-        months = data_load.coverage(session, request.app.state.settings, from_, to)
+        out = data_load.coverage_view(session, request.app.state.settings, from_, to)
     except HANDLED as exc:
         raise _http(exc) from exc
-    return schemas.CoverageOut(months=months)
+    return schemas.CoverageOut(**out)
+
+
+@router.get("/overview", response_model=schemas.DataLoadOverviewOut, responses=ERRORS)
+def get_overview(
+    request: Request, session: Session = Depends(get_session), user: User = Depends(load_reader)
+) -> schemas.DataLoadOverviewOut:
+    """The Overview tab (design data-collection-redesign, decisions 14-16 and 21): the automatic collection's state
+    and position, cause-list days of the period up to today, every case and order held, what is still to fetch in
+    every lane, the problem counts and the two-date estimate. Never calls NAPIX; writes nothing."""
+    return schemas.DataLoadOverviewOut(**data_load.overview(session, request.app.state.settings))
+
+
+@router.get("/pulse", response_model=schemas.DataLoadPulseOut, responses=ERRORS)
+def get_pulse(
+    request: Request, session: Session = Depends(get_session), user: User = Depends(load_reader)
+) -> schemas.DataLoadPulseOut:
+    """The live figures polled every 5 s while the tab is visible (decisions 17-18): the quota window, the queue by
+    kind in every lane, what is fetching now (no references), recent calls and request-lane work. Polls never count as
+    activity for the session timeout (only `POST /me/activity` does)."""
+    return schemas.DataLoadPulseOut(**data_load.pulse(session, request.app.state.settings))
+
+
+@router.get("/schedule", response_model=schemas.DataLoadScheduleOut, responses=ERRORS)
+def get_schedule(
+    request: Request, session: Session = Depends(get_session), user: User = Depends(load_reader)
+) -> schemas.DataLoadScheduleOut:
+    """The daily schedule in plain words with each entry's last run where one is recorded, and the daily updates of
+    the last 7 days (decision 40)."""
+    return schemas.DataLoadScheduleOut(**schedules.schedule_view(session, request.app.state.settings))
 
 
 @router.get("/duplicates", response_model=schemas.DuplicatesOut, responses=ERRORS)

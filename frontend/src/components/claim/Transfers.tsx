@@ -110,6 +110,7 @@ export function Transfers({ params, department, onOpen }: { params: Params; depa
         <>
           <DataTable
             caption={T.claim.directions[direction]}
+            showCaption
             columns={columns}
             rows={list.data.items}
             rowKey={(t) => t.id}

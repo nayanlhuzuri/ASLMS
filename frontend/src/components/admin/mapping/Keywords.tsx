@@ -140,6 +140,7 @@ export function KeywordsAndPatterns() {
           <div className={s.scrollBox} tabIndex={0} role="region" aria-label={T.mapping.wordsCaption}>
             <DataTable
               caption={T.mapping.wordsCaption}
+              showCaption
               rows={rows}
               rowKey={(r) => r.key}
               columns={[

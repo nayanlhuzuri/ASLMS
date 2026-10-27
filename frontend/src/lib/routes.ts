@@ -154,14 +154,33 @@ export interface DataTab {
   functions: readonly Permission[];
 }
 
+/** Collect Now shows for any function that has a card on it (design data-collection-redesign, decision 1). */
+export const COLLECT_FUNCTIONS: readonly Permission[] = ["admin.data_load", "admin.napix_refetch", "admin.masters_sync"];
+
+/**
+ * The Data Collection tabs (design data-collection-redesign, decision 1): Overview (where `/data` opens), Collect Now
+ * and Automatic Collection. Until round 2 the old Health, Queue and Calls and Duplicates tabs stay as they are, listed
+ * after them (decision 49); Load and Discovery redirect (`OLD_DATA_REDIRECTS`).
+ */
 export const DATA_TABS: readonly DataTab[] = [
-  { key: "load", label: T.tabs.data.load, href: "/data/load", functions: DATA_READERS },
+  { key: "overview", label: T.tabs.data.overview, href: "/data/overview", functions: DATA_READERS },
+  { key: "collect", label: T.tabs.data.collect, href: "/data/collect", functions: COLLECT_FUNCTIONS },
+  { key: "automatic", label: T.tabs.data.automatic, href: "/data/automatic", functions: DATA_READERS },
   { key: "health", label: T.tabs.data.health, href: "/data/health", functions: DATA_READERS },
   { key: "queue", label: T.tabs.data.queue, href: "/data/queue", functions: DATA_READERS },
   { key: "duplicates", label: T.tabs.data.duplicates, href: "/data/duplicates", functions: DATA_READERS },
-  // design department-discovery, decision 13 (d): the discovery share, queue and finds (system figures only)
-  { key: "discovery", label: T.tabs.data.discovery, href: "/data/discovery", functions: DATA_READERS },
 ];
+
+/**
+ * The old Data Collection addresses (decision 2), client redirects keeping the query string (and the target's
+ * anchor). Round 1 retires Load and Discovery and the first version's Fetch tab; Health, Queue and Calls and
+ * Duplicates follow in round 2. Every target is a final address.
+ */
+export const OLD_DATA_REDIRECTS: Record<string, string> = {
+  "/data/load": "/data/automatic",
+  "/data/discovery": "/data/automatic#department-names",
+  "/data/fetch": "/data/collect",
+};
 
 /** The System Health entry's sections (decision 14): two anchors of `/system` and the Access Token modal. */
 export const SYSTEM_SECTIONS: readonly NavChild[] = [
@@ -260,7 +279,7 @@ export const NAV: readonly NavEntry[] = [
   {
     key: "data",
     label: T.nav.data,
-    href: "/data/load",
+    href: "/data/overview",
     group: "settings",
     functions: DATA_READERS,
     built: true,
@@ -324,7 +343,7 @@ export function childActive(child: NavChild, loc: NavLocation): boolean {
   return loc.pathname === child.href || loc.pathname.startsWith(child.href + "/");
 }
 
-/** The section of an entry: `/data/load` stands for every `/data/...` page. */
+/** The section of an entry: `/data/overview` stands for every `/data/...` page. */
 export function entryActive(entry: Pick<NavEntry, "href">, pathname: string): boolean {
   if (entry.href === "/") return pathname === "/";
   const section = "/" + (entry.href.split("/")[1] ?? "");

@@ -1,9 +1,10 @@
 "use client";
 
 /**
- * "Data collection" in four tabs (design data-load-console, decision 19): the load console, data health, the queue
- * and call log, and duplicates. The entry and its tabs show for `admin.data_load` or a health reader; every button
- * shows by its own function. Showing is convenience only: the API decides every figure and action.
+ * "Data Collection" (design data-collection-redesign, decisions 1, 2 and 7): the tabs Overview, Collect Now and
+ * Automatic Collection, then, until round 2, the old Health, Queue and Calls and Duplicates. Each tab shows by its own
+ * functions and every button by its own function; showing is convenience only: the API decides every figure and
+ * action. The frame is a `stack` like `AdminFrame`, so the page keeps its gutter whatever the content (decision 7).
  */
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
@@ -15,11 +16,11 @@ import { dataTabsFor } from "@/lib/routes";
 
 export function DataFrame({ children }: { children: ReactNode }) {
   const me = useMe();
-  const pathname = usePathname() ?? "/data/load";
+  const pathname = usePathname() ?? "/data/overview";
   if (me.isPending) return <Loading />;
   const tabs = dataTabsFor(me.data);
   return (
-    <div>
+    <div className="stack">
       <PageHeader title={T.data.title} />
       {tabs.length > 0 ? (
         <Tabs
@@ -36,7 +37,7 @@ export function DataFrame({ children }: { children: ReactNode }) {
   );
 }
 
-/** `/data`: the first tab the login may open. */
+/** `/data`: Overview, or the first tab the login may open. */
 export function DataIndex() {
   const me = useMe();
   const router = useRouter();

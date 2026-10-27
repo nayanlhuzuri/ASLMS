@@ -729,6 +729,11 @@ type Override = (url: URL) => unknown;
 /** Overrides by API path (exact) or pattern. */
 const OVERRIDES: [RegExp, Override][] = [
   [/^\/me$/, () => me()],
+  // design data-collection-redesign, decision 41: no department name is registered yet (the dev database today)
+  [
+    /^\/admin\/discovery$/,
+    () => ({ ...(synthFor("/admin/discovery")!.body as Record<string, unknown>), terms: { active: 0, inactive: 0 } }),
+  ],
   [/^\/dashboard$/, () => DASHBOARD],
   [/^\/inbox\/counts$/, () => inboxCounts()],
   [/^\/admin\/system-health$/, () => systemHealth()],
@@ -789,7 +794,33 @@ function tidy(path: string, body: unknown): unknown {
 }
 
 /** The answer to one request of the page to `/api/backend/…` (the API path after that prefix). */
-export function answer(method: string, url: URL, apiPath: string): Answer {
+/**
+ * The Start dialog's check (design data-collection-redesign, decision 36): `POST /admin/data-load/preview` writes nothing
+ * and calls no court (design data-load-console, decision 9), so it is the one POST the checker answers. Dates in January
+ * 2025 are all held ("Nothing new to fetch"); any other dates have new days.
+ */
+function loadPreview(body: string | null): unknown {
+  let from = "";
+  try {
+    from = String((JSON.parse(body ?? "{}") as { from?: string }).from ?? "");
+  } catch {
+    from = "";
+  }
+  const held = from.startsWith("2025-01");
+  return {
+    days: 5,
+    held_with_lists: held ? 4 : 1,
+    held_no_list: held ? 1 : 0,
+    waiting: held ? 0 : 1,
+    failed: 0,
+    not_queued: held ? 0 : 3,
+    calls_estimate: held ? 0 : STRESS.count,
+    masters_stale: !held,
+  };
+}
+
+export function answer(method: string, url: URL, apiPath: string, body: string | null = null): Answer {
+  if (method === "POST" && apiPath === "/admin/data-load/preview") return { status: 200, body: loadPreview(body) };
   if (method !== "GET") return { status: 405, body: { detail: "the browser check never acts" }, problem: `${method} ${apiPath}` };
   // design office-head-picker: New User's e-mail check for a new person answers 404, as the API does
   if (apiPath === "/admin/users/lookup" && (url.searchParams.get("email") ?? "").startsWith("new.")) {

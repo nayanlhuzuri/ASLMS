@@ -154,3 +154,147 @@ def enqueue_weekly(session: Session) -> dict[str, int]:
     ).all():
         orders += enqueue_order_pdfs(session, case)
     return {"dossiers": dossiers, "orders_retried": retried or 0, "orders_queued": orders}
+
+
+# ------------------------------------------------------------------------------------------------ in plain words
+# design data-collection-redesign, decision 40: the data-collection entries of `celery_app.beat_schedule` described
+# for the Automatic Collection tab (a test keeps the two in step). `beat` is the beat entry, `job` the `job_runs` name
+# its task writes (None: the task only queues rows and records no run).
+
+PLAIN_SCHEDULE: tuple[dict[str, Any], ...] = (
+    {
+        "key": "masters",
+        "beat": "masters-daily",
+        "when": "06:00",
+        "what": "Update the court's reference lists",
+        "job": None,
+    },
+    {
+        "key": "lists-morning",
+        "beat": "lists-daily",
+        "when": "06:30",
+        "what": "Fetch yesterday's, today's and tomorrow's cause lists, and check today's again for corrections",
+        "job": None,
+    },
+    {
+        "key": "lists-evening",
+        "beat": "lists-evening",
+        "when": "18:30",
+        "what": "Fetch the three days' cause lists again and check today's and tomorrow's for corrections",
+        "job": None,
+    },
+    {
+        "key": "status",
+        "beat": "status-daily",
+        "when": "20:00",
+        "what": "Check the status of every case that is not disposed",
+        "job": None,
+    },
+    {
+        "key": "disposed-refresh",
+        "beat": "disposed-refresh",
+        "when": "02:30",
+        "what": "Refresh cases disposed in the last year, monthly",
+        "job": "disposed-refresh",
+    },
+    {
+        "key": "dedupe",
+        "beat": "dedupe-sweep",
+        "when": "03:00",
+        "what": "Look for duplicate cases",
+        "job": "dedupe-sweep",
+    },
+    {
+        "key": "purge",
+        "beat": "napix-log-purge",
+        "when": "03:45",
+        "what": "Remove court call records older than 2 years",
+        "job": "napix-log-purge",
+    },
+    {
+        "key": "weekly",
+        "beat": "weekly-sweep",
+        "when": "Sundays 02:00",
+        "what": "Refresh the details of every case not fully fetched",
+        "job": None,
+    },
+    {
+        "key": "discovery",
+        "beat": "discovery-weekly",
+        "when": "Saturdays 02:00",
+        "what": "Search the court by department names",
+        "job": None,
+    },
+    {
+        "key": "load",
+        "beat": None,
+        "when": "Always",
+        "what": "Past-months collection, in the calls left over",
+        "job": None,
+    },
+)
+
+# the beat entries that are not data collection (scoring, text, alerts, mail, the Case Assistant, search rows)
+NOT_DATA_COLLECTION: frozenset[str] = frozenset(
+    {
+        "rescore-dirty",
+        "extract-text",
+        "next-dates-read",
+        "alerts-scan-events",
+        "alerts-sweep-dates",
+        "notifications-send",
+        "digests-build",
+        "sourcetrace-ingest",
+        "store-search-rows",
+    }
+)
+
+
+def _last_run(session: Session, job: str) -> JobRun | None:
+    return session.scalar(select(JobRun).where(JobRun.job == job).order_by(JobRun.started_at.desc()).limit(1))
+
+
+def schedule_view(session: Session, settings=None, now: datetime | None = None) -> dict[str, Any]:
+    """`GET /admin/data-load/schedule`: each plain entry with its last run where the task records one (`last_run_at`,
+    `result` the run's status, else None: "Not Recorded"), its facts (the disposed refresh's cases in their first
+    year and due now; the purge's rows removed; the duplicate counts), and the daily cycle of the last 7 days. Reads
+    only."""
+    from aslms.core.config import get_settings
+    from aslms.services import data_health, tracking
+    from aslms.services.audit_search import to_ist
+
+    cfg = settings or get_settings()
+    now = now or datetime.now(UTC)
+    today = today_ist(now)
+    entries = []
+    for item in PLAIN_SCHEDULE:
+        run = _last_run(session, item["job"]) if item["job"] else None
+        facts: dict[str, Any] = {}
+        if item["key"] == "disposed-refresh":
+            facts = {
+                "eligible": tracking.disposed_eligible_count(
+                    session, today, keep_days=cfg.disposed_refresh_days
+                ),
+                "due_now": tracking.disposed_due_count(
+                    session,
+                    today,
+                    keep_days=cfg.disposed_refresh_days,
+                    every_days=cfg.disposed_refresh_every_days,
+                    now=now,
+                ),
+            }
+        elif run is not None and item["key"] == "purge":
+            facts = {"deleted": (run.counters or {}).get("deleted")}
+        elif run is not None and item["key"] == "dedupe":
+            facts = {k: v for k, v in (run.counters or {}).items() if isinstance(v, int)}
+        entries.append(
+            {
+                "key": item["key"],
+                "when": item["when"],
+                "what": item["what"],
+                "last_run_at": to_ist(run.started_at) if run is not None else None,
+                "result": getattr(run.status, "value", run.status) if run is not None else None,
+                "facts": facts,
+            }
+        )
+    return {"entries": entries, "daily_cycle": data_health.daily_cycle(session, now, back=6, forward=0)}

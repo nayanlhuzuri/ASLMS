@@ -52,8 +52,6 @@
   color: var(--text-3);
   font-size: var(--t-xs);
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
 .facts dd {

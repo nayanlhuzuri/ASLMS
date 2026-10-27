@@ -178,7 +178,7 @@ beforeEach(() => {
 describe("every page has at most one primary action (decision 16)", () => {
   it("finds the portal's pages", () => {
     expect(PAGES.length).toBeGreaterThanOrEqual(70);
-    expect(PAGES.map(routeOf)).toEqual(expect.arrayContaining(["/reports/pending-cases", "/audit", "/data/load", "/admin/users", "/login"]));
+    expect(PAGES.map(routeOf)).toEqual(expect.arrayContaining(["/reports/pending-cases", "/audit", "/data/overview", "/data/collect", "/data/automatic", "/admin/users", "/login"]));
   });
 
   it.each(PAGES.map((p) => [routeOf(p), p]))("%s", async (route, file) => {

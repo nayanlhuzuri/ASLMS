@@ -28,6 +28,7 @@ export function BeforeAfter({ before, after }: { before: unknown; after: unknown
   return (
     <DataTable
       caption={T.audit.beforeAfter}
+      showCaption
       rows={rows}
       rowKey={(r) => r.key}
       rowClassName={(r) => (r.changed ? s.changedRow : undefined)}

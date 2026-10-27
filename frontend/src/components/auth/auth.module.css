@@ -47,8 +47,6 @@
   color: var(--panel-accent);
   font-size: var(--t-xs);
   font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
 }
 
 .big {
@@ -152,8 +150,6 @@
   color: var(--text-3);
   font-size: var(--t-xs);
   font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
 }
 
 .name {

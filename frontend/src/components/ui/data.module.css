@@ -14,6 +14,21 @@
   font-weight: 600;
 }
 
+/* design data-collection-redesign, decision 10: the caption is the table's accessible name, hidden unless the table
+   has no visible heading of its own (`showCaption`); the panel's heading already says it */
+.table caption.srCaption,
+.dataWrap[data-stacked] .dataTable caption.srCaption {
+  position: absolute;
+  display: block;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .table th,
 .table td {
   padding: var(--s3) var(--s4);
@@ -27,8 +42,6 @@
   color: var(--text-3);
   font-size: var(--t-xs);
   font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
   white-space: nowrap;
 }
 
@@ -345,7 +358,6 @@
 .dateChip span {
   font-size: var(--t-xs);
   color: var(--text-2);
-  text-transform: uppercase;
 }
 
 .dateChip.hot {

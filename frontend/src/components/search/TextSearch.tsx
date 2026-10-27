@@ -95,6 +95,7 @@ export function TextSearch({ params }: { params: Params }) {
           <>
             <DataTable
               caption={T.search.text}
+              showCaption
               columns={columns}
               rows={list.data.items}
               rowKey={(it) => it.document.id}

@@ -4762,6 +4762,11 @@
       },
       "CaseTotalsOut": {
         "properties": {
+          "failed": {
+            "default": 0,
+            "title": "Failed",
+            "type": "integer"
+          },
           "listed": {
             "title": "Listed",
             "type": "integer"
@@ -4770,8 +4775,18 @@
             "title": "Provisional",
             "type": "integer"
           },
+          "queued": {
+            "default": 0,
+            "title": "Queued",
+            "type": "integer"
+          },
           "with_details": {
             "title": "With Details",
+            "type": "integer"
+          },
+          "without_details": {
+            "default": 0,
+            "title": "Without Details",
             "type": "integer"
           }
         },
@@ -6674,13 +6689,34 @@
         "type": "object"
       },
       "CoverageOut": {
+        "description": "Design data-collection-redesign, decisions 19-20: the months (to this month by default), the orders dated\nbefore the first month (so the rows add up to every order known) and where the past-months collection is.",
         "properties": {
+          "earlier_orders": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OrderTotalsOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "months": {
             "items": {
               "$ref": "#/components/schemas/MonthCoverageOut"
             },
             "title": "Months",
             "type": "array"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LoadPositionOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -8551,6 +8587,127 @@
         "title": "DataHealthOut",
         "type": "object"
       },
+      "DataLoadCasesOut": {
+        "properties": {
+          "found": {
+            "title": "Found",
+            "type": "integer"
+          },
+          "provisional": {
+            "title": "Provisional",
+            "type": "integer"
+          },
+          "with_details": {
+            "title": "With Details",
+            "type": "integer"
+          },
+          "without_details": {
+            "title": "Without Details",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "found",
+          "with_details",
+          "without_details",
+          "provisional"
+        ],
+        "title": "DataLoadCasesOut",
+        "type": "object"
+      },
+      "DataLoadDaysOut": {
+        "properties": {
+          "calendar": {
+            "title": "Calendar",
+            "type": "integer"
+          },
+          "collected": {
+            "title": "Collected",
+            "type": "integer"
+          },
+          "failed": {
+            "title": "Failed",
+            "type": "integer"
+          },
+          "no_list": {
+            "title": "No List",
+            "type": "integer"
+          },
+          "not_queued": {
+            "title": "Not Queued",
+            "type": "integer"
+          },
+          "to": {
+            "format": "date",
+            "title": "To",
+            "type": "string"
+          },
+          "waiting": {
+            "title": "Waiting",
+            "type": "integer"
+          },
+          "with_lists": {
+            "title": "With Lists",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "calendar",
+          "with_lists",
+          "no_list",
+          "waiting",
+          "failed",
+          "not_queued",
+          "collected",
+          "to"
+        ],
+        "title": "DataLoadDaysOut",
+        "type": "object"
+      },
+      "DataLoadOrdersOut": {
+        "properties": {
+          "failed": {
+            "default": 0,
+            "title": "Failed",
+            "type": "integer"
+          },
+          "in_period": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OrderTotalsOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "not_available": {
+            "title": "Not Available",
+            "type": "integer"
+          },
+          "referenced": {
+            "title": "Referenced",
+            "type": "integer"
+          },
+          "stored": {
+            "title": "Stored",
+            "type": "integer"
+          },
+          "waiting": {
+            "title": "Waiting",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "referenced",
+          "stored",
+          "not_available",
+          "waiting",
+          "in_period"
+        ],
+        "title": "DataLoadOrdersOut",
+        "type": "object"
+      },
       "DataLoadOut": {
         "properties": {
           "allowance": {
@@ -8614,6 +8771,193 @@
           "estimate"
         ],
         "title": "DataLoadOut",
+        "type": "object"
+      },
+      "DataLoadOverviewOut": {
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "bulk": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the active bulk request (round 3); null until then",
+            "title": "Bulk"
+          },
+          "cases": {
+            "$ref": "#/components/schemas/DataLoadCasesOut"
+          },
+          "collection": {
+            "enum": [
+              "running",
+              "paused",
+              "finished",
+              "not_started"
+            ],
+            "title": "Collection",
+            "type": "string"
+          },
+          "days": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DataLoadDaysOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "estimate": {
+            "$ref": "#/components/schemas/EstimateAllOut"
+          },
+          "left": {
+            "$ref": "#/components/schemas/StillToFetchOut"
+          },
+          "napix_enabled": {
+            "title": "Napix Enabled",
+            "type": "boolean"
+          },
+          "orders": {
+            "$ref": "#/components/schemas/DataLoadOrdersOut"
+          },
+          "period": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LoadPeriodOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "position": {
+            "$ref": "#/components/schemas/LoadPositionOut"
+          },
+          "problems": {
+            "$ref": "#/components/schemas/DataProblemsOut"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/DataLoadSettingsOut"
+          },
+          "waiting_work": {
+            "items": {
+              "$ref": "#/components/schemas/WaitingWorkOut"
+            },
+            "title": "Waiting Work",
+            "type": "array"
+          }
+        },
+        "required": [
+          "as_of",
+          "napix_enabled",
+          "settings",
+          "collection",
+          "period",
+          "position",
+          "days",
+          "cases",
+          "orders",
+          "left",
+          "waiting_work",
+          "problems",
+          "estimate"
+        ],
+        "title": "DataLoadOverviewOut",
+        "type": "object"
+      },
+      "DataLoadPulseOut": {
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "calls_last_5_min": {
+            "title": "Calls Last 5 Min",
+            "type": "integer"
+          },
+          "last_call_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Call At"
+          },
+          "napix_enabled": {
+            "title": "Napix Enabled",
+            "type": "boolean"
+          },
+          "queue": {
+            "items": {
+              "$ref": "#/components/schemas/PulseQueueOut"
+            },
+            "title": "Queue",
+            "type": "array"
+          },
+          "requests_active": {
+            "title": "Requests Active",
+            "type": "integer"
+          },
+          "running": {
+            "items": {
+              "$ref": "#/components/schemas/PulseRunningOut"
+            },
+            "title": "Running",
+            "type": "array"
+          },
+          "window": {
+            "$ref": "#/components/schemas/PulseWindowOut"
+          }
+        },
+        "required": [
+          "as_of",
+          "napix_enabled",
+          "window",
+          "queue",
+          "running",
+          "calls_last_5_min",
+          "last_call_at",
+          "requests_active"
+        ],
+        "title": "DataLoadPulseOut",
+        "type": "object"
+      },
+      "DataLoadScheduleOut": {
+        "properties": {
+          "daily_cycle": {
+            "items": {
+              "$ref": "#/components/schemas/DailyCycleDayOut"
+            },
+            "title": "Daily Cycle",
+            "type": "array"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/ScheduleEntryOut"
+            },
+            "title": "Entries",
+            "type": "array"
+          }
+        },
+        "required": [
+          "entries",
+          "daily_cycle"
+        ],
+        "title": "DataLoadScheduleOut",
         "type": "object"
       },
       "DataLoadSettingsOut": {
@@ -8700,6 +9044,39 @@
           "changed_by"
         ],
         "title": "DataLoadSettingsOut",
+        "type": "object"
+      },
+      "DataProblemsOut": {
+        "properties": {
+          "cases_without_details": {
+            "title": "Cases Without Details",
+            "type": "integer"
+          },
+          "duplicates_review": {
+            "title": "Duplicates Review",
+            "type": "integer"
+          },
+          "failed": {
+            "title": "Failed",
+            "type": "integer"
+          },
+          "orders_failed": {
+            "title": "Orders Failed",
+            "type": "integer"
+          },
+          "orders_not_available": {
+            "title": "Orders Not Available",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "failed",
+          "duplicates_review",
+          "cases_without_details",
+          "orders_not_available",
+          "orders_failed"
+        ],
+        "title": "DataProblemsOut",
         "type": "object"
       },
       "DayBucketOut": {
@@ -10946,6 +11323,186 @@
           "message"
         ],
         "title": "ErrorOut",
+        "type": "object"
+      },
+      "EstimateAllBasisOut": {
+        "properties": {
+          "calls": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Calls",
+            "type": "object"
+          },
+          "calls_last_hour": {
+            "title": "Calls Last Hour",
+            "type": "integer"
+          },
+          "calls_per_hour": {
+            "title": "Calls Per Hour",
+            "type": "number"
+          },
+          "calls_per_item": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Calls Per Item",
+            "type": "object"
+          },
+          "dossiers_per_day": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dossiers Per Day"
+          },
+          "finished": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Finished",
+            "type": "object"
+          },
+          "history_hours": {
+            "title": "History Hours",
+            "type": "number"
+          },
+          "hourly_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hourly Limit"
+          },
+          "pdfs_per_dossier": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pdfs Per Dossier"
+          },
+          "pending": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Pending",
+            "type": "object"
+          },
+          "window_days": {
+            "title": "Window Days",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "window_days",
+          "calls_per_item",
+          "finished",
+          "calls",
+          "dossiers_per_day",
+          "pdfs_per_dossier",
+          "calls_per_hour",
+          "pending",
+          "history_hours",
+          "calls_last_hour",
+          "hourly_limit"
+        ],
+        "title": "EstimateAllBasisOut",
+        "type": "object"
+      },
+      "EstimateAllOut": {
+        "properties": {
+          "all": {
+            "$ref": "#/components/schemas/EstimateLineOut"
+          },
+          "basis": {
+            "$ref": "#/components/schemas/EstimateAllBasisOut"
+          },
+          "details": {
+            "$ref": "#/components/schemas/EstimateLineOut"
+          }
+        },
+        "required": [
+          "details",
+          "all",
+          "basis"
+        ],
+        "title": "EstimateAllOut",
+        "type": "object"
+      },
+      "EstimateLineOut": {
+        "properties": {
+          "calls_needed": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Calls Needed"
+          },
+          "finish_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finish At"
+          },
+          "hours": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "connection_off | paused | not_enough_history | no_recent_calls",
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "finish_at",
+          "hours",
+          "calls_needed"
+        ],
+        "title": "EstimateLineOut",
         "type": "object"
       },
       "EstimateOut": {
@@ -13582,6 +14139,39 @@
         "title": "LoadPeriodOut",
         "type": "object"
       },
+      "LoadPositionOut": {
+        "properties": {
+          "working_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Working On"
+          },
+          "working_on_month": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Working On Month"
+          }
+        },
+        "required": [
+          "working_on",
+          "working_on_month"
+        ],
+        "title": "LoadPositionOut",
+        "type": "object"
+      },
       "LoadPreviewOut": {
         "properties": {
           "calls_estimate": {
@@ -14531,6 +15121,16 @@
           "failed": {
             "$ref": "#/components/schemas/KindCountsOut"
           },
+          "left": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MonthLeftOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "lists": {
             "title": "Lists",
             "type": "integer"
@@ -14545,6 +15145,24 @@
           },
           "orders": {
             "$ref": "#/components/schemas/OrderTotalsOut"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "enum": [
+                  "done",
+                  "in_progress",
+                  "not_reached",
+                  "failed_days",
+                  "not_in_load"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
           },
           "work_left": {
             "$ref": "#/components/schemas/KindCountsOut"
@@ -14564,6 +15182,30 @@
           "details_pct"
         ],
         "title": "MonthCoverageOut",
+        "type": "object"
+      },
+      "MonthLeftOut": {
+        "description": "Still to fetch in the month by each column's own date, every lane (design data-collection-redesign, decision\n20): days up to today not collected, cases listed without details with a waiting dossier, orders dated in the\nmonth waiting.",
+        "properties": {
+          "cases": {
+            "title": "Cases",
+            "type": "integer"
+          },
+          "days": {
+            "title": "Days",
+            "type": "integer"
+          },
+          "order_pdfs": {
+            "title": "Order Pdfs",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "days",
+          "cases",
+          "order_pdfs"
+        ],
+        "title": "MonthLeftOut",
         "type": "object"
       },
       "MyCalendarItemOut": {
@@ -17292,6 +17934,11 @@
       },
       "OrderTotalsOut": {
         "properties": {
+          "failed": {
+            "default": 0,
+            "title": "Failed",
+            "type": "integer"
+          },
           "not_available": {
             "title": "Not Available",
             "type": "integer"
@@ -18422,6 +19069,133 @@
           }
         },
         "title": "ProfilePatchIn",
+        "type": "object"
+      },
+      "PulseQueueOut": {
+        "properties": {
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "pending": {
+            "title": "Pending",
+            "type": "integer"
+          },
+          "running": {
+            "title": "Running",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "pending",
+          "running"
+        ],
+        "title": "PulseQueueOut",
+        "type": "object"
+      },
+      "PulseRunningOut": {
+        "properties": {
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "lane": {
+            "title": "Lane",
+            "type": "string"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          }
+        },
+        "required": [
+          "kind",
+          "lane",
+          "started_at"
+        ],
+        "title": "PulseRunningOut",
+        "type": "object"
+      },
+      "PulseWindowOut": {
+        "properties": {
+          "hourly_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hourly Limit"
+          },
+          "next_reset_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Reset At"
+          },
+          "remaining": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining"
+          },
+          "seconds_to_next_reset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seconds To Next Reset"
+          },
+          "status": {
+            "enum": [
+              "current",
+              "reset_due",
+              "overdue",
+              "unknown"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "used": {
+            "title": "Used",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status",
+          "remaining",
+          "used",
+          "hourly_limit",
+          "next_reset_at",
+          "seconds_to_next_reset"
+        ],
+        "title": "PulseWindowOut",
         "type": "object"
       },
       "QueueDepthsOut": {
@@ -20126,6 +20900,60 @@
         "title": "SampleOut",
         "type": "object"
       },
+      "ScheduleEntryOut": {
+        "properties": {
+          "facts": {
+            "additionalProperties": true,
+            "title": "Facts",
+            "type": "object"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "last_run_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Run At"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          },
+          "what": {
+            "title": "What",
+            "type": "string"
+          },
+          "when": {
+            "title": "When",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "when",
+          "what",
+          "last_run_at",
+          "result",
+          "facts"
+        ],
+        "title": "ScheduleEntryOut",
+        "type": "object"
+      },
       "ScoringSettingsHistoryOut": {
         "properties": {
           "items": {
@@ -21257,6 +22085,39 @@
           "running"
         ],
         "title": "StatusBatchesOut",
+        "type": "object"
+      },
+      "StillToFetchOut": {
+        "properties": {
+          "case_details": {
+            "title": "Case Details",
+            "type": "integer"
+          },
+          "causelist_days": {
+            "title": "Causelist Days",
+            "type": "integer"
+          },
+          "order_pdfs": {
+            "title": "Order Pdfs",
+            "type": "integer"
+          },
+          "other": {
+            "title": "Other",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "causelist_days",
+          "case_details",
+          "order_pdfs",
+          "other",
+          "total"
+        ],
+        "title": "StillToFetchOut",
         "type": "object"
       },
       "StopWatchingIn": {
@@ -23553,6 +24414,38 @@
         "title": "ValidationError",
         "type": "object"
       },
+      "WaitingWorkOut": {
+        "properties": {
+          "by_lane": {
+            "$ref": "#/components/schemas/LaneCountsOut"
+          },
+          "failed": {
+            "title": "Failed",
+            "type": "integer"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "running": {
+            "title": "Running",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "total",
+          "by_lane",
+          "running",
+          "failed"
+        ],
+        "title": "WaitingWorkOut",
+        "type": "object"
+      },
       "WatchIn": {
         "properties": {
           "cnr": {
@@ -25473,6 +26366,103 @@
         ]
       }
     },
+    "/admin/data-load/overview": {
+      "get": {
+        "description": "The Overview tab (design data-collection-redesign, decisions 14-16 and 21): the automatic collection's state\nand position, cause-list days of the period up to today, every case and order held, what is still to fetch in\nevery lane, the problem counts and the two-date estimate. Never calls NAPIX; writes nothing.",
+        "operationId": "get_overview_admin_data_load_overview_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataLoadOverviewOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Overview",
+        "tags": [
+          "data-load"
+        ]
+      }
+    },
     "/admin/data-load/pause": {
       "post": {
         "description": "Pause the backdated load at the next claim of any worker; the daily cycle and requests keep running.",
@@ -25707,6 +26697,103 @@
         ]
       }
     },
+    "/admin/data-load/pulse": {
+      "get": {
+        "description": "The live figures polled every 5 s while the tab is visible (decisions 17-18): the quota window, the queue by\nkind in every lane, what is fetching now (no references), recent calls and request-lane work. Polls never count as\nactivity for the session timeout (only `POST /me/activity` does).",
+        "operationId": "get_pulse_admin_data_load_pulse_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataLoadPulseOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Pulse",
+        "tags": [
+          "data-load"
+        ]
+      }
+    },
     "/admin/data-load/resume": {
       "post": {
         "operationId": "resume_admin_data_load_resume_post",
@@ -25825,6 +26912,103 @@
           }
         ],
         "summary": "Resume",
+        "tags": [
+          "data-load"
+        ]
+      }
+    },
+    "/admin/data-load/schedule": {
+      "get": {
+        "description": "The daily schedule in plain words with each entry's last run where one is recorded, and the daily updates of\nthe last 7 days (decision 40).",
+        "operationId": "get_schedule_admin_data_load_schedule_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataLoadScheduleOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Schedule",
         "tags": [
           "data-load"
         ]

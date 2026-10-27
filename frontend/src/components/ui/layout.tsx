@@ -520,3 +520,43 @@ export function FilterCard({
     </div>
   );
 }
+
+/**
+ * A long list that scrolls inside its own box (design data-collection-redesign, decision 10; the Department Mapping
+ * box moved into the kit): a named, focusable region at most `min(60vh, 560px)` high, with a sticky header row for a
+ * table inside it. Every growing list in Data Collection sits in one.
+ */
+export function ScrollBox({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className={s.scrollBox} role="region" aria-label={label} tabIndex={0} data-scroll-y="">
+      {children}
+    </div>
+  );
+}
+
+/** Seconds since `updatedAt` (a `Date.now()` value), ticking once a second in the browser with no request. */
+export function useSecondsSince(updatedAt: number | null | undefined): number | null {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  if (!updatedAt) return null;
+  return Math.max(0, Math.floor((now - updatedAt) / 1000));
+}
+
+/**
+ * A tab's toolbar line (decision 11): "Updated 4 s ago" on the left (from React Query's `dataUpdatedAt`, ticking with
+ * no request and not announced), the tab's links and secondary buttons on the right. No floating links remain.
+ */
+export function TabToolbar({ updatedAt, children }: { updatedAt?: number | null; children?: ReactNode }) {
+  const seconds = useSecondsSince(updatedAt);
+  return (
+    <div className={s.tabToolbar} data-ui="tab-toolbar">
+      <span className={s.updated} aria-live="off">
+        {seconds === null ? "" : T.kit.updatedAgo(seconds)}
+      </span>
+      {children ? <div className={s.toolbarActions}>{children}</div> : null}
+    </div>
+  );
+}

@@ -129,7 +129,8 @@ PERMISSION_LABELS: dict[P, tuple[str, str]] = {
     ),
     P.ADMIN_DATA_LOAD: (
         "Data Collection",
-        "Start, pause and order the historical load, fetch single cases and check duplicates.",
+        # design data-collection-redesign, decision 33 (a seed upsert)
+        "Start, pause and order the automatic collection, collect cases from the court at once and check duplicates.",
     ),
     P.ADMIN_SERVICE_HEALTH: (
         "System Health",

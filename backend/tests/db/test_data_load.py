@@ -429,8 +429,21 @@ def test_coverage_month_figures_exact(world, tmp_path):
             "not_queued": 21,
         }
         assert (jan["lists"], jan["entries"], jan["lists_parse_failed"]) == (1, 3, 1)
-        assert jan["cases"] == {"listed": 3, "with_details": 1, "provisional": 1}
-        assert jan["orders"] == {"referenced": 3, "stored": 1, "not_available": 1, "waiting": 1}
+        assert jan["cases"] == {
+            "listed": 3,
+            "with_details": 1,
+            "provisional": 1,
+            "without_details": 2,
+            "queued": 1,
+            "failed": 0,
+        }
+        assert jan["orders"] == {
+            "referenced": 3,
+            "stored": 1,
+            "not_available": 1,
+            "waiting": 1,
+            "failed": 0,
+        }
         assert jan["work_left"] == {"causelist_day": 0, "dossier": 1, "order_pdf": 0}
         assert jan["failed"] == {"causelist_day": 0, "dossier": 0, "order_pdf": 1}
         assert jan["days_covered_pct"] == round(100 * 10 / 31, 1) and jan["details_pct"] == round(100 / 3, 1)
@@ -438,12 +451,13 @@ def test_coverage_month_figures_exact(world, tmp_path):
             feb["days"]["calendar"] == 28 and feb["days"]["with_lists"] == 1 and feb["days"]["waiting"] == 1
         )
         assert (feb["lists"], feb["entries"]) == (1, 1)
-        assert (
-            feb["cases"] == {"listed": 1, "with_details": 0, "provisional": 0} and feb["details_pct"] == 0.0
-        )
+        assert feb["cases"]["listed"] == 1 and feb["cases"]["with_details"] == 0
+        assert feb["details_pct"] == 0.0
         assert feb["orders"]["waiting"] == 1 and feb["work_left"]["causelist_day"] == 1
-        # the default range is the load period; at most 36 months; months must be ordered
-        assert [m["month"] for m in data_load.coverage(s, CFG)] == ["2025-01", "2025-02"]
+        # the default range runs from the load period's first month to this month (design data-collection-redesign,
+        # decision 19); at most 36 months; months must be ordered
+        default = [m["month"] for m in data_load.coverage(s, CFG, today=date(2025, 4, 10))]
+        assert default == ["2025-01", "2025-02", "2025-03", "2025-04"]
         for f, t in (("2025-01", "2028-01"), ("2025-03", "2025-01"), ("2025-13", "2025-12")):
             with pytest.raises(data_load.LoadInputError) as exc:
                 data_load.coverage(s, CFG, f, t)

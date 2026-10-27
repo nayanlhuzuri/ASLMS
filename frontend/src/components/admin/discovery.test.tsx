@@ -2,7 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { Discovery } from "@/components/data/Discovery";
+import { DepartmentNames } from "@/components/data/AutomaticCollection";
 import type { DiscoveryCase, DiscoverySummary, DiscoveryTerm, Permission } from "@/lib/api/types";
 import { resetNav } from "@/test/nav";
 import { browserApi, expectDataTable, json, makeMe, renderWithClient } from "@/test/render";
@@ -174,15 +174,27 @@ describe("Court search tab", () => {
   });
 });
 
-describe("Discovery data tab", () => {
-  beforeEach(() => resetNav("/data/discovery"));
+// design data-collection-redesign, decision 41: the Discovery tab is Automatic Collection's Search by Department Names
+describe("Search by Department Names", () => {
+  beforeEach(() => resetNav("/data/automatic"));
 
   it("shows the share and hides the sweep button without admin.data_load", async () => {
     browserApi({ "GET /me": makeMe(["reports.state"], "state_oversight"), "GET /admin/discovery": summary() });
-    renderWithClient(<Discovery />);
-    expect(await screen.findByText("12 of 100 calls used in this window; 88 left.")).toBeInTheDocument();
+    renderWithClient(<DepartmentNames />);
+    expect(await screen.findByText("12 of 100 calls of this hour's share used")).toBeInTheDocument();
     expect(screen.getByText("GAHC01|P|2025|PRITAM SAIKIA")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Sweep Every Name Now" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Search Every Name Now" })).toBeNull();
+  });
+
+  it("says how names are registered while none is (today: 0), with the Mapping link for admin.keywords", async () => {
+    browserApi({
+      "GET /me": makeMe(["admin.data_load", "admin.keywords"], "super_admin"),
+      "GET /admin/discovery": summary({ terms: { active: 0, inactive: 0 } }),
+    });
+    renderWithClient(<DepartmentNames />);
+    expect(await screen.findByText(/No department names are registered yet/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open Department Mapping" })).toHaveAttribute("href", "/admin/mapping/keywords");
+    expect(screen.queryByRole("button", { name: "Search Every Name Now" })).toBeNull();
   });
 
   it("the sweep asks first and posts for admin.data_load", async () => {
@@ -191,11 +203,11 @@ describe("Discovery data tab", () => {
       "GET /admin/discovery": summary(),
       "POST /admin/discovery/sweep": json(202, { terms: 3, rows_queued: 6 }),
     });
-    renderWithClient(<Discovery />);
-    await userEvent.click(await screen.findByRole("button", { name: "Sweep Every Name Now" }));
+    renderWithClient(<DepartmentNames />);
+    await userEvent.click(await screen.findByRole("button", { name: "Search Every Name Now" }));
     const dialog = screen.getByRole("dialog", { name: "Queue a Discovery Sweep" });
     expect(api.calls.some((c) => c.method === "POST")).toBe(false);
-    await userEvent.click(within(dialog).getByRole("button", { name: "Sweep Every Name Now" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Search Every Name Now" }));
     expect(await screen.findByText("6 searches queued for 3 name(s).")).toBeInTheDocument();
   });
 });

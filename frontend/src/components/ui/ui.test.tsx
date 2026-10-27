@@ -8,6 +8,10 @@ import { renderWithClient } from "@/test/render";
 
 import {
   Badge,
+  ProgressBar,
+  ProgressLegend,
+  ScrollBox,
+  TabToolbar,
   Button,
   CheckField,
   Chip,
@@ -742,5 +746,113 @@ describe("FilterCard (design portal-ui-polish-2, decision 21)", () => {
     await userEvent.click(before);
     expect(screen.getByLabelText("Bench")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Hero" })).toBe(before);
+  });
+});
+
+describe("progress, scroll box and captions (design data-collection-redesign, decisions 9-11)", () => {
+  it("ProgressBar is a progressbar with the done amount, the whole and a sentence, shown as text too", () => {
+    renderWithClient(
+      <ProgressBar
+        label="Order PDFs"
+        max={10}
+        segments={[
+          { tone: "failed", value: 1 },
+          { tone: "done", value: 6 },
+          { tone: "waiting", value: 2 },
+          { tone: "unavailable", value: 1 },
+        ]}
+        text="6 of 10 stored, 2 waiting"
+      />,
+    );
+    const bar = screen.getByRole("progressbar", { name: "Order PDFs" });
+    expect(bar).toHaveAttribute("aria-valuemin", "0");
+    expect(bar).toHaveAttribute("aria-valuemax", "10");
+    expect(bar).toHaveAttribute("aria-valuenow", "6");
+    expect(bar).toHaveAttribute("aria-valuetext", "6 of 10 stored, 2 waiting");
+    expect(screen.getByText("6 of 10 stored, 2 waiting")).toBeInTheDocument();
+    // segments in a fixed order, sized as shares of the whole, never colour alone
+    const segs = [...bar.querySelectorAll<HTMLElement>("[data-tone]")];
+    expect(segs.map((s) => s.dataset.tone)).toEqual(["done", "waiting", "unavailable", "failed"]);
+    expect(parseFloat(segs[0]!.style.width)).toBe(60);
+  });
+
+  it("ProgressBar can leave its sentence to the caller, and draws nothing for an empty whole", () => {
+    renderWithClient(<ProgressBar label="Days" max={0} segments={[{ tone: "done", value: 0 }]} text="No days" showText={false} />);
+    const bar = screen.getByRole("progressbar", { name: "Days" });
+    expect(bar).toHaveAttribute("aria-valuetext", "No days");
+    expect(bar.querySelectorAll("[data-tone]")).toHaveLength(0);
+    expect(screen.queryByText("No days", { selector: "span" })).toBeNull();
+  });
+
+  it("ProgressLegend names each tone in words", () => {
+    renderWithClient(
+      <ProgressLegend
+        items={[
+          { tone: "done", label: "Stored", value: "6" },
+          { tone: "failed", label: "Failed" },
+        ]}
+      />,
+    );
+    const legend = screen.getByRole("list", { name: "Legend" });
+    expect(within(legend).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["Stored6", "Failed"]);
+  });
+
+  it("the motion tokens go to 0 ms under reduced motion, so the bars do not grow and nothing pulses", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const css = readFileSync(join(process.cwd(), "src", "components", "ui", "feedback.module.css"), "utf-8");
+    expect(css).toMatch(/\.progressSeg \{[^}]*animation: progress-grow var\(--slow\)/);
+    expect(css).toMatch(/progress-pulse calc\(var\(--slow\) \* 5\)/);
+    const globals = readFileSync(join(process.cwd(), "src", "app", "globals.css"), "utf-8");
+    expect(globals).toMatch(/prefers-reduced-motion: reduce[\s\S]*--slow: 0ms/);
+  });
+
+  it("ScrollBox is a named, focusable region", () => {
+    renderWithClient(
+      <ScrollBox label="Month by Month">
+        <p>rows</p>
+      </ScrollBox>,
+    );
+    const box = screen.getByRole("region", { name: "Month by Month" });
+    expect(box).toHaveAttribute("tabindex", "0");
+    expect(box).toHaveAttribute("data-scroll-y");
+  });
+
+  it("DataTable hides its caption unless showCaption, keeping it as the accessible name", () => {
+    const columns = [{ key: "a", header: "A", primary: true, cell: (r: { id: string }) => r.id }];
+    const { unmount } = renderWithClient(<DataTable caption="Hidden Name" rows={[{ id: "x" }]} rowKey={(r) => r.id} columns={columns} />);
+    expect(screen.getByRole("table", { name: "Hidden Name" }).querySelector("caption")!.className).toMatch(/srCaption/);
+    unmount();
+    renderWithClient(<DataTable caption="Shown Name" showCaption rows={[{ id: "x" }]} rowKey={(r) => r.id} columns={columns} />);
+    expect(screen.getByRole("table", { name: "Shown Name" }).querySelector("caption")!.className).toBe("");
+  });
+
+  it("TabToolbar says when the figures were updated, with its links on the right", () => {
+    const { container } = renderWithClient(
+      <TabToolbar updatedAt={Date.now() - 12_000}>
+        <a href="/reports/data-health">Report</a>
+      </TabToolbar>,
+    );
+    const bar = container.querySelector("[data-ui='tab-toolbar']")!;
+    expect(bar).toHaveTextContent("Updated 12 s ago");
+    expect(within(bar as HTMLElement).getByRole("link", { name: "Report" })).toBeInTheDocument();
+  });
+});
+
+describe("ProgressBar never holds more than the whole", () => {
+  it("clamps segments that add up past the whole", () => {
+    renderWithClient(
+      <ProgressBar
+        label="Over"
+        max={10}
+        segments={[
+          { tone: "done", value: 8 },
+          { tone: "waiting", value: 8 },
+        ]}
+        text="8 of 10"
+      />,
+    );
+    const segs = [...screen.getByRole("progressbar", { name: "Over" }).querySelectorAll<HTMLElement>("[data-tone]")];
+    expect(segs.map((s) => parseFloat(s.style.width))).toEqual([80, 20]);
   });
 });

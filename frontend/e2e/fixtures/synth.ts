@@ -41,6 +41,11 @@ export const STRESS = {
   count: 123456,
   sentence:
     "Please prepare the parawise comments on the writ petition and place the file with the department's counsel before the next date of hearing.",
+  // design data-collection-redesign, decisions 7 and 12: a long error and a long API path, which once pushed a column
+  // past the page's gutter
+  error:
+    "IntegrationError: NapixUnavailable 502 Bad Gateway from /nic/ecourts/hc-cnr-api/v1.0/cnr_full_case_details_with_orders_and_history?est_code=GAHC01&attempt=5",
+  api: "hc-cause-list-api/v1.0/cause_list_bench_wise_details_by_date_and_bench_number",
 } as const;
 
 const PLAIN = {
@@ -129,6 +134,7 @@ function stringFor(key: string, parent: string, format: string | undefined, idx:
   if (k === "mobile") return "9864012345";
   if (k === "mime") return "application/pdf";
   if (k.includes("url") || k === "href") return "/";
+  if (k === "api" && stress) return STRESS.api;
   if (k === "full_name" || k === "user_name" || k === "actor_name" || k === "name" || k.endsWith("_by")) return idx === 0 ? "Anita Sharma Baruah" : `Rina Das ${idx}`;
   if (/remark|note|reason|description|phrase|message|detail|summary|text|body|title|purpose|business|order|error/.test(k)) return idx === 0 ? v.sentence : PLAIN.sentence;
   if (k === "month") return `2026-${String(10 - idx).padStart(2, "0")}`;
@@ -167,6 +173,8 @@ export function synth(schema: Schema, key = "", parent = "", idx = 0, stack: str
   const { schema: s, ref } = resolve(inner);
   if (ref && stack.includes(ref)) return nullable ? null : Array.isArray(s.type) || s.type === "array" ? [] : {};
   const nextStack = ref ? [...stack, ref] : stack;
+  // the stress row carries a long error (design data-collection-redesign, decision 12); the others stay null
+  if (nullable && key === "last_error" && idx === 0 && stack.length <= 5) return STRESS.error;
   if (nullable && (stack.length > 5 || NULL_KEY.test(key.toLowerCase()))) return null;
   if (s.allOf && s.allOf.length > 0) return synth(s.allOf[0]!, key, parent, idx, nextStack, opts);
   if (s.const !== undefined) return s.const;

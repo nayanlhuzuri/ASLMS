@@ -78,7 +78,8 @@ function useFitTable(rows: unknown, columnKeys: string) {
  * One DOM for every width (decision 18): a `<table>` on wide screens; below 820 px CSS turns each row into a card
  * with its primary cell on top and the other cells as label-value lines from each cell's `data-label`. A row with
  * `onRowClick` opens by click or by Enter on the focused row. On a wider screen a table whose columns cannot fit its
- * box becomes the same cards (`fitTable`), so no column is ever cut off or scrolled to.
+ * box becomes the same cards (`fitTable`), so no column is ever cut off or scrolled to. The caption is hidden unless
+ * `showCaption` (design data-collection-redesign, decision 10).
  */
 export function DataTable<Row>({
   columns,
@@ -89,6 +90,7 @@ export function DataTable<Row>({
   rowLabel,
   rowClassName,
   empty,
+  showCaption = false,
 }: {
   columns: Column<Row>[];
   rows: Row[];
@@ -101,13 +103,19 @@ export function DataTable<Row>({
   rowClassName?: (row: Row) => string | undefined;
   /** Shown instead of the table when there are no rows. */
   empty?: ReactNode;
+  /**
+   * Shows the caption (design data-collection-redesign, decision 10): by default it stays in the markup, visually
+   * hidden, as the table's accessible name, because the panel's heading above already says it. A table with no
+   * visible heading of its own shows it.
+   */
+  showCaption?: boolean;
 }) {
   const wrapRef = useFitTable(rows, columns.map((c) => c.key).join("\u0000"));
   if (rows.length === 0 && empty) return <>{empty}</>;
   return (
     <div className={s.dataWrap} ref={wrapRef}>
       <table className={cx(s.table, s.dataTable)}>
-        {caption ? <caption>{caption}</caption> : null}
+        {caption ? <caption className={showCaption ? undefined : s.srCaption}>{caption}</caption> : null}
         <thead>
           <tr>
             {columns.map((c) => (

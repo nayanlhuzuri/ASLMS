@@ -52,3 +52,62 @@ test("a checkbox on the control line passes", async ({ page }) => {
   const findings = await page.evaluate(pageChecks, { width: 1280 });
   expect(findings.filter((f) => f.detail.startsWith("field row: checkbox centre"))).toEqual([]);
 });
+
+/**
+ * The gutter and doubled-heading rules (design data-collection-redesign, decision 12): each on a page that breaks it and
+ * a page that keeps it.
+ */
+function shell(mainStyle: string, body: string): string {
+  return `<!doctype html><html><body style="margin:0;font:14px sans-serif">
+    <main id="main" style="${mainStyle}">${body}</main></body></html>`;
+}
+
+test("a 3 px page gutter and a value pushing past the content box are gutter findings", async ({ page }) => {
+  await page.setContent(
+    shell(
+      "padding:16px 3px;width:600px",
+      `<p>Data Collection</p><div style="width:900px">A long error that does not wrap</div>`,
+    ),
+  );
+  const findings = (await page.evaluate(pageChecks, { width: 1280 })).filter((f) => f.kind === "gutter");
+  expect(findings.some((f) => f.detail.startsWith("left padding 3.0 px"))).toBe(true);
+  expect(findings.some((f) => f.detail.startsWith("box "))).toBe(true);
+});
+
+test("a kept gutter, a sideways-scroll region and a visually hidden caption pass the gutter rule", async ({ page }) => {
+  await page.setContent(
+    shell(
+      "padding:16px 24px;width:600px",
+      `<p style="overflow-wrap:anywhere">A long value that wraps inside the page</p>
+       <div data-scroll-x style="overflow-x:auto"><div style="width:900px">A wide report table</div></div>
+       <span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Hidden</span>`,
+    ),
+  );
+  const findings = (await page.evaluate(pageChecks, { width: 1280 })).filter((f) => f.kind === "gutter");
+  expect(findings).toEqual([]);
+});
+
+test("a caption repeating its panel heading is a doubled heading", async ({ page }) => {
+  await page.setContent(
+    shell(
+      "padding:16px 24px",
+      `<section><h2>Work Left</h2><table><caption>Work Left</caption><tbody><tr><td>1</td></tr></tbody></table></section>`,
+    ),
+  );
+  const findings = (await page.evaluate(pageChecks, { width: 1280 })).filter((f) => f.kind === "doubled-heading");
+  expect(findings).toHaveLength(1);
+});
+
+test("a hidden caption or a different heading passes the doubled-heading rule", async ({ page }) => {
+  await page.setContent(
+    shell(
+      "padding:16px 24px",
+      `<section><h2>Work Left</h2>
+         <table><caption style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Work Left</caption>
+           <tbody><tr><td>1</td></tr></tbody></table>
+         <h3>By Kind of Work</h3></section>`,
+    ),
+  );
+  const findings = (await page.evaluate(pageChecks, { width: 1280 })).filter((f) => f.kind === "doubled-heading");
+  expect(findings).toEqual([]);
+});

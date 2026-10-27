@@ -24,11 +24,11 @@ import type {
   Me,
   TicketCounts,
 } from "@/lib/api/types";
-import { can, canIn } from "@/lib/can";
+import { can, canAny, canIn } from "@/lib/can";
 import { formatDate, formatDateTime, formatNumber } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { sourceLabel, statusLabel } from "@/lib/nextDates";
-import { navFor } from "@/lib/routes";
+import { DATA_READERS, navFor } from "@/lib/routes";
 
 import s from "./dashboard.module.css";
 
@@ -88,11 +88,12 @@ export function HearingList({ hearings, caption }: { hearings: DashboardHearings
   );
 }
 
-function FileList({ items, caption }: { items: DashboardFile[]; caption: string }) {
+function FileList({ items, caption, showCaption }: { items: DashboardFile[]; caption: string; showCaption?: boolean }) {
   if (items.length === 0) return null;
   return (
     <DataTable
       caption={caption}
+      showCaption={showCaption}
       rows={items}
       rowKey={(f) => `${f.case.id}-${f.since}`}
       columns={[
@@ -193,6 +194,7 @@ export function DepartmentBlock({ data }: { data: DashboardDepartment }) {
           {att.recent_order_next_dates.length > 0 ? (
             <DataTable
               caption={T.dash.recentOrders}
+              showCaption
               rows={att.recent_order_next_dates}
               rowKey={(o) => `${o.case.id}-${o.next_date}`}
               columns={[
@@ -294,6 +296,7 @@ export function PersonalExtras({ data }: { data: DashboardMe }) {
       {data.cases.length > 0 ? (
         <DataTable
           caption={T.dash.ownCases}
+          showCaption
           rows={data.cases}
           rowKey={(c) => c.department_code}
           columns={[
@@ -313,7 +316,7 @@ export function PersonalExtras({ data }: { data: DashboardMe }) {
           ]}
         />
       ) : null}
-      <FileList items={data.files.items} caption={T.dash.files} />
+      <FileList items={data.files.items} caption={T.dash.files} showCaption />
       <div id="alerts">
         <h3>
           <Link href="/alerts">{T.dash.myAlerts}</Link>
@@ -341,8 +344,19 @@ export function StateBlock({ data }: { data: DashboardState }) {
   const n = formatNumber;
   const nc = data.not_claimed;
   const reports = can(me.data, "reports.state") ? <Link href="/reports/pending-cases">{T.reports.dashboardLink}</Link> : null;
+  // design data-collection-redesign, decision 5: a link only, no figure, so no extra query
+  const collection = canAny(me.data, DATA_READERS) ? <Link href="/data/overview">{T.dash.dataCollectionLink}</Link> : null;
+  const action =
+    reports && collection ? (
+      <span className="actions">
+        {collection}
+        {reports}
+      </span>
+    ) : (
+      (collection ?? reports)
+    );
   return (
-    <Block title={T.dash.state} sub={T.dash.generated(formatDateTime(data.generated_at))} action={reports}>
+    <Block title={T.dash.state} sub={T.dash.generated(formatDateTime(data.generated_at))} action={action}>
       <Kpis>
         {[
           <Kpi
@@ -421,6 +435,7 @@ export function StateBlock({ data }: { data: DashboardState }) {
               <DataTable
                 key={caption}
                 caption={caption}
+                showCaption
                 rows={[...rows]}
                 rowKey={(r) => r.code}
                 columns={[
@@ -465,6 +480,7 @@ export function TicketsBlock({ data }: { data: TicketCounts }) {
           {kinds.length > 0 ? (
             <DataTable
               caption={T.dash.ticketsByKind}
+              showCaption
               rows={kinds}
               rowKey={([kind]) => kind}
               columns={[
@@ -476,6 +492,7 @@ export function TicketsBlock({ data }: { data: TicketCounts }) {
           {departments.length > 0 ? (
             <DataTable
               caption={T.dash.ticketsByDepartment}
+              showCaption
               rows={departments}
               rowKey={([code]) => code}
               columns={[

@@ -18,7 +18,12 @@
  *   hint under one field can never push its neighbours out of line; and (design portal-ui-polish-2, decision 26) an
  *   item whose control is a checkbox sits level with the boxes: its checkbox's vertical centre within 1 px of the line's
  *   box centre (the 36 px control line), not with the labels;
- * - one primary (decision 16): more than one visible primary outside an open dialog.
+ * - one primary (decision 16): more than one visible primary outside an open dialog;
+ * - gutter (design data-collection-redesign, decision 12): `main#main` keeps at least 12 px of left padding, and no
+ *   visible element inside it reaches past its content box, unless it sits in a `[data-scroll-x]` or `[data-bleed]`
+ *   region, is fixed or absolute (or inside such a box), is visually hidden, or is clipped by a box of its own;
+ * - doubled heading (decision 12): a visible `h1`-`h4`, `caption` or `legend` whose normalised text equals the nearest
+ *   visible heading above it in the same `section`, `article`, `[data-ui=card]` or `[role=dialog]`.
  */
 
 /**
@@ -26,7 +31,17 @@
  * dropped then (design followups-oct, decision 22); `missing-fixture`, `not-get`, `console-error` and `page-error` are
  * kept. `pageChecks` runs inside the browser and must not read this constant.
  */
-export const GEOMETRY_KINDS = ["page-overflow", "inner-scroll", "off-screen", "clipped", "size", "alignment", "primary"] as const;
+export const GEOMETRY_KINDS = [
+  "page-overflow",
+  "inner-scroll",
+  "off-screen",
+  "clipped",
+  "size",
+  "alignment",
+  "primary",
+  "gutter",
+  "doubled-heading",
+] as const;
 
 export interface PageFinding {
   kind: (typeof GEOMETRY_KINDS)[number];
@@ -267,6 +282,68 @@ export function pageChecks({ width }: CheckArgs): PageFinding[] {
   );
   if (primaries.length > 1) {
     out.push({ kind: "primary", element: primaries.map(describe).join(" | "), detail: `${primaries.length} primary actions outside a dialog` });
+  }
+
+  // a visually hidden element (1 px, or `clip: rect(…)`) is not drawn
+  function srOnly(el: Element): boolean {
+    const box = el.getBoundingClientRect();
+    if (box.width <= 1 && box.height <= 1) return true;
+    const clip = getComputedStyle(el).clip;
+    return !!clip && clip !== "auto" && /rect\(\s*0(px)?[ ,]+0(px)?[ ,]+0(px)?[ ,]+0(px)?\s*\)/.test(clip);
+  }
+
+  // the gutter (design data-collection-redesign, decision 12)
+  const main = document.querySelector("main#main");
+  if (main) {
+    const cs = getComputedStyle(main);
+    const pad = parseFloat(cs.paddingLeft) || 0;
+    if (pad < 12) out.push({ kind: "gutter", element: describe(main), detail: `left padding ${pad.toFixed(1)} px < 12` });
+    const mbox = main.getBoundingClientRect();
+    const left = mbox.left + (parseFloat(cs.borderLeftWidth) || 0) + pad;
+    const right = mbox.right - (parseFloat(cs.borderRightWidth) || 0) - (parseFloat(cs.paddingRight) || 0);
+    const exempt = (el: Element): boolean => {
+      for (let cur: Element | null = el; cur && cur !== main; cur = cur.parentElement) {
+        if (cur.matches("[data-scroll-x], [data-bleed]")) return true;
+        const st = getComputedStyle(cur);
+        if (st.position === "fixed" || st.position === "absolute") return true;
+        if (cur !== el && st.overflowX !== "visible") return true; // clipped by a box of its own, measured as that box
+        if (srOnly(cur)) return true;
+      }
+      return false;
+    };
+    let reported = 0;
+    for (const el of Array.from(main.querySelectorAll("*"))) {
+      if (reported >= 3) break;
+      if (!visible(el) || exempt(el)) continue;
+      const box = el.getBoundingClientRect();
+      if (box.left < left - 0.5 || box.right > right + 0.5) {
+        out.push({
+          kind: "gutter",
+          element: describe(el),
+          detail: `box ${Math.round(box.left)}-${Math.round(box.right)} outside the content box ${Math.round(left)}-${Math.round(right)}`,
+        });
+        reported += 1;
+      }
+    }
+  }
+
+  // doubled headings (decision 12)
+  const norm = (el: Element) => (el.textContent ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+  const heads = Array.from(document.querySelectorAll("h1, h2, h3, h4, caption, legend")).filter((el) => visible(el) && !srOnly(el));
+  for (let i = 0; i < heads.length; i += 1) {
+    const el = heads[i]!;
+    const box = el.parentElement?.closest("section, article, [data-ui=card], [role=dialog]");
+    if (!box || !norm(el)) continue;
+    let above: Element | null = null;
+    for (let j = i - 1; j >= 0; j -= 1) {
+      if (box.contains(heads[j]!)) {
+        above = heads[j]!;
+        break;
+      }
+    }
+    if (above && norm(above) === norm(el)) {
+      out.push({ kind: "doubled-heading", element: describe(el), detail: `repeats ${describe(above)}` });
+    }
   }
   return out;
 }

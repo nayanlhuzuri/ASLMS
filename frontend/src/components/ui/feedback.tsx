@@ -167,3 +167,90 @@ export function Stepper({ step, steps }: { step: number; steps: string[] }) {
     </div>
   );
 }
+
+/** The tones of a progress segment (design data-collection-redesign, decision 9). */
+export type ProgressTone = "done" | "active" | "waiting" | "unavailable" | "failed";
+
+export interface ProgressSegment {
+  tone: ProgressTone;
+  value: number;
+}
+
+const PROGRESS_ORDER: readonly ProgressTone[] = ["done", "active", "waiting", "unavailable", "failed"];
+
+/**
+ * A segmented progress bar (decision 9): done is solid green, active the accent with the live pulse, waiting striped
+ * accent-soft, unavailable slate with a strong edge, failed red. `role="progressbar"` with the done amount as
+ * `aria-valuenow` of `max` and `text` as `aria-valuetext`; the same text is shown under the bar (never colour alone)
+ * unless the caller shows it beside the bar (`showText={false}`). Each segment grows by `scaleX` over `--slow`; under
+ * reduced motion nothing animates. Nothing moves the layout.
+ */
+export function ProgressBar({
+  segments,
+  max,
+  label,
+  text,
+  size = "md",
+  showText = true,
+}: {
+  segments: ProgressSegment[];
+  /** The whole (defaults to the sum of the segments). */
+  max?: number;
+  label: string;
+  text: string;
+  size?: "sm" | "md";
+  showText?: boolean;
+}) {
+  const total = Math.max(0, max ?? segments.reduce((sum, seg) => sum + Math.max(0, seg.value), 0));
+  const done = segments.filter((seg) => seg.tone === "done").reduce((sum, seg) => sum + Math.max(0, seg.value), 0);
+  const ordered = [...segments].sort((a, b) => PROGRESS_ORDER.indexOf(a.tone) - PROGRESS_ORDER.indexOf(b.tone));
+  // the segments never add up past the whole, so the track never holds more than it shows
+  let room = 100;
+  const widths = ordered.map((seg) => {
+    const w = total > 0 ? Math.max(0, Math.min(room, (Math.max(0, seg.value) / total) * 100)) : 0;
+    room -= w;
+    return w;
+  });
+  return (
+    <div className={s.progress}>
+      <div
+        className={cx(s.progressTrack, size === "sm" ? s.progressSm : s.progressMd)}
+        role="progressbar"
+        aria-label={label}
+        aria-valuemin={0}
+        aria-valuemax={total}
+        aria-valuenow={Math.min(done, total)}
+        aria-valuetext={text}
+      >
+        {total > 0
+          ? ordered.map((seg, i) =>
+              widths[i]! > 0 ? (
+                <i
+                  key={seg.tone}
+                  className={cx(s.progressSeg, s[`seg-${seg.tone}`])}
+                  data-tone={seg.tone}
+                  style={{ width: `${widths[i]!.toFixed(2)}%` }}
+                />
+              ) : null,
+            )
+          : null}
+      </div>
+      {showText ? <span className={s.progressText}>{text}</span> : null}
+    </div>
+  );
+}
+
+/** The legend of a segmented bar: a swatch per tone with its words (and count when given). */
+export function ProgressLegend({ items }: { items: { tone: ProgressTone; label: string; value?: string }[] }) {
+  return (
+    <ul className={s.legend} aria-label={T.kit.legend}>
+      {items.map((it) => (
+        <li key={it.tone}>
+          <i className={cx(s.swatch, s[`seg-${it.tone}`])} aria-hidden="true" />
+          <span>{it.label}</span>
+          {it.value !== undefined ? <b>{it.value}</b> : null}
+        </li>
+      ))}
+    </ul>
+  );
+}

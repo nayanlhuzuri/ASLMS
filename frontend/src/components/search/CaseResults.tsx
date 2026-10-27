@@ -79,6 +79,7 @@ export function CaseResults({
     <>
       <DataTable
         caption={caption}
+        showCaption
         columns={columns}
         rows={items}
         rowKey={(it) => it.case.id}

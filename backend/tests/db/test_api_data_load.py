@@ -205,7 +205,11 @@ def test_progress_start_pause_order_flow(api, world):
     assert body["settings"]["paused"] is True and body["estimate"]["reason"] == "paused"
     assert {w["kind"]: w["pending"] for w in body["work_left"]}["causelist_day"] == 29
     r = api.get("/admin/data-load/coverage", headers=h)
-    assert r.status_code == 200 and [m["month"] for m in r.json()["months"]] == ["2025-01"]
+    # the default range runs to this month (design data-collection-redesign, decision 19)
+    months = [m["month"] for m in r.json()["months"]]
+    assert r.status_code == 200 and months[-1] == f"{today_ist():%Y-%m}"
+    assert months[0] == "2025-01" or len(months) == 36
+    r = api.get("/admin/data-load/coverage?from=2025-01&to=2025-01", headers=h)
     assert r.json()["months"][0]["days"]["calendar"] == 31
     r = api.get("/admin/data-load/coverage?from=2025-01&to=2028-01", headers=h)
     assert r.status_code == 400 and _err(r)["code"] == "bad_period"

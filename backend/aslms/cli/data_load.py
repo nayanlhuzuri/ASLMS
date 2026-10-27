@@ -43,13 +43,78 @@ def _refused(exc: Exception) -> typer.BadParameter:
     return typer.BadParameter(f"{getattr(exc, 'code', 'refused')}: {exc}{tail}")
 
 
+ESTIMATE_REASONS = {
+    "connection_off": "no date: the court connection is off",
+    "paused": "no date: the automatic collection is paused",
+    "not_enough_history": "no date: less than a day of collection to measure",
+    "no_recent_calls": "no date: no court call in the last hour",
+}
+
+
+def _n(value: int | float | None) -> str:
+    return "-" if value is None else f"{value:,.0f}"
+
+
+def _estimate_line(label: str, line: dict) -> str:
+    if line.get("reason"):
+        return f"{label}: {ESTIMATE_REASONS.get(line['reason'], line['reason'])}"
+    if not line.get("calls_needed"):
+        return f"{label}: done"
+    at = line["finish_at"]
+    return f"{label}: about {at:%a %d %b %Y %H:%M} IST ({_n(line['calls_needed'])} calls)"
+
+
+def status_lines(ov: dict) -> list[str]:
+    """The headline and the two estimate lines of the Overview (design data-collection-redesign, Services round 1)."""
+    lines = [
+        f"Automatic collection: {ov['collection'].replace('_', ' ')}"
+        + (f", working on {ov['position']['working_on_month']}" if ov["position"]["working_on_month"] else "")
+        + f"; court connection {'on' if ov['napix_enabled'] else 'off'}"
+    ]
+    if ov["days"] is not None:
+        d = ov["days"]
+        lines.append(
+            f"Cause lists: {_n(d['collected'])} of {_n(d['calendar'])} days ({_n(d['failed'])} failed)"
+        )
+    c, o, left = ov["cases"], ov["orders"], ov["left"]
+    lines.append(
+        f"Cases: {_n(c['found'])} found, {_n(c['with_details'])} with details, {_n(c['without_details'])} without"
+    )
+    lines.append(
+        f"Order PDFs: {_n(o['stored'])} of {_n(o['referenced'])} stored, {_n(o['waiting'])} waiting, "
+        f"{_n(o['not_available'])} not available at the court, {_n(o['failed'])} failed"
+    )
+    lines.append(
+        f"Still to fetch: {_n(left['total'])} ({_n(left['causelist_days'])} cause-list days, "
+        f"{_n(left['case_details'])} case details, {_n(left['order_pdfs'])} order PDFs)"
+    )
+    est = ov["estimate"]
+    lines.append(_estimate_line("Cause lists and case details", est["details"]))
+    lines.append(_estimate_line("Every order PDF as well", est["all"]))
+    lines.append(
+        f"Pace: about {_n(est['basis']['calls_per_hour'])} court calls an hour"
+        + (
+            f" of the {_n(est['basis']['hourly_limit'])} the court allows"
+            if est["basis"]["hourly_limit"]
+            else ""
+        )
+    )
+    return lines
+
+
 @data_load_app.command("status")
-def status() -> None:
-    """The progress block as JSON (what `GET /admin/data-load` returns)."""
+def status(
+    as_json: bool = typer.Option(False, "--json", help="the progress block as JSON (GET /admin/data-load)"),
+) -> None:
+    """The Overview's headline and the two estimate lines; `--json` prints the progress block."""
     settings = get_settings()
     with session_scope() as s:
-        out = data_load.progress(s, settings)
-    print(json.dumps(out, default=str, indent=2, ensure_ascii=False))
+        if as_json:
+            print(json.dumps(data_load.progress(s, settings), default=str, indent=2, ensure_ascii=False))
+            return
+        ov = data_load.overview(s, settings)
+    for line in status_lines(ov):
+        print(line)
 
 
 @data_load_app.command("coverage")

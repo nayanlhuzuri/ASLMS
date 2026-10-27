@@ -102,8 +102,6 @@
   width: 80px;
   font-size: var(--t-xs);
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
   color: var(--text-3);
   line-height: 36px;
 }
@@ -201,8 +199,6 @@
   margin: var(--s2) 0 0;
   font-size: var(--t-xs);
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
   color: var(--text-3);
 }
 

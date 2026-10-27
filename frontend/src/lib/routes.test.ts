@@ -15,6 +15,7 @@ import {
   crumbLabel,
   CRUMBS,
   DATA_TABS,
+  OLD_DATA_REDIRECTS,
   dataTabsFor,
   inboxTabsFor,
   MAPPING_FUNCTIONS,
@@ -68,14 +69,15 @@ describe("department discovery navigation", () => {
     expect(court.href).toBe("/admin/mapping/discovery");
     expect(court.functions).toEqual(["admin.keywords"]);
     expect(keys(mappingTabsFor(only("admin.counsel_codes")))).not.toContain("discovery");
-    const data = DATA_TABS.find((t) => t.key === "discovery")!;
-    expect(data.href).toBe("/data/discovery");
+    // design data-collection-redesign, decision 2: the Discovery data tab became Automatic Collection's
+    // Search by Department Names, and its old address redirects there
+    expect(DATA_TABS.find((t) => t.key === "discovery")).toBeUndefined();
+    expect(OLD_DATA_REDIRECTS["/data/discovery"]).toBe("/data/automatic#department-names");
     for (const fn of ["admin.data_load", "reports.state", "admin.napix_refetch", "admin.masters_sync"] as const) {
-      expect(keys(dataTabsFor(only(fn)))).toContain("discovery");
+      expect(keys(dataTabsFor(only(fn)))).toContain("automatic");
     }
-    expect(keys(dataTabsFor(only("admin.keywords")))).not.toContain("discovery");
+    expect(keys(dataTabsFor(only("admin.keywords")))).toEqual([]);
     expect(crumbLabel("/admin/mapping/discovery")).toBe("Court Search");
-    expect(crumbLabel("/data/discovery")).toBe("Discovery");
   });
 });
 
@@ -197,6 +199,31 @@ describe("Files, My calendar and Alerts navigation (portal-files-alerts; portal-
       "/cases/sent": "/inbox/sent",
       "/cases/pending": "/inbox/pending",
     });
+  });
+
+  it("the Data Collection tabs and the round 1 redirects (data-collection-redesign, decisions 1 and 2)", () => {
+    expect(DATA_TABS.slice(0, 3).map((t) => [t.key, t.href])).toEqual([
+      ["overview", "/data/overview"],
+      ["collect", "/data/collect"],
+      ["automatic", "/data/automatic"],
+    ]);
+    expect(DATA_TABS.map((t) => t.label).slice(0, 3)).toEqual(["Overview", "Collect Now", "Automatic Collection"]);
+    // Collect Now shows for any function with a card on it; the State Oversight Officer reads the others only
+    for (const fn of ["admin.data_load", "admin.napix_refetch", "admin.masters_sync"] as const) {
+      expect(keys(dataTabsFor({ functions: [fn] }))).toContain("collect");
+    }
+    expect(keys(dataTabsFor({ functions: ["reports.state"] }))).not.toContain("collect");
+    expect(NAV.find((e) => e.key === "data")!.href).toBe("/data/overview");
+    expect(OLD_DATA_REDIRECTS).toEqual({
+      "/data/load": "/data/automatic",
+      "/data/discovery": "/data/automatic#department-names",
+      "/data/fetch": "/data/collect",
+    });
+    // every target is a final address, never itself redirected
+    for (const target of Object.values(OLD_DATA_REDIRECTS)) expect(OLD_DATA_REDIRECTS[target.split("#")[0]!]).toBeUndefined();
+    expect(crumbLabel("/data/overview")).toBe("Overview");
+    expect(crumbLabel("/data/collect")).toBe("Collect Now");
+    expect(crumbLabel("/data/automatic")).toBe("Automatic Collection");
   });
 
   it("the Alerts frame has the alerts tab for case readers (the calendar moved to My calendar)", () => {
@@ -344,7 +371,8 @@ describe("the one-level menu (design portal-ui-polish-2, decisions 14 and 15)", 
     expect(keys(["users.view", "access.manage_types", "offices.manage", "admin.designations", "admin.keywords", "admin.tickets"], "admin")).toEqual(
       ["users", "access", "offices", "designations", "mapping", "tickets"],
     );
-    expect(keys(["admin.data_load"], "data")).toEqual(["load", "health", "queue", "duplicates", "discovery"]);
+    expect(keys(["admin.data_load"], "data")).toEqual(["overview", "collect", "automatic", "health", "queue", "duplicates"]);
+    expect(keys(["reports.state"], "data")).toEqual(["overview", "automatic", "health", "queue", "duplicates"]);
     expect(keys(["reports.state"], "reports")).toEqual(["pending-cases", "hearings-disposals", "pending-actions", "data-health"]);
     expect(keys(["admin.service_health"], "system")).toEqual(["court", "services", "token"]);
     for (const e of navFor({ functions: ["cases.view_scope", "cases.view_all", "cases.claim", "audit.view"] })) {

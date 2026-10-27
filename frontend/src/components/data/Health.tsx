@@ -12,14 +12,14 @@
  * the state of the date's recheck; the Retention block shows the call-log rule, its last purge, the two tables' sizes
  * and the monthly refresh of disposed cases.
  */
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 
-import { Badge, Button, DataTable, Dialog, ErrorBanner, Kpi, Loading, Notice, TextField } from "@/components/ui";
-import { api, ApiError } from "@/lib/api/client";
+import { Badge, Button, DataTable, ErrorBanner, Kpi, Loading, Notice } from "@/components/ui";
+import { api } from "@/lib/api/client";
 import { useMe } from "@/lib/api/hooks";
-import type { DataHealth, HealthCheck, NapixHealth, QueueState } from "@/lib/api/types";
+import type { DataHealth, HealthCheck, NapixHealth } from "@/lib/api/types";
 import { can, canAny } from "@/lib/can";
 import { formatDate, formatDateTime, formatNumber, formatTime } from "@/lib/format";
 import { T } from "@/lib/messages";
@@ -41,8 +41,6 @@ export function Health() {
     queryFn: () => api<NapixHealth>("/admin/napix/health"),
     refetchInterval: HEALTH_POLL_MS,
   });
-  const syncer = can(me.data, "admin.masters_sync");
-  const refetcher = can(me.data, "admin.napix_refetch");
   const checker = canAny(me.data, ["admin.napix_refetch", "admin.masters_sync"]);
   return (
     <section className={ds.board} aria-label={T.data.health}>
@@ -64,7 +62,7 @@ export function Health() {
       ) : null}
       {napix.data ? <NapixBlock data={napix.data} /> : null}
       {snapshot.data ? <SnapshotBlocks data={snapshot.data} /> : null}
-      {syncer || refetcher || checker ? <Buttons syncer={syncer} refetcher={refetcher} checker={checker} /> : null}
+      {checker ? <Buttons /> : null}
     </section>
   );
 }
@@ -290,38 +288,13 @@ function DocumentsTextBlock({ data }: { data: DataHealth["documents_text"] }) {
   );
 }
 
-type Pending = { path: string; body: Record<string, unknown>; text: string } | null;
-
-function Buttons({ syncer, refetcher, checker }: { syncer: boolean; refetcher: boolean; checker: boolean }) {
-  const queryClient = useQueryClient();
+/**
+ * The connectivity check (either NAPIX function). The re-fetch and reference-list buttons moved to Collect Now (design
+ * data-collection-redesign, decisions 28-29); the check moves to Problems and Fixes in round 2.
+ */
+function Buttons() {
   const action = useAction();
   const [message, setMessage] = useState<string | null>(null);
-  const [warn, setWarn] = useState<Pending>(null);
-  const [day, setDay] = useState("");
-  const [caseRef, setCaseRef] = useState("");
-  const [orderCase, setOrderCase] = useState({ case: "", order_id: "" });
-
-  async function queue(path: string, body: Record<string, unknown>) {
-    setMessage(null);
-    setWarn(null);
-    const out = await action.run(() =>
-      api<QueueState>(path, { method: "POST", body }).catch((err) => {
-        if (err instanceof ApiError && err.status === 409 && err.code === "already_held") {
-          const text =
-            path.endsWith("/day")
-              ? T.data.dayHeld(String(err.extra.status ?? ""), Number(err.extra.lists_stored ?? 0))
-              : T.data.caseHeld(formatDateTime(String(err.extra.dossier_fetched_at ?? "")));
-          setWarn({ path, body, text });
-          return null;
-        }
-        throw err;
-      }),
-    );
-    if (out.ok && out.value) {
-      setMessage(T.data.queued(T.data.kinds[out.value.kind] ?? out.value.kind, out.value.status ?? "—"));
-      await queryClient.invalidateQueries({ queryKey: ["data-health"] });
-    }
-  }
 
   async function check() {
     setMessage(null);
@@ -335,72 +308,10 @@ function Buttons({ syncer, refetcher, checker }: { syncer: boolean; refetcher: b
       <ErrorBanner error={action.error} />
       {message ? <Notice>{message}</Notice> : null}
       <div className="actions">
-        {syncer ? (
-          <Button variant="secondary" busy={action.busy} onClick={() => queue("/admin/napix/sync-masters", {})}>
-            {T.data.syncMasters}
-          </Button>
-        ) : null}
-        {checker ? (
-          <Button variant="secondary" busy={action.busy} onClick={check}>
-            {T.data.check}
-          </Button>
-        ) : null}
+        <Button variant="secondary" busy={action.busy} onClick={check}>
+          {T.data.check}
+        </Button>
       </div>
-      {refetcher ? (
-        <>
-          <form
-            className="row"
-            aria-label={T.data.refetchDay}
-            onSubmit={(e: FormEvent) => {
-              e.preventDefault();
-              void queue("/admin/napix/refetch/day", { date: day });
-            }}
-          >
-            <TextField label={T.data.date} type="date" required value={day} onChange={(e) => setDay(e.target.value)} />
-            <Button type="submit" variant="secondary" busy={action.busy}>
-              {T.data.refetchDay}
-            </Button>
-          </form>
-          <form
-            className="row"
-            aria-label={T.data.refetchCase}
-            onSubmit={(e: FormEvent) => {
-              e.preventDefault();
-              void queue("/admin/napix/refetch/case", { case: caseRef.trim() });
-            }}
-          >
-            <TextField label={T.data.caseRef} required value={caseRef} onChange={(e) => setCaseRef(e.target.value)} />
-            <Button type="submit" variant="secondary" busy={action.busy}>
-              {T.data.refetchCase}
-            </Button>
-          </form>
-          <form
-            className="row"
-            aria-label={T.data.refetchOrder}
-            onSubmit={(e: FormEvent) => {
-              e.preventDefault();
-              void queue("/admin/napix/refetch/order", { case: orderCase.case.trim(), order_id: orderCase.order_id.trim() });
-            }}
-          >
-            <TextField label={T.data.caseRef} required value={orderCase.case} onChange={(e) => setOrderCase({ ...orderCase, case: e.target.value })} />
-            <TextField label={T.data.orderId} required value={orderCase.order_id} onChange={(e) => setOrderCase({ ...orderCase, order_id: e.target.value })} />
-            <Button type="submit" variant="secondary" busy={action.busy}>
-              {T.data.refetchOrder}
-            </Button>
-          </form>
-        </>
-      ) : null}
-      <Dialog open={warn !== null} title={T.data.heldTitle} onClose={() => setWarn(null)}>
-        <p>{warn?.text}</p>
-        <div className="actions">
-          <Button busy={action.busy} onClick={() => warn && void queue(warn.path, { ...warn.body, force: true })}>
-            {T.data.fetchAnyway}
-          </Button>
-          <Button variant="secondary" onClick={() => setWarn(null)}>
-            {T.cancel}
-          </Button>
-        </div>
-      </Dialog>
     </section>
   );
 }

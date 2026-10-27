@@ -384,6 +384,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/data-load/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Overview
+         * @description The Overview tab (design data-collection-redesign, decisions 14-16 and 21): the automatic collection's state
+         *     and position, cause-list days of the period up to today, every case and order held, what is still to fetch in
+         *     every lane, the problem counts and the two-date estimate. Never calls NAPIX; writes nothing.
+         */
+        get: operations["get_overview_admin_data_load_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/data-load/pause": {
         parameters: {
             query?: never;
@@ -424,6 +446,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/data-load/pulse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Pulse
+         * @description The live figures polled every 5 s while the tab is visible (decisions 17-18): the quota window, the queue by
+         *     kind in every lane, what is fetching now (no references), recent calls and request-lane work. Polls never count as
+         *     activity for the session timeout (only `POST /me/activity` does).
+         */
+        get: operations["get_pulse_admin_data_load_pulse_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/data-load/resume": {
         parameters: {
             query?: never;
@@ -435,6 +479,27 @@ export interface paths {
         put?: never;
         /** Resume */
         post: operations["resume_admin_data_load_resume_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/data-load/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Schedule
+         * @description The daily schedule in plain words with each entry's last run where one is recorded, and the daily updates of
+         *     the last 7 days (decision 40).
+         */
+        get: operations["get_schedule_admin_data_load_schedule_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -5779,12 +5844,27 @@ export interface components {
         };
         /** CaseTotalsOut */
         CaseTotalsOut: {
+            /**
+             * Failed
+             * @default 0
+             */
+            failed: number;
             /** Listed */
             listed: number;
             /** Provisional */
             provisional: number;
+            /**
+             * Queued
+             * @default 0
+             */
+            queued: number;
             /** With Details */
             with_details: number;
+            /**
+             * Without Details
+             * @default 0
+             */
+            without_details: number;
         };
         /**
          * CaseTypeOut
@@ -6448,10 +6528,16 @@ export interface components {
             /** Transfer Date */
             transfer_date: string | null;
         };
-        /** CoverageOut */
+        /**
+         * CoverageOut
+         * @description Design data-collection-redesign, decisions 19-20: the months (to this month by default), the orders dated
+         *     before the first month (so the rows add up to every order known) and where the past-months collection is.
+         */
         CoverageOut: {
+            earlier_orders?: components["schemas"]["OrderTotalsOut"] | null;
             /** Months */
             months: components["schemas"]["MonthCoverageOut"][];
+            position?: components["schemas"]["LoadPositionOut"] | null;
         };
         /**
          * CustodyBriefOut
@@ -7061,6 +7147,56 @@ export interface components {
             sourcetrace: components["schemas"]["SourcetraceStatusOut"];
             status_batches: components["schemas"]["StatusBatchesOut"] | null;
         };
+        /** DataLoadCasesOut */
+        DataLoadCasesOut: {
+            /** Found */
+            found: number;
+            /** Provisional */
+            provisional: number;
+            /** With Details */
+            with_details: number;
+            /** Without Details */
+            without_details: number;
+        };
+        /** DataLoadDaysOut */
+        DataLoadDaysOut: {
+            /** Calendar */
+            calendar: number;
+            /** Collected */
+            collected: number;
+            /** Failed */
+            failed: number;
+            /** No List */
+            no_list: number;
+            /** Not Queued */
+            not_queued: number;
+            /**
+             * To
+             * Format: date
+             */
+            to: string;
+            /** Waiting */
+            waiting: number;
+            /** With Lists */
+            with_lists: number;
+        };
+        /** DataLoadOrdersOut */
+        DataLoadOrdersOut: {
+            /**
+             * Failed
+             * @default 0
+             */
+            failed: number;
+            in_period: components["schemas"]["OrderTotalsOut"] | null;
+            /** Not Available */
+            not_available: number;
+            /** Referenced */
+            referenced: number;
+            /** Stored */
+            stored: number;
+            /** Waiting */
+            waiting: number;
+        };
         /** DataLoadOut */
         DataLoadOut: {
             allowance: components["schemas"]["AllowanceOut"];
@@ -7078,6 +7214,67 @@ export interface components {
             totals: components["schemas"]["LoadTotalsOut"] | null;
             /** Work Left */
             work_left: components["schemas"]["WorkLeftOut"][];
+        };
+        /** DataLoadOverviewOut */
+        DataLoadOverviewOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /**
+             * Bulk
+             * @description the active bulk request (round 3); null until then
+             */
+            bulk?: {
+                [key: string]: unknown;
+            } | null;
+            cases: components["schemas"]["DataLoadCasesOut"];
+            /**
+             * Collection
+             * @enum {string}
+             */
+            collection: "running" | "paused" | "finished" | "not_started";
+            days: components["schemas"]["DataLoadDaysOut"] | null;
+            estimate: components["schemas"]["EstimateAllOut"];
+            left: components["schemas"]["StillToFetchOut"];
+            /** Napix Enabled */
+            napix_enabled: boolean;
+            orders: components["schemas"]["DataLoadOrdersOut"];
+            period: components["schemas"]["LoadPeriodOut"] | null;
+            position: components["schemas"]["LoadPositionOut"];
+            problems: components["schemas"]["DataProblemsOut"];
+            settings: components["schemas"]["DataLoadSettingsOut"];
+            /** Waiting Work */
+            waiting_work: components["schemas"]["WaitingWorkOut"][];
+        };
+        /** DataLoadPulseOut */
+        DataLoadPulseOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Calls Last 5 Min */
+            calls_last_5_min: number;
+            /** Last Call At */
+            last_call_at: string | null;
+            /** Napix Enabled */
+            napix_enabled: boolean;
+            /** Queue */
+            queue: components["schemas"]["PulseQueueOut"][];
+            /** Requests Active */
+            requests_active: number;
+            /** Running */
+            running: components["schemas"]["PulseRunningOut"][];
+            window: components["schemas"]["PulseWindowOut"];
+        };
+        /** DataLoadScheduleOut */
+        DataLoadScheduleOut: {
+            /** Daily Cycle */
+            daily_cycle: components["schemas"]["DailyCycleDayOut"][];
+            /** Entries */
+            entries: components["schemas"]["ScheduleEntryOut"][];
         };
         /** DataLoadSettingsOut */
         DataLoadSettingsOut: {
@@ -7097,6 +7294,19 @@ export interface components {
             reason: string | null;
             /** Version */
             version: number;
+        };
+        /** DataProblemsOut */
+        DataProblemsOut: {
+            /** Cases Without Details */
+            cases_without_details: number;
+            /** Duplicates Review */
+            duplicates_review: number;
+            /** Failed */
+            failed: number;
+            /** Orders Failed */
+            orders_failed: number;
+            /** Orders Not Available */
+            orders_not_available: number;
         };
         /** DayBucketOut */
         DayBucketOut: {
@@ -7853,6 +8063,59 @@ export interface components {
             message: string;
             /** Retry After */
             retry_after?: number | null;
+        };
+        /** EstimateAllBasisOut */
+        EstimateAllBasisOut: {
+            /** Calls */
+            calls: {
+                [key: string]: number;
+            };
+            /** Calls Last Hour */
+            calls_last_hour: number;
+            /** Calls Per Hour */
+            calls_per_hour: number;
+            /** Calls Per Item */
+            calls_per_item: {
+                [key: string]: number | null;
+            };
+            /** Dossiers Per Day */
+            dossiers_per_day: number | null;
+            /** Finished */
+            finished: {
+                [key: string]: number;
+            };
+            /** History Hours */
+            history_hours: number;
+            /** Hourly Limit */
+            hourly_limit: number | null;
+            /** Pdfs Per Dossier */
+            pdfs_per_dossier: number | null;
+            /** Pending */
+            pending: {
+                [key: string]: number;
+            };
+            /** Window Days */
+            window_days: number;
+        };
+        /** EstimateAllOut */
+        EstimateAllOut: {
+            all: components["schemas"]["EstimateLineOut"];
+            basis: components["schemas"]["EstimateAllBasisOut"];
+            details: components["schemas"]["EstimateLineOut"];
+        };
+        /** EstimateLineOut */
+        EstimateLineOut: {
+            /** Calls Needed */
+            calls_needed: number | null;
+            /** Finish At */
+            finish_at: string | null;
+            /** Hours */
+            hours: number | null;
+            /**
+             * Reason
+             * @description connection_off | paused | not_enough_history | no_recent_calls
+             */
+            reason?: string | null;
         };
         /** EstimateOut */
         EstimateOut: {
@@ -8690,6 +8953,13 @@ export interface components {
              */
             to: string;
         };
+        /** LoadPositionOut */
+        LoadPositionOut: {
+            /** Working On */
+            working_on: string | null;
+            /** Working On Month */
+            working_on_month: string | null;
+        };
         /** LoadPreviewOut */
         LoadPreviewOut: {
             /** Calls Estimate */
@@ -9013,6 +9283,7 @@ export interface components {
             /** Entries */
             entries: number;
             failed: components["schemas"]["KindCountsOut"];
+            left?: components["schemas"]["MonthLeftOut"] | null;
             /** Lists */
             lists: number;
             /** Lists Parse Failed */
@@ -9020,7 +9291,23 @@ export interface components {
             /** Month */
             month: string;
             orders: components["schemas"]["OrderTotalsOut"];
+            /** State */
+            state?: ("done" | "in_progress" | "not_reached" | "failed_days" | "not_in_load") | null;
             work_left: components["schemas"]["KindCountsOut"];
+        };
+        /**
+         * MonthLeftOut
+         * @description Still to fetch in the month by each column's own date, every lane (design data-collection-redesign, decision
+         *     20): days up to today not collected, cases listed without details with a waiting dossier, orders dated in the
+         *     month waiting.
+         */
+        MonthLeftOut: {
+            /** Cases */
+            cases: number;
+            /** Days */
+            days: number;
+            /** Order Pdfs */
+            order_pdfs: number;
         };
         /**
          * MyCalendarItemOut
@@ -9898,6 +10185,11 @@ export interface components {
         };
         /** OrderTotalsOut */
         OrderTotalsOut: {
+            /**
+             * Failed
+             * @default 0
+             */
+            failed: number;
             /** Not Available */
             not_available: number;
             /** Referenced */
@@ -10239,6 +10531,42 @@ export interface components {
             full_name?: string | null;
             /** Mobile */
             mobile?: string | null;
+        };
+        /** PulseQueueOut */
+        PulseQueueOut: {
+            /** Kind */
+            kind: string;
+            /** Pending */
+            pending: number;
+            /** Running */
+            running: number;
+        };
+        /** PulseRunningOut */
+        PulseRunningOut: {
+            /** Kind */
+            kind: string;
+            /** Lane */
+            lane: string;
+            /** Started At */
+            started_at: string | null;
+        };
+        /** PulseWindowOut */
+        PulseWindowOut: {
+            /** Hourly Limit */
+            hourly_limit: number | null;
+            /** Next Reset At */
+            next_reset_at: string | null;
+            /** Remaining */
+            remaining: number | null;
+            /** Seconds To Next Reset */
+            seconds_to_next_reset: number | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "current" | "reset_due" | "overdue" | "unknown";
+            /** Used */
+            used: number;
         };
         /** QueueDepthsOut */
         QueueDepthsOut: {
@@ -10826,6 +11154,23 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /** ScheduleEntryOut */
+        ScheduleEntryOut: {
+            /** Facts */
+            facts: {
+                [key: string]: unknown;
+            };
+            /** Key */
+            key: string;
+            /** Last Run At */
+            last_run_at: string | null;
+            /** Result */
+            result: string | null;
+            /** What */
+            what: string;
+            /** When */
+            when: string;
+        };
         /** ScoringSettingsHistoryOut */
         ScoringSettingsHistoryOut: {
             /** Items */
@@ -11190,6 +11535,19 @@ export interface components {
             pending: number;
             /** Running */
             running: number;
+        };
+        /** StillToFetchOut */
+        StillToFetchOut: {
+            /** Case Details */
+            case_details: number;
+            /** Causelist Days */
+            causelist_days: number;
+            /** Order Pdfs */
+            order_pdfs: number;
+            /** Other */
+            other: number;
+            /** Total */
+            total: number;
         };
         /** StopWatchingIn */
         StopWatchingIn: {
@@ -11921,6 +12279,18 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /** WaitingWorkOut */
+        WaitingWorkOut: {
+            by_lane: components["schemas"]["LaneCountsOut"];
+            /** Failed */
+            failed: number;
+            /** Kind */
+            kind: string;
+            /** Running */
+            running: number;
+            /** Total */
+            total: number;
         };
         /** WatchIn */
         WatchIn: {
@@ -13138,6 +13508,89 @@ export interface operations {
             };
         };
     };
+    get_overview_admin_data_load_overview_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataLoadOverviewOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
     pause_admin_data_load_pause_post: {
         parameters: {
             query?: never;
@@ -13330,6 +13783,89 @@ export interface operations {
             };
         };
     };
+    get_pulse_admin_data_load_pulse_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataLoadPulseOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
     resume_admin_data_load_resume_post: {
         parameters: {
             query?: never;
@@ -13386,6 +13922,89 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    get_schedule_admin_data_load_schedule_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataLoadScheduleOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
                 };
             };
             /** @description Too Many Requests */

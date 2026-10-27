@@ -2812,3 +2812,34 @@ Backlog row 185 `office-head-picker-followups`; design `docs/design/office-head-
 
 **Left for later**
 - The owner's browser check in the design note's Verification. `docker compose build` after the merge.
+
+## Data Collection redesign, round 1 of 4 (2026-10-27)
+Backlog row 172 `data-collection-redesign`; design `docs/design/data-collection-redesign.md` (approved by the owner, reopened 26 Oct 2026 for four tabs: Overview, Collect Now, Automatic Collection, Problems and Fixes). Round 1 of four; no migration, so `docs/schema/schema.md` is unchanged. The build was interrupted once and resumed from a checkpoint commit.
+
+**What was built**
+- Backend reads, all behind the load reader and none calling NAPIX: `GET /admin/data-load/overview` (collection state and position, cause-list days, cases and orders held, what is left in every queue lane, problem counts, two-date estimate), `GET /admin/data-load/pulse` (live figures: quota window, queue by kind and lane, fetching now, recent calls, request-lane work), `GET /admin/data-load/schedule` (daily schedule in plain words with last runs, daily updates of the last 7 days). `coverage` became `coverage_view` (months plus `earlier_orders`).
+- Services: `data_load.overview`, `pulse`, `measure_all` (estimate rates), `coverage_view`; `schedules.PLAIN_SCHEDULE`, `NOT_DATA_COLLECTION` and `schedule_view`; `data_health.daily_cycle` gained `back` and `forward` (defaults unchanged).
+- CLI: `aslms data-load status` prints the headline and the two estimate lines; `--json` keeps the old progress JSON.
+- Function description of `admin.data_load` reworded by the seed (decision 33).
+- Portal: four-tab Data Collection frame with the old addresses redirecting; Overview (four tiles with bars, honest counts, past-months collection, estimate in two dates, Month by Month with Not Reached Yet, a Problems line; live by visible-tab polling: pulse 5 s, overview 30 s, months 120 s); Automatic Collection (Load Control with Start, Pause and Resume dialogs, What Goes First, Court Allowance, schedule, Daily Updates, Search by Department Names with its empty state); Collect Now holding today's forms unchanged, One Case results in a `ScrollBox`; the State dashboard link. `LoadConsole.tsx` and `Discovery.tsx` removed.
+- Portal-wide kit: no upper-case labels (`styles.test.ts` guard), `ProgressBar`, `ScrollBox`, table captions hidden unless the table has no visible heading of its own, motion on tokens; uicheck rules `gutter` and `doubled-heading` on every page.
+- Tests: `test_data_collection_overview.py`, `test_data_load_status_lines.py`, `test_plain_schedule.py`, updated `test_data_load.py` and `test_api_data_load.py`; `collection.test.tsx`, `ui.test.tsx`, `styles.test.ts`, `tables.test.ts`, `routes.test.ts`; uicheck fixtures and self-test.
+
+**Decisions and reasons** (design decisions 1, 2, 5-21 and 34-41)
+1. Counts are honest across every lane (request, daily, load), not the load lane alone, so the headline matches the queue.
+2. The estimate gives two dates (case details; every order PDF as well); with the collection paused only the details line has no date, and a line with nothing waiting reads "nothing left".
+3. Live figures come from visible-tab polling and never count as activity for the session timeout.
+4. The schedule's plain words live on the server, and a test requires them to equal the beat schedule exactly, at the times the words give.
+5. Month states follow decision 19 (`done`, `failed_days`, `not_reached`, `in_progress`, `not_in_load`); default range is the load period's first month to the later of its last month and this month, at most 36 months.
+
+**Deviations** (the design note's Deviations section lists all 19)
+- Problems and Fixes does not exist until round 2, so the Problems line links to the queue's failed rows and `/data/duplicates`; cases without details and orders not available are plain text (`PROBLEM_LINKS`).
+- `requests_active` counts request-lane rows until round 3 makes requests records.
+- Health's connectivity check stays on Health until round 2; its re-fetch forms and Sync Masters moved to Collect Now.
+- Upper case was also removed from `causelist.module.css` and `claim.module.css`, found by the new guard.
+- The 3 px gutter (defect D1) was not reproduced against live data; fixed by reading and now measured by the `gutter` rule.
+- Two existing tests that pinned "the default range is the load period" were updated.
+
+**Left for later**
+- Rounds 2, 3 and 4: rows 173 (Problems and Fixes), 174 (collection on demand), 177 (Update From the Court).
+- The live gutter check: row 187. The owner's browser check at 375, 768 and 1280 px and the Compose uicheck run (integrator), then `docker compose build`.

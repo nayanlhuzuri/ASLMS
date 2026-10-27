@@ -1,5 +1,6 @@
-/* Data collection on the Dashboard template (design portal-ui-redesign, decision 26): headline numbers as `Kpi`s,
-   each block a panel, two panels side by side from 1100 px, wide blocks across. Tokens only. */
+/* Data Collection (design portal-ui-redesign, decision 26; data-collection-redesign, decisions 7, 13 and 34): every
+   block a panel, cards ease in staggered by 40 ms, a long value wraps instead of pushing the page wider. Tokens
+   only. */
 
 .board {
   display: grid;
@@ -19,6 +20,9 @@
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-1);
+  overflow-wrap: anywhere;
+  animation: dc-in var(--slow) var(--ease) both;
+  animation-delay: calc(var(--i, 0) * 40ms);
 }
 
 .panel > h2 {
@@ -26,9 +30,30 @@
   font-size: var(--t-lg);
 }
 
-.panel > h3 {
+.panel > h3,
+.panelHead > h3 {
   margin: 0;
   font-size: var(--t-md);
+}
+
+.panelHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2) var(--s3);
+}
+
+.panelHead > h2 {
+  margin: 0;
+  font-size: var(--t-lg);
+}
+
+@keyframes dc-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
 }
 
 .kpis {
@@ -48,11 +73,227 @@
   min-width: 0;
 }
 
-.json {
+/* decision 14: the status line */
+.statusLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2) var(--s5);
   margin: 0;
-  overflow-x: auto;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+  padding: 0;
+  list-style: none;
+  color: var(--text-2);
+  font-size: var(--t-sm);
+}
+
+.statusLine li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-width: 0;
+}
+
+.statusLine b {
+  color: var(--text-3);
+  font-weight: 500;
+}
+
+/* decision 14: four tiles, four columns from 1100 px, two from 600 px, one on phones */
+.tiles {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s4);
+}
+
+@media (min-width: 600px) {
+  .tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1100px) {
+  .tiles {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.tile {
+  display: grid;
+  align-content: start;
+  gap: var(--s2);
+}
+
+.tileTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--t-sm);
+  font-weight: 600;
+}
+
+.big {
+  margin: 0;
+  font-size: var(--t-xl, 22px);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.line {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--t-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.info {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  color: var(--text-3);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: help;
+}
+
+/* a running state pulses in opacity (decision 13); under reduced motion --slow is 0 ms, so nothing moves */
+.pulse {
+  animation: dc-pulse calc(var(--slow) * 5) ease-in-out infinite alternate;
+}
+
+@keyframes dc-pulse {
+  to {
+    opacity: 0.55;
+  }
+}
+
+/* decision 16: the Problems line */
+.problems {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s1) var(--s2);
+  margin: 0;
+  font-size: var(--t-sm);
+}
+
+.sep {
+  color: var(--text-3);
+}
+
+/* decision 18: Right Now */
+.rightNow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s4);
+}
+
+.rightNow > * {
+  display: grid;
+  align-content: start;
+  gap: var(--s2);
+  min-width: 0;
+}
+
+.rightNow h3 {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--t-sm);
+  font-weight: 600;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (max-width: 899px) {
+  .rightNow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* the month table's cells: a slim bar over its words */
+.cellBar {
+  display: grid;
+  gap: var(--s1);
+  min-width: 120px;
+}
+
+.muted {
+  color: var(--text-3);
+}
+
+/* decision 37: What Goes First on a three-column grid */
+.orderGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s3) var(--s4);
+  align-items: start;
+}
+
+/* the fieldset draws no box: its legend takes the label line, so its fields' boxes sit level with the select's, whose
+   wrapper drops by the same label line (the field-row rule) */
+.orderGrid fieldset {
+  display: grid;
+  grid-column: span 2;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s3);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.orderGrid legend {
+  margin: 0;
+  padding: 0 0 var(--s1);
+  color: var(--text-2);
+  font-size: var(--t-sm);
+  font-weight: 600;
+  line-height: var(--label-line);
+}
+
+.orderGrid > :first-child {
+  padding-top: var(--label-offset);
+}
+
+.span2 {
+  grid-column: span 2;
+  min-width: 0;
+}
+
+/* a button on the control line of a field row: dropped by the label line, level with the boxes */
+.control {
+  margin-top: var(--label-offset);
+}
+
+@media (max-width: 699px) {
+  .orderGrid,
+  .orderGrid fieldset {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .orderGrid fieldset,
+  .span2 {
+    grid-column: auto;
+  }
+}
+
+/* decision 36: the Start dialog's summary of five tiles */
+.previewTiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: var(--s3);
 }
 
 @media (max-width: 1099px) {

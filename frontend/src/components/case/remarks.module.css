@@ -104,6 +104,4 @@
   color: var(--text-3);
   font-size: var(--t-xs);
   font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }

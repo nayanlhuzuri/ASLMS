@@ -63,6 +63,10 @@ export function looksLikeLabel(text: string): boolean {
  * must either be Title Case or declare itself here.
  */
 export const SENTENCE_EXCEPTIONS: Record<string, string> = {
+  // design data-collection-redesign: reasons read inside an estimate sentence ("no date, the court connection is off")
+  "dc.reasons.connection_off": "a reason read inside the estimate sentence",
+  "dc.reasons.paused": "a reason read inside the estimate sentence",
+  "dc.notMeasured": "a value read inside a sentence of the estimate inputs",
   "system.kpiSub.median": "a unit under a figure",
   "system.kpiSub.leftUnknown": "a value read in a sentence under a figure",
   "system.ms": "a unit abbreviation, written after a number",

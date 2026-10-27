@@ -1196,3 +1196,68 @@ None. The owner's re-approval covers in particular:
   `admin.napix_refetch` unchanged;
 - decision 52: stored PDFs are not fetched again;
 - decision 49: the four rounds.
+
+## Deviations
+
+**Round 1 (row 172, developer, 27 Oct 2026).** Where the note was silent, the smallest reasonable choice:
+
+1. **Problems links before round 2.** Problems and Fixes does not exist yet, so the Problems line (decision 16) links
+   the failed fetches to `/data/queue?status=failed` and the possible duplicates to `/data/duplicates`; cases without
+   details and orders not available are plain text until round 2 points every part at `/data/problems#…`
+   (`PROBLEM_LINKS` in `src/lib/dataCollection.ts`). The month table's Problems cell and Load Control's failed count
+   link to the queue's failed rows the same way.
+2. **The pulse's `requests_active`** counts the request-lane rows pending or running. Round 3 replaces it with the
+   count of active requests once requests are records.
+3. **The hourly limit seen** (Right Now, the basis line) is the highest `rate_limit_remaining` read in the last 24
+   hours plus the call that read it; null with no reading.
+4. **The estimate's rates** (`measure_all`): calls per item, finished items and PDFs per case from every queue lane;
+   cases per cause-list day from the load lane (a daily or weekly dossier is not spawned by a day), falling back to every
+   lane; the pace is the queue calls of the last 24 hours. `pending` counts pending and running rows. While paused only
+   the details line has no date (as decision 21 says); the order-PDF line keeps its date. A line with nothing waiting
+   reads "nothing left" whatever else holds.
+5. **The Overview's cause-list days** run from the load period's first day to the later of its last day and today, in
+   any lane (the daily cycle collects the recent days). Orders `in_period` are those dated inside the load period.
+6. **Month by Month's default range** is the load period's first month to the later of its last month and this month,
+   at most 36 months (older orders fall into `earlier_orders`), so the months plus `earlier_orders` add up to every
+   order known. The two existing tests that pinned "the default range is the load period" were updated.
+7. **The month state rules** (decision 19): `done` when every day up to today is collected; `failed_days` when some
+   failed and none waits; inside the load period, `not_reached` after the month the load works on, `in_progress` at it
+   or while a day waits; otherwise `in_progress` while a day waits, else `not_in_load`. A month after today has 0 days.
+8. **Cases queued and failed** (decision 20) match a dossier row by CNR, or by `<est_code>|<case number>` for a
+   provisional case (`napix_admin.dossier_ref`). `cases.failed` counts a case without details whose dossier row failed
+   and none waits; the month's Problems cell uses it.
+9. **Daily Updates, Last 7 Days** are today and the six days before it (`data_health.daily_cycle` gained `back` and
+   `forward`, defaults unchanged), shown newest first. A done day with no list stored, or a skipped day, reads "No List
+   Published".
+10. **The schedule's Last Run** comes from `job_runs` only for the jobs that write one (`disposed-refresh`,
+    `dedupe-sweep`, `napix-log-purge`); the others read "Not Recorded". The plain words live on the server
+    (`schedules.PLAIN_SCHEDULE`); `schedules.NOT_DATA_COLLECTION` names the beat entries that are not data collection,
+    and the test checks that the two together are exactly the beat schedule, at the times the words give.
+11. **Health in round 1.** Its re-fetch forms and Sync Masters moved to Collect Now rather than being shown twice; the
+    connectivity check stays on Health until round 2 moves it to Problems and Fixes. Everything else on Health, Queue
+    and Calls and Duplicates is unchanged.
+12. **Collect Now's reference-list table** reads the lists' last update from `GET /admin/data-health` (whose guard
+    already admits `admin.masters_sync`); Automatic Collection's Calls by Person reads `GET /admin/napix/health` only
+    for `admin.napix_refetch` or `admin.masters_sync`, the API's existing rule. No API change.
+13. **Upper case** was also removed from `causelist.module.css` and `claim.module.css`, found by the new
+    `styles.test.ts` though not listed in decision 8. Every source string these classes show was already Title Case.
+14. **Captions shown** (decision 10), for tables with no visible heading of their own: User Details' functions and
+    documents, Keywords' words, the audit entry's Before and After, the transfer directions, the dashboard's recent
+    orders, own cases, files, tickets by kind and by department, the overdue-files split, Tracking Summary's two tables,
+    the search results and the text search. Every other caption is hidden.
+15. **Removed components.** `LoadConsole.tsx` (its fetch form moved unchanged into `CollectNow.tsx`, its load controls
+    became Automatic Collection's dialogs) and the Discovery tab's `Discovery.tsx` (now `DepartmentNames` in
+    `AutomaticCollection.tsx`).
+16. **`aslms data-load status`** prints the headline and the two estimate lines; `--json` keeps the old progress JSON.
+17. **uicheck.** The two rules are geometry kinds (dropped on a redirect like the others). The fixtures' stress row
+    carries a long `last_error` and a long API path. The Start dialog's check `POST /admin/data-load/preview` (it
+    writes nothing and calls no court) is the one POST the checker answers, so the two Start states can be drawn; the
+    `/admin/discovery` fixture has no names registered, as the dev database today. The old Load, Discovery and Fetch
+    addresses are checked as redirects (the anchor of `/data/automatic#department-names` is not part of the landed path).
+18. **The 3 px gutter (D1)** was not reproduced against the live data in this cycle (no browser run against the dev
+    database). By reading: `DataFrame` rendered a bare `<div>` and panels held unbroken values (the estimate's raw
+    JSON, long errors, API paths) without `overflow-wrap`; decision 7's changes remove both, and the `gutter` rule now
+    measures every page.
+19. **Collect Now's One Case results** (resumed build, 27 Oct 2026): the results table sits in a `ScrollBox` (decision
+    10, a party-name search can return many rows), and an empty answer reads "The court found no case for this
+    search." in place of "Nothing to show." (D5). The rest of the card is moved unchanged until round 3.

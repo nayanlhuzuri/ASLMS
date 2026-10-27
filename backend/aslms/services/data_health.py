@@ -286,14 +286,19 @@ def _recheck_out(row: FetchQueueItem | None) -> dict[str, Any] | None:
     }
 
 
-def daily_cycle(session: Session, now: datetime | None = None) -> list[dict[str, Any]]:
-    """Yesterday, today and tomorrow (IST): the `causelist_day` row and the lists stored and parsed; the lists
-    corrected and the state of the date's `causelist_recheck` row (design court-data-freshness, decision 17)."""
+DAY_LABELS = {-1: "yesterday", 0: "today", 1: "tomorrow"}
+
+
+def daily_cycle(
+    session: Session, now: datetime | None = None, *, back: int = 1, forward: int = 1
+) -> list[dict[str, Any]]:
+    """Yesterday, today and tomorrow (IST) by default, or `back` days before today to `forward` days after it
+    (design data-collection-redesign, decision 40: the last 7 days): the `causelist_day` row and the lists stored and
+    parsed; the lists corrected and the state of the date's `causelist_recheck` row (design court-data-freshness,
+    decision 17). `label` is `yesterday`, `today`, `tomorrow` or empty."""
     today = today_ist(_now(now))
     days = [
-        (today - timedelta(days=1), "yesterday"),
-        (today, "today"),
-        (today + timedelta(days=1), "tomorrow"),
+        (today + timedelta(days=k), DAY_LABELS.get(k, "")) for k in range(-max(0, back), max(0, forward) + 1)
     ]
     queue_rows = causelist_day_rows(session, [d for d, _ in days])
     counts = causelist_counts(session, days[0][0], days[-1][0])

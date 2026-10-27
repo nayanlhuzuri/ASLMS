@@ -24,8 +24,6 @@
 .facts dt {
   color: var(--text-3);
   font-size: var(--t-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
 .facts dd {

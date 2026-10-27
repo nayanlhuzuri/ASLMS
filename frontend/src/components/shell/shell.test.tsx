@@ -686,7 +686,7 @@ describe("the one-level side menu (design portal-ui-polish-2, decisions 14-19)",
   it("a closed parent goes to its landing page; an open one closes without navigating", () => {
     sidebar("/");
     const data = item("Data Collection");
-    expect(data).toHaveAttribute("href", "/data/load");
+    expect(data).toHaveAttribute("href", "/data/overview");
     expect(click(data).prevented).toBe(false);
     expect(data).toHaveAttribute("aria-expanded", "true");
     expect(click(data).prevented).toBe(true);

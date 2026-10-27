@@ -22,11 +22,15 @@ function useReplace(target: string | null) {
   }, [router, target]);
 }
 
-/** `to` with the old address's query string; a query in `to` itself (`/inbox/working?held=offices`) is kept and wins. */
+/**
+ * `to` with the old address's query string; a query in `to` itself (`/inbox/working?held=offices`) is kept and wins,
+ * and an anchor in `to` (`/data/automatic#department-names`) stays last.
+ */
 export function redirectTarget(to: string, params: Params): string {
-  const [path, query] = to.split("?", 2);
+  const [base = "", hash] = to.split("#", 2);
+  const [path, query] = base.split("?", 2);
   const own: Params = Object.fromEntries(new URLSearchParams(query ?? ""));
-  return path + queryString({ ...params, ...own });
+  return path + queryString({ ...params, ...own }) + (hash ? `#${hash}` : "");
 }
 
 /** A fixed new address with the same query string. */

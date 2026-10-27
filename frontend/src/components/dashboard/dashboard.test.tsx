@@ -278,6 +278,8 @@ describe("dashboard", () => {
     await screen.findByRole("table", { name: "Cases by Department" });
     const block = screen.getByRole("region", { name: "State Overview" });
     expect(within(block).getByRole("link", { name: "Reports" })).toHaveAttribute("href", "/reports/pending-cases");
+    // design data-collection-redesign, decision 5: a link to the Overview for a data reader, no figure
+    expect(within(block).getByRole("link", { name: "Data Collection Progress" })).toHaveAttribute("href", "/data/overview");
     unmount();
     browserApi({
       "GET /me": makeMe(["cases.view_all", "dashboard.state"], "state_oversight"),
@@ -288,6 +290,7 @@ describe("dashboard", () => {
     await screen.findByRole("table", { name: "Cases by Department" });
     const plain = screen.getByRole("region", { name: "State Overview" });
     expect(within(plain).queryByRole("link", { name: "Reports" })).toBeNull();
+    expect(within(plain).queryByRole("link", { name: "Data Collection Progress" })).toBeNull();
   });
 
   it("a department block links to that department's reports with reports.department there", async () => {

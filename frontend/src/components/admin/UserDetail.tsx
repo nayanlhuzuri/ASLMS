@@ -380,6 +380,7 @@ export function MembershipFunctionsPanel({ userId, membershipId, me }: { userId:
       <ErrorBanner error={action.error} />
       <DataTable
         caption={T.users.functions}
+        showCaption
         rows={(permissions.data ?? []).filter((p) => p.is_active)}
         rowKey={(p) => p.code}
         columns={[
@@ -464,6 +465,7 @@ export function MembershipDocuments({ userId, membershipId }: { userId: string; 
   return (
     <DataTable
       caption={T.users.documents}
+      showCaption
       rows={documents.data}
       rowKey={(d) => d.id}
       columns={[
