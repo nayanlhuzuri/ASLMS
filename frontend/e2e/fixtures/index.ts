@@ -642,6 +642,42 @@ function unmapped(): UnmappedCode[] {
   ];
 }
 
+/**
+ * Every unmapped code (design list-search, decisions 9-12 and 39): the three codes above, then 1,063 synthetic ones,
+ * 1,066 in all, paged by 100 with the cursor as the index of the next page; `q` keeps the codes whose compact form
+ * holds the compact query; `sort=code` orders them A to Z (Z to A with `dir=desc`).
+ */
+const UNMAPPED_ALL: UnmappedCode[] = [
+  ...unmapped(),
+  ...Array.from({ length: 1063 }, (_, i) => ({
+    code: `SC, DEPT ${String(i + 1).padStart(4, "0")}`,
+    entries: Math.max(1, 40 - Math.floor(i / 30)),
+    last_listed: i % 9 === 0 ? null : "2026-10-15",
+    example_case_ref: null,
+    partial_matches: [],
+  })),
+];
+
+function compactCode(text: string): string {
+  return text.toUpperCase().replace(/[^0-9A-Z]/g, "");
+}
+
+function unmappedPage(url: URL): S["UnmappedCodePageOut"] {
+  const q = compactCode(url.searchParams.get("q") ?? "");
+  const kept = q ? UNMAPPED_ALL.filter((c) => compactCode(c.code).includes(q)) : UNMAPPED_ALL;
+  const sort = url.searchParams.get("sort");
+  const desc = url.searchParams.get("dir") === "desc";
+  const ordered = sort === "code" ? [...kept].sort((a, b) => (a.code < b.code ? -1 : 1) * (desc ? -1 : 1)) : kept;
+  const start = Number(url.searchParams.get("cursor") ?? 0) || 0;
+  const limit = Number(url.searchParams.get("limit") ?? 100) || 100;
+  return {
+    items: ordered.slice(start, start + limit),
+    total: UNMAPPED_ALL.length,
+    matched: kept.length,
+    next_cursor: start + limit < ordered.length ? String(start + limit) : null,
+  };
+}
+
 /** The counsel codes with one rule carrying its own weight (decision 40). */
 function counselCodes(): CounselCodeList {
   const base = synthFor("/admin/counsel-codes")!.body as CounselCodeList;
@@ -841,6 +877,7 @@ const OVERRIDES: [RegExp, Override][] = [
   [/^\/causelists\/\d{4}-\d{2}-\d{2}$/, (url) => causelistDay(url)],
   [/^\/causelists\/lists\/[^/]+\/file$/, () => ({ note: "the browser check stands in for the court's PDF" })],
   [/^\/admin\/counsel-codes\/unmapped$/, () => unmapped()],
+  [/^\/admin\/counsel-codes\/unmapped\/page$/, (url) => unmappedPage(url)],
   [/^\/admin\/counsel-codes$/, () => counselCodes()],
   [/^\/custody\/held$/, () => held()],
   [/^\/cases\/[^/]+\/custody$/, (url) => custodyHistory(url)],

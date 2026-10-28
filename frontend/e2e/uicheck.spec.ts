@@ -398,6 +398,73 @@ const STATES: State[] = [
     },
   },
   {
+    // design list-search, decisions 9-11: every unmapped code, three pages of 100 loaded inside the panel's box
+    name: "/admin/mapping/codes (Recommended From Cause Lists: 300 of 1,066 loaded)",
+    path: "/admin/mapping/codes",
+    open: async (page) => {
+      const panel = page.getByRole("complementary", { name: "Recommended From Cause Lists" });
+      await panel.getByText("1,066 codes not mapped").waitFor();
+      for (const shown of ["Showing 200 of 1,066", "Showing 300 of 1,066"]) {
+        await panel.getByRole("button", { name: "Show 100 More" }).click();
+        await panel.getByText(shown).waitFor();
+      }
+    },
+  },
+  {
+    // design list-search, decision 39: Sort By Code, the toolbar naming the order
+    name: "/admin/mapping/codes (Recommended: sorted by Code)",
+    path: "/admin/mapping/codes",
+    open: async (page) => {
+      const panel = page.getByRole("complementary", { name: "Recommended From Cause Lists" });
+      await panel.getByText("1,066 codes not mapped").waitFor();
+      await panel.getByRole("combobox", { name: "Sort By" }).selectOption("code");
+      await panel.getByText(/Sorted by Code, A to Z/).waitFor();
+    },
+  },
+  {
+    // design list-search, decision 11: a search with no match, with Clear Search
+    name: "/admin/mapping/codes (Recommended: no matches)",
+    path: "/admin/mapping/codes",
+    open: async (page) => {
+      const panel = page.getByRole("complementary", { name: "Recommended From Cause Lists" });
+      await panel.getByText("1,066 codes not mapped").waitFor();
+      await panel.getByRole("searchbox", { name: "Search Recommended Codes" }).fill("zzzz nothing");
+      await panel.getByText("No matches for “zzzz nothing”.").waitFor();
+    },
+  },
+  {
+    // design list-search, decisions 13 and 33: the Counsel Codes sorted by Office (the Sort By select at 375 px)
+    name: "/admin/mapping/codes (Counsel Codes sorted by Office)",
+    path: "/admin/mapping/codes",
+    open: async (page) => {
+      const table = page.getByRole("table", { name: "Counsel Codes" });
+      await table.waitFor();
+      // the codes' own toolbar is the section's first; the Recommended panel below has a Sort By of its own
+      const select = page.locator("section[aria-label='Counsel Codes'] [data-ui='list-toolbar']").first().getByRole("combobox", { name: "Sort By" });
+      if ((await select.count()) > 0) await select.selectOption("office");
+      else await table.getByRole("button", { name: "Office" }).click();
+      await page.getByText(/Sorted by Office, A to Z/).first().waitFor();
+    },
+  },
+  {
+    // design list-search, decision 14: the keywords searched in the browser
+    name: "/admin/mapping/keywords (search typed)",
+    path: "/admin/mapping/keywords",
+    open: async (page) => {
+      await page.getByRole("table", { name: "Keywords and Name Patterns" }).or(page.getByText("Nothing here yet.")).first().waitFor();
+      const box = page.getByRole("searchbox", { name: "Search Words" });
+      if (await box.isVisible().catch(() => false)) await box.fill("education");
+    },
+  },
+  {
+    // design list-search, decision 17: Search Words on the first row of the Case inbox's own views
+    name: "/inbox/working (Search Words on the first row)",
+    path: "/inbox/working",
+    open: async (page) => {
+      await page.getByLabel(/^Words/).first().waitFor();
+    },
+  },
+  {
     // decision 25: two switches changed, so the Save bar counts them
     name: `/admin/access/${SAMPLE.userType} (two switches changed, Save bar)`,
     path: `/admin/access/${SAMPLE.userType}`,

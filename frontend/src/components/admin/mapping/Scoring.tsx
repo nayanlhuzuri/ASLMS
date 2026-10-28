@@ -28,11 +28,20 @@ import {
   DefinitionList,
   EmptyState,
   ErrorBanner,
+  ListCount,
+  ListSearch,
+  ListSort,
+  ListToolbar,
   Loading,
+  NoMatches,
   Notice,
+  OrderLine,
   Pagination,
+  sortByColumn,
+  sortOptionsOf,
   TextArea,
   TextField,
+  type Column,
 } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { INBOX_KEY, MAPPING_KEY, SCORING_KEY, useMe, useScoringSettings } from "@/lib/api/hooks";
@@ -51,8 +60,10 @@ import {
   type ScoringField,
   type WeightKind,
 } from "@/lib/mapping";
+import { matchesWords, searchShown } from "@/lib/listSearch";
 import { T } from "@/lib/messages";
 import { useAction } from "@/lib/useAction";
+import { useListState } from "@/lib/useListState";
 
 import { SaveBar } from "../UserTypes";
 import { conflictAware, isConflict, OfficeCell } from "./common";
@@ -402,9 +413,13 @@ interface OwnWeightRow {
   own: number;
 }
 
+const OWN_SORTS = ["rule", "office", "own"] as const;
+
 /**
  * "Rules With Their Own Weight" (decision 40): the active rules with a weight override, from the list endpoints the
- * caller may read (each needs its own function), and "Use the Standard Weight" to clear one.
+ * caller may read (each needs its own function), and "Use the Standard Weight" to clear one. Above 10 rows it is
+ * searched in the browser by rule text and office, and its headers Rule, Office and Own Weight sort it (design
+ * list-search, decision 16).
  */
 function OwnWeights({ settings }: { settings: ScoringSettings }) {
   const me = useMe();
@@ -434,6 +449,7 @@ function OwnWeights({ settings }: { settings: ScoringSettings }) {
   });
   const [notice, setNotice] = useState<string | null>(null);
   const action = useAction();
+  const state = useListState({ mode: "local", search: "browser", sortKeys: OWN_SORTS });
   const own = (w: number | null | undefined): w is number => w !== null && w !== undefined;
   const rows: OwnWeightRow[] = [
     ...(codes.data?.items ?? [])
@@ -451,6 +467,44 @@ function OwnWeights({ settings }: { settings: ScoringSettings }) {
   ];
   const pending = (codesOk && codes.isPending) || (wordsOk && (keywords.isPending || patterns.isPending)) || (watchOk && watch.isPending);
   const error = codes.error ?? keywords.error ?? patterns.error ?? watch.error;
+  const columns: Column<OwnWeightRow>[] = [
+    { key: "rule", header: T.mapping.ruleCol, primary: true, sort: { type: "text", value: (r) => r.text }, cell: (r) => <span className="mono">{r.text}</span> },
+    { key: "kind", header: T.mapping.kind, cell: (r) => T.mapping.fields[r.kind] },
+    { key: "office", header: T.mapping.office, sort: { type: "text", value: (r) => r.office.name }, cell: (r) => <OfficeCell office={r.office} /> },
+    {
+      key: "own",
+      header: T.mapping.ownWeightCol,
+      align: "right",
+      sort: { type: "number", value: (r) => r.own },
+      cell: (r) => <span className="mono">{weightText(r.own)}</span>,
+    },
+    {
+      key: "standard",
+      header: T.mapping.standardWeightCol,
+      align: "right",
+      cell: (r) => <span className="mono">{weightText(settings.weights[r.kind])}</span>,
+    },
+    {
+      key: "use",
+      header: <span className="visually-hidden">{T.mapping.useStandard}</span>,
+      // the phone card's label, short as in the other mapping tables, so the label and the button share
+      // one line at 375 px (the button names the action)
+      label: T.mapping.actions,
+      align: "right",
+      cell: (r) => (
+        <Button variant="secondary" size="sm" busy={action.busy} aria-label={T.mapping.useStandardFor(r.text)} onClick={() => void clearOwn(r)}>
+          {T.mapping.useStandard}
+        </Button>
+      ),
+    },
+  ];
+  const options = sortOptionsOf(columns);
+  const searching = state.applied !== "";
+  const shown = sortByColumn(
+    rows.filter((r) => matchesWords(state.applied, r.text, r.office.name, r.office.code)),
+    columns,
+    state.sort,
+  );
 
   async function clearOwn(row: OwnWeightRow) {
     setNotice(null);
@@ -468,39 +522,32 @@ function OwnWeights({ settings }: { settings: ScoringSettings }) {
         {pending ? <Loading /> : null}
         <ErrorBanner error={given(error ?? action.error)} />
         {notice ? <Notice>{notice}</Notice> : null}
+        {!pending && !error && rows.length > 0 ? (
+          <ListToolbar
+            search={
+              searchShown(rows.length, state.q) ? (
+                <ListSearch label={T.mapping.searchRulesLabel} placeholder={T.mapping.searchRulesPlaceholder} value={state.q} onChange={state.setQ} />
+              ) : null
+            }
+            sort={state.stacked ? <ListSort options={options} sort={state.sort} onSort={state.setSort} defaultLabel={T.mapping.officeOrder} /> : null}
+            order={<OrderLine options={options} sort={state.sort} defaultLabel={T.mapping.officeOrder} onReset={state.resetSort} />}
+            count={<ListCount shown={shown.length} total={rows.length} noun={T.mapping.rulesNoun} nounOne={T.mapping.ruleNoun} searching={searching} />}
+          />
+        ) : null}
         {!pending && !error ? (
           rows.length === 0 ? (
             <EmptyState>{T.mapping.noOwnWeight}</EmptyState>
+          ) : shown.length === 0 ? (
+            <NoMatches q={state.applied} onClear={state.clear} />
           ) : (
             <DataTable
               caption={T.mapping.ownWeightTitle}
-              rows={rows}
+              rows={shown}
               rowKey={(r) => r.key}
-              columns={[
-                { key: "rule", header: T.mapping.ruleCol, primary: true, cell: (r) => <span className="mono">{r.text}</span> },
-                { key: "kind", header: T.mapping.kind, cell: (r) => T.mapping.fields[r.kind] },
-                { key: "office", header: T.mapping.office, cell: (r) => <OfficeCell office={r.office} /> },
-                { key: "own", header: T.mapping.ownWeightCol, align: "right", cell: (r) => <span className="mono">{weightText(r.own)}</span> },
-                {
-                  key: "standard",
-                  header: T.mapping.standardWeightCol,
-                  align: "right",
-                  cell: (r) => <span className="mono">{weightText(settings.weights[r.kind])}</span>,
-                },
-                {
-                  key: "use",
-                  header: <span className="visually-hidden">{T.mapping.useStandard}</span>,
-                  // the phone card's label, short as in the other mapping tables, so the label and the button share
-                  // one line at 375 px (the button names the action)
-                  label: T.mapping.actions,
-                  align: "right",
-                  cell: (r) => (
-                    <Button variant="secondary" size="sm" busy={action.busy} aria-label={T.mapping.useStandardFor(r.text)} onClick={() => void clearOwn(r)}>
-                      {T.mapping.useStandard}
-                    </Button>
-                  ),
-                },
-              ]}
+              columns={columns}
+              sort={state.sort}
+              onSort={state.setSort}
+              onStackedChange={state.setStacked}
             />
           )
         ) : null}

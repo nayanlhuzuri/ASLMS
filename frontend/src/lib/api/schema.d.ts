@@ -154,9 +154,33 @@ export interface paths {
         /**
          * Unmapped Counsel Codes
          * @description Codes seen in cause lists and dossiers with no mapping, most frequent first, each with the mappings in the
-         *     caller's office subtree that it partly matches. Nothing is mapped automatically.
+         *     caller's office subtree that it partly matches. Nothing is mapped automatically. Kept for the CLI and older
+         *     clients; the portal reads `/counsel-codes/unmapped/page` (design list-search, decision 9).
          */
         get: operations["unmapped_counsel_codes_admin_counsel_codes_unmapped_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/counsel-codes/unmapped/page": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Unmapped Counsel Codes Page
+         * @description Every unmapped code, keyset-paged (design list-search, decisions 9-12 and 39): `q` matches the code ignoring
+         *     spaces and punctuation; `sort` is `entries`, `code` or `last_seen`; `next_cursor` carries the sort (400
+         *     `bad_cursor` when sent with another). Every holder of `admin.counsel_codes` sees every unmapped printed code;
+         *     partial matches stay inside the caller's office subtree. Nothing is mapped automatically.
+         */
+        get: operations["unmapped_counsel_codes_page_admin_counsel_codes_unmapped_page_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -675,7 +699,8 @@ export interface paths {
          * List Terms
          * @description The terms with at least one rule ticked "Search the court" in the caller's subtree (all for the super admin):
          *     their rules and departments inside that subtree, years searched / waiting / failed, the last search and the
-         *     cases found. `status` is `active` (default), `inactive` or `all`.
+         *     cases found. `status` is `active` (default), `inactive` or `all`. `q`, `sort` and `dir` search and order the list
+         *     (design list-search, decision 15); `total_all` is the count without `q`.
          */
         get: operations["list_terms_admin_discovery_terms_get"];
         put?: never;
@@ -697,7 +722,8 @@ export interface paths {
          * Term Cases
          * @description The cases a term found (summaries), latest found first, with the owner, the caller's departments'
          *     recommendation (every department's with `cases.view_all`) and `claimable`. `only` is `all`, `pool`,
-         *     `recommended` or `owned`. 404 when the term has no rule in the caller's subtree.
+         *     `recommended` or `owned`. 404 when the term has no rule in the caller's subtree. `q` (the case search) only
+         *     narrows; `sort` and `dir` order the list (design list-search, decision 15).
          */
         get: operations["term_cases_admin_discovery_terms__term_id__cases_get"];
         put?: never;
@@ -6556,6 +6582,11 @@ export interface components {
             items: components["schemas"]["CounselCodeOut"][];
             /** Total */
             total: number;
+            /**
+             * Total All
+             * @description with `q`: the count without it (same office and status)
+             */
+            total_all?: number | null;
         };
         /** CounselCodeOut */
         CounselCodeOut: {
@@ -6577,6 +6608,11 @@ export interface components {
             /** Notes */
             notes: string | null;
             office: components["schemas"]["OfficeRefOut"];
+            /**
+             * Rescore Dispatched
+             * @description a save: the rescore was started at once (else the 15-minute beat picks it up)
+             */
+            rescore_dispatched?: boolean | null;
             /**
              * Updated At
              * Format: date-time
@@ -7704,6 +7740,11 @@ export interface components {
             items: components["schemas"]["DiscoveryCaseOut"][];
             /** Total */
             total: number;
+            /**
+             * Total All
+             * @description with `q`: the count without it
+             */
+            total_all?: number | null;
         };
         /** DiscoveryCaseOut */
         DiscoveryCaseOut: {
@@ -7860,6 +7901,11 @@ export interface components {
             items: components["schemas"]["DiscoveryTermOut"][];
             /** Total */
             total: number;
+            /**
+             * Total All
+             * @description with `q`: the count without it
+             */
+            total_all?: number | null;
         };
         /** DiscoveryTermOut */
         DiscoveryTermOut: {
@@ -8833,6 +8879,11 @@ export interface components {
             keyword: string;
             office: components["schemas"]["OfficeRefOut"];
             /**
+             * Rescore Dispatched
+             * @description a save: the rescore was started at once (else the 15-minute beat picks it up)
+             */
+            rescore_dispatched?: boolean | null;
+            /**
              * Updated At
              * Format: date-time
              */
@@ -9662,6 +9713,11 @@ export interface components {
             office: components["schemas"]["OfficeRefOut"];
             /** Pattern */
             pattern: string;
+            /**
+             * Rescore Dispatched
+             * @description a save: the rescore was started at once (else the 15-minute beat picks it up)
+             */
+            rescore_dispatched?: boolean | null;
             /**
              * Updated At
              * Format: date-time
@@ -12294,6 +12350,21 @@ export interface components {
              */
             partial_matches: components["schemas"]["PartialMatchOut"][];
         };
+        /**
+         * UnmappedCodePageOut
+         * @description One page of every unmapped code (design list-search, decision 9): `total` counts every unmapped code,
+         *     `matched` those matching `q`; `next_cursor` is null on the last page.
+         */
+        UnmappedCodePageOut: {
+            /** Items */
+            items: components["schemas"]["UnmappedCodeOut"][];
+            /** Matched */
+            matched: number;
+            /** Next Cursor */
+            next_cursor: string | null;
+            /** Total */
+            total: number;
+        };
         /** UnmatchedRowOut */
         UnmatchedRowOut: {
             /** Pet Name */
@@ -12566,6 +12637,11 @@ export interface components {
             office: components["schemas"]["OfficeRefOut"];
             /** Reason */
             reason: string | null;
+            /**
+             * Rescore Dispatched
+             * @description a save: the rescore was started at once (else the 15-minute beat picks it up)
+             */
+            rescore_dispatched?: boolean | null;
             /**
              * Updated At
              * Format: date-time
@@ -12969,6 +13045,52 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UnmappedCodeOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unmapped_counsel_codes_page_admin_counsel_codes_unmapped_page_get: {
+        parameters: {
+            query?: {
+                q?: string | null;
+                /** @description entries (default, most first), code or last_seen */
+                sort?: string | null;
+                /** @description asc or desc; without it the key's first direction */
+                dir?: string | null;
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnmappedCodePageOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
                 };
             };
             /** @description Validation Error */
@@ -14740,6 +14862,12 @@ export interface operations {
                 status?: string;
                 limit?: number;
                 offset?: number;
+                /** @description the name or a department code (2 to 100 characters) */
+                q?: string | null;
+                /** @description name (default), last_searched or cases_found */
+                sort?: string | null;
+                /** @description asc or desc */
+                dir?: string | null;
             };
             header?: never;
             path?: never;
@@ -14809,6 +14937,12 @@ export interface operations {
                 only?: string;
                 limit?: number;
                 offset?: number;
+                /** @description the case search: CNR, case number, reference or words */
+                q?: string | null;
+                /** @description last_found (default), case_no or year */
+                sort?: string | null;
+                /** @description asc or desc */
+                dir?: string | null;
             };
             header?: never;
             path: {

@@ -7,11 +7,12 @@
  * leading columns (`Lead`, `DateChip`, `LeadIcon`) composed by `ListRow`.
  */
 import Link from "next/link";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 
 import { dayMonth, formatDate, formatNumber } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { casePath } from "@/lib/refs";
+import { dirWord, firstDirOf, nextSort, sortRows, type Sortable, type SortDir, type SortState, type SortType } from "@/lib/sort";
 
 import { Button, cx } from "./controls";
 import s from "./data.module.css";
@@ -34,6 +35,114 @@ export interface Column<Row> {
   primary?: boolean;
   /** Drawn as the row's header (`<th scope="row">`), for a primary cell that names the row. */
   rowHeader?: boolean;
+  /**
+   * A sortable column (design list-search, decision 27): its header becomes a button. `key` defaults to the column's
+   * key; `value` is what a list sorted in the browser compares; `labels` names the two directions (`[asc, desc]`).
+   */
+  sort?: ColumnSort<Row>;
+}
+
+export interface ColumnSort<Row> {
+  key?: string;
+  type: SortType;
+  firstDir?: SortDir;
+  value?: (row: Row) => Sortable;
+  labels?: readonly [string, string];
+}
+
+/** The sort key of a sortable column. */
+export function sortKeyOf<Row>(c: Column<Row>): string {
+  return c.sort?.key ?? c.key;
+}
+
+export interface ColumnSortOption {
+  key: string;
+  label: string;
+  type: SortType;
+  firstDir?: SortDir;
+  labels?: readonly [string, string];
+}
+
+/** The kit `ListSort` options of a table's sortable columns, in column order. */
+export function sortOptionsOf<Row>(columns: Column<Row>[]): ColumnSortOption[] {
+  return columns
+    .filter((c) => c.sort)
+    .map((c) => ({
+      key: sortKeyOf(c),
+      label: c.label ?? (typeof c.header === "string" ? c.header : sortKeyOf(c)),
+      type: c.sort!.type,
+      firstDir: c.sort!.firstDir,
+      labels: c.sort!.labels,
+    }));
+}
+
+/**
+ * A list held whole in the browser, ordered by the sorted column's `value` (stable, blanks last in both directions);
+ * the rows as given when no sort is set or the column is unknown.
+ */
+export function sortByColumn<Row>(rows: Row[], columns: Column<Row>[], sort: SortState | null | undefined): Row[] {
+  if (!sort) return rows;
+  const column = columns.find((c) => c.sort && sortKeyOf(c) === sort.key);
+  if (!column?.sort?.value) return rows;
+  return sortRows(rows, column.sort.value, column.sort.type, sort.dir);
+}
+
+/**
+ * A sortable column head (decision 27), also for hand-written tables: a `<th>` with `aria-sort` only while it is the
+ * sorted column (or the default column in the default order), holding a button with the header's text. Clicks cycle
+ * the column's first direction, the other, then the list's default; focus stays on the button.
+ */
+export function SortHeader({
+  children,
+  sortKey,
+  type,
+  firstDir,
+  labels,
+  sort,
+  defaultSort,
+  onSort,
+  onAnnounce,
+  label,
+  className,
+  style,
+}: {
+  children: ReactNode;
+  sortKey: string;
+  type: SortType;
+  firstDir?: SortDir;
+  labels?: readonly [string, string];
+  sort: SortState | null | undefined;
+  defaultSort?: SortState | null;
+  onSort: (next: SortState | null) => void;
+  onAnnounce?: (text: string) => void;
+  /** The column's name in the announcement (default: the header when it is text). */
+  label?: string;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const active = sort ? (sort.key === sortKey ? sort : null) : defaultSort?.key === sortKey ? defaultSort : null;
+  const ariaSort = active ? (active.dir === "asc" ? "ascending" : "descending") : undefined;
+  const first = firstDirOf(type, firstDir);
+  const name = label ?? (typeof children === "string" ? children : sortKey);
+  return (
+    <th scope="col" aria-sort={ariaSort} className={className} style={style} data-sortable="">
+      <button
+        type="button"
+        className={s.sortButton}
+        data-sorted={active ? active.dir : undefined}
+        onClick={() => {
+          const next = nextSort(sort ?? null, sortKey, first);
+          onSort(next);
+          onAnnounce?.(next ? T.list.sortedBy(name, dirWord(type, next.dir, firstDir, labels)) : T.list.sortedDefaultNote);
+        }}
+      >
+        <span>{children}</span>
+        <svg className={s.sortIcon} aria-hidden="true" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+          {active ? active.dir === "asc" ? <path d="M6 10V2M3 5l3-3 3 3" /> : <path d="M6 2v8M3 7l3 3 3-3" /> : <path d="M4 4.5 6 2.5l2 2M4 7.5l2 2 2-2" />}
+        </svg>
+      </button>
+    </th>
+  );
 }
 
 /**
@@ -53,10 +162,30 @@ export function fitTable(wrap: HTMLElement | null): void {
  * unchanged, or the column keys), not on every render (design followups-oct, decision 23), and whenever the box's
  * width changes. Comparing only counts was rejected: a refetch with the same counts and longer text must re-measure.
  */
-function useFitTable(rows: unknown, columnKeys: string) {
+function useFitTable(rows: unknown, columnKeys: string, onStacked?: (stacked: boolean) => void) {
   const node = useRef<HTMLDivElement | null>(null);
   const observer = useRef<ResizeObserver | null>(null);
-  useLayoutEffect(() => fitTable(node.current), [rows, columnKeys]);
+  const report = useRef(onStacked);
+  const last = useRef<boolean | null>(null);
+  useLayoutEffect(() => {
+    report.current = onStacked;
+  });
+  // design list-search, decision 33: the list's toolbar shows the Sort By select whenever the table is drawn as cards
+  const tell = useCallback(() => {
+    const el = node.current;
+    if (!el || !report.current) return;
+    const narrow =
+      typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(max-width: 819px)").matches;
+    const stacked = narrow || el.hasAttribute("data-stacked");
+    if (stacked !== last.current) {
+      last.current = stacked;
+      report.current(stacked);
+    }
+  }, []);
+  useLayoutEffect(() => {
+    fitTable(node.current);
+    tell();
+  }, [rows, columnKeys, tell]);
   const ref = useCallback((el: HTMLDivElement | null) => {
     observer.current?.disconnect();
     observer.current = null;
@@ -67,10 +196,14 @@ function useFitTable(rows: unknown, columnKeys: string) {
       if (el.clientWidth === width) return; // a height change (cards ↔ table) is not a reason to measure again
       width = el.clientWidth;
       fitTable(el);
+      tell();
     });
     observer.current.observe(el);
-    void document.fonts?.ready.then(() => fitTable(node.current));
-  }, []);
+    void document.fonts?.ready.then(() => {
+      fitTable(node.current);
+      tell();
+    });
+  }, [tell]);
   return ref;
 }
 
@@ -91,6 +224,10 @@ export function DataTable<Row>({
   rowClassName,
   empty,
   showCaption = false,
+  sort,
+  onSort,
+  defaultSort,
+  onStackedChange,
 }: {
   columns: Column<Row>[];
   rows: Row[];
@@ -109,8 +246,17 @@ export function DataTable<Row>({
    * visible heading of its own shows it.
    */
   showCaption?: boolean;
+  /** The chosen sort (design list-search, decision 27); null or left out is the list's default order. */
+  sort?: SortState | null;
+  /** Set with the sortable columns: a header press gives the next sort (null: back to the default). */
+  onSort?: (next: SortState | null) => void;
+  /** The default order when it is one of the columns (its header then carries `aria-sort`). */
+  defaultSort?: SortState | null;
+  /** Whether the table is drawn as cards (below 820 px, or `data-stacked`): the toolbar's Sort By select shows. */
+  onStackedChange?: (stacked: boolean) => void;
 }) {
-  const wrapRef = useFitTable(rows, columns.map((c) => c.key).join("\u0000"));
+  const wrapRef = useFitTable(rows, columns.map((c) => c.key).join("\u0000"), onStackedChange);
+  const [said, setSaid] = useState("");
   if (rows.length === 0 && empty) return <>{empty}</>;
   return (
     <div className={s.dataWrap} ref={wrapRef}>
@@ -118,16 +264,35 @@ export function DataTable<Row>({
         {caption ? <caption className={showCaption ? undefined : s.srCaption}>{caption}</caption> : null}
         <thead>
           <tr>
-            {columns.map((c) => (
-              <th
-                key={c.key}
-                scope="col"
-                className={cx(c.align === "right" && s.num, c.hideOnPhone && s.hideOnPhone)}
-                style={c.width ? { width: c.width } : undefined}
-              >
-                {c.header}
-              </th>
-            ))}
+            {columns.map((c) => {
+              const className = cx(c.align === "right" && s.num, c.hideOnPhone && s.hideOnPhone);
+              const style = c.width ? { width: c.width } : undefined;
+              if (c.sort && onSort) {
+                return (
+                  <SortHeader
+                    key={c.key}
+                    sortKey={sortKeyOf(c)}
+                    type={c.sort.type}
+                    firstDir={c.sort.firstDir}
+                    labels={c.sort.labels}
+                    sort={sort}
+                    defaultSort={defaultSort}
+                    onSort={onSort}
+                    onAnnounce={setSaid}
+                    label={c.label}
+                    className={className}
+                    style={style}
+                  >
+                    {c.header}
+                  </SortHeader>
+                );
+              }
+              return (
+                <th key={c.key} scope="col" className={className} style={style}>
+                  {c.header}
+                </th>
+              );
+            })}
           </tr>
         </thead>
         <tbody>
@@ -180,6 +345,11 @@ export function DataTable<Row>({
           })}
         </tbody>
       </table>
+      {onSort ? (
+        <span className="visually-hidden" role="status" aria-live="polite">
+          {said}
+        </span>
+      ) : null}
     </div>
   );
 }

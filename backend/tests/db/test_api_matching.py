@@ -115,3 +115,21 @@ def test_recommended_and_scores_carry_the_partial_reason(api, world):  # noqa: F
     assert api.get("/inbox/recommended", headers=login(api, "health_admin")).json()["total"] == 0
     r = api.get(f"/admin/matching/cases/{ref}/scores", headers=login(api, "root"))
     assert r.status_code == 200 and r.json()[0]["signals"][0]["reason"] == signal["reason"]
+
+
+def test_counsel_codes_total_all_with_q(api, world):  # noqa: F811
+    with world.Session() as s:
+        for code in ("SC, EDU", "SC, EDU, DSE", "SC, HEALTH"):
+            office = "HEALTH" if "HEALTH" in code else "EDU"
+            s.add(CounselCode(code=code, office_id=world.offices[office].id))
+        s.commit()
+    root = login(api, "root")
+    plain = api.get("/admin/counsel-codes", headers=root).json()
+    assert plain["total"] == 3 and plain["total_all"] is None
+    searched = api.get("/admin/counsel-codes", params={"q": "edu"}, headers=root).json()
+    assert searched["total"] == 2 and searched["total_all"] == 3
+    # the count without the search stays inside the caller's scope
+    edu = api.get("/admin/counsel-codes", params={"q": "SC"}, headers=login(api, "edu_admin")).json()
+    assert edu["total"] == 2 and edu["total_all"] == 2
+    # wildcards match literally
+    assert api.get("/admin/counsel-codes", params={"q": "S%"}, headers=root).json()["total"] == 0

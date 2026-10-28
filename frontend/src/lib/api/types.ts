@@ -156,6 +156,7 @@ export type OfficePurpose = OfficeChoices["purpose"];
 export type CounselCode = S["CounselCodeOut"];
 export type CounselCodeList = S["CounselCodeListOut"];
 export type UnmappedCode = S["UnmappedCodeOut"];
+export type UnmappedCodePage = S["UnmappedCodePageOut"];
 export type Keyword = S["KeywordOut"];
 export type KeywordList = S["KeywordListOut"];
 export type NamePattern = S["NamePatternOut"];

@@ -16,12 +16,15 @@ from sqlalchemy.orm import Session
 
 from aslms.api import schemas
 from aslms.api.deps import actor_of, get_session, require, require_any
-from aslms.api.errors import detail
+from aslms.api.errors import detail, list_error
 from aslms.domain.org import User
 from aslms.domain.reference import Permission
 from aslms.services import data_load, discovery
 from aslms.services.access import Forbidden
 from aslms.services.audit_search import to_ist
+from aslms.services.case_filters import CaseFilterError
+from aslms.services.list_search import ListSearchError
+from aslms.services.list_sort import ListSortError
 from aslms.services.offices import find_office
 
 router = APIRouter(prefix="/admin/discovery", tags=["discovery"])
@@ -35,6 +38,7 @@ ERRORS = {
     409: {"model": schemas.ErrorOut},
 }
 HANDLED = (Forbidden, discovery.DiscoveryError, discovery.DiscoveryNotFound, discovery.DiscoveryConflict)
+LIST_ERRORS = (ListSearchError, ListSortError, CaseFilterError)
 TIME_KEYS = (
     "last_searched_at",
     "full_sweep_queued_at",
@@ -66,12 +70,16 @@ def list_terms(
     status_: str = Query("active", alias="status", description="active, inactive or all"),
     limit: int = discovery.DEFAULT_LIMIT,
     offset: int = 0,
+    q: str | None = Query(None, description="the name or a department code (2 to 100 characters)"),
+    sort: str | None = Query(None, description="name (default), last_searched or cases_found"),
+    dir: str | None = Query(None, description="asc or desc"),  # noqa: A002
     session: Session = Depends(get_session),
     user: User = Depends(keywords_reader),
 ) -> schemas.DiscoveryTermListOut:
     """The terms with at least one rule ticked "Search the court" in the caller's subtree (all for the super admin):
     their rules and departments inside that subtree, years searched / waiting / failed, the last search and the
-    cases found. `status` is `active` (default), `inactive` or `all`."""
+    cases found. `status` is `active` (default), `inactive` or `all`. `q`, `sort` and `dir` search and order the list
+    (design list-search, decision 15); `total_all` is the count without `q`."""
     root = None
     if office:
         root = find_office(session, office)
@@ -80,12 +88,14 @@ def list_terms(
                 status.HTTP_400_BAD_REQUEST, detail("bad_input", f"no such office {office!r}")
             )
     try:
-        items, total = discovery.terms_view(
-            session, user, office=root, status=status_, limit=limit, offset=offset
+        items, total, total_all = discovery.terms_view(
+            session, user, office=root, status=status_, limit=limit, offset=offset, q=q, sort=sort, dir=dir
         )
     except HANDLED as exc:
         raise _http(exc) from exc
-    return schemas.DiscoveryTermListOut(items=[_ist(i) for i in items], total=total)
+    except LIST_ERRORS as exc:
+        raise list_error(exc) from exc
+    return schemas.DiscoveryTermListOut(items=[_ist(i) for i in items], total=total, total_all=total_all)
 
 
 @router.get("/terms/{term_id}/cases", response_model=schemas.DiscoveryCaseListOut, responses=ERRORS)
@@ -94,17 +104,25 @@ def term_cases(
     only: str = "all",
     limit: int = discovery.DEFAULT_LIMIT,
     offset: int = 0,
+    q: str | None = Query(None, description="the case search: CNR, case number, reference or words"),
+    sort: str | None = Query(None, description="last_found (default), case_no or year"),
+    dir: str | None = Query(None, description="asc or desc"),  # noqa: A002
     session: Session = Depends(get_session),
     user: User = Depends(keywords_reader),
 ) -> schemas.DiscoveryCaseListOut:
     """The cases a term found (summaries), latest found first, with the owner, the caller's departments'
     recommendation (every department's with `cases.view_all`) and `claimable`. `only` is `all`, `pool`,
-    `recommended` or `owned`. 404 when the term has no rule in the caller's subtree."""
+    `recommended` or `owned`. 404 when the term has no rule in the caller's subtree. `q` (the case search) only
+    narrows; `sort` and `dir` order the list (design list-search, decision 15)."""
     try:
-        items, total = discovery.term_cases(session, user, term_id, only=only, limit=limit, offset=offset)
+        items, total, total_all = discovery.term_cases(
+            session, user, term_id, only=only, limit=limit, offset=offset, q=q, sort=sort, dir=dir
+        )
     except HANDLED as exc:
         raise _http(exc) from exc
-    return schemas.DiscoveryCaseListOut(items=[_ist(i) for i in items], total=total)
+    except LIST_ERRORS as exc:
+        raise list_error(exc) from exc
+    return schemas.DiscoveryCaseListOut(items=[_ist(i) for i in items], total=total, total_all=total_all)
 
 
 @router.post("/search", response_model=schemas.DiscoverySearchOut, status_code=202, responses=ERRORS)

@@ -1,12 +1,13 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { CounselCode, Keyword, Me, NamePattern, OfficeChoice, Permission, ScoringSettings, UnmappedCode, Watch } from "@/lib/api/types";
+import type { CounselCode, Keyword, Me, NamePattern, OfficeChoice, Permission, ScoringSettings, UnmappedCode, UnmappedCodePage, Watch } from "@/lib/api/types";
 import { resetNav } from "@/test/nav";
 import { browserApi, expectDataTable, json, makeMe, primaryActions, renderWithClient, type BrowserCall } from "@/test/render";
 
 import { CounselCodes } from "./mapping/CounselCodes";
+import { CourtSearch } from "./mapping/CourtSearch";
 import { KeywordsAndPatterns } from "./mapping/Keywords";
 import { Scoring, sliderValue } from "./mapping/Scoring";
 import { Watchlist } from "./mapping/Watchlist";
@@ -125,6 +126,11 @@ function settings(version: number, extra: Partial<ScoringSettings> = {}): Scorin
   };
 }
 
+/** One page of the recommended codes: every code given, no next page. */
+function page(items: UnmappedCode[], extra: Partial<UnmappedCodePage> = {}): UnmappedCodePage {
+  return { items, total: items.length, matched: items.length, next_cursor: null, ...extra };
+}
+
 const calls = (api: { calls: BrowserCall[] }, method: string, path: string) =>
   api.calls.filter((c) => c.method === method && c.path.split("?")[0] === path);
 
@@ -149,7 +155,7 @@ describe("counsel codes (design portal-ui-polish-2, decisions 39-42)", () => {
       "GET /me": superAdmin(),
       "GET /admin/offices/choices": choices([ROOT, EDU, DSE, HEALTH]),
       "GET /admin/counsel-codes": { items: [code({ weight_override: 0.7, notes: "kept" })], total: 1 },
-      "GET /admin/counsel-codes/unmapped": [],
+      "GET /admin/counsel-codes/unmapped/page": page([]),
       "POST /admin/counsel-codes": json(201, { ...code({ id: "cc-2", code: "SC, DSE" }), applies_within_minutes: 15 }),
     });
     renderWithClient(<CounselCodes />);
@@ -165,7 +171,7 @@ describe("counsel codes (design portal-ui-polish-2, decisions 39-42)", () => {
     await userEvent.type(within(form).getByLabelText("Code"), "SC, DSE");
     await chooseOffice(within(form).getByRole("combobox", { name: "Office" }), "Secondary Education");
     await userEvent.click(within(form).getByRole("button", { name: "Add Code" }));
-    expect(await screen.findByText("Takes effect at the next rescore, within 15 minutes.")).toBeInTheDocument();
+    expect(await screen.findByText("Recommendations will update in a few minutes.")).toBeInTheDocument();
     expect(calls(api, "POST", "/admin/counsel-codes")[0]!.body).toEqual({ code: "SC, DSE", office_code: "EDU-DSE", is_generic_state: false });
     // the add row's submit is secondary: the mapping page keeps no primary of its own
     expect(within(form).getByRole("button", { name: "Add Code" })).toHaveAttribute("data-variant", "secondary");
@@ -177,7 +183,7 @@ describe("counsel codes (design portal-ui-polish-2, decisions 39-42)", () => {
       "GET /me": superAdmin(),
       "GET /admin/offices/choices": choices([ROOT, EDU, HEALTH]),
       "GET /admin/counsel-codes": { items: [], total: 0 },
-      "GET /admin/counsel-codes/unmapped": [],
+      "GET /admin/counsel-codes/unmapped/page": page([]),
       "POST /admin/counsel-codes": json(201, { ...code({ code: "PP, ASSAM" }), applies_within_minutes: 15 }),
     });
     renderWithClient(<CounselCodes />);
@@ -198,17 +204,18 @@ describe("counsel codes (design portal-ui-polish-2, decisions 39-42)", () => {
   });
 
   it("the toolbar sends q and include_inactive on one line", async () => {
+    const many = Array.from({ length: 11 }, (_, i) => code({ id: `cc-${i}`, code: `SC, X${i}` }));
     const api = browserApi({
       "GET /me": deptAdmin(),
       "GET /admin/offices/choices": choices([EDU, DSE]),
-      "GET /admin/counsel-codes": { items: [code()], total: 1 },
-      "GET /admin/counsel-codes/unmapped": [],
+      "GET /admin/counsel-codes": { items: many, total: 11 },
+      "GET /admin/counsel-codes/unmapped/page": page([]),
     });
     renderWithClient(<CounselCodes />);
-    await screen.findByText("SC, EDU");
+    await screen.findByText("SC, X0");
     const bar = screen.getByRole("search", { name: "Search Codes" });
     await userEvent.type(within(bar).getByRole("searchbox", { name: "Search Codes" }), "edu");
-    await userEvent.click(within(bar).getByRole("switch", { name: "Include Deactivated" }));
+    await userEvent.click(screen.getByRole("switch", { name: "Include Deactivated" }));
     await waitFor(() =>
       expect(calls(api, "GET", "/admin/counsel-codes").some((c) => c.path.includes("q=edu") && c.path.includes("include_inactive=true"))).toBe(true),
     );
@@ -219,7 +226,7 @@ describe("counsel codes (design portal-ui-polish-2, decisions 39-42)", () => {
       "GET /me": deptAdmin(),
       "GET /admin/offices/choices": choices([EDU, DSE]),
       "GET /admin/counsel-codes": { items: [code()], total: 1 },
-      "GET /admin/counsel-codes/unmapped": [],
+      "GET /admin/counsel-codes/unmapped/page": page([]),
       "PATCH /admin/counsel-codes/cc-1": { ...code({ office: { code: "EDU-DSE", name: "Secondary Education" } }), applies_within_minutes: 15 },
       "POST /admin/counsel-codes/cc-1/deactivate": { ...code({ is_active: false }), applies_within_minutes: 15 },
     });
@@ -247,7 +254,7 @@ describe("counsel codes (design portal-ui-polish-2, decisions 39-42)", () => {
         items: [code(), code({ id: "cc-9", code: "PP, ASSAM", is_generic_state: true, office: { code: "GOA", name: "Government of Assam" } })],
         total: 2,
       },
-      "GET /admin/counsel-codes/unmapped": [],
+      "GET /admin/counsel-codes/unmapped/page": page([]),
     });
     renderWithClient(<CounselCodes />);
     expect(await screen.findByText("PP, ASSAM")).toBeInTheDocument();
@@ -264,15 +271,15 @@ describe("counsel codes (design portal-ui-polish-2, decisions 39-42)", () => {
       "GET /me": deptAdmin(),
       "GET /admin/offices/choices": choices([EDU, DSE]),
       "GET /admin/counsel-codes": { items: [], total: 0 },
-      "GET /admin/counsel-codes/unmapped": unmapped,
+      "GET /admin/counsel-codes/unmapped/page": page(unmapped),
       "POST /admin/counsel-codes": json(201, { ...code({ id: "cc-5", code: "SC, PWD" }), applies_within_minutes: 15 }),
     });
     renderWithClient(<CounselCodes />);
     const panel = await screen.findByRole("complementary", { name: "Recommended From Cause Lists" });
     expect(await within(panel).findByText("SC, PWD")).toBeInTheDocument();
-    expect(within(panel).getByText("2 to review")).toBeInTheDocument();
+    expect(within(panel).getByText("2 codes not mapped")).toBeInTheDocument();
     expect(within(panel).getByText("Nothing is mapped automatically.")).toBeInTheDocument();
-    expect(calls(api, "GET", "/admin/counsel-codes/unmapped")[0]!.url).toContain("limit=100");
+    expect(calls(api, "GET", "/admin/counsel-codes/unmapped/page")[0]!.url).toContain("limit=100");
     expect(within(panel).getByRole("link", { name: "ASLMS/GHC/CASE/2026/000042" })).toHaveAttribute("href", "/search?q=ASLMS%2FGHC%2FCASE%2F2026%2F000042");
     expect(within(panel).getByText(/1,240 entries · last seen/)).toBeInTheDocument();
     const map = within(panel).getByRole("form", { name: "Map SC, PWD" });
@@ -283,6 +290,9 @@ describe("counsel codes (design portal-ui-polish-2, decisions 39-42)", () => {
     expect(calls(api, "POST", "/admin/counsel-codes")[0]!.body).toEqual({ code: "SC, PWD", office_code: "EDU", is_generic_state: false });
     await waitFor(() => expect(within(panel).queryByText("SC, PWD")).toBeNull());
     expect(within(panel).getByText("SC, AGRI")).toBeInTheDocument();
+    // the count drops by one in the cache, with no reload of the panel
+    expect(within(panel).getByText("1 code not mapped")).toBeInTheDocument();
+    expect(calls(api, "GET", "/admin/counsel-codes/unmapped/page")).toHaveLength(1);
   });
 
   it("a partly matching code says so, and with one match in scope its picker starts on that office", async () => {
@@ -309,7 +319,7 @@ describe("counsel codes (design portal-ui-polish-2, decisions 39-42)", () => {
       "GET /me": deptAdmin(),
       "GET /admin/offices/choices": choices([EDU, DSE]),
       "GET /admin/counsel-codes": { items: [], total: 0 },
-      "GET /admin/counsel-codes/unmapped": unmapped,
+      "GET /admin/counsel-codes/unmapped/page": page(unmapped),
       "POST /admin/counsel-codes": json(201, { ...code({ id: "cc-6", code: "SC, EDU, DSE" }), applies_within_minutes: 15 }),
     });
     renderWithClient(<CounselCodes />);
@@ -332,7 +342,7 @@ describe("counsel codes (design portal-ui-polish-2, decisions 39-42)", () => {
       "GET /me": deptAdmin(),
       "GET /admin/offices/choices": choices([EDU, DSE]),
       "GET /admin/counsel-codes": { items: [], total: 0 },
-      "GET /admin/counsel-codes/unmapped": json(503, { detail: "the report took too long" }),
+      "GET /admin/counsel-codes/unmapped/page": json(503, { detail: "the report took too long" }),
       "POST /admin/counsel-codes": json(403, { detail: "the office is outside your offices" }),
     });
     renderWithClient(<CounselCodes />);
@@ -350,7 +360,7 @@ describe("counsel codes (design portal-ui-polish-2, decisions 39-42)", () => {
       "GET /me": deptAdmin(),
       "GET /admin/offices/choices": choices([EDU]),
       "GET /admin/counsel-codes": { items: [code()], total: 1 },
-      "GET /admin/counsel-codes/unmapped": [],
+      "GET /admin/counsel-codes/unmapped/page": page([]),
     });
     const { container } = renderWithClient(<CounselCodes />);
     expectDataTable(await screen.findByRole("table", { name: "Counsel Codes" }));
@@ -370,7 +380,8 @@ describe("keywords and name patterns", () => {
   }
 
   it("one list with the kind, the All / Keywords / Name Patterns choice and a search over the words", async () => {
-    routes();
+    const more = Array.from({ length: 10 }, (_, i) => keyword({ id: `kw-x${i}`, keyword: `PRINCIPAL ${i}` }));
+    routes({ "GET /admin/keywords": { items: [keyword(), ...more], total: 11 } });
     renderWithClient(<KeywordsAndPatterns />);
     const table = await screen.findByRole("table", { name: "Keywords and Name Patterns" });
     expectDataTable(table);
@@ -382,8 +393,9 @@ describe("keywords and name patterns", () => {
     expect(screen.queryByText("DIRECTOR OF SECONDARY EDUCATION")).toBeNull();
     await userEvent.click(screen.getByRole("radio", { name: "All" }));
     await userEvent.type(screen.getByRole("searchbox", { name: "Search Words" }), "secondary");
-    expect(screen.queryByText("STATE OF ASSAM")).toBeNull();
+    await waitFor(() => expect(screen.queryByText("STATE OF ASSAM")).toBeNull());
     expect(screen.getByText("DIRECTOR OF SECONDARY EDUCATION")).toBeInTheDocument();
+    expect(screen.getByText("1 of 12 rules")).toBeInTheDocument();
   });
 
   it("the add row routes a keyword to /admin/keywords and the other kinds to /admin/name-patterns, never with a weight", async () => {
@@ -397,7 +409,7 @@ describe("keywords and name patterns", () => {
     await userEvent.type(within(form).getByLabelText("Word or Pattern"), "COMMISSIONER OF EDUCATION");
     await chooseOffice(within(form).getByRole("combobox", { name: "Office" }), "Education");
     await userEvent.click(within(form).getByRole("button", { name: "Add" }));
-    expect(await screen.findByText("Takes effect at the next rescore, within 15 minutes.")).toBeInTheDocument();
+    expect(await screen.findByText("Recommendations will update in a few minutes.")).toBeInTheDocument();
     expect(calls(api, "POST", "/admin/keywords")[0]!.body).toEqual({ keyword: "COMMISSIONER OF EDUCATION", office_code: "EDU" });
 
     await userEvent.type(within(form).getByLabelText("Word or Pattern"), "STATE OF");
@@ -453,7 +465,7 @@ describe("keywords and name patterns", () => {
     expect(screen.queryByRole("menuitem", { name: "Change Office" })).toBeNull();
     await userEvent.click(screen.getByRole("menuitem", { name: "Deactivate" }));
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByText(/stops counting at the next rescore, within 15 minutes/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/stops counting when the recommendations update, in a few minutes/)).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole("button", { name: "Deactivate" }));
     await waitFor(() => expect(calls(api, "POST", "/admin/keywords/kw-1/deactivate")).toHaveLength(1));
 
@@ -519,13 +531,20 @@ describe("watchlist", () => {
     browserApi({
       "GET /me": deptAdmin(),
       "GET /admin/offices/choices": choices([EDU, HEALTH]),
-      "GET /admin/watchlist": { items: [watch(), watch({ id: "w-9", cnr: "ASHC010099992026", case_ref: null })], total: 2 },
+      "GET /admin/watchlist": {
+        items: [
+          watch(),
+          watch({ id: "w-9", cnr: "ASHC010099992026", case_ref: null }),
+          ...Array.from({ length: 9 }, (_, i) => watch({ id: `w-x${i}`, cnr: `ASHC01000000${i}2025`, case_ref: null })),
+        ],
+        total: 11,
+      },
       "POST /admin/watchlist": json(400, { detail: "office_code is required: you work in 2 departments" }),
     });
     renderWithClient(<Watchlist />);
     expectDataTable(await screen.findByRole("table", { name: "Watchlist" }));
     await userEvent.type(screen.getByRole("searchbox", { name: "Search Watchlist" }), "9999");
-    expect(screen.queryByText("ASHC010012342025")).toBeNull();
+    await waitFor(() => expect(screen.queryByText("ASHC010012342025")).toBeNull());
     expect(screen.getByText("ASHC010099992026")).toBeInTheDocument();
     const form = screen.getByRole("form", { name: "Watchlist" });
     await userEvent.type(within(form).getByLabelText("CNR"), "ASHC010012342025");
@@ -726,5 +745,296 @@ describe("scoring (decisions 40 and 43)", () => {
     expect(rows).toHaveLength(3);
     expect(within(rows[1]!).getAllByText("(changed)")).toHaveLength(1);
     expect(within(rows[2]!).queryByText("(changed)")).toBeNull();
+  });
+});
+
+// ------------------------------------------------------------------------------------------------ design list-search
+
+/** 1,066 synthetic unmapped codes, most entries first. */
+const ALL_CODES: UnmappedCode[] = Array.from({ length: 1066 }, (_, i) => ({
+  code: `SC, C${String(i).padStart(4, "0")}`,
+  entries: 2000 - i,
+  last_listed: "2026-10-20",
+  example_case_ref: null,
+  partial_matches: [],
+}));
+
+/** The paged read over ALL_CODES: 100 a page, `q` narrowing to codes holding it, the cursor the index of the next page. */
+function pagedCodes(codes: UnmappedCode[] = ALL_CODES) {
+  return (call: BrowserCall) => {
+    const params = new URL(call.path, "http://x").searchParams;
+    const q = (params.get("q") ?? "").toUpperCase().replace(/[^0-9A-Z]/g, "");
+    const kept = q ? codes.filter((c) => c.code.replace(/[^0-9A-Z]/g, "").includes(q)) : codes;
+    const sorted = params.get("sort") === "code" ? [...kept].sort((a, b) => (a.code < b.code ? 1 : -1)) : kept;
+    const start = Number(params.get("cursor") ?? 0);
+    const limit = Number(params.get("limit") ?? 100);
+    const items = sorted.slice(start, start + limit);
+    return { items, total: codes.length, matched: kept.length, next_cursor: start + limit < kept.length ? String(start + limit) : null };
+  };
+}
+
+/** A stand-in for IntersectionObserver: `fire()` says the end of the list came into view. */
+function observerStub() {
+  const watchers: { cb: IntersectionObserverCallback; root: Element | Document | null | undefined; margin: string | undefined }[] = [];
+  class Stub {
+    constructor(cb: IntersectionObserverCallback, options?: IntersectionObserverInit) {
+      watchers.push({ cb, root: options?.root, margin: options?.rootMargin });
+    }
+    observe() {}
+    disconnect() {}
+    unobserve() {}
+    takeRecords() {
+      return [];
+    }
+  }
+  vi.stubGlobal("IntersectionObserver", Stub);
+  return {
+    watchers,
+    fire() {
+      const last = watchers[watchers.length - 1]!;
+      act(() => last.cb([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver));
+    },
+  };
+}
+
+describe("Recommended From Cause Lists lists every code (design list-search, decisions 9-12 and 39)", () => {
+  function panelApi(extra: Record<string, unknown> = {}) {
+    return browserApi({
+      "GET /me": deptAdmin(),
+      "GET /admin/offices/choices": choices([EDU, DSE]),
+      "GET /admin/counsel-codes": { items: [], total: 0 },
+      "GET /admin/counsel-codes/unmapped/page": pagedCodes(),
+      ...extra,
+    });
+  }
+
+  it("reads /unmapped/page and follows next_cursor on Show 100 More and when the end comes into view", async () => {
+    const io = observerStub();
+    const api = panelApi();
+    renderWithClient(<CounselCodes />);
+    const panel = await screen.findByRole("complementary", { name: "Recommended From Cause Lists" });
+    expect(await within(panel).findByText("1,066 codes not mapped")).toBeInTheDocument();
+    expect(within(panel).getByText("Showing 100 of 1,066")).toBeInTheDocument();
+    expect(calls(api, "GET", "/admin/counsel-codes/unmapped")).toHaveLength(0);
+    await userEvent.click(within(panel).getByRole("button", { name: "Show 100 More" }));
+    expect(await within(panel).findByText("Showing 200 of 1,066")).toBeInTheDocument();
+    expect(calls(api, "GET", "/admin/counsel-codes/unmapped/page")[1]!.path).toContain("cursor=100");
+    // the observer watches inside the panel's own scroll box, 200 px ahead of its end
+    const box = within(panel).getByRole("region", { name: "Recommended From Cause Lists" });
+    await waitFor(() => expect(io.watchers.some((w) => w.root === box && w.margin === "0px 0px 200px 0px")).toBe(true));
+    io.fire();
+    expect(await within(panel).findByText("Showing 300 of 1,066")).toBeInTheDocument();
+    expect(within(panel).getAllByRole("listitem")).toHaveLength(300);
+    // the one-row layout class is kept
+    expect(within(box).getByRole("list").className).toMatch(/recList/);
+  }, 20_000);
+
+  it("sends q after the pause, counts 12 of 1,066 codes, and shows the no-match state", async () => {
+    observerStub();
+    const api = panelApi();
+    renderWithClient(<CounselCodes />);
+    const panel = await screen.findByRole("complementary", { name: "Recommended From Cause Lists" });
+    await within(panel).findByText("1,066 codes not mapped");
+    const box = within(panel).getByRole("searchbox", { name: "Search Recommended Codes" });
+    await userEvent.type(box, "c010");
+    expect(await within(panel).findByText("10 of 1,066 codes")).toBeInTheDocument();
+    expect(calls(api, "GET", "/admin/counsel-codes/unmapped/page").some((c) => c.path.includes("q=c010"))).toBe(true);
+    await userEvent.clear(box);
+    await userEvent.type(box, "zz");
+    const none = await within(panel).findByText("No matches for “zz”.");
+    await userEvent.click(within(none.parentElement!).getByRole("button", { name: "Clear Search" }));
+    expect(await within(panel).findByText("1,066 codes not mapped")).toBeInTheDocument();
+  });
+
+  it("restarts from the first page with sort=code when Sort By changes, and says so on the toolbar", async () => {
+    observerStub();
+    const api = panelApi({ "GET /admin/counsel-codes/unmapped/page": pagedCodes(ALL_CODES.slice(0, 120)) });
+    renderWithClient(<CounselCodes />);
+    const panel = await screen.findByRole("complementary", { name: "Recommended From Cause Lists" });
+    await within(panel).findByText("120 codes not mapped");
+    expect(within(panel).getByText("Order: Most Entries First")).toBeInTheDocument();
+    await userEvent.click(within(panel).getByRole("button", { name: "Show 100 More" }));
+    await within(panel).findByText("Showing all 120");
+    await userEvent.selectOptions(within(panel).getByRole("combobox", { name: "Sort By" }), "code");
+    await waitFor(() => expect(calls(api, "GET", "/admin/counsel-codes/unmapped/page").some((c) => c.path.includes("sort=code"))).toBe(true));
+    const sorted = calls(api, "GET", "/admin/counsel-codes/unmapped/page").filter((c) => c.path.includes("sort=code"));
+    expect(sorted[0]!.path).not.toContain("cursor=");
+    expect(sorted[0]!.path).toContain("dir=asc");
+    expect(await within(panel).findByText("Showing 100 of 120")).toBeInTheDocument();
+    expect(within(panel).getByText(/Sorted by Code, A to Z/)).toBeInTheDocument();
+    // the direction button swaps the direction and is named by it
+    await userEvent.click(within(panel).getByRole("button", { name: "A to Z" }));
+    await waitFor(() => expect(calls(api, "GET", "/admin/counsel-codes/unmapped/page").some((c) => c.path.includes("dir=desc"))).toBe(true));
+  }, 20_000);
+
+  it("Map removes the code from the loaded pages and lowers both counts", async () => {
+    observerStub();
+    const api = panelApi({
+      "POST /admin/counsel-codes": json(201, { ...code({ id: "cc-7", code: "SC, C0100" }), applies_within_minutes: 15, rescore_dispatched: true }),
+    });
+    renderWithClient(<CounselCodes />);
+    const panel = await screen.findByRole("complementary", { name: "Recommended From Cause Lists" });
+    await within(panel).findByText("1,066 codes not mapped");
+    await userEvent.type(within(panel).getByRole("searchbox", { name: "Search Recommended Codes" }), "c010");
+    await within(panel).findByText("10 of 1,066 codes");
+    const map = within(panel).getByRole("form", { name: "Map SC, C0100" });
+    await chooseOffice(within(map).getByRole("combobox", { name: "Office for SC, C0100" }), "Education");
+    await userEvent.click(within(map).getByRole("button", { name: "Map SC, C0100" }));
+    await waitFor(() => expect(within(panel).queryByText("SC, C0100")).toBeNull());
+    expect(within(panel).getByText("9 of 1,065 codes")).toBeInTheDocument();
+    expect(await screen.findByText("Recommendations will update in a few minutes.")).toBeInTheDocument();
+    expect(calls(api, "POST", "/admin/counsel-codes")[0]!.body).toEqual({ code: "SC, C0100", office_code: "EDU", is_generic_state: false });
+  });
+});
+
+describe("the mapping lists sort in the browser (design list-search, decisions 13, 14 and 16)", () => {
+  const firstColumn = (table: HTMLElement) =>
+    within(table)
+      .getAllByRole("row")
+      .slice(1)
+      .map((r) => r.querySelector("td, th[scope='row']")!.textContent);
+
+  it("Counsel Codes: each header sorts, with the arrow and aria-sort, and a third click returns to Code, A to Z", async () => {
+    browserApi({
+      "GET /me": deptAdmin(),
+      "GET /admin/offices/choices": choices([EDU, DSE]),
+      "GET /admin/counsel-codes": {
+        items: [
+          code({ id: "1", code: "SC, B", office: { code: "HEALTH", name: "Health" }, updated_at: "2026-10-01T00:00:00Z" }),
+          code({ id: "2", code: "SC, A", office: { code: "EDU", name: "Education" }, updated_at: "2026-10-03T00:00:00Z" }),
+          code({ id: "3", code: "SC, C", office: { code: "EDU-DSE", name: "Secondary Education" }, is_active: false, updated_at: "2026-10-02T00:00:00Z" }),
+        ],
+        total: 3,
+      },
+      "GET /admin/counsel-codes/unmapped/page": page([]),
+    });
+    renderWithClient(<CounselCodes />);
+    const table = await screen.findByRole("table", { name: "Counsel Codes" });
+    expect(screen.getByText("3 codes")).toBeInTheDocument();
+    expect(screen.getByText("Order: Code, A to Z")).toBeInTheDocument();
+    expect(within(table).getByRole("columnheader", { name: "Code" })).toHaveAttribute("aria-sort", "ascending");
+    const office = within(table).getByRole("button", { name: "Office" });
+    await userEvent.click(office);
+    expect(firstColumn(table)).toEqual(["SC, A", "SC, B", "SC, C"]); // Education, Health, Secondary Education
+    expect(within(table).getByRole("columnheader", { name: "Office" })).toHaveAttribute("aria-sort", "ascending");
+    await userEvent.click(within(table).getByRole("button", { name: "Updated" }));
+    expect(firstColumn(table)).toEqual(["SC, A", "SC, C", "SC, B"]); // newest first
+    await userEvent.click(within(table).getByRole("button", { name: "Updated" }));
+    await userEvent.click(within(table).getByRole("button", { name: "Updated" }));
+    expect(screen.getByText("Order: Code, A to Z")).toBeInTheDocument();
+    expect(firstColumn(table)).toEqual(["SC, B", "SC, A", "SC, C"]); // the API's order
+  });
+
+  it("Keywords sort by Word or Pattern and Kind; Watchlist by CNR; Rules with Their Own Weight by Own Weight", async () => {
+    browserApi({
+      "GET /me": deptAdmin(),
+      "GET /admin/offices/choices": choices([EDU, DSE, HEALTH]),
+      "GET /admin/keywords": { items: [keyword({ id: "k1", keyword: "ZETA" }), keyword({ id: "k2", keyword: "ALPHA" })], total: 2 },
+      "GET /admin/name-patterns": { items: [pattern()], total: 1 },
+    });
+    const { unmount } = renderWithClient(<KeywordsAndPatterns />);
+    const words = await screen.findByRole("table", { name: "Keywords and Name Patterns" });
+    expect(screen.getByText("Order: Office Order")).toBeInTheDocument();
+    await userEvent.click(within(words).getByRole("button", { name: "Word or Pattern" }));
+    expect(firstColumn(words)).toEqual(["ALPHA", "STATE OF ASSAM", "ZETA"]);
+    await userEvent.click(within(words).getByRole("button", { name: "Kind" }));
+    expect(firstColumn(words)).toEqual(["ZETA", "ALPHA", "STATE OF ASSAM"]); // Keyword before Starts With
+    unmount();
+
+    browserApi({
+      "GET /me": deptAdmin(),
+      "GET /admin/offices/choices": choices([EDU, HEALTH]),
+      "GET /admin/watchlist": { items: [watch({ id: "w1", cnr: "ASHC010000092025" }), watch({ id: "w2", cnr: "ASHC010000012025" })], total: 2 },
+    });
+    const second = renderWithClient(<Watchlist />);
+    const table = await screen.findByRole("table", { name: "Watchlist" });
+    await userEvent.click(within(table).getByRole("button", { name: "CNR" }));
+    expect(firstColumn(table)).toEqual(["ASHC010000012025", "ASHC010000092025"]);
+    await userEvent.click(within(table).getByRole("button", { name: "CNR" }));
+    expect(firstColumn(table)).toEqual(["ASHC010000092025", "ASHC010000012025"]);
+    second.unmount();
+
+    browserApi({
+      "GET /me": superAdmin(),
+      "GET /admin/scoring-settings": settings(3),
+      "GET /admin/scoring-settings/history": { items: [settings(3)], total: 1 },
+      "GET /admin/counsel-codes": {
+        items: [code({ id: "c1", code: "SC, LOW", weight_override: 0.55 }), code({ id: "c2", code: "SC, HIGH", weight_override: 0.92 })],
+        total: 2,
+      },
+      "GET /admin/keywords": { items: [], total: 0 },
+      "GET /admin/name-patterns": { items: [], total: 0 },
+      "GET /admin/watchlist": { items: [], total: 0 },
+    });
+    renderWithClient(<Scoring />);
+    const own = await screen.findByRole("table", { name: "Rules with Their Own Weight" });
+    expect(screen.getByText("2 rules")).toBeInTheDocument();
+    // two rows: no search box (decision 8)
+    expect(screen.queryByRole("searchbox", { name: "Search Rules" })).toBeNull();
+    await userEvent.click(within(own).getByRole("button", { name: "Own Weight" }));
+    expect(firstColumn(own)).toEqual(["SC, HIGH", "SC, LOW"]); // a number starts with the highest
+  });
+
+  it("Rules with Their Own Weight search above 10 rows, with the count and the no-match state", async () => {
+    const items = Array.from({ length: 11 }, (_, i) => code({ id: `c${i}`, code: `SC, R${i}`, weight_override: 0.6 }));
+    browserApi({
+      "GET /me": superAdmin(),
+      "GET /admin/scoring-settings": settings(3),
+      "GET /admin/scoring-settings/history": { items: [settings(3)], total: 1 },
+      "GET /admin/counsel-codes": { items, total: 11 },
+      "GET /admin/keywords": { items: [], total: 0 },
+      "GET /admin/name-patterns": { items: [], total: 0 },
+      "GET /admin/watchlist": { items: [], total: 0 },
+    });
+    renderWithClient(<Scoring />);
+    const box = await screen.findByRole("searchbox", { name: "Search Rules" });
+    await userEvent.type(box, "r10");
+    expect(await screen.findByText("1 of 11 rules")).toBeInTheDocument();
+    await userEvent.clear(box);
+    await userEvent.type(box, "nothing");
+    expect(await screen.findByText("No matches for “nothing”.")).toBeInTheDocument();
+  });
+});
+
+describe("Court Search sends q, sort and dir (design list-search, decision 15)", () => {
+  function term(id: string, name: string) {
+    return {
+      id,
+      term: name,
+      active: true,
+      departments: ["EDU"],
+      rules: [{ kind: "prefix", rule_id: `np-${id}`, office_code: "EDU", is_active: true }],
+      years: { done: 1, waiting: 0, failed: 0 },
+      last_searched_at: null,
+      cases_found: 0,
+      found_last_7_days: 0,
+      full_sweep_queued_at: null,
+      recent_sweep_queued_at: null,
+    };
+  }
+
+  it("the names list and a name's cases search and sort on the server", async () => {
+    const names = Array.from({ length: 12 }, (_, i) => term(`t-${i}`, `NAME ${i}`));
+    const api = browserApi({
+      "GET /me": deptAdmin(),
+      "GET /admin/discovery/terms": (call: BrowserCall) =>
+        call.path.includes("q=") ? { items: [names[3]], total: 1, total_all: 12 } : { items: names, total: 12, total_all: null },
+      "GET /admin/discovery/terms/t-3/cases": { items: [], total: 0, total_all: null },
+    });
+    renderWithClient(<CourtSearch />);
+    const table = await screen.findByRole("table", { name: "Names Searched at the Court" });
+    expect(screen.getByText("12 names")).toBeInTheDocument();
+    await userEvent.click(within(table).getByRole("button", { name: "Cases Found" }));
+    await waitFor(() =>
+      expect(calls(api, "GET", "/admin/discovery/terms").some((c) => c.path.includes("sort=cases_found") && c.path.includes("dir=desc"))).toBe(true),
+    );
+    await userEvent.type(screen.getByRole("searchbox", { name: "Search Names" }), "name 3");
+    expect(await screen.findByText("1 of 12 names")).toBeInTheDocument();
+    expect(calls(api, "GET", "/admin/discovery/terms").some((c) => c.path.includes("q=name+3") || c.path.includes("q=name%203"))).toBe(true);
+    await userEvent.click(screen.getByRole("button", { name: "Show the cases found for NAME 3" }));
+    const cases = await screen.findByRole("search", { name: "Search Cases" });
+    await userEvent.type(within(cases).getByRole("searchbox"), "WP(C) 9/2025");
+    await waitFor(() => expect(calls(api, "GET", "/admin/discovery/terms/t-3/cases").some((c) => c.path.includes("q=WP"))).toBe(true));
+    expect(await screen.findByText("No matches for “WP(C) 9/2025”.")).toBeInTheDocument();
   });
 });

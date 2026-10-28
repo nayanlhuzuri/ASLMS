@@ -6,9 +6,9 @@
  * the file is; the next hearing is the kit's `HearingDate` (design next-hearing-highlight, decision 11). A row opens by
  * click or Enter, so the case number is plain text here (the row is the link).
  */
-import { Badge } from "@/components/ui";
+import { Badge, ListCount } from "@/components/ui";
 import type { CaseSummary, CustodyBrief, StageBrief } from "@/lib/api/types";
-import { formatDate, formatNumber } from "@/lib/format";
+import { formatDate } from "@/lib/format";
 import { T } from "@/lib/messages";
 
 import s from "./inbox.module.css";
@@ -73,13 +73,15 @@ export function Chevron() {
   );
 }
 
-/** The list's count line: "n cases", or "n of m cases" when filtered (m = the tab's unfiltered count). */
+/**
+ * The list's count line, the kit's `ListCount` (design list-search, decision 7): "n cases", "n of m cases" when
+ * filtered (m = the tab's unfiltered count), or "n cases match" when m is not known.
+ */
 export function CountLine({ total, of, filtered }: { total: number | undefined; of: number | null | undefined; filtered: boolean }) {
   if (total === undefined) return null;
-  const n = formatNumber(total);
   return (
-    <p className={s.count} aria-live="polite">
-      {filtered && typeof of === "number" ? T.inbox.countOf(n, formatNumber(of)) : T.inbox.count(n)}
+    <p className={s.count}>
+      <ListCount shown={total} total={of} noun={T.inbox.casesNoun} nounOne={T.inbox.caseNoun} searching={filtered} />
     </p>
   );
 }

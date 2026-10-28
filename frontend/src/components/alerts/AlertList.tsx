@@ -38,6 +38,7 @@ import { useAction } from "@/lib/useAction";
 import { AlertLink, AnswerIt, markRead, useAlertRefresh } from "./AlertLink";
 
 import cs from "@/components/case/case.module.css";
+import { NoCaseMatches } from "@/components/filters/NoCaseMatches";
 
 const STATUSES = ["", "open", "acknowledged", "done", "expired", "all"] as const;
 const SEVERITIES = ["critical", "high", "normal"] as const;
@@ -210,7 +211,13 @@ export function AlertList({ params }: { params: Params }) {
       {list.isPending ? <Loading /> : null}
       {list.data ? (
         list.data.items.length === 0 ? (
-          <EmptyState>{defaults ? T.alerts.emptyDefault : T.alerts.empty}</EmptyState>
+          defaults ? (
+            <EmptyState>{T.alerts.emptyDefault}</EmptyState>
+          ) : (
+            <NoCaseMatches params={params} list="alerts">
+              {T.alerts.empty}
+            </NoCaseMatches>
+          )
         ) : (
           <>
             <ul className="stack" style={{ listStyle: "none", padding: 0 }} aria-label={T.alerts.list}>

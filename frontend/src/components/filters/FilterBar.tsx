@@ -43,6 +43,7 @@ import { T } from "@/lib/messages";
 import type { Params } from "@/lib/params";
 
 import { DateRangeField, type DateValue } from "./DateRangeField";
+import { clearAllUpdates } from "./NoCaseMatches";
 import { FilterChips } from "./FilterChips";
 import s from "./filters.module.css";
 
@@ -185,14 +186,11 @@ export function FilterBar(props: FilterBarProps) {
     }),
     ...ownChips(params, own),
   ];
-  const fixed = new Set(cfg.fixed);
   const chipRow = (
     <FilterChips
       chips={chips}
       onRemove={(drop) => setFilters(Object.fromEntries(drop.map((k) => [k, undefined])))}
-      onClearAll={() =>
-        setFilters(Object.fromEntries(Object.keys(params).filter((k) => !fixed.has(k)).map((k) => [k, undefined])))
-      }
+      onClearAll={() => setFilters(clearAllUpdates(params, list))}
     />
   );
   const totalLine =

@@ -104,3 +104,19 @@
   margin: 0;
   font-weight: 500;
 }
+
+/* design list-search, decision 18: the filter-form lists' no-match state, with Clear All */
+.noMatches {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2) var(--s3);
+  padding: var(--s4);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-md);
+  color: var(--text-2);
+}
+
+.noMatches p {
+  margin: 0;
+}

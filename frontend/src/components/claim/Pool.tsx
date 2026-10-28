@@ -22,6 +22,7 @@ import { offsetOf, PAGE, type Params } from "@/lib/params";
 
 import type { RowContext } from "./CaseModal";
 import { partiesText } from "./Recommended";
+import { caseFiltersSet, NoCaseMatches } from "@/components/filters/NoCaseMatches";
 
 export function Pool({ params, department, onOpen }: { params: Params; department: string | null; onOpen: (row: RowContext) => void }) {
   const setFilters = useFilters(params);
@@ -101,7 +102,13 @@ export function Pool({ params, department, onOpen }: { params: Params; departmen
             rowKey={(p) => p.case.id}
             onRowClick={(item) => onOpen({ kind: "pool", item })}
             rowLabel={(p) => T.claim.openRow(p.case.case_no_text || p.case.ref_no)}
-            empty={<EmptyState title={T.inbox.nothingWaiting}>{T.inbox.empty}</EmptyState>}
+            empty={
+              caseFiltersSet(params, "pool", ["min_score", "state_party", "found_for"]) ? (
+                <NoCaseMatches params={params} list="pool" />
+              ) : (
+                <EmptyState title={T.inbox.nothingWaiting}>{T.inbox.empty}</EmptyState>
+              )
+            }
           />
           <Pagination offset={offset} limit={PAGE} total={list.data.total} onChange={(o) => setFilters({ offset: String(o) })} />
         </>

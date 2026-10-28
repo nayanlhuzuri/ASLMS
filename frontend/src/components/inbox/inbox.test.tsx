@@ -366,16 +366,17 @@ describe("Working on (case-inbox-merge, decisions 8 and 9)", () => {
     for (const part of ["view=working", "action=overdue", "stage=none", `next_from=${istDay()}`]) expect(url).toContain(part);
   });
 
-  it("Stage is on the first row; words, case type, year and court are under More filters", async () => {
+  it("Search Words and Stage are on the first row; case type, year and court are under More filters (list-search, decision 17)", async () => {
     browserApi(routes());
     renderWithClient(<InboxFrame tab="working" params={{}} />);
     const stage = await screen.findByLabelText("Stage");
     await waitFor(() => expect(within(stage).getByRole("option", { name: "Counsel briefed" })).toBeInTheDocument());
     expect(within(stage).getByRole("option", { name: "No stage set" })).toBeInTheDocument();
     expect(screen.queryByLabelText("Year")).toBeNull();
+    // Words shows before More Filters is opened
+    expect(screen.getByLabelText(/^Words/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "More Filters" }));
     expect(screen.getByLabelText("Year")).toBeInTheDocument();
-    expect(screen.getByLabelText(/^Words/)).toBeInTheDocument();
     expect(screen.getByLabelText("Court")).toBeInTheDocument();
     await userEvent.selectOptions(stage, "counsel_briefed");
     await userEvent.click(screen.getByRole("button", { name: "Apply" }));
@@ -429,6 +430,26 @@ describe("own work: Claimed by me and Disposed", () => {
     renderWithClient(<InboxFrame tab="claimed" params={{}} />);
     expect(await screen.findByText("Nothing waiting")).toBeInTheDocument();
     expect(screen.getByText(/Cases you claim for your department/)).toBeInTheDocument();
+  });
+
+  it("Claimed by Me and Disposed draw Search Words on the first row, not inside More Filters (list-search, decision 17)", async () => {
+    browserApi(routes());
+    const { unmount } = renderWithClient(<InboxFrame tab="claimed" params={{}} />);
+    expect(await screen.findByLabelText(/^Words/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Year")).toBeNull();
+    unmount();
+    renderWithClient(<InboxFrame tab="disposed" params={{}} />);
+    expect(await screen.findByLabelText(/^Words/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Year")).toBeNull();
+  });
+
+  it("a filtered empty list says No cases match these filters., and Clear All keeps the sort (list-search, decisions 18 and 35)", async () => {
+    browserApi(routes());
+    renderWithClient(<InboxFrame tab="claimed" params={{ q: "zebra", sort: "case_no", dir: "asc" }} />);
+    const none = await screen.findByText("No cases match these filters.");
+    expect(screen.queryByText("Nothing waiting")).toBeNull();
+    await userEvent.click(within(none.parentElement!).getByRole("button", { name: "Clear All" }));
+    expect(nav.replace).toHaveBeenLastCalledWith("/inbox/claimed-by-me?sort=case_no&dir=asc");
   });
 });
 

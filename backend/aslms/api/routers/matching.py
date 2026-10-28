@@ -3,7 +3,8 @@
 (design `recommend-and-claim`, decisions 13, 14, 19, 21). Reads are filtered to the caller's office subtree
 on the server (generic State codes are readable by every holder of `admin.counsel_codes`); every write goes
 through `services/matching_rules.py` or `services/scoring_settings.py`, which enforce scope, the
-`admin.scoring` rule for weights, and audit. Rule edits take effect at the next rescore (within 15 minutes)."""
+`admin.scoring` rule for weights, and audit. A rule save commits, then starts the rescore at once (design
+`list-search`, decision 41; one run at a time, the 15-minute beat as the fallback)."""
 
 from __future__ import annotations
 
@@ -11,14 +12,14 @@ import logging
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from aslms.api import schemas
 from aslms.api.deps import actor_of, current_user, get_session, require
-from aslms.api.errors import detail
+from aslms.api.errors import detail, list_error
 from aslms.core.config import Settings
 from aslms.domain.cases import Case
 from aslms.domain.org import Office, User
@@ -36,6 +37,8 @@ from aslms.services import scoring_settings as ss
 from aslms.services.access import Forbidden
 from aslms.services.cases import CaseNotFound, resolve_case_ref
 from aslms.services.discovery import discoverable, rule_discovery
+from aslms.services.list_search import ListSearchError
+from aslms.services.list_sort import ListSortError
 from aslms.services.matching_rules import UNSET, DuplicateRule, NotDiscoverable, RuleError, effective_weight
 from aslms.services.offices import find_office
 from aslms.services.scoring_settings import SettingsError, StaleSettings
@@ -106,11 +109,18 @@ def _load_rule(session: Session, caller: User, model, rule_id: uuid.UUID):
     return row
 
 
+def _saved(session: Session, request: Request) -> bool:
+    """A mapping saved (design list-search, decision 41): commits it, then starts the rescore as the scoring-settings
+    save does. Never called for a refused save."""
+    session.commit()
+    return dispatch_rescore(request.app.state.settings)
+
+
 def dispatch_rescore(settings: Settings) -> bool:
     """Dispatches the Celery task `aslms.rescore_if_dirty`; False when no broker is configured or the
     dispatch fails (the 15-minute beat picks the change up). Never raises."""
     if not settings.redis_url:
-        log.info("scoring settings saved; no broker configured, the beat will rescore")
+        log.info("rules saved; no broker configured, the beat will rescore")
         return False
     try:
         from aslms.jobs.celery_app import app as celery_app
@@ -240,13 +250,52 @@ def unmapped_counsel_codes(
     caller: User = Depends(require(Permission.ADMIN_COUNSEL_CODES)),
 ) -> list[schemas.UnmappedCodeOut]:
     """Codes seen in cause lists and dossiers with no mapping, most frequent first, each with the mappings in the
-    caller's office subtree that it partly matches. Nothing is mapped automatically."""
+    caller's office subtree that it partly matches. Nothing is mapped automatically. Kept for the CLI and older
+    clients; the portal reads `/counsel-codes/unmapped/page` (design list-search, decision 9)."""
     return [
         schemas.UnmappedCodeOut(**u.__dict__)
         for u in matching.unmapped_codes(
             session, limit=max(1, min(limit, 1000)), scope=matching_rules.counsel_code_scope(session, caller)
         )
     ]
+
+
+@router.get(
+    "/counsel-codes/unmapped/page",
+    response_model=schemas.UnmappedCodePageOut,
+    responses={400: {"model": schemas.ErrorOut}},
+)
+def unmapped_counsel_codes_page(
+    q: str | None = None,
+    sort: str | None = Query(None, description="entries (default, most first), code or last_seen"),
+    dir: str | None = Query(None, description="asc or desc; without it the key's first direction"),  # noqa: A002
+    limit: int = Query(100, ge=1, le=matching.UNMAPPED_PAGE_MAX),
+    cursor: str | None = None,
+    session: Session = Depends(get_session),
+    caller: User = Depends(require(Permission.ADMIN_COUNSEL_CODES)),
+) -> schemas.UnmappedCodePageOut:
+    """Every unmapped code, keyset-paged (design list-search, decisions 9-12 and 39): `q` matches the code ignoring
+    spaces and punctuation; `sort` is `entries`, `code` or `last_seen`; `next_cursor` carries the sort (400
+    `bad_cursor` when sent with another). Every holder of `admin.counsel_codes` sees every unmapped printed code;
+    partial matches stay inside the caller's office subtree. Nothing is mapped automatically."""
+    try:
+        page = matching.unmapped_page(
+            session,
+            q=q,
+            sort=sort,
+            dir=dir,
+            limit=limit,
+            cursor=cursor,
+            scope=matching_rules.counsel_code_scope(session, caller),
+        )
+    except (ListSearchError, ListSortError) as exc:
+        raise list_error(exc) from exc
+    return schemas.UnmappedCodePageOut(
+        items=[schemas.UnmappedCodeOut(**u.__dict__) for u in page.items],
+        total=page.total,
+        matched=page.matched,
+        next_cursor=page.next_cursor,
+    )
 
 
 @router.get("/counsel-codes", response_model=schemas.CounselCodeListOut)
@@ -261,7 +310,14 @@ def list_counsel_codes(
         session, caller, office=_optional_office(session, office), q=q, include_inactive=include_inactive
     )
     settings = ss.current(session)
-    return schemas.CounselCodeListOut(items=[_code_out(session, r, settings) for r in rows], total=len(rows))
+    total_all = None
+    if q:
+        total_all = matching_rules.count_counsel_codes(
+            session, caller, office=_optional_office(session, office), include_inactive=include_inactive
+        )
+    return schemas.CounselCodeListOut(
+        items=[_code_out(session, r, settings) for r in rows], total=len(rows), total_all=total_all
+    )
 
 
 @router.post("/counsel-codes", response_model=schemas.CounselCodeOut, status_code=status.HTTP_201_CREATED)
@@ -285,7 +341,14 @@ def create_counsel_code(
         session.flush()
     except (Forbidden, RuleError, IntegrityError) as exc:
         raise _http(exc) from exc
-    return _code_out(session, row, ss.current(session), applies_within_minutes=APPLIES_WITHIN_MINUTES)
+    dispatched = _saved(session, request)
+    return _code_out(
+        session,
+        row,
+        ss.current(session),
+        applies_within_minutes=APPLIES_WITHIN_MINUTES,
+        rescore_dispatched=dispatched,
+    )
 
 
 @router.patch("/counsel-codes/{rule_id}", response_model=schemas.CounselCodeOut)
@@ -310,7 +373,14 @@ def patch_counsel_code(
         session.flush()
     except (Forbidden, RuleError, IntegrityError) as exc:
         raise _http(exc) from exc
-    return _code_out(session, row, ss.current(session), applies_within_minutes=APPLIES_WITHIN_MINUTES)
+    dispatched = _saved(session, request)
+    return _code_out(
+        session,
+        row,
+        ss.current(session),
+        applies_within_minutes=APPLIES_WITHIN_MINUTES,
+        rescore_dispatched=dispatched,
+    )
 
 
 @router.post("/counsel-codes/{rule_id}/deactivate", response_model=schemas.CounselCodeOut)
@@ -342,7 +412,14 @@ def _set_code_active(rule_id, enabled, request, session, caller) -> schemas.Coun
         session.flush()
     except (Forbidden, RuleError) as exc:
         raise _http(exc) from exc
-    return _code_out(session, row, ss.current(session), applies_within_minutes=APPLIES_WITHIN_MINUTES)
+    dispatched = _saved(session, request)
+    return _code_out(
+        session,
+        row,
+        ss.current(session),
+        applies_within_minutes=APPLIES_WITHIN_MINUTES,
+        rescore_dispatched=dispatched,
+    )
 
 
 # ------------------------------------------------------------------------------------------------ keywords
@@ -405,7 +482,14 @@ def create_keyword(
         session.flush()
     except (Forbidden, RuleError, IntegrityError) as exc:
         raise _http(exc) from exc
-    return _keyword_out(session, row, ss.current(session), applies_within_minutes=APPLIES_WITHIN_MINUTES)
+    dispatched = _saved(session, request)
+    return _keyword_out(
+        session,
+        row,
+        ss.current(session),
+        applies_within_minutes=APPLIES_WITHIN_MINUTES,
+        rescore_dispatched=dispatched,
+    )
 
 
 @router.patch("/keywords/{rule_id}", response_model=schemas.KeywordOut)
@@ -429,7 +513,14 @@ def patch_keyword(
         session.flush()
     except (Forbidden, RuleError) as exc:
         raise _http(exc) from exc
-    return _keyword_out(session, row, ss.current(session), applies_within_minutes=APPLIES_WITHIN_MINUTES)
+    dispatched = _saved(session, request)
+    return _keyword_out(
+        session,
+        row,
+        ss.current(session),
+        applies_within_minutes=APPLIES_WITHIN_MINUTES,
+        rescore_dispatched=dispatched,
+    )
 
 
 @router.post("/keywords/{rule_id}/deactivate", response_model=schemas.KeywordOut)
@@ -459,7 +550,14 @@ def _set_keyword_active(rule_id, enabled, request, session, caller) -> schemas.K
         session.flush()
     except (Forbidden, RuleError) as exc:
         raise _http(exc) from exc
-    return _keyword_out(session, row, ss.current(session), applies_within_minutes=APPLIES_WITHIN_MINUTES)
+    dispatched = _saved(session, request)
+    return _keyword_out(
+        session,
+        row,
+        ss.current(session),
+        applies_within_minutes=APPLIES_WITHIN_MINUTES,
+        rescore_dispatched=dispatched,
+    )
 
 
 # ------------------------------------------------------------------------------------------------ name patterns
@@ -528,7 +626,14 @@ def create_name_pattern(
         session.flush()
     except (Forbidden, RuleError, IntegrityError) as exc:
         raise _http(exc) from exc
-    return _pattern_out(session, row, ss.current(session), applies_within_minutes=APPLIES_WITHIN_MINUTES)
+    dispatched = _saved(session, request)
+    return _pattern_out(
+        session,
+        row,
+        ss.current(session),
+        applies_within_minutes=APPLIES_WITHIN_MINUTES,
+        rescore_dispatched=dispatched,
+    )
 
 
 @router.patch("/name-patterns/{rule_id}", response_model=schemas.NamePatternOut)
@@ -552,7 +657,14 @@ def patch_name_pattern(
         session.flush()
     except (Forbidden, RuleError) as exc:
         raise _http(exc) from exc
-    return _pattern_out(session, row, ss.current(session), applies_within_minutes=APPLIES_WITHIN_MINUTES)
+    dispatched = _saved(session, request)
+    return _pattern_out(
+        session,
+        row,
+        ss.current(session),
+        applies_within_minutes=APPLIES_WITHIN_MINUTES,
+        rescore_dispatched=dispatched,
+    )
 
 
 @router.post("/name-patterns/{rule_id}/deactivate", response_model=schemas.NamePatternOut)
@@ -584,7 +696,14 @@ def _set_pattern_active(rule_id, enabled, request, session, caller) -> schemas.N
         session.flush()
     except (Forbidden, RuleError) as exc:
         raise _http(exc) from exc
-    return _pattern_out(session, row, ss.current(session), applies_within_minutes=APPLIES_WITHIN_MINUTES)
+    dispatched = _saved(session, request)
+    return _pattern_out(
+        session,
+        row,
+        ss.current(session),
+        applies_within_minutes=APPLIES_WITHIN_MINUTES,
+        rescore_dispatched=dispatched,
+    )
 
 
 # ------------------------------------------------------------------------------------------------ watchlist
@@ -646,7 +765,8 @@ def add_watch(
         session.flush()
     except (Forbidden, RuleError, IntegrityError) as exc:
         raise _http(exc) from exc
-    return _watch_out(session, row, ss.current(session), dossier_queued=queued)
+    dispatched = _saved(session, request)
+    return _watch_out(session, row, ss.current(session), dossier_queued=queued, rescore_dispatched=dispatched)
 
 
 @router.patch("/watchlist/{rule_id}", response_model=schemas.WatchOut)
@@ -670,7 +790,8 @@ def patch_watch(
         session.flush()
     except (Forbidden, RuleError) as exc:
         raise _http(exc) from exc
-    return _watch_out(session, row, ss.current(session))
+    dispatched = _saved(session, request)
+    return _watch_out(session, row, ss.current(session), rescore_dispatched=dispatched)
 
 
 @router.post("/watchlist/{rule_id}/deactivate", response_model=schemas.WatchOut)
@@ -700,7 +821,8 @@ def _set_watch_active(rule_id, enabled, request, session, caller) -> schemas.Wat
         session.flush()
     except (Forbidden, RuleError) as exc:
         raise _http(exc) from exc
-    return _watch_out(session, row, ss.current(session))
+    dispatched = _saved(session, request)
+    return _watch_out(session, row, ss.current(session), rescore_dispatched=dispatched)
 
 
 # ------------------------------------------------------------------------------------------------ case scores

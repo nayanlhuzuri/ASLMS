@@ -22,6 +22,7 @@ import { T } from "@/lib/messages";
 import { offsetOf, PAGE, type Params } from "@/lib/params";
 
 import type { RowContext } from "./CaseModal";
+import { caseFiltersSet, NoCaseMatches } from "@/components/filters/NoCaseMatches";
 
 export function partiesText(c: { petitioner_summary: string | null; respondent_summary: string | null }) {
   if (!c.petitioner_summary && !c.respondent_summary) return <span className="muted">—</span>;
@@ -99,7 +100,13 @@ export function Recommended({ params, department, onOpen }: { params: Params; de
             rowKey={(r) => r.id}
             onRowClick={(rec) => onOpen({ kind: "recommended", rec })}
             rowLabel={(r) => T.claim.openRow(r.case.case_no_text || r.case.ref_no)}
-            empty={<EmptyState title={T.inbox.nothingWaiting}>{T.inbox.empty}</EmptyState>}
+            empty={
+              caseFiltersSet(params, "recommended", ["band"]) ? (
+                <NoCaseMatches params={params} list="recommended" />
+              ) : (
+                <EmptyState title={T.inbox.nothingWaiting}>{T.inbox.empty}</EmptyState>
+              )
+            }
           />
           <Pagination offset={offset} limit={PAGE} total={list.data.total} onChange={(o) => setFilters({ offset: String(o) })} />
         </>

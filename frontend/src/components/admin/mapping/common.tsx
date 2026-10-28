@@ -2,7 +2,8 @@
 
 /**
  * Pieces shared by the department mapping screens (design portal-mapping, decisions 4, 5 and 9; simplified by
- * portal-ui-polish-2, decisions 39-41): the one toolbar line (search, Include Deactivated), the menu of a row (Change
+ * portal-ui-polish-2, decisions 39-41; the kit's list toolbar by design list-search, decision 2): the one toolbar line
+ * (search, sort, Include Deactivated, order and count), the menu of a row (Change
  * Office where the API takes it, Deactivate or Reactivate after a confirmation), the case link through search and the
  * office cell. The forms never send `notes` or `weight`: the Scoring tab is the only place for weights. Showing an
  * input or an action is convenience only: the API decides every write.
@@ -10,7 +11,7 @@
 import Link from "next/link";
 import { useId, useState, type ReactNode } from "react";
 
-import { ConfirmDialog, Menu, OfficePicker, Switch, TextField, type MenuItem } from "@/components/ui";
+import { ConfirmDialog, ListSearch, ListToolbar, Menu, OfficePicker, Switch, type MenuItem } from "@/components/ui";
 import { ApiError, api } from "@/lib/api/client";
 import type { OfficeChoice, OfficePurpose } from "@/lib/api/types";
 import { given } from "@/lib/mapping";
@@ -49,34 +50,56 @@ export function SwitchLine({
 }
 
 /**
- * One toolbar line per tab (decision 41): a search box (its label kept for screen readers, the placeholder shows it),
- * the Include Deactivated switch and whatever the tab adds (the Keywords tab's kind choice).
+ * One toolbar line per tab (decision 41), now a thin wrapper over the kit's `ListToolbar` (design list-search,
+ * decision 2): the search box (shown above 10 rows or while a search is set, decision 8), the Sort By select where
+ * the table is drawn as cards, whatever the tab adds (the Keywords tab's kind choice), Include Deactivated, then the
+ * order line and the count.
  */
 export function RuleToolbar({
   searchLabel,
   placeholder,
   q,
   onQ,
+  onEnter,
   inactive,
   onInactive,
   children,
+  showSearch = true,
+  minChars,
+  busy,
+  sort,
+  order,
+  count,
 }: {
   searchLabel: string;
   placeholder: string;
   q: string;
   onQ: (q: string) => void;
+  onEnter?: () => void;
   inactive: boolean;
   onInactive: (v: boolean) => void;
   children?: ReactNode;
+  showSearch?: boolean;
+  minChars?: number;
+  busy?: boolean;
+  sort?: ReactNode;
+  order?: ReactNode;
+  count?: ReactNode;
 }) {
   return (
-    <div className={s.toolbar} role="search" aria-label={searchLabel}>
-      <div className={s.toolbarSearch}>
-        <TextField label={searchLabel} hideLabel type="search" placeholder={placeholder} value={q} onChange={(e) => onQ(e.target.value)} />
-      </div>
+    <ListToolbar
+      search={
+        showSearch ? (
+          <ListSearch label={searchLabel} placeholder={placeholder} value={q} onChange={onQ} onEnter={onEnter} minChars={minChars} busy={busy} />
+        ) : null
+      }
+      sort={sort}
+      order={order}
+      count={count}
+    >
       {children}
       <SwitchLine label={T.mapping.includeInactive} checked={inactive} onChange={onInactive} />
-    </div>
+    </ListToolbar>
   );
 }
 
@@ -283,11 +306,4 @@ export function OfficeCell({ office }: { office: { code: string; name: string } 
       {office.name} <span className="mono muted">({office.code})</span>
     </span>
   );
-}
-
-/** The rows whose text holds the search words (case ignored), for the lists the API answers whole. */
-export function matches(q: string, ...texts: (string | null | undefined)[]): boolean {
-  const needle = q.trim().toLowerCase();
-  if (!needle) return true;
-  return texts.some((t) => (t ?? "").toLowerCase().includes(needle));
 }

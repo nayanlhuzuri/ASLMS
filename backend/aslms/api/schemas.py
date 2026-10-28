@@ -458,11 +458,15 @@ class CounselCodeOut(BaseModel):
     is_active: bool
     updated_at: datetime
     applies_within_minutes: int | None = None
+    rescore_dispatched: bool | None = Field(
+        None, description="a save: the rescore was started at once (else the 15-minute beat picks it up)"
+    )
 
 
 class CounselCodeListOut(BaseModel):
     items: list[CounselCodeOut]
     total: int
+    total_all: int | None = Field(None, description="with `q`: the count without it (same office and status)")
 
 
 class PartialMatchOut(BaseModel):
@@ -480,6 +484,16 @@ class UnmappedCodeOut(BaseModel):
     last_listed: date | None
     example_case_ref: str | None
     partial_matches: list[PartialMatchOut] = []
+
+
+class UnmappedCodePageOut(BaseModel):
+    """One page of every unmapped code (design list-search, decision 9): `total` counts every unmapped code,
+    `matched` those matching `q`; `next_cursor` is null on the last page."""
+
+    items: list[UnmappedCodeOut]
+    total: int
+    matched: int
+    next_cursor: str | None
 
 
 class KeywordIn(BaseModel):
@@ -522,6 +536,9 @@ class KeywordOut(BaseModel):
     discoverable: bool
     discovery: RuleDiscoveryOut | None = None
     applies_within_minutes: int | None = None
+    rescore_dispatched: bool | None = Field(
+        None, description="a save: the rescore was started at once (else the 15-minute beat picks it up)"
+    )
 
 
 class KeywordListOut(BaseModel):
@@ -553,6 +570,9 @@ class NamePatternOut(BaseModel):
     discoverable: bool
     discovery: RuleDiscoveryOut | None = None
     applies_within_minutes: int | None = None
+    rescore_dispatched: bool | None = Field(
+        None, description="a save: the rescore was started at once (else the 15-minute beat picks it up)"
+    )
 
 
 class NamePatternListOut(BaseModel):
@@ -583,6 +603,9 @@ class WatchOut(BaseModel):
     is_active: bool
     updated_at: datetime
     dossier_queued: bool | None = None
+    rescore_dispatched: bool | None = Field(
+        None, description="a save: the rescore was started at once (else the 15-minute beat picks it up)"
+    )
 
 
 class WatchListOut(BaseModel):
@@ -3717,6 +3740,7 @@ class DiscoveryTermOut(BaseModel):
 class DiscoveryTermListOut(BaseModel):
     items: list[DiscoveryTermOut]
     total: int
+    total_all: int | None = Field(None, description="with `q`: the count without it")
 
 
 class DiscoveryRecommendationOut(BaseModel):
@@ -3739,6 +3763,7 @@ class DiscoveryCaseOut(BaseModel):
 class DiscoveryCaseListOut(BaseModel):
     items: list[DiscoveryCaseOut]
     total: int
+    total_all: int | None = Field(None, description="with `q`: the count without it")
 
 
 class DiscoverySearchIn(BaseModel):

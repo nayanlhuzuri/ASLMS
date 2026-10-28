@@ -22,6 +22,7 @@ import { T } from "@/lib/messages";
 import { offsetOf, PAGE, type Params } from "@/lib/params";
 
 import type { RowContext } from "./CaseModal";
+import { caseFiltersSet, NoCaseMatches } from "@/components/filters/NoCaseMatches";
 
 /** `status=all` in the URL is "Any"; without a status, In shows the requested ones. */
 export const ANY_STATUS = "all";
@@ -116,7 +117,13 @@ export function Transfers({ params, department, onOpen }: { params: Params; depa
             rowKey={(t) => t.id}
             onRowClick={(transfer) => onOpen({ kind: "transfer", transfer })}
             rowLabel={(t) => T.claim.openRow(t.case.case_no_text || t.case.ref_no)}
-            empty={<EmptyState title={T.inbox.nothingWaiting}>{T.inbox.empty}</EmptyState>}
+            empty={
+              caseFiltersSet(params, "transfers", ["status"]) ? (
+                <NoCaseMatches params={params} list="transfers" />
+              ) : (
+                <EmptyState title={T.inbox.nothingWaiting}>{T.inbox.empty}</EmptyState>
+              )
+            }
           />
           <Pagination offset={offset} limit={PAGE} total={list.data.total} onChange={(o) => setFilters({ offset: String(o) })} />
         </>

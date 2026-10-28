@@ -9,7 +9,7 @@
  */
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode, type Ref } from "react";
 
 import { formatNumber } from "@/lib/format";
 import { T } from "@/lib/messages";
@@ -532,9 +532,9 @@ export function FilterCard({
  * box moved into the kit): a named, focusable region at most `min(60vh, 560px)` high, with a sticky header row for a
  * table inside it. Every growing list in Data Collection sits in one.
  */
-export function ScrollBox({ label, children }: { label: string; children: ReactNode }) {
+export function ScrollBox({ label, children, ref }: { label: string; children: ReactNode; ref?: Ref<HTMLDivElement> }) {
   return (
-    <div className={s.scrollBox} role="region" aria-label={label} tabIndex={0} data-scroll-y="">
+    <div className={s.scrollBox} role="region" aria-label={label} tabIndex={0} data-scroll-y="" ref={ref}>
       {children}
     </div>
   );

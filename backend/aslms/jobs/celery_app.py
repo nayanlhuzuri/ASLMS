@@ -2,7 +2,8 @@
 the fetching itself is done by `aslms queue-worker`, so the broker only carries a few messages a day. The
 `rescore-dirty` entry (every 15 minutes) rescores every case when a matching rule, an office or the scoring
 settings changed since the last rescore (design recommend-and-claim, decision 4); a scoring-settings save
-also dispatches it at once. `extract-text` (every 5 minutes) extracts the text of pending documents
+and every mapping save (counsel codes, keywords, name patterns, watchlist) also dispatch it at once, one run at a
+time (design list-search, decision 41). `extract-text` (every 5 minutes) extracts the text of pending documents
 (orders, uploads) in batches of `TEXT_EXTRACT_BATCH`; an upload also dispatches `extract_document_text` at
 once (design documents-uploads, decision 10). The alert jobs (design alerts-notifications, "Jobs"):
 `alerts-scan-events` every 5 minutes, `alerts-sweep-dates` hourly at minute 10, `notifications-send` every
@@ -195,8 +196,11 @@ def enqueue_discovery() -> dict[str, int]:
 @app.task(name="aslms.rescore_if_dirty")
 def rescore_if_dirty() -> dict | None:
     """Rescores every case when a rule, an office or the scoring settings changed since the last succeeded
-    `rescore` run; None when nothing changed."""
-    report = matching.rescore_if_dirty(get_sessionmaker())
+    `rescore` run; None when nothing changed or a rescore is already running (design list-search, decision 41).
+    A rule changed during the run dispatches this task once more."""
+    report = matching.rescore_if_dirty(
+        get_sessionmaker(), dispatch=lambda: app.send_task("aslms.rescore_if_dirty", retry=False)
+    )
     return report.as_dict() if report is not None else None
 
 

@@ -24,6 +24,7 @@ import { offsetOf, PAGE, type Params } from "@/lib/params";
 import { NEXT_DATES_KEY } from "./common";
 import type { DialogOutcome } from "./Dialogs";
 import { reviewColumns } from "./ReviewItem";
+import { NoCaseMatches } from "@/components/filters/NoCaseMatches";
 
 const KINDS = ["confirm", "enter"] as const;
 
@@ -93,7 +94,13 @@ export function ReviewList({ params }: { params: Params }) {
       {list.isPending ? <Loading /> : null}
       {list.data ? (
         list.data.items.length === 0 ? (
-          <EmptyState>{defaults ? T.nd.emptyDefault : T.nd.empty}</EmptyState>
+          defaults ? (
+            <EmptyState>{T.nd.emptyDefault}</EmptyState>
+          ) : (
+            <NoCaseMatches params={params} list="next_dates">
+              {T.nd.empty}
+            </NoCaseMatches>
+          )
         ) : (
           <>
             <ReviewTable items={list.data.items} caption={T.nd.list} showCase {...outcome} />

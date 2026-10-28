@@ -6,36 +6,58 @@
  * Include Deactivated), one add row (CNR, checked in the browser before sending: four letters and twelve digits;
  * Office from the Office Picker, left empty for the caller's own department; Add), and a menu per row (Deactivate or
  * Reactivate). A CNR not yet held queues its court details (`dossier_queued`); a held case is scored again at once.
- * Case references link through search. No weight or reason is sent from the forms.
+ * Case references link through search. No weight or reason is sent from the forms. The list is held whole and
+ * searched and sorted in the browser (design list-search, decision 14): headers CNR, Case and Office.
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 
-import { Badge, Button, DataTable, EmptyState, ErrorBanner, Loading, Notice, OfficePicker, TextField } from "@/components/ui";
+import {
+  Badge,
+  Button,
+  DataTable,
+  EmptyState,
+  ErrorBanner,
+  ListCount,
+  ListSort,
+  Loading,
+  NoMatches,
+  Notice,
+  OfficePicker,
+  OrderLine,
+  ScrollBox,
+  sortByColumn,
+  sortOptionsOf,
+  TextField,
+  type Column,
+} from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { MAPPING_KEY } from "@/lib/api/hooks";
 import type { Watch, WatchList } from "@/lib/api/types";
 import { formatDateTime } from "@/lib/format";
+import { matchesWords, searchShown } from "@/lib/listSearch";
 import { given, isCnr, normaliseCnr, officeRequired } from "@/lib/mapping";
 import { T } from "@/lib/messages";
 import { useAction } from "@/lib/useAction";
+import { useListState } from "@/lib/useListState";
 
-import { conflictAware, matches, OfficeCell, RuleMenu, RuleToolbar, SearchLink } from "./common";
+import { conflictAware, OfficeCell, RuleMenu, RuleToolbar, SearchLink } from "./common";
 import s from "./mapping.module.css";
 
 const WATCH_KEY = [...MAPPING_KEY, "watchlist"] as const;
 /** Every kind but the State: a watch belongs to a department or an office below it. */
 const WATCH_KINDS = ["department", "central", "advocate_general", "directorate", "unit"];
+const WATCH_SORTS = ["cnr", "case", "office"] as const;
 
 /** After a save: queued details for a CNR not held yet, else the held case was scored again at once. */
 function savedLine(row: Watch): string {
   if (row.dossier_queued) return T.mapping.dossierQueued;
-  return row.case_ref ? T.mapping.scoredNow : T.saved;
+  return row.case_ref ? T.mapping.scoredNow : T.mapping.rescoreStarted;
 }
 
 export function Watchlist() {
   const queryClient = useQueryClient();
-  const [q, setQ] = useState("");
+  const state = useListState({ mode: "local", search: "browser", sortKeys: WATCH_SORTS });
   const [inactive, setInactive] = useState(false);
   const list = useQuery({
     queryKey: [...WATCH_KEY, { inactive }],
@@ -43,7 +65,58 @@ export function Watchlist() {
   });
   const refresh = () => queryClient.invalidateQueries({ queryKey: WATCH_KEY });
   const [notice, setNotice] = useState<string | null>(null);
-  const rows = (list.data?.items ?? []).filter((r) => matches(q, r.cnr, r.case_ref, r.office.name, r.office.code, r.reason));
+  const all = list.data?.items ?? [];
+  const searching = state.applied !== "";
+  const columns: Column<Watch>[] = [
+    {
+      key: "cnr",
+      header: T.mapping.cnr,
+      primary: true,
+      sort: { type: "text", value: (row) => row.cnr },
+      cell: (row) => <span className="mono">{row.cnr}</span>,
+    },
+    { key: "case", header: T.mapping.case, sort: { type: "text", value: (row) => row.case_ref }, cell: (row) => <SearchLink ref_no={row.case_ref} /> },
+    {
+      key: "office",
+      header: T.mapping.office,
+      sort: { type: "text", value: (row) => row.office.name },
+      cell: (row) => <OfficeCell office={row.office} />,
+    },
+    { key: "reason", header: T.mapping.reason, cell: (row) => row.reason ?? "—" },
+    {
+      key: "status",
+      header: T.mapping.status,
+      width: "var(--lead-w)",
+      cell: (row) => (row.is_active ? <Badge tone="success">{T.active}</Badge> : <Badge>{T.inactive}</Badge>),
+    },
+    { key: "updated", header: T.mapping.updated, cell: (row) => formatDateTime(row.updated_at) },
+    {
+      key: "actions",
+      header: <span className="visually-hidden">{T.mapping.actions}</span>,
+      label: T.mapping.actions,
+      width: "var(--s7)",
+      align: "right",
+      cell: (row) => (
+        <RuleMenu<Watch>
+          path={`/admin/watchlist/${row.id}`}
+          active={row.is_active}
+          label={row.cnr}
+          confirmText={T.mapping.watchConfirm}
+          onDone={(r) => {
+            setNotice(savedLine(r));
+            void refresh();
+          }}
+          onConflict={() => void refresh()}
+        />
+      ),
+    },
+  ];
+  const options = sortOptionsOf(columns);
+  const rows = sortByColumn(
+    all.filter((r) => matchesWords(state.applied, r.cnr, r.case_ref, r.office.name, r.office.code, r.reason)),
+    columns,
+    state.sort,
+  );
 
   return (
     <section className="stack" aria-label={T.mapping.watchlist}>
@@ -51,10 +124,14 @@ export function Watchlist() {
       <RuleToolbar
         searchLabel={T.mapping.searchWatchLabel}
         placeholder={T.mapping.searchWatchPlaceholder}
-        q={q}
-        onQ={setQ}
+        q={state.q}
+        onQ={state.setQ}
+        showSearch={searchShown(all.length, state.q)}
         inactive={inactive}
         onInactive={setInactive}
+        sort={state.stacked ? <ListSort options={options} sort={state.sort} onSort={state.setSort} defaultLabel={T.mapping.officeOrder} /> : null}
+        order={<OrderLine options={options} sort={state.sort} defaultLabel={T.mapping.officeOrder} onReset={state.resetSort} />}
+        count={list.data ? <ListCount shown={rows.length} total={all.length} noun={T.mapping.rulesNoun} nounOne={T.mapping.ruleNoun} searching={searching} /> : null}
       />
       <AddWatch
         onSaved={(row) => {
@@ -68,48 +145,23 @@ export function Watchlist() {
       <ErrorBanner error={given(list.error)} onRetry={() => list.refetch()} />
       {list.data ? (
         rows.length === 0 ? (
-          <EmptyState>{T.mapping.empty}</EmptyState>
+          searching ? (
+            <NoMatches q={state.applied} onClear={state.clear} />
+          ) : (
+            <EmptyState>{T.mapping.empty}</EmptyState>
+          )
         ) : (
-          <div className={s.scrollBox} tabIndex={0} role="region" aria-label={T.mapping.watchlist}>
+          <ScrollBox label={T.mapping.watchlist}>
             <DataTable
               caption={T.mapping.watchlist}
               rows={rows}
               rowKey={(row) => row.id}
-              columns={[
-                { key: "cnr", header: T.mapping.cnr, primary: true, cell: (row) => <span className="mono">{row.cnr}</span> },
-                { key: "case", header: T.mapping.case, cell: (row) => <SearchLink ref_no={row.case_ref} /> },
-                { key: "office", header: T.mapping.office, cell: (row) => <OfficeCell office={row.office} /> },
-                { key: "reason", header: T.mapping.reason, cell: (row) => row.reason ?? "—" },
-                {
-                  key: "status",
-                  header: T.mapping.status,
-                  width: "var(--lead-w)",
-                  cell: (row) => (row.is_active ? <Badge tone="success">{T.active}</Badge> : <Badge>{T.inactive}</Badge>),
-                },
-                { key: "updated", header: T.mapping.updated, cell: (row) => formatDateTime(row.updated_at) },
-                {
-                  key: "actions",
-                  header: <span className="visually-hidden">{T.mapping.actions}</span>,
-                  label: T.mapping.actions,
-                  width: "var(--s7)",
-                  align: "right",
-                  cell: (row) => (
-                    <RuleMenu<Watch>
-                      path={`/admin/watchlist/${row.id}`}
-                      active={row.is_active}
-                      label={row.cnr}
-                      confirmText={T.mapping.watchConfirm}
-                      onDone={(r) => {
-                        setNotice(savedLine(r));
-                        void refresh();
-                      }}
-                      onConflict={() => void refresh()}
-                    />
-                  ),
-                },
-              ]}
+              columns={columns}
+              sort={state.sort}
+              onSort={state.setSort}
+              onStackedChange={state.setStacked}
             />
-          </div>
+          </ScrollBox>
         )
       ) : null}
     </section>

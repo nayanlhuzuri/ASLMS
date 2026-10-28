@@ -9,7 +9,9 @@
  * wording change is a deactivation and a new rule; adding a rule that exists deactivated reactivates it (the API's
  * behaviour), and the screen says so when it knew the row. No weight is shown or sent: the Scoring tab is the only
  * place for weights. "Search the Court" (design department-discovery, decision 13a): the add row follows the text
- * until changed and is off for a regular expression; each row has its toggle (`PATCH {discover}`).
+ * until changed and is off for a regular expression; each row has its toggle (`PATCH {discover}`). The list is held
+ * whole and searched and sorted in the browser (design list-search, decision 14): every word in the text or the
+ * office, headers Word or Pattern, Kind, Office and Status, the office order by default.
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
@@ -21,29 +23,40 @@ import {
   DataTable,
   EmptyState,
   ErrorBanner,
+  ListCount,
+  ListSort,
   Loading,
+  NoMatches,
   Notice,
   OfficePicker,
+  OrderLine,
+  ScrollBox,
   SegmentedSwitch,
   SelectField,
+  sortByColumn,
+  sortOptionsOf,
   TextField,
+  type Column,
 } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { MAPPING_KEY } from "@/lib/api/hooks";
 import type { Keyword, KeywordList, NamePattern, NamePatternList } from "@/lib/api/types";
 import { formatDateTime } from "@/lib/format";
 import { isDiscoverable } from "@/lib/discovery";
+import { matchesWords, searchShown } from "@/lib/listSearch";
 import { given } from "@/lib/mapping";
 import { T } from "@/lib/messages";
 import { useAction } from "@/lib/useAction";
+import { useListState } from "@/lib/useListState";
 
-import { conflictAware, matches, OfficeCell, RuleMenu, RuleToolbar, SwitchLine } from "./common";
+import { conflictAware, OfficeCell, RuleMenu, RuleToolbar, SwitchLine } from "./common";
 import s from "./mapping.module.css";
 
 const KEYWORDS_KEY = [...MAPPING_KEY, "keywords"] as const;
 const PATTERNS_KEY = [...MAPPING_KEY, "name-patterns"] as const;
 const ADD_KINDS = ["keyword", "exact", "prefix", "regex"] as const;
 const SHOW = ["all", "keywords", "patterns"] as const;
+const WORD_SORTS = ["text", "kind", "office", "status"] as const;
 
 type Row =
   | { type: "keyword"; key: string; text: string; row: Keyword }
@@ -75,7 +88,7 @@ function DiscoverCell({ path, row, label, onDone }: { path: string; row: Keyword
 
 export function KeywordsAndPatterns() {
   const queryClient = useQueryClient();
-  const [q, setQ] = useState("");
+  const state = useListState({ mode: "local", search: "browser", sortKeys: WORD_SORTS });
   const [inactive, setInactive] = useState(false);
   const [show, setShow] = useState<(typeof SHOW)[number]>("all");
   const keywords = useQuery({
@@ -93,16 +106,79 @@ export function KeywordsAndPatterns() {
     ]);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const rows: Row[] = [
+  const all: Row[] = [
     ...(show !== "patterns"
       ? (keywords.data?.items ?? []).map((r): Row => ({ type: "keyword", key: `kw-${r.id}`, text: r.keyword, row: r }))
       : []),
     ...(show !== "keywords"
       ? (patterns.data?.items ?? []).map((r): Row => ({ type: "pattern", key: `np-${r.id}`, text: r.pattern, row: r }))
       : []),
-  ].filter((r) => matches(q, r.text, r.row.office.name, r.row.office.code));
+  ];
+  const kindText = (r: Row) => (r.type === "keyword" ? T.mapping.kindShort.keyword : (T.mapping.kindShort[r.row.kind] ?? r.row.kind));
+  const searching = state.applied !== "";
   const pending = keywords.isPending || patterns.isPending;
   const known = new Set([...(keywords.data?.items ?? []), ...(patterns.data?.items ?? [])].map((r) => r.id));
+  const columns: Column<Row>[] = [
+    {
+      key: "text",
+      header: T.mapping.wordLabel,
+      primary: true,
+      sort: { type: "text", value: (r) => r.text },
+      cell: (r) => (r.type === "pattern" ? <span className="mono">{r.text}</span> : r.text),
+    },
+    { key: "kind", header: T.mapping.kind, sort: { type: "text", value: kindText }, cell: kindText },
+    {
+      key: "office",
+      header: T.mapping.office,
+      sort: { type: "text", value: (r) => r.row.office.name },
+      cell: (r) => <OfficeCell office={r.row.office} />,
+    },
+    {
+      key: "discover",
+      header: T.discovery.searchCourt,
+      cell: (r) => (
+        <DiscoverCell
+          path={r.type === "keyword" ? `/admin/keywords/${r.row.id}` : `/admin/name-patterns/${r.row.id}`}
+          row={r.row}
+          label={r.text}
+          onDone={() => void refresh()}
+        />
+      ),
+    },
+    {
+      key: "status",
+      header: T.mapping.status,
+      width: "var(--lead-w)",
+      sort: { type: "text", value: (r) => (r.row.is_active ? T.active : T.inactive) },
+      cell: (r) => (r.row.is_active ? <Badge tone="success">{T.active}</Badge> : <Badge>{T.inactive}</Badge>),
+    },
+    {
+      key: "actions",
+      header: <span className="visually-hidden">{T.mapping.actions}</span>,
+      label: T.mapping.actions,
+      width: "var(--s7)",
+      align: "right",
+      cell: (r) => (
+        <RuleMenu<Keyword | NamePattern>
+          path={r.type === "keyword" ? `/admin/keywords/${r.row.id}` : `/admin/name-patterns/${r.row.id}`}
+          active={r.row.is_active}
+          label={r.text}
+          confirmText={T.mapping.ruleConfirm}
+          onDone={() => {
+            setNotice(T.mapping.rescoreStarted);
+            void refresh();
+          }}
+          onConflict={() => void refresh()}
+        />
+      ),
+    },
+  ];
+  const options = sortOptionsOf(columns);
+  const rows = sortByColumn(
+    all.filter((r) => matchesWords(state.applied, r.text, kindText(r), r.row.office.name, r.row.office.code)),
+    columns,
+    state.sort,
+  );
 
   return (
     <section className="stack" aria-label={T.mapping.keywordsAndPatterns}>
@@ -110,10 +186,14 @@ export function KeywordsAndPatterns() {
       <RuleToolbar
         searchLabel={T.mapping.searchWordsLabel}
         placeholder={T.mapping.searchWordsPlaceholder}
-        q={q}
-        onQ={setQ}
+        q={state.q}
+        onQ={state.setQ}
+        showSearch={searchShown(all.length, state.q)}
         inactive={inactive}
         onInactive={setInactive}
+        sort={state.stacked ? <ListSort options={options} sort={state.sort} onSort={state.setSort} defaultLabel={T.mapping.officeOrder} /> : null}
+        order={<OrderLine options={options} sort={state.sort} defaultLabel={T.mapping.officeOrder} onReset={state.resetSort} />}
+        count={pending ? null : <ListCount shown={rows.length} total={all.length} noun={T.mapping.rulesNoun} nounOne={T.mapping.ruleNoun} searching={searching} />}
       >
         <SegmentedSwitch
           label={T.mapping.showLabel}
@@ -135,67 +215,23 @@ export function KeywordsAndPatterns() {
       <ErrorBanner error={given(keywords.error ?? patterns.error)} onRetry={() => void refresh()} />
       {!pending && !keywords.error && !patterns.error ? (
         rows.length === 0 ? (
-          <EmptyState>{T.mapping.empty}</EmptyState>
+          searching ? (
+            <NoMatches q={state.applied} onClear={state.clear} />
+          ) : (
+            <EmptyState>{T.mapping.empty}</EmptyState>
+          )
         ) : (
-          <div className={s.scrollBox} tabIndex={0} role="region" aria-label={T.mapping.wordsCaption}>
+          <ScrollBox label={T.mapping.wordsCaption}>
             <DataTable
               caption={T.mapping.wordsCaption}
               rows={rows}
               rowKey={(r) => r.key}
-              columns={[
-                {
-                  key: "text",
-                  header: T.mapping.wordLabel,
-                  primary: true,
-                  cell: (r) => (r.type === "pattern" ? <span className="mono">{r.text}</span> : r.text),
-                },
-                {
-                  key: "kind",
-                  header: T.mapping.kind,
-                  cell: (r) => (r.type === "keyword" ? T.mapping.kindShort.keyword : (T.mapping.kindShort[r.row.kind] ?? r.row.kind)),
-                },
-                { key: "office", header: T.mapping.office, cell: (r) => <OfficeCell office={r.row.office} /> },
-                {
-                  key: "discover",
-                  header: T.discovery.searchCourt,
-                  cell: (r) => (
-                    <DiscoverCell
-                      path={r.type === "keyword" ? `/admin/keywords/${r.row.id}` : `/admin/name-patterns/${r.row.id}`}
-                      row={r.row}
-                      label={r.text}
-                      onDone={() => void refresh()}
-                    />
-                  ),
-                },
-                {
-                  key: "status",
-                  header: T.mapping.status,
-                  width: "var(--lead-w)",
-                  cell: (r) => (r.row.is_active ? <Badge tone="success">{T.active}</Badge> : <Badge>{T.inactive}</Badge>),
-                },
-                {
-                  key: "actions",
-                  header: <span className="visually-hidden">{T.mapping.actions}</span>,
-                  label: T.mapping.actions,
-                  width: "var(--s7)",
-                  align: "right",
-                  cell: (r) => (
-                    <RuleMenu<Keyword | NamePattern>
-                      path={r.type === "keyword" ? `/admin/keywords/${r.row.id}` : `/admin/name-patterns/${r.row.id}`}
-                      active={r.row.is_active}
-                      label={r.text}
-                      confirmText={T.mapping.ruleConfirm}
-                      onDone={(row) => {
-                        setNotice(T.mapping.appliesWithin(row.applies_within_minutes ?? 15));
-                        void refresh();
-                      }}
-                      onConflict={() => void refresh()}
-                    />
-                  ),
-                },
-              ]}
+              sort={state.sort}
+              onSort={state.setSort}
+              onStackedChange={state.setStacked}
+              columns={columns}
             />
-          </div>
+          </ScrollBox>
         )
       ) : null}
     </section>
@@ -234,7 +270,7 @@ function AddWord({ known, onSaved, onConflict }: { known: Set<string>; onSaved: 
       ),
     );
     if (out.ok) {
-      const line = T.mapping.appliesWithin(out.value.applies_within_minutes ?? 15);
+      const line = T.mapping.rescoreStarted;
       onSaved(known.has(out.value.id) ? `${T.mapping.reactivated} ${line}` : line);
       setText("");
       setOffice(null);

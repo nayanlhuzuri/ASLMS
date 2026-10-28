@@ -120,19 +120,26 @@
   container: recommended / inline-size;
 }
 
-.scrollBox {
-  max-height: min(60vh, 560px);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  border-radius: var(--r-md);
-}
-
+/* design list-search, decision 10: the codes load inside the kit ScrollBox (the same min(60vh, 560px)); the end
+   marker is what the next page's observer watches, and "Show 100 More" stays under the box for the keyboard */
 .recList {
   display: flex;
   flex-direction: column;
   margin: 0;
-  padding: 0;
+  padding: 0 var(--s3);
   list-style: none;
+}
+
+.recEnd {
+  height: 1px;
+}
+
+.recMore {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2) var(--s3);
 }
 
 .recList > li {

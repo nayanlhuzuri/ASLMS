@@ -25,6 +25,7 @@ import { casePath } from "@/lib/refs";
 import { useFilters } from "./common";
 import { isFiltered, useStageOptions } from "./MyCases";
 import { CaseCell, Chevron, CountLine, HolderCell, StageCell } from "./rows";
+import { NoCaseMatches } from "@/components/filters/NoCaseMatches";
 
 /** Layout B's More Filters on Department cases (design portal-ui-polish-2, decision 23); Case Type is on the right. */
 const DEPARTMENT_MORE: readonly SharedField[] = ["year", "court_no"];
@@ -167,7 +168,13 @@ export function DepartmentCases({ params, department, block }: { params: Params;
             rowKey={(r) => r.id}
             onRowClick={(r) => router.push(casePath(r.case.ref_no))}
             rowLabel={(r) => T.inbox.openCase(r.case.case_no_text || r.case.ref_no)}
-            empty={<EmptyState title={T.inbox.nothingWaiting}>{T.inbox.emptyViews.department}</EmptyState>}
+            empty={
+              isFiltered(params, DEPARTMENT_KEYS) ? (
+                <NoCaseMatches params={params} list="department" />
+              ) : (
+                <EmptyState title={T.inbox.nothingWaiting}>{T.inbox.emptyViews.department}</EmptyState>
+              )
+            }
           />
           <Pagination offset={offset} limit={PAGE} total={list.data.total} onChange={(o) => setFilters({ offset: String(o) })} />
         </>

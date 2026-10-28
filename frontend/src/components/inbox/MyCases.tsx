@@ -26,6 +26,7 @@ import type { MyView } from "@/lib/routes";
 import { useFilters } from "./common";
 import s from "./inbox.module.css";
 import { ActionCell, CaseCell, Chevron, CountLine, StageCell } from "./rows";
+import { NoCaseMatches } from "@/components/filters/NoCaseMatches";
 
 /** The stage choices: any, "No stage set" (`none`) and the catalogue's stages. */
 export function useStageOptions() {
@@ -95,7 +96,13 @@ export function MyCases({ view, params, counts }: { view: MyView; params: Params
             rowKey={(r) => r.case.id}
             onRowClick={(r) => router.push(casePath(r.case.ref_no))}
             rowLabel={(r) => T.inbox.openCase(r.case.case_no_text || r.case.ref_no)}
-            empty={<EmptyState title={T.inbox.nothingWaiting}>{T.inbox.emptyViews[view]}</EmptyState>}
+            empty={
+              isFiltered(params, MINE_KEYS) ? (
+                <NoCaseMatches params={params} list="mine" />
+              ) : (
+                <EmptyState title={T.inbox.nothingWaiting}>{T.inbox.emptyViews[view]}</EmptyState>
+              )
+            }
           />
           <Pagination offset={offset} limit={PAGE} total={list.data.total} onChange={(o) => setFilters({ offset: String(o) })} />
         </>

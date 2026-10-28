@@ -47,7 +47,7 @@ from aslms.domain.ownership import (
 )
 from aslms.domain.reference import Permission
 from aslms.integration.napix.hc import NapixHighCourt
-from aslms.services import access, napix_window, queue
+from aslms.services import access, case_filters, list_search, list_sort, napix_window, queue
 from aslms.services.access import Member
 from aslms.services.audit import Actor, write_audit
 from aslms.services.load_policy import DISCOVERY_DOSSIER, DISCOVERY_FULL, DISCOVERY_RECENT, QueueOrigin
@@ -58,6 +58,17 @@ MIN_YEAR = 1950
 MAX_REQUEST_YEARS = 30
 MAX_LIMIT, DEFAULT_LIMIT = 200, 50
 LATEST_FAILURES = 20
+# design list-search, decision 15: Names Searched and a name's Cases Found
+TERM_SORTS = {"name": "asc", "last_searched": "desc", "cases_found": "desc"}
+TERM_CASE_SORT = list_sort.SortSpec(
+    keys={
+        "last_found": list_sort.SortKey("last_found", (DiscoveryHit.last_found_at,), "date", "desc"),
+        "case_no": list_sort.case_no_key(Case),
+        "year": list_sort.SortKey("year", (DiscoveryHit.reg_year,), "number", "desc"),
+    },
+    default=(DiscoveryHit.last_found_at.desc(),),
+    tiebreak=Case.id,
+)
 NEW_DAYS = 7
 SWEEP_ACTION = "discovery.sweep"
 TERM_STATUSES = ("active", "inactive", "all")
@@ -451,11 +462,18 @@ def terms_view(
     status: str = "active",
     limit: int | None = None,
     offset: int | None = None,
-) -> tuple[list[dict[str, Any]], int]:
+    q: str | None = None,
+    sort: str | None = None,
+    dir: str | None = None,  # noqa: A002
+) -> tuple[list[dict[str, Any]], int, int | None]:
     """`GET /admin/discovery/terms`: the terms with at least one ticked rule in the caller's subtree (the super admin
-    sees all); rules and departments outside the subtree are not listed."""
+    sees all); rules and departments outside the subtree are not listed. `q` matches the name and the department
+    codes shown; `sort` is `name` (default, A to Z), `last_searched` or `cases_found` (design list-search, decision
+    15). Returns the page, `total` and `total_all` (the count without `q`, None without one)."""
     if status not in TERM_STATUSES:
         raise DiscoveryError("bad_input", "status is active, inactive or all")
+    lq = list_search.parse(q)
+    picked = list_sort.parse_keys(TERM_SORTS, sort, dir)
     visible = _visible_rules(session, user, office)
     roots = _scope_roots(session, user)
     rows = (
@@ -465,11 +483,29 @@ def terms_view(
     )
     active = active_departments(session, [r.term for r in rows])
     items = []
-    for t in sorted(rows, key=lambda r: r.term):
+    for t in sorted(rows, key=lambda r: (r.term, r.id)):
         is_on = t.term in active
         if (status == "active" and not is_on) or (status == "inactive" and is_on):
             continue
         items.append((t, is_on))
+    total_all = None
+    if lq is not None:
+        total_all = len(items)
+
+        def shown_codes(t: DiscoveryTerm) -> list[str]:
+            return [d.code for d in active.get(t.term, []) if _in_roots(d, roots)]
+
+        items = [(t, on) for t, on in items if list_search.matches(lq, [t.term, *shown_codes(t)])]
+    if picked is not None:
+        name, direction = picked
+        value = {
+            "name": lambda it: it[0].term,
+            "last_searched": lambda it: it[0].last_searched_at,
+            "cases_found": lambda it: it[0].cases_found,
+        }[name]
+        items = list_sort.sort_python(
+            items, value, direction, tiebreak=lambda it: it[0].id, text=name == "name"
+        )
     total = len(items)
     lim, off = _clamp(limit, offset)
     page = items[off : off + lim]
@@ -514,7 +550,7 @@ def terms_view(
                 "recent_sweep_queued_at": t.recent_sweep_queued_at,
             }
         )
-    return out, total
+    return out, total, total_all
 
 
 def term_cases(
@@ -525,16 +561,23 @@ def term_cases(
     only: str = "all",
     limit: int | None = None,
     offset: int | None = None,
-) -> tuple[list[dict[str, Any]], int]:
+    q: str | None = None,
+    sort: str | None = None,
+    dir: str | None = None,  # noqa: A002
+) -> tuple[list[dict[str, Any]], int, int | None]:
     """`GET /admin/discovery/terms/{id}/cases`: the cases a term found, as summaries (court-public fields), with the
     owner, the caller's departments' active recommendation (every department's with `cases.view_all`) and
-    `claimable` by the claim rule. 404 for a term without a ticked rule in the caller's subtree."""
+    `claimable` by the claim rule. 404 for a term without a ticked rule in the caller's subtree. `q` is the case
+    search (CNR, reference, case number or words) and only narrows; `sort` is `last_found` (default, newest first),
+    `case_no` or `year` (design list-search, decision 15). Returns the page, `total` and `total_all`."""
     from aslms.services import inbox
     from aslms.services.ownership import claimable_condition, shown_recommendations_condition
 
     if only not in CASE_FILTERS:
         raise DiscoveryError("bad_input", "only is all, pool, recommended or owned")
     term = _visible_term(session, user, term_id)
+    parsed = case_filters.parse_query(q) if q is not None and q.strip() else None
+    picked = list_sort.parse(TERM_CASE_SORT, sort, dir)
     shown = shown_recommendations_condition(session, user)
     stmt = (
         select(Case, DiscoveryHit, claimable_condition(session, user).label("claimable"))
@@ -547,10 +590,14 @@ def term_cases(
         stmt = stmt.where(~inbox.never_owned())
     elif only == "recommended":
         stmt = stmt.where(exists().where(Recommendation.case_id == Case.id, shown))
+    total_all = None
+    if parsed is not None:
+        total_all = int(session.scalar(select(func.count()).select_from(stmt.order_by(None).subquery())) or 0)
+        stmt = stmt.where(case_filters.query_condition(session, parsed, Case))
     total = int(session.scalar(select(func.count()).select_from(stmt.order_by(None).subquery())) or 0)
     lim, off = _clamp(limit, offset)
     rows = session.execute(
-        stmt.order_by(DiscoveryHit.last_found_at.desc(), Case.id).limit(lim).offset(off)
+        stmt.order_by(*list_sort.order_by(TERM_CASE_SORT, picked)).limit(lim).offset(off)
     ).all()
     cases = [r[0] for r in rows]
     ids = [c.id for c in cases]
@@ -585,7 +632,7 @@ def term_cases(
         }
         for c, hit, claimable in rows
     ]
-    return items, total
+    return items, total, total_all
 
 
 def found_for_condition(session: Session, office: Office) -> Any:

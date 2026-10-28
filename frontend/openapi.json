@@ -6563,6 +6563,18 @@
           "total": {
             "title": "Total",
             "type": "integer"
+          },
+          "total_all": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "with `q`: the count without it (same office and status)",
+            "title": "Total All"
           }
         },
         "required": [
@@ -6619,6 +6631,18 @@
           },
           "office": {
             "$ref": "#/components/schemas/OfficeRefOut"
+          },
+          "rescore_dispatched": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "a save: the rescore was started at once (else the 15-minute beat picks it up)",
+            "title": "Rescore Dispatched"
           },
           "updated_at": {
             "format": "date-time",
@@ -9909,6 +9933,18 @@
           "total": {
             "title": "Total",
             "type": "integer"
+          },
+          "total_all": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "with `q`: the count without it",
+            "title": "Total All"
           }
         },
         "required": [
@@ -10333,6 +10369,18 @@
           "total": {
             "title": "Total",
             "type": "integer"
+          },
+          "total_all": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "with `q`: the count without it",
+            "title": "Total All"
           }
         },
         "required": [
@@ -13438,6 +13486,18 @@
           "office": {
             "$ref": "#/components/schemas/OfficeRefOut"
           },
+          "rescore_dispatched": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "a save: the rescore was started at once (else the 15-minute beat picks it up)",
+            "title": "Rescore Dispatched"
+          },
           "updated_at": {
             "format": "date-time",
             "title": "Updated At",
@@ -15956,6 +16016,18 @@
           "pattern": {
             "title": "Pattern",
             "type": "string"
+          },
+          "rescore_dispatched": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "a save: the rescore was started at once (else the 15-minute beat picks it up)",
+            "title": "Rescore Dispatched"
           },
           "updated_at": {
             "format": "date-time",
@@ -24119,6 +24191,45 @@
         "title": "UnmappedCodeOut",
         "type": "object"
       },
+      "UnmappedCodePageOut": {
+        "description": "One page of every unmapped code (design list-search, decision 9): `total` counts every unmapped code,\n`matched` those matching `q`; `next_cursor` is null on the last page.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/UnmappedCodeOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "matched": {
+            "title": "Matched",
+            "type": "integer"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "matched",
+          "next_cursor"
+        ],
+        "title": "UnmappedCodePageOut",
+        "type": "object"
+      },
       "UnmatchedRowOut": {
         "properties": {
           "pet_name": {
@@ -24936,6 +25047,18 @@
             ],
             "title": "Reason"
           },
+          "rescore_dispatched": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "a save: the rescore was started at once (else the 15-minute beat picks it up)",
+            "title": "Rescore Dispatched"
+          },
           "updated_at": {
             "format": "date-time",
             "title": "Updated At",
@@ -25647,7 +25770,7 @@
     },
     "/admin/counsel-codes/unmapped": {
       "get": {
-        "description": "Codes seen in cause lists and dossiers with no mapping, most frequent first, each with the mappings in the\ncaller's office subtree that it partly matches. Nothing is mapped automatically.",
+        "description": "Codes seen in cause lists and dossiers with no mapping, most frequent first, each with the mappings in the\ncaller's office subtree that it partly matches. Nothing is mapped automatically. Kept for the CLI and older\nclients; the portal reads `/counsel-codes/unmapped/page` (design list-search, decision 9).",
         "operationId": "unmapped_counsel_codes_admin_counsel_codes_unmapped_get",
         "parameters": [
           {
@@ -25693,6 +25816,135 @@
           }
         ],
         "summary": "Unmapped Counsel Codes",
+        "tags": [
+          "matching"
+        ]
+      }
+    },
+    "/admin/counsel-codes/unmapped/page": {
+      "get": {
+        "description": "Every unmapped code, keyset-paged (design list-search, decisions 9-12 and 39): `q` matches the code ignoring\nspaces and punctuation; `sort` is `entries`, `code` or `last_seen`; `next_cursor` carries the sort (400\n`bad_cursor` when sent with another). Every holder of `admin.counsel_codes` sees every unmapped printed code;\npartial matches stay inside the caller's office subtree. Nothing is mapped automatically.",
+        "operationId": "unmapped_counsel_codes_page_admin_counsel_codes_unmapped_page_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "description": "entries (default, most first), code or last_seen",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "entries (default, most first), code or last_seen",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "asc or desc; without it the key's first direction",
+            "in": "query",
+            "name": "dir",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "asc or desc; without it the key's first direction",
+              "title": "Dir"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnmappedCodePageOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Unmapped Counsel Codes Page",
         "tags": [
           "matching"
         ]
@@ -27985,7 +28237,7 @@
     },
     "/admin/discovery/terms": {
       "get": {
-        "description": "The terms with at least one rule ticked \"Search the court\" in the caller's subtree (all for the super admin):\ntheir rules and departments inside that subtree, years searched / waiting / failed, the last search and the\ncases found. `status` is `active` (default), `inactive` or `all`.",
+        "description": "The terms with at least one rule ticked \"Search the court\" in the caller's subtree (all for the super admin):\ntheir rules and departments inside that subtree, years searched / waiting / failed, the last search and the\ncases found. `status` is `active` (default), `inactive` or `all`. `q`, `sort` and `dir` search and order the list\n(design list-search, decision 15); `total_all` is the count without `q`.",
         "operationId": "list_terms_admin_discovery_terms_get",
         "parameters": [
           {
@@ -28034,6 +28286,60 @@
               "default": 0,
               "title": "Offset",
               "type": "integer"
+            }
+          },
+          {
+            "description": "the name or a department code (2 to 100 characters)",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "the name or a department code (2 to 100 characters)",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "name (default), last_searched or cases_found",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "name (default), last_searched or cases_found",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "asc or desc",
+            "in": "query",
+            "name": "dir",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "asc or desc",
+              "title": "Dir"
             }
           }
         ],
@@ -28112,7 +28418,7 @@
     },
     "/admin/discovery/terms/{term_id}/cases": {
       "get": {
-        "description": "The cases a term found (summaries), latest found first, with the owner, the caller's departments'\nrecommendation (every department's with `cases.view_all`) and `claimable`. `only` is `all`, `pool`,\n`recommended` or `owned`. 404 when the term has no rule in the caller's subtree.",
+        "description": "The cases a term found (summaries), latest found first, with the owner, the caller's departments'\nrecommendation (every department's with `cases.view_all`) and `claimable`. `only` is `all`, `pool`,\n`recommended` or `owned`. 404 when the term has no rule in the caller's subtree. `q` (the case search) only\nnarrows; `sort` and `dir` order the list (design list-search, decision 15).",
         "operationId": "term_cases_admin_discovery_terms__term_id__cases_get",
         "parameters": [
           {
@@ -28153,6 +28459,60 @@
               "default": 0,
               "title": "Offset",
               "type": "integer"
+            }
+          },
+          {
+            "description": "the case search: CNR, case number, reference or words",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "the case search: CNR, case number, reference or words",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "last_found (default), case_no or year",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "last_found (default), case_no or year",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "asc or desc",
+            "in": "query",
+            "name": "dir",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "asc or desc",
+              "title": "Dir"
             }
           }
         ],

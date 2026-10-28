@@ -33,6 +33,7 @@ import { useFilters } from "./common";
 import s from "./inbox.module.css";
 import { isFiltered, useStageOptions } from "./MyCases";
 import { Chevron, CountLine } from "./rows";
+import { NoCaseMatches } from "@/components/filters/NoCaseMatches";
 
 /** The Show control (decision 8): the first of the filter bar's own controls. */
 export function showControl(): OwnControl {
@@ -160,7 +161,13 @@ function WorkingAll({ params, counts }: { params: Params; counts: MyCaseCounts |
             rowKey={(r) => r.case.id}
             onRowClick={setOpen}
             rowLabel={(r) => T.files.openFile(r.case.case_no_text || r.case.ref_no)}
-            empty={<EmptyState title={T.inbox.nothingWaiting}>{T.inbox.emptyViews.working}</EmptyState>}
+            empty={
+              isFiltered(params, WORKING_KEYS) ? (
+                <NoCaseMatches params={params} list="mine" />
+              ) : (
+                <EmptyState title={T.inbox.nothingWaiting}>{T.inbox.emptyViews.working}</EmptyState>
+              )
+            }
           />
           {list.data.items.length > 0 ? (
             <Pagination offset={offset} limit={PAGE} total={list.data.total} onChange={(o) => setFilters({ offset: String(o) })} />

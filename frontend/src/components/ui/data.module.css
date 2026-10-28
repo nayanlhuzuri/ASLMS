@@ -445,3 +445,52 @@
   color: var(--text-3);
   font-size: var(--t-sm);
 }
+
+/* design list-search, decision 27: a sortable header is a button with the header's text and an arrow; the faint
+   two-way arrow of an unsorted column shows only on hover and focus, so the header row stays calm */
+.sortButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-md);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+.sortButton:hover {
+  color: var(--text);
+}
+
+.sortButton:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 0;
+}
+
+.sortIcon {
+  flex: none;
+  opacity: 0;
+  transition: opacity var(--fast) var(--ease);
+}
+
+.sortButton:hover .sortIcon,
+.sortButton:focus-visible .sortIcon {
+  opacity: 0.55;
+}
+
+.sortButton[data-sorted] {
+  color: var(--text);
+}
+
+.sortButton[data-sorted] .sortIcon {
+  opacity: 1;
+}
+
+.num .sortButton {
+  flex-direction: row-reverse;
+}

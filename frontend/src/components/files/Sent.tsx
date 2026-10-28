@@ -27,6 +27,7 @@ import { offsetOf, PAGE, type Params } from "@/lib/params";
 import { FilePanel } from "./FilePanel";
 import { CaseCell, DueCell, LeadCell, WithCell } from "./Held";
 import s from "./files.module.css";
+import { caseFiltersSet, NoCaseMatches } from "@/components/filters/NoCaseMatches";
 
 function overdue(item: SentItem): boolean {
   return item.current === true && !!item.leg.due_date && item.leg.due_date < istDay();
@@ -77,7 +78,9 @@ export function Sent({ params }: { params: Params }) {
             onRowClick={setOpen}
             rowLabel={(r) => T.files.openFile(r.case.case_no_text || r.case.ref_no)}
             rowClassName={(r) => (r.current === false ? s.mutedRow : undefined)}
-            empty={<EmptyState>{T.files.emptySent}</EmptyState>}
+            empty={
+              caseFiltersSet(params, "sent") ? <NoCaseMatches params={params} list="sent" /> : <EmptyState>{T.files.emptySent}</EmptyState>
+            }
           />
           {list.data.items.length > 0 ? (
             <Pagination offset={offset} limit={PAGE} total={list.data.total} onChange={(o) => setFilters({ offset: String(o) })} />

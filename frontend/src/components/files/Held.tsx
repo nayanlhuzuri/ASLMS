@@ -30,6 +30,7 @@ import { offsetOf, PAGE, type Params } from "@/lib/params";
 import { FilePanel } from "./FilePanel";
 import { TRACK_ERRORS, TrackingSummary } from "./TrackingSummary";
 import s from "./files.module.css";
+import { caseFiltersSet, NoCaseMatches } from "@/components/filters/NoCaseMatches";
 
 export type HeldScope = "me" | "office" | "owned";
 
@@ -186,7 +187,13 @@ export function Held({ tab, params }: { tab: "with-me" | "pending"; params: Para
             rowKey={(r) => r.case.id}
             onRowClick={setOpen}
             rowLabel={(r) => T.files.openFile(r.case.case_no_text || r.case.ref_no)}
-            empty={<EmptyState>{EMPTY[scope]}</EmptyState>}
+            empty={
+              caseFiltersSet(params, listKey, own.filter((c) => c.kind !== "segmented").map((c) => c.key)) ? (
+                <NoCaseMatches params={params} list={listKey} />
+              ) : (
+                <EmptyState>{EMPTY[scope]}</EmptyState>
+              )
+            }
           />
           {list.data.items.length > 0 ? (
             <Pagination offset={offset} limit={PAGE} total={list.data.total} onChange={(o) => setFilters({ offset: String(o) })} />

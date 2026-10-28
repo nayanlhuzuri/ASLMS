@@ -1149,3 +1149,38 @@ None. Every decision above is made. The owner's approval covers in particular:
   timeline;
 - decision 34: the Audit Log and Court Calls sorted by direction only;
 - decision 40: the four rounds, with round 1 after row 172.
+
+## Deviations
+
+Round 1 (developer, 28 Oct 2026). Each is the smallest option where the note was silent.
+
+1. **`total_all` of Counsel Codes.** `matching_rules.list_counsel_codes` keeps returning its list; the count without
+   `q` comes from a new `count_counsel_codes` under the same scope, and the router sets `total_all` only when `q` is
+   sent. Its `q` now escapes LIKE wildcards (decision 6).
+2. **Names Searched is filtered and sorted in Python.** A term's departments are derived live from the rules, so
+   `terms_view` keeps building the list in Python: `list_search.matches` (the Python twin of `condition`) and
+   `list_sort.sort_python` (blanks last, the term id as tie-breaker, the same direction) stand in for the SQL helpers.
+   `list_sort.parse_keys` holds the allow-list rule shared by both. `terms_view` and `term_cases` return
+   `(items, total, total_all)`.
+3. **`case_no_exprs`** reads the case type's short name through a correlated subquery instead of a left join, so no
+   list needs its own join. The `case_no` key also orders by `reg_no IS NULL` first (ascending in both directions), so
+   a case with no registration number comes after the numbered ones whatever its type (decision 37).
+4. **One rescore at a time** uses both guards of decision 41: the claim runs under `pg_advisory_xact_lock` (valid in
+   PgBouncer transaction mode) and refuses while a `rescore` row is `running` and started within 30 minutes; the
+   claimed row is committed before the lock is released. The follow-up after a change during the run is dispatched
+   through a `dispatch` callable that the Celery task passes (the service never imports the API).
+5. **The save's answer** gains `rescore_dispatched` (additive) on the counsel-code, keyword, name-pattern and watchlist
+   outs; the screens say "Recommendations will update in a few minutes." The deactivate confirmation reads "...counting
+   when the recommendations update, in a few minutes."
+6. **Alerts and Next Dates** keep their own filtered wording ("No alerts match these filters.", "No item matches these
+   filters.") with the Clear All button, because their rows are not cases; the other filter-form lists say "No cases
+   match these filters." (decision 18).
+7. **`ListCount`** takes a singular noun as well, so one row reads "1 code not mapped", not "1 codes not mapped".
+8. **Browser-sorted Mapping lists** (Keywords, Watchlist, Rules with Their Own Weight) name their default "Office
+   Order" (the API's order) and mark no default column with `aria-sort`, since the office order is the offices' tree
+   order, not a column's. Status sorts by its word (Active, Inactive).
+9. **Court Search.** The Name field's suggestions read the names unfiltered, apart from the list's own search and sort;
+   the Show select of a name's cases sits on the toolbar line with its label kept for screen readers only.
+10. **The kit `ScrollBox`** draws a border, so the recommended list gets inline padding inside it.
+11. **Tests.** The rescore tests of decision 41 are in `tests/db/test_rescore_on_save.py`; the uicheck fixtures serve
+    1,066 synthetic codes on `/admin/counsel-codes/unmapped/page` (the three earlier codes first).

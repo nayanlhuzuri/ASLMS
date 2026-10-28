@@ -63,6 +63,21 @@ export function looksLikeLabel(text: string): boolean {
  * must either be Title Case or declare itself here.
  */
 export const SENTENCE_EXCEPTIONS: Record<string, string> = {
+  // design list-search: nouns read after a number in a count ("12 of 340 codes"), and order names read after "Order:"
+  "mapping.codesNoun": "a noun read after a number in a count",
+  "mapping.codesNotMapped": "words read after a number in a count",
+  "mapping.rulesNoun": "a noun read after a number in a count",
+  "mapping.casesNoun": "a noun read after a number in a count",
+  "mapping.namesNoun": "a noun read after a number in a count",
+  "inbox.casesNoun": "a noun read after a number in a count",
+  "inbox.caseNoun": "a noun read after a number in a count",
+  "mapping.codeNoun": "a noun read after a number in a count",
+  "mapping.codeNotMapped": "words read after a number in a count",
+  "mapping.ruleNoun": "a noun read after a number in a count",
+  "mapping.caseNoun": "a noun read after a number in a count",
+  "mapping.nameNoun": "a noun read after a number in a count",
+  "mapping.codesDefault": "an order name, a column then its direction words, read after Order:",
+  "discovery.namesDefault": "an order name, a column then its direction words, read after Order:",
   // design data-collection-redesign: reasons read inside an estimate sentence ("no date, the court connection is off")
   "dc.reasons.connection_off": "a reason read inside the estimate sentence",
   "dc.reasons.paused": "a reason read inside the estimate sentence",
@@ -153,4 +168,5 @@ export const LABEL_FUNCTIONS: Record<string, unknown[]> = {
   "system.ringLabel": ["80%"],
   "assistant.courtRecordTitle": ["WP(C) 12/2026"],
   "hearing.badges.inDays": [3],
+  "list.showMoreButton": [100],
 };

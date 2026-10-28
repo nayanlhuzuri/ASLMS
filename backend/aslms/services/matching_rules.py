@@ -23,7 +23,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from aslms.domain.cases import Case
@@ -41,6 +41,7 @@ from aslms.domain.reference import EventType, Permission
 from aslms.services import access, matching, queue
 from aslms.services import scoring_settings as ss
 from aslms.services.audit import Actor, snapshot, write_audit
+from aslms.services.case_filters import LIKE_ESCAPE, like_escape
 from aslms.services.cases import emit_event
 
 
@@ -300,16 +301,14 @@ def set_counsel_code_active(
     return row
 
 
-def list_counsel_codes(
+def _counsel_codes_stmt(
     session: Session,
     actor_user: User,
     *,
-    office: Office | None = None,
-    q: str | None = None,
-    include_inactive: bool = False,
-) -> list[CounselCode]:
-    """Rules whose office is in the caller's subtree, plus the generic codes (read-only); all for the super
-    admin."""
+    office: Office | None,
+    q: str | None,
+    include_inactive: bool,
+):
     access.require(session, actor_user, Permission.ADMIN_COUNSEL_CODES)
     stmt = select(CounselCode).join(Office, Office.id == CounselCode.office_id)
     if not access.is_super_admin(actor_user):
@@ -323,10 +322,35 @@ def list_counsel_codes(
     if office is not None:
         stmt = stmt.where(or_(Office.id == office.id, Office.path.like(office.path + "/%")))
     if q:
-        stmt = stmt.where(CounselCode.code.ilike(f"%{matching.normalise_counsel_code(q)}%"))
+        # LIKE wildcards in the search match literally (design list-search, decision 6)
+        needle = like_escape(matching.normalise_counsel_code(q))
+        stmt = stmt.where(CounselCode.code.ilike(f"%{needle}%", escape=LIKE_ESCAPE))
     if not include_inactive:
         stmt = stmt.where(CounselCode.is_active.is_(True))
-    return list(session.scalars(stmt.order_by(CounselCode.code)).all())
+    return stmt
+
+
+def list_counsel_codes(
+    session: Session,
+    actor_user: User,
+    *,
+    office: Office | None = None,
+    q: str | None = None,
+    include_inactive: bool = False,
+) -> list[CounselCode]:
+    """Rules whose office is in the caller's subtree, plus the generic codes (read-only); all for the super
+    admin."""
+    stmt = _counsel_codes_stmt(session, actor_user, office=office, q=q, include_inactive=include_inactive)
+    return list(session.scalars(stmt.order_by(CounselCode.code, CounselCode.id)).all())
+
+
+def count_counsel_codes(
+    session: Session, actor_user: User, *, office: Office | None = None, include_inactive: bool = False
+) -> int:
+    """The count `list_counsel_codes` gives without a search: the list's `total_all` (design list-search,
+    decision 7), under the same scope."""
+    stmt = _counsel_codes_stmt(session, actor_user, office=office, q=None, include_inactive=include_inactive)
+    return int(session.scalar(select(func.count()).select_from(stmt.subquery())) or 0)
 
 
 def counsel_code_scope(session: Session, actor_user: User) -> Callable[[uuid.UUID], bool] | None:

@@ -115,11 +115,12 @@ export const LIST_FILTERS: Record<ListKey, ListFilters> = {
   // design portal-next-dates, decision 4: the review list's own control is "Show" (`kind`)
   next_dates: { fields: [...ALL_CASE, "owner"], fixed: ["kind"] },
   // design portal-ui-redesign, decision 5: the Case inbox views (quick chips for the next hearing and the action,
-  // Stage, then words, case type, year and court under "More filters")
+  // Stage, then case type, year and court under "More filters"); design list-search, decision 17: Search Words is on
+  // the first row, no longer hidden under More Filters
   mine: {
     fields: ["q", "next", "case_type", "year", "court_no"],
     fixed: [],
-    more: ["q", "case_type", "year", "court_no"],
+    more: ["case_type", "year", "court_no"],
     hidden: ["next"],
   },
   // Department cases: Search, Unit, Officer, Stage, Next hearing; More: case type, year, court, file holder, action

@@ -57,3 +57,19 @@ def http_error(exc: Exception) -> HTTPException:
     if isinstance(exc, OfficeError | UserError):
         return HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
     raise exc
+
+
+def list_error(exc: Exception) -> HTTPException:
+    """A list's search, sort or cursor refused (design `list-search`, decisions 6 and 32): 400 `bad_q`,
+    `bad_cursor` or `bad_sort` (with the allowed keys). A case-search `q` refused by `case_filters` is `bad_q`."""
+    from aslms.services.case_filters import CaseFilterError
+    from aslms.services.list_search import ListSearchError
+    from aslms.services.list_sort import ListSortError
+
+    if isinstance(exc, ListSortError):
+        return HTTPException(status.HTTP_400_BAD_REQUEST, detail(exc.code, str(exc), allowed=exc.allowed))
+    if isinstance(exc, ListSearchError):
+        return HTTPException(status.HTTP_400_BAD_REQUEST, detail(exc.code, str(exc)))
+    if isinstance(exc, CaseFilterError):
+        return HTTPException(status.HTTP_400_BAD_REQUEST, detail("bad_q", str(exc)))
+    raise exc

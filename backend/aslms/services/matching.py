@@ -26,6 +26,8 @@ Matching runs in Python over the loaded rules; no SQL is built from rule text.""
 
 from __future__ import annotations
 
+import base64
+import json
 import re
 import uuid
 from collections import defaultdict
@@ -959,14 +961,18 @@ def last_rescore_start(session: Session) -> datetime | None:
     )
 
 
-def rescore_all(session_factory: sessionmaker[Session], *, batch: int = 500) -> ScoreReport:
+def rescore_all(
+    session_factory: sessionmaker[Session], *, batch: int = 500, run_id: uuid.UUID | None = None
+) -> ScoreReport:
     """Rescores every non-merged case in batches (one commit per batch) and expires the active engine
-    recommendations of merged cases. One `job_runs` row `rescore` with the counters."""
-    with session_factory() as s:
-        run = JobRun(job="rescore", run_date=today_ist())
-        s.add(run)
-        s.commit()
-        run_id = run.id
+    recommendations of merged cases. One `job_runs` row `rescore` with the counters (`run_id`: a row already
+    claimed by `rescore_if_dirty`)."""
+    if run_id is None:
+        with session_factory() as s:
+            run = JobRun(job="rescore", run_date=today_ist())
+            s.add(run)
+            s.commit()
+            run_id = run.id
     total = ScoreReport(job_run_id=run_id)
     status, error = JobStatus.FAILED, None
     try:
@@ -1018,12 +1024,59 @@ def rescore_all(session_factory: sessionmaker[Session], *, batch: int = 500) -> 
     return total
 
 
-def rescore_if_dirty(session_factory: sessionmaker[Session], *, batch: int = 500) -> ScoreReport | None:
+# design list-search, decision 41: one rescore at a time. A `rescore` row still `running` and started within this
+# window means a rescore is under way; an older one is a run that died and no longer blocks.
+RESCORE_RUNNING_WINDOW_MINUTES = 30
+# the transaction-scoped advisory lock taken while a run is claimed (PgBouncer transaction mode keeps it valid)
+RESCORE_CLAIM_LOCK = 0x41534C4D53_0041  # "ASLMS" + 0x41
+
+
+def claim_rescore(session_factory: sessionmaker[Session]) -> uuid.UUID | None:
+    """The single-flight claim: under `pg_advisory_xact_lock`, None when a rescore is running (started in the last
+    30 minutes) or no rule changed since the last succeeded run; otherwise a new `running` `rescore` row, committed
+    before the lock is released, so a second claim at the same moment sees it."""
     with session_factory() as s:
-        dirty = rules_changed_since(s, last_rescore_start(s))
-    if not dirty:
+        s.execute(select(func.pg_advisory_xact_lock(RESCORE_CLAIM_LOCK)))
+        running = s.scalar(
+            select(JobRun.id)
+            .where(
+                JobRun.job == "rescore",
+                JobRun.status == JobStatus.RUNNING,
+                JobRun.started_at > func.now() - text(f"interval '{RESCORE_RUNNING_WINDOW_MINUTES} minutes'"),
+            )
+            .limit(1)
+        )
+        if running is not None or not rules_changed_since(s, last_rescore_start(s)):
+            s.rollback()
+            return None
+        run = JobRun(job="rescore", run_date=today_ist())
+        s.add(run)
+        s.commit()
+        return run.id
+
+
+def rescore_if_dirty(
+    session_factory: sessionmaker[Session],
+    *,
+    batch: int = 500,
+    dispatch: Callable[[], Any] | None = None,
+) -> ScoreReport | None:
+    """Rescores every case when a rule, an office or the settings changed since the last succeeded run, one run at a
+    time (`claim_rescore`); None when a run is under way or nothing changed. When a rule changed while this run was
+    going, `dispatch` is called once, so the last mapping is never left for the beat."""
+    run_id = claim_rescore(session_factory)
+    if run_id is None:
         return None
-    return rescore_all(session_factory, batch=batch)
+    report = rescore_all(session_factory, batch=batch, run_id=run_id)
+    with session_factory() as s:
+        started = s.scalar(select(JobRun.started_at).where(JobRun.id == run_id))
+        again = rules_changed_since(s, started)
+    if again and dispatch is not None:
+        try:
+            dispatch()
+        except Exception as exc:  # noqa: BLE001  (the beat picks the change up)
+            log.warning("rescore follow-up not dispatched", error=str(exc))
+    return report
 
 
 def rescore_case(
@@ -1047,13 +1100,10 @@ class UnmappedCode:
 PARTIAL_MATCHES_SHOWN = 5
 
 
-def unmapped_codes(
-    session: Session, *, limit: int = 200, scope: Callable[[uuid.UUID], bool] | None = None
-) -> list[UnmappedCode]:
-    """Codes seen in cause-list entries and current dossier advocates with no active mapping (generic codes
-    are mappings too), normalised, most frequent first. `entries` counts cause-list entries plus dossier
-    advocate rows. Each code carries up to 5 mapped codes it partly matches (design partial-code-match, decision
-    16), only those whose office passes `scope` (None: every mapping, for the super admin)."""
+def _unmapped_aggregate(session: Session) -> list[tuple[str, dict[str, Any]]]:
+    """Every printed code with no active mapping, normalised and merged: cause-list entries of the current lists plus
+    current dossier advocates (`n` counts both), the latest list date (`last`, None for a code seen only in case
+    details) and one example case id (`example`). Unordered."""
     mapped = {
         normalise_counsel_code(c)
         for c in session.scalars(select(CounselCode.code).where(CounselCode.is_active.is_(True))).all()
@@ -1094,7 +1144,15 @@ def unmapped_codes(
         a = agg.setdefault(k, {"n": 0, "last": None, "example": None})
         a["n"] += int(n)
         a["example"] = a["example"] or example
-    ordered = sorted(agg.items(), key=lambda kv: (-kv[1]["n"], kv[0]))[:limit]
+    return list(agg.items())
+
+
+def _unmapped_items(
+    session: Session,
+    ordered: list[tuple[str, dict[str, Any]]],
+    scope: Callable[[uuid.UUID], bool] | None,
+) -> list[UnmappedCode]:
+    """Example references and partial matches for these codes only (one `RuleSet.load`)."""
     example_ids = [uuid.UUID(v["example"]) for _, v in ordered if v["example"]]
     refs = (
         dict(session.execute(select(Case.id, Case.ref_no).where(Case.id.in_(example_ids))).all())
@@ -1123,3 +1181,160 @@ def unmapped_codes(
         )
         for k, v in ordered
     ]
+
+
+def unmapped_codes(
+    session: Session, *, limit: int = 200, scope: Callable[[uuid.UUID], bool] | None = None
+) -> list[UnmappedCode]:
+    """Codes seen in cause-list entries and current dossier advocates with no active mapping (generic codes
+    are mappings too), normalised, most frequent first. `entries` counts cause-list entries plus dossier
+    advocate rows. Each code carries up to 5 mapped codes it partly matches (design partial-code-match, decision
+    16), only those whose office passes `scope` (None: every mapping, for the super admin)."""
+    ordered = sorted(_unmapped_aggregate(session), key=lambda kv: (-kv[1]["n"], kv[0]))[:limit]
+    return _unmapped_items(session, ordered, scope)
+
+
+# ------------------------------------------------------------------------------------------------ unmapped page
+
+UNMAPPED_SORTS = {"entries": "desc", "code": "asc", "last_seen": "desc"}
+UNMAPPED_PAGE_MAX = 200
+BAD_CURSOR = "The list changed its order; start again from the top."
+
+
+@dataclass
+class UnmappedPage:
+    items: list[UnmappedCode]
+    total: int
+    matched: int
+    next_cursor: str | None
+
+
+def compact_code(value: str | None) -> str:
+    """Letters and digits only, upper case: "ga assam" and "GA, ASSAM" both read GAASSAM."""
+    return re.sub(r"[^0-9A-Z]", "", (value or "").upper())
+
+
+def encode_cursor(sort: str, direction: str, value: Any, code: str) -> str:
+    """The opaque keyset cursor (design list-search, decision 34): base64url JSON `[sort, dir, value, code]`."""
+    if isinstance(value, date):
+        value = value.isoformat()
+    raw = json.dumps([sort, direction, value, code], separators=(",", ":")).encode("utf-8")
+    return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
+
+def decode_cursor(cursor: str, sort: str, direction: str) -> tuple[Any, str]:
+    """The `(value, code)` of a cursor made for this sort and direction; `ListSearchError("bad_cursor")` otherwise."""
+    from aslms.services.list_search import ListSearchError
+
+    try:
+        padded = cursor + "=" * (-len(cursor) % 4)
+        c_sort, c_dir, value, code = json.loads(
+            base64.urlsafe_b64decode(padded.encode("ascii")).decode("utf-8")
+        )
+        if not isinstance(code, str):
+            raise ValueError("code")
+        if c_sort == "last_seen" and value is not None:
+            value = date.fromisoformat(value)
+        elif c_sort == "entries" and (not isinstance(value, int) or isinstance(value, bool)):
+            raise ValueError("entries")
+        elif c_sort == "code" and not isinstance(value, str):
+            raise ValueError("code value")
+    except Exception as exc:  # noqa: BLE001  (any malformed cursor is the same 400)
+        raise ListSearchError("bad_cursor", BAD_CURSOR) from exc
+    if c_sort != sort or c_dir != direction:
+        raise ListSearchError("bad_cursor", BAD_CURSOR)
+    return value, code
+
+
+class _Rev:
+    """Reverses the order of a value inside a sort key."""
+
+    __slots__ = ("v",)
+
+    def __init__(self, v: Any) -> None:
+        self.v = v
+
+    def __lt__(self, other: _Rev) -> bool:
+        return other.v < self.v
+
+    def __gt__(self, other: _Rev) -> bool:
+        return other.v > self.v
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, _Rev) and other.v == self.v
+
+    def __hash__(self) -> int:
+        return hash(self.v)
+
+
+def _unmapped_key(sort: str, direction: str, value: Any, code: str) -> tuple:
+    """The position of a code in the chosen order: the value in the direction with blanks last in both directions,
+    then the code. Entries, Most First breaks ties by code A to Z (today's order) and Fewest First is its exact
+    reverse; the other sorts break ties by the code in the same direction."""
+    if sort == "entries":
+        if direction == "desc":
+            return (0, -value, code)
+        return (0, value, _Rev(code))
+    if value is None:
+        return (1, 0, code if direction == "asc" else _Rev(code))
+    if direction == "asc":
+        return (0, value, code)
+    return (0, _Rev(value), _Rev(code))
+
+
+def _value_of(sort: str, code: str, agg: dict[str, Any]) -> Any:
+    return {"entries": agg["n"], "code": code, "last_seen": agg["last"]}[sort]
+
+
+def unmapped_page(
+    session: Session,
+    *,
+    q: str | None = None,
+    sort: str | None = None,
+    dir: str | None = None,  # noqa: A002
+    limit: int = 100,
+    cursor: str | None = None,
+    scope: Callable[[uuid.UUID], bool] | None = None,
+) -> UnmappedPage:
+    """`GET /admin/counsel-codes/unmapped/page` (design list-search, decisions 9-12 and 39): every unmapped code,
+    keyset-paged in the chosen order (the cursor carries the sort). `total` counts every unmapped code, `matched`
+    those whose compact form holds the compact `q`. Example references and partial matches are worked out for the
+    page only. The sort runs in Python over the aggregate."""
+    from aslms.services import list_search
+    from aslms.services.list_sort import ListSortError
+
+    allowed = list(UNMAPPED_SORTS)
+    if sort in (None, ""):
+        if dir:
+            raise ListSortError("dir needs a sort", allowed)
+        sort = "entries"
+    if sort not in UNMAPPED_SORTS:
+        raise ListSortError("sort is one of " + ", ".join(allowed), allowed)
+    if dir not in (None, "", "asc", "desc"):
+        raise ListSortError("dir is asc or desc", allowed)
+    direction = dir or UNMAPPED_SORTS[sort]
+    lq = list_search.parse(q)
+    limit = max(1, min(int(limit), UNMAPPED_PAGE_MAX))
+    rows = _unmapped_aggregate(session)
+    total = len(rows)
+    if lq is not None:
+        needle = compact_code(lq.raw)
+        rows = [kv for kv in rows if needle and needle in compact_code(kv[0])]
+    matched = len(rows)
+
+    def key(kv: tuple[str, dict[str, Any]]) -> tuple:
+        return _unmapped_key(sort, direction, _value_of(sort, kv[0], kv[1]), kv[0])
+
+    rows.sort(key=key)
+    if cursor:
+        value, code = decode_cursor(cursor, sort, direction)
+        after = _unmapped_key(sort, direction, value, code)
+        rows = [kv for kv in rows if key(kv) > after]
+    page = rows[:limit]
+    next_cursor = None
+    if len(rows) > limit:
+        last_code, last = page[-1]
+        next_cursor = encode_cursor(sort, direction, _value_of(sort, last_code, last), last_code)
+    return UnmappedPage(
+        items=_unmapped_items(session, page, scope), total=total, matched=matched, next_cursor=next_cursor
+    )
