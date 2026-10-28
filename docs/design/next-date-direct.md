@@ -153,9 +153,13 @@ weekday or holiday adjustment of counted dates (none, as before); the `next_date
    2. else **the latest order's reading** — the latest (`created_at`, then `id`) `order_specific` / `order_period`
       row of the case among `not_needed`, `pending` and `confirmed`, used only when its date is ≥ T. Basis `order`
       (exact: `list_on_date`), `around` (decision 1) or `confirmed` (a row a person confirmed before this item; exact).
-   3. else **a date entered by hand** — the latest open `manual` row with date ≥ T. Basis `manual`. Under decision 6
-      it exists only where the court gave no date, and decision 7 closes it when the court gives one.
-   4. else none.
+   3. else **the court's last given date, passed** (owner, 28 Oct 2026: "court dates should be treated as
+      ultimatums") — when the latest court-given date (the court's record, or a dated reading of the latest order)
+      is before T and nothing newer has come from the court, it stays the value: same basis (`court`, `order`,
+      `around`, `confirmed`), shown as Date Passed by the `HearingDate` badge, and no manual date may replace it.
+   4. else **a date entered by hand** — the latest open `manual` row with date ≥ T. Basis `manual`. Under decision 6
+      it exists only where the court gave no date at all, and decision 7 closes it when the court gives one.
+   5. else none.
    This order settles the precedence question: a manual entry never outranks a court-given date (owner, answer 4); it
    applies only when there is none, and a later court date or order reading replaces it. The value is stored in six
    derived columns on `cases` (Data) by `next_hearing.refresh(session, case_ids, today)`, so lists can sort and filter
@@ -191,8 +195,11 @@ weekday or holiday adjustment of counted dates (none, as before); the `next_date
      date, so it cannot be changed here."
    The check runs inside the case lock, after the function, visibility and working-basis checks (403 / 404 first, as
    today), by recomputing the value for that case (not trusting the stored column). A user may enter a date only when
-   the value is empty or `manual`: the latest order gave no direction, an unclear one or no text, or the court's last
-   date has passed with no newer one, or the case has no order. Refused attempts write no audit row (owner,
+   the court has given none: the latest order gave no direction, an unclear one or no text, or the case has no order
+   and no court date. **A court date that has passed is not a gap to fill** (owner, 28 Oct 2026: "dont give the
+   provision for entering a date if a date has passed because that would defeat the purpose of alerts. court dates
+   should be trated as ultimatums"): it stays the value as Date Passed (decision 4, step 3) and enter answers 409
+   `court_date_fixed` until the court's record or a newer order gives a date. Refused attempts write no audit row (owner,
    coordinator note). Alternatives: hide the controls only (forbidden: visibility and rules are server-side); allow
    the super admin (refused by the owner's "user will not be allowed").
    - The one exception is a reading marked wrong through `next_dates.correct` (decision 18). It works only on a date
@@ -399,8 +406,9 @@ columns are derived like `search_vector`):
 > the latest order that differs from the court's record), `next_hearing_differs_id` (uuid NULL → next_dates RESTRICT),
 > `next_hearing_set_at` (timestamptz NULL: when last computed). Rule (design `next-date-direct`, decision 4): the
 > court's record — the earliest of `next_hearing_date` and the current cause-list listings that is today or later and
-> after the latest `order_date` — else the latest open order reading dated today or later, else the latest open
-> manual row dated today or later. `next_hearing_date` itself stays the court's verbatim `date_next_list`. CHECKs
+> after the latest `order_date` — else the latest open order reading dated today or later, else the court's last
+> given date when it has passed and nothing newer came from the court (shown as Date Passed; owner, 28 Oct 2026:
+> court dates are ultimatums), else the latest open manual row dated today or later. `next_hearing_date` itself stays the court's verbatim `date_next_list`. CHECKs
 > `ck_cases_next_hearing_basis` (`(next_hearing_on IS NULL) = (next_hearing_basis IS NULL)`),
 > `ck_cases_next_hearing_row` (`(COALESCE(next_hearing_basis::text, '') IN ('order', 'around', 'confirmed',
 > 'manual')) = (next_hearing_next_date_id IS NOT NULL)`), `ck_cases_next_hearing_differs` (`(next_hearing_differs_on
@@ -712,8 +720,10 @@ Owner checks at approval (decisions taken, reversible):
   "Hearing around" alert instead (decision 10).
 - G. Readings a person rejected under the old rules stay rejected (their replacement date stays, until the court gives
   a date); the command lists them (decision 13).
-- H. Entering a date is allowed when the court's last date has passed with no newer one, and on a case with no order
-  (decision 6: "the court gave none" read as no court date today or later).
+- H. Decided by the owner (28 Oct 2026): entering a date is **not** allowed when the court's last date has passed —
+  court dates are ultimatums; a passed court-given date stays the value as Date Passed (decisions 4 and 6). Entering
+  is allowed only where the court gave no date at all (no direction, unclear, no text, or no order and no court
+  date).
 - I. Correcting takes the right date in the same step, optional; without it the order goes to Next Dates to Enter
   (decision 18).
 - J. A corrected date is a manual date: a holder of `next_dates.review` with a working basis may later enter a
