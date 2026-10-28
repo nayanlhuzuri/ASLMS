@@ -13,7 +13,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 
 import { FilterBar, type OwnControl } from "@/components/filters/FilterBar";
-import { Chip, ChipGroup, DataTable, EmptyState, ErrorBanner, Loading, Pagination, type Column } from "@/components/ui";
+import { Chip, ChipGroup, DataTable, EmptyState, ErrorBanner, HearingDate, Loading, Pagination, type Column } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { INBOX_KEY, useWorkflowCodes } from "@/lib/api/hooks";
 import type { MyCase, MyCaseCounts, MyCaseList } from "@/lib/api/types";
@@ -25,7 +25,7 @@ import type { MyView } from "@/lib/routes";
 
 import { useFilters } from "./common";
 import s from "./inbox.module.css";
-import { ActionCell, CaseCell, Chevron, CountLine, NextHearingCell, StageCell } from "./rows";
+import { ActionCell, CaseCell, Chevron, CountLine, StageCell } from "./rows";
 
 /** The stage choices: any, "No stage set" (`none`) and the catalogue's stages. */
 export function useStageOptions() {
@@ -66,7 +66,7 @@ export function MyCases({ view, params, counts }: { view: MyView; params: Params
   const columns: Column<MyCase>[] = [
     { key: "case", header: T.inbox.case, primary: true, cell: (r) => <CaseCell c={r.case} /> },
     { key: "stage", header: T.inbox.stage, cell: (r) => <StageCell stage={r.stage} /> },
-    { key: "next", header: T.inbox.nextHearingCol, cell: (r) => <NextHearingCell date={r.case.next_hearing_date} /> },
+    { key: "next", header: T.inbox.nextHearingCol, cell: (r) => <HearingDate date={r.case.next_hearing_date} status={r.case.status} /> },
     { key: "action", header: T.inbox.yourAction, cell: (r) => <ActionCell custody={r.custody?.with_me ? r.custody : null} /> },
     { key: "open", header: <span className="visually-hidden">{T.inbox.actions}</span>, hideOnPhone: true, width: "var(--s6)", cell: () => <Chevron /> },
   ];

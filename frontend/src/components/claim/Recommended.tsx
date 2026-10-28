@@ -2,8 +2,8 @@
 
 /**
  * Case claim → Recommended (design portal-ui-redesign, decision 6; portal-cases decision 5): the department's active
- * recommendations in the API's order (strong first, score, next hearing). Columns: Case, Parties, Next hearing (with
- * the 48 h badge), Match — "Strong · 0.950" for `high`, "Possible · 0.620" for `medium`, from the API's `band`, the
+ * recommendations in the API's order (strong first, score, next hearing). Columns: Case, Parties, Next hearing (the
+ * kit's `HearingDate`, design next-hearing-highlight), Match — "Strong · 0.950" for `high`, "Possible · 0.620" for `medium`, from the API's `band`, the
  * score as stored to three decimals. Quick chips Strong, Possible and Listed this week, then the portal-filters fields
  * of this list. Rows carry no buttons or signal chips: a click (or Enter on the focused row) opens the details modal,
  * where the signals and the actions are.
@@ -11,9 +11,9 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { FilterBar } from "@/components/filters/FilterBar";
-import { CaseCell, NextHearingCell } from "@/components/inbox/rows";
+import { CaseCell } from "@/components/inbox/rows";
 import { useFilters } from "@/components/inbox/common";
-import { Chip, ChipGroup, DataTable, EmptyState, ErrorBanner, Loading, Pagination, ScoreBadge, type Column } from "@/components/ui";
+import { Chip, ChipGroup, DataTable, EmptyState, ErrorBanner, HearingDate, Loading, Pagination, ScoreBadge, type Column } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { INBOX_KEY } from "@/lib/api/hooks";
 import type { Recommendation, RecommendationList } from "@/lib/api/types";
@@ -56,7 +56,7 @@ export function Recommended({ params, department, onOpen }: { params: Params; de
       cell: (r) => <CaseCell c={{ ...r.case, petitioner_summary: null, respondent_summary: null }} />,
     },
     { key: "parties", header: T.claim.parties, cell: (r) => partiesText(r.case) },
-    { key: "next", header: T.claim.nextHearing, cell: (r) => <NextHearingCell date={r.case.next_hearing_date} /> },
+    { key: "next", header: T.claim.nextHearing, cell: (r) => <HearingDate date={r.case.next_hearing_date} status={r.case.status} /> },
     { key: "match", header: T.claim.match, width: "180px", cell: (r) => <ScoreBadge score={r.score} band={r.band} /> },
   ];
   return (

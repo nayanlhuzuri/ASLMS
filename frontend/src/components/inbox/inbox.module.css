@@ -13,7 +13,6 @@
   font-size: var(--t-sm);
 }
 
-.next,
 .action {
   display: inline-flex;
   flex-wrap: wrap;

@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { CaseSearchItem, Permission } from "@/lib/api/types";
 import { nav, resetNav } from "@/test/nav";
@@ -61,6 +61,10 @@ function me(functions: Permission[]) {
 
 beforeEach(() => {
   resetNav("/search");
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("local search", () => {
@@ -521,6 +525,33 @@ describe("the Work list template on Search (portal-ui-redesign, decision 26)", (
     expect(within(panel).getByRole("link", { name: "Open Case Page" })).toHaveAttribute("href", "/cases/ASLMS-GHC-CASE-2026-000001");
     await userEvent.click(within(panel).getByRole("button", { name: "Close" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("the next hearing badge sits under the listing line, and the panel's Listing row no longer repeats it (design next-hearing-highlight)", async () => {
+    vi.useFakeTimers({ now: new Date("2026-10-27T06:30:00Z"), toFake: ["Date"] });
+    const listed = { last_listed_on: "2026-10-20", last_listing: { list_date: "2026-10-20", list_type: "daily", court_no: "3", sr_no: 41 } };
+    browserApi(
+      routes([
+        item(1, {}, { ...listed, next_hearing_date: "2026-10-28" }),
+        item(2, {}, { next_hearing_date: "2026-10-20" }),
+        item(3, {}, { next_hearing_date: "2026-10-28", status: "disposed" }),
+      ]),
+    );
+    renderWithClient(<Search params={{ q: "RAM KUMAR" }} />);
+    const row = await screen.findByRole("row", { name: "Details of WP(C)/1/2026" });
+    const line = within(row).getByText("Cause list 20 Oct 2026 · Court 3 · Item 41");
+    expect(line).not.toHaveTextContent(/Next hearing/i);
+    const badge = row.querySelector("[data-band]") as HTMLElement;
+    expect(badge).toHaveTextContent(/^Tomorrow · 28 Oct 2026$/);
+    // on its own line, after the listing line
+    expect(line.compareDocumentPosition(badge) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByRole("row", { name: "Details of WP(C)/2/2026" }).querySelector("[data-band]")).toHaveAttribute("data-band", "passed");
+    expect(screen.getByRole("row", { name: "Details of WP(C)/3/2026" }).querySelector("[data-band]")).toHaveAttribute("data-band", "disposed");
+    await userEvent.click(row);
+    const panel = await screen.findByRole("dialog", { name: "WP(C)/1/2026" });
+    const value = (label: string) => within(panel).getByText(label, { selector: "dt" }).nextElementSibling as HTMLElement;
+    expect(value("Next Hearing").querySelector("[data-band]")).toHaveTextContent(/^Tomorrow · 28 Oct 2026$/);
+    expect(value("Listing")).toHaveTextContent(/^Cause list 20 Oct 2026 · Court 3 · Item 41$/);
   });
 
   it("a case the caller cannot open has no Open case page in the panel, and Claim when claimable", async () => {

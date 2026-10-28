@@ -434,3 +434,29 @@ document and `schema.d.ts` are unchanged.
 ## Open questions
 
 None. The two deviations (decisions 3 and 13) are flagged for the owner's approval in Verification, step 4.
+
+## Deviations
+
+Small choices made while building (developer, 27 Oct 2026). None changes a rule, an API field or the bands.
+
+1. **Court and item hidden for a disposed case.** The header, the rail card and the case details modal show the court
+   and item line only for a case that is not disposed: decision 9 treats any date held for a disposed case as stale,
+   so its listing line would contradict the greyed "Disposed".
+2. **The word alone is never empty.** With `showDate={false}` the later band reads its countdown ("In 9 Days") rather
+   than nothing. The dashboard's Upcoming Hearings never carries a later date (its window is today to 7 days ahead),
+   so this only guards the component.
+3. **The separator.** The " · " between the word and the date is its own `aria-hidden` part, so a screen reader reads
+   the word and then the date (decision 8); the word, the separator and the date each stay unbroken, and a narrow cell
+   wraps the date to a second line.
+4. **More retired message keys.** Besides decision 8's list, `rail.noNextHearing` (the rail card now shows the greyed
+   "No Date Yet"), `case.nextAt`, `claim.nextAt` and `inbox.nextHearing` (the Search listing line no longer names the
+   next hearing) were removed, since nothing reads them any more. `NextHearingFact` in `CaseFrame.tsx` keeps its name
+   as the header's wrapper around `HearingDate` and the court line.
+5. **The browser check's IST day.** The fixtures compute the run's IST day with a short local copy of `istDay` and
+   `addDays` (`istDayPlus` in `e2e/fixtures/index.ts`), because the fixtures import only types from the portal's
+   source.
+6. **A fixture type fixed on the way.** The uicheck fixture of the unmapped codes lacked the `partial_matches` field the
+   API has required since row 154, so `tsc` in the uicheck image refused the fixtures; each row now carries
+   `partial_matches: []` (its own commit). Without it the three new states could not run.
+7. **Sizes.** The small badge uses `--t-sm` text and the medium one `--t-md`; a suggested Date Passed (not reachable
+   today) takes the neutral `--border-strong` outline.

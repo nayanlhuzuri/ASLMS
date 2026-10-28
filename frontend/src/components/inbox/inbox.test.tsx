@@ -272,7 +272,7 @@ describe("Working on (case-inbox-merge, decisions 8 and 9)", () => {
     const row1 = screen.getByRole("row", { name: "Details of WP(C)/1/2026" });
     expect(within(row1).getByRole("link", { name: "WP(C)/1/2026" })).toHaveAttribute("href", "/cases/ASLMS-GHC-CASE-2026-000001");
     expect(within(row1).getByText("Overdue")).toBeInTheDocument();
-    expect(within(row1).getByText("48 Hours")).toBeInTheDocument();
+    expect(row1.querySelector('[data-band="tomorrow"]')).toHaveTextContent("Tomorrow");
     expect(within(row1).getByText("Parawise comments")).toBeInTheDocument();
     expect(within(row1).getByText("10 Oct 2026")).toBeInTheDocument();
     expect(within(row1).getByText("Joint Secretary, EDU")).toHaveAttribute("title", "Edu Admin");
@@ -414,7 +414,7 @@ describe("own work: Claimed by me and Disposed", () => {
     renderWithClient(<InboxFrame tab="claimed" params={{}} />);
     const row = await screen.findByRole("row", { name: "Open WP(C)/1/2026" });
     expect(within(row).getByText("Counsel briefed")).toBeInTheDocument();
-    expect(within(row).getByText("48 Hours")).toBeInTheDocument();
+    expect(row.querySelector('[data-band="tomorrow"]')).toHaveTextContent("Tomorrow");
     expect(within(row).getByText("Parawise comments")).toBeInTheDocument();
     expect(within(row).getByText("Overdue 3 days")).toBeInTheDocument();
     expect(within(row).getByText("RAM KUMAR", { exact: false })).toBeInTheDocument();
@@ -613,5 +613,61 @@ describe("old addresses", () => {
     browserApi(routes({ "GET /me": officer(), "GET /inbox/counts": { departments: [block("EDU", { whole_department: false })] } }));
     renderWithClient(<ClaimedRedirect params={{}} />);
     await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/inbox/working"));
+  });
+});
+
+describe("the Next Hearing column's bands (design next-hearing-highlight, decisions 4, 9 and 11)", () => {
+  const today = istDay();
+  const rows = [
+    summary(1, { next_hearing_date: today }),
+    summary(2, { next_hearing_date: addDays(today, 3) }),
+    summary(3, { next_hearing_date: addDays(today, 20) }),
+    summary(4, { next_hearing_date: addDays(today, 1), status: "disposed" }),
+    summary(5, { next_hearing_date: addDays(today, -5) }),
+    summary(6, { next_hearing_date: null }),
+  ];
+  const expected = [
+    ["today", "Today"],
+    ["week", "In 3 Days"],
+    ["later", null],
+    ["disposed", "Disposed"],
+    ["passed", "Date Passed"],
+    ["none", "No Date Yet"],
+  ] as const;
+
+  function check(name: (n: number) => string) {
+    expected.forEach(([band, word], i) => {
+      const row = screen.getByRole("row", { name: name(i + 1) });
+      const el = row.querySelector("[data-band]")!;
+      expect(el).toHaveAttribute("data-band", band);
+      if (word) expect(el.firstElementChild).toHaveTextContent(word);
+      // the later band reads the date alone in a list
+      else expect(el.textContent).toMatch(/^\d{1,2} [A-Z][a-z]{2} \d{4}$/);
+    });
+    expect(screen.queryByText("48 Hours")).toBeNull();
+    expect(screen.queryByText("This Week", { selector: "span" })).toBeNull();
+  }
+
+  it("Working On", async () => {
+    browserApi(routes({ "GET /inbox/mine": { items: rows.map((c, i) => myCase(i + 1, { case: c })), total: rows.length } }));
+    renderWithClient(<InboxFrame tab="working" params={{}} />);
+    await screen.findByRole("table", { name: "Working On" });
+    check((n) => `Details of WP(C)/${n}/2026`);
+  });
+
+  it("Claimed by Me", async () => {
+    resetNav("/inbox/claimed-by-me");
+    browserApi(routes({ "GET /inbox/mine": { items: rows.map((c, i) => myCase(i + 1, { case: c, reasons: ["claimed"] })), total: rows.length } }));
+    renderWithClient(<InboxFrame tab="claimed" params={{}} />);
+    await screen.findByRole("row", { name: "Open WP(C)/1/2026" });
+    check((n) => `Open WP(C)/${n}/2026`);
+  });
+
+  it("Department Cases", async () => {
+    resetNav("/inbox/department");
+    browserApi(routes({ "GET /inbox/claimed": { items: rows.map((c, i) => ownership(i + 1, { case: c })), total: rows.length } }));
+    renderWithClient(<InboxFrame tab="department" params={{}} />);
+    await screen.findByRole("row", { name: "Open WP(C)/1/2026" });
+    check((n) => `Open WP(C)/${n}/2026`);
   });
 });

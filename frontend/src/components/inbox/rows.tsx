@@ -2,13 +2,13 @@
 
 /**
  * The cells of the Case inbox and Case claim rows (design portal-ui-redesign, decisions 5 and 6, Work list template):
- * the case number with the parties under it, the stage, the next hearing with the "48 h" or "This week" badge from IST
- * dates (portal-cases decision 10), the pending action of a file with its due-date badge, and where the file is. A row
- * opens by click or Enter, so the case number is plain text here (the row is the link).
+ * the case number with the parties under it, the stage, the pending action of a file with its due-date badge, and where
+ * the file is; the next hearing is the kit's `HearingDate` (design next-hearing-highlight, decision 11). A row opens by
+ * click or Enter, so the case number is plain text here (the row is the link).
  */
 import { Badge } from "@/components/ui";
 import type { CaseSummary, CustodyBrief, StageBrief } from "@/lib/api/types";
-import { formatDate, formatNumber, hearingBadge } from "@/lib/format";
+import { formatDate, formatNumber } from "@/lib/format";
 import { T } from "@/lib/messages";
 
 import s from "./inbox.module.css";
@@ -32,18 +32,6 @@ export function CaseCell({ c }: { c: Pick<CaseSummary, "case_no_text" | "ref_no"
 export function StageCell({ stage }: { stage: StageBrief | null | undefined }) {
   if (!stage) return <span className="muted">{T.inbox.noStage}</span>;
   return <span>{stage.label}</span>;
-}
-
-export function NextHearingCell({ date }: { date: string | null | undefined }) {
-  if (!date) return <span className="muted">—</span>;
-  const badge = hearingBadge(date);
-  return (
-    <span className={s.next}>
-      <span>{formatDate(date)}</span>
-      {badge === "critical" ? <Badge tone="danger">{T.inbox.within48}</Badge> : null}
-      {badge === "week" ? <Badge>{T.inbox.thisWeek}</Badge> : null}
-    </span>
-  );
 }
 
 /** The pending action and due date of the file, with the red "Overdue n days" or amber "Due <date>" badge. */

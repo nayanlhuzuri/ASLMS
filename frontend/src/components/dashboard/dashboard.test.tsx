@@ -7,7 +7,6 @@ import { nav, resetNav } from "@/test/nav";
 import { browserApi, expectDataTable, json, labels, makeMe, renderWithClient } from "@/test/render";
 
 import { Dashboard } from "./Dashboard";
-import { dayWords } from "./Headline";
 
 const CASE = { id: "c1", ref_no: "EDU/2026/0001", cnr: "ASHC010012342026", case_no_text: "WP(C)/1234/2026" };
 
@@ -111,7 +110,9 @@ describe("dashboard", () => {
     expect(api.calls.map((c) => c.path)).toContain("/dashboard/department?department=HEALTH");
   });
 
-  it("shows the tiles, the 48-hour badge from critical and the Indian grouping", async () => {
+  it("shows the tiles, the hearing band in the date cell and the Indian grouping", async () => {
+    // 12:00 IST on 10 Oct 2026: the 11th is tomorrow, the 15th in 5 days (design next-hearing-highlight, decision 11)
+    vi.useFakeTimers({ now: new Date("2026-10-10T06:30:00Z"), toFake: ["Date"] });
     browserApi({
       "GET /me": makeMe(["cases.view_scope"]),
       "GET /dashboard": { me: false, state: false, departments: [{ code: "EDU", name: "Education" }] },
@@ -123,14 +124,19 @@ describe("dashboard", () => {
     expect(within(block).getByText("Recommendations Awaiting Review")).toBeInTheDocument();
     const rows = within(block).getAllByRole("row");
     const critical = rows.find((r) => within(r).queryByText("WP(C)/1234/2026"))!;
-    expect(within(critical).getByText("Within 48 Hours")).toBeInTheDocument();
+    expect(critical.querySelector('[data-band="tomorrow"]')).toHaveTextContent("Tomorrow · 11 Oct 2026");
     // case references are links to the case page (design portal-cases, decision 2)
     expect(within(critical).getByRole("link", { name: "WP(C)/1234/2026" })).toHaveAttribute(
       "href",
       "/cases/EDU-2026-0001",
     );
     const later = rows.find((r) => within(r).queryByText("WA/55/2026"))!;
-    expect(within(later).getByText("This Week")).toBeInTheDocument();
+    expect(later.querySelector('[data-band="week"]')).toHaveTextContent("In 5 Days · 15 Oct 2026");
+    // the date cell carries the band, so the separate badge column is gone
+    expect(within(block).queryByText("Within 48 Hours")).toBeNull();
+    expect(within(block).queryByText("This Week")).toBeNull();
+    const table = within(block).getAllByRole("table").find((t) => within(t).queryByText("WA/55/2026"))!;
+    expect(within(table).getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Date", "Case", "Court", "Item"]);
     expect(within(block).getByText("Secondary Education")).toBeInTheDocument();
   });
 
@@ -472,14 +478,16 @@ describe("the personal dashboard (portal-ui-redesign, decision 23)", () => {
     expect(within(rows[1]!).getByRole("link", { name: "Next Date to Confirm" })).toHaveAttribute("href", "/alerts/next-dates?q=c3");
   });
 
-  it("Upcoming hearings lead with the date chip, red within 48 hours, and the day words", async () => {
+  it("Upcoming hearings lead with the date chip, red today and tomorrow, and the band's words", async () => {
     vi.useFakeTimers({ now: new Date("2026-10-21T03:00:00Z"), toFake: ["Date"] });
     browserApi(
       mine(
         personal({
           upcoming: [
-            { case: CASE, date: "2026-10-22", court_no: "3", item_no: "14", critical: true, this_week: true },
-            { case: { ...CASE, id: "c2", case_no_text: "WA/55/2026" }, date: "2026-10-26", court_no: null, item_no: null, critical: false, this_week: true },
+            { case: CASE, date: "2026-10-22", court_no: "3", item_no: "14", critical: false, this_week: true },
+            // the API's 48-hour flag no longer colours the row: the band of the IST day does (next-hearing-highlight)
+            { case: { ...CASE, id: "c2", case_no_text: "WA/55/2026" }, date: "2026-10-23", court_no: null, item_no: null, critical: true, this_week: true },
+            { case: { ...CASE, id: "c3", case_no_text: "WA/56/2026" }, date: "2026-10-28", court_no: null, item_no: null, critical: false, this_week: false },
           ],
         }),
       ),
@@ -487,12 +495,16 @@ describe("the personal dashboard (portal-ui-redesign, decision 23)", () => {
     renderWithClient(<Dashboard />);
     const list = await screen.findByRole("list", { name: "Upcoming Hearings" });
     const rows = within(list).getAllByRole("listitem");
-    expect(rows.map((r) => r.firstElementChild!.getAttribute("data-lead"))).toEqual(["date", "date"]);
+    expect(rows.map((r) => r.firstElementChild!.getAttribute("data-lead"))).toEqual(["date", "date", "date"]);
     expect(rows[0]!.firstElementChild!.className).toMatch(/hot/);
     expect(rows[1]!.firstElementChild!.className).not.toMatch(/hot/);
-    expect(within(rows[0]!).getByText("Tomorrow")).toBeInTheDocument();
+    expect(rows[2]!.firstElementChild!.className).not.toMatch(/hot/);
+    // the trail is the word alone: the date chip already shows the date
+    const bands = rows.map((r) => r.querySelector("[data-band]")!);
+    expect(bands.map((b) => b.getAttribute("data-band"))).toEqual(["tomorrow", "week", "week"]);
+    expect(bands.map((b) => b.textContent)).toEqual(["Tomorrow", "In 2 Days", "In 7 Days"]);
+    for (const b of bands) expect(b.querySelector("time")).toBeNull();
     expect(within(rows[0]!).getByText("Court 3 · item 14")).toBeInTheDocument();
-    expect(within(rows[1]!).getByText("This Week")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open Calendar →" })).toHaveAttribute("href", "/calendar");
   });
 
@@ -544,20 +556,24 @@ describe("the personal dashboard (portal-ui-redesign, decision 23)", () => {
   });
 });
 
-describe("every Upcoming hearings row has a badge (design portal-ui-polish, decision 14)", () => {
-  it("dayWords gives In n days for a hearing in the next calendar week", () => {
-    // Saturday 24 Oct 2026, 11:30 IST: Monday 26 Oct (day 2) and Friday 30 Oct (day 6) fall in the next week
-    const now = new Date("2026-10-24T06:00:00Z");
-    const w = (date: string, critical = false, this_week = false) => dayWords({ date, critical, this_week }, now);
-    expect(w("2026-10-24", true, true)).toEqual({ text: "Today", tone: "danger" });
-    expect(w("2026-10-25", true, true)).toEqual({ text: "Tomorrow", tone: "danger" });
-    expect(w("2026-10-25", false, true)).toEqual({ text: "Tomorrow", tone: undefined });
-    expect(w("2026-10-26", true, false)).toEqual({ text: "In 2 days", tone: "danger" });
-    expect(dayWords({ date: "2026-10-23", critical: false, this_week: true }, new Date("2026-10-21T06:00:00Z"))).toEqual({
-      text: "This Week",
+describe("every Upcoming hearings row has a badge (design portal-ui-polish, decision 14; next-hearing-highlight)", () => {
+  it("each row's word and the chip's red follow the IST band, not the API's flags", async () => {
+    // Saturday 24 Oct 2026, 11:30 IST
+    vi.useFakeTimers({ now: new Date("2026-10-24T06:00:00Z"), toFake: ["Date"] });
+    const row = (id: string, date: string, critical: boolean) => ({
+      case: { ...CASE, id, case_no_text: `WA/${id}/2026` },
+      date,
+      court_no: null,
+      item_no: null,
+      critical,
+      this_week: true,
     });
-    expect(w("2026-10-26")).toEqual({ text: "In 2 days" });
-    expect(w("2026-10-30")).toEqual({ text: "In 6 days" });
+    browserApi(mine(personal({ upcoming: [row("1", "2026-10-24", true), row("2", "2026-10-25", false), row("3", "2026-10-26", true), row("4", "2026-10-30", false)] })));
+    renderWithClient(<Dashboard />);
+    const list = await screen.findByRole("list", { name: "Upcoming Hearings" });
+    const rows = within(list).getAllByRole("listitem");
+    expect(rows.map((r) => r.querySelector("[data-band]")!.textContent)).toEqual(["Today", "Tomorrow", "In 2 Days", "In 6 Days"]);
+    expect(rows.map((r) => /hot/.test(r.firstElementChild!.className))).toEqual([true, true, false, false]);
   });
 });
 

@@ -4,14 +4,15 @@
  * The personal dashboard (design portal-ui-redesign, decision 23; API A7): the greeting by the IST hour, the five
  * headline numbers (each a link to its list; a figure the API returns as `null` is left out and the grid closes up),
  * Upcoming hearings and Needs your attention. Every figure and row comes from `GET /dashboard/me`; the browser works
- * out only the greeting and the day words from IST dates.
+ * out only the greeting and the hearing band from IST dates (the kit's `HearingDate`, design next-hearing-highlight).
  */
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { Badge, Card, CaseLink, DateChip, EmptyState, Kpi, Lead, ListRow, type Tone } from "@/components/ui";
+import { Badge, Card, CaseLink, DateChip, EmptyState, HearingDate, Kpi, Lead, ListRow, type Tone } from "@/components/ui";
 import type { DashboardHeadline, DashboardMe, DashboardMeAttention, DashboardUpcoming, Me } from "@/lib/api/types";
-import { daysBetween, formatDayLongYear, formatNumber, istDay, istHour } from "@/lib/format";
+import { formatDayLongYear, formatNumber, istHour } from "@/lib/format";
+import { hearingBand } from "@/lib/hearingDate";
 import { T } from "@/lib/messages";
 import { casePath } from "@/lib/refs";
 
@@ -126,21 +127,6 @@ export function HeadlineKpis({ headline }: { headline: DashboardHeadline }) {
   );
 }
 
-/**
- * Today / Tomorrow / In n days (within 48 hours, red) / This week / In n days (neutral), from IST dates and the API's
- * flags. Every row of the 8-day window gets a badge: the last line covers hearings 2 to 7 days ahead that fall in the
- * next calendar week (design portal-ui-polish, decision 14). Only a past date (never served) gets none.
- */
-export function dayWords(item: Pick<DashboardUpcoming, "date" | "critical" | "this_week">, now: Date = new Date()): { text: string; tone?: Tone } | null {
-  const days = daysBetween(istDay(now), item.date);
-  if (days === 0) return { text: T.dash.today, tone: item.critical ? "danger" : undefined };
-  if (days === 1) return { text: T.dash.tomorrow, tone: item.critical ? "danger" : undefined };
-  if (item.critical) return { text: T.dash.inDays(days), tone: "danger" };
-  if (item.this_week) return { text: T.dash.thisWeek };
-  if (days > 1) return { text: T.dash.inDays(days) };
-  return null;
-}
-
 export function UpcomingPanel({ items }: { items: DashboardUpcoming[] }) {
   return (
     <Card title={T.dash.upcoming} actions={<Link href="/calendar">{T.dash.openCalendar}</Link>}>
@@ -149,14 +135,15 @@ export function UpcomingPanel({ items }: { items: DashboardUpcoming[] }) {
       ) : (
         <ul className={s.list} aria-label={T.dash.upcoming}>
           {items.map((h) => {
-            const words = dayWords(h);
+            // design next-hearing-highlight, decision 11: the chip's red and the word follow one band, today or tomorrow
+            const { band } = hearingBand(h.date);
             const where = T.dash.courtItem(h.court_no, h.item_no);
             return (
               <ListRow
                 as="li"
                 key={`${h.case.id}-${h.date}`}
-                lead={<DateChip date={h.date} hot={h.critical} />}
-                trail={words ? <Badge tone={words.tone}>{words.text}</Badge> : null}
+                lead={<DateChip date={h.date} hot={band === "today" || band === "tomorrow"} />}
+                trail={<HearingDate date={h.date} showDate={false} />}
               >
                 <CaseLink value={h.case} />
                 {where ? <div className="muted">{where}</div> : null}

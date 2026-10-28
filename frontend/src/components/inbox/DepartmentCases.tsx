@@ -13,7 +13,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 
 import { FilterBar, type OwnControl } from "@/components/filters/FilterBar";
-import { DataTable, EmptyState, ErrorBanner, Loading, Pagination, SegmentedSwitch, type Column } from "@/components/ui";
+import { DataTable, EmptyState, ErrorBanner, HearingDate, Loading, Pagination, SegmentedSwitch, type Column } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { INBOX_KEY, useDepartmentPeople } from "@/lib/api/hooks";
 import type { InboxCounts, Ownership, OwnershipList } from "@/lib/api/types";
@@ -24,7 +24,7 @@ import { casePath } from "@/lib/refs";
 
 import { useFilters } from "./common";
 import { isFiltered, useStageOptions } from "./MyCases";
-import { CaseCell, Chevron, CountLine, HolderCell, NextHearingCell, StageCell } from "./rows";
+import { CaseCell, Chevron, CountLine, HolderCell, StageCell } from "./rows";
 
 /** Layout B's More Filters on Department cases (design portal-ui-polish-2, decision 23); Case Type is on the right. */
 const DEPARTMENT_MORE: readonly SharedField[] = ["year", "court_no"];
@@ -128,7 +128,7 @@ export function DepartmentCases({ params, department, block }: { params: Params;
     { key: "case", header: T.inbox.case, primary: true, cell: (r) => <CaseCell c={r.case} /> },
     { key: "allot", header: T.inbox.unitOfficer, cell: (r) => <AllotmentCell row={r} /> },
     { key: "stage", header: T.inbox.stage, cell: (r) => <StageCell stage={r.stage} /> },
-    { key: "next", header: T.inbox.nextHearingCol, cell: (r) => <NextHearingCell date={r.case.next_hearing_date} /> },
+    { key: "next", header: T.inbox.nextHearingCol, cell: (r) => <HearingDate date={r.case.next_hearing_date} status={r.case.status} /> },
     { key: "holder", header: T.inbox.fileWith, cell: (r) => <HolderCell custody={r.custody} /> },
     { key: "open", header: <span className="visually-hidden">{T.inbox.actions}</span>, hideOnPhone: true, width: "var(--s6)", cell: () => <Chevron /> },
   ];

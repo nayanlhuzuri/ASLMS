@@ -167,6 +167,11 @@ export function formatWeekday(value: string | Date | null | undefined, locale?: 
   return WEEKDAYS[new Date(Date.UTC(p.year, p.month - 1, p.day)).getUTCDay()]!;
 }
 
+/** "Wed, 28 Oct 2026": the short weekday and the date, both in IST (the medium `HearingDate`, design next-hearing-highlight). */
+export function weekdayDate(date: string): string {
+  return `${formatWeekday(date).slice(0, 3)}, ${formatDate(date)}`;
+}
+
 /** The month and year of a date in IST, `October 2026` (the calendar's heading). */
 export function formatMonthYear(value: string | Date | null | undefined, locale?: LocaleArg): string {
   if (!value) return "—";
@@ -205,6 +210,16 @@ export function istHour(now: Date = new Date()): number {
   return istParts(now).hour;
 }
 
+/**
+ * True for a real calendar day written `YYYY-MM-DD`: the engine rolls an impossible day over ("2026-02-30" parses as
+ * 2 March), so the day must survive the round trip. Counted in UTC, so the browser's zone plays no part.
+ */
+export function isCalendarDay(value: string | null | undefined): value is string {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const d = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === value;
+}
+
 /** Whole calendar days from `from` to `to` (both `YYYY-MM-DD`); negative when `to` is earlier. */
 export function daysBetween(from: string, to: string): number {
   return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
@@ -221,19 +236,4 @@ export function addDays(day: string, days: number): string {
   const d = new Date(`${day}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
-}
-
-/**
- * The badge of a hearing date (design portal-cases, decision 10), from IST dates as the hearing calendar: "critical"
- * when the hearing (at the 10:30 sitting) is today or later and at most 48 hours away, "week" when it falls within
- * the next 7 days, else null. The dashboard keeps using the API's own `critical`.
- */
-export function hearingBadge(date: string | null | undefined, now: Date = new Date()): "critical" | "week" | null {
-  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
-  const today = istDay(now);
-  if (date < today) return null;
-  const sitting = new Date(`${date}T10:30:00+05:30`).getTime();
-  if (sitting - now.getTime() <= 48 * 3600 * 1000) return "critical";
-  if (date <= addDays(today, 7)) return "week";
-  return null;
 }

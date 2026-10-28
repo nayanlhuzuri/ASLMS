@@ -177,18 +177,55 @@ describe("Your task (case-workspace-admin, decision 10)", () => {
 });
 
 describe("Next hearing, Quick actions and Journey (decisions 11, 12 and 14)", () => {
-  it("Next Hearing: the weekday and date with the countdown; none says so and offers Enter next date by the flag", async () => {
+  it("Next Hearing: the word, then the weekday and date; none says No Date Yet and offers Enter next date by the flag", async () => {
     browserApi(routes());
     const onAction = vi.fn();
     const { unmount } = renderRail(detail(), true, onAction);
     const card1 = screen.getByRole("region", { name: "Next Hearing" });
-    expect(within(card1).getByText(/^Fri, 20 Nov 2099 · in [0-9]+ days$/)).toBeInTheDocument();
+    const later = card1.querySelector("[data-band]")!;
+    expect(later).toHaveAttribute("data-band", "later");
+    expect(later).toHaveTextContent(/^In [0-9]+ Days · Fri, 20 Nov 2099$/);
+    expect(within(card1).queryByRole("button", { name: "Enter Next Date" })).toBeNull();
     unmount();
     renderRail(detail({ status: { status: "pending", next_hearing_date: null } as CaseDetail["status"] }), true, onAction);
     const none = screen.getByRole("region", { name: "Next Hearing" });
-    expect(within(none).getByText("No next hearing date yet")).toBeInTheDocument();
+    expect(none.querySelector("[data-band]")).toHaveAttribute("data-band", "none");
+    expect(within(none).getByText("No Date Yet")).toBeInTheDocument();
     await userEvent.click(within(none).getByRole("button", { name: "Enter Next Date" }));
     expect(onAction).toHaveBeenCalledWith("next");
+  });
+
+  it("Next Hearing tomorrow: the strong band in the body and the collapsed line, with the court and item (design next-hearing-highlight)", async () => {
+    vi.useFakeTimers({ now: new Date("2026-10-27T06:30:00Z"), toFake: ["Date"] });
+    try {
+      browserApi({
+        ...routes(),
+        [`GET ${BASE}/listings`]: {
+          items: [{ list_date: "2026-10-28", court_no: "3", sr_no: 14, printed_sr: null, list_type: "daily", source: "causelist" }],
+          total: 1,
+        },
+      });
+      const c = detail({ status: { status: "pending", next_hearing_date: "2026-10-28" } as CaseDetail["status"] });
+      const { unmount } = renderRail(c, true);
+      const card = screen.getByRole("region", { name: "Next Hearing" });
+      expect(card.querySelector("[data-band]")).toHaveAttribute("data-band", "tomorrow");
+      expect(card.querySelector("[data-band]")).toHaveTextContent(/^Tomorrow · Wed, 28 Oct 2026$/);
+      expect(await within(card).findByText("Court 3 · Item 14")).toBeInTheDocument();
+      unmount();
+      const narrow = renderRail(c, false);
+      const toggle = within(screen.getByRole("region", { name: "Next Hearing" })).getByRole("button", { name: /Next Hearing/ });
+      expect(toggle.querySelector("[data-band]")).toHaveTextContent(/^Tomorrow · 28 Oct 2026$/);
+      narrow.unmount();
+      // a disposed case reads Disposed, with no court and item and no Enter Next Date
+      renderRail({ ...c, status: { ...c.status, status: "disposed" } }, true);
+      const disposed = screen.getByRole("region", { name: "Next Hearing" });
+      expect(disposed.querySelector("[data-band]")).toHaveAttribute("data-band", "disposed");
+      expect(disposed.querySelector("[data-band]")).toHaveTextContent(/^Disposed$/);
+      await waitFor(() => expect(within(disposed).queryByText("Court 3 · Item 14")).toBeNull());
+      expect(within(disposed).queryByRole("button", { name: "Enter Next Date" })).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("Quick actions follow the three workflow flags, and the card hides with none", async () => {
@@ -241,7 +278,9 @@ describe("the layout (decision 8)", () => {
     const hearing = screen.getByRole("region", { name: "Next Hearing" });
     const toggle = within(hearing).getByRole("button", { name: /Next Hearing/ });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
-    expect(toggle).toHaveTextContent(/Fri, 20 Nov 2099/);
+    // the collapsed line carries the small badge: a later date reads the date alone (design next-hearing-highlight)
+    expect(toggle.querySelector("[data-band]")).toHaveAttribute("data-band", "later");
+    expect(toggle.querySelector("[data-band]")).toHaveTextContent(/^20 Nov 2099$/);
     expect(within(screen.getByRole("region", { name: "Quick Actions" })).getByRole("button", { name: /3 actions/ })).toHaveAttribute(
       "aria-expanded",
       "false",

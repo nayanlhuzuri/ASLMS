@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { CustodyBrief, CustodyCard, HeldItem, MyCase, SentItem } from "./api/types";
-import { cardHolder, cardSender, hearingCountdown, leadBadge, legHolder, withText } from "./cases";
+import { cardHolder, cardSender, leadBadge, legHolder, withText } from "./cases";
 
 // 25 Oct 2026, 12:00 IST
 const NOW = new Date("2026-10-25T06:30:00Z");
@@ -150,22 +150,5 @@ describe("withText (decision 13)", () => {
     expect(withText(cardSender(card())).text).toBe("Joint Secretary, EDU");
     expect(cardSender(card({ sent_by: null }))).toBeNull();
     expect(withText(legHolder(sentRow(true, null).leg), "u-h1").text).toBe("Under Secretary, Health (you)");
-  });
-});
-
-describe("hearingCountdown (decision 11): whole IST days, never hours", () => {
-  it("Today, Tomorrow, In n days; nothing for a past date or none", () => {
-    expect(hearingCountdown("2026-10-25", NOW)).toBe("Today");
-    expect(hearingCountdown("2026-10-26", NOW)).toBe("Tomorrow");
-    expect(hearingCountdown("2026-10-30", NOW)).toBe("In 5 days");
-    expect(hearingCountdown("2026-10-24", NOW)).toBeNull();
-    expect(hearingCountdown(null, NOW)).toBeNull();
-  });
-
-  it("counts in IST across midnight, not in the browser's or UTC's day", () => {
-    // 25 Oct 23:30 IST is still the 25th: the 26th is tomorrow
-    expect(hearingCountdown("2026-10-26", new Date("2026-10-25T18:00:00Z"))).toBe("Tomorrow");
-    // 26 Oct 00:30 IST (still the 25th in UTC): the 26th is today
-    expect(hearingCountdown("2026-10-26", new Date("2026-10-25T19:00:00Z"))).toBe("Today");
   });
 });

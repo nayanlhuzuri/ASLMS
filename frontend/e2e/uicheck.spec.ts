@@ -562,6 +562,38 @@ const STATES: State[] = [
       await page.getByText(/No department names are registered yet/).waitFor();
     },
   },
+  // design next-hearing-highlight: the next hearing badge in every band, as a table at 1280 px and as cards below
+  {
+    name: "/inbox/working (next hearing bands)",
+    path: "/inbox/working",
+    open: async (page) => {
+      for (const band of ["today", "tomorrow", "week", "later", "passed", "none", "disposed"]) {
+        await page.locator(`[data-band="${band}"]`).first().waitFor();
+      }
+      await expect(page.locator('[data-band="today"]').first()).toBeVisible();
+      await expect(page.locator('[data-band="passed"]').first()).toBeVisible();
+    },
+  },
+  {
+    name: "/ (upcoming hearings bands)",
+    path: "/",
+    open: async (page) => {
+      const list = page.getByRole("list", { name: "Upcoming Hearings" });
+      await list.waitFor();
+      await expect(list.locator('[data-band="today"]').first()).toBeVisible();
+      await expect(list.locator('[data-band="tomorrow"]').first()).toBeVisible();
+    },
+  },
+  {
+    name: `/cases/${SAMPLE.caseRefPath} (next hearing header and next date from orders)`,
+    path: `/cases/${SAMPLE.caseRefPath}`,
+    open: async (page) => {
+      await expect(page.getByRole("region", { name: "Case Summary" }).locator('[data-band="tomorrow"]').first()).toBeVisible();
+      const card = page.getByRole("region", { name: "Next Date From Orders" });
+      await card.scrollIntoViewIfNeeded();
+      await expect(card.locator('[data-kind="suggested"]').first()).toBeVisible();
+    },
+  },
 ];
 
 test.describe("interaction states", () => {

@@ -812,8 +812,6 @@ export const T = {
     claimed: "Cases Claimed and Active",
     claimedSub: (n: string) => `${n} disposed`,
     upcoming: "Upcoming Hearings",
-    within48: "Within 48 Hours",
-    thisWeek: "This Week",
     noHearings: "No hearings in the next 7 days.",
     attention: "Needs Attention",
     nextDatesReview: "Next Dates to Confirm",
@@ -899,9 +897,6 @@ export const T = {
       due_soon: "Due Soon",
       file_received: "New",
     } as Record<string, string>,
-    today: "Today",
-    tomorrow: "Tomorrow",
-    inDays: (n: number) => `In ${n} days`,
     courtItem: (court: string | null, item: string | null) =>
       [court ? `Court ${court}` : null, item ? `item ${item}` : null].filter(Boolean).join(" · "),
     moreWork: "More About My Work",
@@ -1377,7 +1372,6 @@ export const T = {
     actions: "Actions",
     listing: (date: string, court: string | null, item: number) =>
       `Cause list ${date}${court ? ` · Court ${court}` : ""} · Item ${item}`,
-    nextHearing: (d: string) => `Next hearing ${d}`,
     suggestedBy: (code: string, reason: string | null) => `Suggested by ${code}${reason ? `: ${reason}` : ""}`,
     ownedBy: (code: string) => `Owned by ${code}`,
     empty: "Nothing here.",
@@ -1431,8 +1425,6 @@ export const T = {
     yourAction: "Your Action",
     unitOfficer: "Responsible Unit · Dealing Officer",
     fileWith: "With",
-    within48: "48 Hours",
-    thisWeek: "This Week",
     overdueDays: (n: number) => `Overdue ${n} ${n === 1 ? "day" : "days"}`,
     dueOn: (d: string) => `Due ${d}`,
     you: "You",
@@ -1490,8 +1482,6 @@ export const T = {
     notClaimed: "Not Claimed",
     ownedWatcher: (code: string) => `Owned by ${code}, claiming adds you as a watcher`,
     ownedBy: (code: string) => `Owned by ${code}`,
-    nextAt: (date: string, court: string | null, item: number | null) =>
-      `${date}${court ? ` · Court ${court}` : ""}${item !== null ? `, item ${item}` : ""}`,
     modalTabs: "Case Details Sections",
     tabParties: "Parties & Advocates",
     tabHearings: "Hearings & Listings",
@@ -1869,12 +1859,9 @@ export const T = {
     unowned: "Not Claimed",
     seenAs: (basis: string) => `You see this case as: ${basis}`,
     nextHearing: "Next Hearing",
-    within48: "Within 48 Hours",
-    thisWeek: "This Week",
     purpose: "Purpose",
     courtItem: (court: string | null, item: number) => `${court ? `Court ${court} · ` : ""}Item ${item}`,
     source: "Source",
-    noNext: "No next hearing known.",
     partiesCard: "Parties and Advocates",
     petitioner: "Petitioner",
     respondent: "Respondent",
@@ -2014,8 +2001,6 @@ export const T = {
     yourDepartment: "Your Department",
     fileWith: "With",
     you: (designation: string | null | undefined) => (designation ? `You · ${designation}` : "You"),
-    nextAt: (date: string, court: string | null, item: number | string | null) =>
-      `${date}${court ? ` · Court ${court}` : ""}${item !== null && item !== "" ? `, item ${item}` : ""}`,
     actions: "Case Actions",
     moreTabs: "More",
     recentActivity: "Recent Activity",
@@ -2850,9 +2835,6 @@ export const T = {
   // design case-workspace-admin: plain case words, the rail of the case page, the remarks history and the Cases list
   cases: {
     you: (text: string) => `${text} (you)`,
-    today: "Today",
-    tomorrow: "Tomorrow",
-    inDays: (n: number) => `In ${n} days`,
     lead: { overdue: "Overdue", dueSoon: "Due Soon", new: "New", waiting: "Waiting" },
     recalledMark: "Recalled",
     // design case-inbox-merge, decision 8: the Show control of Working on
@@ -2884,9 +2866,7 @@ export const T = {
     actionDue: (d: string) => `Action due ${d}`,
     actionOverdue: (d: string) => `Overdue since ${d}`,
     nextHearing: "Next Hearing",
-    noNextHearing: "No next hearing date yet",
     enterNext: "Enter Next Date",
-    hearingLine: (date: string, countdown: string | null) => (countdown ? `${date} · ${countdown.toLowerCase()}` : date),
     courtItem: (court: string | null, item: number | string | null) =>
       [court ? `Court ${court}` : null, item !== null && item !== "" ? `Item ${item}` : null].filter(Boolean).join(" · "),
     quickActions: "Quick Actions",
@@ -2955,6 +2935,20 @@ export const T = {
     ticket: (ref: string) => `Ticket ${ref}`,
     empty: "No alerts match these filters.",
     emptyDefault: "You have no open alerts.",
+  },
+  // design next-hearing-highlight, decision 8: the next hearing badge (`HearingDate`) on every screen that shows one
+  hearing: {
+    badges: {
+      today: "Today",
+      tomorrow: "Tomorrow",
+      inDays: (n: number) => `In ${n} Days`,
+      passed: "Date Passed",
+      none: "No Date Yet",
+      disposed: "Disposed",
+      suggested: "Suggested",
+    },
+    passedHint: "The court's next date has passed and no newer date is held yet.",
+    suggestedHint: "Read from an order and not yet confirmed.",
   },
   // the hearing calendar (decisions 10, 11)
   cal: {

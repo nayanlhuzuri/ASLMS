@@ -20,6 +20,8 @@
   /* text in red on a soft or grey ground: #d92d20 on --red-soft is 4.45:1, below AA (design note, Deviations) */
   --red-text: #b42318;
   --red-soft: #fef3f2;
+  /* text on a solid --red fill, the strong hearing band (design next-hearing-highlight, decision 4) */
+  --on-red: #ffffff;
   --amber: #b54708;
   --amber-soft: #fffaeb;
   --green: #067647;

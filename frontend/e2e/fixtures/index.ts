@@ -15,6 +15,7 @@ import type {
   CustodyHistory,
   CustodyLeg,
   DashboardIndex,
+  DashboardMe,
   HeldList,
   InboxCounts,
   Me,
@@ -104,6 +105,33 @@ const DASHBOARD: DashboardIndex = {
     { code: "HEALTH", name: "Health and Family Welfare" },
   ],
 };
+
+/**
+ * The run's IST day plus `days`, as `YYYY-MM-DD` (design next-hearing-highlight): the hearing bands are counted from
+ * the IST day, so dates relative to it draw the same bands whenever the check runs. A copy of `istDay` and `addDays`
+ * (lib/format.ts), since the fixtures import only types from the portal's source.
+ */
+function istDayPlus(days: number): string {
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  const d = new Date(`${get("year")}-${get("month")}-${get("day")}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/** My Work's Upcoming Hearings (design next-hearing-highlight): rows today, tomorrow and in 4 days. */
+function dashboardMe(): DashboardMe {
+  const base = synthFor("/dashboard/me")!.body as DashboardMe;
+  const first = base.upcoming[0]!;
+  const upcoming = [0, 1, 4].map((days, i) => ({
+    ...first,
+    case: { ...first.case, id: `0192a3b4-0000-7000-8000-00000000060${i}` },
+    date: istDayPlus(days),
+    critical: days <= 1,
+    this_week: true,
+  }));
+  return { ...base, upcoming };
+}
 
 function inboxCounts(): S["InboxCountsListOut"] {
   const block = (code: string): InboxCounts => ({
@@ -644,7 +672,9 @@ function held(): HeldList {
 
 /**
  * Working on (design case-inbox-merge, decision 8): one row per lead badge on a case with me (Overdue, Due soon, New),
- * then a case allotted to me but with someone else (no badge, "—" for action, due and From).
+ * then a case allotted to me but with someone else (no badge, "—" for action, due and From). The Next Hearing column
+ * draws every band (design next-hearing-highlight): today, tomorrow, in 3 days and in 20 days on those four rows, then
+ * three cases allotted to me with no custody: a date 5 days past, no date, and a disposed case.
  */
 function working(): MyCaseList {
   const base = synthFor("/inbox/mine")!.body as MyCaseList;
@@ -669,12 +699,26 @@ function working(): MyCaseList {
     { due_date: null, since: recent },
     { with_me: false, holder_user: { full_name: "Rina Das 1", designation: "Section Officer" }, overdue: true, overdue_days: 3 },
   ];
-  const items = variants.map((v, i) => ({
+  const dates = [0, 1, 3, 20];
+  const items: MyCaseList["items"] = variants.map((v, i) => ({
     ...first,
-    case: { ...first.case, id: `0192a3b4-0000-7000-8000-00000000050${i}` },
+    case: { ...first.case, id: `0192a3b4-0000-7000-8000-00000000050${i}`, status: "pending", next_hearing_date: istDayPlus(dates[i]!) },
     reasons: v.with_me === false ? ["allotted"] : ["allotted", "file"],
     custody: { ...brief, ...v },
   }));
+  const bare: [string | null, string][] = [
+    [istDayPlus(-5), "pending"],
+    [null, "pending"],
+    [istDayPlus(1), "disposed"],
+  ];
+  bare.forEach(([date, status], i) => {
+    items.push({
+      ...first,
+      case: { ...first.case, id: `0192a3b4-0000-7000-8000-00000000050${4 + i}`, status, next_hearing_date: date },
+      reasons: ["allotted"],
+      custody: null,
+    });
+  });
   return { ...base, items, total: items.length };
 }
 
@@ -770,6 +814,7 @@ const OVERRIDES: [RegExp, Override][] = [
     () => ({ ...(synthFor("/admin/discovery")!.body as Record<string, unknown>), terms: { active: 0, inactive: 0 } }),
   ],
   [/^\/dashboard$/, () => DASHBOARD],
+  [/^\/dashboard\/me$/, () => dashboardMe()],
   [/^\/inbox\/counts$/, () => inboxCounts()],
   [/^\/admin\/system-health$/, () => systemHealth()],
   [/^\/admin\/system-health\/token$/, () => napixToken()],
@@ -817,12 +862,17 @@ const OVERRIDES: [RegExp, Override][] = [
 function tidy(path: string, body: unknown): unknown {
   if (/^\/cases\/[^/]+$/.test(path) && body && typeof body === "object") {
     const c = body as S["CaseDetailOut"];
+    // design next-hearing-highlight: the court's date tomorrow (header and rail) and a suggestion from an order in 3
+    // days waiting for a person (the Overview card, outlined "Suggested")
+    const suggestion = synth({ $ref: "#/components/schemas/NextDateOut" }) as S["NextDateOut"];
     return {
       ...c,
       merged_into_ref_no: null,
       ref_no: SAMPLE.caseRef,
       identity: { ...c.identity, case_no_text: STRESS.caseNo },
       portal: { ...c.portal, merged_into_case_id: null, is_provisional: false },
+      status: { ...c.status, status: "pending", next_hearing_date: istDayPlus(1) },
+      next_date_from_orders: { ...suggestion, next_date: istDayPlus(3), review_status: "pending", needs_review: true, source: "order_period" },
     };
   }
   return body;

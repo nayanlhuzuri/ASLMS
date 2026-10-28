@@ -19,7 +19,7 @@ import { useState, type KeyboardEvent } from "react";
 import { IdentityDetails } from "@/components/case/Details";
 import { Hearings } from "@/components/case/Hearings";
 import { Parties } from "@/components/case/Parties";
-import { Badge, CaseLink, cx, EmptyState, ErrorBanner, KvList, Loading, Modal, ScoreBadge } from "@/components/ui";
+import { Badge, CaseLink, cx, EmptyState, ErrorBanner, HearingDate, KvList, Loading, Modal, ScoreBadge } from "@/components/ui";
 import { api, ApiError } from "@/lib/api/client";
 import { caseKey, useMe, useOwnership } from "@/lib/api/hooks";
 import type { CaseDetail, CaseSummary, LinkList, OwnershipActions, PoolCase, Recommendation, Transfer } from "@/lib/api/types";
@@ -218,7 +218,11 @@ export function CaseModal({
       <dl className={s.facts}>
         <div>
           <dt>{T.claim.factNext}</dt>
-          <dd>{next ? T.claim.nextAt(formatDate(next), at?.court_no ?? null, at ? at.sr_no : null) : "—"}</dd>
+          {/* design next-hearing-highlight, decision 11: the kit's HearingDate, then the court and item */}
+          <dd className={s.next}>
+            <HearingDate date={next} status={status} size="md" />
+            {at && status !== "disposed" ? <span className="muted">{T.rail.courtItem(at.court_no ?? null, at.sr_no)}</span> : null}
+          </dd>
         </div>
         <div>
           <dt>{T.claim.factStatus}</dt>

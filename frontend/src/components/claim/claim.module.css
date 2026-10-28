@@ -30,6 +30,14 @@
   margin: var(--s1) 0 0;
 }
 
+/* the Next Hearing fact: the badge, then the court and item (design next-hearing-highlight, decision 11) */
+.facts .next {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s1);
+}
+
 .layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 300px;

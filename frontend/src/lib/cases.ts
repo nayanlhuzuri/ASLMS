@@ -4,9 +4,8 @@
  * - `withText`: who a case is with, "<designation>, <office>" with "(you)" for the caller; the person's name only when
  *   the membership has no designation, and always as the title attribute;
  * - `leadBadge`: the lead badge of the custody lists, one pure rule per list (first match wins); Working on reads the
- *   row's custody brief only when the case is with the caller (design case-inbox-merge, decision 8);
- * - `hearingCountdown`: whole IST days to a hearing ("Today", "Tomorrow", "In n days"), never hours, since ASLMS does
- *   not hold the hearing time.
+ *   row's custody brief only when the case is with the caller (design case-inbox-merge, decision 8).
+ * The whole-day countdown to a hearing is `lib/hearingDate.ts` (design next-hearing-highlight, decision 2).
  */
 import type { CustodyCard, CustodyLeg, HeldItem, MyCase, SentItem } from "./api/types";
 import { addDays, daysBetween, istDay } from "./format";
@@ -112,16 +111,6 @@ export function leadBadge(row: HeldItem | SentItem | MyCase, tab: CasesTab, now:
   if (card?.due_soon) return { label: T.cases.lead.dueSoon, tone: "warning" };
   if (tab === "with-me") return isNew(card?.since, now) ? { label: T.cases.lead.new, tone: "info" } : null;
   return { label: T.cases.lead.waiting };
-}
-
-/** Decision 11: whole IST days to the hearing; null for a past date or none. */
-export function hearingCountdown(date: string | null | undefined, now: Date = new Date()): string | null {
-  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
-  const days = daysBetween(istDay(now), date);
-  if (days < 0) return null;
-  if (days === 0) return T.cases.today;
-  if (days === 1) return T.cases.tomorrow;
-  return T.cases.inDays(days);
 }
 
 /** Whole IST days from today to a due date: positive = days left, negative = days overdue. */

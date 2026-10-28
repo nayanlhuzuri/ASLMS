@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { CaseDetail, CaseOwnershipView, DocumentItem, Note, Ownership, OwnershipActions, Permission } from "@/lib/api/types";
 import { caseDetail as detail } from "@/test/caseDetail";
@@ -100,6 +100,11 @@ beforeEach(() => {
   resetNav(BASE);
 });
 
+// a test that fixes the clock for the hearing bands (design next-hearing-highlight) never leaks it into the next
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 /** The Overview folds today's Ownership card under "Ownership and recommendations" (portal-ui-redesign, decision 24). */
 async function openOwnership() {
   await userEvent.click(await screen.findByRole("button", { name: "Ownership and Recommendations" }));
@@ -191,6 +196,8 @@ describe("the frame", () => {
   });
 
   it("the summary header shows the five facts and the badges (case-workspace-admin, decision 9)", async () => {
+    // 12:00 IST on Thursday 19 Nov 2026: the 20th is tomorrow (design next-hearing-highlight)
+    vi.useFakeTimers({ now: new Date("2026-11-19T06:30:00Z"), toFake: ["Date"] });
     const c = detail({
       custody: { ...detail().custody!, holder_user: { id: "u-1", full_name: "Anita Sharma", designation: "Under Secretary" } },
       status: { ...detail().status, next_hearing_date: "2026-11-20" },
@@ -212,8 +219,11 @@ describe("the frame", () => {
     expect(await within(header).findByText("Overdue since 10 Oct 2026")).toBeInTheDocument();
     expect(within(header).getByText(/RAM KUMAR/)).toBeInTheDocument();
     const fact = (label: string) => within(header).getByText(label, { selector: "dt" }).nextElementSibling as HTMLElement;
-    // the date always shows with the whole-day countdown (owner, 23 Oct 2026)
-    await waitFor(() => expect(fact("Next Hearing")).toHaveTextContent(/^Fri, 20 Nov 2026( · (today|tomorrow|in [0-9]+ days))? · Court 3, item 14/));
+    // the word first, then the weekday and date (owner, 23 Oct 2026), then the court and item of that day's listing
+    const badge = () => fact("Next Hearing").querySelector("[data-band]");
+    expect(badge()).toHaveAttribute("data-band", "tomorrow");
+    expect(badge()).toHaveTextContent(/^Tomorrow · Fri, 20 Nov 2026$/);
+    await waitFor(() => expect(within(fact("Next Hearing")).getByText("Court 3 · Item 14")).toHaveClass("muted"));
     expect(fact("With")).toHaveTextContent("Under Secretary, Secondary Education (you)");
     expect(fact("Stage")).toHaveTextContent("Reply due");
     expect(fact("Owner Department")).toHaveTextContent("Education");
@@ -1227,8 +1237,14 @@ describe("next dates from orders on the case page (portal-next-dates, decisions 
   }
 
   it("shows a fixed, a confirmed and an entered date, and says when there is none", async () => {
+    // 12:00 IST on 17 Nov 2026: the 20th is in 3 days (design next-hearing-highlight, decision 5)
+    vi.useFakeTimers({ now: new Date("2026-11-17T06:30:00Z"), toFake: ["Date"] });
     let r = await card(detail({ next_date_from_orders: nd() }));
-    expect(within(r.region).getByText("20 Nov 2026")).toBeInTheDocument();
+    const ndBadge = () => r.region.querySelector("[data-band]") as HTMLElement;
+    // a date read from an order that matches the court's is firm: filled, no "Suggested"
+    expect(ndBadge()).toHaveAttribute("data-band", "week");
+    expect(ndBadge()).toHaveAttribute("data-kind", "firm");
+    expect(ndBadge()).toHaveTextContent(/^In 3 Days · Fri, 20 Nov 2026$/);
     expect(within(r.region).getByText("Fixed in the order of 12 Oct 2026")).toBeInTheDocument();
     expect(within(r.region).getByText("What the Order Says")).toBeInTheDocument();
     expect(within(r.region).getByText("“List on 20.11.2026.”")).toBeInTheDocument();
@@ -1245,6 +1261,13 @@ describe("next dates from orders on the case page (portal-next-dates, decisions 
       }),
     );
     expect(within(r.region).getByText("Counted from the order of 12 Oct 2026 · confirmed by Edu Admin on 14 Oct 2026")).toBeInTheDocument();
+    expect(ndBadge()).toHaveAttribute("data-kind", "firm");
+    r.unmount();
+    // a suggestion waiting for a person is outlined and says Suggested first
+    r = await card(detail({ next_date_from_orders: nd({ source: "order_period", review_status: "pending", needs_review: true }) }));
+    expect(ndBadge()).toHaveAttribute("data-kind", "suggested");
+    expect(ndBadge()).toHaveTextContent(/^Suggested · In 3 Days · Fri, 20 Nov 2026$/);
+    expect(ndBadge()).toHaveAttribute("title", "Read from an order and not yet confirmed.");
     r.unmount();
     r = await card(
       detail({
@@ -1260,6 +1283,7 @@ describe("next dates from orders on the case page (portal-next-dates, decisions 
     );
     expect(within(r.region).getByText("Entered by Officer One on 15 Oct 2026")).toBeInTheDocument();
     expect(within(r.region).getByText(/Fixed by the court orally/)).toBeInTheDocument();
+    expect(ndBadge()).toHaveAttribute("data-kind", "firm");
     r.unmount();
     r = await card(detail({ next_date_from_orders: null }));
     expect(within(r.region).getByText("No next date from the orders yet.")).toBeInTheDocument();
@@ -1469,7 +1493,44 @@ describe("round 1 and round 3 advisories (design portal-ui-polish, decisions 2, 
     renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
     const header = await screen.findByRole("region", { name: "Case Summary" });
     const fact = () => within(header).getByText("Next Hearing", { selector: "dt" }).nextElementSibling as HTMLElement;
-    await waitFor(() => expect(fact()).toHaveTextContent(/20 Nov 2026.* · Court 3, item 14A/));
+    await waitFor(() => expect(fact()).toHaveTextContent(/20 Nov 2026\s*Court 3 · Item 14A$/));
+  });
+
+  describe("the header's next hearing badge (design next-hearing-highlight, decisions 9-11)", () => {
+    async function headerBadge(status: Partial<CaseDetail["status"]>) {
+      vi.useFakeTimers({ now: new Date("2026-11-19T06:30:00Z"), toFake: ["Date"] });
+      browserApi({ "GET /me": me(), [`GET ${BASE}`]: detail({ status: { ...detail().status, ...status } }) });
+      const view = renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
+      const header = await screen.findByRole("region", { name: "Case Summary" });
+      const fact = within(header).getByText("Next Hearing", { selector: "dt" }).nextElementSibling as HTMLElement;
+      return { badge: fact.querySelector("[data-band]") as HTMLElement, view };
+    }
+
+    it("a past court date reads Date Passed with the date", async () => {
+      const { badge } = await headerBadge({ next_hearing_date: "2026-11-14" });
+      expect(badge).toHaveAttribute("data-band", "passed");
+      expect(badge).toHaveTextContent(/^Date Passed · Sat, 14 Nov 2026$/);
+      expect(badge).toHaveAttribute("title", "The court's next date has passed and no newer date is held yet.");
+    });
+
+    it("no court date reads No Date Yet, greyed", async () => {
+      const { badge } = await headerBadge({ next_hearing_date: null });
+      expect(badge).toHaveAttribute("data-band", "none");
+      expect(badge).toHaveTextContent(/^No Date Yet$/);
+    });
+
+    it("a disposed case reads Disposed in place of any held date", async () => {
+      const { badge } = await headerBadge({ status: "disposed", next_hearing_date: "2026-11-20" });
+      expect(badge).toHaveAttribute("data-band", "disposed");
+      expect(badge).toHaveTextContent(/^Disposed$/);
+      expect(badge.querySelector("time")).toBeNull();
+    });
+
+    it("a later date shows its countdown in the header", async () => {
+      const { badge } = await headerBadge({ next_hearing_date: "2026-12-09" });
+      expect(badge).toHaveAttribute("data-band", "later");
+      expect(badge).toHaveTextContent(/^In 20 Days · Wed, 9 Dec 2026$/);
+    });
   });
 
   it("custody tab has one primary", async () => {

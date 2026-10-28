@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatDate, formatDateTime, formatDateTimeSeconds, formatNumber, formatTime, hearingBadge } from "./format";
+import { formatDate, formatDateTime, formatDateTimeSeconds, formatNumber, formatTime, isCalendarDay } from "./format";
 
 describe("IST dates", () => {
   it("shows the IST day for a UTC instant near midnight", () => {
@@ -44,21 +44,11 @@ describe("Indian digit grouping", () => {
   });
 });
 
-describe("hearing badges from IST dates", () => {
-  it("counts the IST day near midnight, not the browser's", () => {
-    // 18:45 UTC on 24 Sep is 00:15 IST on 25 Sep: a hearing on 24 Sep is already past
-    const now = new Date("2026-09-24T18:45:00Z");
-    expect(hearingBadge("2026-09-24", now)).toBeNull();
-    expect(hearingBadge("2026-09-25", now)).toBe("critical");
-    expect(hearingBadge("2026-09-26", now)).toBe("critical");
-    expect(hearingBadge("2026-09-27", now)).toBe("week");
-    expect(hearingBadge("2026-10-02", now)).toBe("week");
-    expect(hearingBadge("2026-10-03", now)).toBeNull();
-  });
-
-  it("just before IST midnight the same date is still today", () => {
-    const now = new Date("2026-09-24T18:25:00Z"); // 23:55 IST on 24 Sep
-    expect(hearingBadge("2026-09-24", now)).toBe("critical");
-    expect(hearingBadge(null, now)).toBeNull();
+describe("isCalendarDay (design next-hearing-highlight)", () => {
+  it("accepts real days, a leap day among them, and refuses impossible or malformed ones", () => {
+    for (const d of ["2026-10-27", "2026-12-31", "2027-01-01", "2028-02-29"]) expect(isCalendarDay(d)).toBe(true);
+    for (const d of ["2026-02-30", "2026-04-31", "2027-02-29", "2026-13-01", "2026-00-10", "28/10/2026", "2026-10-28T10:30:00Z", "", null, undefined]) {
+      expect(isCalendarDay(d)).toBe(false);
+    }
   });
 });

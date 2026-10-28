@@ -31,7 +31,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { OwnershipDialogs, type DialogKind } from "@/components/inbox/dialogs";
 import { EnterNextDate } from "@/components/nextdates/Dialogs";
-import { Badge, Breadcrumb, Button, EmptyState, ErrorBanner, Loading, Menu, Notice, Tabs, type MenuItem } from "@/components/ui";
+import { Badge, Breadcrumb, Button, EmptyState, ErrorBanner, HearingDate, Loading, Menu, Notice, Tabs, type MenuItem } from "@/components/ui";
 import { useWorkflowRefresh } from "@/components/workflow/common";
 import { RecallDialog, SendDialog } from "@/components/workflow/CustodyDialogs";
 import { NoteDialog } from "@/components/workflow/NoteDialog";
@@ -41,8 +41,8 @@ import { api, ApiError } from "@/lib/api/client";
 import { caseKey, useCase, useLatestListing, useMe, useOwnership } from "@/lib/api/hooks";
 import type { CaseDetail, CaseOwnershipView, Listing, Me } from "@/lib/api/types";
 import { can, departmentsOf, readsAudit } from "@/lib/can";
-import { cardHolder, hearingCountdown, withText } from "@/lib/cases";
-import { formatDate, hearingBadge } from "@/lib/format";
+import { cardHolder, withText } from "@/lib/cases";
+import { formatDate } from "@/lib/format";
 import { NEXT_DATE_ERRORS, T } from "@/lib/messages";
 import { queryString, type Params } from "@/lib/params";
 import { apiCasePath, casePath, currentCaseHref } from "@/lib/refs";
@@ -52,7 +52,7 @@ import { RAIL_MIN_WORKSPACE, useElementWidth, useMediaQuery, WIDE_CASE_PAGE } fr
 import { useUrlOverlay } from "@/lib/useUrlOverlay";
 
 import s from "./case.module.css";
-import { Rail, weekdayDate, type RailAction } from "./Rail";
+import { Rail, type RailAction } from "./Rail";
 import { RemarksPanel } from "./Remarks";
 
 // decision 10.15: green means done (disposed); pending and unknown are neutral, amber is kept for due soon
@@ -81,19 +81,19 @@ export function listingOnDay(c: CaseDetail, listing: Listing | null | undefined)
   return listing && next && listing.list_date === next && !listing.superseded ? listing : null;
 }
 
+/**
+ * The header's next hearing (design next-hearing-highlight, decision 11): the kit's `HearingDate` in the medium size,
+ * the word before the weekday and date (owner, 23 Oct 2026: the date always shows with the whole-day countdown), then
+ * the court and item when the latest listing places the case on that day.
+ */
 function NextHearingFact({ c, listing }: { c: CaseDetail; listing: Listing | null | undefined }) {
-  const next = c.status.next_hearing_date;
-  if (!next) return <span className="muted">{T.case.noNext}</span>;
   const onDay = listingOnDay(c, listing);
-  const badge = hearingBadge(next);
-  // owner, 23 Oct 2026: the date always shows with the whole-day countdown ("Wed, 28 Oct 2026 · in 5 days")
-  const date = T.rail.hearingLine(weekdayDate(next), hearingCountdown(next));
+  const disposed = c.status.status === "disposed";
   return (
     <span className={s.factLine}>
+      <HearingDate date={c.status.next_hearing_date} status={c.status.status} size="md" />
       {/* the item number as printed in the cause list, else the serial (design portal-ui-polish, decision 12) */}
-      <span>{T.case.nextAt(date, onDay?.court_no ?? null, onDay ? (onDay.printed_sr ?? onDay.sr_no) : null)}</span>
-      {badge === "critical" ? <Badge tone="danger">{T.case.within48}</Badge> : null}
-      {badge === "week" ? <Badge>{T.case.thisWeek}</Badge> : null}
+      {onDay && !disposed ? <span className="muted">{T.rail.courtItem(onDay.court_no ?? null, onDay.printed_sr ?? onDay.sr_no)}</span> : null}
     </span>
   );
 }

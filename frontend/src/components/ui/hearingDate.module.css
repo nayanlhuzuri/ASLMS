@@ -1,0 +1,114 @@
+/* The next hearing badge (design next-hearing-highlight, decisions 4-7). Colours from tokens only (var(--…)), so a
+   portal-wide dark theme that redefines the tokens covers it with no change here; tokens.test.ts refuses literals. */
+.root {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--s1);
+  row-gap: 0;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0 var(--s2);
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  line-height: 1.35;
+  vertical-align: middle;
+}
+
+.sm {
+  min-height: 22px;
+  font-size: var(--t-sm);
+}
+
+.md {
+  min-height: 28px;
+  font-size: var(--t-md);
+}
+
+/* the word and the date never break inside themselves: a narrow cell puts the date on a second line */
+.word,
+.date {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  white-space: nowrap;
+}
+
+.word {
+  font-weight: 600;
+}
+
+/* the medium badge's weekday date ("Wed, 28 Oct 2026") is wider than a phone's fact column: in that size the word
+   and the date may break between their words (never cut), so a narrow column wraps instead of overflowing */
+.md .word,
+.md .date {
+  flex-wrap: wrap;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.icon {
+  flex: none;
+}
+
+/* strong: today and tomorrow, the only solid fill on a row */
+.strong {
+  background: var(--red);
+  border-color: var(--red);
+  color: var(--on-red);
+}
+
+/* soft: 2 to 7 days ahead */
+.soft {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
+/* plain: later; no fill, the word quieter than the date */
+.plain {
+  background: transparent;
+  color: var(--text);
+}
+
+.plain .word {
+  color: var(--text-2);
+}
+
+/* warning: the court's date has passed; the warning colour and icon on the neutral ground */
+.warning {
+  background: var(--slate-soft);
+  color: var(--amber);
+}
+
+/* muted: no date or disposed */
+.muted {
+  background: transparent;
+  border: 1px dashed var(--border-strong);
+  color: var(--text-3);
+}
+
+/* a suggested date (decision 5): the band's colour as an outline on the surface */
+.root[data-kind="suggested"] {
+  background: var(--surface);
+  border-style: solid;
+}
+
+.strong[data-kind="suggested"] {
+  border-color: var(--red-text);
+  color: var(--red-text);
+}
+
+.soft[data-kind="suggested"] {
+  border-color: var(--amber);
+  color: var(--amber);
+}
+
+.plain[data-kind="suggested"],
+.warning[data-kind="suggested"] {
+  border-color: var(--border-strong);
+}
+
+.plain[data-kind="suggested"] .word {
+  color: var(--text);
+}

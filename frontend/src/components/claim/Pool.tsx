@@ -11,8 +11,8 @@ import { useQuery } from "@tanstack/react-query";
 
 import { FilterBar } from "@/components/filters/FilterBar";
 import { useFilters } from "@/components/inbox/common";
-import { CaseCell, NextHearingCell } from "@/components/inbox/rows";
-import { DataTable, EmptyState, ErrorBanner, Loading, Pagination, type Column } from "@/components/ui";
+import { CaseCell } from "@/components/inbox/rows";
+import { DataTable, EmptyState, ErrorBanner, HearingDate, Loading, Pagination, type Column } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { INBOX_KEY } from "@/lib/api/hooks";
 import type { PoolCase, PoolList } from "@/lib/api/types";
@@ -46,7 +46,7 @@ export function Pool({ params, department, onOpen }: { params: Params; departmen
       cell: (p) => <CaseCell c={{ ...p.case, petitioner_summary: null, respondent_summary: null }} />,
     },
     { key: "parties", header: T.claim.parties, cell: (p) => partiesText(p.case) },
-    { key: "next", header: T.claim.nextHearing, cell: (p) => <NextHearingCell date={p.case.next_hearing_date} /> },
+    { key: "next", header: T.claim.nextHearing, cell: (p) => <HearingDate date={p.case.next_hearing_date} status={p.case.status} /> },
     {
       key: "best",
       header: T.claim.best,

@@ -15,12 +15,12 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { fileUrl } from "@/components/case/Orders";
-import { Badge, Button, EmptyState, ErrorBanner, Loading, Notice, Pagination, DataTable } from "@/components/ui";
+import { Badge, Button, EmptyState, ErrorBanner, HearingDate, Loading, Notice, Pagination, DataTable } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { caseKey, useCase, useMe } from "@/lib/api/hooks";
 import type { CaseDetail, CaseNextDate, CaseNextDateList, NextDateReviewList } from "@/lib/api/types";
 import { can } from "@/lib/can";
-import { formatDate, hearingBadge } from "@/lib/format";
+import { formatDate } from "@/lib/format";
 import { NEXT_DATE_ERRORS, T } from "@/lib/messages";
 import { originLine, sourceLabel, statusLabel } from "@/lib/nextDates";
 import { PAGE } from "@/lib/params";
@@ -52,7 +52,6 @@ export function NextDateBlock({ caseRef, c }: { caseRef: string; c: CaseDetail }
   const [notice, setNotice] = useState<string | null>(null);
   const [stale, setStale] = useState<unknown>(null);
   const row = c.next_date_from_orders ?? null;
-  const badge = row ? hearingBadge(row.next_date) : null;
   const outcome: DialogOutcome = {
     onDone: (text) => {
       setStale(null);
@@ -69,10 +68,14 @@ export function NextDateBlock({ caseRef, c }: { caseRef: string; c: CaseDetail }
       <ErrorBanner error={stale} messages={NEXT_DATE_ERRORS} />
       {row ? (
         <>
+          {/* design next-hearing-highlight, decisions 5 and 11: a pending suggestion is outlined and says Suggested */}
           <div className="row">
-            <strong>{formatDate(row.next_date)}</strong>
-            {badge === "critical" ? <Badge tone="danger">{T.case.within48}</Badge> : null}
-            {badge === "week" ? <Badge>{T.case.thisWeek}</Badge> : null}
+            <HearingDate
+              date={row.next_date}
+              status={c.status.status}
+              kind={row.review_status === "pending" ? "suggested" : "firm"}
+              size="md"
+            />
           </div>
           <div className="muted">{originLine(row)}</div>
           {row.order?.phrase ? (

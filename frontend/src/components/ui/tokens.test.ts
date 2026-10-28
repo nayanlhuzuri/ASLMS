@@ -160,6 +160,41 @@ describe("design tokens (design portal-ui-redesign, decision 11)", () => {
   });
 });
 
+describe("the next hearing badge's colours (design next-hearing-highlight, decisions 4, 5 and 13)", () => {
+  it("defines --on-red, the text on a solid red fill", () => {
+    expect(TOKENS["--on-red"]).toBe("#ffffff");
+  });
+
+  it.each([
+    // strong, soft, warning (Date Passed), muted (No Date Yet, Disposed) on the surface and the zebra row
+    ["--on-red", "--red"],
+    ["--amber", "--amber-soft"],
+    ["--amber", "--slate-soft"],
+    ["--text-3", "--surface"],
+    ["--text-3", "--surface-2"],
+    ["--text", "--surface"],
+    ["--text-2", "--surface"],
+    // a suggested date's outline on the surface
+    ["--red-text", "--surface"],
+    ["--amber", "--surface"],
+  ])("%s on %s is at least 4.5:1", (fg, bg) => {
+    expect(contrast(hex(fg), hex(bg))).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("hearingDate.module.css takes every colour from a token, so a dark theme of the tokens covers it", () => {
+    const css = readFileSync(join(SRC, "components/ui/hearingDate.module.css"), "utf-8").replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(css).not.toMatch(/#[0-9a-f]{3,8}\b/i);
+    expect(css).not.toMatch(/\b(rgba?|hsla?|hwb|lab|lch|oklab|oklch)\(/i);
+    const colourDecls = [...css.matchAll(/(?:^|[;{\s])(color|background(?:-color)?|border(?:-[a-z]+)?(?:-color)?|outline(?:-color)?|fill|stroke)\s*:\s*([^;}]+)/g)];
+    expect(colourDecls.length).toBeGreaterThan(5);
+    const NAMED = /\b(white|black|red|green|blue|amber|orange|yellow|grey|gray|silver|navy|maroon|purple)\b/i;
+    for (const [, prop, value] of colourDecls) {
+      const bare = value!.replace(/var\(--[a-z0-9-]+\)/g, "");
+      expect(NAMED.test(bare), `${prop}: ${value}`).toBe(false);
+    }
+  });
+});
+
 /** Every CSS module of the portal (decision 14: the check widened to every module in round 5). */
 const MODULES = sources([".module.css"]);
 

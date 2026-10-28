@@ -8,7 +8,7 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useEffect, useState } from "react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Redirect } from "@/components/inbox/Redirects";
 import { istDay } from "@/lib/format";
@@ -130,6 +130,10 @@ beforeEach(() => {
   resetNav("/claim/recommended");
 });
 
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 describe("tabs and rows", () => {
   it("shows the tabs by counts, with the badge counts; a null count hides its tab", async () => {
     browserApi(routes({ "GET /inbox/counts": { departments: [block("EDU", { transfers_in_open: null })] } }));
@@ -170,6 +174,32 @@ describe("tabs and rows", () => {
     expect(nav.replace).toHaveBeenCalledWith("/claim/recommended?band=medium");
   });
 
+  it("the Next Hearing column of Recommended and Pool carries the band (design next-hearing-highlight, decision 11)", async () => {
+    vi.useFakeTimers({ now: new Date("2026-10-27T06:30:00Z"), toFake: ["Date"] });
+    browserApi(
+      routes({
+        "GET /inbox/recommended": {
+          items: [rec(1, { case: summary(1, { next_hearing_date: "2026-10-27" }) }), rec(2, { case: summary(2, { next_hearing_date: "2026-10-30" }) })],
+          total: 2,
+        },
+        "GET /inbox/pool": { items: [poolItem(1, { case: summary(1, { next_hearing_date: "2026-11-16" }) }), poolItem(2)], total: 2 },
+      }),
+    );
+    const { unmount } = renderWithClient(<ClaimFrame tab="recommended" params={{}} />);
+    const r1 = await screen.findByRole("row", { name: "Open details of WP(C)/1/2026" });
+    expect(r1.querySelector("[data-band]")).toHaveTextContent(/^Today · 27 Oct 2026$/);
+    const r2 = screen.getByRole("row", { name: "Open details of WP(C)/2/2026" });
+    expect(r2.querySelector("[data-band]")).toHaveTextContent(/^In 3 Days · 30 Oct 2026$/);
+    unmount();
+    resetNav("/claim/pool");
+    renderWithClient(<ClaimFrame tab="pool" params={{}} />);
+    const p1 = await screen.findByRole("row", { name: "Open details of WP(C)/1/2026" });
+    expect(p1.querySelector("[data-band]")).toHaveAttribute("data-band", "later");
+    expect(p1.querySelector("[data-band]")).toHaveTextContent(/^16 Nov 2026$/);
+    const p2 = screen.getByRole("row", { name: "Open details of WP(C)/2/2026" });
+    expect(p2.querySelector("[data-band]")).toHaveTextContent(/^No Date Yet$/);
+  });
+
   it("Enter on a focused row opens it", async () => {
     browserApi(routes());
     renderWithClient(<ClaimFrame tab="recommended" params={{}} />);
@@ -182,6 +212,8 @@ describe("tabs and rows", () => {
 
 describe("the details modal", () => {
   it("shows the facts, loads each tab on first open, and the Why box lists each signal", async () => {
+    // 12:00 IST on Thursday 24 Sep 2026: the court's date, the 25th, is tomorrow (design next-hearing-highlight)
+    vi.useFakeTimers({ now: new Date("2026-09-24T06:30:00Z"), toFake: ["Date"] });
     const view = ownershipView(actions(), { recommendations: [rec(1)] });
     const api = browserApi(routes(caseRoutes(view)));
     renderWithClient(<ClaimFrame tab="recommended" params={{ case: REF }} />);
@@ -189,7 +221,11 @@ describe("the details modal", () => {
     expect(await within(dialog).findByText("Suggested for your department · cause list of 25 Sep 2026")).toBeInTheDocument();
     expect(within(dialog).getByText("Not Claimed")).toBeInTheDocument();
     expect(within(dialog).getByText("10 Jan 2026")).toBeInTheDocument();
-    expect(within(dialog).getByText(/25 Sep 2026 · Court 3, item 41/)).toBeInTheDocument();
+    // the Next Hearing fact: the medium badge with the weekday, then the court and item of that day's listing
+    const next = within(dialog).getByText("Next Hearing", { selector: "dt" }).nextElementSibling as HTMLElement;
+    expect(next.querySelector("[data-band]")).toHaveAttribute("data-band", "tomorrow");
+    expect(next.querySelector("[data-band]")).toHaveTextContent(/^Tomorrow · Fri, 25 Sep 2026$/);
+    expect(within(next).getByText("Court 3 · Item 41")).toBeInTheDocument();
     // Why this is suggested: one line per signal with its contribution, the meter and the rule
     const why = within(dialog).getByRole("complementary", { name: "Why This Is Suggested" });
     expect(within(why).getByText("Code: SC, EDU")).toBeInTheDocument();

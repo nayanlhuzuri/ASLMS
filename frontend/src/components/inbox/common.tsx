@@ -32,12 +32,8 @@ export function PartiesLine({ c }: { c: Pick<CaseSummary, "petitioner_summary" |
   );
 }
 
-export function ListingLine({ c }: { c: Pick<CaseSummary, "last_listing" | "next_hearing_date"> }) {
-  const parts: string[] = [];
-  if (c.last_listing) {
-    parts.push(T.inbox.listing(formatDate(c.last_listing.list_date), c.last_listing.court_no, c.last_listing.sr_no));
-  }
-  if (c.next_hearing_date) parts.push(T.inbox.nextHearing(formatDate(c.next_hearing_date)));
-  if (parts.length === 0) return null;
-  return <div className="muted">{parts.join(" · ")}</div>;
+/** The case's last listing; the next hearing is shown apart, as the kit's `HearingDate` (design next-hearing-highlight). */
+export function ListingLine({ c }: { c: Pick<CaseSummary, "last_listing"> }) {
+  if (!c.last_listing) return null;
+  return <div className="muted">{T.inbox.listing(formatDate(c.last_listing.list_date), c.last_listing.court_no, c.last_listing.sr_no)}</div>;
 }

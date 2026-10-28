@@ -7,7 +7,8 @@
  * - Your task, from the overview's custody card (no new call): the action needed, From, Due by, the latest remark
  *   (when the API returned it) and "See all remarks (n)" / "See the journey (n)" by the history's `remarks_shown`;
  *   Recall case as a secondary danger button by `can_recall`, never primary.
- * - Next hearing: the date with a whole-day IST countdown, court and item when the latest listing is that day.
+ * - Next hearing: the kit's `HearingDate` (design next-hearing-highlight), court and item when the latest listing is
+ *   that day; the collapsed line carries the small badge.
  * - Quick actions: Add note, Upload and Set stage by the three workflow flags (the card hides with none).
  * - Journey of this case: the latest 4 movements, newest first, with the "now" marker.
  * The server decides everything shown: the frontend never infers a hidden remark.
@@ -15,27 +16,17 @@
 import Link from "next/link";
 import { useId, useState, type ReactNode } from "react";
 
-import { Badge, Button, Collapsible, ErrorBanner, Loading } from "@/components/ui";
+import { Button, Collapsible, ErrorBanner, HearingDate, Loading } from "@/components/ui";
 import { useJourney, useLatestListing, useMe } from "@/lib/api/hooks";
 import type { CaseDetail, CustodyCard, CustodyHistory, CustodyLeg, Listing } from "@/lib/api/types";
-import { cardHolder, cardSender, daysUntil, hearingCountdown, legActor, legHolder, withText } from "@/lib/cases";
-import { formatDate, formatDateTime, formatWeekday, hearingBadge } from "@/lib/format";
+import { cardHolder, cardSender, daysUntil, legActor, legHolder, withText } from "@/lib/cases";
+import { formatDate, formatDateTime } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { casePath } from "@/lib/refs";
 
 import s from "./rail.module.css";
 
 export type RailAction = "note" | "upload" | "stage" | "recall" | "next";
-
-/** "Wed, 28 Oct 2026": the short weekday and the date, both in IST. */
-export function weekdayDate(date: string): string {
-  return `${formatWeekday(date).slice(0, 3)}, ${formatDate(date)}`;
-}
-
-/** Owner, 23 Oct 2026: the date always shows with the whole-day countdown, "Wed, 28 Oct 2026 · in 5 days". */
-export function hearingFact(date: string, now: Date = new Date()): string {
-  return T.rail.hearingLine(weekdayDate(date), hearingCountdown(date, now));
-}
 
 /** The latest remark, clamped to `lines` with "Show all" when it is long; the full text stays in the page. */
 export function ClampedRemark({ text, lines, quote = true }: { text: string; lines: 2 | 6; quote?: boolean }) {
@@ -143,28 +134,19 @@ export function NextHearing({
   onAction: (a: RailAction) => void;
 }) {
   const next = c.status.next_hearing_date;
-  if (!next) {
-    return (
-      <div className={s.hearing}>
-        <p className="muted">{T.rail.noNextHearing}</p>
-        {c.workflow.next_dates ? (
-          <Button variant="link" onClick={() => onAction("next")}>
-            {T.rail.enterNext}
-          </Button>
-        ) : null}
-      </div>
-    );
-  }
-  const onDay = listing && listing.list_date === next && !listing.superseded ? listing : null;
-  const badge = hearingBadge(next);
+  const disposed = c.status.status === "disposed";
+  const onDay = next && !disposed && listing && listing.list_date === next && !listing.superseded ? listing : null;
+  // design next-hearing-highlight, decision 11: the kit's HearingDate, the court and item, and Enter Next Date without a date
   return (
     <div className={s.hearing}>
-      <div className={s.hearingDate}>{hearingFact(next)}</div>
+      <div className={s.hearingDate}>
+        <HearingDate date={next} status={c.status.status} size="md" />
+      </div>
       {onDay ? <div className="muted">{T.rail.courtItem(onDay.court_no ?? null, onDay.printed_sr ?? onDay.sr_no)}</div> : null}
-      {badge ? (
-        <div className={s.badges}>
-          {badge === "critical" ? <Badge tone="danger">{T.case.within48}</Badge> : <Badge>{T.case.thisWeek}</Badge>}
-        </div>
+      {!next && c.workflow.next_dates ? (
+        <Button variant="link" onClick={() => onAction("next")}>
+          {T.rail.enterNext}
+        </Button>
       ) : null}
     </div>
   );
@@ -244,7 +226,7 @@ function RailCard({
 }: {
   wide: boolean;
   title: string;
-  fact?: string | null;
+  fact?: ReactNode;
   open?: boolean;
   /** The card's own eyebrow names it (Your task), so the column's heading is for screen readers only. */
   eyebrow?: boolean;
@@ -300,7 +282,7 @@ export function Rail({
       <RailCard wide={wide} title={T.rail.yourTask} open eyebrow>
         <YourTask c={c} journey={c.custody ? journey.data : undefined} onAction={onAction} onRemarks={onRemarks} />
       </RailCard>
-      <RailCard wide={wide} title={T.rail.nextHearing} fact={next ? hearingFact(next) : T.rail.noNextHearing}>
+      <RailCard wide={wide} title={T.rail.nextHearing} fact={<HearingDate date={next} status={c.status.status} />}>
         <NextHearing c={c} listing={listing.data?.items[0]} onAction={onAction} />
       </RailCard>
       {quick.length > 0 ? (

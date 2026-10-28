@@ -152,4 +152,5 @@ export const LABEL_FUNCTIONS: Record<string, unknown[]> = {
   "remarks.otherHeading": ["Hand-over", "Under Secretary", "Section Officer"],
   "system.ringLabel": ["80%"],
   "assistant.courtRecordTitle": ["WP(C) 12/2026"],
+  "hearing.badges.inDays": [3],
 };

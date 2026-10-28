@@ -10,7 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 
-import { Badge, Card, CaseLink, DataTable, EmptyState, ErrorBanner, Kpi, Loading, SelectField } from "@/components/ui";
+import { Badge, Card, CaseLink, DataTable, EmptyState, ErrorBanner, HearingDate, Kpi, Loading, SelectField } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { labelOf, useLabels, useMe } from "@/lib/api/hooks";
 import type {
@@ -72,17 +72,11 @@ export function HearingList({ hearings, caption }: { hearings: DashboardHearings
       rows={hearings.items}
       rowKey={(h) => `${h.case.id}-${h.date}-${h.item_no ?? ""}`}
       columns={[
-        { key: "date", header: T.dash.date, cell: (h) => formatDate(h.date) },
+        // design next-hearing-highlight, decision 11: the date cell carries the band, so no separate badge column
+        { key: "date", header: T.dash.date, cell: (h) => <HearingDate date={h.date} /> },
         { key: "case", header: T.dash.case, primary: true, cell: (h) => <CaseRef value={h.case} /> },
         { key: "court", header: T.dash.court, cell: (h) => h.court_no ?? "—" },
         { key: "item", header: T.dash.item, cell: (h) => h.item_no ?? "—" },
-        {
-          key: "badge",
-          header: <span className="visually-hidden">{T.dash.within48}</span>,
-          label: T.dash.within48,
-          width: "var(--lead-w)",
-          cell: (h) => (h.critical ? <Badge tone="danger">{T.dash.within48}</Badge> : <Badge>{T.dash.thisWeek}</Badge>),
-        },
       ]}
     />
   );

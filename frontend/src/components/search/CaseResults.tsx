@@ -6,15 +6,17 @@
  * with Claim when `claimable`. Claim opens the dialog without departments: it reads `GET /cases/{ref}/ownership` and
  * offers its `claim_departments` (design portal-cases-followups, decision 7; nothing is computed in the portal).
  * On the Work list template (design portal-ui-redesign, decision 26): a `DataTable` (cards on phones) whose row opens
- * the case's facts in a side panel, with "Open case page" when the caller can open it.
+ * the case's facts in a side panel, with "Open case page" when the caller can open it. The next hearing is the kit's
+ * `HearingDate`, on its own line under the last listing and in the panel's Next Hearing row (design
+ * next-hearing-highlight, decision 11).
  */
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 
 import { ClaimDialog } from "@/components/inbox/dialogs";
 import { ListingLine, PartiesLine } from "@/components/inbox/common";
-import { Chevron, NextHearingCell } from "@/components/inbox/rows";
-import { Button, buttonClass, CaseLink, DataTable, KvList, SidePanel, type Column } from "@/components/ui";
+import { Chevron } from "@/components/inbox/rows";
+import { Button, buttonClass, CaseLink, DataTable, HearingDate, KvList, SidePanel, type Column } from "@/components/ui";
 import type { CaseSearchItem } from "@/lib/api/types";
 import { T } from "@/lib/messages";
 import { casePath } from "@/lib/refs";
@@ -38,6 +40,10 @@ function CaseCell({ it }: { it: CaseSearchItem }) {
       <CaseLink value={it.case} visible={it.visible} />
       {it.case.cnr && it.case.case_no_text ? <span className="mono muted"> · {it.case.cnr}</span> : null}
       <ListingLine c={it.case} />
+      {/* design next-hearing-highlight, decision 11: the next hearing on its own line under the listing */}
+      <div>
+        <HearingDate date={it.case.next_hearing_date} status={it.case.status} />
+      </div>
     </>
   );
 }
@@ -121,7 +127,7 @@ export function CaseResults({
                 [T.search.cnrLabel, open.case.cnr ? <span className="mono">{open.case.cnr}</span> : null],
                 [T.causelist.parties, <PartiesLine key="p" c={open.case} />],
                 [T.inbox.status, <StatusCell key="s" it={open} />],
-                [T.search.nextHearing, <NextHearingCell key="n" date={open.case.next_hearing_date} />],
+                [T.search.nextHearing, <HearingDate key="n" date={open.case.next_hearing_date} status={open.case.status} />],
                 [T.search.listing, <ListingLine key="l" c={open.case} />],
               ]}
             />

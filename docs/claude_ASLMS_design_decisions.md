@@ -2907,3 +2907,34 @@ Row 151 (`uicheck-after-row-135`) is closed by this repair. Verification ran the
 **Left for later**
 - After the merge: `docker compose build` and the owner's usual `up` for `web`, so the running portal carries these fixes. The running stack was not touched.
 
+
+## Next hearing highlight (2026-10-27)
+Backlog row 190 `next-hearing-highlight`; design `docs/design/next-hearing-highlight.md` (approved by the owner, 27 Oct 2026, checks 1 to 3 accepted). Frontend only; no API change, no migration.
+
+**What was built**
+- One kit badge `HearingDate` and the IST band helper `hearingBand`. Bands: Today and Tomorrow strong red; 2 to 7 days soft amber "In n Days"; later plain date; Date Passed; No Date Yet; Disposed. A pending suggested date from an order is outlined with "Suggested". Two sizes; the text wraps and is never truncated; `<time dateTime>`; an impossible calendar day reads No Date Yet (`isCalendarDay`). Meaning is always in words, never colour alone.
+- Used on the case header, the rail, the Overview next-date card, the case details modal, the Next Hearing column of Working On, Claimed by Me, Disposed, Department Cases, Recommended and Pool, Search (row and side panel), and the dashboard's upcoming hearings and Department and State hearing tables.
+- The four old date helpers were retired. New token `--on-red` with contrast tests. uicheck states written at 375, 768 and 1280 px (run by the integrator).
+- Commits: a8a55d9, 2cba036, 8e2747e, 5ed392d, c62fc26, 183a11f (tester), c185ffa (impossible-day fix), 5c47969 (review advisories). Tests: vitest 82 files, 1682 passed; eslint and tsc clean; backend guard suites 99 passed.
+
+**Decisions and reasons**
+1. One component and one band helper so every screen gives the same word and colour for the same day; bands are computed on the IST day.
+2. Words plus colour, so the meaning does not depend on colour.
+3. A suggested date is outlined and labelled, never drawn as firm, matching the next-dates rule that a person confirms it.
+
+**Deviations** (the design note's Deviations section lists all 7)
+- Court and item line hidden for a disposed case (a date held for a disposed case is stale).
+- With the date hidden, the later band reads its countdown rather than nothing.
+- The " · " separator is its own `aria-hidden` part.
+- More message keys retired than the design listed: `rail.noNextHearing`, `case.nextAt`, `claim.nextAt`, `inbox.nextHearing`.
+- Fixtures compute the IST day with a local `istDayPlus`.
+- The uicheck fixture of unmapped codes lacked `partial_matches` (row 154); fixed in its own commit, 8e2747e.
+- Small badge uses `--t-sm`, medium `--t-md`.
+- No dark theme exists, so the design's dark-mode wording became tokens only; "within 48 hours" is drawn as Today and Tomorrow.
+
+**Review**: may merge, nothing blocking. Advisory 2 (the medium badge wraps on phones) and advisory 3 (the Suggested separator `aria-hidden`) were fixed in 5c47969. Advisory 1 stays with the integrator: run the FULL Compose uicheck, because the sample case fixture changed for every case-page state.
+
+**Left for later**
+- Dark theme not built (owner check 1).
+- The header shows only the court date, and other screens are unchanged (owner check 3).
+- The owner's browser check at 375, 768 and 1280 px, and `docker compose build` after merge.

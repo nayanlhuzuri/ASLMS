@@ -138,15 +138,7 @@
 }
 
 .hearingDate {
-  font-size: var(--t-lg);
-  font-weight: 600;
-}
-
-.badges {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--s2);
-  margin-top: var(--s2);
 }
 
 .quick {
