@@ -71,6 +71,5 @@ Compose worker. Portal UI redesign round 1 of 5 (row 101 `portal-ui-foundation`:
 10. After row 157 merges: apply 0028 with the `migrate` step (it renumbers the dev cases once); `docker compose build`.
 11. After row 176 merges: apply 0029 with the `migrate` step; `docker compose build`.
 12. After row 178 merges: apply 0030 with the `migrate` step, then `init` (seed); `docker compose build`.
-13. Done 28 Oct 2026: 0032, 0031 and the merge 0033 applied with the `migrate` step; rows 188, 197, 190 and 169 deployed.
-14. After row 175 merges: `docker compose build` and `up` with the court-data switch (no migration).
-15. Next builds, in order: row 198 `assistant-polish`, then row 199 `next-date-direct` (migration 0034; on deploy `aslms next-dates direct`, dry run then `--apply`); both approved 28 Oct 2026.
+13. Done 28 Oct 2026: 0032, 0031 and the merge 0033 applied with the `migrate` step; rows 188, 197, 190 and 169 deployed; row 175 deployed at 14:39 (no migration).
+14. Next builds, in order: row 198 `assistant-polish`, then row 199 `next-date-direct` (migration 0034; on deploy `aslms next-dates direct`, dry run then `--apply`); both approved 28 Oct 2026.

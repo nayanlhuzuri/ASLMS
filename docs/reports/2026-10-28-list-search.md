@@ -44,3 +44,6 @@ Mergeable, no blocking findings. Three advisories, left open as follow-ups (row 
 ## Deploying
 No migration: `docker compose build`, then `up` with the court-data switch; check the switch in api and worker;
 `portal_smoke.py`.
+
+Deployed on 28 Oct 2026 at 14:39 IST after CI passed on `main` (run 40658750084): images built, `up` with the
+court-data switch (checked true in api and worker), `portal_smoke.py` passed, the Case Assistant ready.
