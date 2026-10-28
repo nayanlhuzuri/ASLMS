@@ -18,15 +18,19 @@ merge and the reviewer treats a miss as a blocking finding.
   (`npm run gen:api` leaves no diff), and the integrator runs `docker compose build web`. Every page renders in
   the running Compose `web` service: `backend/tools/portal_smoke.py` passes (HTTP 200 for each page, no error in
   the web log), checked by the tester and again by the integrator.
-- When `frontend/src` changes: after `portal_smoke.py`, the integrator runs the browser check
-  `docker compose --profile uicheck run --rm uicheck` (375, 768 and 1280 px; design `portal-ui-polish`, decision 23);
-  it exits 0 with `findings.json` empty, and the cycle report records the run directory under `./data/uicheck/`,
-  the number of routes and screenshots, and the run time.
+- When `frontend/src` changes: after `portal_smoke.py`, the integrator runs the browser check `uicheck` (375, 768
+  and 1280 px; design `portal-ui-polish`, decision 23) **on a private network against temporary images, never
+  through Compose on the shared stack** (a Compose run recreates the api without the court-data switch; runbook
+  section 16 has the steps). It exits 0 with `findings.json` empty, and the cycle report records the number of
+  routes, states and screenshots, the findings and the run time.
 
 **Documents**
 - The decisions log has an entry for the feature: what was built, decisions, deviations from the plan and why.
 - `CLAUDE.md` "Current focus" names the next step; the backlog row is `done` with the report linked.
 - `.env.example` and `compose.yml` carry any new variable or service.
+- The documents read outside the team are in step when the feature changes what they describe:
+  `docs/ASLMS_Process_Workflows.md`, `docs/operations.md`, and the two Word guides regenerated from their
+  `build.js` with a revision row (`ASLMS_Software_Documentation.docx`, `ASLMS_Hosting_Guide.docx`).
 
 **Process**
 - The design note exists and was approved by the owner before building; deviations are written back into it.

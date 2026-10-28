@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | Owner | Government of Assam |
-| Describes | The system as built on `main`, 21 October 2026; the court-call slots, renewals, State-plus-department remarks and the no-local-model guard of row 137, 24 October 2026; court data freshness (section 2, items 10 to 12 of section 6) as changed on 24 October 2026; the Case Assistant in preview mode (sections 4.9 and 5), 24 October 2026 |
+| Describes | The system as built on `main`, 21 October 2026; the court-call slots, renewals, State-plus-department remarks and the no-local-model guard of row 137, 24 October 2026; court data freshness (section 2, items 10 to 12 of section 6) as changed on 24 October 2026; the Case Assistant in preview mode (sections 4.9 and 5), 24 October 2026; and, as built on `main` on 28 October 2026 (rows 135 to 190): the single Case inbox, the Administration hub and Title Case labels, the Office Picker and Filter Layout B, the sixth scoring weight for partial counsel codes (4.1), case numbers on the court's code (2.3), the head of a department chosen from existing logins and a login with no office (3.1), "Assign" in place of "Allot" throughout, the Data Collection tabs (2.5), the next hearing badge (4.5), search and sort on lists (4.2, 4.4), the session timeout (3.3, 5, 6) and the Case Assistant answered by a local model (1, 4.9, 5) |
 | Readers | The product owner, department and State officials, auditors and anyone asked how ASLMS handles data |
 | Status | Living document: updated when a workflow changes |
 
@@ -70,7 +70,8 @@ flowchart LR
 
     NAPIX[(NAPIX<br/>Gauhati High Court data)]
     MAIL[E-mail service]
-    ST[SourceTrace<br/>AI, not connected yet<br/>Case Assistant in preview, no AI]
+    ST[SourceTrace<br/>intended AI, not connected yet]
+    OL[Local model, Ollama<br/>on the ASLMS host or a<br/>Government server]
 
     U1 & U2 & U3 --> WEB --> API
     API --> DB
@@ -84,6 +85,7 @@ flowchart LR
     API --> MAIL
     BK --> DB & STORE
     STORE -.->|"orders and court filings only,<br/>when connected"| ST
+    API -->|"Case Assistant questions only,<br/>over HTTP, when switched on"| OL
 ```
 
 ### The rules the system never breaks
@@ -99,7 +101,7 @@ flowchart LR
 | **Notes are append-only** | A note is never edited or deleted. A correction is a new note linked to the old one. |
 | **Legal records are never deleted** | Cases, orders, documents and notes are kept. Documents can be archived, not deleted. |
 | **Everything significant is audited** | Ownership decisions, file movements, notes, uploads, user and configuration changes all write an audit row. |
-| **AI only through SourceTrace** | No other AI service and no local AI model, and the system checks this: if an AI runtime (onnxruntime or a PyMuPDF layout package) ever appears in the installed software, the system refuses to start, in every environment. Only court orders and uploaded court filings may ever go to SourceTrace, never notes or internal documents. It is not connected yet (row 36). The Case Assistant is built, but in preview mode it uses no AI: see section 4.9. |
+| **All AI through the Case Assistant connector** | SourceTrace is the intended AI (plan, row 36) and is not connected yet. Only court orders and uploaded court filings may ever go to SourceTrace, never notes or internal documents. **Difference from the plan (owner's decision, 27 October 2026):** until SourceTrace is available, Case Assistant questions may be answered by **one local model served by Ollama** on the ASLMS host or a server the Government controls, reached over HTTP only through `backend/aslms/integration/ollama/`. It is allowed in production, for Case Assistant questions only. There is **no cloud AI service and no cloud model**, and **no model, model runtime or model library inside ASLMS's own programs**: the system checks this, and if an AI runtime (onnxruntime or a PyMuPDF layout package) ever appears in the installed software it refuses to start, in every environment. What the local model may read is set out in section 4.9. |
 
 ---
 
@@ -232,6 +234,13 @@ What the **full court record** (the "dossier", from NAPIX *Search by CNR*) fills
 Search results are stored only when they carry a valid CNR. A search row without a CNR is shown to the user but
 never stored, so no identifier is ever made up.
 
+**ASLMS case numbers.** Every stored case also gets an ASLMS reference made by the system, on the court's code, for
+example `ASLMS/GHC/CASE/2026/054584` (court code `GHC` for the Gauhati High Court, then the year and a running
+number). Earlier numbers began `ASLMS/GOA/CASE/`; on 28 October 2026 the existing cases were renumbered once, keeping
+the year and the number, and an old `GOA` number still finds the case in searches, filters and addresses. Cases found by
+department discovery are numbered the same way. The reference is a convenience of ASLMS: the court's CNR remains the
+case's identity. (Plan difference: the plan names no reference format; this follows the database standard, version 1.3.)
+
 ### 2.4 How a held case stays up to date
 
 ```mermaid
@@ -298,6 +307,29 @@ date the operator chooses (2025-01-01 in development):
   orders" now behaves as "cases first".
 - Before re-fetching days already held, it asks whether to skip them or fetch them again.
 
+**The Data Collection screen** (super admin, with the `admin.data_load` function) has the tabs **Overview**,
+**Collect Now** and **Automatic Collection**, followed for now by the older Health, Queue and Calls and Duplicates
+tabs.
+
+- **Overview** counts honestly across every queue lane (people's requests, the daily cycle and the historical load):
+  cause-list days, cases and order PDFs held, what is left in each lane, problems, and an estimate in **two dates**
+  (when every case's details will be held, and when every order PDF will be as well). **Month by Month** shows how far
+  the past-months collection has reached. It refreshes itself while the tab is visible; that refreshing does not count
+  as the person's activity for the session timeout (section 3.3).
+- **Automatic Collection** holds Load Control (Start, Pause, Resume), What Goes First, the Court Allowance, the daily
+  schedule in plain words with the last run of each job, the daily updates of the last 7 days, and **Search by
+  Department Names** (department discovery).
+- **Collect Now** holds the manual forms: fetch one case, refresh the court's reference lists and the like.
+- None of these reads calls NAPIX.
+
+*Status on 28 October 2026, 14:15 IST.* All 666 cause-list days of the collection period are fetched. (The four days
+2 to 5 October 2026 had not been queued, because the historical load ended on 1 October and the daily cycle began on 6
+October; they were queued and fetched on 28 October, and a permanent nightly check for such gaps is planned as backlog
+row 200.) The database held 83,205 cases, 83,135 of them with full details. The 70 without are 68 whose CNR the court's
+lookup answers with no case record (all filed 2007 to 2019) and 2 interlocutory applications with no CNR; the owner
+decided on 28 October to leave them as they are. Order PDFs stored: 142,634 of 389,623. The worker was using about 863
+court calls an hour of the 1,000 allowed.
+
 **Department discovery** finds a department's older cases that will not appear in upcoming cause lists:
 
 - A department's keyword or name pattern can be ticked **"Search the court"**.
@@ -363,40 +395,50 @@ flowchart TD
 
 - **Offices** form a tree: the State, then departments, then directorates and units. Offices are never deleted, only
   deactivated.
-- **A login** belongs to one person, identified by e-mail.
+- **A login** belongs to one person, identified by e-mail. Only the Super Administrator can create a login **with no
+  office yet**. It is shown with a **No Office Yet** badge (and has its own filter in the Users list), can sign in,
+  change its password and confirm its profile, but holds no function and sees nothing until it is named the head of a
+  department or added to an office.
 - **A membership** places that login in one office, with a **designation** (from a State-wide list of 18, from Chief
   Secretary to Government Advocate) and a **user type**. One person can hold several memberships, for example in two
   departments, each with its own type.
 - Each department has **at most one department head** and **at most one department admin**. There is **one super
   admin** in the whole system.
-- A **head of department** is changed through an **admin ticket**: the department admin proposes, the super admin
-  approves.
-- **When a person leaves an office** (the exit step), every case allotted to them and every file they hold must be
+- **The head of a new or reactivated department is chosen from existing logins** (the User Picker) with a designation
+  from the State-wide list. No login is created from the office forms, so create the person first; one person may head
+  several departments. Head of the Department is required.
+- A **head of department** is changed through an **admin ticket**: the department admin proposes (choosing the new head
+  with the same picker), the super admin approves.
+- **When a person leaves an office** (the exit step), every case assigned to them and every file they hold must be
   handed to a named officer first, in one recorded step.
 
 ### 3.2 User types and what each can do by default
 
-There are ten user types and 50 active functions. The super admin can grant or withdraw single functions for a
-person, and can change the defaults for a whole type.
+There are ten user types and 51 active functions. The super admin can grant or withdraw single functions for a
+person, and can change the defaults for a whole type. The portal shows the types by their full names, which the
+Super Administrator can change with **Edit Name** (audited); the table gives the names as the portal shows them. In
+the running text of this document the short forms (super admin, department head and so on) are used.
 
 | User type | What they do by default |
 |---|---|
-| **Super admin** | Everything: offices, designations, scoring settings, configuration, the type matrix, the historical load, System health, approving tickets, the audit log |
-| **Department head** | Sees the whole department. Claims, dismisses, suggests elsewhere, allots, transfers. Searches the court. Moves the file, writes notes, uploads, sets stages. Department reports. |
-| **Department admin** | The same as the head, plus: manages the department's users (officers, directorate users, counsel), the department mapping (counsel codes, keywords, watchlist), proposes head changes, **recalls files** |
-| **Department officer** | Works on cases allotted to them or files they hold: moves the file, notes, uploads, stages, searches the court, takes over a colleague's case |
-| **Directorate user** | Like an officer, within the directorate |
-| **Standing counsel** | Sees cases carrying the department's counsel codes. Writes notes and uploads. |
-| **Referral reviewer** | Reviews files sent to them, adds notes |
-| **State oversight** | Reads every case in the State. State reports and the State dashboard. |
-| **Central operator** | Reads every case. Searches the court, suggests a department, keeps the watchlist, operates court data (masters, re-fetch). |
+| **Super Administrator** | Everything: offices, designations, scoring settings, configuration, the type matrix, the historical load, System health, approving tickets, the audit log |
+| **Head of Department** | Sees the whole department. Claims, dismisses, suggests elsewhere, assigns, transfers. Searches the court. Moves the file, writes notes, uploads, sets stages. Department reports. |
+| **Department Administrator** | The same as the head, plus: manages the department's users (officers, directorate users, counsel), the department mapping (counsel codes, keywords, watchlist), proposes head changes, **recalls files** |
+| **Department Officer** | Works on cases assigned to them or files they hold: moves the file, notes, uploads, stages, searches the court, takes over a colleague's case |
+| **Directorate Officer** | Like an officer, within the directorate |
+| **Standing Counsel** | Sees cases carrying the department's counsel codes. Writes notes and uploads. |
+| **Referral Reviewer** | Reviews files sent to them, adds notes |
+| **State Oversight Officer** | Reads every case in the State. State reports and the State dashboard. |
+| **Central Operator** | Reads every case. Searches the court, suggests a department, keeps the watchlist, operates court data (masters, re-fetch). |
 | **Auditor** | Reads every case and the **audit log** |
 
 **Delegation:** a department admin can create users and grant functions only inside their own department, only for
 officer, directorate, counsel and reviewer types, and only functions they hold themselves. Every grant is audited.
 
 > ⚙️ **You can change this:** the type matrix (Settings → Administration → Access) and per-person grants. Only the
-> super admin changes the matrix.
+> super admin changes the matrix. The user-type pages show plain-language switches grouped by area and save all
+> changes together in one batch (one audit row for each changed function; a batch with a retired or reserved function
+> is refused whole).
 
 > ✅ **Changed on 23 Oct 2026 (row 121):** department heads can now recall a case by default, like the department
 > admin, and the Auditor no longer has the Case Assistant. (Section 6, items 13 and 15.)
@@ -429,8 +471,20 @@ sequenceDiagram
 - **Every sign-in needs the e-mailed code**, on every device. No device skips the second step.
 - Ten wrong passwords or codes lock the login for 15 minutes.
 - Passwords need at least 10 characters with a letter and a digit, and are stored as a one-way hash (argon2id).
-- The portal keeps the sign-in tokens in secure cookies that page scripts cannot read. A session lasts up to 14 days
-  of activity. The working token lasts 30 minutes and is renewed silently.
+- The portal keeps the sign-in tokens in secure cookies that page scripts cannot read.
+- **Session timeout.** A person is signed out after **30 minutes without their own activity** and in any case **12
+  hours after the code sign-in**. Two minutes before the idle limit the portal shows an "Are You Still There?"
+  warning with **Stay Signed In**. Clicks, typing, scrolling and moving between pages count as activity; the screens
+  that refresh themselves in the background (alerts, Data Collection and the like) do not.
+  - The **server** is the only authority. Each code sign-in starts one row in `user_sessions`, which is checked on
+    **every request and every token renewal**; a lapsed session is answered "session_idle" or "session_limit" and
+    cannot be revived by a request or by an activity ping. The token is renewed only while the session is alive and
+    never beyond its end, so the earlier 14-day sliding session no longer exists.
+  - A sweep every 5 minutes (`aslms sessions sweep` on demand) ends sessions that lapsed, at their true deadline.
+    **Every session end writes an audit row** (idle, 12-hour limit, sign-out, replaced by a new sign-in).
+  - The limits are settings in `.env` (`SESSION_IDLE_MINUTES`, `SESSION_WARNING_SECONDS`, `SESSION_MAX_HOURS`).
+  - The portal's own countdown is shared across browser tabs. When it runs out the browser only clears its cookies;
+    the server records the true end.
 - Forgotten password: a code by e-mail. The answer is the same whether or not the e-mail is registered.
 - The super admin can sign a person out everywhere from the command line, and disabling a login ends its sessions.
 
@@ -449,7 +503,7 @@ flowchart TD
     DEPT -->|"in the unclaimed pool"| Y3[Yes, to read and claim]
     DEPT -->|"being transferred<br/>to my department"| Y4[Yes, to read and accept]
     Q -->|"officer, directorate user"| OFF{"Is the case..."}
-    OFF -->|"allotted to me<br/>or my unit"| Y5[Yes, and may work on it]
+    OFF -->|"assigned to me<br/>or my unit"| Y5[Yes, and may work on it]
     OFF -->|"is the file with me<br/>or my office?"| Y6[Yes, and may work on it]
     Q -->|"standing counsel"| SC{"Does the case carry my<br/>department's counsel code?"}
     SC -->|yes| Y7[Yes]
@@ -495,9 +549,19 @@ looks for these signals:
 | The department's watchlist | a CNR the department added | 0.75 |
 | A linked case the department owns | connected matter | 0.70 |
 | Keyword in a party name | "school" | 0.40 |
+| **Partial counsel code** (the sixth weight) | A printed code that no mapping names exactly but that contains, is contained in, or has the same parts as a department's code, for example "SC, SEBA, Secondary Education and Madrassa Board, Assam" against "SC, SEBA" | 0.600 |
 
 The signals combine, so several weak signals together make a stronger match. For example, a name pattern plus a
 keyword gives 0.88.
+
+**Partial counsel codes** (row 154, owner's decision of 25 October 2026). The code is compared part by part (the
+comma-separated pieces, ignoring the respondent markers). The shorter set must hold at least one part that is not a
+generic one, so "SC" or "AG" alone never matches "SC, AG". An exact match always wins, and a department with an exact
+signal loses its partial ones. The partial weight is kept by the system inside the possible-match band and below the
+counsel-code weight, so no change of settings can push an exact match out of its band. A partial match is therefore
+only ever a **possible match**: it raises no alert, nothing is assigned, and the department decides by claiming. Case
+Claim's "Why this is suggested" box shows the reason; the unmapped-codes panel of Department Mapping lists a code that
+**Partly matches** an existing mapping.
 
 | Score | Result |
 |---|---|
@@ -505,7 +569,7 @@ keyword gives 0.88.
 | 0.50 to 0.85 | **Possible match.** It appears in the list, with no alert. |
 | below 0.50 | No recommendation |
 
-> ⚙️ **You can change this:** the weights and the two thresholds (Settings → Department mapping → Scoring, super
+> ⚙️ **You can change this:** the six weights and the two thresholds (Settings → Department mapping → Scoring, super
 > admin, with a reason and full history). The department's counsel codes, keywords, name patterns and watchlist
 > (Department mapping, department admin).
 
@@ -519,7 +583,8 @@ showing the signals and the score.
 **Everything in this window comes from the ASLMS database. Opening it makes no call to NAPIX.** The orders are the
 PDFs already downloaded in the background. An order not downloaded yet shows "Fetch pending" or "Not yet published".
 
-**Step 4: you claim.** You may add a note and allot the case to a unit or officer in the same step.
+**Step 4: you claim.** You may add a note and, under **Assign Now (Optional)**, name a **Responsible Unit** (left empty
+it means the whole department) and a **Dealing Officer** (left empty, none yet) in the same step.
 
 ```mermaid
 sequenceDiagram
@@ -537,19 +602,19 @@ sequenceDiagram
     W->>A: case details, orders, hearings
     A->>D: read only, no NAPIX call
     A-->>W: details, order PDFs from the store
-    O->>W: Claim (optional note, unit, officer)
+    O->>W: Claim (optional note, responsible unit, dealing officer)
     W->>A: claim
     A->>D: ownership row: Education is primary owner
     A->>D: recommendation → claimed
     A->>D: audit row "ownership.claim", event "claimed"
-    A->>D: the file (custody) moves to Education or the allotted officer
+    A->>D: the file (custody) moves to Education or the assigned officer
     A-->>W: done
 ```
 
 **After the claim:**
 
 - The case is Education's. It appears in **Case inbox → Department cases**, and in **Working on** for the officer it
-  is allotted to.
+  is assigned to.
 - It can **never return to the unclaimed pool**.
 - If another department claims it later through its own recommendation, that department becomes a **watcher**, not
   the owner.
@@ -573,8 +638,10 @@ sequenceDiagram
 
 ### 4.2 The department admin organises the work
 
-- **Allot:** give a claimed case to a unit or an officer. That officer gets an alert, and the case appears in their
-  **Working on** list.
+- **Assign:** give a claimed case to a unit or an officer (**Assign This Case**, with a Responsible Unit and a Dealing
+  Officer). That officer gets an alert, and the case appears in their **Working on** list. To pass a case on for an
+  action, use **Send Case** instead (section 4.3). *(Wording only: the code, API and audit names still say "allot";
+  rows written before the change keep their old text.)*
 - **Take over:** an officer of the owning department can take a colleague's case, with no approval. The previous
   officer gets an alert.
 - **Transfer to another department:** the owner requests it. The receiving department can see the case while the
@@ -583,28 +650,44 @@ sequenceDiagram
 - **Department mapping:** the admin keeps the department's counsel codes (with a panel listing codes seen on cause
   lists that no department has mapped yet), keywords, name patterns and watchlist. Every change is audited and the
   scores are recalculated within 15 minutes.
+  - Every mapping save commits at once and starts one rescore (one at a time; a change made during a run gets one
+    follow-up run). The screen says "Recommendations will update in a few minutes."
+  - **Recommended From Cause Lists** lists every code seen on cause lists that no department has mapped, read in pages
+    of 100 inside its own scrolling box, with a search box, sorting (entries, code, last seen) and a count such as
+    "1,066 codes not mapped".
+  - Counsel Codes, Keywords, Watchlist and Rules With Their Own Weight have a search box and sortable columns, and
+    Search by Department Names (discovery) searches and sorts on the server. The forms no longer carry notes or
+    per-rule weights; scoring is edited by sliders on the Scoring tab.
 - **Users:** the admin creates officers, directorate users, counsel and reviewers in the department, and grants them
-  functions.
+  functions. The Users list has a toolbar with filters (office with or without its sub-offices, status, type), the
+  **Office Picker** (a search box over the office tree showing each office's path) and a **User Details** page with
+  Overview, Offices, Functions and Activity.
 
 ### 4.3 An officer works on a case
 
 ```mermaid
 stateDiagram-v2
     [*] --> WithOwner: claimed
-    WithOwner --> WithOfficer: Send file (remark, action, due date)
-    WithOfficer --> WithOtherOfficer: Send file
-    WithOtherOfficer --> WithOfficer: Send file
+    WithOwner --> WithOfficer: Send Case (remark, action, due date)
+    WithOfficer --> WithOtherOfficer: Send Case
+    WithOtherOfficer --> WithOfficer: Send Case
     WithOfficer --> WithAdmin: Recall (department admin)
     WithOtherOfficer --> WithAdmin: Recall
-    WithAdmin --> WithOfficer: Send file
+    WithAdmin --> WithOfficer: Send Case
 ```
 
-- **The file (custody).** Whoever holds the file can **send it** to any officer, in any department. The sender
+**The Case inbox** (one menu entry) has six tabs: **Working On** (cases with me or my offices, with a Show control of
+All, With Me or With My Offices; a case with me stays here after it is disposed, and the person's own due dates come
+first), **Sent By Me**, **Claimed By Me** (with the claim function), **Disposed**, **Department Cases** (department
+heads, admins and State-wide readers) and **Pending Action** (people who may track files). The old Cases and Files
+addresses redirect to it.
+
+- **The file (custody).** Whoever holds the file can **send it** (**Send Case**) to any officer, in any department. The sender
   writes a remark, chooses a pending action (examine, reply, file, comply, parawise comments…) and may set a due
   date.
   - The receiver gets a "file received" alert.
   - Before the due date the holder gets "due soon"; after it, "overdue", which the department's trackers also see.
-  - The department admin can **recall** the file.
+  - The department admin can **recall** the file (**Recall Case**).
   - Moving the file **never changes ownership**.
   - Every move is kept in the file's history.
 - **Stage:** the case's stage is set by hand from 24 stages (notice issued, reply filed, appeal…). It is guided, not
@@ -620,8 +703,10 @@ stateDiagram-v2
   - Each document has its own visibility. Documents can be archived, never deleted.
   - Downloads of uploaded files are audited.
 - **The case page** shows a summary header and tabs: Overview, Hearings, Orders, Documents, Notes, Timeline, and
-  More (Parties, Linked cases, Custody and stage, Alerts, Details). **All of it is read from the database. Opening a
-  case page never calls NAPIX.**
+  More (Parties, Linked cases, Custody and stage, Alerts, Details), and an Assistant tab for people holding that
+  function (section 4.9). Beside the tabs a sticky **action rail** shows the person's task with the latest remark, "See
+  all remarks", the **next hearing** badge (below), quick actions and the case's journey. **All of it is read from the
+  database. Opening a case page never calls NAPIX.**
 
 > ⚠️ **Worth a decision:** adding a note and setting a stage **raise no alert** to others on the case. (Section 6,
 > item 8.)
@@ -654,6 +739,11 @@ flowchart TD
 - **Search ASLMS** reads only our database. A CNR, an ASLMS reference or a case number is matched exactly. Words
   are matched against parties and advocates. Filters are available, and a separate tab searches the **text of
   orders and documents**.
+  - The Search page, Department Cases, Cause List, Reports, Audit Log and the Data Collection queue use one filter
+    card (hero search box, fields, More Filters, and a strip with the result count and removable chips).
+  - The case lists of the Case inbox have a **Search Words** box, and their columns can be sorted. Search words and
+    sort are applied **on the server**, inside what the person may already see: neither can widen visibility, and an
+    unknown sort key is refused ("bad_sort"). A search needs 2 to 100 characters and accepts words and five date forms.
 - **Search the court** needs the "search the court" function: department heads, admins, officers and the central
   operator have it by default. The person picks CNR, case number, filing number, party name or advocate name.
   - A **held case that already has its full record** is answered from our database, with no NAPIX call.
@@ -683,6 +773,22 @@ directions such as "list on 12.11.2026" or "list after four weeks".
   if needed) or enters the date by hand.
 - A period such as "after four weeks" is calculated from the order date and always shown for confirmation.
 
+**How a date is shown (the next hearing badge).** Every screen draws a next hearing date with one badge, always in
+words as well as colour:
+
+| Date | Shown as |
+|---|---|
+| Today, Tomorrow | Strong red |
+| 2 to 7 days away | Soft amber, "In n Days" |
+| Later | The plain date |
+| A date from an order that nobody has confirmed | Outlined, labelled **Suggested** |
+| A court date already past | **Date Passed** |
+| No date held | **No Date Yet** |
+| A disposed case | **Disposed** (the court and item line are hidden, because a date held for a disposed case is stale) |
+
+Days are counted on the Indian Standard Time day. The badge is used on the case header and rail, the case details
+window, every Next Hearing column and the dashboard's hearing lists.
+
 **Alerts** go to the people working on the case, in the portal's bell and by e-mail:
 
 | Event | Alert |
@@ -693,7 +799,7 @@ directions such as "list on 12.11.2026" or "list after four weeks".
 | File received, file recalled | To the person concerned |
 | Action due soon or overdue | Due soon is high, overdue is critical; also to the department's trackers |
 | Strong recommendation | To the department's claimers |
-| Allotted, taken over, transfer requested or decided | To the people concerned |
+| Assigned, taken over, transfer requested or decided | To the people concerned |
 | A next date to confirm | To the officers working on the case |
 
 - **E-mail:** critical alerts are sent at once. The rest come in a **daily digest** at 08:00, which also lists the
@@ -709,10 +815,10 @@ directions such as "list on 12.11.2026" or "list after four weeks".
 
 | Area | What the super admin does |
 |---|---|
-| Offices and designations | Creates departments with their head, directorates, units and designations |
-| Users and access | Creates department admins, changes the type matrix, grants single functions, approves head-change tickets |
+| Offices and designations | Creates departments with their head (picked from existing logins), directorates, units and designations |
+| Users and access | Creates department admins and logins with no office yet, changes the type matrix, edits user-type names, grants single functions, approves head-change tickets. The Administration hub has a Users side panel and one page per user type. |
 | Department mapping | Everything a department admin does, for any department. Plus the **scoring weights and thresholds**, and the generic State counsel codes. |
-| Data collection | Starts, pauses and orders the historical load. Fetches single cases. Sees duplicates, the queue and discovery. |
+| Data collection | Starts, pauses and orders the historical load (Automatic Collection), watches the Overview, fetches single cases (Collect Now). Sees duplicates, the queue and discovery (section 2.5). |
 | System health | Watches the 17 court APIs and ten ASLMS services. "Test now" makes one live court call, limited and audited. |
 | Audit log | Searches every audited action, with before-and-after values |
 | Reports | All four reports, State-wide, with Excel and PDF export (exports are audited) |
@@ -731,14 +837,28 @@ can write notes and upload documents. They see notes and documents marked "share
 
 ### 4.9 The Case Assistant
 
-*Built on 24 October 2026 in **preview mode**. The AI part waits for SourceTrace (row 36).*
+*Built on 24 October 2026 in **preview mode**; answered by a **local model** since 28 October 2026 (`ASSISTANT_MODE=ollama`).
+The intended AI, SourceTrace, is still not connected (row 36).*
 
-**What it is today.** A person with the Case Assistant function asks a question in words and gets back the pages of
-court records that match, shown as excerpts with their page numbers. In preview mode there is **no AI**: the system
-searches the stored court text with PostgreSQL's built-in text search, and the only words it adds are a fixed line,
-"Preview: passages found in the court records, not an AI answer." Nothing leaves ASLMS's server. Preview mode is for
-development and test: in production the setting is refused when the system starts. Once SourceTrace is connected the
-same screens will show SourceTrace's answers, each with its sources, and the preview will be switched off.
+**What it is today.** A person with the Case Assistant function asks a question in words and gets back an answer
+with its sources, shown as excerpts with their page numbers. The system works in one of four modes, set by
+`ASSISTANT_MODE`:
+
+| Mode | What answers | Where it may run |
+|---|---|---|
+| `off` (the default) | Nothing: the Assistant is hidden | Anywhere |
+| `preview` | No AI. The system searches the stored court text with PostgreSQL's built-in text search, and the only words it adds are a fixed line, "Preview: passages found in the court records, not an AI answer." | Development and test only; refused in production |
+| `ollama` | **A local model served by Ollama**, on the ASLMS host or a server the Government controls (default model `qwen3.5:4b`, changeable by a setting). It words an answer from numbered sources that ASLMS has already found and cites them. | Allowed in production, as the official stand-in until SourceTrace is available (**plan difference, owner's decision of 27 October 2026**) |
+| `sourcetrace` | SourceTrace's answers, each with its sources | Not available: nothing to connect to yet, so it behaves as off |
+
+**How the local model is reached.** Only through `backend/aslms/integration/ollama/`, over HTTP, and only for Case
+Assistant questions. ASLMS's own programs hold no model, model runtime or model library, and a cloud model or address is
+refused (the Assistant then stays off). A cold model answers "still loading, try again" and a busy one "busy, try
+again shortly"; an unreachable server says the Assistant is unavailable. **Retrieval stays in ASLMS**: the system finds
+the passages, the model only words an answer from them, and the cited excerpts stay visible beside it, because a small
+model can slip (the owner's own test read a "returnable" date as the listing date). **Citations are checked on the
+server**: only source numbers that were supplied count, and an answer with no valid citation is stored as "no match".
+It is a reading aid; it informs and never acts.
 
 **Where it is.** An **Assistant** tab on every case page, and an **Assistant** entry in the menu. Only the people
 holding the function see them, and only while the mode is not off.
@@ -748,7 +868,7 @@ holding the function see them, and only while the mode is not off.
 | Scope | What is searched |
 |---|---|
 | **This case** (case page only; the starting scope there) | The case's own court orders and the court filings the person may see. Court orders of other cases appear apart, under "Related orders in other cases". |
-| **My cases** | The court orders and visible court filings of the cases the person works on: allotted to them, the file with them, claimed by them, or their counsel codes. Up to 1,000 cases, newest activity first. |
+| **My cases** | The court orders and visible court filings of the cases the person works on: assigned to them, the file with them, claimed by them, or their counsel codes. Up to 1,000 cases, newest activity first. |
 | **All court orders** | Every court order in ASLMS, whichever department owns the case, plus the court filings the person may see. |
 
 Switching the scope asks the last question again. The conversation sits in a box of fixed height with its own scroll
@@ -759,23 +879,54 @@ excerpt, with the matching words highlighted. A source opens at its page in a ne
 a case note** with its references written in words; the person edits it and saves an ordinary note. Each user may
 ask 30 questions an hour, one at a time. A question must be 3 to 2,000 characters and must not contain note text.
 
-**Privacy rules** (enforced on the server):
-- **Court information from NAPIX is open to every Assistant user.** Court orders and judgments of every case may be
-  searched and cited, even for a case the person cannot open. Such a source opens in a read-only court-record page that
-  says "This is the court's public record. You cannot open this case in ASLMS." It shows only public facts (case
-  number, parties, advocates as listed, hearing dates), never the owner, notes, custody or documents, and it opens
-  only from a citation in the person's own answer. Each opening is audited.
-- **Internal material is private and never searched or sent.** Notes, note attachments, internal and admin documents,
-  file remarks, drafts and cause-list files are never in the Assistant's reach. **Department uploads, court filings
-  included, stay private to the department**: they appear only for people who may already see that document, and a
-  filing kept private to an office never appears at all.
-- **Conversations are private to the person.** No one else can read them. A case conversation closes to the person if
-  they lose sight of the case, and a citation of a document they can no longer see is withheld, with its answer.
-- **Audit.** Every question, answer and court-record opening writes an audit row with lengths, fingerprints and ids,
-  never the text.
+**Data-handling rules** (enforced on the server; they are the rules auditors should check against):
 
-> **Next step:** the real SourceTrace connector (row 36, blocked on SourceTrace's API documentation) replaces the word
-> search with answers. Until then, nothing in the Assistant is AI.
+1. **Court information is the default, in every scope and every mode.** Court orders and judgments, the court filings
+   the Assistant is allowed to use, the case details and the hearing and listing history, for the cases in scope that
+   the asker may see. This is NAPIX court data and is open to every Assistant user: court orders and judgments of
+   every case may be searched and cited, even for a case the person cannot open. Such a source opens in a read-only
+   court-record page that says "This is the court's public record. You cannot open this case in ASLMS." It shows only
+   public facts (case number, parties, advocates as listed, hearing dates), never the owner, notes, custody or
+   documents, and it opens only from a citation in the person's own answer. Each opening is audited.
+2. **Internal records of one case: only after the officer switches them on.** Saved notes, the file movement trail
+   (shown as the case's journey, with remarks only where the person may see remarks on the custody tab), pending
+   actions and department documents (uploads of the department and attachments of notes the person may read) are read
+   only when **all** of these hold:
+   - the mode is `ollama`;
+   - the question is asked from **that case's Assistant tab**, in a conversation whose switch **"Include This Case's
+     Internal Records"** the officer pressed (the server keeps the switch as a stored state of that conversation; a
+     flag sent by the browser is not trusted);
+   - the records belong to **that one case**: never another case, never the sidebar Assistant, never the My Cases or
+     All Court Orders scopes;
+   - the asker may open them on the case page **at that moment**, under the case page's own visibility rules
+     (per-note visibility, private-to-office, counsel-shared, and the State-oversight rule of section 3.4).
+   - **Drafts are never read**, not even the asker's own.
+3. **The switch** applies to that conversation only, from the moment it is pressed. It is recorded in the audit log
+   (`assistant.internal_included`, with identifiers and no text), a banner shows that internal records are included,
+   and sources taken from them are labelled internal. There is no "off": to stop, the officer starts a fresh,
+   court-only conversation. A conversation with the switch on is visible only to the person who asked. The Assistant
+   may suggest the switch when a question mentions notes or the file's whereabouts, by a fixed keyword check, but it
+   never switches itself on.
+4. **SourceTrace keeps the plan's rule.** The wider reading in items 2 and 3 belongs to the local model only. Nothing
+   internal, no case note, no internal document, no attachment and no file remark is ever sent to SourceTrace; only
+   court orders and uploaded court filings may be.
+5. **No court text or internal record leaves Government infrastructure.** The model runs on the ASLMS host or a server
+   the Government controls; there is no cloud model.
+6. **Internal material is otherwise private and never searched or sent.** Notes, note attachments, internal and admin
+   documents, file remarks, drafts and cause-list files stay out of the Assistant's reach in every other case.
+   **Department uploads, court filings included, stay private to the department**: they appear only for people who
+   may already see that document, and a filing kept private to an office never appears at all.
+7. **Conversations are private to the person.** No one else can read them. A case conversation closes to the person if
+   they lose sight of the case, and a citation of a document or record they can no longer see is withheld, with its
+   answer (the text is shown again only under the reader's current rights).
+8. **Audit.** Every question, answer and court-record opening writes an audit row with lengths, fingerprints and ids,
+   never the text. The system refuses to start if a model runtime is installed in ASLMS's own
+   programs, and the pre-deployment check (`aslms ops preflight`) refuses a cloud model or address.
+
+> **Next steps:** the real SourceTrace connector (row 36, blocked on SourceTrace's API documentation) replaces the
+> local model. Questions about the person's own work from the sidebar (My Work, row 189) are not built yet. The model's
+> reply fields were written from Ollama's published documentation and the owner's own test; the owner's live check
+> (row 195) confirms them.
 
 ---
 
@@ -791,12 +942,13 @@ ask 30 questions an hour, one at a time. A question must be 3 to 2,000 character
 | **Where is it stored?** | On ASLMS's own servers: a PostgreSQL database and a document store. Nothing is kept in a public cloud service. |
 | **Who can see it?** | Decided by the server for every request, by office and role (section 3.4). Each note and document has its own visibility. A case a person may not see does not appear at all. |
 | **How do people sign in?** | Password plus a 6-digit code by e-mail at every sign-in. Lock-out after repeated failures. Passwords stored only as a one-way hash. |
+| **When is a person signed out?** | After 30 minutes without their own activity (with a warning 2 minutes before) and at most 12 hours after the code sign-in. The server checks the session on every request and every token renewal; a 5-minute sweep ends lapsed sessions, and every session end is an audit row. |
 | **Is every action recorded?** | Yes. Ownership decisions, file movements, notes, uploads, downloads of uploaded files, user and access changes, configuration changes, court searches, exports and sign-ins write audit rows that cannot be changed. |
 | **Is every call to the court recorded?** | Yes: which API, when, the result, and the person whose action caused it. The record is kept even if the request fails. |
 | **Are uploads checked?** | Type checked from content (PDF, Word, images), 20 MB limit, virus scan before anything is stored. |
 | **Is anything deleted?** | No legal record is deleted. Documents can be archived. Corrections to notes are new notes. |
 | **Backups?** | Every 6 hours (database and documents), with a weekly automatic restore test. |
-| **Is any data sent to an AI?** | Not today. Preview mode of the Case Assistant searches stored court text on ASLMS's own server without AI; nothing leaves the server. When SourceTrace is connected, only court orders and uploaded court filings may be sent: never notes, internal documents, attachments, file remarks or department uploads kept private. This is enforced in three places, including the database. |
+| **Is any data sent to an AI?** | SourceTrace is not connected, so nothing goes to it. Since 28 October 2026 the Case Assistant can be answered by **a local model (Ollama) on the ASLMS host or a Government-controlled server**; no cloud AI is used and nothing leaves Government infrastructure. By default the model reads **court information only**. One case's internal records (saved notes, the file movement trail with remarks, pending actions, department documents; never drafts) are read only after the officer switches on "Include This Case's Internal Records" in that case's Assistant tab, only for that conversation, only what the officer may open on the case page, and the switch is audited. When SourceTrace is connected, only court orders and uploaded court filings may be sent to it: never notes, internal documents, attachments, file remarks or department uploads kept private (enforced in three places, including the database). Details in section 4.9. |
 | **Who can see the Assistant's conversations?** | Only the person who held them. Not the super admin, not the Auditor. Every question and answer is audited by length and fingerprint, never by text. Conversations are kept and not deleted. |
 | **What do e-mails contain?** | Case numbers, dates and the kind of alert. Never note text or document names. |
 | **Where are secrets kept?** | Only in the server's `.env` file. Never in the code, the database, the logs or the GitHub repository. |
@@ -852,9 +1004,15 @@ design for your approval.
 14. **Only the super admin can create directorates and units.** *Option:* let the department admin create them
     inside the department.
 15. **Done (changed on 23 Oct 2026, row 121).** **The Auditor has the Case Assistant by default.** *Option:* remove it from the Auditor.
-16. **Signing out ends the session, but a working token already issued stays valid for up to 30 minutes.** *Option:*
-    shorten the working token to 10 minutes, or keep a revocation list. This is technical; I recommend leaving it
-    until after the pilot.
+16. **Done in part (changed on 28 October 2026, row 169).** Signing out, an idle sign-out and the 12-hour limit now end
+    the session on the server, which is checked on every request, so a token of an ended session is refused at once.
+    Two small remaining gaps, both accepted: a copied cookie can still work for about a minute after a browser idle
+    sign-out (until the server's sweep or the next request ends the session), and signing in again within about the
+    last minute after a browser idle sign-out records the old session as "replaced" rather than "idle".
+17. **The Case Assistant's local model can read one case's internal records** once the officer switches them on
+    (section 4.9). This varies the plan's "AI only through SourceTrace" until SourceTrace is connected. *Option:* keep
+    the Assistant court-only (set `ASSISTANT_OLLAMA_INTERNAL_CHARS=0`, which sends no internal records), or switch the
+    local model off (`ASSISTANT_MODE=off`).
 
 **Technical gaps noted** (no decision needed; they go to the backlog as fixes):
 
@@ -877,11 +1035,15 @@ design for your approval.
 | **Recommendation** | The system's suggestion that a case belongs to a department, with a score |
 | **Claim** | A department taking ownership of a case. Only a person can do this. |
 | **Primary owner / watcher** | The department that owns the case, and other departments following it |
-| **Allot** | Giving a claimed case to a unit or officer inside the department |
+| **Assign** | Giving a claimed case to a responsible unit or a dealing officer inside the department (the code and API names still say "allot") |
 | **Custody / the file** | Who currently holds the case file to act on it |
 | **Membership** | A person's place in one office, with a designation and user type |
 | **Function** | A single permission, such as "claim cases" or "search the court" |
 | **NAPIX** | The official eCourts API gateway through which ASLMS reads High Court data |
-| **SourceTrace** | The AI service for the Case Assistant. Not connected yet; the Assistant runs in preview mode, a word search with no AI, until it is. |
+| **SourceTrace** | The intended AI service for the Case Assistant. Not connected yet; until it is, the Assistant is answered by the local model (or runs in preview mode in development). |
+| **Local model (Ollama)** | The model that answers Case Assistant questions until SourceTrace is connected. Served by Ollama on the ASLMS host or a Government-controlled server, reached over HTTP only through one part of the code; no cloud model. |
+| **Include This Case's Internal Records** | The switch on a case's Assistant tab that lets the local model read that one case's saved notes, file movement trail, pending actions and department documents (never drafts) in that conversation only. Audited. |
+| **Session** | One sign-in with the e-mailed code, ending after 30 minutes without the person's activity or 12 hours after sign-in, whichever comes first; kept and checked on the server. |
+| **ASLMS reference** | The system's own number for a case, for example `ASLMS/GHC/CASE/2026/054584` (court code, year, running number). Not the CNR. |
 | **Preview mode** | The Case Assistant's stand-in until SourceTrace is connected: PostgreSQL full-text search over stored court text, showing the matching pages as excerpts. No AI, no generated text. Development and test only; refused in production. |
 | **Hourly allowance** | The number of NAPIX calls ASLMS may make per hour (about 1,000) |

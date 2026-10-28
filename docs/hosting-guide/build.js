@@ -132,8 +132,8 @@ function cover() {
     ["Title", "ASLMS Hosting Guide"],
     ["Owner", "Government of Assam"],
     ["Audience", "System administrators of the data centre that hosts ASLMS"],
-    ["Version", "1.0"],
-    ["Date", "27 October 2026"],
+    ["Version", "1.1"],
+    ["Date", "28 October 2026"],
     ["Status", "Draft for review with the data centre"],
     ["Classification", "For official use"],
   ], [2600, CW - 2600], { boldFirst: true });
@@ -172,14 +172,15 @@ function documentControl() {
   add(H1("Document control"));
   add(table(["Version", "Date", "Description"], [
     ["1.0", "27 October 2026", "First issue. Part 1: the one-VM pilot (the plan for the pilot), its preparation on Rocky Linux 9, deployment, Case Assistant, installer, backups, updates and operation. Part 2: full hosting for about 1,000 users and moving from one VM to many, after the pilot is approved."],
+    ["1.1", "28 October 2026", "Session time-out (backlog row 169) merged and in service: the session settings in Annexure B no longer carry a condition, and the retired refresh-token setting is removed from the sign-in settings. The local Case Assistant model (backlog row 188) merged and in service: chapter 6 checked against the runbook and `.env.example` (where Ollama runs, the preflight checks, every `ASSISTANT_OLLAMA_*` setting with its default, the `aslms assistant` commands), and the row 188 conditions removed throughout (sections 2.3 and 5, chapter 6, the checklist and Annexures B to D)."],
   ], [1400, 2200, CW - 3600]));
   add(table(["Source in the ASLMS repository (branch main)", "Used for"], [
     ["`docs/operations.md` (the operations runbook)", "Installation, upgrades, backups, restore, certificates, monitoring, PgBouncer, troubleshooting"],
     ["`compose.yml`, `.env.example`", "Services, profiles, ports, volumes, health checks, settings"],
     ["`backend/aslms/jobs/celery_app.py`", "The schedule of the daily and weekly jobs"],
     ["`docs/design/deployment-checklist.md` (Parts A, B and C)", "The closed-network pilot, monitoring and PgBouncer decisions"],
-    ["`docs/design/assistant-ollama.md`", "The local AI model (approved; being built as backlog row 188)"],
-    ["`docs/design/session-timeout.md`", "Session settings (approved; backlog row 169)"],
+    ["`docs/design/assistant-ollama.md`", "The local AI model (built and in service; backlog row 188)"],
+    ["`docs/design/session-timeout.md`", "Session settings (built and in service; backlog row 169)"],
     ["`docs/backlog.md` rows 192, 193 and 194", "Multi-server layout, releases and the move (192); the one-VM installer (193); the multi-VM installer (194). All planned, not built"],
     ["`docs/napix_integration_notes.md`", "The court-data gateway and its credentials"],
   ], [4600, CW - 4600]));
@@ -271,7 +272,7 @@ function s2() {
     ["`clamav`", "ClamAV 1.5.4: virus scan of every upload", "none"],
     ["Monitoring profile", "`prometheus`, `alertmanager`, `grafana`, `flower`, `postgres-exporter`, `redis-exporter`, `pgbouncer-exporter`, `ops-exporter`", "Grafana, Prometheus, Alertmanager and Flower on 127.0.0.1 only"],
     ["Profile `monitoring-host` (optional)", "`node-exporter`, `cadvisor`: host and container metrics on a Linux VM", "none"],
-    ["Ollama (on the host, once row 188 is merged)", "The Case Assistant's local model (section 2.3)", "none"],
+    ["Ollama (on the host)", "The Case Assistant's local model (section 2.3)", "none"],
   ], [2300, 4700, CW - 7000]));
   add(P("Persistent data: the Docker volume `pgdata_v3` (the database), `clamdb_v3` (virus signatures), `prometheus_v3`, `alertmanager_v3` and `grafana_v3` (monitoring history only), and the bind-mounted folders `./data` (the document store `data/store` and cause-list PDFs), `BACKUP_DIR` and `infra/proxy/certs`."));
 
@@ -285,7 +286,6 @@ function s2() {
   ]));
 
   add(H2("2.3 The Case Assistant on one VM"));
-  add(LATER("The local model is available once backlog row 188 (`assistant-ollama`) is merged", ["Until then `ASSISTANT_MODE=off`. Chapter 6 has the steps."]));
   add(table(["Option", "What it means", "Notes"], [
     ["With a GPU: the local model on the same VM", "Ollama runs on the VM itself, using the GPU. The default model `qwen3.5:4b` took 3.7 GB of GPU memory on the owner's test and answered in 1.4–2.6 s after a first load of about two minutes.", "Recommended when a GPU is available. The api reaches Ollama on the host (chapter 6)."],
     ["Without a GPU: the local model on the CPU", "Slow: a 4B model roughly 30–90 s per answer; a smaller model (for example `qwen3.5:2b`) is faster but less accurate.", "The time limits must be raised (section 6.7)."],
@@ -579,7 +579,7 @@ function s5() {
     ["`PG_SHARED_BUFFERS`, `PG_EFFECTIVE_CACHE_SIZE`", "As in section 2.2", "Defaults assume 8 GB."],
     ["`PROXY_BIND`, `PROXY_TRUSTED_UPSTREAM`", "Only if needed", "Section 3.2."],
     ["`COOKIE_SECURE`", "`true`", "Preflight refuses `false` in production."],
-    ["`ASSISTANT_MODE`", "`off` for now", "`ollama` once row 188 is merged (chapter 6)."],
+    ["`ASSISTANT_MODE`", "`off` at first", "`ollama` once Ollama and the model are ready (chapter 6)."],
   ], [3000, 2400, CW - 5400]));
   add(P("`DATABASE_URL_SYNC`, `ASLMS_MIGRATE_URL` and `REDIS_URL` in the example are for host-run development commands; Compose builds its own addresses from the passwords. Annexure B lists every variable group."));
 
@@ -674,15 +674,13 @@ function s5() {
 // ===== 6 =====
 function s6() {
   add(H1("6. The Case Assistant on the pilot VM"));
-  add(LATER("Available once backlog row 188 (`assistant-ollama`) is merged", [
-    "The design is approved (27 October 2026) and its code is being built. Until it is merged, leave `ASSISTANT_MODE=off`. The GPU driver and Ollama can be installed now. The setting names in section 6.6 come from the approved design and the build branch's `.env.example`; they are not yet on `main`. This chapter will be checked against the runbook's section \"The local Case Assistant model (Ollama)\" once merged.",
-  ]));
   add(H2("6.1 What runs, and the rules"));
-  add(P("SourceTrace remains the intended AI (not available yet). Until it is, the Case Assistant may be answered by a local model served by **Ollama** on the pilot VM itself. ASLMS keeps the search and the citation checks; the model only writes the answer from the numbered sources it is given. No model runs inside ASLMS's own containers: Ollama runs on the host (or, optionally, as its own container, section 6.4)."));
+  add(P("SourceTrace remains the intended AI (not available yet). Until it is, the Case Assistant may be answered by a local model served by **Ollama**, with `ASSISTANT_MODE=ollama`: on the pilot VM itself (the ASLMS host) or on a server the Government controls, reached by ASLMS over HTTP only at the address in `ASSISTANT_OLLAMA_URL`, so no court text leaves Government infrastructure. ASLMS keeps the search and the citation checks; the model only writes the answer from the numbered sources it is given. No model, model runtime or model library runs inside ASLMS's own processes (the preflight check `no_local_model`): Ollama runs on the host (or, optionally, as its own container, section 6.4) or on that Government server."));
+  add(P("By default the model reads court information only: court orders, the court filings the officer may open, and case details and hearings. On a case's Assistant tab an officer may press \"Include This Case's Internal Records\"; from then on, in that conversation only, the model also reads that case's saved notes, file movement with remarks, pending actions and department documents that the officer may open on the case page. Drafts and other cases' records are never read, and the switch is recorded in the audit log (`assistant.internal_included`). SourceTrace never receives notes or internal documents."));
   add(RULE("Rules for the local model", [
-    "**Never a cloud model.** A model name or tag containing `cloud`, or an address on ollama.com, is refused by the preflight (`no_cloud_model`, fatal).",
+    "**Never a cloud model.** A model name or tag containing `cloud`, an address on ollama.com, or an address carrying user information or a query is refused by the preflight (`no_cloud_model`, fatal at every `APP_ENV`).",
     "**Never run `ollama signin`** and **never set `OLLAMA_DEBUG`** (it logs prompts, which can hold a case's notes and remarks).",
-    "**Never open 11434 in the firewall.** In production the model's address must be loopback, private or link-local.",
+    "**Never open 11434 in the firewall.** In production `aslms ops preflight` refuses a model address that resolves outside loopback, private (RFC 1918, fc00::/7) or link-local addresses.",
   ]));
 
   add(H2("6.2 NVIDIA driver (if the VM has a GPU)"));
@@ -700,7 +698,7 @@ function s6() {
   add(P("With Secure Boot on, the DKMS module must be signed with an enrolled key (NVIDIA's guide; agree the policy with the data centre). SELinux stays enforcing."));
 
   add(H2("6.3 Install Ollama"));
-  add(P("Ollama 0.40 or later, with Ollama's official Linux installer (it installs the `ollama` command and a systemd service running as the `ollama` user). To pin a version (the exact version is confirmed in the owner's live check of row 188):"));
+  add(P("Ollama 0.40 or later, with Ollama's official Linux installer (it installs the `ollama` command and a systemd service running as the `ollama` user). To pin a version (the exact version is confirmed in the owner's live check on the pilot machine, backlog row 195):"));
   add(code(["curl -fsSL https://ollama.com/install.sh | OLLAMA_VERSION=<version 0.40 or later> sh", "ollama --version && systemctl status ollama"]));
 
   add(H2("6.4 Where Ollama listens on the same VM"));
@@ -709,6 +707,7 @@ function s6() {
     ["B. The design's default", "Ollama: `OLLAMA_HOST=172.17.0.1:11434` (the Docker bridge, as the runbook says for Linux). ASLMS: the default `ASSISTANT_OLLAMA_URL=http://host.docker.internal:11434` (`extra_hosts` on `api` and `init`).", "Never `0.0.0.0` on a host with a public address."],
     ["C. Ollama as a Compose service", "Profile `ollama` with `ASSISTANT_OLLAMA_URL=http://ollama:11434`; on a GPU add `compose.ollama-gpu.yml` to `COMPOSE_FILE` (needs the NVIDIA Container Toolkit).", "Optional in the design; no published port; model pulled with `docker compose exec ollama ollama pull qwen3.5:4b`."],
   ], [2700, 3900, CW - 6600]));
+  add(P("Ollama may instead run on **a separate server the Government controls** (for example a GPU server at the data centre): it then listens on the private network only, with the firewall open to the ASLMS host only, and `ASSISTANT_OLLAMA_URL` names that server (chapter 13 for the full layout)."));
   add(P("For choice A or B, set the listening address and the keep-alive and parallel settings (parallel must equal `ASSISTANT_OLLAMA_SLOTS`, default 1):"));
   add(code([
     "sudo systemctl edit ollama",
@@ -736,20 +735,26 @@ function s6() {
 
   add(H2("6.6 Point ASLMS at the model"));
   add(table(["Variable (`.env`)", "Value", "Meaning"], [
-    ["`ASSISTANT_MODE`", "`ollama`", "Off / preview / sourcetrace / ollama; `ollama` is allowed in production"],
-    ["`ASSISTANT_OLLAMA_URL`", "`http://ai.aslms.internal:11434` (choice A)", "Loopback, private or link-local in production"],
+    ["`ASSISTANT_MODE`", "`ollama` (default `off`)", "off / preview / sourcetrace / ollama; `ollama` is allowed in production, preview is refused there"],
+    ["`ASSISTANT_OLLAMA_URL`", "`http://ai.aslms.internal:11434` (choice A); default `http://host.docker.internal:11434` (choice B); `http://ollama:11434` (choice C)", "Loopback, private or link-local in production; no API key or secret"],
     ["`ASSISTANT_OLLAMA_MODEL`", "`qwen3.5:4b`", "Any Ollama model held locally; never a cloud model"],
     ["`ASSISTANT_OLLAMA_KEEP_ALIVE`", "`-1`", "Keeps the model loaded"],
     ["`ASSISTANT_OLLAMA_SLOTS`", "`1`", "Questions answered at once; equal to `OLLAMA_NUM_PARALLEL`"],
     ["`ASSISTANT_OLLAMA_TIMEOUT_SECONDS`, `ASSISTANT_TIMEOUT_SECONDS`", "`30`, `45`", "The model's share and the whole question's limit"],
-    ["Other `ASSISTANT_OLLAMA_*`", "defaults", "Context, answer length, sources, history, internal-records limit, hearings"],
+    ["`ASSISTANT_OLLAMA_SLOT_WAIT_SECONDS`", "`20`", "How long a question waits for the busy slot"],
+    ["`ASSISTANT_OLLAMA_NUM_CTX`, `ASSISTANT_OLLAMA_NUM_PREDICT`", "`16384`, `800`", "The model's context and the longest answer"],
+    ["`ASSISTANT_OLLAMA_SOURCES`, `ASSISTANT_OLLAMA_SOURCE_CHARS`", "`6`, `4000`", "Sources given per question and their length"],
+    ["`ASSISTANT_OLLAMA_HISTORY_TURNS`", "`2`", "Earlier questions of the conversation given as context"],
+    ["`ASSISTANT_OLLAMA_INTERNAL_CHARS`", "`12000`", "Internal records given after the switch; `0` sends none"],
+    ["`ASSISTANT_OLLAMA_HEARINGS`", "`10`", "Hearings given with the case details"],
   ], [3300, 3000, CW - 6300]));
   add(code([
     "cd /srv/aslms",
     "NAPIX_ENABLED=<true or false, as now> docker compose up -d --wait      # recreates api with the new settings",
     "docker compose exec api aslms assistant warm && docker compose exec api aslms assistant status",
   ]));
-  add(P("System Health then shows a \"Case Assistant Model\" card (version, model, loaded, on GPU, kept loaded until; never the address). Questions during a model load answer 503 `assistant_loading`; when the single slot is busy, 503 `assistant_busy`."));
+  add(P("`aslms assistant warm` loads the model now and keeps it loaded (it waits up to 300 seconds); `aslms assistant status` shows the mode, the state and the last 24 hours' conversations and questions; `aslms assistant check` prints the Case Assistant's consistency counts, each of which must be 0 (exit 1 otherwise). `aslms assistant ask` and `aslms assistant include-internal` are for development and test and refuse to run with `APP_ENV=prod`."));
+  add(P("The api also starts a load in the background when it starts, and opening the Assistant starts one when the model is held but not loaded. System Health then shows a \"Case Assistant Model\" card (version, model, loaded, on GPU, kept loaded until; never the address). Questions during a model load answer 503 `assistant_loading` (about two minutes on a first load); when the single slot is busy, 503 `assistant_busy`."));
 
   add(H2("6.7 Without a GPU"));
   add(P("On the CPU a 4B model takes roughly 30–90 seconds per answer, longer than the default model limit of 30 seconds, so questions fail with \"No answer came within …\" unless the limits are raised. Options:"));
@@ -761,7 +766,7 @@ function s6() {
 
   add(H2("6.8 Changing the model, switching off, SourceTrace later"));
   add(B("**Change the model:** pull it, set `ASSISTANT_OLLAMA_MODEL`, recreate the API carrying the switch, then `aslms assistant warm`."));
-  add(B("**Switch off:** `ASSISTANT_MODE=off` and recreate the API the same way; stored answers stay readable."));
+  add(B("**Switch off:** `ASSISTANT_MODE=off` and recreate the API the same way; stored local-model answers stay readable (the migration 0032 downgrade refuses while any exists)."));
   add(B("**SourceTrace later** (row 36): `ASSISTANT_MODE=sourcetrace` with the `SOURCETRACE_*` settings. SourceTrace receives court orders and court filings only, never notes or internal documents."));
 }
 
@@ -1044,7 +1049,7 @@ function s10() {
     "Load counts and the sample check recorded (`aslms ops load-report --format md`, `aslms ops sample-cnrs --seed <n> --format md`).",
     "The government mail relay checked with a real sign-in. Super Administrator signed in; `ASLMS_SUPERADMIN_PASSWORD` cleared; `ca.key` off the VM.",
     "Court data on with the owner's authority; the backdated collection started if wanted.",
-    "Case Assistant (once row 188 is merged): the Case Assistant Model card green, or the Assistant off.",
+    "Case Assistant: the Case Assistant Model card green, or the Assistant off.",
     "The mapping data for the pilot department entered (owner).",
   ]));
   add(H2("10.3 After every update"));
@@ -1245,13 +1250,13 @@ function annexB() {
     ["Backups", "`BACKUP_DIR`, `BACKUP_INTERVAL_HOURS`, `BACKUP_KEEP_RECENT_HOURS`, `BACKUP_KEEP_DAILY`, `BACKUP_KEEP_WEEKLY`, `BACKUP_KEEP_MONTHLY`, `BACKUP_KEEP_PREMIGRATE`", "Where, how often, retention"],
     ["Monitoring", "`GRAFANA_ADMIN_PASSWORD` (secret), `FLOWER_BASIC_AUTH` (secret, `user:password`), `OPS_ALERT_EMAIL`, `PROMETHEUS_RETENTION`", "Logins and alert recipient"],
     ["Proxy", "`PROXY_BIND`, `PROXY_HTTPS_PORT`, `PROXY_HTTP_PORT`, `PROXY_SESSION_RATE`, `PROXY_SESSION_BURST`, `PROXY_API_RATE`, `PROXY_API_BURST`, `PROXY_CONN_PER_IP`, `PROXY_TRUSTED_UPSTREAM`", "Ports and throttling"],
-    ["Sign-in", "`ASLMS_JWT_SECRET` (secret), `ASLMS_ACCESS_TOKEN_MINUTES`, `ASLMS_REFRESH_TOKEN_DAYS`, `ASLMS_SUPERADMIN_EMAIL`, `ASLMS_SUPERADMIN_PASSWORD` (secret, temporary), `OTP_TTL_MINUTES`, `OTP_MAX_ATTEMPTS`, `OTP_RESEND_SECONDS`, `OTP_MAX_PER_HOUR`, `LOGIN_MAX_FAILURES`, `LOGIN_LOCK_MINUTES`", "Tokens, first Super Administrator, codes, lock-out"],
-    ["Sessions (once row 169 is merged)", "`SESSION_IDLE_MINUTES` (30), `SESSION_WARNING_SECONDS` (120), `SESSION_MAX_HOURS` (12)", "Idle sign-out, warning, hard limit"],
+    ["Sign-in", "`ASLMS_JWT_SECRET` (secret), `ASLMS_ACCESS_TOKEN_MINUTES`, `ASLMS_SUPERADMIN_EMAIL`, `ASLMS_SUPERADMIN_PASSWORD` (secret, temporary), `OTP_TTL_MINUTES`, `OTP_MAX_ATTEMPTS`, `OTP_RESEND_SECONDS`, `OTP_MAX_PER_HOUR`, `LOGIN_MAX_FAILURES`, `LOGIN_LOCK_MINUTES`", "Tokens, first Super Administrator, codes, lock-out"],
+    ["Sessions", "`SESSION_IDLE_MINUTES` (30), `SESSION_WARNING_SECONDS` (120), `SESSION_MAX_HOURS` (12)", "Idle sign-out, warning, hard limit"],
     ["Court data (NAPIX)", "`NAPIX_ENABLED` (command line only), `NAPIX_CLIENT_ID`, `NAPIX_CLIENT_SECRET`, `NAPIX_DEPT_ID`, `NAPIX_AUTH_KEY` (all secret), `NAPIX_HASH_KEY`, `NAPIX_BASE_URL`, `NAPIX_EST_CODE`, `NAPIX_STATE_CODE`, `NAPIX_VERSION`, and the `NAPIX_*` rate, window, reserve, search, fault and advocate-search tunables", "Gateway, credentials, quota"],
     ["System health", "`NAPIX_HEALTH_CHECK_MIN_SECONDS`, `HEALTH_TEST_*`, `HEALTH_POOL_ADDRESS`, `HEALTH_POSTGRES_DIRECT_*`, `NAPIX_DOCS_DIR`, `HEALTH_TOKEN_CHECK_MIN_SECONDS`, `HEALTH_RAW_MAX_BYTES`", "Live-test limits"],
     ["Documents", "`STORAGE_DIR`, `CAUSELIST_DIR`, `UPLOAD_MAX_BYTES`, `CLAMAV_HOST`, `CLAMAV_PORT`, `CLAMAV_TIMEOUT_SECONDS`, `TEXT_EXTRACT_BATCH`, `ATTACHMENTS_MAX_FILES`, `NOTE_MAX_CHARS`, `NOTE_DRAFTS_MAX`", "Store, uploads, scanning"],
     ["SourceTrace", "`SOURCETRACE_ENABLED`, `SOURCETRACE_BASE_URL`, `SOURCETRACE_API_KEY` (secret), `SOURCETRACE_BATCH`, `SOURCETRACE_RUN_SECONDS`, `SOURCETRACE_TIMEOUT_SECONDS`, `SOURCETRACE_MAX_ATTEMPTS`", "Off until the connector exists"],
-    ["Case Assistant", "`ASSISTANT_MODE`, `ASSISTANT_TIMEOUT_SECONDS`, `ASSISTANT_*` limits; once row 188 is merged `ASSISTANT_OLLAMA_URL`, `ASSISTANT_OLLAMA_MODEL`, `ASSISTANT_OLLAMA_NUM_CTX`, `ASSISTANT_OLLAMA_NUM_PREDICT`, `ASSISTANT_OLLAMA_KEEP_ALIVE`, `ASSISTANT_OLLAMA_TIMEOUT_SECONDS`, `ASSISTANT_OLLAMA_SLOTS`, `ASSISTANT_OLLAMA_SLOT_WAIT_SECONDS`, `ASSISTANT_OLLAMA_SOURCES`, `ASSISTANT_OLLAMA_SOURCE_CHARS`, `ASSISTANT_OLLAMA_HISTORY_TURNS`, `ASSISTANT_OLLAMA_INTERNAL_CHARS`, `ASSISTANT_OLLAMA_HEARINGS`", "Engine and limits; no API key for the local model"],
+    ["Case Assistant", "`ASSISTANT_MODE`, `ASSISTANT_TIMEOUT_SECONDS`, `ASSISTANT_*` limits; `ASSISTANT_OLLAMA_URL`, `ASSISTANT_OLLAMA_MODEL`, `ASSISTANT_OLLAMA_NUM_CTX`, `ASSISTANT_OLLAMA_NUM_PREDICT`, `ASSISTANT_OLLAMA_KEEP_ALIVE`, `ASSISTANT_OLLAMA_TIMEOUT_SECONDS`, `ASSISTANT_OLLAMA_SLOTS`, `ASSISTANT_OLLAMA_SLOT_WAIT_SECONDS`, `ASSISTANT_OLLAMA_SOURCES`, `ASSISTANT_OLLAMA_SOURCE_CHARS`, `ASSISTANT_OLLAMA_HISTORY_TURNS`, `ASSISTANT_OLLAMA_INTERNAL_CHARS`, `ASSISTANT_OLLAMA_HEARINGS`", "Engine and limits; no API key for the local model"],
     ["Mail", "`MAIL_BACKEND`, `MAILTRAP_API_TOKEN` (secret), `MAILTRAP_API_URL`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` (secret), `SMTP_STARTTLS`, `SMTP_FROM`, `SMTP_FROM_NAME`, `MAIL_TIMEOUT_SECONDS`", "The mail relay (mandatory)"],
     ["Portal", "`PORTAL_BASE_URL`, `COOKIE_SECURE`, `RELAY_TIMEOUT_SECONDS`, `ASLMS_SUBNET`, `WEB_IP`", "Address and private network"],
     ["Alerts, reports, data collection", "`ALERT_*`, `COURT_SITTING_TIME`, `REQUEST_DUE_SOON_DAYS`, `NOTIFY_*`, `REPORT_*`, `DASHBOARD_LIST_SIZE`, `DATA_LOAD_ESTIMATE_WINDOW_DAYS`, `NAPIX_DISCOVERY_SHARE`, `DISCOVERY_FROM_YEAR`, `NEXT_DATE_*`, `DISPOSED_REFRESH_*`, `CAUSELIST_RECHECK_*`, `NAPIX_CALL_LOG_*`", "Behaviour limits; defaults normally kept"],
@@ -1282,7 +1287,7 @@ function annexC() {
     ["`docker compose exec api aslms ops pool-check …`", "Connection-pool check (read-only)"],
     ["`docker compose exec ops-exporter aslms ops metrics --once`", "One reading of the operations exporter"],
     ["`docker compose exec api aslms users sign-out --email <address>`", "Sign a login out everywhere"],
-    ["`docker compose exec api aslms assistant warm | status` (row 188)", "Load the local model; show the engine"],
+    ["`docker compose exec api aslms assistant warm | status | check`", "Load the local model; show the engine; the Case Assistant's consistency counts (each 0)"],
     ["`sudo aslms-setup [check | upgrade <file> | rollback]` (row 193)", "The one-VM installer (planned)"],
     ["`sudo aslms-setup move ai|documents|database --to <target>` (row 194)", "Guided moves (planned)"],
     ["`getenforce`, `ausearch -m avc -ts recent`, `restorecon -R`; `firewall-cmd --get-active-zones`; `tuned-adm active`; `chronyc tracking`; `xfs_info`", "Host checks"],
@@ -1308,7 +1313,7 @@ function annexD() {
     ["13", "Who receives monitoring alerts", "Owner", "The Super Administrator's mailbox"],
     ["14", "Whether the privileged `cadvisor` (`monitoring-host`) is allowed", "Data centre", "—"],
     ["15", "A load balancer in front of the proxy (`PROXY_TRUSTED_UPSTREAM`)", "Data centre", "—"],
-    ["16", "The AI model and timeouts without a GPU; Secure Boot policy for the NVIDIA module; the exact Ollama version (row 188 live check)", "Owner / data centre", "Section 6.7"],
+    ["16", "The AI model and timeouts without a GPU; Secure Boot policy for the NVIDIA module; the exact Ollama version (live check, row 195)", "Owner / data centre", "Section 6.7"],
     ["17", "Whether the link to a separate AI server (Part 2) must be encrypted", "Data centre", "Private segment"],
     ["18", "AI on staging: preview mode is refused with `APP_ENV=prod`; the production AI server out of hours, or none", "Owner / row 194 design", "None, or out of hours"],
     ["19", "SSH policy, jump host, hardening baseline", "Data centre", "Sections 3.6 and 4.11"],

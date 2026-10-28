@@ -158,6 +158,8 @@ code 3 and the message "The database is at X; this build needs Y". Nothing else 
    `alembic upgrade head` and seed, and writes the audit row `system.migrated`.
 4. `docker compose up -d`.
 
+**Two migrations with the same parent are joined by a merge migration, never renumbered.** When two branches each add a migration on the same parent and one is applied first, the other is kept exactly as built and a new no-op migration names both as `down_revision`. 0033 joins 0031 (session timeout) and 0032 (local Case Assistant); `alembic heads` shows one head, and `migrate` applies whichever of the two is missing, then 0033.
+
 If `init` exits with code 4 ("The database is newer than this build"), the code is older than the database: deploy
 the matching build, never downgrade by hand.
 
@@ -371,6 +373,8 @@ test-only variables, never application settings and never read from `.env`:
 | `ASLMS_TEST_DB_PER_RUN` | `1` | `0` uses the named database as before (wipe, downgrade, upgrade), for debugging with `psql`; a name without `test` is refused, so a mistyped URL can never wipe `aslms`. |
 | `ASLMS_TEST_KEEP_DB` | `0` | `1` keeps the run database at the end and prints its name; drop it by hand afterwards. |
 | `ASLMS_TEST_REQUIRE_DB` | `0` | `1` makes an unreachable server a failure instead of a skip (CI sets it). |
+
+**The browser screen check (`uicheck`) never runs through Compose on the shared stack.** `docker compose --profile uicheck run --rm uicheck` starts `web` through `depends_on`, and with it `api`; without `NAPIX_ENABLED=true` in that shell the api is recreated with court searches off (on 28 Oct 2026 this went unnoticed from 03:21 to 07:19). Run it on a private network against images under temporary tags instead: build `frontend/` as `tmpX-web` and `frontend/e2e/Dockerfile` (build argument `PLAYWRIGHT_VERSION`) as `tmpX-uicheck`; `docker network create tmpX-net`; start `tmpX-web` on it with the network alias `web` (`API_BASE_URL=http://api:8000`, `PORTAL_BASE_URL=http://web:3000`, `COOKIE_SECURE=false`; every API answer comes from the fixtures, so no api is needed); run `tmpX-uicheck` on the same network with an output folder mounted at `/out`; then remove the container, the network and both images. If a Compose `up` is ever needed, carry the switch and check it in api and worker afterwards (section 11).
 
 The old shared `aslms_test` database is no longer used and may be dropped once by hand
 (`docker compose exec postgres dropdb -U aslms aslms_test`). Use `127.0.0.1`, not `localhost`: on Windows
