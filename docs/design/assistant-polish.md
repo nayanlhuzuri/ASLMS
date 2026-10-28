@@ -2,7 +2,7 @@
 
 ```
 slug: assistant-polish
-status: awaiting-approval
+status: approved
 author: architect
 date: 2026-10-28
 approved_by: (pending)
