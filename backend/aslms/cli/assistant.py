@@ -7,7 +7,11 @@ last 24 h, and in ollama mode the engine); `ask --user EMAIL (--case REF | --my-
 Design `assistant-ollama`: `warm` loads the local model now; `include-internal --user EMAIL --case REF
 [--conversation ID]` switches on that user's case-tab conversation's internal records (dev and test only, refused in
 prod with exit 2; audited as the system actor `cli` with `as_user_id`). `ask --case` reads internal records only in a
-conversation switched on, with the named user's own sight."""
+conversation switched on, with the named user's own sight.
+
+Design `assistant-polish`, decision 9: `repeat-check --user EMAIL (--conversation ID ... | --case REF [--questions
+FILE])` prints how much each model answer repeats an earlier answer of its conversation, numbers only (refused in
+prod, exit 2; exit 1 when a model answer repeats 0.50 or more)."""
 
 from __future__ import annotations
 
@@ -15,6 +19,7 @@ import asyncio
 import json
 import uuid
 from datetime import timedelta
+from pathlib import Path
 
 import typer
 from rich import print as rprint
@@ -254,3 +259,176 @@ def check_cmd() -> None:
         rprint(f"{k}: {'[green]' if v == 0 else '[red]'}{v}[/]")
     if any(result.values()):
         raise typer.Exit(code=1)
+
+
+# ------------------------------------------------------------------------------------------------ the repeat check
+
+REPEAT_THRESHOLD = 0.50
+REPEAT_QUESTIONS = (
+    "What did the court direct in the most recent order?",
+    "So what needs to be done next?",
+    "Summarise the order before that in two sentences.",
+    "Who are the parties?",
+    "When is the next hearing?",
+    "What reason was given for the last adjournment?",
+    "Is there any direction to file an affidavit?",
+    "Summarise the whole case.",
+)
+MAX_REPEAT_QUESTIONS = 20
+
+
+def repeat_rows(answers: list[tuple[str | None, str | None, str | None]]) -> list[dict]:
+    """Design assistant-polish, decision 9: per answer of one conversation (outcome, connector, text, oldest first)
+    its number, outcome, connector, word count and repeat score: the highest word 4-gram overlap with any earlier
+    model answer of the conversation (0 for the first). Only model answers are scored (outcome `answered`, not a quick
+    fact); the others carry None and quick facts are marked `case_record`. Never returns the text."""
+    from aslms.services.assistant_facts import CONNECTOR as FACTS
+    from aslms.services.assistant_ollama import overlap
+
+    rows: list[dict] = []
+    earlier: list[str] = []
+    for n, (outcome, connector, content) in enumerate(answers, start=1):
+        text = content or ""
+        model = outcome == "answered" and connector != FACTS
+        score = None
+        if model:
+            score = max((overlap(e, text) for e in earlier), default=0.0)
+            earlier.append(text)
+        rows.append(
+            {
+                "n": n,
+                "outcome": outcome or "-",
+                "connector": "case_record" if connector == FACTS else (connector or "-"),
+                "words": len(text.split()),
+                "score": score,
+            }
+        )
+    return rows
+
+
+def _print_repeat(conversation_id: uuid.UUID, rows: list[dict]) -> None:
+    typer.echo(f"conversation {conversation_id}: {len(rows)} answer(s)")
+    typer.echo(f"  {'#':>3}  {'outcome':<10} {'connector':<12} {'words':>5}  repeat")
+    for r in rows:
+        score = f"{r['score']:.2f}" if r["score"] is not None else "-"
+        typer.echo(f"  {r['n']:>3}  {r['outcome']:<10} {r['connector']:<12} {r['words']:>5}  {score}")
+
+
+def _verdict(rows: list[dict]) -> int:
+    scores = sorted(r["score"] for r in rows if r["score"] is not None)
+    if not scores:
+        typer.echo("model answers: 0; nothing to score")
+        typer.echo("PASS")
+        return 0
+    mid = len(scores) // 2
+    median = scores[mid] if len(scores) % 2 else (scores[mid - 1] + scores[mid]) / 2
+    top = scores[-1]
+    typer.echo(
+        f"model answers: {len(scores)}  median {median:.2f}  maximum {top:.2f}  threshold {REPEAT_THRESHOLD:.2f}"
+    )
+    if top >= REPEAT_THRESHOLD:
+        typer.echo(f"FAIL: a model answer repeats {REPEAT_THRESHOLD:.2f} or more of an earlier answer")
+        return 1
+    typer.echo(f"PASS: no model answer repeats {REPEAT_THRESHOLD:.2f} or more of an earlier answer")
+    return 0
+
+
+def _answers_of(s, conversation_id: uuid.UUID) -> list[tuple[str | None, str | None, str | None]]:
+    rows = s.execute(
+        select(AssistantMessage.outcome, AssistantMessage.connector, AssistantMessage.content)
+        .where(
+            AssistantMessage.conversation_id == conversation_id,
+            AssistantMessage.role == MessageRole.ASSISTANT,
+        )
+        .order_by(AssistantMessage.created_at, AssistantMessage.id)
+    ).all()
+    return [(o, c, t) for o, c, t in rows]
+
+
+@assistant_app.command("repeat-check")
+def repeat_check_cmd(
+    user: str = typer.Option(..., "--user", help="the e-mail of the login whose conversations are checked"),
+    conversation: list[str] = typer.Option(  # noqa: B008 - typer's own pattern
+        None, "--conversation", help="mode A: a stored conversation of the user (repeatable); no model call"
+    ),
+    case: str | None = typer.Option(None, "--case", help="mode B: ask the question set on this case, live"),
+    questions: str | None = typer.Option(
+        None, "--questions", help="mode B: a file with one question per line (at most 20)"
+    ),
+) -> None:
+    """How much each model answer repeats an earlier answer of its conversation (design assistant-polish, decision
+    9). Mode A reads stored conversations (no model call); mode B starts a new case conversation as the user and asks
+    the question set through the normal service (stored, audited, counted against the user's hourly limit). Prints
+    numbers only, never a question or an answer. Exit 0 on pass (no model answer at 0.50 or more), 1 on fail;
+    refused with APP_ENV=prod (exit 2)."""
+    settings = get_settings()
+    if settings.is_prod:
+        rprint("[red]refused:[/red] `aslms assistant repeat-check` is not run with APP_ENV=prod")
+        raise typer.Exit(code=2)
+    conversations = list(conversation or [])
+    if bool(conversations) == bool(case):
+        raise typer.BadParameter("give --conversation (mode A) or --case (mode B), not both")
+    if questions and not case:
+        raise typer.BadParameter("--questions goes with --case")
+    Session = get_sessionmaker()
+    with Session() as s:
+        login = s.scalar(select(User).where(func.lower(User.email) == user.strip().lower()))
+        if login is None or not login.is_active:
+            raise typer.BadParameter(f"no active login {user}")
+        if conversations:
+            all_rows: list[dict] = []
+            for raw in conversations:
+                try:
+                    conv_id = uuid.UUID(raw)
+                    svc.own_conversation(s, login, conv_id)
+                except (ValueError, svc.ConversationNotFound) as exc:
+                    raise typer.BadParameter(f"{raw} is not a conversation of {user}") from exc
+                rows = repeat_rows(_answers_of(s, conv_id))
+                _print_repeat(conv_id, rows)
+                all_rows.extend(rows)
+            raise typer.Exit(code=_verdict(all_rows))
+        try:
+            case_id = resolve_case_ref(s, case).id
+        except CaseNotFound as exc:
+            raise typer.BadParameter(str(exc)) from exc
+        s.expunge(login)
+    asked = list(REPEAT_QUESTIONS)
+    if questions:
+        lines = [ln.strip() for ln in Path(questions).read_text("utf-8").splitlines() if ln.strip()]
+        if not lines or len(lines) > MAX_REPEAT_QUESTIONS:
+            raise typer.BadParameter(f"--questions holds 1 to {MAX_REPEAT_QUESTIONS} questions, one per line")
+        asked = lines
+    connector = svc.assistant_connector(settings, Session)
+    config = svc.AssistantConfig.from_settings(settings)
+    conversation_id: uuid.UUID | None = None
+    code = 0
+    for q in asked:
+        try:
+            result = asyncio.run(
+                svc.ask(
+                    Session,
+                    Actor.system("cli"),
+                    login,
+                    question=q,
+                    scope="case",
+                    case=case_id,
+                    conversation_id=conversation_id,
+                    connector=connector,
+                    config=config,
+                    via="cli",
+                )
+            )
+        except svc.AssistantError as exc:
+            rprint(f"[red]{exc.code}:[/red] the question set stopped early")
+            code = 1
+            break
+        except (NotVisibleCase, svc.ConversationNotFound) as exc:
+            rprint("[red]not_found:[/red] no such case for this user")
+            raise typer.Exit(code=1) from exc
+        conversation_id = result.conversation_id
+    if conversation_id is None:
+        raise typer.Exit(code=1)
+    with Session() as s:
+        rows = repeat_rows(_answers_of(s, conversation_id))
+    _print_repeat(conversation_id, rows)
+    raise typer.Exit(code=max(code, _verdict(rows)))

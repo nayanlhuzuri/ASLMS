@@ -4360,7 +4360,7 @@ class AssistantEngineOut(BaseModel):
     """The local model's readiness (design assistant-ollama, decision 13); `reason` when not ready: `not_loaded`,
     `unreachable`, `missing`, `not_local` or `cloud`."""
 
-    kind: Literal["ollama"]
+    kind: Literal["ollama", "case_record"]
     model: str
     readiness: Literal["ready", "loading", "unavailable"]
     reason: str | None = None
@@ -4484,7 +4484,7 @@ class AssistantCitationOut(BaseModel):
 
 
 class AssistantEngineBriefOut(BaseModel):
-    kind: Literal["ollama"]
+    kind: Literal["ollama", "case_record"]  # case_record: a quick fact (design assistant-polish)
     model: str | None = None
 
 

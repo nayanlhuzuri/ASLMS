@@ -115,16 +115,56 @@ export function otherCaseName(c: AssistantCitation, currentCaseId?: string | nul
 }
 
 /** The text "Copy to note" puts into the note: the answer, then its references in words (decision 13); of a local
- * model's answer only the cited sources. */
+ * model's answer only the cited sources. Design assistant-polish, decision 17: an answer with labelled citations (a
+ * local model's or a quick fact) names each cited source by its own label, so every `[S#]` marker in the note has its
+ * line ("No longer available" for one the reader can no longer reach); an answer without labels keeps 1..n. */
 export function noteText(m: AssistantMessage): string {
-  const refs = m.citations
-    .filter((c) => c.available && c.cited !== false)
-    .map((c, i) => {
-      const where = c.case.case_no_text ? ` (${c.case.case_no_text})` : "";
-      const passage = plainPassage(c.passage);
-      return T.assistant.copyRef(i + 1, `${sourceWords(c)}${where}${passage ? `: “${passage}”` : ""}`);
-    });
+  const labelled = hasLabels(m);
+  const refs = labelled
+    ? m.citations
+        .filter((c) => c.cited !== false && c.label)
+        .map((c) => T.assistant.copyRef(c.label!, c.available ? refWords(c) : T.assistant.noLongerAvailable))
+    : m.citations.filter((c) => c.available && c.cited !== false).map((c, i) => T.assistant.copyRef(i + 1, refWords(c)));
   return [m.content ?? "", refs.length ? `\n${T.assistant.copyIntro}` : "", ...refs].filter((x) => x !== "").join("\n");
+}
+
+function refWords(c: AssistantCitation): string {
+  const where = c.case.case_no_text ? ` (${c.case.case_no_text})` : "";
+  const passage = plainPassage(c.passage);
+  return `${sourceWords(c)}${where}${passage ? `: “${passage}”` : ""}`;
+}
+
+/** Whether an answer's citations carry source labels (`S1`..): a local model's answer or a quick fact, whose `[S#]`
+ * markers open their sources (design assistant-polish, decision 16). */
+export function hasLabels(m: AssistantMessage): boolean {
+  return m.citations.some((c) => !!c.label);
+}
+
+/** Whether an answer is a quick fact from the case record (design assistant-polish, decision 15): read from the
+ * server's `engine.kind`, never decided here. */
+export function isCaseRecord(m: AssistantMessage): boolean {
+  return m.engine?.kind === "case_record";
+}
+
+/** A marker's accessible name (decision 16): "Source S1: Order of 18 Feb 2026, No. 7, page 2", "(Internal)" after an
+ * internal kind, "No Longer Available" for a source the reader can no longer reach. */
+export function markerName(c: AssistantCitation): string {
+  const label = c.label ?? "";
+  if (!c.available) return T.assistant.markerAria(label, T.assistant.markerGone);
+  const internal = isInternal(c) ? ` (${T.assistant.internalBadge})` : "";
+  return T.assistant.markerAria(label, `${sourceWords(c)}${internal}`);
+}
+
+/** The words of a source's open link in its dialog (decision 16), by where it opens. */
+export function openWords(c: AssistantCitation, link: SourceLink): string {
+  const o = T.assistant.openLabels;
+  if (link.kind === "court_order") return o.court_record;
+  if (c.source_kind === "court_order") return o.court_order;
+  if (c.source_kind === "court_filing") return o.court_filing;
+  if (c.source_kind === "case_details") return o.case_details;
+  if (c.source_kind === "department_document") return o.department_document;
+  if (c.source_kind === "note") return o.note;
+  return o.case_page;
 }
 
 /** The questions left this hour (never below 0). */

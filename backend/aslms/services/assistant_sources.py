@@ -26,12 +26,13 @@ from typing import Any, Literal
 from sqlalchemy import ColumnElement, String, and_, exists, func, literal, not_, select
 from sqlalchemy.orm import Session, aliased
 
+from aslms.core import clock
 from aslms.domain.cases import Case, CaseAct, CaseAdvocate, CaseHearing, CaseParty, CaseStatus, PartyRole
 from aslms.domain.causelists import Causelist, CauselistEntry
 from aslms.domain.courts import Court
 from aslms.domain.documents import Document, DocumentText, Order, SourcetraceStatus, Visibility
 from aslms.domain.org import User
-from aslms.services import visibility
+from aslms.services import assistant_facts, visibility
 from aslms.services.my_cases import my_cases_condition
 from aslms.services.sourcetrace_ingest import filing_nature, has_cnr, order_nature
 
@@ -270,7 +271,7 @@ def case_details(
     purpose, bench, short order text as held) and the last `listings` listings (list date, list type, bench, court
     number and printed item; rows of a list replaced by a corrected one marked `superseded`). The same tables as
     `case_detail.hearings` and `case_detail.listings`; nothing internal: no owner, recommendation, stage, custody or
-    `ref_no`. Imports no connector."""
+    `ref_no`. Imports no connector. Design `assistant-polish`, decision 6: plus `coram` and `order_next_date`."""
     out = case_contexts(session, case_ids)
     ids = [c["case_id"] for c in out]
     if not ids:
@@ -340,9 +341,18 @@ def case_details(
                     "superseded": bool(row.superseded),
                 }
             )
+    today = clock.today_ist()
     for c in out:
         c["hearings"] = by_case_h.get(c["case_id"], [])
         c["listings"] = by_case_l.get(c["case_id"], [])
+        # design assistant-polish, decision 6: the coram, and the next date read from an order through the
+        # assistant's one next-hearing reader; a manual date is an officer's entry and is never put here
+        row = session.get(Case, c["case_id"])
+        c["coram"] = (row.coram or "").strip() or None
+        nh = assistant_facts.next_hearing(session, row, today=today)
+        c["order_next_date"] = (
+            {"next_date": nh.next_date, "order_date": nh.order_date} if nh.from_order else None
+        )
     return out
 
 

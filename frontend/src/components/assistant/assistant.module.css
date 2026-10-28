@@ -1,13 +1,14 @@
 /* The Case Assistant (design assistant, decision 14; the template's Assistant tab and page): the conversation in a box
-   of fixed height with its own scroll bar (owner, 23 Oct 2026), answer cards, the "Sources used" side panel from
-   1280 px (under each answer below it), the composer, and on the page the conversation list. */
+   of fixed height with its own scroll bar (owner, 23 Oct 2026), answer cards, the composer, and on the page the
+   conversation list. Design assistant-polish, decision 16: no side panel; a marked answer's sources open in a dialog
+   from their `[S#]` pill, an answer without markers keeps its list under it. */
 
 .workspace {
   display: grid;
   gap: var(--s4);
 }
 
-/* the case tab: thread and composer, the sources at the right from 1280 px */
+/* the case tab: thread and composer at full width */
 .caseGrid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -15,7 +16,7 @@
   align-items: start;
 }
 
-/* the page: conversations | thread | sources */
+/* the page: conversations | thread */
 .pageGrid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -26,16 +27,6 @@
 @media (min-width: 900px) {
   .pageGrid {
     grid-template-columns: 232px minmax(0, 1fr);
-  }
-}
-
-@media (min-width: 1280px) {
-  .caseGrid {
-    grid-template-columns: minmax(0, 1fr) 280px;
-  }
-
-  .pageGrid {
-    grid-template-columns: 232px minmax(0, 1fr) 280px;
   }
 }
 
@@ -130,11 +121,6 @@
   transition: border-color var(--fast), box-shadow var(--fast);
 }
 
-.answer[data-selected="true"] {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-ring);
-}
-
 .answerHead {
   display: flex;
   flex-wrap: wrap;
@@ -142,16 +128,6 @@
   gap: var(--s2);
   font-size: var(--t-sm);
   color: var(--text-3);
-}
-
-.choose {
-  margin-left: auto;
-  border: 0;
-  background: none;
-  color: var(--accent);
-  cursor: pointer;
-  font-size: var(--t-sm);
-  padding: 0;
 }
 
 .text {
@@ -166,26 +142,24 @@
 
 .foot {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
+  gap: var(--s2);
 }
 
-/* sources under the answer below 1280 px; the side panel from 1280 px */
+/* an answer without markers keeps its sources under it, at every width */
 .inlineSources {
   display: grid;
 }
 
-.sidePanel {
-  display: none;
+/* one source in its dialog */
+.sourceDialog {
+  display: grid;
+  gap: var(--s2);
 }
 
-@media (min-width: 1280px) {
-  .inlineSources {
-    display: none;
-  }
-
-  .sidePanel {
-    display: block;
-  }
+.sourceDialog .sourceTitle {
+  margin: 0;
 }
 
 .sources {
@@ -328,8 +302,7 @@
     display: none;
   }
 
-  .pageGrid[data-view="list"] .threadColumn,
-  .pageGrid[data-view="list"] .sidePanel {
+  .pageGrid[data-view="list"] .threadColumn {
     display: none;
   }
 
@@ -396,16 +369,32 @@
   font-size: var(--t-sm);
 }
 
+/* a `[S#]` marker: a small pill button opening its source (design assistant-polish, decision 16) */
 .marker {
+  display: inline-block;
+  margin: 0 2px;
+  padding: 0 var(--s1);
+  min-width: 24px;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font: inherit;
   font-size: var(--t-xs);
   font-weight: 600;
-  text-decoration: none;
-  vertical-align: super;
+  line-height: 18px;
+  vertical-align: 1px;
+  cursor: pointer;
 }
 
-.marker:hover,
+.marker:hover {
+  background: var(--accent);
+  color: var(--surface);
+}
+
 .marker:focus-visible {
-  text-decoration: underline;
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .suggest {

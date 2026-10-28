@@ -306,6 +306,38 @@ const STATES: State[] = [
       await page.getByRole("link", { name: "Open the Order" }).waitFor();
     },
   },
+  // design assistant-polish, decision 16: an answer holding its markers (no inline list, no side panel), one source
+  // opened from its marker, and every source of the answer from "Sources (n)"; decision 15: a quick fact
+  {
+    name: `/cases/${SAMPLE.caseRefPath}/assistant (answer with references)`,
+    path: `/cases/${SAMPLE.caseRefPath}/assistant`,
+    open: async (page) => {
+      await page.getByRole("button", { name: /^Source S1:/ }).first().waitFor();
+    },
+  },
+  {
+    name: `/cases/${SAMPLE.caseRefPath}/assistant (source dialog)`,
+    path: `/cases/${SAMPLE.caseRefPath}/assistant`,
+    open: async (page) => {
+      await page.getByRole("button", { name: /^Source S1:/ }).first().click();
+      await page.getByRole("dialog", { name: "Source S1" }).waitFor();
+    },
+  },
+  {
+    name: `/cases/${SAMPLE.caseRefPath}/assistant (sources of this answer)`,
+    path: `/cases/${SAMPLE.caseRefPath}/assistant`,
+    open: async (page) => {
+      await page.getByRole("button", { name: /^Sources \(\d+\)$/ }).first().click();
+      await page.getByRole("dialog", { name: "Sources of This Answer" }).waitFor();
+    },
+  },
+  {
+    name: "/assistant (quick fact from the case record)",
+    path: "/assistant",
+    open: async (page) => {
+      await page.getByText("From the Case Record").first().waitFor();
+    },
+  },
   {
     name: `/cases/${SAMPLE.caseRefPath} (send case, step 1)`,
     path: `/cases/${SAMPLE.caseRefPath}`,

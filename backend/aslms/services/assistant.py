@@ -48,6 +48,7 @@ from typing import Any, Literal
 from sqlalchemy import and_, exists, func, literal, or_, select, text
 from sqlalchemy.orm import Session, aliased, sessionmaker
 
+from aslms.core import clock
 from aslms.core.config import Settings
 from aslms.domain.assistant import AssistantConversation, AssistantMessage, AssistantScope, MessageRole
 from aslms.domain.cases import Case
@@ -71,6 +72,7 @@ from aslms.integration.sourcetrace import (
     get_assistant_connector,
 )
 from aslms.services import access, visibility
+from aslms.services import assistant_facts as quick_facts
 from aslms.services import assistant_internal as internal_records
 from aslms.services import assistant_ollama as ollama
 from aslms.services import assistant_sources as src
@@ -386,6 +388,9 @@ class _Prepared:
     internal_on: bool = False
     internal: internal_records.InternalRecords | None = None
     question: str = ""
+    facts: tuple[str, ...] | None = (
+        None  # design assistant-polish: a quick fact answered from the case record
+    )
 
 
 @dataclass
@@ -464,11 +469,14 @@ def _history(
     connector_name: str,
     turns: int,
     conversation: AssistantConversation | None = None,
+    *,
+    outcomes: tuple[str, ...] = ANSWERED_OUTCOMES,
 ) -> list[Turn]:
     """Decision 12: the last `turns` question and answer pairs of the conversation, only the connector's own answers
     that are still shown to the asker (answered or no match, no filing citation the asker can no longer see, and —
     design `assistant-ollama`, decision 10 — no internal citation the asker can no longer see). One conversation id
-    only: history never crosses conversations."""
+    only: history never crosses conversations. Design `assistant-polish`, decision 2: `outcomes` narrows the turns
+    (`("answered",)` for the Ollama connector, so a `no_match` answer and its question are never fed back)."""
     if turns <= 0:
         return []
     answer = aliased(AssistantMessage, name="hist_answer")
@@ -478,7 +486,7 @@ def _history(
         .where(
             AssistantMessage.conversation_id == conversation_id,
             AssistantMessage.role == MessageRole.USER,
-            answer.outcome.in_(ANSWERED_OUTCOMES),
+            answer.outcome.in_(outcomes),
             answer.connector == connector_name,
         )
         .order_by(AssistantMessage.created_at.desc())
@@ -521,8 +529,10 @@ def _prepare(
     connector: AssistantConnector,
     config: AssistantConfig,
     via: str | None,
+    facts: tuple[str, ...] | None = None,
 ) -> _Prepared:
-    """Transaction A (decision 9)."""
+    """Transaction A (decision 9). Design `assistant-polish`, decision 14: for a quick fact (`facts`) unchanged apart
+    from the audit's `quick_fact`, and nothing gathered for a model (no case details, internal records or history)."""
     mode = mode_of(connector)
     with Session() as s:
         u = s.get(User, user.id)
@@ -593,9 +603,10 @@ def _prepare(
         )
         # design assistant-ollama, decisions 4 and 5: case details need the case page's read guard; internal records
         # only in ollama mode, for the stored case-scope conversation switched on before this question, of its case
-        details = mode == "ollama" and internal_records.read_guard(s, u)
+        details = mode == "ollama" and not facts and internal_records.read_guard(s, u)
         internal_on = (
-            mode == "ollama"
+            not facts
+            and mode == "ollama"
             and scope == "case"
             and not new
             and conv.internal_included_at is not None
@@ -615,7 +626,19 @@ def _prepare(
         )
         orders = _orders_corpus(scope, include_related)
         contexts = src.case_contexts(s, focus_ids or [])
-        history = [] if new else _history(s, u, conv.id, str(connector.name), config.history_turns, conv)
+        history = (
+            []
+            if new or facts
+            else _history(
+                s,
+                u,
+                conv.id,
+                str(connector.name),
+                config.history_turns,
+                conv,
+                outcomes=("answered",) if mode == "ollama" else ANSWERED_OUTCOMES,
+            )
+        )
         truncated = focus_truncated or filings_truncated
         scope_info = {
             "kind": scope,
@@ -647,7 +670,9 @@ def _prepare(
             "filings_passed": scope_info["filings_passed"],
             "truncated": truncated,
         }
-        if mode == "ollama":
+        if facts:
+            after["quick_fact"] = list(facts)
+        elif mode == "ollama":
             after["internal"] = internal_on
             after["internal_supplied"] = {
                 k: int((internal.counts if internal else {}).get(k, 0)) for k in INTERNAL_KINDS
@@ -691,6 +716,7 @@ def _prepare(
             internal_on=internal_on,
             internal=internal,
             question=q,
+            facts=facts,
         )
         s.commit()
     return prepared
@@ -827,6 +853,8 @@ def _map_citations(
     """Decisions 6, 8 and 12: each citation to a document (preview: by document id; sourcetrace: by
     `sourcetrace_ref`), re-checked against the scope that was sent; `NotCitable` for any outside it."""
     out: list[dict[str, Any]] = []
+    if prepared.facts:
+        return _map_facts(prepared, citations)
     if prepared.mode == "ollama":
         return _map_ollama(session, user, prepared, citations)
     for c in citations:
@@ -878,6 +906,19 @@ def _map_citations(
             item["locator"] = c.locator
         out.append(item)
     return out
+
+
+def _map_facts(prepared: _Prepared, citations: tuple[Citation, ...] | list[Citation]) -> list[dict[str, Any]]:
+    """Design `assistant-polish`, decision 14: a quick-fact answer cites exactly one source, the Case Details of the
+    conversation's own case, label `S1`, in every mode; anything else is `NotCitable`."""
+    items = list(citations)
+    if len(items) != 1 or prepared.case_id is None:
+        raise src.NotCitable("a quick fact cites only its case's Case Details")
+    c = items[0]
+    record = dict(c.record or {})
+    if c.source_kind != "case_details" or str(record.get("case_id")) != str(prepared.case_id):
+        raise src.NotCitable("a quick fact cites only its case's Case Details")
+    return [quick_facts.citation(prepared.case_id)]
 
 
 def _internal_set(prepared: _Prepared) -> dict[str, set]:
@@ -1027,10 +1068,13 @@ def _record(
                 result.raw,
                 result.family,
             )
-            if prepared.mode == "ollama":
+            if prepared.facts:
+                info = {"engine": quick_facts.ENGINE, "facts": list(prepared.facts)}
+            elif prepared.mode == "ollama":
                 info = {"engine": "ollama", "model": getattr(connector, "model", None)}
+        is_model = prepared.mode == "ollama" and not prepared.facts
         if (
-            prepared.mode == "ollama"
+            is_model
             and prepared.scope == "case"
             and not prepared.internal_on
             and outcome in ANSWERED_OUTCOMES
@@ -1056,7 +1100,7 @@ def _record(
             duration_ms=result.duration_ms,
             citations=citations,
             model_info=info or None,
-            response=raw if prepared.mode in ("sourcetrace", "ollama") else None,
+            response=raw if prepared.mode in ("sourcetrace", "ollama") and not prepared.facts else None,
         )
         s.add(msg)
         conv.last_message_at = s.scalar(select(func.now()))
@@ -1083,7 +1127,8 @@ def _record(
                     for c in citations or []
                     if c.get("source_kind", "court_order") in COURT_KINDS
                 ],
-                **(_ollama_audit(info, citations) if prepared.mode == "ollama" else {}),
+                **(_ollama_audit(info, citations) if is_model else {}),
+                **({"facts": list(prepared.facts)} if prepared.facts else {}),
             },
         )
         answer_id = msg.id
@@ -1106,6 +1151,7 @@ def _ollama_audit(info: dict[str, Any], citations: list[dict[str, Any]] | None) 
         "sources_supplied": supplied,
         "cited": cited,
         "invalid_markers": int(info.get("invalid_markers") or 0),
+        "overlap_prev": info.get("overlap_prev"),  # design assistant-polish, decision 8: a number, never text
     }
 
 
@@ -1125,9 +1171,37 @@ async def ask(
 ) -> AskResult:
     """Decisions 5, 6, 9, 10 and 12: refusals before storing raise (`AssistantOff`, `BadQuestion`, `ScopeMismatch`,
     `ConversationFull`, `QuestionInFlight`, `AssistantLimit`, `NotVisibleCase`, `ConversationNotFound`); a
-    connector failure is stored as a `failed` answer and returned."""
+    connector failure is stored as a `failed` answer and returned.
+
+    Design `assistant-polish`, decision 14: a quick fact on the case tab (scope `case`, a recognised question, the
+    asker holding the case page's read guard) skips the model's admission, runs transaction A unchanged, is answered
+    from the case's court record in a read-only session, and is stored by transaction B with the connector `facts`."""
     if connector is None:
         raise AssistantOff("the Case Assistant is off")
+    facts = _quick_facts(Session, user, question=question, scope=scope, case=case)
+    if facts:
+        prepared = _prepare(
+            Session,
+            actor,
+            user,
+            question=question,
+            scope=scope,
+            case=case,
+            conversation_id=conversation_id,
+            include_related=include_related,
+            connector=connector,
+            config=config,
+            via=via,
+            facts=facts,
+        )
+        result = _facts_result(Session, prepared)
+        answer_id, outcome = _record(Session, actor, user, prepared, FACTS_CONNECTOR, result, via)
+        return AskResult(
+            conversation_id=prepared.conversation_id,
+            question_id=prepared.question_id,
+            answer_id=answer_id,
+            outcome=outcome,
+        )
     slot = await _admit(connector)
     try:
         prepared = _prepare(
@@ -1168,6 +1242,74 @@ async def ask(
         answer_id=answer_id,
         outcome=outcome,
     )
+
+
+class _FactsConnector:
+    """The stand-in stored as an answer's connector when a quick fact was answered from the case record (no model)."""
+
+    name = quick_facts.CONNECTOR
+    model = None
+
+
+FACTS_CONNECTOR = _FactsConnector()
+
+
+def _quick_facts(
+    Session: sessionmaker, user: User, *, question: str, scope: str, case: Case | uuid.UUID | None
+) -> tuple[str, ...] | None:
+    """Design `assistant-polish`, decisions 10 and 11: the facts asked, only on scope `case` and only for an asker
+    holding the case page's read guard (checked in a short read); otherwise None (the ordinary path)."""
+    if scope != "case" or case is None or not isinstance(question, str):
+        return None
+    facts = quick_facts.recognise(question)
+    if not facts:
+        return None
+    with Session() as s:
+        u = s.get(User, user.id)
+        allowed = u is not None and internal_records.read_guard(s, u)
+        s.rollback()
+    return facts if allowed else None
+
+
+def _facts_result(Session: sessionmaker, prepared: _Prepared) -> _Result:
+    """The quick-fact answer built in a read-only session; an unexpected error is a stored `failed` answer, logged by
+    its class only."""
+    started = time.monotonic()
+    try:
+        with Session() as s:
+            s.execute(text("SET TRANSACTION READ ONLY"))
+            try:
+                fa = quick_facts.answer(s, prepared.case_id, prepared.facts or (), today=clock.today_ist())
+            finally:
+                s.rollback()
+    except Exception as exc:  # noqa: BLE001 — stored as a failed answer, never raised
+        log.error(
+            "a quick fact could not be answered: %s (conversation %s)",
+            type(exc).__name__,
+            prepared.conversation_id,
+        )
+        return _Result(
+            False,
+            family="error",
+            message=FAILURE_MESSAGES["error"],
+            duration_ms=int((time.monotonic() - started) * 1000),
+        )
+    c = fa.citation
+    answer = Answer(
+        text=fa.text,
+        citations=(
+            Citation(
+                reference=f"case_details:{c['case_id']}",
+                source_kind="case_details",
+                label=c["label"],
+                cited=True,
+                record={k: c[k] for k in ("case_id", "hearings", "listings", "compact")},
+            ),
+        ),
+        outcome="answered",
+        info=dict(fa.info),
+    )
+    return _Result(True, answer=answer, duration_ms=int((time.monotonic() - started) * 1000))
 
 
 async def _admit(connector: AssistantConnector) -> ollama.Slot | None:
@@ -1678,7 +1820,8 @@ def messages_out(session: Session, user: User, msgs: list[AssistantMessage]) -> 
         )
         role = _value(m.role)
         info = m.model_info or {}
-        is_ollama = m.mode == "ollama"
+        is_facts = m.connector == quick_facts.CONNECTOR
+        is_ollama = m.mode == "ollama" and not is_facts
         out.append(
             {
                 "id": m.id,
@@ -1686,7 +1829,11 @@ def messages_out(session: Session, user: User, msgs: list[AssistantMessage]) -> 
                 "created_at": m.created_at,
                 "content": None if hidden else m.content,
                 "hidden_reason": (HIDDEN_INTERNAL if hidden_internal else HIDDEN_REASON) if hidden else None,
-                "engine": {"kind": "ollama", "model": info.get("model")} if is_ollama else None,
+                "engine": (
+                    {"kind": quick_facts.ENGINE, "model": None}
+                    if is_facts
+                    else ({"kind": "ollama", "model": info.get("model")} if is_ollama else None)
+                ),
                 "checks": (
                     {
                         "invalid_markers": int(info.get("invalid_markers") or 0),

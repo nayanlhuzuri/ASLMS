@@ -819,12 +819,56 @@ function emptyList<T extends { items: unknown[]; total?: number }>(schema: strin
 /**
  * A conversation's thread (design assistant-ollama, decision 8): each citation's `label` is its source number, `S1`,
  * `S2`, …, which the source list shows in its number badge; the synthetic sentence there made the badge 176 px wide.
+ * Design assistant-polish, decisions 15 and 16: a local-model answer whose text holds its `[S#]` markers (each a button
+ * opening its source), then a quick fact from the case record (engine `case_record`, one Case Details source `S1`).
  */
 function assistantThread(): AssistantThread {
   const base = synthFor("/assistant/conversations/x")!.body as AssistantThread;
+  const labelled = base.messages.map((m) => ({ ...m, citations: m.citations.map((c, i) => ({ ...c, label: `S${i + 1}` })) }));
+  const asked = labelled.find((m) => m.role === "user") ?? labelled[0]!;
+  const said = labelled.find((m) => m.role === "assistant") ?? labelled[0]!;
+  const cites = said.citations.length ? said.citations : (labelled.find((m) => m.citations.length)?.citations ?? []);
+  const local = {
+    ...said,
+    id: `${said.id.slice(0, -2)}a1`,
+    role: "assistant" as const,
+    mode: "ollama" as const,
+    outcome: "answered" as const,
+    error: null,
+    hidden_reason: null,
+    engine: { kind: "ollama" as const, model: "qwen3.5:4b" },
+    checks: { invalid_markers: 0, cut_short: false },
+    content: `${STRESS.sentence} [S1]. The respondents were given four weeks to file the affidavit [S2].`,
+    citations: cites.map((c, i) => ({ ...c, label: `S${i + 1}`, cited: i < 2, available: true })),
+  };
+  const details = cites[0]
+    ? {
+        ...cites[0],
+        source_kind: "case_details" as const,
+        label: "S1",
+        cited: true,
+        available: true,
+        passage: null,
+        page: null,
+        context: "Case number: WP(C)/12345/2025; Status: pending\nNext date (court): 23 Oct 2026",
+      }
+    : null;
+  const fact = {
+    ...local,
+    id: `${said.id.slice(0, -2)}a2`,
+    engine: { kind: "case_record" as const, model: null },
+    checks: null,
+    content: `${STRESS.party} [S1].`,
+    citations: details ? [details] : [],
+  };
   return {
     ...base,
-    messages: base.messages.map((m) => ({ ...m, citations: m.citations.map((c, i) => ({ ...c, label: `S${i + 1}` })) })),
+    messages: [
+      { ...asked, id: `${asked.id.slice(0, -2)}q1`, role: "user" as const, citations: [] },
+      { ...local, reply_to_id: `${asked.id.slice(0, -2)}q1` },
+      { ...asked, id: `${asked.id.slice(0, -2)}q2`, role: "user" as const, citations: [], content: "Who are the parties?" },
+      { ...fact, reply_to_id: `${asked.id.slice(0, -2)}q2` },
+    ],
   };
 }
 

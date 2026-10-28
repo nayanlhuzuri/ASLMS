@@ -2229,7 +2229,10 @@
       "AssistantEngineBriefOut": {
         "properties": {
           "kind": {
-            "const": "ollama",
+            "enum": [
+              "ollama",
+              "case_record"
+            ],
             "title": "Kind",
             "type": "string"
           },
@@ -2255,7 +2258,10 @@
         "description": "The local model's readiness (design assistant-ollama, decision 13); `reason` when not ready: `not_loaded`,\n`unreachable`, `missing`, `not_local` or `cloud`.",
         "properties": {
           "kind": {
-            "const": "ollama",
+            "enum": [
+              "ollama",
+              "case_record"
+            ],
             "title": "Kind",
             "type": "string"
           },

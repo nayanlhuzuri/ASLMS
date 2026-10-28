@@ -28,6 +28,13 @@
  * Internal Records groups with the uncited sources apart, "Text Given to the Model", the removed-reference and
  * cut-short lines; the readiness notices; Copy to note preset to the narrowest visibility of the cited internal records
  * with its warning. The server decides what is read; nothing here widens it.
+ *
+ * Design assistant-polish: Enter sends and Shift+Enter starts a new line, with the hint under the box (decision 1); an
+ * answer with labelled citations (a local model's, or a quick fact from the case record) lists no sources: each `[S#]`
+ * marker is a button opening that one source in a dialog, and "Sources (n)" opens the full list in another; answers
+ * without markers (preview, SourceTrace) keep their list under the answer; the side panel is gone (decision 16); a quick
+ * fact carries "From the Case Record", read from `engine.kind` (decision 15); Copy to note names each cited source by
+ * its own label (decision 17).
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
@@ -41,6 +48,7 @@ import {
   Chip,
   ChipGroup,
   ConfirmDialog,
+  Dialog,
   EmptyState,
   ErrorBanner,
   Loading,
@@ -48,6 +56,7 @@ import {
   PageHeader,
   SegmentedSwitch,
   TextArea,
+  buttonClass,
   cx,
 } from "@/components/ui";
 import type { NoteMode } from "@/components/workflow/NoteComposer";
@@ -66,12 +75,16 @@ import type {
 } from "@/lib/api/types";
 import {
   groupSources,
+  hasLabels,
   highlights,
+  isCaseRecord,
   isInternal,
   kindLabel,
+  markerName,
   markers,
   narrowestVisibility,
   noteText,
+  openWords,
   otherCaseName,
   questionsLeft,
   scopesFor,
@@ -284,73 +297,81 @@ function SourceList({ m, currentCaseId }: { m: AssistantMessage; currentCaseId?:
   );
 }
 
-/** A local-model answer with each `[S#]` marker a link to its source (decision 14). */
-function MarkedText({ m }: { m: AssistantMessage }) {
-  const labels = new Set(m.citations.map((c) => c.label).filter(Boolean));
+/** An answer with labelled citations, each `[S#]` marker a button opening that one source (design assistant-polish,
+ * decision 16); a marker without a matching citation stays plain text. */
+function MarkedText({ m, onOpen }: { m: AssistantMessage; onOpen: (c: AssistantCitation) => void }) {
+  const byLabel = new Map(m.citations.filter((c) => c.label).map((c) => [c.label as string, c]));
   return (
     <p className={s.text}>
-      {markers(m.content ?? "").map((seg, i) =>
-        seg.label && labels.has(seg.label) ? (
-          <a key={i} className={s.marker} href={`#${sourceId(m.id, seg.label, 0)}`} aria-label={A.marker(seg.label)}>
-            {seg.text}
-          </a>
+      {markers(m.content ?? "").map((seg, i) => {
+        const c = seg.label ? byLabel.get(seg.label) : undefined;
+        return c ? (
+          <button key={i} type="button" className={s.marker} aria-label={markerName(c)} onClick={() => onOpen(c)}>
+            {seg.label}
+          </button>
         ) : (
           <span key={i}>{seg.text}</span>
-        ),
-      )}
+        );
+      })}
     </p>
   );
 }
 
-function answerBody(m: AssistantMessage) {
+function answerBody(m: AssistantMessage, onOpen: (c: AssistantCitation) => void) {
   if (m.content === null) return <p className={s.text}>{m.hidden_reason ?? A.hidden}</p>;
   if (m.outcome === "failed") {
     const family = m.error?.family ?? "error";
     return <p className={s.text}>{ASSISTANT_FAILURES[family] ?? m.error?.message ?? m.content}</p>;
   }
-  if (m.mode === "ollama") return <MarkedText m={m} />;
+  if (hasLabels(m)) return <MarkedText m={m} onOpen={onOpen} />;
   return <p className={s.text}>{m.content}</p>;
+}
+
+/** Who answered, in words: a quick fact from the case record, the local model, SourceTrace or the preview. */
+function answeredBy(m: AssistantMessage): string {
+  const key = isCaseRecord(m) ? "case_record" : (m.mode ?? "preview");
+  return A.answerBy[key] ?? A.answerBy.preview!;
 }
 
 function AnswerCard({
   m,
   n,
-  total,
-  selected,
-  onSelect,
   onCopy,
   onInclude,
+  onOpen,
+  onList,
   currentCaseId,
 }: {
   m: AssistantMessage;
   n: number;
-  total: number;
-  selected: boolean;
-  onSelect: () => void;
   onCopy: (() => void) | null;
   /** the suggestion's button (decision 4): only offered, never pressed for the reader */
   onInclude: (() => void) | null;
+  /** a marker pressed: open that source's dialog (design assistant-polish, decision 16) */
+  onOpen: (c: AssistantCitation) => void;
+  /** "Sources (n)" pressed: open the full list */
+  onList: () => void;
   currentCaseId?: string | null;
 }) {
   const sources = m.citations.length;
-  const local = m.mode === "ollama";
+  const record = isCaseRecord(m);
+  const local = m.mode === "ollama" && !record;
+  const labelled = hasLabels(m);
+  const shown = m.content !== null && m.outcome !== "failed";
   return (
-    <div className={s.answer} data-selected={selected} aria-label={`${A.answerBy[m.mode ?? "preview"] ?? A.answerBy.preview} ${n}`} role="group">
+    <div className={s.answer} aria-label={`${answeredBy(m)} ${n}`} role="group">
       <div className={s.answerHead}>
-        {m.mode === "preview" ? <Badge>{A.previewBadge}</Badge> : null}
+        {m.mode === "preview" && !record ? <Badge>{A.previewBadge}</Badge> : null}
+        {record ? <Badge tone="info">{A.caseRecordBadge}</Badge> : null}
         {local ? <Badge tone="info">{A.localModel}</Badge> : null}
         {local && m.engine?.model ? <span className="cno">{m.engine.model}</span> : null}
         <span>{A.outcomes[m.outcome ?? "answered"] ?? m.outcome}</span>
         <span>· {formatDateTime(m.created_at)}</span>
         {local && m.checks?.cut_short ? <Badge tone="warning">{A.cutShort}</Badge> : null}
-        {total > 1 && sources > 0 && !selected ? (
-          <button type="button" className={s.choose} onClick={onSelect}>
-            {A.chooseAnswer(n)}
-          </button>
-        ) : null}
       </div>
-      {answerBody(m)}
-      {local && m.content !== null && m.outcome !== "failed" ? <p className={s.hint}>{A.localLine}</p> : null}
+      {answerBody(m, onOpen)}
+      {record && shown ? <p className={s.hint}>{A.caseRecordLine}</p> : null}
+      {local && shown ? <p className={s.hint}>{A.localLine}</p> : null}
       {local && m.internal_used && m.content !== null ? <p className={s.hint}>{A.usesInternal}</p> : null}
       {local && (m.checks?.invalid_markers ?? 0) > 0 ? <p className={s.hint}>{A.removedReference}</p> : null}
       {onInclude && m.suggest_internal ? (
@@ -361,16 +382,25 @@ function AnswerCard({
           </Button>
         </div>
       ) : null}
-      {sources > 0 ? (
+      {/* answers without markers keep their sources under the answer: their text has nothing to click */}
+      {sources > 0 && !labelled ? (
         <div className={s.inlineSources}>
           <SourceList m={m} currentCaseId={currentCaseId} />
         </div>
       ) : null}
-      {onCopy ? (
+      {onCopy || (labelled && sources > 0) ? (
         <div className={s.foot}>
-          <Button variant="secondary" size="sm" onClick={onCopy}>
-            {A.copyToNote}
-          </Button>
+          {/* the normal size: on a phone an sm button outside a row is too small to press (size rule) */}
+          {labelled && sources > 0 ? (
+            <Button variant="secondary" onClick={onList}>
+              {A.sourcesButton(sources)}
+            </Button>
+          ) : null}
+          {onCopy ? (
+            <Button variant="secondary" onClick={onCopy}>
+              {A.copyToNote}
+            </Button>
+          ) : null}
         </div>
       ) : null}
     </div>
@@ -381,10 +411,10 @@ function Thread({
   messages,
   pending,
   loading,
-  selectedId,
-  onSelect,
   onCopy,
   onInclude,
+  onOpen,
+  onList,
   includedAt,
   asking,
   currentCaseId,
@@ -393,10 +423,10 @@ function Thread({
   messages: AssistantMessage[];
   pending: string | null;
   loading: boolean;
-  selectedId: string | null;
-  onSelect: (id: string) => void;
   onCopy: ((m: AssistantMessage) => void) | null;
   onInclude: (() => void) | null;
+  onOpen: (m: AssistantMessage, c: AssistantCitation) => void;
+  onList: (m: AssistantMessage) => void;
   /** when this conversation's internal records were switched on (decision 4) */
   includedAt: string | null;
   asking: string;
@@ -434,16 +464,15 @@ function Thread({
           </div>
         ) : (
           <div key={m.id} className={s.msg}>
-            <div className={s.who}>{A.answerBy[m.mode ?? "preview"] ?? A.answerBy.preview}</div>
+            <div className={s.who}>{answeredBy(m)}</div>
             <div className={s.bubble}>
               <AnswerCard
                 m={m}
                 n={answers.indexOf(m) + 1}
-                total={answers.length}
-                selected={m.id === selectedId}
-                onSelect={() => onSelect(m.id)}
                 onCopy={onCopy && m.outcome === "answered" && m.content !== null ? () => onCopy(m) : null}
                 onInclude={onInclude}
+                onOpen={(c) => onOpen(m, c)}
+                onList={() => onList(m)}
                 currentCaseId={currentCaseId}
               />
             </div>
@@ -469,13 +498,99 @@ function Thread({
   );
 }
 
-function SidePanel({ m, n, total, currentCaseId }: { m: AssistantMessage | null; n: number; total: number; currentCaseId?: string | null }) {
+/** One source in a dialog, opened from its marker (design assistant-polish, decision 16): its kind with the Internal
+ * badge, its title, the excerpt of a court kind, "Text Given to the Model", and Close with the open link. The kit's
+ * dialog traps the focus, closes on Escape and gives the focus back to the marker. Only what the API returned. */
+function SourceDialog({
+  open,
+  m,
+  c,
+  onClose,
+  currentCaseId,
+}: {
+  open: boolean;
+  m: AssistantMessage | null;
+  c: AssistantCitation | null;
+  onClose: () => void;
+  currentCaseId?: string | null;
+}) {
+  if (!m || !c) return null;
+  const link = sourceLink(c, m.id);
+  const subtitle = c.available
+    ? c.source_kind === "case_details"
+      ? (c.case.case_no_text ?? c.case.cnr ?? undefined)
+      : (otherCaseName(c, currentCaseId) ?? undefined)
+    : undefined;
+  const court = c.source_kind === "court_order" || c.source_kind === "court_filing";
   return (
-    <aside className={s.sidePanel} aria-label={A.sources}>
-      <Card title={m && total > 1 ? A.sourcesOf(n) : A.sources}>
-        {m && m.citations.length ? <SourceList m={m} currentCaseId={currentCaseId} /> : <p className={s.hint}>{A.noSources}</p>}
-      </Card>
-    </aside>
+    <Dialog
+      open={open}
+      title={A.sourceTitle(c.label ?? "")}
+      subtitle={subtitle}
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            {A.close}
+          </Button>
+          {link ? (
+            link.newTab ? (
+              <a className={buttonClass("primary")} href={link.href} target="_blank" rel="noopener noreferrer">
+                {openWords(c, link)}
+              </a>
+            ) : (
+              <Link className={buttonClass("primary")} href={link.href}>
+                {openWords(c, link)}
+              </Link>
+            )
+          ) : null}
+        </>
+      }
+    >
+      {c.available ? (
+        <div className={s.sourceDialog}>
+          <span className={s.kindLine}>
+            {kindLabel(c)}
+            {isInternal(c) ? <Badge tone="warning">{A.internalBadge}</Badge> : null}
+          </span>
+          <p className={s.sourceTitle}>{sourceWords(c)}</p>
+          {court ? <Passage text={c.passage} /> : null}
+          <TextGiven c={c} />
+        </div>
+      ) : (
+        <p>{A.sourceGoneNotice}</p>
+      )}
+    </Dialog>
+  );
+}
+
+/** "Sources (n)": every source of one answer in a dialog, grouped Court Record and Internal Records with the uncited
+ * ones collapsed, each with its open link (design assistant-polish, decision 16). */
+function SourcesDialog({
+  open,
+  m,
+  onClose,
+  currentCaseId,
+}: {
+  open: boolean;
+  m: AssistantMessage | null;
+  onClose: () => void;
+  currentCaseId?: string | null;
+}) {
+  if (!m) return null;
+  return (
+    <Dialog
+      open={open}
+      title={A.sourcesTitle}
+      onClose={onClose}
+      footer={
+        <Button variant="secondary" onClick={onClose}>
+          {A.close}
+        </Button>
+      }
+    >
+      <SourceList m={m} currentCaseId={currentCaseId} />
+    </Dialog>
   );
 }
 
@@ -502,6 +617,7 @@ function Composer({
   const local = status?.mode === "ollama";
   const max = status?.limits.question_max_chars ?? 2000;
   const left = questionsLeft(status);
+  const canSend = !busy && value.trim().length >= 3 && value.length <= max;
   function submit(e: FormEvent) {
     e.preventDefault();
     onSubmit();
@@ -511,14 +627,19 @@ function Composer({
       <TextArea
         label={A.question}
         placeholder={A.questionPlaceholder}
+        hint={A.enterHint}
         value={value}
         rows={3}
+        enterKeyHint="send"
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-            e.preventDefault();
-            onSubmit();
-          }
+          // design assistant-polish, decision 1: Enter sends, Shift+Enter is a new line, Ctrl or Cmd+Enter still
+          // sends; never while an input method is composing (keyCode 229 is older Safari's sign of it)
+          if (e.key !== "Enter") return;
+          if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+          if (e.shiftKey && !e.ctrlKey && !e.metaKey) return;
+          e.preventDefault();
+          if (canSend) onSubmit();
         }}
       />
       <div className={s.composerRow}>
@@ -526,7 +647,7 @@ function Composer({
           <CharCounter value={value} max={max} />
           {left !== null && status ? <> · {A.left(left, status.limits.questions_per_hour)}</> : null}
         </span>
-        <Button type="submit" variant={primary ? "primary" : "secondary"} busy={busy} disabled={busy || value.trim().length < 3 || value.length > max}>
+        <Button type="submit" variant={primary ? "primary" : "secondary"} busy={busy} disabled={!canSend}>
           {A.ask}
         </Button>
       </div>
@@ -571,7 +692,12 @@ function Workspace({
   const [includeError, setIncludeError] = useState<unknown>(null);
   const [scope, setScope] = useState<AssistantScope>(scopes[0]!);
   const [picked, setPicked] = useState<Picked>({});
-  const [selected, setSelected] = useState<string | null>(null);
+  // design assistant-polish, decision 16: the source opened from its marker, and the answer whose list is open
+  // (the last one stays mounted while its dialog eases out)
+  const [source, setSource] = useState<{ m: AssistantMessage; c: AssistantCitation } | null>(null);
+  const [sourceOpen, setSourceOpen] = useState(false);
+  const [listOf, setListOf] = useState<AssistantMessage | null>(null);
+  const [listOpen, setListOpen] = useState(false);
   const [question, setQuestion] = useState("");
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);
@@ -595,8 +721,6 @@ function Workspace({
   });
   const messages = current ? (thread.data?.messages ?? []) : [];
   const answers = messages.filter((m) => m.role === "assistant");
-  const selectedAnswer = answers.find((m) => m.id === selected) ?? answers[answers.length - 1] ?? null;
-  const selectedN = selectedAnswer ? answers.indexOf(selectedAnswer) + 1 : 0;
 
   // a new answer scrolls the box to the newest message; choosing an older answer keeps the position
   useIsoLayoutEffect(() => {
@@ -631,7 +755,6 @@ function Workspace({
         has_more: old?.has_more ?? false,
       }));
       setPicked((p) => ({ ...p, [inScope]: id }));
-      setSelected(out.answer.id);
       setQuestion("");
       setView("thread");
       await Promise.all([
@@ -651,7 +774,6 @@ function Workspace({
     const last = [...messages].reverse().find((m) => m.role === "user");
     const nextScope = next as AssistantScope;
     setScope(nextScope);
-    setSelected(null);
     setError(null);
     toEnd.current = true;
     if (!last?.content) return;
@@ -676,14 +798,12 @@ function Workspace({
 
   function newConversation() {
     setPicked((p) => ({ ...p, [scope]: null }));
-    setSelected(null);
     setError(null);
     setView("thread");
   }
 
   function openConversation(id: string) {
     setPicked((p) => ({ ...p, [scope]: id }));
-    setSelected(null);
     setView("thread");
     toEnd.current = true;
   }
@@ -771,10 +891,13 @@ function Workspace({
         messages={messages}
         pending={pending}
         loading={list.isPending || (!!current && thread.isPending)}
-        selectedId={selectedAnswer?.id ?? null}
-        onSelect={(id) => {
-          toEnd.current = false;
-          setSelected(id);
+        onOpen={(m, c) => {
+          setSource({ m, c });
+          setSourceOpen(true);
+        }}
+        onList={(m) => {
+          setListOf(m);
+          setListOpen(true);
         }}
         onCopy={canCopy ? (m) => setCopying(m.id) : null}
         onInclude={offerInclude ? () => setConfirming(true) : null}
@@ -808,8 +931,6 @@ function Workspace({
       />
     </div>
   );
-
-  const side = <SidePanel m={selectedAnswer} n={selectedN} total={answers.length} currentCaseId={currentCaseId} />;
 
   return (
     <div className={s.workspace}>
@@ -848,14 +969,18 @@ function Workspace({
             </Card>
           </aside>
           {threadColumn}
-          {side}
         </div>
       ) : (
-        <div className={s.caseGrid}>
-          {threadColumn}
-          {side}
-        </div>
+        <div className={s.caseGrid}>{threadColumn}</div>
       )}
+      <SourceDialog
+        open={sourceOpen}
+        m={source?.m ?? null}
+        c={source?.c ?? null}
+        onClose={() => setSourceOpen(false)}
+        currentCaseId={currentCaseId}
+      />
+      <SourcesDialog open={listOpen} m={listOf} onClose={() => setListOpen(false)} currentCaseId={currentCaseId} />
       {canCopy && caseRef && noteMode ? (
         <NoteDialog
           open={!!copyMessage}

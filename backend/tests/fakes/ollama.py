@@ -59,7 +59,7 @@ class FakeOllama:
         size_vram: int | None = None,
         version: str = "0.40.1",
         reachable: bool = True,
-        default: str = "The court directed the respondents to file an affidavit [S1].",
+        default: str | Callable[[Any], Any] = "The court directed the respondents to file an affidavit [S1].",
     ):
         self.model = model
         self.held = held
@@ -126,7 +126,12 @@ class FakeOllama:
             self.loaded = True
             return httpx.Response(200, json={"model": self.model, "response": "", "done": True})
         if path == "/api/chat":
-            step: Any = self.replies.pop(0) if self.replies else chat_reply(self.default)
+            if self.replies:
+                step: Any = self.replies.pop(0)
+            elif callable(self.default):
+                step = self.default  # a callable taking the request body, for every call
+            else:
+                step = chat_reply(self.default)
             return self._step(step, body, request)
         return httpx.Response(404, json={"error": "not found"})
 

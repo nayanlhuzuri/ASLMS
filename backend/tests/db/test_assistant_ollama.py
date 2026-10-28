@@ -94,7 +94,7 @@ def test_ollama_case_scope_answer_cites_supplied_sources(world, scene):
     assert r.outcome == "answered", (msg.content, msg.model_info, conn.fake.chats)
     assert msg.mode == "ollama" and msg.connector == "ollama"
     assert msg.model_info["model"] == "qwen3.5:4b" and msg.model_info["engine"] == "ollama"
-    assert msg.model_info["prompt_version"] == 1
+    assert msg.model_info["prompt_version"] == 2
     labels = [c["label"] for c in msg.citations]
     assert labels == [f"S{i}" for i in range(1, len(labels) + 1)]
     first = msg.citations[0]
@@ -1179,3 +1179,155 @@ def test_service_card_in_system_health(world, api):
 
 
 __all__ = ["MessageRole", "Visibility", "asyncio", "wipe_if_migrated", "Actor"]
+
+
+# ------------------------------------------------------------------------------------------------ design assistant-polish
+
+
+def copycat(body: dict) -> dict:
+    """A 4B model at its worst: it echoes the last earlier answer it is sent, or (when it is sent none) a line built
+    from the question, citing [S1]."""
+    earlier = [m["content"] for m in body["messages"] if m["role"] == "assistant"]
+    if earlier:
+        return chat_reply(f"{earlier[-1]} [S1]")
+    question = body["messages"][-1]["content"].rsplit("Question: ", 1)[1]
+    return chat_reply(f"Asked about {question} here [S1].")
+
+
+Q1 = "what did the court direct on the quokka scheme affidavit"
+Q2 = "when is the affidavit on the quokka scheme returnable"
+
+
+@pytest.mark.parametrize("history_answers", ["full", "none"])
+def test_copycat_model_repeats_only_with_full_history(world, scene, history_answers):
+    fake = FakeOllama(default=copycat)
+    conn = ol.connector(world, fake, assistant_ollama_history_answers=history_answers)
+    r1 = ol.ask(world, "edu_admin", Q1, "case", conn, case=scene.a)
+    r2 = ol.ask(world, "edu_admin", Q2, "case", conn, case=scene.a, conversation_id=r1.conversation_id)
+    first, second = _msg(world, r1), _msg(world, r2)
+    assert first.outcome == second.outcome == "answered"
+    assert first.model_info["overlap_prev"] is None
+    assert second.model_info["history_answers"] == history_answers
+    second_request = json.dumps(fake.chats[1])
+    if history_answers == "full":
+        assert second.model_info["overlap_prev"] >= 0.9
+        assert "Asked about" in second_request
+    else:
+        assert "Asked about" not in second_request  # the earlier answer is never sent
+        assert [m["role"] for m in fake.chats[1]["messages"]] == ["system", "user"]
+        assert f"- {Q1}" in fake.chats[1]["messages"][1]["content"]
+        assert second.model_info["overlap_prev"] < 0.5
+
+
+@pytest.mark.parametrize("history_answers", ["full", "none"])
+def test_no_match_turns_not_fed_back(world, scene, history_answers):
+    fake = FakeOllama()
+    fake.replies = [chat_reply("I could not find it.")]  # no valid marker: the fixed no-answer line
+    conn = ol.connector(world, fake, assistant_ollama_history_answers=history_answers)
+    r1 = ol.ask(world, "edu_admin", "unanswerable quokka puzzle", "case", conn, case=scene.a)
+    assert _msg(world, r1).outcome == "no_match"
+    ol.ask(world, "edu_admin", Q2, "case", conn, case=scene.a, conversation_id=r1.conversation_id)
+    second = json.dumps(fake.chats[1])
+    assert "unanswerable quokka puzzle" not in second and NO_ANSWER_TEXT not in second
+    assert "Earlier questions" not in second
+    assert len(fake.chats[1]["messages"]) == 2
+
+
+def test_overlap_prev_recorded_and_audited(world, scene):
+    fake = FakeOllama()
+    fake.replies = [
+        chat_reply("The respondents shall file an affidavit on the quokka scheme within four weeks [S2]."),
+        chat_reply("The matter is returnable on 12 April 2026 as the order says [S2]."),
+    ]
+    conn = _conn(world)
+    conn.client = fake.client()
+    r1 = ol.ask(world, "edu_admin", Q1, "case", conn, case=scene.a)
+    r2 = ol.ask(world, "edu_admin", Q2, "case", conn, case=scene.a, conversation_id=r1.conversation_id)
+    m1, m2 = _msg(world, r1), _msg(world, r2)
+    assert m1.model_info["overlap_prev"] is None and m1.model_info["history_answers"] == "none"
+    assert isinstance(m2.model_info["overlap_prev"], float) and 0 <= m2.model_info["overlap_prev"] < 0.5
+    rows = _audits(world, "assistant.answered")
+    assert rows[-2].after["overlap_prev"] is None
+    assert rows[-1].after["overlap_prev"] == m2.model_info["overlap_prev"]
+    blob = json.dumps(rows[-1].after)
+    assert "returnable" not in blob and "quokka" not in blob
+
+
+REPEAT_ORDER = [
+    "The court directs the respondents to file an affidavit in this whole case, a service matter. The recent order "
+    "needs to be done next week by the department. The reason given for the adjournment is the absence of counsel. "
+    "The earlier order is summarised in two sentences."
+]
+
+
+def _repeat_cli(world, monkeypatch, *, history_answers: str, app_env: str = "dev"):
+    from aslms.cli import assistant as cli_mod
+
+    fake = FakeOllama(default=copycat)
+    settings = ol.settings(app_env=app_env, assistant_ollama_history_answers=history_answers)
+    monkeypatch.setattr(cli_mod, "get_settings", lambda: settings)
+    monkeypatch.setattr(cli_mod, "get_sessionmaker", lambda: world.Session)
+    import aslms.services.assistant_ollama as mod
+
+    monkeypatch.setattr(mod, "OllamaClient", lambda url, **k: fake.client())
+    mod._connectors.clear()
+    return fake
+
+
+def test_repeat_check_cli(world, scene, monkeypatch):
+    from aslms.cli.main import app as cli_app
+
+    with world.Session() as s:
+        a = s.get(Case, scene.a)
+        sup.order(s, scene.store, a, REPEAT_ORDER, order_no="6")
+        s.commit()
+    runner = CliRunner()
+    # refused with APP_ENV=prod
+    _repeat_cli(world, monkeypatch, history_answers="none", app_env="prod")
+    out = runner.invoke(
+        cli_app, ["assistant", "repeat-check", "--user", "admin.edu@example.org", "--case", str(scene.a)]
+    )
+    assert out.exit_code == 2, out.output
+    # mode B, a copycat model with full history: fails
+    fake = _repeat_cli(world, monkeypatch, history_answers="full")
+    out = runner.invoke(
+        cli_app, ["assistant", "repeat-check", "--user", "admin.edu@example.org", "--case", str(scene.a)]
+    )
+    assert out.exit_code == 1, out.output
+    assert "FAIL" in out.output and out.output.count("case_record") == 2
+    assert len(fake.chats) == 6  # 8 questions, two of them quick facts
+    with world.Session() as s:
+        convs = s.scalars(sa.select(AssistantConversation).order_by(AssistantConversation.created_at)).all()
+        assert len(convs) == 1
+        failing = convs[0].id
+        n = s.scalar(
+            sa.select(sa.func.count())
+            .select_from(AssistantMessage)
+            .where(AssistantMessage.conversation_id == failing, AssistantMessage.role == MessageRole.USER)
+        )
+        assert n == 8
+    # mode B with questions only: passes
+    _repeat_cli(world, monkeypatch, history_answers="none")
+    out = runner.invoke(
+        cli_app, ["assistant", "repeat-check", "--user", "admin.edu@example.org", "--case", str(scene.a)]
+    )
+    assert out.exit_code == 0, out.output
+    assert "PASS" in out.output and out.output.count("case_record") == 2
+    # mode A, stored: numbers only, never a question or an answer
+    out = runner.invoke(
+        cli_app,
+        ["assistant", "repeat-check", "--user", "admin.edu@example.org", "--conversation", str(failing)],
+    )
+    assert out.exit_code == 1, out.output
+    for planted in ("adjournment", "Asked about", "affidavit", "DINAR", "versus", "Summarise"):
+        assert planted not in out.output, planted
+    assert "maximum 1.00" in out.output
+    # another user's conversation is refused
+    out = runner.invoke(
+        cli_app,
+        ["assistant", "repeat-check", "--user", "admin.health@example.org", "--conversation", str(failing)],
+    )
+    assert out.exit_code == 2 and "Error" in out.output and "answer(s)" not in out.output
+    import aslms.services.assistant_ollama as mod
+
+    mod._connectors.clear()

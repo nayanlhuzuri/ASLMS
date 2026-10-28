@@ -5253,9 +5253,9 @@ export interface components {
         AssistantEngineBriefOut: {
             /**
              * Kind
-             * @constant
+             * @enum {string}
              */
-            kind: "ollama";
+            kind: "ollama" | "case_record";
             /** Model */
             model?: string | null;
         };
@@ -5267,9 +5267,9 @@ export interface components {
         AssistantEngineOut: {
             /**
              * Kind
-             * @constant
+             * @enum {string}
              */
-            kind: "ollama";
+            kind: "ollama" | "case_record";
             /** Model */
             model: string;
             /**

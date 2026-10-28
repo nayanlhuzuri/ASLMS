@@ -728,6 +728,32 @@ are never read, another case's records are never read, and the switch is recorde
 (`assistant.internal_included`). It cannot be switched off within the conversation; a court-only conversation is a
 new one. SourceTrace's rule is unchanged: it never receives notes or internal documents.
 
+**Earlier answers and the repeat check** (design `assistant-polish`, row 198). With each question the model gets the
+last `ASSISTANT_OLLAMA_HISTORY_TURNS` (2) earlier questions of the conversation as a short context list.
+`ASSISTANT_OLLAMA_HISTORY_ANSWERS` says what of their answers goes with them: `none` (the default: questions only),
+`short` (each answer's first sentence, at most 160 characters) or `full` (whole answers as chat turns, the round-1
+behaviour, which made the model repeat itself; kept only to compare). Answers that found nothing are never sent back.
+Each answer records the setting used (`model_info.history_answers`) and how much it repeats the previous answer
+(`model_info.overlap_prev`, also on the `assistant.answered` audit row). To measure it:
+- from what is stored, with no model call: `docker compose exec api aslms assistant repeat-check --user <e-mail>
+  --conversation <id> [--conversation <id> ...]` (the user's own conversations only);
+- live, on one case: `docker compose exec api aslms assistant repeat-check --user <e-mail> --case "<case number>"
+  [--questions <file>]` asks a fixed set of 8 questions (or the file's, one per line, at most 20) in a new
+  conversation as that user; they are stored, audited and counted against that user's 30 questions an hour.
+
+It prints, per answer, the outcome, who answered (`case_record` for a quick fact), the word count and the repeat
+score, never a question or an answer, then the median and the maximum. It exits 0 (PASS) when no model answer repeats
+0.50 or more of an earlier one, 1 (FAIL) otherwise; it is refused with `APP_ENV=prod`. For a comparison run, set
+`ASSISTANT_OLLAMA_HISTORY_ANSWERS=full` for that one command (`docker compose exec -e
+ASSISTANT_OLLAMA_HISTORY_ANSWERS=full api aslms assistant repeat-check ...`).
+
+**Quick facts.** On a case's Assistant tab (This case), six questions are answered straight from the case's court
+record with no model: next hearing, parties, advocates, status, last order date and bench. They are recognised only
+when the whole question is one of the fixed English forms (for example "when is the next date", "who are the
+parties"), or two of them joined by "and"; anything else goes to the model. They work in every mode and even while the
+model is loading, are marked "From the Case Record", cite the case's Case Details, and count as a question in the
+hourly limit. `aslms assistant ask "when is the next date" --user <e-mail> --case "<case number>"` shows one.
+
 **Switching back.** Set `ASSISTANT_MODE=off` (or later `sourcetrace`, once row 36 is built) and restart the api with
 the court-data switch carried. Stored local-model answers stay readable; the migration 0032 downgrade refuses while
 any exists (a restore is needed, section 6).

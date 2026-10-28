@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 
@@ -188,7 +188,9 @@ describe("the Assistant page", () => {
   it("sources open the file at the page, a case the reader cannot open opens the court-record view, related apart", async () => {
     browserApi(pageRoutes([conv()], [question(), answer()]));
     renderWithClient(<AssistantPage />);
-    const panel = await screen.findByRole("complementary", { name: "Sources Used" });
+    // design assistant-polish, decision 16: an answer without markers keeps its sources under it
+    const box = await screen.findByRole("log", { name: "Conversation" });
+    const panel = await within(box).findByRole("group", { name: "Preview 1" });
     const own = await within(panel).findByRole("link", { name: /Open source 1: Order of 12 Mar 2026, No\. 5, page 2/ });
     expect(own).toHaveAttribute("href", "/api/backend/cases/c-1/orders/o-1/file?disposition=inline#page=2");
     expect(own).toHaveAttribute("target", "_blank");
@@ -227,10 +229,10 @@ describe("the Assistant page", () => {
     renderWithClient(<AssistantPage />);
     const box = await screen.findByRole("log", { name: "Conversation" });
     expect(await within(box).findByText("This answer drew on a document you can no longer see.")).toBeInTheDocument();
-    const panel = screen.getByRole("complementary", { name: "Sources Used" });
+    const panel = within(box).getByRole("group", { name: "Preview 1" });
     expect(within(panel).getByText("This source is no longer available to you")).toBeInTheDocument();
     expect(within(panel).queryByRole("link")).toBeNull();
-    expect(panel.textContent).not.toMatch(/Petition|Order of|page/);
+    expect(panel.textContent?.split("Answered")[1]).not.toMatch(/Petition|Order of|page/);
   });
 
   it("a failed answer and a question without an answer are in words", async () => {
@@ -574,7 +576,7 @@ describe("the local model (design assistant-ollama)", () => {
     expect(await screen.findByText("Ask a Question")).toBeInTheDocument(); // a new, empty conversation
   });
 
-  it("answers carry the Local Model badge, markers linking to sources, both groups and the text given", async () => {
+  it("answers carry the Local Model badge, markers opening their sources, both groups and the text given", async () => {
     browserApi(localRoutes());
     resetNav(BASE + "/assistant");
     renderWithClient(<CaseAssistant caseRef={REF} />);
@@ -586,16 +588,14 @@ describe("the local model (design assistant-ollama)", () => {
     expect(within(box).getByText("A reference to a source that was not given was removed.")).toBeInTheDocument();
     expect(within(box).getByText("Answer Cut Short")).toBeInTheDocument();
     expect(within(box).getByText("Written by a local AI model from the sources below. Check it against the cited order or record.")).toBeInTheDocument();
-    const marker = within(box).getByRole("link", { name: "Go to source S3" });
-    expect(marker).toHaveAttribute("href", "#src-a-1-S3");
-    const panel = screen.getByRole("complementary", { name: "Sources Used" });
+    await userEvent.click(within(box).getByRole("button", { name: "Sources (4)" }));
+    const panel = await screen.findByRole("dialog", { name: "Sources of This Answer" });
     expect(within(panel).getByRole("list", { name: "Court Record" })).toBeInTheDocument();
     const internal = within(panel).getByRole("list", { name: "Internal Records" });
     expect(within(internal).getByText("Internal")).toBeInTheDocument();
     expect(within(internal).getByRole("link", { name: /Note 4, General/ })).toHaveAttribute("href", "/cases/c-1/notes#note-4");
     expect(within(panel).getByText("Other Sources Given (Not Cited)")).toBeInTheDocument();
     expect(within(panel).getAllByText("Text Given to the Model").length).toBe(4);
-    expect(panel.querySelector("#src-a-1-S3")).not.toBeNull();
   });
 
   it("the suggestion offers the switch and does nothing without the click", async () => {
@@ -680,3 +680,254 @@ describe("the local model (design assistant-ollama)", () => {
     expect(narrowestVisibility(answer())).toBeNull();
   });
 });
+
+// ------------------------------------------------------------------------------------------------ assistant-polish
+// design assistant-polish (decisions 1 and 15 to 17)
+
+describe("the composer keys (design assistant-polish, decision 1)", () => {
+  function asking() {
+    return {
+      "POST /assistant/ask": {
+        conversation: conv({ scope: "my_cases" }),
+        question: question("q-9", "orders on transfer"),
+        answer: answer({ id: "a-9", reply_to_id: "q-9" }),
+      },
+    };
+  }
+  const posts = (api: { calls: { method: string }[] }) => api.calls.filter((c) => c.method === "POST").length;
+
+  it("enter sends and shift+enter adds a line, on the page", async () => {
+    const api = browserApi(pageRoutes([], [], asking()));
+    renderWithClient(<AssistantPage />);
+    const box = (await screen.findByLabelText("Question")) as HTMLTextAreaElement;
+    await userEvent.type(box, "orders on{Shift>}{Enter}{/Shift}transfer");
+    expect(box.value).toBe("orders on\ntransfer");
+    expect(posts(api)).toBe(0);
+    await userEvent.type(box, "{Enter}");
+    await waitFor(() => expect(posts(api)).toBe(1));
+    expect(api.calls.find((c) => c.method === "POST")!.body).toMatchObject({ question: "orders on\ntransfer" });
+  });
+
+  it("enter sends on the case tab too", async () => {
+    const api = browserApi({
+      ...localRoutes(),
+      "GET /assistant/conversations": { total: 0, items: [] },
+      "POST /assistant/ask": {
+        conversation: CASE_CONV,
+        question: question("q-9", "who are the parties"),
+        answer: answer({ id: "a-9", reply_to_id: "q-9" }),
+      },
+    });
+    resetNav(BASE + "/assistant");
+    renderWithClient(<CaseAssistant caseRef={REF} />);
+    const box = (await screen.findByLabelText("Question")) as HTMLTextAreaElement;
+    await userEvent.type(box, "who are the parties{Enter}");
+    await waitFor(() => expect(posts(api)).toBe(1));
+    expect(api.calls.find((c) => c.method === "POST")!.body).toMatchObject({ question: "who are the parties", scope: "case" });
+  });
+
+  it("ctrl or cmd+enter still sends", async () => {
+    const api = browserApi(pageRoutes([], [], asking()));
+    renderWithClient(<AssistantPage />);
+    const box = (await screen.findByLabelText("Question")) as HTMLTextAreaElement;
+    await userEvent.type(box, "orders on transfer{Control>}{Enter}{/Control}");
+    await waitFor(() => expect(posts(api)).toBe(1));
+    await waitFor(() => expect(box.value).toBe(""));
+    await userEvent.type(box, "orders on promotion{Meta>}{Enter}{/Meta}");
+    await waitFor(() => expect(posts(api)).toBe(2));
+  });
+
+  it("no send while composing", async () => {
+    const api = browserApi(pageRoutes([], [], asking()));
+    renderWithClient(<AssistantPage />);
+    const box = (await screen.findByLabelText("Question")) as HTMLTextAreaElement;
+    await userEvent.type(box, "orders on transfer");
+    fireEvent.keyDown(box, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(box, { key: "Enter", keyCode: 229 });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(posts(api)).toBe(0);
+  });
+
+  it("enter does nothing while busy or too short", async () => {
+    const api = browserApi(pageRoutes([], [], { "POST /assistant/ask": () => new Promise(() => {}) }));
+    renderWithClient(<AssistantPage />);
+    const box = (await screen.findByLabelText("Question")) as HTMLTextAreaElement;
+    await userEvent.type(box, "ab{Enter}");
+    expect(box.value).toBe("ab"); // no new line either
+    expect(posts(api)).toBe(0);
+    await userEvent.type(box, "c{Enter}");
+    await waitFor(() => expect(posts(api)).toBe(1));
+    await screen.findByText("Searching the Court Records…");
+    await userEvent.type(box, "{Enter}");
+    expect(box.value).toBe("abc");
+    expect(posts(api)).toBe(1);
+  });
+
+  it("the hint is shown and described", async () => {
+    browserApi(pageRoutes([], []));
+    renderWithClient(<AssistantPage />);
+    const box = await screen.findByLabelText("Question");
+    const hint = screen.getByText("Press Enter to send, Shift+Enter for a new line.");
+    expect(box.getAttribute("aria-describedby")?.split(" ")).toContain(hint.id);
+    expect(box).toHaveAttribute("enterkeyhint", "send");
+  });
+});
+
+describe("sources opened from their reference (design assistant-polish, decision 16)", () => {
+  it("markers are buttons with names; a marker without a citation is plain text", async () => {
+    browserApi(
+      localRoutes({
+        "GET /assistant/conversations/k-1": thread(
+          [question(), localAnswer({ content: "The court directed an affidavit [S2]. We contest [S3]. Odd [S9]." })],
+          CASE_CONV,
+        ),
+      }),
+    );
+    resetNav(BASE + "/assistant");
+    renderWithClient(<CaseAssistant caseRef={REF} />);
+    const box = await screen.findByRole("log", { name: "Conversation" });
+    const s2 = await within(box).findByRole("button", { name: "Source S2: Order of 12 Mar 2026, No. 5, page 2" });
+    expect(s2).toHaveAttribute("type", "button");
+    expect(s2).toHaveTextContent("S2");
+    expect(within(box).getByRole("button", { name: "Source S3: Note 4, General, 1 Oct 2026 (Internal)" })).toBeInTheDocument();
+    expect(within(box).queryByRole("button", { name: /Source S9/ })).toBeNull();
+    expect(within(box).getByText(/\[S9\]/)).toBeInTheDocument();
+  });
+
+  it("marker opens the source dialog; Escape closes it and the focus returns to the marker", async () => {
+    browserApi(localRoutes());
+    resetNav(BASE + "/assistant");
+    renderWithClient(<CaseAssistant caseRef={REF} />);
+    const box = await screen.findByRole("log", { name: "Conversation" });
+    const marker = await within(box).findByRole("button", { name: /^Source S2:/ });
+    await userEvent.click(marker);
+    const dialog = await screen.findByRole("dialog", { name: "Source S2" });
+    expect(within(dialog).getByText("Court Order")).toBeInTheDocument();
+    expect(within(dialog).getByText("Order of 12 Mar 2026, No. 5, page 2")).toBeInTheDocument();
+    expect(within(dialog).getByText("affidavit", { selector: "mark" })).toBeInTheDocument();
+    expect(within(dialog).getByText("Text Given to the Model")).toBeInTheDocument();
+    const open = within(dialog).getByRole("link", { name: "Open the Order" });
+    expect(open).toHaveAttribute("href", "/api/backend/cases/c-1/orders/o-1/file?disposition=inline#page=2");
+    expect(open).toHaveAttribute("target", "_blank");
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Source S2" })).toBeNull());
+    expect(marker).toHaveFocus();
+  });
+
+  it("internal source in the dialog, and a source no longer available", async () => {
+    const gone = cite({
+      document_id: null,
+      order_id: null,
+      case: { id: null, case_no_text: null, cnr: null, visible: false },
+      source_kind: "court_filing",
+      doc_type_label: null,
+      doc_date: null,
+      order_no: null,
+      page: null,
+      passage: null,
+      available: false,
+      open: null,
+      label: "S4",
+      cited: true,
+    });
+    browserApi(
+      localRoutes({
+        "GET /assistant/conversations/k-1": thread(
+          [question(), localAnswer({ content: "We contest [S3]. Also [S4].", citations: [DETAILS, ORDER, NOTE, gone] })],
+          CASE_CONV,
+        ),
+      }),
+    );
+    resetNav(BASE + "/assistant");
+    renderWithClient(<CaseAssistant caseRef={REF} />);
+    const box = await screen.findByRole("log", { name: "Conversation" });
+    await userEvent.click(await within(box).findByRole("button", { name: "Source S3: Note 4, General, 1 Oct 2026 (Internal)" }));
+    const dialog = await screen.findByRole("dialog", { name: "Source S3" });
+    expect(within(dialog).getByText("Internal")).toBeInTheDocument();
+    expect(within(dialog).getByRole("link", { name: "Open the Note" })).toHaveAttribute("href", "/cases/c-1/notes#note-4");
+    await userEvent.click(within(dialog).getAllByRole("button", { name: "Close" }).at(-1)!); // the footer's
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Source S3" })).toBeNull());
+    await userEvent.click(within(box).getByRole("button", { name: "Source S4: No Longer Available" }));
+    const goneDialog = await screen.findByRole("dialog", { name: "Source S4" });
+    expect(within(goneDialog).getByText("This source is no longer available.")).toBeInTheDocument();
+    expect(within(goneDialog).queryByRole("link")).toBeNull();
+  });
+
+  it("no inline list or side panel for marked answers; a preview answer keeps its list under the answer", async () => {
+    browserApi(localRoutes());
+    resetNav(BASE + "/assistant");
+    renderWithClient(<CaseAssistant caseRef={REF} />);
+    const box = await screen.findByRole("log", { name: "Conversation" });
+    await within(box).findByText("Local Model");
+    expect(screen.queryByRole("complementary", { name: "Sources Used" })).toBeNull();
+    expect(within(box).queryByRole("list")).toBeNull();
+    expect(within(box).queryByRole("link")).toBeNull();
+    expect(within(box).queryByText("Text Given to the Model")).toBeNull();
+  });
+
+  it("a preview answer keeps its list under the answer, with no Sources button", async () => {
+    browserApi(pageRoutes([conv()], [question(), answer()]));
+    renderWithClient(<AssistantPage />);
+    const box = await screen.findByRole("log", { name: "Conversation" });
+    await waitFor(() => expect(within(box).getAllByRole("list").length).toBeGreaterThan(0));
+    expect(within(box).queryByRole("button", { name: /^Sources \(/ })).toBeNull();
+    expect(screen.queryByRole("complementary", { name: "Sources Used" })).toBeNull();
+  });
+
+  it("sources (n) opens the full list, uncited sources collapsed", async () => {
+    browserApi(localRoutes());
+    resetNav(BASE + "/assistant");
+    renderWithClient(<CaseAssistant caseRef={REF} />);
+    const box = await screen.findByRole("log", { name: "Conversation" });
+    await userEvent.click(await within(box).findByRole("button", { name: "Sources (4)" }));
+    const dialog = await screen.findByRole("dialog", { name: "Sources of This Answer" });
+    expect(within(dialog).getByRole("list", { name: "Court Record" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("list", { name: "Internal Records" })).toBeInTheDocument();
+    const uncited = within(dialog).getByText("Other Sources Given (Not Cited)").closest("details")!;
+    expect(uncited).not.toHaveAttribute("open");
+  });
+});
+
+describe("a quick fact from the case record (design assistant-polish, decision 15)", () => {
+  const FACT = answer({
+    id: "a-7",
+    mode: "ollama",
+    content: "DINAR AHMED AND 3 ORS versus THE STATE OF ASSAM AND 4 ORS [S1].",
+    engine: { kind: "case_record", model: null },
+    checks: null,
+    citations: [DETAILS],
+  });
+
+  it("carries From the Case Record, with no Local Model badge or line", async () => {
+    browserApi({ ...pageRoutes([conv()], [question(), FACT]), "GET /me": me("ollama"), "GET /assistant/status": ollamaStatus() });
+    renderWithClient(<AssistantPage />);
+    const box = await screen.findByRole("log", { name: "Conversation" });
+    expect(await within(box).findByText("From the Case Record")).toBeInTheDocument();
+    expect(within(box).getByText("Taken from the court record held for this case, as shown on the case page.")).toBeInTheDocument();
+    expect(within(box).getAllByText("Assistant (Case Record)").length).toBeGreaterThan(0);
+    expect(within(box).queryByText("Local Model")).toBeNull();
+    expect(within(box).queryByText(/Written by a local AI model/)).toBeNull();
+    await userEvent.click(within(box).getByRole("button", { name: "Source S1: Case Details" }));
+    const dialog = await screen.findByRole("dialog", { name: "Source S1" });
+    expect(within(dialog).getByRole("link", { name: "Open Case Details" })).toHaveAttribute("href", "/cases/c-1/details");
+  });
+});
+
+describe("noteText (design assistant-polish, decision 17)", () => {
+  it("labels match markers", () => {
+    const s2 = cite({ label: "S2", cited: true });
+    const s5 = cite({ document_id: "d-5", order_id: "o-5", order_no: "9", label: "S5", cited: true, passage: null });
+    const s3 = cite({ document_id: "d-3", label: "S3", cited: false });
+    const out = noteText(localAnswer({ content: "First [S2]. Then [S5].", citations: [DETAILS_UNCITED, s2, s3, s5] }));
+    const refs = out.split("From the court records:\n")[1]!.split("\n");
+    expect(out.startsWith("First [S2]. Then [S5].")).toBe(true);
+    expect(refs.map((r) => r.slice(0, 4))).toEqual(["[S2]", "[S5]"]);
+    expect(refs[0]).toBe("[S2] Order of 12 Mar 2026, No. 5, page 2 (WP(C)/1/2026): “The respondents shall file an affidavit within four weeks.”");
+    const gone = cite({ label: "S3", cited: true, available: false });
+    expect(noteText(localAnswer({ content: "A [S3].", citations: [gone] }))).toBe("A [S3].\n\nFrom the court records:\n[S3] No longer available");
+    // a preview answer keeps 1..n
+    expect(noteText(answer({ content: "text", citations: [cite(), OTHER] }))).toContain("\n[1] Order of 12 Mar 2026, No. 5");
+  });
+});
+
+const DETAILS_UNCITED = { ...DETAILS, cited: false };

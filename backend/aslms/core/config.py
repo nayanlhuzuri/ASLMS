@@ -185,7 +185,11 @@ class Settings(BaseSettings):
     assistant_ollama_slot_wait_seconds: float = Field(20.0, ge=0, le=60)
     assistant_ollama_sources: int = Field(6, ge=1, le=12)  # court passages
     assistant_ollama_source_chars: int = Field(4000, ge=500, le=12_000)
-    assistant_ollama_history_turns: int = Field(2, ge=0, le=6)
+    assistant_ollama_history_turns: int = Field(
+        2, ge=0, le=6
+    )  # earlier questions (and answers unless `none`)
+    # design assistant-polish, decision 2: what of the earlier answers goes to the model (`full` is round 1's)
+    assistant_ollama_history_answers: Literal["none", "short", "full"] = "none"
     assistant_ollama_internal_chars: int = Field(12_000, ge=0, le=30_000)  # 0 sends no internal records
     assistant_ollama_hearings: int = Field(10, ge=0, le=50)  # also applies to listings
 

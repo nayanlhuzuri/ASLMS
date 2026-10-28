@@ -863,6 +863,16 @@ It is a reading aid; it informs and never acts.
 **Where it is.** An **Assistant** tab on every case page, and an **Assistant** entry in the menu. Only the people
 holding the function see them, and only while the mode is not off.
 
+**Quick facts (28 October 2026).** On a case's Assistant tab (This case), six questions are answered from the case's
+court record **without the AI**: next hearing, parties, advocates, status, last order date and bench. They are
+recognised only when the whole question is one of a few fixed English forms (for example "when is the next date"),
+or two of them joined by "and"; anything else goes to the model. The answer is one or two lines marked "From the Case
+Record", cites the case's Case Details, works even while the model is loading, and counts as one of the 30 questions
+an hour. This is a difference from the plan's wording (answers written by the AI): a fact held in the record is stated,
+not generated. **Repeated answers.** The model is given the person's earlier questions as context but not its own
+earlier answers, because a small model copied them; each answer records how much it repeats the one before, and
+`aslms assistant repeat-check` measures it.
+
 **Three scopes** (a switch above the question box, with a one-line note naming what is searched):
 
 | Scope | What is searched |
@@ -874,10 +884,12 @@ holding the function see them, and only while the mode is not off.
 Switching the scope asks the last question again. The conversation sits in a box of fixed height with its own scroll
 bar, so the page does not grow; a new answer scrolls into view.
 
-**Citations.** Every answer lists its sources: the document, its date, the order number, the page and the matching
-excerpt, with the matching words highlighted. A source opens at its page in a new tab. An answer can be **copied into
-a case note** with its references written in words; the person edits it and saves an ordinary note. Each user may
-ask 30 questions an hour, one at a time. A question must be 3 to 2,000 characters and must not contain note text.
+**Citations.** An answer carries numbered references (S1, S2) in its text. They are buttons: clicking one opens
+that source in a dialog with the document, its date, the order number, the page and the matching excerpt with the
+matching words highlighted, and a link that opens the record; a "Sources (n)" button opens the full list. (Answers
+that have no numbered references, such as preview passages, keep their list under the answer.) An answer can be **copied into
+a case note** with its references written in words; the person edits it and saves an ordinary note. Pressing Enter sends the question
+and Shift+Enter starts a new line. Each user may ask 30 questions an hour, one at a time. A question must be 3 to 2,000 characters and must not contain note text.
 
 **Data-handling rules** (enforced on the server; they are the rules auditors should check against):
 

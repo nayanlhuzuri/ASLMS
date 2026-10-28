@@ -690,4 +690,28 @@ at approval, as with row 188's owner checks.
    available on most phone keyboards, so a new line there means sending and asking again (decision 1).
 
 ## Deviations
-(Filled by the developer when the build differs from this note.)
+
+Developer, 28 Oct 2026. Smallest choices where the note is silent; no business rule or API field was invented.
+
+1. **Next-hearing wording outside decision 13's table.**
+   - A next date from orders that has itself passed says so: "Next date from the order of 01 Sep 2026: 01 Oct 2026, which has passed [S1]."
+   - Court date ahead and a different order date that has passed use the comparison sentence with "was <date>, which has passed".
+   - Court and order dates equal but passed give the order line with "which has passed" and no second line.
+   - Disposed with no disposal date: "The case has been disposed of; no further hearing is listed [S1]."
+   - The weekday and "(today)" / "(tomorrow)" go on hearing dates still to come. Order dates, entry dates, passed dates and the disposal date are plain (05 Nov 2026), as in Verification 4.
+2. **Parties line.** Counts are in plural words ("4 petitioners and 5 respondents", "1 respondent"), not "petitioner(s)". The counts line is left out when the Parties tab lists nobody. A side with neither a summary nor a party row reads "the respondents are not recorded" (or "The petitioners are not recorded").
+3. **Source dialog words for kinds decision 16 does not name.** A note opens with "Open the Note"; the file movement with "Open on the Case Page". The kind line uses the portal's existing kind words, so the file movement reads "Journey of This Case" (the no-eOffice-words rule). The footer's Close sits beside the kit's own close button. Both are named "Close".
+4. **Button size in the answer footer.** "Sources (n)" and Copy to Note use the normal 36 px size, not `sm`, because uicheck's size rule flags an `sm` button outside a row at 375 px. n counts every source given, cited or not, which is what the dialog lists.
+5. **Where "Sources (n)" shows.** Only on answers with labelled citations (local model and quick facts). Answers without labels keep their list under the answer, so they have no button. The side panel's selected-answer highlight and its chooser were removed with it. The two dialogs are rendered once per screen, not inside the conversation's live region.
+6. **`short` history.** Each earlier answer goes under its question as "  Answer given: <first sentence>". The first sentence ends at the first `.`, `!` or `?` followed by a space or the end. A longer one is cut to 159 characters plus "…".
+7. **`overlap_prev`** is recorded on answers the model wrote. The fixed lines given without a model call carry `history_answers` only.
+8. **`repeat-check`.**
+   - A model answer is one with outcome `answered` that is not a quick fact. `no_match` fixed lines and failed answers are listed with "-" and not scored. The first model answer of a conversation scores 0.00.
+   - Naming another user's conversation, or giving both or neither mode, is a bad parameter (exit 2, like the prod refusal).
+   - A live set stopped by a refusal (hourly limit, model loading) prints what was answered and exits 1.
+9. **A quick fact that fails.** An unexpected error while it is built is stored as a `failed` answer (family `error`, logged by its class only), like a connector failure.
+10. **Names.** `assistant_facts.answer` returns `FactAnswer` (text, the stored citation, `info`). The module imports no connector, so the service builds the connector's `Answer` and `Citation` from it. `case_details` works out `order_next_date` for every case it reads. Only the full form (the focus case) shows it.
+11. **Tests.**
+    - In the test world no assistant user can see a case without `cases.view_scope` (case visibility rests on it too). So `test_quick_fact_needs_read_guard` shows the 404 with nothing stored or sent, and `test_quick_fact_needs_read_guard_ordinary_path` replaces the guard to show the connector path.
+    - `FakeOllama`'s `default` may now be a callable taking the request body (the copycat model).
+12. **Hosting guide.** Not regenerated. The new setting's default needs no action by the administrators, and its environment table (Annexure B) can take the `ASSISTANT_OLLAMA_HISTORY_ANSWERS` row at the guide's next revision without moving its contents pages now.
