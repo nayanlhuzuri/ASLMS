@@ -234,7 +234,8 @@ PLAIN_SCHEDULE: tuple[dict[str, Any], ...] = (
     },
 )
 
-# the beat entries that are not data collection (scoring, text, alerts, mail, the Case Assistant, search rows)
+# the beat entries that are not data collection (scoring, text, alerts, mail, the Case Assistant, search rows,
+# the sign-in session sweep)
 NOT_DATA_COLLECTION: frozenset[str] = frozenset(
     {
         "rescore-dirty",
@@ -246,6 +247,7 @@ NOT_DATA_COLLECTION: frozenset[str] = frozenset(
         "digests-build",
         "sourcetrace-ingest",
         "store-search-rows",
+        "sessions-sweep",
     }
 )
 

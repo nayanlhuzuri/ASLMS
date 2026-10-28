@@ -30,11 +30,16 @@ def test_web_service_has_no_env_file():
         "API_BASE_URL",
         "PORTAL_BASE_URL",
         "COOKIE_SECURE",
-        "ASLMS_REFRESH_TOKEN_DAYS",
         "RELAY_TIMEOUT_SECONDS",
         "TRUST_PROXY_HEADERS",
     }
     assert not any(n.startswith(("NAPIX_", "MAILTRAP_", "SMTP_")) or "SECRET" in n for n in names)
+
+
+def test_web_gets_no_refresh_token_days():
+    """Design session-timeout, decision 10: the refresh cookie lives as long as the session the API names, so the
+    14-day setting is retired from the web service."""
+    assert "ASLMS_REFRESH_TOKEN_DAYS" not in _compose()["services"]["web"]["environment"]
 
 
 def test_web_api_base_url_is_the_api_service():

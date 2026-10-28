@@ -14,6 +14,7 @@ export interface RefreshedTokens {
   access_token: string;
   refresh_token: string;
   expires_in: number;
+  session_expires_in?: number;
 }
 
 export type RefreshResult =
@@ -53,6 +54,7 @@ async function exchange(refreshToken: string, ctx: ClientContext): Promise<Refre
           access_token: data.access_token,
           refresh_token: data.refresh_token,
           expires_in: Number(data.expires_in) || 1800,
+          ...(data.session_expires_in != null ? { session_expires_in: Number(data.session_expires_in) } : {}),
         },
       };
     }

@@ -90,10 +90,34 @@ def ready(api: TestClient, email: str) -> None:
 
 
 def forget_devices(session) -> None:
-    """Removes the sign-in records (device-bound refresh tokens, devices) so a migration test can go below 0010,
-    whose downgrade refuses while `user_devices` rows exist."""
+    """Removes the sign-in records (device-bound refresh tokens, sessions, devices) so a migration test can go below
+    0010, whose downgrade refuses while `user_devices` rows exist. `user_sessions` (0031) is cleared when present."""
     session.execute(sa.text("DELETE FROM refresh_tokens WHERE device_id IS NOT NULL"))
+    if session.execute(sa.text("SELECT to_regclass('user_sessions')")).scalar() is not None:
+        session.execute(sa.text("DELETE FROM refresh_tokens WHERE session_id IS NOT NULL"))
+        session.execute(sa.text("DELETE FROM user_sessions"))
     session.execute(sa.text("DELETE FROM user_devices"))
+
+
+def age_session(api: TestClient, email: str, minutes: float, field: str = "activity") -> None:
+    """Moves the login's open sessions back on the test clock (design `session-timeout`, "Tests"): `activity` moves
+    `last_activity_at` (and `started_at`, which it may not precede) back by `minutes`; `limit` moves `started_at` and
+    `expires_at` back, so the hard limit lapses while the activity stays recent."""
+    sets = {
+        "activity": "started_at = started_at - make_interval(secs => :s), "
+        "last_activity_at = last_activity_at - make_interval(secs => :s)",
+        "limit": "started_at = started_at - make_interval(secs => :s), "
+        "expires_at = expires_at - make_interval(secs => :s)",
+    }[field]
+    with api.app.state.session_factory() as s:
+        s.execute(
+            sa.text(
+                f"UPDATE user_sessions SET {sets} WHERE ended_at IS NULL "
+                "AND user_id = (SELECT id FROM users WHERE email = :e)"
+            ),
+            {"s": minutes * 60, "e": email.strip().lower()},
+        )
+        s.commit()
 
 
 def bearer(api: TestClient, email: str, password: str) -> dict:
@@ -102,6 +126,7 @@ def bearer(api: TestClient, email: str, password: str) -> dict:
 
 __all__ = [
     "age_codes",
+    "age_session",
     "bearer",
     "forget_devices",
     "last_code",

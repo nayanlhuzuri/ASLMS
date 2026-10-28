@@ -20,6 +20,8 @@ design safety-fixes, decision 13); no NAPIX call. Design court-data-freshness: t
 the rechecks of held lists (`enqueue_morning_lists`, `enqueue_evening_lists`); `disposed-refresh` (02:30 IST) queues the
 monthly dossiers of cases disposed within a year (`job_runs` `disposed-refresh`); `napix-log-purge` (03:45 IST) deletes
 call-log rows older than `NAPIX_CALL_LOG_KEEP_DAYS` (`job_runs` `napix-log-purge`, audit `napix.call_log_purged`).
+`sessions-sweep` (every 5 minutes) ends idle and expired sign-in sessions with one audit row each (design
+session-timeout, decision 12).
 Run: `celery -A aslms.jobs.celery_app worker -B --concurrency 1` (the Compose `scheduler` service)."""
 
 from __future__ import annotations
@@ -91,6 +93,8 @@ app.conf.update(
             "task": "aslms.enqueue_discovery",
             "schedule": crontab(day_of_week="saturday", hour=2, minute=0),
         },
+        # sign-in sessions (design session-timeout, decision 12): idle and limit ends with one audit row each
+        "sessions-sweep": {"task": "aslms.sessions_sweep", "schedule": crontab(minute="1-59/5")},
     },
 )
 
@@ -153,6 +157,17 @@ def napix_log_purge() -> dict:
     from aslms.services import retention
 
     return retention.purge_call_log(get_sessionmaker(), settings).as_dict()
+
+
+@app.task(name="aslms.sessions_sweep")
+def sessions_sweep() -> dict[str, int]:
+    """Every 5 minutes (minute 1, 6, 11 ...): sessions past their idle time or their hard limit end once each, at
+    the moment they lapsed, with `auth.signed_out_idle` / `auth.session_limit` audit rows (design session-timeout,
+    decision 12). Writes only `user_sessions` and `audit_log`; no queue item, no NAPIX call; idempotent."""
+    from aslms.services import sessions
+
+    with session_scope() as s:
+        return sessions.sweep(s, settings)
 
 
 @app.task(name="aslms.enqueue_daily_status")

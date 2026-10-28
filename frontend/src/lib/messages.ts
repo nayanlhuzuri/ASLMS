@@ -34,6 +34,8 @@ const ERRORS: Record<string, (extra: Record<string, unknown>) => string> = {
   already_confirmed: () => "Your profile is already confirmed.",
   signed_out: () => "Your session has ended. Sign in again.",
   session_ended: () => "Your session has ended. Sign in again.",
+  session_idle: () => "You were signed out after a period without activity. Sign in again.",
+  session_limit: () => "Your session reached its time limit. Sign in again.",
   refresh_invalid: () => "Your session has ended. Sign in again.",
   csrf: () => "The request was refused because it did not come from the portal. Reload the page.",
   csrf_origin: (x) =>
@@ -289,6 +291,31 @@ export const T = {
       maker: "ASLMS · Government of Assam",
       foot: "For official use by Government of Assam departments.",
     },
+  },
+  // the session watch (design session-timeout, decisions 17 and 18): the warning and the hard-limit notice
+  session: {
+    warnTitle: "Are You Still There?",
+    warnBody: (left: string, quietMinutes: number) =>
+      `You will be signed out in ${left} because there has been no activity for ${quietMinutes} minutes. Anything you have not saved will be lost.`,
+    warnAnnounceMessage: "You will soon be signed out because there has been no activity. Choose Stay Signed In to continue.",
+    stayButton: "Stay Signed In",
+    signOutButton: "Sign Out",
+    limitTitle: "Session Ending Soon",
+    limitBody: (left: string, hours: number | null) =>
+      `Your session reaches its ${hours ? `${hours}-hour` : "time"} limit in ${left}. Save your work now; you will then sign in again with a new code.`,
+    limitAnnounceMessage: "Your session is about to reach its time limit. Save your work now.",
+    signInNowButton: "Sign in Now",
+    continueButton: "Continue",
+  },
+  // the sign-in page's banner after a sign-out (decision 20); the figures come from the shared clock, never the address
+  login: {
+    idleMessage: (minutes: number | null) =>
+      minutes
+        ? `You were signed out after ${minutes} minutes without activity.`
+        : "You were signed out after a period without activity.",
+    limitMessage: (hours: number | null) =>
+      `Your session reached its ${hours ? `${hours}-hour` : "time"} limit. Sign in again.`,
+    signedOutMessage: "You signed out.",
   },
   prefs: {
     title: "Notifications",

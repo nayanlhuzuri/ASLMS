@@ -82,9 +82,22 @@ class TokenOut(BaseModel):
     refresh_token: str
     token_type: str = "bearer"
     expires_in: int
+    session_expires_in: int = Field(
+        description="seconds to the session's hard limit (design session-timeout); the refresh token dies with it"
+    )
     user: UserOut
     next_step: Literal["ready", "change_password", "confirm_profile"] = "ready"
     device_token: str | None = Field(None, description="issued once, when the device is new; keep it")
+
+
+class ActivityOut(BaseModel):
+    """`POST /me/activity` (design session-timeout, decision 14): the limits and the seconds left, all in seconds."""
+
+    idle_seconds: int
+    warning_seconds: int
+    idle_ends_in: int = Field(description="equals idle_seconds just after the touch")
+    session_ends_in: int
+    max_hours: int = Field(description="SESSION_MAX_HOURS: the hard limit's length, for the portal's wording")
 
 
 class UserCreateIn(BaseModel):

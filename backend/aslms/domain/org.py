@@ -218,6 +218,8 @@ class RefreshToken(Base):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     device_label: Mapped[str | None] = mapped_column(String(200))
     device_id: Mapped[uuid.UUID | None] = uuid_fk("user_devices.id", nullable=True)
+    # the sign-in session (design session-timeout, decision 1); NULL for tokens issued before migration 0031
+    session_id: Mapped[uuid.UUID | None] = uuid_fk("user_sessions.id", nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )
@@ -246,6 +248,41 @@ class UserDevice(TimestampMixin, Base):
     )
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class SessionEndReason(enum.StrEnum):
+    """Why a sign-in session ended (design `session-timeout`, decision 11)."""
+
+    SIGNED_OUT = "signed_out"
+    IDLE = "idle"
+    LIMIT = "limit"
+    REPLACED = "replaced"
+    ENDED = "ended"
+
+
+class UserSession(TimestampMixin, Base):
+    """One row per sign-in (design `session-timeout`, decision 1): opened by the e-mailed-code step, never by a
+    refresh. `expires_at` is the hard limit fixed at sign-in; `last_activity_at` moves only with `POST /me/activity`.
+    Every authenticated request checks the row; idle and limit ends are written by the sweep. Written only by
+    `services/sessions.py` and `services/auth.py`; never deleted."""
+
+    __tablename__ = "user_sessions"
+    __table_class__ = TableClass.DERIVED
+    __table_args__ = (
+        CheckConstraint("expires_at > started_at AND last_activity_at >= started_at", name="times"),
+        CheckConstraint("(ended_at IS NULL) = (end_reason IS NULL)", name="ended"),
+        Index("ix_user_sessions_open", "last_activity_at", postgresql_where=text("ended_at IS NULL")),
+    )
+    id: Mapped[uuid.UUID] = uuid_pk()
+    user_id: Mapped[uuid.UUID] = uuid_fk("users.id")
+    device_id: Mapped[uuid.UUID] = uuid_fk("user_devices.id")
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_activity_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    end_reason: Mapped[SessionEndReason | None] = mapped_column(
+        pg_enum(SessionEndReason, "session_end_reason"), nullable=True
+    )
 
 
 class Channel(enum.StrEnum):
@@ -285,7 +322,9 @@ __all__ = [
     "OtpPurpose",
     "RefreshToken",
     "User",
+    "SessionEndReason",
     "UserDevice",
+    "UserSession",
     "UserMembership",
     "UserNotificationPreference",
     "UUID",

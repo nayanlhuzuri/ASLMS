@@ -2,7 +2,9 @@
  * The answers to the portal's API calls during the browser check (design portal-ui-polish, decisions 18 and 20). Every
  * `/api/backend/**` request is answered in the browser: a `GET` from a typed override below, else from the synthetic
  * answer built from the API's OpenAPI document (`synth.ts`); a `GET` the API does not have is answered 404 and is a
- * finding, and any other method is answered 405 and is a finding too (the check never acts). The overrides are typed
+ * finding, and any other method is answered 405 and is a finding too (the check never acts), apart from the session
+ * watch's ping `POST /me/activity`, which records nothing and is answered with the default limits (design
+ * session-timeout, "Tests"). The overrides are typed
  * against the generated `schema.d.ts`, so a fixture that no longer matches the API breaks the image build.
  */
 import type { components } from "@/lib/api/schema";
@@ -904,7 +906,25 @@ function loadPreview(body: string | null): unknown {
   };
 }
 
-export function answer(method: string, url: URL, apiPath: string, body: string | null = null): Answer {
+type ActivityOut = components["schemas"]["ActivityOut"];
+
+/** The ping's answer with the API's default limits: 30 min idle, a 2 min warning, 12 h left of a 12 h session. */
+export const ACTIVITY_DEFAULT: ActivityOut = {
+  idle_seconds: 1800,
+  warning_seconds: 120,
+  idle_ends_in: 1800,
+  session_ends_in: 43_200,
+  max_hours: 12,
+};
+
+export function answer(
+  method: string,
+  url: URL,
+  apiPath: string,
+  body: string | null = null,
+  activity?: Partial<ActivityOut>,
+): Answer {
+  if (method === "POST" && apiPath === "/me/activity") return { status: 200, body: { ...ACTIVITY_DEFAULT, ...activity } };
   if (method === "POST" && apiPath === "/admin/data-load/preview") return { status: 200, body: loadPreview(body) };
   if (method !== "GET") return { status: 405, body: { detail: "the browser check never acts" }, problem: `${method} ${apiPath}` };
   // design office-head-picker: New User's e-mail check for a new person answers 404, as the API does

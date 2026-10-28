@@ -1,4 +1,4 @@
-"""`aslms` command line: NAPIX checks and probes, `seed`, `db-check`, `db-roles`, the load pipeline (`load`, `queue-run`, `queue-status`, `queue-retry-failed`, `sync-masters`, `refetch-date`, `refetch-case`), the matching engine (`rescore`, `codes unmapped`, `close-claimed-recommendations`), the `cases` group (`reindex-search`, `show`), the `documents` group (`extract`, `scan-check`), the `alerts` group (`run`, `send`, `digest`, `status`, `test-mail`), the `sourcetrace` group (`status`, `run`, `retry`, `check`), the `assistant` group (`status`, `ask`, `check`, `warm`, `include-internal`), the `reports` group (`run`, `dashboard`), the `audit` group (`search`), `data-health`, `system-health`, the `data-load` group (`status`, `coverage`, `start`, `pause`, `resume`, `order`, `pdfs-after-details`, `dedupe`), the `discovery` group (`status`, `terms`, `sweep`), the `next-dates` group (`read`, `status`, `sample`), the `ops` group (`preflight`, `db-guard`, `role-passwords`, `migrate`, `backup`, `backup-scheduler`, `backup-status`, `restore-check`, `restore`, `repair-jobs`, `load-report`, `sample-cnrs`, `make-cert`, `metrics`), and the `users`, `access` and `offices` administration groups."""
+"""`aslms` command line: NAPIX checks and probes, `seed`, `db-check`, `db-roles`, the load pipeline (`load`, `queue-run`, `queue-status`, `queue-retry-failed`, `sync-masters`, `refetch-date`, `refetch-case`), the matching engine (`rescore`, `codes unmapped`, `close-claimed-recommendations`), the `cases` group (`reindex-search`, `show`), the `documents` group (`extract`, `scan-check`), the `alerts` group (`run`, `send`, `digest`, `status`, `test-mail`), the `sourcetrace` group (`status`, `run`, `retry`, `check`), the `assistant` group (`status`, `ask`, `check`, `warm`, `include-internal`), the `reports` group (`run`, `dashboard`), the `audit` group (`search`), `data-health`, `system-health`, the `data-load` group (`status`, `coverage`, `start`, `pause`, `resume`, `order`, `pdfs-after-details`, `dedupe`), the `discovery` group (`status`, `terms`, `sweep`), the `next-dates` group (`read`, `status`, `sample`), the `ops` group (`preflight`, `db-guard`, `role-passwords`, `migrate`, `backup`, `backup-scheduler`, `backup-status`, `restore-check`, `restore`, `repair-jobs`, `load-report`, `sample-cnrs`, `make-cert`, `metrics`), the `sessions` group (`sweep`), and the `users`, `access` and `offices` administration groups."""
 
 from __future__ import annotations
 
@@ -37,6 +37,7 @@ from aslms.cli.pipeline import (
     sync_masters_cmd,
 )
 from aslms.cli.reports import reports_app
+from aslms.cli.sessions import sessions_app
 from aslms.cli.sourcetrace import sourcetrace_app
 from aslms.cli.system_health import system_health_cmd
 from aslms.cli.users import access_app, users_app
@@ -78,6 +79,7 @@ app.add_typer(data_load_app, name="data-load")
 app.add_typer(discovery_app, name="discovery")
 app.add_typer(next_dates_app, name="next-dates")
 app.add_typer(ops_app, name="ops")
+app.add_typer(sessions_app, name="sessions")
 
 
 @app.callback()

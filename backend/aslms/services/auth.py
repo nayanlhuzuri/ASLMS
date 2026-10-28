@@ -13,6 +13,8 @@
 - Password reset (decision 7) answers the same for every e-mail; a code sent only for an active, unlocked login
   outside the resend wait. A reset or a change revokes every refresh token (decision 9).
 - A rotated refresh token presented again revokes every refresh token of the login (decision 10).
+- Sessions (design `session-timeout`): the code step opens a `user_sessions` row; a refresh keeps it, never
+  extends it and is refused once it is idle or over its limit; an own password change keeps the caller's session.
 - Every step that reads or writes the lock counter or a code first locks the login's `users` row
   (`otp.lock_user`), so parallel requests for one login run one after another: the 5 tries per code and the lock
   of decision 4 hold under concurrency.
@@ -35,12 +37,21 @@ from uuid6 import uuid7
 from aslms.api.security import issue_access_token, issue_refresh_token, token_hash
 from aslms.core.config import Settings
 from aslms.domain.events import AuditLog
-from aslms.domain.org import OtpCode, OtpPurpose, RefreshToken, User, UserDevice
-from aslms.services import access, otp
+from aslms.domain.org import (
+    OtpCode,
+    OtpPurpose,
+    RefreshToken,
+    SessionEndReason,
+    User,
+    UserDevice,
+    UserSession,
+)
+from aslms.services import access, otp, sessions
 from aslms.services.audit import Actor, write_audit
 from aslms.services.mailer import Mailer, MailError, mask_address
 from aslms.services.otp import OtpError, OtpMailFailed, TooManyCodes
 from aslms.services.passwords import DUMMY_HASH, WeakPassword, check_policy, verify_password
+from aslms.services.sessions import SessionIdle, SessionInvalid, SessionLimit
 from aslms.services.users import end_sessions, set_password
 
 log = logging.getLogger(__name__)
@@ -130,6 +141,7 @@ class Signed:
     refresh_token: str
     expires_in: int
     next_step: str
+    session_expires_in: int
     device_id: uuid.UUID | None = None
     device_token: str | None = None
 
@@ -347,6 +359,7 @@ def revoke_device(session: Session, actor: Actor, user: User, device_id: uuid.UU
         now = otp.utcnow()
         device.revoked_at = now
         tokens = _revoke_device_tokens(session, device, now)
+        sessions.end(session, SessionEndReason.ENDED, now, device_id=device.id)
         session.flush()
         write_audit(
             session,
@@ -379,17 +392,24 @@ def sign_out_everywhere(session: Session, actor: Actor, user: User) -> dict:
 
 
 def _signed(
-    session: Session, user: User, settings: Settings, device: UserDevice | None, raw_device: str | None = None
+    session: Session,
+    user: User,
+    settings: Settings,
+    device: UserDevice | None,
+    session_row: UserSession,
+    raw_device: str | None = None,
 ) -> Signed:
-    access_token, ttl = issue_access_token(user, settings)
+    """A fresh pair inside `session_row`: same `sid`, the refresh token expiring with the session."""
+    access_token, ttl = issue_access_token(user, settings, session_row)
     refresh = issue_refresh_token(
-        session, user, device.label if device else None, settings, device.id if device else None
+        session, user, device.label if device else None, device.id if device else None, session_row
     )
     return Signed(
         user=user,
         access_token=access_token,
         refresh_token=refresh,
         expires_in=ttl,
+        session_expires_in=sessions.seconds_left(session_row),
         next_step=next_step(user),
         device_id=device.id if device else None,
         device_token=raw_device,
@@ -472,6 +492,7 @@ def complete_login(
         raise InvalidCredentials("e-mail or password is wrong, or the account is disabled")
     now = otp.utcnow()
     device, raw_device = _touch_device(session, user, client, now)
+    session_row = sessions.open_session(session, user, device, now, settings)
     user.last_login_at = now
     session.flush()
     actor = _actor(user, client)
@@ -493,7 +514,7 @@ def complete_login(
         user.id,
         after={"device_id": str(device.id), "new_device": bool(raw_device)},
     )
-    return _signed(session, user, settings, device, raw_device)
+    return _signed(session, user, settings, device, session_row, raw_device)
 
 
 def _fake_reset(settings: Settings) -> ResetStep:
@@ -626,10 +647,20 @@ def confirm_reset(
 
 
 def change_password(
-    session: Session, user: User, current: str, new: str, client: Client, settings: Settings
+    session: Session,
+    user: User,
+    current: str,
+    new: str,
+    client: Client,
+    settings: Settings,
+    auth_session_id: uuid.UUID | None = None,
 ) -> Signed:
     """The person's own change (also the first-sign-in step): a wrong current password counts as a failure;
-    every refresh token ends; a fresh pair for the caller's device is returned."""
+    every refresh token and every other session ends; the caller's session is kept (design `session-timeout`,
+    decision 13) and a fresh pair joins it, on the session's device."""
+    session_row = session.get(UserSession, auth_session_id) if auth_session_id is not None else None
+    if session_row is None or session_row.user_id != user.id:
+        raise SessionInvalid("token is not valid")
     otp.lock_user(session, user.id)
     _refuse_if_locked(session, user, settings)
     if not verify_password(user.password_hash, current):
@@ -644,15 +675,18 @@ def change_password(
         raise WrongPassword("the current password is wrong")
     check_policy(new, user.password_hash)
     actor = _actor(user, client)
-    set_password(session, actor, user, new, by_self=True)
+    set_password(session, actor, user, new, by_self=True, keep_session=session_row.id)
     write_audit(session, actor, "auth.password_changed", "user", user.id, after={"sessions_ended": True})
-    return _signed(session, user, settings, find_device(session, user, client.device_token))
+    return _signed(session, user, settings, session.get(UserDevice, session_row.device_id), session_row)
 
 
 def refresh(session: Session, raw: str, client: Client, settings: Settings) -> Signed:
     """Rotation: the presented token is revoked and a new one issued for the same device. A token that was
     already rotated (revoked after the last password set, its device live, not ended by logout) revokes every
-    refresh token of the login and answers `session_ended` (decision 10)."""
+    refresh token of the login and answers `session_ended` (decision 10). Then the session (design
+    `session-timeout`, decision 9): 401 `session_limit` / `session_idle` once lapsed, `refresh_invalid` for a token
+    without a session or a session ended otherwise. The new pair keeps the session and its `expires_at`; a refresh
+    is not activity."""
     row = session.scalar(select(RefreshToken).where(RefreshToken.token_hash == token_hash(raw or "")))
     if row is None:
         raise RefreshInvalid("refresh token is not valid")
@@ -680,6 +714,11 @@ def refresh(session: Session, raw: str, client: Client, settings: Settings) -> S
             )
             raise SessionEnded("this session was ended for safety; sign in again")
         raise RefreshInvalid("refresh token is not valid")
+    session_row = session.get(UserSession, row.session_id) if row.session_id is not None else None
+    try:
+        sessions.check(session_row, row.user_id, now, settings)
+    except SessionInvalid:
+        raise RefreshInvalid("refresh token is not valid") from None
     if row.expires_at < now or user is None or not user.is_active:
         raise RefreshInvalid("refresh token is not valid")
     if device is not None and device.revoked_at is not None:
@@ -689,7 +728,7 @@ def refresh(session: Session, raw: str, client: Client, settings: Settings) -> S
         device.last_seen_at = max(now, device.first_seen_at)
         device.last_ip = _valid_ip(client.ip) or device.last_ip
     session.flush()
-    return _signed(session, user, settings, device)
+    return _signed(session, user, settings, device, session_row)
 
 
 __all__ = [
@@ -704,6 +743,8 @@ __all__ = [
     "RefreshInvalid",
     "ResetStep",
     "SessionEnded",
+    "SessionIdle",
+    "SessionLimit",
     "Signed",
     "WrongPassword",
     "change_password",

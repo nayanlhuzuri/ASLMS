@@ -2,7 +2,8 @@
  * The relay `/api/backend/{path}` → API `/{path}` (design portal-shell, decisions 4-7). It adds the bearer token
  * from the session cookie, the device token and the client address; it never forwards the browser's cookies or
  * `Authorization`, never returns `Set-Cookie` from the API, and refuses the token-returning operations, the auth
- * endpoints and the API documentation.
+ * endpoints and the API documentation. An API 401 `session_idle` or `session_limit` (design session-timeout, decision
+ * 15) is never refreshed: the session cookies are cleared and the code is passed to the browser, which explains it.
  */
 import { clientAddress, upstreamHeaders } from "./api";
 import { serverConfig } from "./config";
@@ -82,8 +83,37 @@ function signedOut(out: Headers): Response {
   return jsonError(401, "signed_out", "your session has ended; sign in again", out);
 }
 
+/** The session ends the API names and the browser explains (design session-timeout, decisions 7 and 15). */
+export const SESSION_END_CODES: ReadonlySet<string> = new Set(["session_idle", "session_limit"]);
+
+/** A 401 for a lapsed session: the session cookies cleared (the device cookie stays), the API's code and message. */
+export function sessionEnded(code: string, message: string | undefined): Response {
+  const out = new Headers();
+  clearSession(out);
+  return jsonError(401, code, message || "your session has ended; sign in again", out);
+}
+
+/** `detail.code` and `detail.message` of an API error answer (the body is consumed). */
+async function errorOf(response: Response): Promise<{ code?: string; message?: string }> {
+  try {
+    const data = (await response.json()) as { detail?: unknown };
+    const detail = data?.detail;
+    if (detail && typeof detail === "object") {
+      const d = detail as { code?: unknown; message?: unknown };
+      return {
+        code: typeof d.code === "string" ? d.code : undefined,
+        message: typeof d.message === "string" ? d.message : undefined,
+      };
+    }
+  } catch {
+    // not JSON: a plain refusal
+  }
+  return {};
+}
+
 function refreshFailure(result: Extract<RefreshResult, { ok: false }>, out: Headers): Response {
   if (result.code === "api_unavailable") return jsonError(502, "api_unavailable", "the service is not reachable");
+  if (SESSION_END_CODES.has(result.code)) return sessionEnded(result.code, result.message);
   return signedOut(out);
 }
 
@@ -178,7 +208,11 @@ export async function relay(request: Request): Promise<Response> {
     await discard(spare);
     return answer(upstream, out);
   }
-  await discard(upstream);
+  const refusal = await errorOf(upstream);
+  if (refusal.code && SESSION_END_CODES.has(refusal.code)) {
+    await discard(spare);
+    return sessionEnded(refusal.code, refusal.message);
+  }
   if (!replayable || !session.refreshToken) {
     await discard(spare);
     return signedOut(out);
@@ -195,7 +229,8 @@ export async function relay(request: Request): Promise<Response> {
     return jsonError(502, "api_unavailable", "the service is not reachable", out);
   }
   if (upstream.status === 401) {
-    await discard(upstream);
+    const again = await errorOf(upstream);
+    if (again.code && SESSION_END_CODES.has(again.code)) return sessionEnded(again.code, again.message);
     return signedOut(new Headers());
   }
   return answer(upstream, out);

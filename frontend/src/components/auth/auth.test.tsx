@@ -2,6 +2,7 @@ import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { KEYS, resetSessionStore } from "@/lib/session/store";
 import { browserApi, json, labels, renderWithClient } from "@/test/render";
 import { nav, resetNav } from "@/test/nav";
 
@@ -16,6 +17,53 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+});
+
+describe("the sign-in page after a sign-out (design session-timeout, decision 20)", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetSessionStore();
+  });
+
+  it("explains an idle sign-out with the minutes from the shared clock", () => {
+    localStorage.setItem(KEYS.limits, JSON.stringify({ idle_seconds: 180, warning_seconds: 60, hard_end: null }));
+    resetNav("/login", "reason=idle&next=/alerts&minutes=999");
+    renderWithClient(<LoginForm />);
+    expect(screen.getByText("You were signed out after 3 minutes without activity.")).toBeInTheDocument();
+    expect(screen.queryByText(/999/)).toBeNull();
+  });
+
+  it("without the shared clock it says a period without activity", () => {
+    resetNav("/login", "reason=idle");
+    renderWithClient(<LoginForm />);
+    expect(screen.getByText("You were signed out after a period without activity.")).toBeInTheDocument();
+  });
+
+  it("names the hard limit's hours from the shared clock", () => {
+    localStorage.setItem(
+      KEYS.limits,
+      JSON.stringify({ idle_seconds: 1800, warning_seconds: 120, hard_end: null, max_hours: 8 }),
+    );
+    resetNav("/login", "reason=limit&hours=99");
+    renderWithClient(<LoginForm />);
+    expect(screen.getByText("Your session reached its 8-hour limit. Sign in again.")).toBeInTheDocument();
+  });
+
+  it.each([
+    ["limit", "Your session reached its time limit. Sign in again."],
+    ["signed_out", "You signed out."],
+  ])("reason=%s shows its banner", (reason, text) => {
+    resetNav("/login", `reason=${reason}`);
+    renderWithClient(<LoginForm />);
+    expect(screen.getByText(text)).toBeInTheDocument();
+  });
+
+  it("an unknown reason shows nothing", () => {
+    resetNav("/login", "reason=<script>");
+    const { container } = renderWithClient(<LoginForm />);
+    expect(container.textContent).not.toContain("signed out");
+    expect(container.textContent).not.toContain("script");
+  });
 });
 
 describe("sign-in", () => {
@@ -104,6 +152,32 @@ describe("sign-in", () => {
     await userEvent.type(screen.getByLabelText("Code"), "654321");
     await userEvent.click(screen.getByRole("button", { name: "Verify" }));
     await waitFor(() => expect(nav.replace).toHaveBeenCalledWith(target));
+  });
+
+  it("a successful code clears the previous session's stored limits (review finding 2)", async () => {
+    localStorage.setItem(
+      KEYS.limits,
+      JSON.stringify({ idle_seconds: 1800, warning_seconds: 120, hard_end: Date.now() + 60_000, max_hours: 12 }),
+    );
+    resetSessionStore();
+    resetNav("/login/code");
+    browserApi({ "POST session:/verify": { next_step: "ready", user: {} } });
+    renderWithClient(<CodeForm />);
+    await userEvent.type(screen.getByLabelText("Code"), "654321");
+    await userEvent.click(screen.getByRole("button", { name: "Verify" }));
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/"));
+    expect(localStorage.getItem(KEYS.limits)).toBeNull();
+  });
+
+  it("a refused code keeps them", async () => {
+    localStorage.setItem(KEYS.limits, JSON.stringify({ idle_seconds: 1800, warning_seconds: 120, hard_end: null }));
+    resetSessionStore();
+    browserApi({ "POST session:/verify": json(401, { detail: { code: "otp_invalid", message: "x", attempts_left: 2 } }) });
+    renderWithClient(<CodeForm />);
+    await userEvent.type(screen.getByLabelText("Code"), "000000");
+    await userEvent.click(screen.getByRole("button", { name: "Verify" }));
+    await screen.findByRole("alert");
+    expect(localStorage.getItem(KEYS.limits)).not.toBeNull();
   });
 
   it("an unsafe next is ignored", async () => {

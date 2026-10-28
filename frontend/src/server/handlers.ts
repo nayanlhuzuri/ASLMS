@@ -6,6 +6,7 @@
 import { ApiUnavailable, callApi, clientContext, errorCode, type ApiAnswer } from "./api";
 import { csrfRefusal } from "./csrf";
 import { refreshOnce } from "./refresh";
+import { SESSION_END_CODES, sessionEnded } from "./relay";
 import { json, jsonError } from "./respond";
 import {
   clearChallenge,
@@ -204,6 +205,7 @@ async function accessToken(request: Request, headers: Headers): Promise<Access> 
   const result = await refreshOnce(session.refreshToken, clientContext(request));
   if (!result.ok) {
     if (result.code === "api_unavailable") return { failure: unavailable() };
+    if (SESSION_END_CODES.has(result.code)) return { failure: sessionEnded(result.code, result.message) };
     return {};
   }
   setTokens(headers, result.tokens);
@@ -241,13 +243,33 @@ export function password(request: Request): Promise<Response> {
       setTokens(fresh, data);
       return json(200, { next_step: data.next_step ?? "ready" }, fresh);
     }
-    if (answer.status === 401 && errorCode(answer.data) !== "wrong_password") return signedOut();
+    const code = errorCode(answer.data);
+    if (answer.status === 401 && code && SESSION_END_CODES.has(code)) {
+      const detail = (answer.data as { detail?: { message?: string } } | null)?.detail;
+      return sessionEnded(code, detail?.message);
+    }
+    if (answer.status === 401 && code !== "wrong_password") return signedOut();
     return passError(answer, headers);
   });
 }
 
+/** The browser's own session deadlines (design session-timeout, deviation 12): the cookies go, the API is not told. */
+const LAPSE_REASONS = new Set(["idle", "limit"]);
+
+/**
+ * Sign-out. A person's Sign Out revokes the refresh token at the API (`auth.logout`, the session ends `signed_out`).
+ * When the browser's watch reaches the idle end or the hard limit it sends `{reason: "idle" | "limit"}`: only the
+ * cookies are cleared, so the API's own check and sweep record the true end (`idle` / `limit` with its audit row)
+ * instead of a logout the person never made (design session-timeout, deviation 12).
+ */
 export function logout(request: Request): Promise<Response> {
   return guarded(request, async () => {
+    const body = await readBody(request);
+    if (LAPSE_REASONS.has(text(body.reason))) {
+      const headers = new Headers({ "Cache-Control": "no-store" });
+      clearSession(headers);
+      return new Response(null, { status: 204, headers });
+    }
     try {
       const { token, refreshToken } = await accessToken(request, new Headers());
       if (token && refreshToken) {

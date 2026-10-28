@@ -321,9 +321,11 @@ def test_devices_cannot_be_revoked_twice_or_by_unknown_id_and_need_a_token(api):
         api.post("/me/devices/0192b3c4-0000-7000-8000-000000000000/revoke", headers=auth(tok)).status_code
         == 404
     )
-    assert api.post(f"/me/devices/{dev}/revoke", headers=auth(tok)).status_code == 204
-    assert api.post(f"/me/devices/{dev}/revoke", headers=auth(tok)).status_code == 204  # idempotent
+    other = sign_in(api, EDU_OFF, PW)  # a second device acts (revoking a device ends its own sessions)
+    assert api.post(f"/me/devices/{dev}/revoke", headers=auth(other)).status_code == 204
+    assert api.post(f"/me/devices/{dev}/revoke", headers=auth(other)).status_code == 204  # idempotent
     assert actions(api, EDU_OFF).count("auth.device_revoked") == 1  # and audited once
+    assert api.get("/me", headers=auth(tok)).status_code == 401  # the revoked device's session ended
 
 
 # ------------------------------------------------------------------------------------------------ refresh

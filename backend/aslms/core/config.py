@@ -92,8 +92,12 @@ class Settings(BaseSettings):
 
     # --- authentication and the first super admin ------------------------------------------
     aslms_jwt_secret: SecretStr | None = None  # required to issue tokens; the API refuses to start without it
-    aslms_access_token_minutes: int = 30
-    aslms_refresh_token_days: int = 14
+    aslms_access_token_minutes: int = 30  # capped at the session's end (design session-timeout, decision 8)
+    # sign-in sessions (design session-timeout, decision 21): signed out after SESSION_IDLE_MINUTES without the
+    # person's own activity, warned SESSION_WARNING_SECONDS before, and ended SESSION_MAX_HOURS after the code step
+    session_idle_minutes: int = Field(30, ge=2, le=240)
+    session_warning_seconds: int = Field(120, ge=30, le=600)
+    session_max_hours: int = Field(12, ge=1, le=24)
     aslms_superadmin_email: str | None = None  # created by `aslms seed` when both are set; never logged
     aslms_superadmin_password: SecretStr | None = None
     # e-mailed sign-in codes (design otp-and-profile, decisions 2-4): a code at every sign-in, no device trust
@@ -297,6 +301,16 @@ class Settings(BaseSettings):
             raise ValueError(
                 "NAPIX_ADVOCATE_STORE_NOW <= NAPIX_ADVOCATE_STORE_MAX must hold "
                 f"({self.napix_advocate_store_now}, {self.napix_advocate_store_max})"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _session_limits(self) -> Settings:
+        """SESSION_WARNING_SECONDS is less than the idle time (design session-timeout, decision 21)."""
+        if self.session_warning_seconds >= self.session_idle_minutes * 60:
+            raise ValueError(
+                "SESSION_WARNING_SECONDS must be less than SESSION_IDLE_MINUTES in seconds "
+                f"({self.session_warning_seconds} s, {self.session_idle_minutes} min)"
             )
         return self
 

@@ -1008,7 +1008,11 @@ def test_migration_0032_mode_check_up_down(db_url, engine, world):
         command.upgrade(cfg, "head")
         with engine.begin() as conn:
             wipe(conn)
-    assert head_revision() == "0032"
+    # 0032 stays in the chain below the head (row 169's merge migration 0033 joins it with 0031)
+    from alembic.script import ScriptDirectory
+
+    script = ScriptDirectory.from_config(cfg)
+    assert "0032" in {r.revision for r in script.iterate_revisions(head_revision(), "base")}
 
 
 def test_cli_warm_status_and_case_ask_with_fake(world, scene, monkeypatch):

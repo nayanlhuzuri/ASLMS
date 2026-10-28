@@ -7,13 +7,14 @@
  */
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, useSyncExternalStore, type FormEvent } from "react";
 
 import { Button, ErrorBanner, Notice, TextField } from "@/components/ui";
 import { ApiError, session } from "@/lib/api/client";
 import type { LoginStep, NextStep, ResetStep } from "@/lib/api/types";
 import { T } from "@/lib/messages";
 import { safeNext } from "@/lib/safeNext";
+import { sessionStore, signOutReasonText, type StoredLimits } from "@/lib/session/store";
 
 import { SignInSteps } from "./AuthFrame";
 import s from "./auth.module.css";
@@ -22,6 +23,11 @@ import { afterSignIn, clearStep, loadStep, resendLeft, saveStep, type StoredStep
 function useNext(): string {
   const params = useSearchParams();
   return safeNext(params.get("next"));
+}
+
+/** The shared clock is read once for the banner; nothing to subscribe to on the sign-in page. */
+function noSubscription(): () => void {
+  return () => undefined;
 }
 
 function withNext(path: string, next: string): string {
@@ -36,6 +42,12 @@ export function LoginForm() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
+  const reason = params.get("reason");
+  // design session-timeout, decision 20: why the person is here; the figures come from the shared clock (read after
+  // mount: the browser's storage), never from the address
+  // a JSON string: a stable snapshot for React (read once; nothing to subscribe to)
+  const stored = useSyncExternalStore(noSubscription, () => JSON.stringify(sessionStore().storedLimits()), () => "null");
+  const reasonText = signOutReasonText(reason, JSON.parse(stored) as StoredLimits | null, T.login);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -57,6 +69,7 @@ export function LoginForm() {
       <p>{T.auth.signInSub}</p>
       <SignInSteps step={1} />
       {params.get("reset") === "done" ? <Notice>{T.auth.passwordChanged}</Notice> : null}
+      {reasonText ? <Notice>{reasonText}</Notice> : null}
       {params.get("expired") ? <ErrorBanner error={new ApiError(401, "otp_expired", "")} /> : null}
       <ErrorBanner error={error} />
       <TextField
@@ -115,6 +128,8 @@ export function CodeForm() {
     try {
       const out = await session<{ next_step: NextStep }>("verify", { code: code.trim() });
       clearStep();
+      // a new session: the previous one's limits (its hard end above all) must not show here (review finding 2)
+      sessionStore().clearLimits();
       router.replace(afterSignIn(out.next_step, next));
     } catch (err) {
       setBusy(false);

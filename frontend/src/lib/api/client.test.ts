@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { KEYS, resetSessionStore } from "@/lib/session/store";
+
 import { api, apiPage, ApiError, parseError, resetClientHooks, session, setClientHooks } from "./client";
 
 function respond(status: number, body: unknown, headers: Record<string, string> = {}) {
@@ -13,6 +15,8 @@ const navigate = vi.fn();
 const clearCache = vi.fn();
 
 beforeEach(() => {
+  localStorage.clear();
+  resetSessionStore();
   navigate.mockReset();
   clearCache.mockReset();
   setClientHooks({ navigate, clearCache, currentPath: () => "/admin/users?q=ab" });
@@ -80,6 +84,23 @@ describe("api", () => {
     await expect(api("/me")).rejects.toMatchObject({ code: "signed_out" });
     expect(clearCache).toHaveBeenCalledOnce();
     expect(navigate).toHaveBeenCalledWith("/login?next=%2Fadmin%2Fusers%3Fq%3Dab");
+  });
+
+  it.each([
+    ["session_idle", "idle"],
+    ["session_limit", "limit"],
+  ])("401 %s writes out for every tab and goes to the sign-in page with reason=%s", async (code, reason) => {
+    vi.stubGlobal("fetch", vi.fn(async () => respond(401, { detail: { code, message: "x" } })));
+    await expect(api("/alerts/counts")).rejects.toMatchObject({ code });
+    expect(clearCache).toHaveBeenCalledOnce();
+    expect(navigate).toHaveBeenCalledWith(`/login?reason=${reason}&next=%2Fadmin%2Fusers%3Fq%3Dab`);
+    expect(JSON.parse(localStorage.getItem(KEYS.out)!)).toMatchObject({ reason });
+  });
+
+  it("signed_out writes out with no reason", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => respond(401, { detail: { code: "signed_out", message: "x" } })));
+    await expect(api("/me")).rejects.toMatchObject({ code: "signed_out" });
+    expect(JSON.parse(localStorage.getItem(KEYS.out)!)).toMatchObject({ reason: null });
   });
 
   it("a wrong sign-in code is an error, not a sign-out", async () => {

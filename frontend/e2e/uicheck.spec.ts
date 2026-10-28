@@ -2,7 +2,7 @@
  * The browser check (design portal-ui-polish, decisions 18-22). Every page route read from `src/app` at run time (as
  * `backend/tools/portal_smoke.py` reads it), at 375, 768 and 1280 px, against the real `web` service, with a dummy
  * session cookie that passes the page gate (the public pages go without it) and every `/api/backend/**` and
- * `/api/session/**` request answered in the browser from the fixtures. Five interaction states as well. Each page
+ * `/api/session/**` request answered in the browser from the fixtures. The interaction states as well. Each page
  * gets a full-page screenshot and the geometry checks of `checks.ts`; a page fails on any finding, a missing fixture,
  * a request other than `GET`, or a console or page error.
  */
@@ -11,7 +11,7 @@ import { mkdirSync, readdirSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 
 import { pageChecks, type PageFinding } from "./checks";
-import { answer, SAMPLE } from "./fixtures";
+import { answer, SAMPLE, type ACTIVITY_DEFAULT } from "./fixtures";
 import { OLD_CASE_REF_PATH } from "./fixtures/legacy";
 import { kept, runDir, slug, writeResult, type Finding } from "./results";
 
@@ -73,8 +73,17 @@ interface Visit {
   redirect: string | null;
 }
 
-/** Answers the page's API calls and collects problems and errors while `run` drives the page. */
-async function watch(page: Page, name: string, width: number, publicPage: boolean): Promise<(extra: () => Promise<void>) => Promise<Visit>> {
+/**
+ * Answers the page's API calls and collects problems and errors while `run` drives the page. `activity` changes the
+ * session ping's answer (the session states, design session-timeout).
+ */
+async function watch(
+  page: Page,
+  name: string,
+  width: number,
+  publicPage: boolean,
+  activity?: Partial<typeof ACTIVITY_DEFAULT>,
+): Promise<(extra: () => Promise<void>) => Promise<Visit>> {
   const findings: Finding[] = [];
   const add = (kind: string, element: string, detail: string) => findings.push({ route: name, width, kind, element, detail });
   if (!publicPage) {
@@ -91,7 +100,7 @@ async function watch(page: Page, name: string, width: number, publicPage: boolea
     const apiPath = url.pathname.replace(/^\/api\/backend/, "");
     const reply = session
       ? { status: 405, body: { detail: "the browser check never signs in" }, problem: `${request.method()} ${url.pathname}` }
-      : answer(request.method(), url, apiPath, request.postData());
+      : answer(request.method(), url, apiPath, request.postData(), activity);
     if (reply.problem) add(reply.status === 404 ? "missing-fixture" : "not-get", reply.problem, `answered ${reply.status}`);
     await route.fulfill({ status: reply.status, contentType: "application/json", body: JSON.stringify(reply.body) });
   });
@@ -179,10 +188,30 @@ interface State {
   path: string;
   /** Only at these widths (default: all three). */
   widths?: number[];
+  /** The session ping's answer for this state (design session-timeout). */
+  activity?: Partial<typeof ACTIVITY_DEFAULT>;
   open: (page: Page) => Promise<void>;
 }
 
 const STATES: State[] = [
+  {
+    // design session-timeout, decision 17: idle 125 s with a 120 s warning, so the warning opens about 5 s after the load
+    name: "/ (Session Warning)",
+    path: "/",
+    activity: { idle_seconds: 125, warning_seconds: 120, idle_ends_in: 125 },
+    open: async (page) => {
+      await page.getByRole("dialog", { name: "Are You Still There?" }).waitFor({ timeout: 15_000 });
+    },
+  },
+  {
+    // decision 18: the hard limit 125 s away, so the notice opens about 5 s after the load
+    name: "/ (Session Ending Soon)",
+    path: "/",
+    activity: { session_ends_in: 125 },
+    open: async (page) => {
+      await page.getByRole("dialog", { name: "Session Ending Soon" }).waitFor({ timeout: 15_000 });
+    },
+  },
   {
     name: "/ (phone drawer open)",
     path: "/",
@@ -601,7 +630,7 @@ test.describe("interaction states", () => {
     test(state.name, async ({ page }) => {
       const width = widthOf(page);
       test.skip(!!state.widths && !state.widths.includes(width), "not at this width");
-      const run = await watch(page, state.name, width, false);
+      const run = await watch(page, state.name, width, false, state.activity);
       const visit = await run(async () => {
         await page.goto(state.path);
         await settle(page);

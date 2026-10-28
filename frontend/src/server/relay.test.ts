@@ -190,6 +190,57 @@ describe("relay", () => {
     expect(setCookies(out).aslms_rt).toContain("Max-Age=0");
   });
 
+  it.each(["session_idle", "session_limit"])(
+    "passes an upstream 401 %s through, clears the session cookies and calls no refresh",
+    async (code) => {
+      const api = fakeApi();
+      api.on("POST", "/auth/refresh", () =>
+        jsonResponse(200, { access_token: "A2", refresh_token: "R2", expires_in: 1800 }),
+      );
+      api.on("GET", "/alerts/counts", () => jsonResponse(401, { detail: { code, message: "lapsed" } }));
+      const out = await relay(portalRequest("/api/backend/alerts/counts", { cookies: SIGNED_IN }));
+      expect(out.status).toBe(401);
+      expect((await out.json()).detail).toEqual({ code, message: "lapsed" });
+      expect(api.calls.map((c) => c.path)).toEqual(["/alerts/counts"]);
+      const c = setCookies(out);
+      expect(c.aslms_at).toContain("Max-Age=0");
+      expect(c.aslms_rt).toContain("Max-Age=0");
+      expect(c.aslms_device).toBeUndefined();
+    },
+  );
+
+  it.each(["session_idle", "session_limit"])("passes a refresh refused with %s through", async (code) => {
+    const api = fakeApi();
+    api.on("POST", "/auth/refresh", () => jsonResponse(401, { detail: { code, message: "lapsed" } }));
+    const out = await relay(portalRequest("/api/backend/me", { cookies: { aslms_rt: "R1", aslms_device: "D1" } }));
+    expect(out.status).toBe(401);
+    expect((await out.json()).detail.code).toBe(code);
+    expect(setCookies(out).aslms_rt).toContain("Max-Age=0");
+    expect(api.calls.map((c) => c.path)).toEqual(["/auth/refresh"]);
+  });
+
+  it("still answers signed_out for any other refresh failure", async () => {
+    const api = fakeApi();
+    api.on("POST", "/auth/refresh", () => jsonResponse(401, { detail: { code: "refresh_invalid", message: "x" } }));
+    api.on("GET", "/me", () => jsonResponse(401, { detail: "token is not valid" }));
+    const out = await relay(portalRequest("/api/backend/me", { cookies: SIGNED_IN }));
+    expect(out.status).toBe(401);
+    expect((await out.json()).detail.code).toBe("signed_out");
+    expect(api.calls.map((c) => c.path)).toEqual(["/me", "/auth/refresh"]);
+  });
+
+  it("keeps the session's life on the refreshed cookies", async () => {
+    const api = fakeApi();
+    api.on("POST", "/auth/refresh", () =>
+      jsonResponse(200, { access_token: "A2", refresh_token: "R2", expires_in: 1800, session_expires_in: 900 }),
+    );
+    api.on("GET", "/me", () => jsonResponse(200, {}));
+    const out = await relay(portalRequest("/api/backend/me", { cookies: { aslms_rt: "R1" } }));
+    expect(out.status).toBe(200);
+    expect(setCookies(out).aslms_rt).toContain("Max-Age=900");
+    expect(setCookies(out).aslms_at).toContain("Max-Age=870");
+  });
+
   it("streams a multipart body, also on the retry", async () => {
     const api = fakeApi();
     api.on("POST", "/auth/refresh", () =>

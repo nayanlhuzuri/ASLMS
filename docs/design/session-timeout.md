@@ -493,7 +493,9 @@ uicheck (`frontend/e2e`):
       without activity.", even though System Health kept polling.
    4. Sign in, then click Sign Out in one tab. The other tab leaves at once.
    5. Copy the `aslms_rt` and `aslms_at` cookie values before an idle sign-out. Replaying them with `curl`
-      against `http://localhost:3000/api/backend/me` after the lapse answers 401 `session_idle`.
+      against `http://localhost:3000/api/backend/me` about a minute after the lapse answers 401 `session_idle`.
+      (Right after a browser idle sign-out the server session can still be live for up to about 60 seconds, deviation
+      12, so a replay inside that minute can still work; read "after the lapse" as about a minute later.)
 4. Hard limit: in a signed-in session, set the row's `expires_at` to two and a half minutes ahead with SQL as the
    owner role. "Session Ending Soon" appears, and the session then ends with "Your session reached its 12-hour
    limit."
@@ -510,3 +512,64 @@ None. Each choice the owner did not state is decided above, with its reason:
 - one audit row per idle or limit end (decision 22).
 
 A different answer at approval changes only the decision named.
+
+## Deviations
+Recorded by the developer during the build (27 Oct 2026). None changes a business rule or an API field of the design.
+
+1. **Migration 0031, not 0028.** 0028 to 0030 were taken on `main` by the time of the build (rows 157, 176, 178), so the
+   migration is `0031_session_timeout.py` (`down_revision = "0030"`) and its test `test_migration_0031.py`. Every
+   "0028" above reads 0031; `schema.md` names 0031. The owner's step after the merge is "apply 0031 with `migrate`".
+   **At merge (28 Oct 2026): 0031 kept; merge migration 0033 (`0033_merge_session_timeout.py`, `down_revision = ("0031", "0032")`, no schema change) joins 0031 and 0032 because 0032 was applied first.**
+2. **Where the session errors live.** `SessionIdle`, `SessionLimit` and `SessionInvalid` are defined in
+   `services/sessions.py` as subclasses of `OtpError` (the base of `AuthFailure`, with the same HTTP mapping in the
+   router) rather than of `AuthFailure`, because `services/users.py::end_sessions` uses the module and `auth` imports
+   `users`; `services/auth.py` re-exports the first two.
+3. **A sign-in sweeps the device's lapsed sessions first.** `open_session` runs the sweep restricted to the device
+   before ending its open sessions as `replaced`. A person signed out for idleness who signs in again on the same
+   browser before the 5-minute sweep still gets the `auth.signed_out_idle` row (decision 12: every sign-in ends with
+   exactly one end record); an active session is still `replaced` with no extra row (decision 3).
+4. **The earlier deadline names the end.** The sweep ends a row as `idle` when `last_activity_at + idle` comes before
+   `expires_at` and as `limit` otherwise (the limit on a tie), even when the sweep runs after both (a scheduler stopped
+   for hours); the request check (`sessions.check`) and the browser clock use the same rule, so the 401 code and the
+   recorded end agree.
+5. **Logout ends the caller's session too.** `POST /auth/logout` ends the session of the presented refresh token
+   (`revoke_refresh_token`, as designed) and also the access token's `sid`, so a logout with a stale refresh cookie
+   still ends the session it was made from.
+6. **The own password change keeps the session's device.** The fresh refresh token of `POST /me/password` is issued on
+   the kept session's device rather than on the device the request names, so a token's device and its session's
+   device always agree.
+7. **"Sign in Now".** The notice's secondary button reads "Sign in Now": the Title Case guard keeps "in" lower case in
+   the middle of a label (precedent "Not Signed in Yet"). The other labels are as designed.
+8. **The ping answer names the hours** (review finding 3, replacing the fixed "12-hour" wording). `POST /me/activity`
+   also answers `max_hours` (`SESSION_MAX_HOURS`, `ActivityOut.max_hours`). The browser keeps it with the other
+   limits in `aslms.session.limits`; the notice reads "its <max_hours>-hour limit" and the sign-in banner reads it
+   from the same stored limits (written by the session's last ping, never from the address). Before any ping, or from
+   an older API, both say "its time limit". `openapi.json` and `schema.d.ts` are regenerated.
+9. **Two small browser rules.** On load the watcher forgets a stored hard end that is already past (an earlier
+   session's) until the load ping names the new one, and ignores an `out` written before the page was opened, so a
+   fresh sign-in is not sent back to the sign-in page by the previous session's records. The limit notice also has
+   one polite live-region sentence, like the warning.
+10. **Sign Out from the warning and Sign in Now** both write `out` = `signed_out` (every tab leaves), call the sign-out
+    and go to `/login?next=<here>`; the user menu's Sign Out writes `out` too and keeps going to `/login`.
+11. **Supporting changes.** `ERRORS` in `messages.ts` gains texts for `session_idle` and `session_limit`; the uicheck
+    `watch()` takes the ping answer per state; `docs/operations.md` section 15 names the three settings, the sweep and
+    `aslms sessions sweep`; the test helper `forget_devices` also clears `user_sessions`; the existing device-revoke
+    test now revokes from a second device (revoking the device one sits at ends one's own session, decision 11).
+12. **The browser's deadline does not log out at the API** (review finding 1; changes decision 19, step 2). The watch
+    sends `/api/session/logout` with `{reason: "idle" | "limit"}`, and for those two reasons the web server only
+    clears the session cookies; it never calls `/auth/logout`. Because the trailing ping keeps the server's
+    `last_activity_at` at or after the browser's last activity (and the browser's hard end can run a second early),
+    the server session is usually still live for up to a minute when the browser's deadline fires, and a logout then
+    would have recorded `signed_out` and an `auth.logout` row by the person. Now the session runs to its own end on
+    the server and the request check and the sweep record `idle` or `limit` with `auth.signed_out_idle` /
+    `auth.session_limit`. A person's Sign Out (the user menu, the warning's Sign Out, Sign in Now) still sends no
+    reason and revokes at the API. A sign-in on the same browser inside that last minute ends the old session as
+    `replaced` (decision 3), since it had not lapsed on the server yet. No dedicated API end was added: the server
+    stays the only authority on when a session lapsed.
+13. **A successful code step forgets the stored limits** (review finding 2). `CodeForm` clears
+    `aslms.session.limits` once the code is accepted, so a hard end still in the future from the previous session
+    cannot open "Session Ending Soon" in the new one before its first ping; a refused code keeps them.
+14. **A session with no time left gets zero-life cookies** (review finding 4). `session_expires_in` of 0 is honoured
+    (both cookies `Max-Age=0`) instead of being read as missing and given 12 hours.
+15. **A concurrent race test** (review finding 5): two sweeps on two connections at once, and a sweep and a ping
+    holding the row in turn, end each session once with one audit row, and a ping never revives an ended session.

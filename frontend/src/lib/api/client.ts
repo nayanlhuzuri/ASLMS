@@ -2,8 +2,12 @@
  * The portal's one fetch wrapper (design portal-shell, decisions 5, 9 and 11). Every call goes to the web server:
  * `/api/backend/…` (the relay) or `/api/session/…`. It sets `X-ASLMS-Request`, turns the API's three error shapes
  * into `ApiError {status, code, message, extra}`, sends the browser to the welcome pages on the server's
- * first-sign-in codes, and on `signed_out` clears the query cache and goes to `/login?next=…`.
+ * first-sign-in codes, and on `signed_out` clears the query cache and goes to `/login?next=…`. On the session ends
+ * `session_idle` and `session_limit` (design session-timeout, decision 19) it does the same with `reason=idle` or
+ * `reason=limit`, and tells every other tab through the shared session clock.
  */
+import { sessionStore, type OutReason } from "@/lib/session/store";
+
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
@@ -88,11 +92,31 @@ export const GATE_PAGES: Record<string, string> = {
   profile_confirmation_required: "/welcome/profile",
 };
 
-function signedOut(): void {
+/** The 401 codes that end the session in the browser, with the reason the sign-in page explains. */
+export const SIGNED_OUT_CODES: Record<string, OutReason> = {
+  session_idle: "idle",
+  session_limit: "limit",
+  signed_out: null,
+  session_ended: null,
+};
+
+/** `/login`, with `reason` when there is one and `next` = the current page unless it is the start or sign-in page. */
+export function loginAddress(reason: OutReason = null, here: string = hooks.currentPath()): string {
+  const params = new URLSearchParams();
+  if (reason) params.set("reason", reason);
+  if (here && here !== "/" && !here.startsWith("/login")) params.set("next", here);
+  const qs = params.toString();
+  return qs ? `/login?${qs}` : "/login";
+}
+
+/**
+ * Leaves for the sign-in page: the cache cleared, and unless `broadcast` is false (a tab following another), the
+ * reason written to the shared clock so every other tab of the browser leaves too.
+ */
+export function signedOut(reason: OutReason = null, { broadcast = true }: { broadcast?: boolean } = {}): void {
+  if (broadcast) sessionStore().setOut(reason);
   hooks.clearCache();
-  const here = hooks.currentPath();
-  const keep = here && here !== "/" && !here.startsWith("/login");
-  hooks.navigate(keep ? `/login?next=${encodeURIComponent(here)}` : "/login");
+  hooks.navigate(loginAddress(reason));
 }
 
 async function handle(response: Response): Promise<unknown> {
@@ -109,7 +133,7 @@ async function handle(response: Response): Promise<unknown> {
   if (response.ok) return body;
   const error = parseError(response.status, body);
   const gate = GATE_PAGES[error.code];
-  if (response.status === 401 && error.code === "signed_out") signedOut();
+  if (response.status === 401 && error.code in SIGNED_OUT_CODES) signedOut(SIGNED_OUT_CODES[error.code] ?? null);
   else if (response.status === 403 && gate) hooks.navigate(gate);
   throw error;
 }

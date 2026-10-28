@@ -13,8 +13,9 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from aslms.domain.events import Event, EventVisibility
-from aslms.domain.org import Designation, Office, OtpCode, RefreshToken, User
+from aslms.domain.org import Designation, Office, OtpCode, RefreshToken, SessionEndReason, User
 from aslms.domain.reference import EventType, Role
+from aslms.services import sessions
 from aslms.services.audit import Actor, write_audit
 from aslms.services.passwords import (
     DUMMY_HASH,
@@ -56,8 +57,11 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
-def end_sessions(session: Session, user: User, at: datetime | None = None) -> int:
-    """Revokes every live refresh token of the login (design `otp-and-profile`, decision 9); the count."""
+def end_sessions(
+    session: Session, user: User, at: datetime | None = None, keep: uuid.UUID | None = None
+) -> int:
+    """Revokes every live refresh token of the login (design `otp-and-profile`, decision 9) and ends its open sign-in
+    sessions as `ended`, except `keep` (design `session-timeout`, decisions 11 and 13); the refresh-token count."""
     at = at or _now()
     result = session.execute(
         update(RefreshToken)
@@ -65,6 +69,7 @@ def end_sessions(session: Session, user: User, at: datetime | None = None) -> in
         .values(revoked_at=at)
         .execution_options(synchronize_session=False)
     )
+    sessions.end(session, SessionEndReason.ENDED, at, user_id=user.id, keep=keep)
     return result.rowcount or 0
 
 
@@ -268,10 +273,19 @@ def _email_change_notice(mailer, old_email: str, user: User) -> None:
         log.warning("e-mail change notice to %s not sent: %s", mask_address(old_email), exc)
 
 
-def set_password(session: Session, actor: Actor, user: User, password: str, *, by_self: bool = False) -> None:
+def set_password(
+    session: Session,
+    actor: Actor,
+    user: User,
+    password: str,
+    *,
+    by_self: bool = False,
+    keep_session: uuid.UUID | None = None,
+) -> None:
     """Sets the password under the policy (design `otp-and-profile`, decisions 8, 9, 14): records
-    `password_changed_at` (older access tokens stop), revokes every refresh token, spends every live code, and sets
-    `must_change_password` unless the person set it themself. Someone else's set is audited
+    `password_changed_at` (older access tokens stop), revokes every refresh token, ends every sign-in session but
+    `keep_session` (the caller's, on an own change: design `session-timeout`, decision 13), spends every live code,
+    and sets `must_change_password` unless the person set it themself. Someone else's set is audited
     `user.set_password`; the person's own change or reset is audited by `services/auth.py`."""
     check_policy(password, user.password_hash)
     now = _now()
@@ -279,7 +293,7 @@ def set_password(session: Session, actor: Actor, user: User, password: str, *, b
     user.must_change_password = not by_self
     user.password_changed_at = now
     user.updated_by = actor.user_id
-    end_sessions(session, user, now)
+    end_sessions(session, user, now, keep=keep_session)
     end_codes(session, user, now)  # a pending sign-in begun with the old password ends too
     session.flush()
     if not by_self:

@@ -36,9 +36,12 @@ const CONTROL = `${FIELD}, a[href], button:not([disabled]), [tabindex]:not([tabi
  * Where an overlay's focus goes first (design portal-ui-polish, decision 3): the first field of the body, else the
  * body's first enabled control, else the footer's first control, else the first control anywhere (the header's
  * Close only when it is the only control), else the overlay itself. The body and footer are marked
- * `data-overlay-part`; an overlay without the marks (the phone drawer) is searched as a whole.
+ * `data-overlay-part`; an overlay without the marks (the phone drawer) is searched as a whole. A control marked
+ * `data-autofocus` comes first (design session-timeout, decision 17: Stay Signed In, not Sign Out, takes the focus).
  */
 export function firstFocus(root: HTMLElement): HTMLElement {
+  const preferred = root.querySelector<HTMLElement>("[data-autofocus]:not([disabled])");
+  if (preferred) return preferred;
   const body = root.querySelector<HTMLElement>("[data-overlay-part='body']");
   const foot = root.querySelector<HTMLElement>("[data-overlay-part='footer']");
   const scope = body ?? (foot ? null : root);

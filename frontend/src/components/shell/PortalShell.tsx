@@ -9,6 +9,8 @@
  * entries plus More. The breadcrumb sits inside each page, in its `PageHeader`. There is no acting-membership switch:
  * the API picks the membership that holds the function for each action.
  * Design portal-ui-polish-2, decisions 14-19: the navigation is a one-level tree (`NavTree`), the same in the drawer.
+ * Design session-timeout, decisions 17 and 19: the session watch is mounted last, so its dialog is the innermost
+ * overlay; Sign Out tells every tab of the browser to leave.
  */
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
@@ -26,6 +28,7 @@ import { bottomBarFor, CASE_READERS, entryActive, navFor, navGroupsFor, type Nav
 import { Brand } from "./Brand";
 import { BellIcon, MenuIcon, MoreIcon, NAV_ICONS, SearchIcon } from "./icons";
 import { NavTree } from "./NavTree";
+import { broadcastSignOut, SessionWatch } from "./SessionWatch";
 import s from "./shell.module.css";
 
 export { Breadcrumb } from "@/components/ui";
@@ -178,6 +181,7 @@ function UserMenu({ me }: { me: Me }) {
   const queryClient = useQueryClient();
 
   async function signOut() {
+    broadcastSignOut();
     try {
       await session("logout");
     } finally {
@@ -307,6 +311,7 @@ export function PortalShell({ children }: { children: ReactNode }) {
         </main>
       </div>
       <BottomBar me={me.data} moreOpen={drawer} onMore={() => setDrawer(true)} />
+      <SessionWatch />
     </div>
   );
 }

@@ -62,6 +62,42 @@
         "title": "ActOut",
         "type": "object"
       },
+      "ActivityOut": {
+        "description": "`POST /me/activity` (design session-timeout, decision 14): the limits and the seconds left, all in seconds.",
+        "properties": {
+          "idle_ends_in": {
+            "description": "equals idle_seconds just after the touch",
+            "title": "Idle Ends In",
+            "type": "integer"
+          },
+          "idle_seconds": {
+            "title": "Idle Seconds",
+            "type": "integer"
+          },
+          "max_hours": {
+            "description": "SESSION_MAX_HOURS: the hard limit's length, for the portal's wording",
+            "title": "Max Hours",
+            "type": "integer"
+          },
+          "session_ends_in": {
+            "title": "Session Ends In",
+            "type": "integer"
+          },
+          "warning_seconds": {
+            "title": "Warning Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "idle_seconds",
+          "warning_seconds",
+          "idle_ends_in",
+          "session_ends_in",
+          "max_hours"
+        ],
+        "title": "ActivityOut",
+        "type": "object"
+      },
       "AdminSwapIn": {
         "properties": {
           "assignments": {
@@ -23729,6 +23765,11 @@
             "title": "Refresh Token",
             "type": "string"
           },
+          "session_expires_in": {
+            "description": "seconds to the session's hard limit (design session-timeout); the refresh token dies with it",
+            "title": "Session Expires In",
+            "type": "integer"
+          },
           "token_type": {
             "default": "bearer",
             "title": "Token Type",
@@ -23742,6 +23783,7 @@
           "access_token",
           "refresh_token",
           "expires_in",
+          "session_expires_in",
           "user"
         ],
         "title": "TokenOut",
@@ -35794,6 +35836,7 @@
     },
     "/auth/logout": {
       "post": {
+        "description": "Revokes the refresh token and ends the caller's session (`signed_out`, design `session-timeout`).",
         "operationId": "logout_auth_logout_post",
         "requestBody": {
           "content": {
@@ -35994,7 +36037,7 @@
     },
     "/auth/refresh": {
       "post": {
-        "description": "Rotation. 401 `refresh_invalid`; an already-rotated token ends every session of the login (401\n`session_ended`).",
+        "description": "Rotation. 401 `refresh_invalid`; an already-rotated token ends every session of the login (401\n`session_ended`); 401 `session_idle` or `session_limit` once the token's session has lapsed (design\n`session-timeout`, decision 9). The new pair keeps the session; a refresh is not activity.",
         "operationId": "refresh_auth_refresh_post",
         "requestBody": {
           "content": {
@@ -42873,6 +42916,33 @@
           }
         ],
         "summary": "Me",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/me/activity": {
+      "post": {
+        "description": "The person acted (a click, typing, navigation): the caller's session's `last_activity_at` moves to now. Any\nsigned-in login, also before the first-sign-in steps. No other request counts as activity. 401 `session_idle`\nor `session_limit` once lapsed: a ping cannot revive a session (design `session-timeout`, decision 14). Not\naudited; the session row is its record.",
+        "operationId": "activity_me_activity_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Activity",
         "tags": [
           "auth"
         ]

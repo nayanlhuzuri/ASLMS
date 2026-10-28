@@ -2938,3 +2938,24 @@ Backlog row 190 `next-hearing-highlight`; design `docs/design/next-hearing-highl
 - Dark theme not built (owner check 1).
 - The header shows only the court date, and other screens are unchanged (owner check 3).
 - The owner's browser check at 375, 768 and 1280 px, and `docker compose build` after merge.
+## Session timeout (2026-10-27)
+Backlog row 169 `session-timeout`; design `docs/design/session-timeout.md` (approved by the owner 26 Oct 2026). Migration 0031 (`0031_session_timeout`, revising 0030; merge migration 0033 joins 0031 and 0032 into one head because 0032 was applied first). Reading inside the PDF viewer not counting as activity and unsaved text not being kept were accepted by the owner.
+
+**Built**
+- Server-side sessions: table `user_sessions` (one row per e-mailed-code sign-in; `refresh_tokens.session_id` added). Idle limit 30 minutes and hard limit 12 hours, both checked on every authenticated request and on every refresh; the answers are 401 `session_idle` and 401 `session_limit`. `POST /me/activity` is the activity ping and answers `max_hours`; token answers carry `session_expires_in`.
+- A 5-minute `sessions-sweep` beat job and `aslms sessions sweep [--dry-run]` end lapsed sessions at their true deadline. Every session end writes one audit row (`auth.signed_out_idle`, `auth.session_limit`, logout, replaced and so on).
+- Settings `SESSION_IDLE_MINUTES`, `SESSION_WARNING_SECONDS`, `SESSION_MAX_HOURS` (`.env.example`, runbook section 15). `ASLMS_REFRESH_TOKEN_DAYS` is retired.
+- Web relay: cookie lifetimes end with the session. Portal session watch: one clock and store shared across tabs, the 2-minute "Are You Still There?" warning with Stay Signed In, the limit notice, the sign-in banner; a browser deadline that only clears cookies. uicheck states written (the integrator runs them).
+
+**Decisions**
+- The server is the only authority on when a session lapsed; the browser deadline never calls the API logout, so the true end is recorded as `idle` or `limit` and not as the person's logout.
+- The 14-day sliding refresh life of earlier decisions is superseded: a refresh token now ends with its session, at most 12 hours after sign-in.
+- Background polling does not count as activity; clicks, typing, scrolling and navigation do.
+
+**Deviations** (fifteen, all in the design note's Deviations): migration number 0031 not 0028, joined to 0032 by merge migration 0033 (1); a sign-in sweeps the device's lapsed sessions first (3); the earlier deadline names the end (4); logout also ends the access token's session (5); the browser's deadline does not log out at the API (12); and ten smaller ones. Side effect of 12: signing in again on the same browser within about the last minute after a browser idle sign-out records the old session as `replaced`, not `idle`, because it had not yet lapsed on the server. Accepted.
+
+**Tests and review**: pytest 2568 passed, 3 skipped; ruff, eslint and tsc clean; vitest 1627 passed; 15 edge tests by the tester. Review round 1: one blocking finding (an idle or limit sign-out recorded as the person's logout) and four advisories, all fixed (deviations 12 to 15). Re-review: may merge; advisory A1 is deviation 12's side effect above (accepted), advisory A2 added as a line to the owner's Verification step 3.5 (a cookie replay can still work for about a minute after a browser idle sign-out). A flaky custody test seen in one run was fixed separately on main (f1c1427).
+
+**Left for later / owner steps**
+- After the merge: apply 0031 and the merge 0033 with the `migrate` step, then `docker compose build`. Everyone signs in once after the deploy (existing refresh tokens have no session).
+- The owner's browser check in the design note's Verification (with `SESSION_IDLE_MINUTES=3`, `SESSION_WARNING_SECONDS=60` for the run); the integrator runs uicheck.

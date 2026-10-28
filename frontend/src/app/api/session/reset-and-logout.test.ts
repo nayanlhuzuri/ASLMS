@@ -85,7 +85,82 @@ describe("password change", () => {
   });
 });
 
+describe("password change on a lapsed session (session-timeout, decision 15)", () => {
+  it.each(["session_idle", "session_limit"])("passes %s through and clears the session cookies", async (code) => {
+    const api = fakeApi();
+    api.on("POST", "/me/password", () => jsonResponse(401, { detail: { code, message: "lapsed" } }));
+    const r = await password(
+      portalRequest("/api/session/password", {
+        method: "POST",
+        cookies: { aslms_at: "A1", aslms_rt: "R1", aslms_device: "D" },
+        body: "{}",
+      }),
+    );
+    expect(r.status).toBe(401);
+    expect((await r.json()).detail).toEqual({ code, message: "lapsed" });
+    const c = setCookies(r);
+    expect(c.aslms_rt).toContain("Max-Age=0");
+    expect(c.aslms_device).toBeUndefined();
+  });
+
+  it("passes a refresh refused with session_idle through", async () => {
+    const api = fakeApi();
+    api.on("POST", "/auth/refresh", () => jsonResponse(401, { detail: { code: "session_idle", message: "idle" } }));
+    const r = await password(
+      portalRequest("/api/session/password", { method: "POST", cookies: { aslms_rt: "R1" }, body: "{}" }),
+    );
+    expect(r.status).toBe(401);
+    expect((await r.json()).detail.code).toBe("session_idle");
+    expect(api.calls.map((c) => c.path)).toEqual(["/auth/refresh"]);
+  });
+
+  it("answers signed_out for another 401", async () => {
+    const api = fakeApi();
+    api.on("POST", "/me/password", () => jsonResponse(401, { detail: "token is not valid" }));
+    const r = await password(
+      portalRequest("/api/session/password", { method: "POST", cookies: { aslms_at: "A1", aslms_rt: "R1" }, body: "{}" }),
+    );
+    expect((await r.json()).detail.code).toBe("signed_out");
+  });
+});
+
 describe("logout", () => {
+  it.each(["idle", "limit"])(
+    "for the browser's %s deadline clears the cookies without telling the API (session-timeout, deviation 12)",
+    async (reason) => {
+      const api = fakeApi();
+      api.on("POST", "/auth/logout", () => new Response(null, { status: 204 }));
+      api.on("POST", "/auth/refresh", () => jsonResponse(200, { access_token: "A2", refresh_token: "R2", expires_in: 1800 }));
+      const r = await logout(
+        portalRequest("/api/session/logout", {
+          method: "POST",
+          cookies: { aslms_at: "A1", aslms_rt: "R1", aslms_device: "D" },
+          body: JSON.stringify({ reason }),
+        }),
+      );
+      expect(r.status).toBe(204);
+      expect(api.calls).toHaveLength(0);
+      const c = setCookies(r);
+      expect(c.aslms_at).toContain("Max-Age=0");
+      expect(c.aslms_rt).toContain("Max-Age=0");
+      expect(c.aslms_device).toBeUndefined();
+    },
+  );
+
+  it("a person's Sign Out with any other reason still revokes at the API", async () => {
+    const api = fakeApi();
+    api.on("POST", "/auth/logout", () => new Response(null, { status: 204 }));
+    const r = await logout(
+      portalRequest("/api/session/logout", {
+        method: "POST",
+        cookies: { aslms_at: "A1", aslms_rt: "R1" },
+        body: JSON.stringify({ reason: "signed_out" }),
+      }),
+    );
+    expect(r.status).toBe(204);
+    expect(api.calls.map((c) => c.path)).toEqual(["/auth/logout"]);
+  });
+
   it("revokes the refresh token at the API and clears the cookies, keeping the device", async () => {
     const api = fakeApi();
     api.on("POST", "/auth/logout", () => new Response(null, { status: 204 }));

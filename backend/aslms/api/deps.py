@@ -15,11 +15,11 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session, sessionmaker
 
 from aslms.api.security import issued_before, read_access_claims
-from aslms.domain.org import User
+from aslms.domain.org import User, UserSession
 from aslms.domain.reference import Permission
 from aslms.integration.napix.client import NapixClient
 from aslms.integration.napix.hc import NapixHighCourt
-from aslms.services import access
+from aslms.services import access, sessions
 from aslms.services.audit import Actor
 from aslms.services.court_search import CourtSearchBusy
 from aslms.services.mailer import Mailer, MailError, UnconfiguredMailer
@@ -55,16 +55,33 @@ def current_user_pending(
 ) -> User:
     """The signed-in login without the first-sign-in gate: only for the endpoints a login must reach before it
     has changed its password and confirmed its profile (design `otp-and-profile`, decision 11). An access token
-    issued before the login's `password_changed_at` (whole seconds) is refused (decision 9)."""
+    issued before the login's `password_changed_at` (whole seconds) is refused (decision 9). The token's session
+    (`sid`) is checked on every request (design `session-timeout`, decision 7): 401 `session_limit` or
+    `session_idle` once lapsed, the plain refusal without a session; nothing is written. The session id is put on
+    `request.state.auth_session_id`."""
     if creds is None or creds.scheme.lower() != "bearer":
         raise _unauthorized("not signed in")
-    claims = read_access_claims(creds.credentials, request.app.state.settings)
+    settings = request.app.state.settings
+    claims = read_access_claims(creds.credentials, settings)
     user = session.get(User, claims[0]) if claims else None
     if user is None or not user.is_active:
         raise _unauthorized("token is not valid")
     if issued_before(claims[1], user.password_changed_at):
         raise _unauthorized("token is not valid")
+    sid = claims[2]
+    row = session.get(UserSession, sid) if sid is not None else None
+    try:
+        sessions.check(row, user.id, sessions.now(), settings)
+    except (sessions.SessionIdle, sessions.SessionLimit) as exc:
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED,
+            {"code": exc.code, "message": str(exc)},
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from None
+    except sessions.SessionInvalid:
+        raise _unauthorized("token is not valid") from None
     request.state.user = user
+    request.state.auth_session_id = sid
     return user
 
 

@@ -11,18 +11,16 @@ function cookies(headers: Headers): Record<string, string> {
 
 afterEach(() => {
   delete process.env.COOKIE_SECURE;
-  delete process.env.ASLMS_REFRESH_TOKEN_DAYS;
 });
 
 describe("session cookies", () => {
-  it("sets HttpOnly, SameSite=Lax, Secure cookies with the token lifetimes", () => {
-    process.env.ASLMS_REFRESH_TOKEN_DAYS = "14";
+  it("sets HttpOnly, SameSite=Lax, Secure cookies that die with the session", () => {
     const h = new Headers();
-    setTokens(h, { access_token: "A", refresh_token: "R", expires_in: 1800 });
+    setTokens(h, { access_token: "A", refresh_token: "R", expires_in: 1800, session_expires_in: 43_000 });
     const c = cookies(h);
     expect(c.aslms_at).toContain("aslms_at=A");
     expect(c.aslms_at).toContain("Max-Age=1770");
-    expect(c.aslms_rt).toContain(`Max-Age=${14 * 86400}`);
+    expect(c.aslms_rt).toContain("Max-Age=43000");
     for (const line of Object.values(c)) {
       expect(line).toContain("HttpOnly");
       expect(line).toContain("SameSite=Lax");
@@ -31,15 +29,39 @@ describe("session cookies", () => {
     }
   });
 
-  it("drops Secure only when COOKIE_SECURE=false and reads the refresh days", () => {
+  it("caps the access cookie at the session's end (session-timeout, decision 15)", () => {
+    const h = new Headers();
+    setTokens(h, { access_token: "A", refresh_token: "R", expires_in: 1800, session_expires_in: 600 });
+    const c = cookies(h);
+    expect(c.aslms_rt).toContain("Max-Age=600");
+    expect(c.aslms_at).toContain("Max-Age=570");
+  });
+
+  it("falls back to 12 hours without session_expires_in, and drops Secure only when COOKIE_SECURE=false", () => {
     process.env.COOKIE_SECURE = "false";
-    process.env.ASLMS_REFRESH_TOKEN_DAYS = "7";
     const h = new Headers();
     setTokens(h, { access_token: "A", refresh_token: "R", expires_in: 600 });
     const c = cookies(h);
     expect(c.aslms_rt).not.toContain("Secure");
-    expect(c.aslms_rt).toContain(`Max-Age=${7 * 86400}`);
+    expect(c.aslms_rt).toContain(`Max-Age=${12 * 3600}`);
     expect(c.aslms_at).toContain("Max-Age=570");
+  });
+
+  it("gives zero-life cookies when the session has no time left (review finding 4)", () => {
+    const h = new Headers();
+    setTokens(h, { access_token: "A", refresh_token: "R", expires_in: 1, session_expires_in: 0 });
+    const c = cookies(h);
+    expect(c.aslms_rt).toContain("Max-Age=0");
+    expect(c.aslms_at).toContain("Max-Age=0");
+  });
+
+  it("reads under a second left as zero and a malformed value as missing", () => {
+    const h = new Headers();
+    setTokens(h, { access_token: "A", refresh_token: "R", expires_in: 1800, session_expires_in: 0.4 });
+    expect(cookies(h).aslms_rt).toContain("Max-Age=0");
+    const g = new Headers();
+    setTokens(g, { access_token: "A", refresh_token: "R", expires_in: 1800, session_expires_in: -5 });
+    expect(cookies(g).aslms_rt).toContain(`Max-Age=${12 * 3600}`);
   });
 
   it("keeps the device for 400 days and the challenge for 15 minutes on /api/session", () => {

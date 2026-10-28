@@ -339,6 +339,12 @@ backlog row 27) or Mailtrap's sending service with a verified domain. Test with
   section 12.
 - **Sign-in answers 429 `throttled`:** many sign-ins from one address. Wait a minute. If a whole office is refused
   every morning, raise `PROXY_SESSION_RATE` / `PROXY_SESSION_BURST` and restart the proxy.
+- **People are signed out after 30 minutes, or after 12 hours** (design session-timeout): that is the session rule,
+  enforced by the API. `SESSION_IDLE_MINUTES` (2-240), `SESSION_WARNING_SECONDS` (30-600, less than the idle time)
+  and `SESSION_MAX_HOURS` (1-24) set it; change `.env`, then `docker compose up -d api scheduler` (with the court-data
+  switch as always). The scheduler's `sessions-sweep` (every 5 minutes) writes the idle and limit ends to
+  `user_sessions` with one `auth.signed_out_idle` / `auth.session_limit` audit row each;
+  `docker compose exec api aslms sessions sweep --dry-run` shows what it would end now, and without `--dry-run` runs it.
 - **Upload refused 413 `too_large`:** the file is over `UPLOAD_MAX_BYTES`. The proxy and the API use the same limit.
 - **A job shows `running` for hours:** `aslms ops repair-jobs --dry-run`, then without `--dry-run`.
 - **Disk full:** check `BACKUP_DIR` (lower `BACKUP_KEEP_*`, never delete the store mirror), the store, and Docker's

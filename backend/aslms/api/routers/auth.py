@@ -1,6 +1,7 @@
 """`/auth/*` and `/me` (design `otp-and-profile`, "API"): sign-in in two steps (password, then the e-mailed
 code), code resend, password reset by e-mail, refresh with reuse detection, logout; the caller's own login,
-password, profile and devices.
+password, profile and devices; `POST /me/activity`, the only request that counts as the person's activity (design
+`session-timeout`, decisions 4 and 14).
 
 Decision 5: a refused sign-in step is *returned* as a response, never raised, so the request transaction
 commits the attempt counter, the spent code, the audit row and any revocation with it. Every error carries
@@ -10,15 +11,15 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, Header, Request, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from aslms.api import schemas
 from aslms.api.deps import actor_of, current_user, current_user_pending, get_mailer, get_session
 from aslms.api.security import revoke_refresh_token
-from aslms.domain.org import Office, User
-from aslms.services import access, auth, memberships, profile
+from aslms.domain.org import Office, SessionEndReason, User
+from aslms.services import access, auth, memberships, profile, sessions
 from aslms.services.assistant import portal_mode
 from aslms.services.audit import write_audit
 from aslms.services.mailer import Mailer
@@ -101,6 +102,7 @@ def _token_out(session: Session, signed: auth.Signed) -> schemas.TokenOut:
         access_token=signed.access_token,
         refresh_token=signed.refresh_token,
         expires_in=signed.expires_in,
+        session_expires_in=signed.session_expires_in,
         user=user_out(session, signed.user),
         next_step=signed.next_step,
         device_token=signed.device_token,
@@ -230,7 +232,8 @@ def password_reset_confirm(
 @router.post("/auth/refresh", response_model=schemas.TokenOut)
 def refresh(body: schemas.RefreshIn, request: Request, session: Session = Depends(get_session)):
     """Rotation. 401 `refresh_invalid`; an already-rotated token ends every session of the login (401
-    `session_ended`)."""
+    `session_ended`); 401 `session_idle` or `session_limit` once the token's session has lapsed (design
+    `session-timeout`, decision 9). The new pair keeps the session; a refresh is not activity."""
     try:
         signed = auth.refresh(session, body.refresh_token, _client(request), request.app.state.settings)
     except REFUSED as exc:
@@ -245,8 +248,33 @@ def logout(
     session: Session = Depends(get_session),
     user: User = Depends(current_user_pending),
 ) -> None:
+    """Revokes the refresh token and ends the caller's session (`signed_out`, design `session-timeout`)."""
     revoke_refresh_token(session, body.refresh_token, user.id)
+    sid = getattr(request.state, "auth_session_id", None)
+    if sid is not None:
+        sessions.end(session, SessionEndReason.SIGNED_OUT, sessions.now(), session_id=sid, user_id=user.id)
     write_audit(session, actor_of(request, user, session), "auth.logout", "user", user.id)
+
+
+@router.post("/me/activity", response_model=schemas.ActivityOut)
+def activity(
+    request: Request, session: Session = Depends(get_session), user: User = Depends(current_user_pending)
+):
+    """The person acted (a click, typing, navigation): the caller's session's `last_activity_at` moves to now. Any
+    signed-in login, also before the first-sign-in steps. No other request counts as activity. 401 `session_idle`
+    or `session_limit` once lapsed: a ping cannot revive a session (design `session-timeout`, decision 14). Not
+    audited; the session row is its record."""
+    settings = request.app.state.settings
+    now = sessions.now()
+    try:
+        row = sessions.touch(session, request.state.auth_session_id, user.id, now, settings)
+    except sessions.SessionFailure as exc:
+        if isinstance(exc, sessions.SessionInvalid):
+            raise HTTPException(
+                status.HTTP_401_UNAUTHORIZED, "token is not valid", headers={"WWW-Authenticate": "Bearer"}
+            ) from None
+        return _refused(exc)
+    return schemas.ActivityOut(**sessions.state(row, now, settings))
 
 
 # ------------------------------------------------------------------------------------------------ me
@@ -284,6 +312,7 @@ def change_password(
             body.new_password,
             _client(request, body.device_token),
             request.app.state.settings,
+            auth_session_id=getattr(request.state, "auth_session_id", None),
         )
     except REFUSED as exc:
         return _refused(exc)

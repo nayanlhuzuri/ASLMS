@@ -2684,7 +2684,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Logout */
+        /**
+         * Logout
+         * @description Revokes the refresh token and ends the caller's session (`signed_out`, design `session-timeout`).
+         */
         post: operations["logout_auth_logout_post"];
         delete?: never;
         options?: never;
@@ -2787,7 +2790,8 @@ export interface paths {
         /**
          * Refresh
          * @description Rotation. 401 `refresh_invalid`; an already-rotated token ends every session of the login (401
-         *     `session_ended`).
+         *     `session_ended`); 401 `session_idle` or `session_limit` once the token's session has lapsed (design
+         *     `session-timeout`, decision 9). The new pair keeps the session; a refresh is not activity.
          */
         post: operations["refresh_auth_refresh_post"];
         delete?: never;
@@ -4006,6 +4010,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Activity
+         * @description The person acted (a click, typing, navigation): the caller's session's `last_activity_at` moves to now. Any
+         *     signed-in login, also before the first-sign-in steps. No other request counts as activity. 401 `session_idle`
+         *     or `session_limit` once lapsed: a ping cannot revive a session (design `session-timeout`, decision 14). Not
+         *     audited; the session row is its record.
+         */
+        post: operations["activity_me_activity_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/calendar": {
         parameters: {
             query?: never;
@@ -4514,6 +4541,28 @@ export interface components {
             national_act_code: string | null;
             /** Section */
             section: string | null;
+        };
+        /**
+         * ActivityOut
+         * @description `POST /me/activity` (design session-timeout, decision 14): the limits and the seconds left, all in seconds.
+         */
+        ActivityOut: {
+            /**
+             * Idle Ends In
+             * @description equals idle_seconds just after the touch
+             */
+            idle_ends_in: number;
+            /** Idle Seconds */
+            idle_seconds: number;
+            /**
+             * Max Hours
+             * @description SESSION_MAX_HOURS: the hard limit's length, for the portal's wording
+             */
+            max_hours: number;
+            /** Session Ends In */
+            session_ends_in: number;
+            /** Warning Seconds */
+            warning_seconds: number;
         };
         /** AdminSwapIn */
         AdminSwapIn: {
@@ -12141,6 +12190,11 @@ export interface components {
             next_step: "ready" | "change_password" | "confirm_profile";
             /** Refresh Token */
             refresh_token: string;
+            /**
+             * Session Expires In
+             * @description seconds to the session's hard limit (design session-timeout); the refresh token dies with it
+             */
+            session_expires_in: number;
             /**
              * Token Type
              * @default bearer
@@ -22438,6 +22492,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MeOut"];
+                };
+            };
+        };
+    };
+    activity_me_activity_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityOut"];
                 };
             };
         };
