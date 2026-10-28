@@ -761,7 +761,8 @@ function Workspace({
             <b>{A.includedBanner}</b> <span className={s.hint}>{A.includedSince(formatDateTime(includedAt))}</span>
             <p className={s.hint}>{A.includedLine}</p>
           </div>
-          <Button variant="secondary" size="sm" onClick={newConversation} disabled={pending !== null}>
+          {/* the normal size: on a phone it stands alone under the banner's text, outside any row (size rule) */}
+          <Button variant="secondary" onClick={newConversation} disabled={pending !== null}>
             {A.courtOnlyConversation}
           </Button>
         </div>

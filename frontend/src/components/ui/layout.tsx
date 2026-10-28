@@ -13,7 +13,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } f
 
 import { formatNumber } from "@/lib/format";
 import { T } from "@/lib/messages";
-import { crumbLabel } from "@/lib/routes";
+import { crumbLabel, CRUMBS_WITHOUT_PAGE } from "@/lib/routes";
 
 import { Button, cx, SelectField } from "./controls";
 import s from "./layout.module.css";
@@ -66,7 +66,13 @@ export function Breadcrumb() {
       <ol>
         {crumbs.map((c, i) => (
           <li key={c.href}>
-            {i === crumbs.length - 1 ? <span aria-current="page">{c.label}</span> : <Link href={c.href}>{c.label}</Link>}
+            {i === crumbs.length - 1 ? (
+              <span aria-current="page">{c.label}</span>
+            ) : CRUMBS_WITHOUT_PAGE.includes(c.href) ? (
+              <span>{c.label}</span>
+            ) : (
+              <Link href={c.href}>{c.label}</Link>
+            )}
           </li>
         ))}
       </ol>
@@ -124,7 +130,7 @@ export interface TabItem {
  * Tabs as links, one route each (`aria-current` on the current one), with the sliding underline measured from the
  * current tab, a count per tab, and an optional `more` group shown as a "More" menu whose button takes the current
  * tab's label when one of its items is current. Tab rows scroll sideways rather than clip: the row carries
- * `data-scroll-x`, one of the two places the browser check (`frontend/e2e`, design portal-ui-polish, decision 21)
+ * `data-scroll-x`, one of the three places the browser check (`frontend/e2e`, design portal-ui-polish, decision 21)
  * allows to scroll sideways, because a row of tabs on a phone is better scrolled than wrapped or cut.
  */
 export function Tabs({

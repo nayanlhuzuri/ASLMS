@@ -47,6 +47,29 @@ describe("the public pages' frame (template A)", () => {
     expect(primaryActions(container)).toHaveLength(1);
   });
 
+  it.each([
+    ["public", (form: React.ReactNode) => <PublicLayout>{form}</PublicLayout>, <LoginForm key="l" />],
+    ["first-sign-in", (form: React.ReactNode) => <WelcomeLayout>{form}</WelcomeLayout>, <PasswordStepForm key="p" />],
+  ])(
+    "the %s frame has one main landmark, #main, holding the form side, with the brand panel outside it",
+    (_name, frame, form) => {
+      const { container } = renderWithClient(frame(form));
+      const mains = screen.getAllByRole("main");
+      expect(mains).toHaveLength(1);
+      const main = mains[0]!;
+      expect(main).toHaveAttribute("id", "main");
+      expect(container.querySelectorAll("main")).toHaveLength(1);
+      // the form side: the brand row, the page's form and the foot line
+      expect(main).toContainElement(screen.getByTestId("auth-brand"));
+      expect(main).toContainElement(container.querySelector("form"));
+      expect(main).toContainElement(screen.getByText(T.auth.frame.foot));
+      // the brand panel bleeds to the screen's edges like a banner, so it is not inside main (uicheck gutter rule)
+      const panel = screen.getByRole("region", { name: T.auth.frame.label });
+      expect(main).not.toContainElement(panel);
+      expect(panel.contains(main)).toBe(false);
+    },
+  );
+
   it("the first-sign-in pages use the same frame with the wider form side", () => {
     const { container } = renderWithClient(
       <WelcomeLayout>

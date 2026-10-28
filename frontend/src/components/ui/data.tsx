@@ -373,7 +373,9 @@ export function CopyButton({ text, label = T.copy, size = "sm" }: { text: string
 
 /**
  * Monospace text in a block that scrolls sideways inside itself, never the page (decision 14), with a copy button.
- * `label` names the block for screen readers.
+ * `label` names the block for screen readers. The block carries `data-scroll-x`, the third place the browser check
+ * (`frontend/e2e`, design portal-ui-polish, decision 21) allows to scroll sideways, after `Tabs` and `ReportView`:
+ * sideways scrolling is right for code, which is never wrapped (owner, 28 Oct 2026).
  */
 export function CodeBlock({
   children,
@@ -392,7 +394,7 @@ export function CodeBlock({
         <span className={s.codeLabel}>{label}</span>
         {copy ? <CopyButton text={children} size={copySize} /> : null}
       </figcaption>
-      <pre className={s.code} tabIndex={0} aria-label={label}>
+      <pre className={s.code} tabIndex={0} aria-label={label} data-scroll-x="">
         <code>{children}</code>
       </pre>
     </figure>

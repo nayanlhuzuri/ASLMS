@@ -24,6 +24,8 @@ describe("CodeBlock and CopyButton (design system-health-inspector, decision 14)
     const pre = screen.getByLabelText("The Plain String");
     expect(pre.tagName).toBe("PRE");
     expect(pre).toHaveAttribute("tabindex", "0"); // reachable by keyboard to scroll
+    // one of the three places the browser check lets scroll sideways (owner, 28 Oct 2026)
+    expect(pre).toHaveAttribute("data-scroll-x");
     expect(pre).toHaveTextContent("est_code=GAHC01|causelist_date=2026-10-20");
     expect(rule(".code")).toMatch(/overflow-x: auto/);
     expect(rule(".code")).toMatch(/white-space: pre/);

@@ -2879,3 +2879,31 @@ Backlog row 188 `assistant-ollama` (branch `feature/assistant-ollama`, in review
 - Round 2, row 189 `assistant-ollama-work`: the My Work tab, its tests, and the `my_work` scope value.
 - After the merge: `migrate` (0032; the integrator re-points `down_revision` if row 169's 0031 merges first), `docker compose build`.
 
+## uicheck repair (row 197) (2026-10-28)
+Backlog row 197 `uicheck-repair`, on `feature/uicheck-repair`. No design note: the coordinator's brief and the owner's decisions of 28 Oct 2026 below. Frontend and checks only. No migration, no API or schema change; `npm run gen:api` leaves no diff.
+
+**Why the check was stale.** Since row 154 (`partial-code-match`, 26 Oct 2026) the uicheck image could not build. `UnmappedCodeOut.partial_matches` became required, the e2e fixture lacked it, and `npx tsc --noEmit` in `frontend/e2e/Dockerfile` failed. `docker compose --profile uicheck run --rm uicheck` then quietly reused the `aslms-uicheck` image of 25 Oct 2026, with its old spec, fixtures and `openapi.json`. The integrator's baseline (39 failed) therefore mixed stale expectations with real findings. Rows 157 to 188 had never been checked by a current image in Compose.
+
+**What was fixed**
+- The fixture: `partial_matches` on the unmapped codes, with a pair `partial_relation` can return (department `SC, SEBA` contained in the printed `SC, SEBA, SECONDARY EDUCATION AND MADRASSA BOARD, ASSAM`). The image builds again.
+- Stale checks and fixtures:
+  - the field-row checkbox self-tests now load at 1280 px, the width the check is given (at 375 px the test row wrapped);
+  - the No Office Yet state presses More Filters only while it is closed (the Users page opens it when a filter inside is set);
+  - the Assistant thread fixture gives citations the API's labels `S1`..`Sn` (a synthetic sentence filled the number badge).
+- Portal defects:
+  - Scoring's own-weight table labels its phone-card button line "Actions", as the other mapping tables do (it overflowed at 375 px);
+  - the Keywords table's caption is hidden under its own heading (doubled heading);
+  - "Try Again" in the User and Office Pickers and "Start a Court-Only Conversation" are the normal 36 px size (size rule for buttons standing alone on phones);
+  - on the sign-in and first-sign-in frame, `main#main` is the form's half and the brand panel sits outside it like a banner (gutter rule). A vitest pins the landmarks.
+- **The breadcrumb rule.** A crumb whose address has no page is plain text, never a link. `CRUMBS_WITHOUT_PAGE` in `frontend/src/lib/routes.ts` lists such levels (today only `/assistant/orders`). A test in `routes.test.ts` keeps it equal to the `src/app/(portal)` folders that have no `page.tsx`. The court-record view's "Orders" crumb used to link to a 404, and its prefetch kept the page from ever settling (the uicheck timeouts).
+
+**Owner decisions (28 Oct 2026, "approve")**
+1. Sideways scrolling is right for code. The kit `CodeBlock` carries `data-scroll-x`, the third allowed place after `Tabs` and `ReportView`, amending portal-ui-polish decision 21. Wrapping was rejected.
+2. Text fields are exempt from the uicheck "clipped" rule, because a text field scrolls its own value: a `textarea`, or an `input` of type text, search, email, url, tel or password. Nothing else is exempt and no tolerance changes. Self-tests check that long values in such fields pass and that a cut-off `div` or `button` still fails.
+3. "Try Again" in the pickers and "Start a Court-Only Conversation" stay at the normal size. This supersedes office-head-picker-followups decision 5 on size.
+
+Row 151 (`uicheck-after-row-135`) is closed by this repair. Verification ran the full check against a `web` image built from the branch, on a private Docker network apart from the owner's stack.
+
+**Left for later**
+- After the merge: `docker compose build` and the owner's usual `up` for `web`, so the running portal carries these fixes. The running stack was not touched.
+

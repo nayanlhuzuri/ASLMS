@@ -104,7 +104,7 @@ export function SectionTable({ section }: { section: ReportSection }) {
         </>
       ) : (
         <>
-          {/* the wide report table scrolls sideways in its own region: one of the two places the browser check allows
+          {/* the wide report table scrolls sideways in its own region: one of the three places the browser check allows
               (`data-scroll-x`, design portal-ui-polish, decision 21), because a report's columns are the server's and
               its totals row only reads as a table */}
           <div className={s.scroll} role="region" aria-label={section.title} tabIndex={0} data-scroll-x="">

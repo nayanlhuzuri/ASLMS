@@ -464,6 +464,13 @@ export function crumbLabel(path: string): string {
 export const CRUMBS: Record<string, string> = T.crumbs;
 
 /**
+ * The portal paths that are only a level of the address, with no page of their own: their crumb is plain text, never a
+ * link (a link to one answered 404 and its prefetch kept the court-record view from ever settling). Pinned against
+ * `src/app` by `routes.test.ts`.
+ */
+export const CRUMBS_WITHOUT_PAGE: readonly string[] = ["/assistant/orders"];
+
+/**
  * The Case inbox tabs (design portal-ui-redesign, decision 5; case-inbox-merge, decision 7: the Cases list folded in),
  * in the owner's order, each its own route. Which show is `inboxTabsFor`; the API decides every list.
  */

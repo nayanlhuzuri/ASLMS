@@ -18,8 +18,10 @@ import s from "./auth.module.css";
 const TILE_ICONS = [CalendarIcon, FilesIcon, BellIcon];
 
 export function AuthFrame({ children, wide }: { children: ReactNode; wide?: boolean }) {
+  // the brand panel bleeds to the screen's edges like a banner, so it sits outside `main`; `main` is the form's half,
+  // which keeps the page gutter (design data-collection-redesign, decision 12)
   return (
-    <main className={s.page} id="main">
+    <div className={s.page}>
       <section className={s.panel} aria-label={T.auth.frame.label}>
         <div>
           <p className={s.kicker}>{T.owner}</p>
@@ -44,7 +46,7 @@ export function AuthFrame({ children, wide }: { children: ReactNode; wide?: bool
         </div>
         <p className={s.maker}>{T.auth.frame.maker}</p>
       </section>
-      <div className={s.side}>
+      <main className={s.side} id="main">
         <div className={s.brandRow} data-testid="auth-brand">
           <BrandLockup height={64} className={s.lockup} />
           <span>
@@ -54,8 +56,8 @@ export function AuthFrame({ children, wide }: { children: ReactNode; wide?: bool
         </div>
         <div className={wide ? `${s.body} ${s.wide}` : s.body}>{children}</div>
         <p className={s.foot}>{T.auth.frame.foot}</p>
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }
 

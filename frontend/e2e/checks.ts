@@ -4,12 +4,15 @@
  *
  * - page overflow: `documentElement` or `body` wider than the viewport;
  * - inner sideways scrolling: an `overflow-x: auto | scroll` element that scrolls, outside a `data-scroll-x` region
- *   (the `Tabs` row and `ReportView`'s region carry it);
+ *   (the `Tabs` row, `ReportView`'s region and the kit `CodeBlock` carry it; the third by the owner's decision of
+ *   28 Oct 2026, amending decision 21: sideways scrolling is right for code);
  * - off-screen content: a visible element whose right edge is past the viewport, outside such a region;
  * - clipped content (review of 21 Oct 2026): an `overflow-x: hidden | clip` box whose content is wider than it
  *   (`scrollWidth > clientWidth`), or a visible element past such a box's right edge, outside a `data-scroll-x`
- *   region. Two kinds of box are not clippers: a visually hidden one (1 px, or `clip: rect(…)`), and deliberate
- *   truncation with `text-overflow: ellipsis` (a badge, a nav label: the full text stays the title or accessible name);
+ *   region. Three kinds of box are not clippers: a visually hidden one (1 px, or `clip: rect(…)`), deliberate
+ *   truncation with `text-overflow: ellipsis` (a badge, a nav label: the full text stays the title or accessible name),
+ *   and a text field (a `textarea`, or an `input` of type text, search, email, url, tel or password), which scrolls its
+ *   own value by nature (owner, 28 Oct 2026);
  * - sizes (decision 14): a kit `Button` not 36 px tall (30 px for `sm`), a kit text input or select not 36 px, and at
  *   375 px any button or link drawn as a button shorter than 36 px except `sm` toolbars inside rows;
  * - alignment (decision 15): within one list, leading elements of one `data-lead` kind of unequal width;
@@ -120,6 +123,10 @@ export function pageChecks({ width }: CheckArgs): PageFinding[] {
   }
 
   // clipped content: nothing may be cut off by an `overflow: hidden | clip` box, at any width
+  const TEXT_INPUT_TYPES = ["text", "search", "email", "url", "tel", "password"];
+  // a text field scrolls its own value (owner, 28 Oct 2026): only these, nothing else is exempt
+  const textField = (el: Element): boolean =>
+    el.tagName === "TEXTAREA" || (el.tagName === "INPUT" && TEXT_INPUT_TYPES.includes((el as HTMLInputElement).type));
   const clipCache = new Map<Element, boolean>();
   function clipper(el: Element): boolean {
     let v = clipCache.get(el);
@@ -127,6 +134,7 @@ export function pageChecks({ width }: CheckArgs): PageFinding[] {
       const cs = getComputedStyle(el);
       const box = el.getBoundingClientRect();
       v =
+        !textField(el) &&
         (cs.overflowX === "hidden" || cs.overflowX === "clip") &&
         cs.textOverflow !== "ellipsis" &&
         box.width > 2 &&

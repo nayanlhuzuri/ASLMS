@@ -56,12 +56,13 @@ export function retryable(error: unknown): boolean {
 
 /**
  * Try Again under a picker's list (decisions 5-6): inside the popover, outside the `listbox`; its mouse-down keeps the
- * focus in the box, so the list stays open.
+ * focus in the box, so the list stays open. The normal 36 px size, not `sm`: it stands alone under the list, outside
+ * any row, and a phone's buttons outside rows are 36 px (design portal-ui-polish, decision 14).
  */
 export function PickerRetry({ onRetry }: { onRetry: () => void }) {
   return (
     <div className={s.retry}>
-      <Button variant="secondary" size="sm" onMouseDown={(e) => e.preventDefault()} onClick={onRetry}>
+      <Button variant="secondary" onMouseDown={(e) => e.preventDefault()} onClick={onRetry}>
         {T.retry}
       </Button>
     </div>

@@ -415,6 +415,10 @@ describe("the court-record view (decision 11)", () => {
       "/api/backend/assistant/court-orders/o-2/file?message=a-1&disposition=inline",
     );
     expect(screen.queryByRole("link", { name: "Open the Case Page" })).toBeNull();
+    // `/assistant/orders` has no page of its own: its crumb is text, so no link (or prefetch) answers 404
+    const crumbs = screen.getByRole("navigation", { name: "Breadcrumb" });
+    expect(within(crumbs).getByRole("link", { name: "Assistant" })).toHaveAttribute("href", "/assistant");
+    expect(within(crumbs).getByText("Orders").closest("a")).toBeNull();
     expect(primaryActions(document.body)).toEqual(["Open the Order"]);
     const text = document.body.textContent ?? "";
     for (const banned of ["ASLMS/", "Owner", "Custody", "Stage", "Notes"]) expect(text).not.toContain(banned);

@@ -8,6 +8,7 @@
 import type { components } from "@/lib/api/schema";
 import type {
   AlertList,
+  AssistantThread,
   AuditPage,
   CounselCodeList,
   CustodyBrief,
@@ -597,9 +598,17 @@ function auditPage(): AuditPage {
 /** Three codes seen in cause lists with no mapping (decision 42). */
 function unmapped(): UnmappedCode[] {
   return [
-    { code: "SC, SECONDARY EDUCATION AND MADRASSA BOARD", entries: STRESS.count, last_listed: "2026-10-23", example_case_ref: SAMPLE.caseRef },
-    { code: "SC, PWD", entries: 48, last_listed: "2026-10-20", example_case_ref: null },
-    { code: "GA, ASSAM", entries: 3, last_listed: "2026-09-30", example_case_ref: SAMPLE.caseRef },
+    {
+      code: "SC, SEBA, SECONDARY EDUCATION AND MADRASSA BOARD, ASSAM",
+      entries: STRESS.count,
+      last_listed: "2026-10-23",
+      example_case_ref: SAMPLE.caseRef,
+      // design partial-code-match (`partial_relation` in services/matching.py): the department's code `SC, SEBA` has
+      // parts {SC, SEBA}, all inside the printed code's parts, so the printed code partly matches it as "contained"
+      partial_matches: [{ code: "SC, SEBA", office_code: "EDU", relation: "contained" }],
+    },
+    { code: "SC, PWD", entries: 48, last_listed: "2026-10-20", example_case_ref: null, partial_matches: [] },
+    { code: "GA, ASSAM", entries: 3, last_listed: "2026-09-30", example_case_ref: SAMPLE.caseRef, partial_matches: [] },
   ];
 }
 
@@ -725,6 +734,18 @@ function emptyList<T extends { items: unknown[]; total?: number }>(schema: strin
   return { ...base, items: [], total: 0 } as T;
 }
 
+/**
+ * A conversation's thread (design assistant-ollama, decision 8): each citation's `label` is its source number, `S1`,
+ * `S2`, …, which the source list shows in its number badge; the synthetic sentence there made the badge 176 px wide.
+ */
+function assistantThread(): AssistantThread {
+  const base = synthFor("/assistant/conversations/x")!.body as AssistantThread;
+  return {
+    ...base,
+    messages: base.messages.map((m) => ({ ...m, citations: m.citations.map((c, i) => ({ ...c, label: `S${i + 1}` })) })),
+  };
+}
+
 type Override = (url: URL) => unknown;
 
 /** Overrides by API path (exact) or pattern. */
@@ -742,6 +763,7 @@ const OVERRIDES: [RegExp, Override][] = [
       engine: { kind: "ollama", model: "qwen3.5:4b", readiness: "ready", reason: null },
     }),
   ],
+  [/^\/assistant\/conversations\/[^/]+$/, () => assistantThread()],
   // design data-collection-redesign, decision 41: no department name is registered yet (the dev database today)
   [
     /^\/admin\/discovery$/,

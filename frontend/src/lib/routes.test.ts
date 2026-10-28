@@ -1,3 +1,5 @@
+import { existsSync, readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import type { Permission, Role } from "./api/types";
@@ -14,6 +16,7 @@ import {
   CRUMB_PATHS,
   crumbLabel,
   CRUMBS,
+  CRUMBS_WITHOUT_PAGE,
   DATA_TABS,
   OLD_DATA_REDIRECTS,
   dataTabsFor,
@@ -253,6 +256,26 @@ describe("Files, My calendar and Alerts navigation (portal-files-alerts; portal-
     // the crumb above a case page leads to the Case inbox (case-inbox-merge, decision 12)
     expect(CRUMB_PATHS["/cases"]).toBe("Case Inbox");
     expect(crumbLabel("/cases")).toBe("Case Inbox");
+  });
+});
+
+/** The portal's static paths (route groups left out) and whether each has a page, read from `src/app/(portal)`. */
+function portalPaths(dir = join(process.cwd(), "src", "app", "(portal)"), parts: string[] = [], out = new Map<string, boolean>()) {
+  const path = "/" + parts.join("/");
+  out.set(path, (out.get(path) ?? false) || existsSync(join(dir, "page.tsx")));
+  for (const name of readdirSync(dir)) {
+    if (!statSync(join(dir, name)).isDirectory() || name.startsWith("[")) continue;
+    const group = name.startsWith("(") && name.endsWith(")");
+    portalPaths(join(dir, name), group ? parts : [...parts, name], out);
+  }
+  return out;
+}
+
+describe("the breadcrumb levels without a page", () => {
+  it("are exactly the portal paths with no page.tsx, so every other crumb links to a page", () => {
+    const missing = [...portalPaths()].filter(([, has]) => !has).map(([path]) => path);
+    expect([...CRUMBS_WITHOUT_PAGE].sort()).toEqual(missing.sort());
+    expect(CRUMBS_WITHOUT_PAGE).toContain("/assistant/orders");
   });
 });
 

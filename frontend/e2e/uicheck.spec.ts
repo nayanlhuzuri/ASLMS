@@ -497,7 +497,11 @@ const STATES: State[] = [
     name: "/admin/users (No Office Yet filter)",
     path: "/admin/users?no_office=true",
     open: async (page) => {
-      await page.getByRole("button", { name: /^More Filters/ }).click();
+      // a filter set under More Filters opens the panel on arrival (design portal-ui-polish-2-admin, `Users.tsx`), so
+      // the button is pressed only while the panel is closed; pressing it again would close it
+      const more = page.getByRole("button", { name: /^More Filters/ });
+      await more.waitFor();
+      if ((await more.getAttribute("aria-expanded")) !== "true") await more.click();
       await page.getByLabel("No Office Yet").waitFor();
     },
   },

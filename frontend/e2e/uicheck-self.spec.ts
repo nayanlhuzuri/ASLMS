@@ -2,7 +2,7 @@
  * The checker's own rules (design followups-oct, decision 22): on a redirect only the geometry kinds are dropped (no
  * page needed); and the field-row checkbox step on two small pages of its own (design portal-ui-polish-2, decision 26).
  */
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 import { GEOMETRY_KINDS, pageChecks } from "./checks";
 import { kept, type Finding } from "./results";
@@ -39,7 +39,16 @@ function fieldRow(checkStyle: string): string {
     </form></body></html>`;
 }
 
+/**
+ * The field-row pages are measured as at 1280 px (the width `pageChecks` is given), whatever the project's viewport: at
+ * 375 px the row is wider than the page, so "Include Sub-offices" wrapped onto two lines and the checkbox's box grew.
+ */
+async function atLaptop(page: Page): Promise<void> {
+  await page.setViewportSize({ width: 1280, height: 800 });
+}
+
 test("a checkbox level with the labels is a field-row finding", async ({ page }) => {
+  await atLaptop(page);
   await page.setContent(fieldRow("min-height:24px"));
   const findings = await page.evaluate(pageChecks, { width: 1280 });
   const checkbox = findings.filter((f) => f.kind === "alignment" && f.detail.startsWith("field row: checkbox centre"));
@@ -48,6 +57,7 @@ test("a checkbox level with the labels is a field-row finding", async ({ page })
 
 test("a checkbox on the control line passes", async ({ page }) => {
   // CheckField inline: a top margin of the label line plus its gap, 36 px tall, centred
+  await atLaptop(page);
   await page.setContent(fieldRow("margin-top:24px;min-height:36px"));
   const findings = await page.evaluate(pageChecks, { width: 1280 });
   expect(findings.filter((f) => f.detail.startsWith("field row: checkbox centre"))).toEqual([]);
@@ -110,4 +120,39 @@ test("a hidden caption or a different heading passes the doubled-heading rule", 
   );
   const findings = (await page.evaluate(pageChecks, { width: 1280 })).filter((f) => f.kind === "doubled-heading");
   expect(findings).toEqual([]);
+});
+
+/**
+ * The clipped rule's text-field exemption (owner, 28 Oct 2026): a long value in a text input or a textarea scrolls
+ * inside the field and passes; a box that cuts off its content still fails, and so does an input of another type.
+ */
+function clipPage(body: string): string {
+  return `<!doctype html><html><body style="margin:0;font:14px sans-serif"><main id="main" style="padding:16px">${body}</main></body></html>`;
+}
+
+const LONG = "Joint Secretary to the Government of Assam, Department of School Education and Literacy";
+
+test("a long value in a text input or a textarea is not clipped content", async ({ page }) => {
+  await page.setContent(
+    clipPage(
+      `<input type="text" style="width:200px;height:36px;box-sizing:border-box" value="${LONG}">
+       <input style="width:200px;height:36px;box-sizing:border-box" value="${LONG}">
+       <textarea style="width:200px;white-space:nowrap;overflow:hidden">${LONG}</textarea>`,
+    ),
+  );
+  const findings = (await page.evaluate(pageChecks, { width: 1280 })).filter((f) => f.kind === "clipped");
+  expect(findings).toEqual([]);
+});
+
+test("a box that cuts off its content is still clipped content", async ({ page }) => {
+  await page.setContent(clipPage(`<div style="width:200px;overflow:hidden;white-space:nowrap">${LONG}</div>`));
+  const findings = (await page.evaluate(pageChecks, { width: 1280 })).filter((f) => f.kind === "clipped");
+  expect(findings).toHaveLength(1);
+  expect(findings[0]!.element.startsWith("div")).toBe(true);
+});
+
+test("a button whose label is cut off is still clipped content (the exemption is for text fields only)", async ({ page }) => {
+  await page.setContent(clipPage(`<button style="width:120px;overflow:hidden;white-space:nowrap">${LONG}</button>`));
+  const findings = (await page.evaluate(pageChecks, { width: 1280 })).filter((f) => f.kind === "clipped");
+  expect(findings).toHaveLength(1);
 });
