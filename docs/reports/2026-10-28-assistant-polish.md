@@ -32,3 +32,11 @@ Row 202 `assistant-polish-followups`.
 
 ## Load status
 `aslms queue-status` was started but had not finished when this report was written.
+
+## Deploying
+Screen check on a private network against a `web` built from the merged tree (the shared stack untouched):
+458 passed, 7 skipped, 0 findings (144 routes and states). CI on `main` passed (run 40725890471).
+
+Deployed on 28 Oct 2026 at 22:20 IST: images built, `up` with the court-data switch (checked true in api and
+worker), `portal_smoke.py` passed, the Case Assistant's model loaded. The integrator had rebuilt `web` alone at
+21:50 for its smoke check; api, worker and scheduler ran the earlier code until this deploy.
