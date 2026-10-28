@@ -4,9 +4,10 @@
  * One item of the next-date review list (design portal-next-dates, decision 4), as the columns of a `DataTable` row
  * (design portal-ui-polish, decision 15), used by the review
  * list and by the case page's "Waiting for you" panel: the case (left out on the case page), the order with "View
- * order" when stored and the login holds `documents.view`, the court's sentence clamped to two lines, what is asked
- * (a suggested date to confirm, or a date to enter, with the scanned-copy wording) with the date to answer by, the
- * department when the login has more than one, and the buttons. Never the alert reference, the rule code or a score.
+ * order" when stored and the login holds `documents.view`, the court's sentence clamped to two lines, why the order
+ * asks for a date (design next-date-direct, decision 9: no clear date, no next date, a scanned copy, a date marked
+ * wrong) with the date to answer by, the department when the login has more than one, and Enter Date. Never the alert
+ * reference, the rule code or a score. Confirm and Not Correct are gone: a date the court gave is shown directly.
  */
 import { useState } from "react";
 
@@ -16,10 +17,10 @@ import { Button, CaseLink, type Column } from "@/components/ui";
 import type { NextDateReviewItem } from "@/lib/api/types";
 import { formatDate } from "@/lib/format";
 import { T } from "@/lib/messages";
-import { isScannedItem, ruleHint } from "@/lib/nextDates";
+import { reasonLabel } from "@/lib/nextDates";
 
 import { caseName } from "./common";
-import { ConfirmNextDate, EnterNextDate, RejectNextDate, type DialogOutcome } from "./Dialogs";
+import { EnterNextDate, type DialogOutcome } from "./Dialogs";
 import s from "./nextdates.module.css";
 
 export interface ReviewColumnsOptions extends DialogOutcome {
@@ -36,44 +37,26 @@ export interface ReviewColumnsOptions extends DialogOutcome {
  * one primary (decision 16; design portal-ui-polish, decision 21).
  */
 function ReviewActions({ item, onDone, onStale }: { item: NextDateReviewItem } & DialogOutcome) {
-  const [open, setOpen] = useState<"confirm" | "reject" | "enter" | null>(null);
+  const [open, setOpen] = useState(false);
   const name = caseName(item.case);
-  const close = () => setOpen(null);
-  const outcome = { onDone, onStale };
+  if (item.kind !== "enter") return null; // an old server's confirm item: nothing a person may do any more
   return (
     <>
       <div className={s.actions}>
-        {item.kind === "confirm" ? (
-          <>
-            <Button variant="secondary" onClick={() => setOpen("confirm")} aria-label={T.nd.confirmFor(name)}>
-              {T.nd.confirm}
-            </Button>
-            <Button variant="secondary" onClick={() => setOpen("reject")} aria-label={T.nd.notCorrectFor(name)}>
-              {T.nd.notCorrect}
-            </Button>
-          </>
-        ) : (
-          <Button variant="secondary" onClick={() => setOpen("enter")} aria-label={T.nd.enterFor(name)}>
-            {T.nd.enterDate}
-          </Button>
-        )}
+        <Button variant="secondary" onClick={() => setOpen(true)} aria-label={T.nd.enterFor(name)}>
+          {T.nd.enterDate}
+        </Button>
       </div>
-      {item.kind === "confirm" ? (
-        <>
-          <ConfirmNextDate item={item} open={open === "confirm"} onClose={close} {...outcome} />
-          <RejectNextDate item={item} open={open === "reject"} onClose={close} {...outcome} />
-        </>
-      ) : (
-        <EnterNextDate
-          caseRef={item.case.ref_no}
-          name={name}
-          orderId={item.id}
-          phrase={item.phrase}
-          open={open === "enter"}
-          onClose={close}
-          {...outcome}
-        />
-      )}
+      <EnterNextDate
+        caseRef={item.case.ref_no}
+        name={name}
+        orderId={item.id}
+        phrase={item.phrase}
+        open={open}
+        onClose={() => setOpen(false)}
+        onDone={onDone}
+        onStale={onStale}
+      />
     </>
   );
 }
@@ -122,23 +105,12 @@ export function reviewColumns({ showCase, showDepartment, canViewOrder, onDone, 
     {
       key: "next",
       header: T.nd.nextDate,
-      cell: (item) => {
-        const hint = item.kind === "confirm" ? ruleHint(item.rule) : null;
-        return (
-          <div className={s.suggested}>
-            {item.kind === "confirm" ? (
-              <>
-                <span>{T.nd.suggested}</span>
-                <span className={s.date}>{formatDate(item.next_date)}</span>
-                {hint ? <span className={s.hint}>{hint}</span> : null}
-              </>
-            ) : (
-              <span>{isScannedItem(item) ? T.nd.enterScanned : T.nd.enterNeeded}</span>
-            )}
-            <span className={s.hint}>{T.nd.pleaseAnswerBy(formatDate(item.act_by))}</span>
-          </div>
-        );
-      },
+      cell: (item) => (
+        <div className={s.suggested} data-reason={item.reason ?? undefined}>
+          <span>{reasonLabel(item)}</span>
+          <span className={s.hint}>{T.nd.pleaseAnswerBy(formatDate(item.act_by))}</span>
+        </div>
+      ),
     },
   );
   if (showDepartment) {

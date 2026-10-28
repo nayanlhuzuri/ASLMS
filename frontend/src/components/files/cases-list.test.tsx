@@ -8,6 +8,7 @@ import { browserApi, expectDataTable, json, makeMe, renderWithClient } from "@/t
 
 import { Held } from "./Held";
 import { Sent } from "./Sent";
+import { courtNext } from "@/test/nextHearing";
 
 function summary(id: string, caseNo: string, ref = `ASLMS/GHC/CASE/2026/${id}`): CaseSummary {
   return {
@@ -18,7 +19,7 @@ function summary(id: string, caseNo: string, ref = `ASLMS/GHC/CASE/2026/${id}`):
     is_provisional: false,
     last_listed_on: null,
     last_listing: null,
-    next_hearing_date: null,
+    next_hearing: courtNext(null),
     petitioner_summary: "RAM KUMAR",
     respondent_summary: "STATE OF ASSAM",
     status: "pending",

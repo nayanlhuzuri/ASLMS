@@ -229,7 +229,7 @@ describe("the Alerts frame (decisions 1, 13)", () => {
     );
     expect(await screen.findByRole("heading", { name: "Alerts", level: 1 })).toBeInTheDocument();
     const tabs = await screen.findByRole("navigation", { name: "Alerts Sections" });
-    expect(within(tabs).getAllByRole("link").map((a) => a.textContent)).toEqual(["Alerts", "Next Dates to Confirm"]);
+    expect(within(tabs).getAllByRole("link").map((a) => a.textContent)).toEqual(["Alerts", "Next Dates to Enter"]);
     expect(within(tabs).getByRole("link", { name: "Alerts" })).toHaveAttribute("aria-current", "page");
     expect(within(tabs).queryByRole("link", { name: /calendar/i })).toBeNull();
     unmount();
@@ -241,7 +241,7 @@ describe("the Alerts frame (decisions 1, 13)", () => {
     );
     const tabs2 = await screen.findByRole("navigation", { name: "Alerts Sections" });
     expect(within(tabs2).getByRole("link", { name: "Alerts" })).not.toHaveAttribute("aria-current");
-    expect(within(tabs2).getByRole("link", { name: "Next Dates to Confirm" })).toHaveAttribute("aria-current", "page");
+    expect(within(tabs2).getByRole("link", { name: "Next Dates to Enter" })).toHaveAttribute("aria-current", "page");
   });
 
   it("a login without case functions sees the neutral not-found text", async () => {
@@ -283,6 +283,19 @@ describe("the filter bar on Alerts (portal-filters)", () => {
 });
 
 describe("next dates (portal-next-dates, decisions 1 and 14)", () => {
+  it("a next_date_reported alert has Correct It to the case's Overview with the dialog asked for (next-date-direct)", async () => {
+    browserApi(
+      routes([
+        alert({ id: "a-1", kind: "next_date_reported", kind_label: "Next date reported as wrong", title: "Next date reported as wrong" }),
+        alert({ id: "a-2", kind: "next_date_reported", kind_label: "Next date reported as wrong", title: "Hidden", case_visible: false }),
+      ]),
+    );
+    renderWithClient(<AlertList params={{}} />);
+    const links = await screen.findAllByRole("link", { name: "Correct It" });
+    expect(links).toHaveLength(1);
+    expect(links[0]!.getAttribute("href")).toMatch(/^\/cases\/.+\?nd=correct$/);
+  });
+
   it("a visible next_date_review alert has Answer it to the review list for its case; others do not", async () => {
     browserApi(
       routes([
@@ -309,7 +322,7 @@ describe("next dates (portal-next-dates, decisions 1 and 14)", () => {
       </AlertsFrame>,
     );
     const tabs = await screen.findByRole("navigation", { name: "Alerts Sections" });
-    expect(within(tabs).getByRole("link", { name: "Next Dates to Confirm" })).toHaveAttribute("href", "/alerts/next-dates");
+    expect(within(tabs).getByRole("link", { name: "Next Dates to Enter" })).toHaveAttribute("href", "/alerts/next-dates");
     unmount();
     browserApi({ "GET /me": makeMe(["cases.view_scope"]) });
     renderWithClient(
@@ -318,6 +331,6 @@ describe("next dates (portal-next-dates, decisions 1 and 14)", () => {
       </AlertsFrame>,
     );
     const only = await screen.findByRole("navigation", { name: "Alerts Sections" });
-    expect(within(only).queryByRole("link", { name: "Next Dates to Confirm" })).toBeNull();
+    expect(within(only).queryByRole("link", { name: "Next Dates to Enter" })).toBeNull();
   });
 });

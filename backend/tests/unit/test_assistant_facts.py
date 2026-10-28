@@ -5,7 +5,7 @@ No database and no model."""
 from __future__ import annotations
 
 import ast
-from datetime import UTC, date, datetime
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -165,20 +165,24 @@ def _nh(
     *,
     court=None,
     purpose=None,
-    source=None,
-    other=None,
+    basis=None,
+    on=None,
     order_date=None,
-    created=None,
+    words=None,
+    differs=None,
+    differs_order=None,
     disposed=False,
     disposal=None,
 ):
     return af.NextHearing(
         court_date=court,
         purpose=purpose,
-        source=source,
-        next_date=other,
+        basis=basis,
+        date=on,
         order_date=order_date,
-        created_at=created,
+        basis_words=words,
+        differs_on=differs,
+        differs_order_date=differs_order,
         disposed=disposed,
         disposal_date=disposal,
     )
@@ -188,70 +192,57 @@ def _lines(**kw) -> list[str]:
     return af._next_lines(_nh(**kw), TODAY)
 
 
-def test_next_hearing_wording_before_row_199():
+def test_next_hearing_wording_from_the_one_value():
+    """Row 199 (design next-date-direct, decision 11): the quick fact states the case's one next hearing."""
     # disposed
-    assert _lines(disposed=True, disposal=date(2026, 9, 1), court=date(2026, 11, 2)) == [
+    assert _lines(disposed=True, disposal=date(2026, 9, 1), basis="court", on=date(2026, 11, 2)) == [
         "The case was disposed of on 01 Sep 2026; no further hearing is listed [S1]."
     ]
-    # both held, the same date
-    assert _lines(court=date(2026, 11, 5), source="order_specific", other=date(2026, 11, 5)) == [
-        "Next hearing: Thursday 05 Nov 2026 [S1]."
-    ]
-    # court date ahead, no order date
-    assert _lines(court=date(2026, 11, 2), purpose="ADMISSION") == [
+    # the court's record, with its purpose
+    assert _lines(court=date(2026, 11, 2), purpose="ADMISSION", basis="court", on=date(2026, 11, 2)) == [
         "Next hearing: Monday 02 Nov 2026, for ADMISSION (the court's record) [S1]."
     ]
-    assert _lines(court=date(2026, 11, 2)) == ["Next hearing: Monday 02 Nov 2026 (the court's record) [S1]."]
-    # order date held, court date passed (the owner's WP(C)/2615/2026)
+    assert _lines(basis="court", on=date(2026, 11, 2)) == [
+        "Next hearing: Monday 02 Nov 2026 (the court's record) [S1]."
+    ]
+    # the court's record and an exact order date that differs
     assert _lines(
-        court=date(2026, 10, 15),
-        source="order_specific",
-        other=date(2026, 11, 5),
-        order_date=date(2026, 10, 15),
+        basis="court", on=date(2026, 11, 2), differs=date(2026, 11, 5), differs_order=date(2026, 10, 15)
     ) == [
-        "Next date from the order of 15 Oct 2026: Thursday 05 Nov 2026 [S1].",
-        "The court's own record still shows 15 Oct 2026, which has passed [S1].",
+        "Next hearing: Monday 02 Nov 2026 (the court's record) [S1].",
+        "The order of 15 Oct 2026 gives 05 Nov 2026; the court's record is used [S1].",
     ]
-    # order date held, no court date
-    assert _lines(source="order_period", other=date(2026, 12, 1), order_date=date(2026, 10, 1)) == [
-        "Next date from the order of 01 Oct 2026: Tuesday 01 Dec 2026 [S1]."
-    ]
-    # both ahead and different
+    # an exact date read from the order (the owner's WP(C)/2615/2026)
     assert _lines(
-        court=date(2026, 11, 2),
-        source="order_specific",
-        other=date(2026, 11, 5),
-        order_date=date(2026, 10, 15),
-    ) == [
-        "The court's record shows Monday 02 Nov 2026. The next date read from the order of 15 Oct 2026 is "
-        "Thursday 05 Nov 2026 [S1]."
+        court=date(2026, 10, 15), basis="order", on=date(2026, 11, 5), order_date=date(2026, 10, 15)
+    ) == ["Next hearing: Thursday 05 Nov 2026 (given in the order of 15 Oct 2026) [S1]."]
+    # a period counted from the order, shown as around
+    assert _lines(
+        basis="around", on=date(2026, 12, 1), order_date=date(2026, 10, 1), words="after 2 months"
+    ) == ["Next hearing: around Tuesday 01 Dec 2026 (after 2 months, the order of 01 Oct 2026) [S1]."]
+    # a date entered by hand where the court gave none
+    assert _lines(basis="manual", on=date(2026, 11, 9)) == [
+        "Next hearing: Monday 09 Nov 2026 (entered by hand; the court has given no date) [S1]."
     ]
-    # a manual date
-    created = datetime(2026, 10, 20, 19, 0, tzinfo=UTC)  # 21 Oct 2026 in IST
-    assert _lines(court=date(2026, 10, 1), source="manual", other=date(2026, 11, 9), created=created) == [
-        "Next date entered in ASLMS on 21 Oct 2026: Monday 09 Nov 2026 [S1].",
-        "The court's own record still shows 01 Oct 2026, which has passed [S1].",
-    ]
-    assert _lines(court=date(2026, 11, 2), source="manual", other=date(2026, 11, 9), created=created) == [
-        "The court's record shows Monday 02 Nov 2026. The next date entered in ASLMS on 21 Oct 2026 is "
-        "Monday 09 Nov 2026 [S1]."
-    ]
-    # only a court date, passed
-    assert _lines(court=date(2026, 10, 15)) == [
+    # the court's last date, passed (an ultimatum)
+    assert _lines(basis="court", on=date(2026, 10, 15)) == [
         "The last date the court fixed was 15 Oct 2026, which has passed; no later date is held yet [S1]."
     ]
     # nothing held
     assert _lines() == ["No next hearing date is held for this case yet [S1]."]
     # today and tomorrow, on the IST day
-    assert _lines(court=TODAY) == ["Next hearing: Wednesday 28 Oct 2026 (today) (the court's record) [S1]."]
-    assert _lines(court=date(2026, 10, 29), source="order_specific", other=date(2026, 10, 29)) == [
-        "Next hearing: Thursday 29 Oct 2026 (tomorrow) [S1]."
+    assert _lines(basis="court", on=TODAY) == [
+        "Next hearing: Wednesday 28 Oct 2026 (today) (the court's record) [S1]."
+    ]
+    assert _lines(basis="confirmed", on=date(2026, 10, 29), order_date=date(2026, 10, 1)) == [
+        "Next hearing: Thursday 29 Oct 2026 (tomorrow) (given in the order of 01 Oct 2026) [S1]."
     ]
 
 
 def test_next_hearing_passed_order_date_is_said_to_have_passed():
-    assert _lines(source="order_specific", other=date(2026, 10, 1), order_date=date(2026, 9, 1)) == [
-        "Next date from the order of 01 Sep 2026: 01 Oct 2026, which has passed [S1]."
+    assert _lines(basis="order", on=date(2026, 10, 1), order_date=date(2026, 9, 1)) == [
+        "The date given in the order of 01 Sep 2026 was 01 Oct 2026, which has passed; no later date is held yet "
+        "[S1]."
     ]
 
 

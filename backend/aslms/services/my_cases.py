@@ -275,13 +275,13 @@ def mine(
         )
         order = [
             my_due.asc().nulls_last(),
-            Case.next_hearing_date.asc().nulls_last(),
+            Case.next_hearing_on.asc().nulls_last(),
             Case.case_no_text,
             Case.id,
         ]
     else:
         order = [
-            Case.next_hearing_date.asc().nulls_last(),
+            Case.next_hearing_on.asc().nulls_last(),
             due.asc().nulls_last(),
             Case.case_no_text,
             Case.id,

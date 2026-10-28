@@ -112,3 +112,43 @@
 .plain[data-kind="suggested"] .word {
   color: var(--text);
 }
+
+/* design next-date-direct, decision 8: an around date is shown directly, in the band's normal fill; the badge, the
+   "Order Differs" chip and the muted lines under a medium badge */
+.wrap {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.top {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s1);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.differs {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--s2);
+  border: 1px solid var(--amber);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--amber);
+  font-size: var(--t-sm);
+  font-weight: 600;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.line {
+  color: var(--text-2);
+  font-size: var(--t-sm);
+  overflow-wrap: anywhere;
+}

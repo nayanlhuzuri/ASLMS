@@ -242,17 +242,25 @@ def test_hearing_from_cause_list_and_manual_next_date(world):
         )
         unowned = make_case(s)
         entry_with_codes(s, unowned, ["SC, EDU"], list_date=d(1))
+        # the calendar reads the case's one next hearing (design next-date-direct, decision 10)
+        from aslms.services import next_hearing
+
+        next_hearing.refresh(s, [listed.id, manual.id, pending_review.id, unowned.id])
         s.commit()
         # before the evening listing pass (design alerts-visibility-roles, decision 8), whatever the time of the run
         c = alerts.sweep_dates(s, now=datetime.combine(TODAY, time(14, 30), tzinfo=rules.IST))
         s.commit()
-        assert c["alerts_new"] == 2
+        assert c["alerts_new"] == 3
         (a,) = h.alerts_of(s, listed)
         assert a.data["source"] == "causelist" and a.data["item_no"] and "cause list" in a.body
         assert a.severity == Severity.CRITICAL  # tomorrow is within 48 hours
         (m,) = h.alerts_of(s, manual)
-        assert m.data["source"] == "next_date"
-        assert h.alerts_of(s, pending_review) == [] and h.alerts_of(s, unowned) == []
+        assert m.data["source"] == "next_date" and m.data["basis"] == "manual"
+        assert "entered by hand" in m.body.lower()
+        # an old pending reading is shown directly (decision 4 counts it): a period reads "around"
+        (p,) = h.alerts_of(s, pending_review)
+        assert p.data["basis"] == "around" and p.title.startswith("Hearing around ")
+        assert h.alerts_of(s, unowned) == []
 
 
 # ------------------------------------------------------------------------------------------------ compliance

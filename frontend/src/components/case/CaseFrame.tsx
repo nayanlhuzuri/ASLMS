@@ -76,24 +76,33 @@ function Fact({ label, children, status }: { label: string; children: ReactNode;
 
 /** The latest listing when it places the case on its next hearing date (the header's rule), else null. */
 export function listingOnDay(c: CaseDetail, listing: Listing | null | undefined): Listing | null {
-  const next = c.status.next_hearing_date;
+  // the one next hearing (design next-date-direct, decision 11); a listing places it only when the court's record gives it
+  const next = c.next_hearing?.basis === "court" ? c.next_hearing.date : null;
   // a row of a list replaced by a corrected list no longer places the case (design court-data-freshness, decision 12)
   return listing && next && listing.list_date === next && !listing.superseded ? listing : null;
 }
 
 /**
- * The header's next hearing (design next-hearing-highlight, decision 11): the kit's `HearingDate` in the medium size,
- * the word before the weekday and date (owner, 23 Oct 2026: the date always shows with the whole-day countdown), then
- * the court and item when the latest listing places the case on that day.
+ * The header's next hearing (design next-hearing-highlight, decision 11; next-date-direct, decisions 5, 8 and 11): the
+ * kit's `HearingDate` in the medium size with the case's one next hearing, the word before the weekday and date, then
+ * the court and item when the latest listing places the case on that day, else the line saying where the date comes
+ * from; "Order Differs" with its sentence when the latest order gives another exact date; "Reported as possibly wrong"
+ * while a report is open.
  */
 function NextHearingFact({ c, listing }: { c: CaseDetail; listing: Listing | null | undefined }) {
   const onDay = listingOnDay(c, listing);
   const disposed = c.status.status === "disposed";
+  const reported = c.next_hearing?.reported_at;
   return (
     <span className={s.factLine}>
-      <HearingDate date={c.status.next_hearing_date} status={c.status.status} size="md" />
+      <HearingDate next={c.next_hearing ?? null} status={c.status.status} size="md" lines={!onDay} />
       {/* the item number as printed in the cause list, else the serial (design portal-ui-polish, decision 12) */}
       {onDay && !disposed ? <span className="muted">{T.rail.courtItem(onDay.court_no ?? null, onDay.printed_sr ?? onDay.sr_no)}</span> : null}
+      {reported && !disposed ? (
+        <span className="muted" data-reported="true">
+          {T.hearing.reported(formatDate(reported))}
+        </span>
+      ) : null}
     </span>
   );
 }

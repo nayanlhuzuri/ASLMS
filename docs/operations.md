@@ -758,6 +758,25 @@ hourly limit. `aslms assistant ask "when is the next date" --user <e-mail> --cas
 the court-data switch carried. Stored local-model answers stay readable; the migration 0032 downgrade refuses while
 any exists (a restore is needed, section 6).
 
+## 21. The next hearing shown directly from orders
+
+Row 199 (`next-date-direct`, migration 0034). Each case keeps one next hearing on `cases.next_hearing_*`, written only
+by the server's `next_hearing.refresh`; the 5-minute `aslms.next_dates_read` job also does the daily rollovers and the
+backfill of up to 5,000 never-computed cases a run (counters `hearing_refreshed` and rollovers in its `job_runs` row).
+No court call is made.
+
+**On deploy** (after the merge, with the court-data switch carried on every `up`):
+1. `docker compose run --rm migrate` (0034), then `init` (seeds the functions Report Wrong Next Date and Correct
+   Misread Next Date and their matrix rows), then `docker compose build`.
+2. `docker compose exec api aslms next-dates direct` is a dry run: it prints the old suggestions that become shown
+   directly, the enter items added, the manual dates to supersede and the conflicts, and writes nothing. Then
+   `docker compose exec api aslms next-dates direct --apply` (one audit row `next_dates.direct_apply`).
+3. `docker compose exec api aslms next-dates hearing-refresh --all` computes every case at once (otherwise the job
+   backfills in about an hour). `aslms next-dates status` shows the next hearings by basis and the flagged count.
+
+No new setting or environment variable. The Super Administrator's bell shows a reported wrong date; the function
+defaults are in Administration, User Types, under Alerts.
+
 ## Pilot go-live checklist
 
 - [ ] Rows 76, 16, 77 and 78 merged.

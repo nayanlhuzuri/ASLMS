@@ -4208,8 +4208,10 @@ export interface paths {
         };
         /**
          * Review Queue
-         * @description Next dates to confirm and orders to enter a date for, on claimed cases where one of your memberships holding
-         *     `next_dates.review` works on the case; sorted by the date to act by, then the case.
+         * @description Orders whose next date a person must enter (the order gives no clear date, no date at all, is a scanned copy,
+         *     or its date was marked wrong), on claimed cases with no next hearing from the court where one of your memberships
+         *     holding `next_dates.review` works on the case; sorted by the date to act by, then the case. `kind=confirm` is
+         *     accepted and always empty (design next-date-direct, decision 9).
          */
         get: operations["review_queue_next_dates_review_get"];
         put?: never;
@@ -4240,6 +4242,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/next-dates/{id}/correct": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Correct
+         * @description Mark the next date read from the latest order as wrong, with a reason, and enter the right date when the
+         *     order shows it. The court's own records cannot be changed.
+         */
+        post: operations["correct_next_dates__id__correct_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/next-dates/{id}/keep": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Keep
+         * @description Reading Is Right: close the open reports of this date; the date read from the order stays.
+         */
+        post: operations["keep_next_dates__id__keep_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/next-dates/{id}/reject": {
         parameters: {
             query?: never;
@@ -4254,6 +4297,27 @@ export interface paths {
          * @description Reject a next date read from an order, optionally giving the correct date (entered as a manual date).
          */
         post: operations["reject_next_dates__id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/next-dates/{id}/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Report
+         * @description Report that the next date read from the latest order looks wrong. Nothing changes: the people who correct
+         *     dates are told, with your reason (10 to 300 characters).
+         */
+        post: operations["report_next_dates__id__report_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5214,6 +5278,7 @@ export interface components {
             filing_no_text: string | null;
             /** Last Hearing Date */
             last_hearing_date: string | null;
+            next_hearing?: components["schemas"]["NextHearingOut"] | null;
             /** Next Hearing Date */
             next_hearing_date: string | null;
             /** Parties */
@@ -5610,6 +5675,15 @@ export interface components {
         };
         /** CalendarItemOut */
         CalendarItemOut: {
+            /**
+             * Approximate
+             * @default false
+             */
+            approximate: boolean;
+            /** Basis */
+            basis?: string | null;
+            /** Basis Words */
+            basis_words?: string | null;
             case: components["schemas"]["AlertCaseOut"];
             /** Court No */
             court_no: string | null;
@@ -5622,6 +5696,8 @@ export interface components {
             date: string;
             /** Item No */
             item_no: string | null;
+            /** Order Date */
+            order_date?: string | null;
             /** Purpose */
             purpose: string | null;
             /** Source */
@@ -5795,6 +5871,7 @@ export interface components {
              * @default 0
              */
             next_dates_to_review: number;
+            next_hearing?: components["schemas"]["NextHearingDetailOut"] | null;
             /** Objections */
             objections: components["schemas"]["ObjectionOut"][];
             ownership: components["schemas"]["CaseOwnershipCompactOut"];
@@ -6088,8 +6165,7 @@ export interface components {
             /** Last Listed On */
             last_listed_on: string | null;
             last_listing: components["schemas"]["CaseLastListingOut"] | null;
-            /** Next Hearing Date */
-            next_hearing_date: string | null;
+            next_hearing: components["schemas"]["NextHearingOut"] | null;
             /** Petitioner Summary */
             petitioner_summary: string | null;
             /** Ref No */
@@ -6142,11 +6218,26 @@ export interface components {
          * @description Design portal-workflow, decision 20a: what the caller may do, from the checks the writes run. `note_mode`
          *     is `draft` when the caller's acting membership holds the file, `permanent` when they may write a note
          *     otherwise, `null` when they may not write one. `next_dates` (design portal-next-dates, decision 3): the caller
-         *     may confirm, reject and enter next dates on the case.
+         *     may enter next dates on the case; false with `next_dates_blocked = "court_date_fixed"` while the court has given
+         *     the next date (design next-date-direct, decision 6). `next_date_report` / `next_date_correct` (decisions 17 to
+         *     19): the caller holds the function, may see the case and a reading of the latest order can be reported or
+         *     corrected.
          */
         CaseWorkflowActionsOut: {
+            /**
+             * Next Date Correct
+             * @default false
+             */
+            next_date_correct: boolean;
+            /**
+             * Next Date Report
+             * @default false
+             */
+            next_date_report: boolean;
             /** Next Dates */
             next_dates: boolean;
+            /** Next Dates Blocked */
+            next_dates_blocked?: "court_date_fixed" | null;
             /** Note Mode */
             note_mode: ("draft" | "permanent") | null;
             /** Set Stage */
@@ -7055,6 +7146,11 @@ export interface components {
             compliance_due_soon: number;
             /** Compliance Overdue */
             compliance_overdue: number;
+            /**
+             * Next Dates Differ
+             * @description the department's claimed cases whose latest order gives a date other than the court's record (design next-date-direct, decision 5)
+             */
+            next_dates_differ?: number | null;
             /** Next Dates To Review */
             next_dates_to_review: number | null;
             /** Recent Order Next Dates */
@@ -7179,6 +7275,15 @@ export interface components {
         };
         /** DashboardHearingOut */
         DashboardHearingOut: {
+            /**
+             * Approximate
+             * @default false
+             */
+            approximate: boolean;
+            /** Basis */
+            basis?: string | null;
+            /** Basis Words */
+            basis_words?: string | null;
             case: components["schemas"]["AlertCaseOut"];
             /** Court No */
             court_no: string | null;
@@ -7191,6 +7296,8 @@ export interface components {
             date: string;
             /** Item No */
             item_no: string | null;
+            /** Order Date */
+            order_date?: string | null;
         };
         /** DashboardHearingsOut */
         DashboardHearingsOut: {
@@ -7369,6 +7476,15 @@ export interface components {
         };
         /** DashboardUpcomingOut */
         DashboardUpcomingOut: {
+            /**
+             * Approximate
+             * @default false
+             */
+            approximate: boolean;
+            /** Basis */
+            basis?: string | null;
+            /** Basis Words */
+            basis_words?: string | null;
             case: components["schemas"]["AlertCaseOut"];
             /** Court No */
             court_no: string | null;
@@ -7381,6 +7497,8 @@ export interface components {
             date: string;
             /** Item No */
             item_no: string | null;
+            /** Order Date */
+            order_date?: string | null;
             /** This Week */
             this_week: boolean;
         };
@@ -9597,6 +9715,15 @@ export interface components {
          *     they hold, or a next date waiting for their confirmation; the fields of the other kinds are null.
          */
         MyCalendarItemOut: {
+            /**
+             * Approximate
+             * @default false
+             */
+            approximate: boolean;
+            /** Basis */
+            basis?: string | null;
+            /** Basis Words */
+            basis_words?: string | null;
             case: components["schemas"]["AlertCaseOut"];
             /** Court No */
             court_no?: string | null;
@@ -9616,6 +9743,8 @@ export interface components {
             kind: "hearing" | "action_due" | "confirm";
             /** Next Date Id */
             next_date_id?: string | null;
+            /** Order Date */
+            order_date?: string | null;
             /** Overdue */
             overdue?: boolean | null;
             /** Pending Action */
@@ -9954,6 +10083,25 @@ export interface components {
         };
         /** NextDateConfirmIn */
         NextDateConfirmIn: Record<string, never>;
+        /**
+         * NextDateCorrectIn
+         * @description Design next-date-direct, decision 18: the reason, and the right date when the order shows it.
+         */
+        NextDateCorrectIn: {
+            /**
+             * Next Date
+             * @description the right date, entered as a manual next date (NXT)
+             */
+            next_date?: string | null;
+            /** Reason */
+            reason: string;
+        };
+        /** NextDateCorrectOut */
+        NextDateCorrectOut: {
+            entered: components["schemas"]["NextDateOut"] | null;
+            next_hearing: components["schemas"]["NextHearingOut"] | null;
+            rejected: components["schemas"]["NextDateOut"];
+        };
         /** NextDateEnterIn */
         NextDateEnterIn: {
             /**
@@ -9971,6 +10119,16 @@ export interface components {
              * @description an order of the case the date answers
              */
             order?: string | null;
+        };
+        /** NextDateKeepIn */
+        NextDateKeepIn: {
+            /** Note */
+            note?: string | null;
+        };
+        /** NextDateKeepOut */
+        NextDateKeepOut: {
+            /** Kept */
+            kept: boolean;
         };
         /** NextDateOrderOut */
         NextDateOrderOut: {
@@ -10052,6 +10210,21 @@ export interface components {
             entered: components["schemas"]["NextDateOut"] | null;
             rejected: components["schemas"]["NextDateOut"];
         };
+        /**
+         * NextDateReportIn
+         * @description Design next-date-direct, decision 17: the reason is shown to the people who can correct the date.
+         */
+        NextDateReportIn: {
+            /** Reason */
+            reason: string;
+        };
+        /** NextDateReportOut */
+        NextDateReportOut: {
+            /** Alert Ref No */
+            alert_ref_no: string;
+            /** Reported */
+            reported: boolean;
+        };
         /** NextDateReviewItemOut */
         NextDateReviewItemOut: {
             /**
@@ -10080,6 +10253,11 @@ export interface components {
             order: components["schemas"]["NextDateReviewOrderOut"] | null;
             /** Phrase */
             phrase: string | null;
+            /**
+             * Reason
+             * @description why the order asks a person for the date (design next-date-direct, decision 9)
+             */
+            reason?: ("unclear" | "none" | "no_text" | "marked_wrong") | null;
             /** Rule */
             rule: string | null;
         };
@@ -10106,6 +10284,106 @@ export interface components {
             order_date: string;
             /** Order No */
             order_no: string;
+        };
+        /**
+         * NextHearingDetailOut
+         * @description The case page's form: the court's sentence, the court's own date (for the discrepancy sentence) and the time
+         *     of an open report of a wrong reading.
+         */
+        NextHearingDetailOut: {
+            /**
+             * Approximate
+             * @description true exactly when basis is `around`
+             */
+            approximate: boolean;
+            /**
+             * Basis
+             * @enum {string}
+             */
+            basis: "court" | "order" | "around" | "confirmed" | "manual";
+            /**
+             * Basis Words
+             * @description the words of an around date as the order puts them: `after 3 weeks`, `after 15.12.2026`
+             */
+            basis_words: string | null;
+            /** Court Date */
+            court_date?: string | null;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            differs: components["schemas"]["NextHearingDiffersOut"] | null;
+            order: components["schemas"]["NextHearingOrderOut"] | null;
+            /** Phrase */
+            phrase?: string | null;
+            /** Reported At */
+            reported_at?: string | null;
+            /** Rule */
+            rule: string | null;
+        };
+        /**
+         * NextHearingDiffersOut
+         * @description An exact date read from the latest order that differs from the court's record (the court's record is used).
+         */
+        NextHearingDiffersOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            order: components["schemas"]["NextHearingOrderOut"] | null;
+        };
+        /** NextHearingOrderOut */
+        NextHearingOrderOut: {
+            /** Document Id */
+            document_id: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Order Date
+             * Format: date
+             */
+            order_date: string;
+            /** Order No */
+            order_no: string;
+        };
+        /**
+         * NextHearingOut
+         * @description The case's one next hearing (design `next-date-direct`, decisions 4, 5 and 8), made on the server and read by
+         *     every screen: the court's record (`court`), a date read from the latest order (`order`, exact; `around`, a period,
+         *     qualified or returnable date counted from the order; `confirmed`, a reading a person confirmed earlier), or a
+         *     date entered by hand where the court gave none (`manual`). Court information: shown to every reader of the
+         *     case.
+         */
+        NextHearingOut: {
+            /**
+             * Approximate
+             * @description true exactly when basis is `around`
+             */
+            approximate: boolean;
+            /**
+             * Basis
+             * @enum {string}
+             */
+            basis: "court" | "order" | "around" | "confirmed" | "manual";
+            /**
+             * Basis Words
+             * @description the words of an around date as the order puts them: `after 3 weeks`, `after 15.12.2026`
+             */
+            basis_words: string | null;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            differs: components["schemas"]["NextHearingDiffersOut"] | null;
+            order: components["schemas"]["NextHearingOrderOut"] | null;
+            /** Rule */
+            rule: string | null;
         };
         /** NoteAttachmentOut */
         NoteAttachmentOut: {
@@ -10710,7 +10988,7 @@ export interface components {
          *     (`user_permissions`). The part before the dot is the module.
          * @enum {string}
          */
-        Permission: "users.view" | "users.create" | "users.edit" | "users.set_type" | "users.enable_disable" | "users.grant" | "users.reset_password" | "users.propose_head" | "access.manage_types" | "offices.manage" | "admin.counsel_codes" | "admin.keywords" | "admin.watchlist" | "admin.masters_sync" | "admin.napix_refetch" | "admin.config" | "admin.designations" | "admin.scoring" | "admin.tickets" | "admin.sourcetrace" | "admin.data_load" | "admin.service_health" | "cases.view_scope" | "cases.view_all" | "cases.view_private_all" | "cases.search_court" | "cases.claim" | "cases.dismiss" | "cases.suggest_elsewhere" | "cases.transfer_request" | "cases.transfer_decide" | "cases.allot" | "cases.release" | "cases.take_over" | "custody.move" | "custody.recall" | "custody.track" | "requests.send" | "requests.answer" | "stages.set" | "notes.add" | "notes.view_counsel_shared" | "notes.view_private_office" | "documents.upload" | "documents.view" | "documents.download" | "alerts.acknowledge" | "next_dates.review" | "reports.department" | "reports.state" | "dashboard.state" | "assistant.use" | "audit.view";
+        Permission: "users.view" | "users.create" | "users.edit" | "users.set_type" | "users.enable_disable" | "users.grant" | "users.reset_password" | "users.propose_head" | "access.manage_types" | "offices.manage" | "admin.counsel_codes" | "admin.keywords" | "admin.watchlist" | "admin.masters_sync" | "admin.napix_refetch" | "admin.config" | "admin.designations" | "admin.scoring" | "admin.tickets" | "admin.sourcetrace" | "admin.data_load" | "admin.service_health" | "cases.view_scope" | "cases.view_all" | "cases.view_private_all" | "cases.search_court" | "cases.claim" | "cases.dismiss" | "cases.suggest_elsewhere" | "cases.transfer_request" | "cases.transfer_decide" | "cases.allot" | "cases.release" | "cases.take_over" | "custody.move" | "custody.recall" | "custody.track" | "requests.send" | "requests.answer" | "stages.set" | "notes.add" | "notes.view_counsel_shared" | "notes.view_private_office" | "documents.upload" | "documents.view" | "documents.download" | "alerts.acknowledge" | "next_dates.review" | "next_dates.report_wrong" | "next_dates.correct" | "reports.department" | "reports.state" | "dashboard.state" | "assistant.use" | "audit.view";
         /** PermissionOut */
         PermissionOut: {
             code: components["schemas"]["Permission"];
@@ -18539,6 +18817,8 @@ export interface operations {
                 next_from?: string | null;
                 /** @description Next hearing date on or before this day */
                 next_to?: string | null;
+                /** @description Only cases whose latest order gives a date other than the court's record */
+                next_differs?: boolean | null;
                 /** @description The case type: the master's short name or an alias, or the case's type text */
                 case_type?: string | null;
                 /** @description Registration year (1900-2100) */
@@ -19728,6 +20008,8 @@ export interface operations {
                 next_from?: string | null;
                 /** @description Next hearing date on or before this day */
                 next_to?: string | null;
+                /** @description Only cases whose latest order gives a date other than the court's record */
+                next_differs?: boolean | null;
                 /** @description The case type: the master's short name or an alias, or the case's type text */
                 case_type?: string | null;
                 /** @description Registration year (1900-2100) */
@@ -19794,6 +20076,8 @@ export interface operations {
                 next_from?: string | null;
                 /** @description Next hearing date on or before this day */
                 next_to?: string | null;
+                /** @description Only cases whose latest order gives a date other than the court's record */
+                next_differs?: boolean | null;
                 /** @description The case type: the master's short name or an alias, or the case's type text */
                 case_type?: string | null;
                 /** @description Registration year (1900-2100) */
@@ -21579,6 +21863,8 @@ export interface operations {
                 next_from?: string | null;
                 /** @description Next hearing date on or before this day */
                 next_to?: string | null;
+                /** @description Only cases whose latest order gives a date other than the court's record */
+                next_differs?: boolean | null;
                 /** @description The case type: the master's short name or an alias, or the case's type text */
                 case_type?: string | null;
                 /** @description Registration year (1900-2100) */
@@ -21739,6 +22025,8 @@ export interface operations {
                 next_from?: string | null;
                 /** @description Next hearing date on or before this day */
                 next_to?: string | null;
+                /** @description Only cases whose latest order gives a date other than the court's record */
+                next_differs?: boolean | null;
                 /** @description The case type: the master's short name or an alias, or the case's type text */
                 case_type?: string | null;
                 /** @description Registration year (1900-2100) */
@@ -22293,6 +22581,8 @@ export interface operations {
                 next_from?: string | null;
                 /** @description Next hearing date on or before this day */
                 next_to?: string | null;
+                /** @description Only cases whose latest order gives a date other than the court's record */
+                next_differs?: boolean | null;
                 /** @description The case type: the master's short name or an alias, or the case's type text */
                 case_type?: string | null;
                 /** @description Registration year (1900-2100) */
@@ -22382,6 +22672,8 @@ export interface operations {
                 next_from?: string | null;
                 /** @description Next hearing date on or before this day */
                 next_to?: string | null;
+                /** @description Only cases whose latest order gives a date other than the court's record */
+                next_differs?: boolean | null;
                 /** @description The case type: the master's short name or an alias, or the case's type text */
                 case_type?: string | null;
                 /** @description Registration year (1900-2100) */
@@ -22465,6 +22757,8 @@ export interface operations {
                 next_from?: string | null;
                 /** @description Next hearing date on or before this day */
                 next_to?: string | null;
+                /** @description Only cases whose latest order gives a date other than the court's record */
+                next_differs?: boolean | null;
                 /** @description The case type: the master's short name or an alias, or the case's type text */
                 case_type?: string | null;
                 /** @description Registration year (1900-2100) */
@@ -22519,6 +22813,8 @@ export interface operations {
                 next_from?: string | null;
                 /** @description Next hearing date on or before this day */
                 next_to?: string | null;
+                /** @description Only cases whose latest order gives a date other than the court's record */
+                next_differs?: boolean | null;
                 /** @description The case type: the master's short name or an alias, or the case's type text */
                 case_type?: string | null;
                 /** @description Registration year (1900-2100) */
@@ -22577,6 +22873,8 @@ export interface operations {
                 next_from?: string | null;
                 /** @description Next hearing date on or before this day */
                 next_to?: string | null;
+                /** @description Only cases whose latest order gives a date other than the court's record */
+                next_differs?: boolean | null;
                 /** @description The case type: the master's short name or an alias, or the case's type text */
                 case_type?: string | null;
                 /** @description Registration year (1900-2100) */
@@ -22937,6 +23235,8 @@ export interface operations {
                 next_from?: string | null;
                 /** @description Next hearing date on or before this day */
                 next_to?: string | null;
+                /** @description Only cases whose latest order gives a date other than the court's record */
+                next_differs?: boolean | null;
                 /** @description The case type: the master's short name or an alias, or the case's type text */
                 case_type?: string | null;
                 /** @description Registration year (1900-2100) */
@@ -23077,6 +23377,148 @@ export interface operations {
             };
         };
     };
+    correct_next_dates__id__correct_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NextDateCorrectIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NextDateCorrectOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    keep_next_dates__id__keep_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["NextDateKeepIn"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NextDateKeepOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     reject_next_dates__id__reject_post: {
         parameters: {
             query?: never;
@@ -23099,6 +23541,77 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NextDateRejectOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    report_next_dates__id__report_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NextDateReportIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NextDateReportOut"];
                 };
             };
             /** @description Bad Request */

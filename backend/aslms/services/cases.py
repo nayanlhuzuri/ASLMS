@@ -730,6 +730,7 @@ def apply_dossier(session: Session, case: Case, data: dict[str, Any]) -> ApplyRe
     refresh_search_vector(session, [case.id])
     _attach_watchlist_and_score(session, case)
     _match_next_dates(session, case)
+    _refresh_next_hearing(session, case)
     return ApplyReport(case.id, case.cnr, changed=new or bool(counts), snapshot_new=new, counts=counts)
 
 
@@ -773,6 +774,14 @@ def _match_next_dates(session: Session, case: Case) -> None:
     next_dates.match_after_court_change(session, [case.id])
 
 
+def _refresh_next_hearing(session: Session, case: Case) -> None:
+    """The court's record or the orders of the case may have changed: its one next hearing is computed again
+    (design `next-date-direct`, Services). Never raises: a failure is recorded and the 5-minute job retries it."""
+    from aslms.services import next_hearing
+
+    next_hearing.refresh_after_court_change(session, [case.id])
+
+
 STATUS_WATCH = (
     "next_hearing_date",
     "last_hearing_date",
@@ -800,6 +809,7 @@ def apply_status(session: Session, case: Case, block: dict[str, Any]) -> ApplyRe
     session.flush()
     if "next_hearing_date" in changes:
         _match_next_dates(session, case)
+        _refresh_next_hearing(session, case)
     return ApplyReport(case.id, case.cnr, changed=bool(changes), snapshot_new=new, status_changes=changes)
 
 

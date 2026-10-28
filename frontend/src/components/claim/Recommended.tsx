@@ -57,7 +57,7 @@ export function Recommended({ params, department, onOpen }: { params: Params; de
       cell: (r) => <CaseCell c={{ ...r.case, petitioner_summary: null, respondent_summary: null }} />,
     },
     { key: "parties", header: T.claim.parties, cell: (r) => partiesText(r.case) },
-    { key: "next", header: T.claim.nextHearing, cell: (r) => <HearingDate date={r.case.next_hearing_date} status={r.case.status} /> },
+    { key: "next", header: T.claim.nextHearing, cell: (r) => <HearingDate next={r.case.next_hearing} status={r.case.status} /> },
     { key: "match", header: T.claim.match, width: "180px", cell: (r) => <ScoreBadge score={r.score} band={r.band} /> },
   ];
   return (

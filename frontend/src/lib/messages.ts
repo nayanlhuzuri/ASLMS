@@ -179,6 +179,12 @@ export const NEXT_DATE_ERRORS: ErrorTexts = {
   already_entered: () => "This date is already entered for the case.",
   not_owned: () => "The case is no longer claimed by a department, so its next dates cannot be changed.",
   date_passed: () => "This date has already passed, so it can no longer be confirmed. Enter the next date instead.",
+  // design next-date-direct, decisions 6, 17 and 18
+  court_date_fixed: () => "The court has given the next date for this case, so it cannot be changed.",
+  already_reported: () => "This date has already been reported and is waiting for correction.",
+  not_reportable: () => "Only a next date read from the latest order can be reported or corrected.",
+  not_order_reading: () => "Only a next date read from the latest order can be reported or corrected.",
+  not_reported: () => "There is no open report on this date.",
 };
 
 // codes whose server message says more than a fixed text (the password policy, the field at fault)
@@ -390,7 +396,7 @@ export const T = {
       duplicates: "Duplicates",
       discovery: "Discovery",
     },
-    alerts: { list: "Alerts", nextDates: "Next Dates to Confirm" },
+    alerts: { list: "Alerts", nextDates: "Next Dates to Enter" },
     // design portal-ui-redesign, decisions 5 and 6: the Case inbox is the user's own work; Case claim the suggestions;
     // design case-inbox-merge, decision 7: the Cases list folded in (Sent by me, Pending action)
     inbox: {
@@ -674,7 +680,7 @@ export const T = {
     "/alerts": "Alerts",
     "/calendar": "My Calendar",
     "/alerts/calendar": "Hearing Calendar",
-    "/alerts/next-dates": "Next Dates to Confirm",
+    "/alerts/next-dates": "Next Dates to Enter",
     "/admin/mapping/discovery": "Court Search",
     "/data/discovery": "Discovery",
     // design data-collection-redesign, decision 1
@@ -875,7 +881,9 @@ export const T = {
     upcoming: "Upcoming Hearings",
     noHearings: "No hearings in the next 7 days.",
     attention: "Needs Attention",
-    nextDatesReview: "Next Dates to Confirm",
+    nextDatesReview: "Next Dates to Enter",
+    // design next-date-direct, decision 5
+    nextDatesDiffer: "Next Dates That Differ From the Court",
     complianceSoon: "Compliance Due Soon",
     complianceOverdue: "Compliance Overdue",
     openTransfers: "Open Transfers",
@@ -944,17 +952,17 @@ export const T = {
     kpiOverdue: "Overdue Actions",
     kpiOverdueSub: (n: number) => (n === 1 ? "Oldest 1 day" : `Oldest ${n} days`),
     kpiOverdueNone: "Nothing Overdue",
-    kpiConfirm: "Next Dates to Confirm",
-    kpiConfirmSub: "From new orders",
+    kpiConfirm: "Next Dates to Enter",
+    kpiConfirmSub: "Orders with no clear date",
     upcomingNone: "No hearing of your cases in the next 7 days.",
     upcomingNoneTitle: "No Hearings This Week",
     openCalendar: "Open Calendar →",
     needsAttention: "Needs Your Attention",
     attentionNoneTitle: "Nothing Waiting",
-    attentionNone: "Overdue cases, next dates to confirm and cases you receive appear here.",
+    attentionNone: "Overdue cases, next dates to enter and cases you receive appear here.",
     leads: {
       overdue_action: "Overdue",
-      confirm_next_date: "Confirm",
+      confirm_next_date: "Enter",
       due_soon: "Due Soon",
       file_received: "New",
     } as Record<string, string>,
@@ -1903,6 +1911,8 @@ export const T = {
     fromOnly: (d: string) => `from ${d}`,
     toOnly: (d: string) => `to ${d}`,
     chipNames: { q: "Words", listed: "Cause List", bench: "Bench" },
+    // design next-date-direct, decision 5
+    nextDiffers: "Next Date Differs",
     more: "More Filters",
     apply: "Apply",
     clearAll: "Clear All",
@@ -3033,9 +3043,28 @@ export const T = {
       none: "No Date Yet",
       disposed: "Disposed",
       suggested: "Suggested",
+      // design next-date-direct, decision 8
+      around: "Around",
+      differs: "Order Differs",
     },
     passedHint: "The court's next date has passed and no newer date is held yet.",
     suggestedHint: "Read from an order and not yet confirmed.",
+    // design next-date-direct, decisions 5, 6, 8 and 17: where the one next hearing comes from, in one muted line
+    basis: {
+      court: "From the court's records",
+      order: (d: string) => `Given in the order of ${d}`,
+      confirmed: (d: string) => `From the order of ${d}`,
+      manual: "Entered by hand; the court has given no date",
+      corrected: (d: string) => `Corrected by hand: the date read from the order of ${d} was wrong`,
+    },
+    aroundSentence: (date: string, words: string | null, orderDate: string | null) => {
+      const bits = [words, orderDate ? `order of ${orderDate}` : null].filter(Boolean);
+      return bits.length > 0 ? `Around ${date} (${bits.join(", ")})` : `Around ${date}`;
+    },
+    differsSentence: (orderDate: string, orderGives: string, courtGives: string) =>
+      `The order of ${orderDate} gives ${orderGives}; the court's record gives ${courtGives}. The court's record is used.`,
+    fixed: "The court has given the next date, so it cannot be changed here.",
+    reported: (d: string) => `Reported as possibly wrong on ${d}; waiting for correction`,
   },
   // the hearing calendar (decisions 10, 11)
   cal: {
@@ -3263,10 +3292,9 @@ export const T = {
   },
   // next dates from orders (design portal-next-dates, decision 12)
   nd: {
-    tab: "Next Dates to Confirm",
-    list: "Next Dates to Confirm",
-    show: "Show",
-    kinds: { "": "Everything", confirm: "Dates to Confirm", enter: "Dates to Enter" } as Record<string, string>,
+    // design next-date-direct, decision 9: enter items only
+    tab: "Next Dates to Enter",
+    list: "Next Dates to Enter",
     noun: "items",
     case: "Case",
     order: "Order",
@@ -3279,33 +3307,46 @@ export const T = {
     orderNo: (n: string) => `No. ${n}`,
     viewOrder: "View Order",
     quoted: (text: string) => `“${text}”`,
-    suggested: "Suggested from the order — please confirm",
-    enterNeeded: "No date could be read from this order — please enter the next date",
-    enterScanned: "This order is a scanned copy and could not be read — please open it and enter the next date",
+    // why the order asks a person for the date (design next-date-direct, decision 9)
+    reasons: {
+      unclear: "The order gives no clear date",
+      none: "The order gives no next date",
+      no_text: "This order is a scanned copy and could not be read",
+      marked_wrong: "The date read from this order was marked wrong",
+    } as Record<string, string>,
+    enterNeeded: "The order gives no clear date",
     pleaseAnswerBy: (d: string) => `Please answer by ${d}`,
-    confirm: "Confirm",
-    notCorrect: "Not Correct…",
     enterDate: "Enter Date…",
     enterNext: "Enter Next Date",
-    confirmFor: (c: string) => `Confirm next date of ${c}`,
-    notCorrectFor: (c: string) => `Not correct: next date of ${c}`,
     enterFor: (c: string) => `Enter date for ${c}`,
-    emptyDefault: "Nothing to confirm. New orders of your cases are checked every few minutes.",
+    emptyDefault: "Nothing to enter. New orders of your cases are checked every few minutes.",
     empty: "No item matches these filters.",
     onlyYours: "Only cases your office works on are listed here.",
-    // the dialogs (decisions 5-7)
-    confirmTitle: (d: string, c: string) => `Confirm ${d} as the next date of ${c}?`,
-    confirmEffect: "It will appear in the hearing calendar and the hearing alerts.",
-    confirmed: (d: string, c: string) => `Confirmed. ${d} is now the next date of ${c}.`,
-    rejectTitle: "This Date Is Not Right",
-    suggestedDate: "Suggested Date",
-    correctDate: "The correct next date (if the order gives one)",
-    reason: "Reason (Optional)",
+    // the dialogs (design portal-next-dates, decision 7; next-date-direct, decisions 17 and 18)
     note: "Note (Optional)",
     publicHint: "Shown to everyone who can see the case. Do not write internal remarks.",
-    rejectedWith: (d: string) => `Saved. The next date is now ${d}.`,
-    rejected: "Saved. The suggested date will not be used.",
     save: "Save",
+    report: "Report Wrong Next Date",
+    reportTitle: "Report Wrong Next Date",
+    reportLine: "The date stays as it is. The people who correct dates are told, with your reason.",
+    reportReason: "Why the Date Looks Wrong",
+    reportHint: "Shown to the people who can correct it. 10 to 300 characters.",
+    reportSend: "Report",
+    reported: "Reported. The people who correct dates have been told.",
+    reasonTooShort: "Write at least 10 characters.",
+    correct: "Correct It",
+    correctTitle: "Correct Misread Next Date",
+    dateRead: "Date Read From the Order",
+    correctReason: "Reason",
+    correctReasonHint: "Kept with the record. 10 to 300 characters.",
+    rightDate: "The Right Date (if the order shows it)",
+    rightDateHint: "Without a date, the case asks for the next date to be entered.",
+    correctSave: "Correct",
+    readingIsRight: "Reading Is Right",
+    corrected: (d: string) => `Corrected. The next date is now ${d}.`,
+    correctedNoDate: "Corrected. The case now asks for the next date to be entered.",
+    kept: "Saved. The date read from the order stays.",
+    courtUnchanged: "The court's own records cannot be changed.",
     enterTitle: "Enter the Next Date",
     enterLine: "The date you enter is used for the hearing calendar and alerts until a newer order of the case arrives.",
     entered: (d: string, c: string) => `Saved. ${d} is the next date of ${c}.`,
@@ -3352,16 +3393,15 @@ export const T = {
     } as Record<string, string>,
     statuses: {
       not_needed: "In Use",
-      pending: "Suggested From the Order — Please Confirm",
+      pending: "In Use",
       confirmed: "Confirmed",
-      rejected: "Not Accepted",
+      rejected: "Marked Wrong",
       superseded: "Replaced by a Later Date",
-      expired: "Date Passed Before It Was Confirmed",
+      expired: "Date Passed",
     } as Record<string, string>,
-    pendingReader: "Waiting for Confirmation",
     rules: {
       returnable_date: "The order gives this as the returnable date of the notice",
-      qualified_date: "The order says not before this date — please check the exact day",
+      qualified_date: "The order says not before this date",
       list_after_period: "Counted from the order date — the order gives a period, not a date",
       after_returnable_period: "Counted from the order date — the order gives a period, not a date",
       returnable_period: "Counted from the order date — the order gives a period, not a date",
@@ -3369,7 +3409,7 @@ export const T = {
       no_countable_date: "The order gives no date that could be counted",
     } as Record<string, string>,
     // the dashboard and alerts (decisions 13, 14)
-    dashCount: "Next Dates to Confirm",
+    dashCount: "Next Dates to Enter",
     answerIt: "Answer It",
   },
   // the Case Assistant (design assistant, decision 14)

@@ -19,11 +19,10 @@ export function sourceLabel(code: string): string {
 }
 
 /**
- * The review status in words. A pending date reads "Suggested from the order — please confirm" for someone who may
- * answer it and "Waiting for confirmation" for a reader without the action.
+ * The review status in words. Since next-date-direct (decisions 1 to 3) a date read from an order is shown directly, so
+ * an old pending row reads "In Use" like any other row in use; a rejected one "Marked Wrong".
  */
-export function statusLabel(code: string, { canAct = false }: { canAct?: boolean } = {}): string {
-  if (code === "pending" && !canAct) return T.nd.pendingReader;
+export function statusLabel(code: string): string {
   return T.nd.statuses[code] ?? fallback(code);
 }
 
@@ -83,4 +82,14 @@ export function originLine(
 /** An *enter* item with neither a rule nor the court's sentence: the order had no readable text (a scan). */
 export function isScannedItem(item: Pick<NextDateReviewItem, "kind" | "rule" | "phrase">): boolean {
   return item.kind === "enter" && !item.rule && !item.phrase;
+}
+
+/**
+ * Why an order asks a person for the next date (design next-date-direct, decision 9), from the item's `reason`; an
+ * older server without it falls back to the scanned-copy test.
+ */
+export function reasonLabel(item: Pick<NextDateReviewItem, "kind" | "rule" | "phrase" | "reason">): string {
+  const words = item.reason ? T.nd.reasons[item.reason] : undefined;
+  if (words) return words;
+  return isScannedItem(item) ? (T.nd.reasons.no_text ?? T.nd.enterNeeded) : T.nd.enterNeeded;
 }

@@ -33,6 +33,7 @@ const CHIPS: ChipTexts = {
     owner: "Department",
     scored_for: "Matched to Department",
     other_office: "Other Department",
+    next_differs: "Next Date Differs",
   },
   listedPresets: { today: "Today", tomorrow: "Tomorrow", d7: "Last 7 Days", d30: "Last 30 Days" },
   nextPresets: { today: "Today", n7: "Next 7 Days", n30: "Next 30 Days" },
@@ -111,6 +112,17 @@ describe("toApiQuery (decision 11)", () => {
 
   it("leaves out empty values", () => {
     expect(toApiQuery({ q: " ", year: "" }, "search")).toEqual({});
+  });
+});
+
+describe("the next-date-differs filter (next-date-direct, decision 5)", () => {
+  it("goes to the API as true only when ticked, on every case list, and shows a chip with its label alone", () => {
+    expect(toApiQuery({ next_differs: "true" }, "department", NEAR_MIDNIGHT)).toMatchObject({ next_differs: "true" });
+    expect(toApiQuery({ next_differs: "true" }, "recommended", NEAR_MIDNIGHT)).toMatchObject({ next_differs: "true" });
+    expect(toApiQuery({ next_differs: "maybe" }, "department", NEAR_MIDNIGHT)).not.toHaveProperty("next_differs");
+    expect(toApiQuery({ next_differs: "true" }, "claimed_disposed", NEAR_MIDNIGHT)).not.toHaveProperty("next_differs");
+    expect(chipsOf({ next_differs: "true" }, "department", CHIPS).map((c) => c.label)).toEqual(["Next Date Differs"]);
+    expect(chipsOf({ next_differs: "" }, "department", CHIPS)).toEqual([]);
   });
 });
 

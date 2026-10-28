@@ -20,6 +20,7 @@ import { browserApi, expectDataTable, makeMe, renderWithClient, type BrowserCall
 
 import { InboxFrame, InboxIndex } from "./InboxFrame";
 import { ClaimedRedirect, Redirect, redirectTarget } from "./Redirects";
+import { courtNext } from "@/test/nextHearing";
 
 const COUNTS = { working: 5, files: 2, claimed: 7, disposed: 1 };
 
@@ -247,7 +248,7 @@ describe("Working on (case-inbox-merge, decisions 8 and 9)", () => {
       routes({
         "GET /inbox/mine": {
           items: [
-            myCase(1, { case: summary(1, { next_hearing_date: soon }), custody: brief(), reasons: ["allotted", "file"] }),
+            myCase(1, { case: summary(1, { next_hearing: courtNext(soon) }), custody: brief(), reasons: ["allotted", "file"] }),
             myCase(2, {
               custody: brief({ with_me: false, holder_user: { full_name: "Health Officer", designation: "Deputy Secretary" }, overdue: true }),
             }),
@@ -401,7 +402,7 @@ describe("own work: Claimed by me and Disposed", () => {
         "GET /inbox/mine": {
           items: [
             myCase(1, {
-              case: summary(1, { next_hearing_date: soon }),
+              case: summary(1, { next_hearing: courtNext(soon) }),
               stage: { stage: "counsel_briefed", label: "Counsel briefed", phase: "main" },
               custody: brief(),
               reasons: ["claimed", "file"],
@@ -640,12 +641,12 @@ describe("old addresses", () => {
 describe("the Next Hearing column's bands (design next-hearing-highlight, decisions 4, 9 and 11)", () => {
   const today = istDay();
   const rows = [
-    summary(1, { next_hearing_date: today }),
-    summary(2, { next_hearing_date: addDays(today, 3) }),
-    summary(3, { next_hearing_date: addDays(today, 20) }),
-    summary(4, { next_hearing_date: addDays(today, 1), status: "disposed" }),
-    summary(5, { next_hearing_date: addDays(today, -5) }),
-    summary(6, { next_hearing_date: null }),
+    summary(1, { next_hearing: courtNext(today) }),
+    summary(2, { next_hearing: courtNext(addDays(today, 3)) }),
+    summary(3, { next_hearing: courtNext(addDays(today, 20)) }),
+    summary(4, { next_hearing: courtNext(addDays(today, 1)), status: "disposed" }),
+    summary(5, { next_hearing: courtNext(addDays(today, -5)) }),
+    summary(6, { next_hearing: courtNext(null) }),
   ];
   const expected = [
     ["today", "Today"],

@@ -15,6 +15,7 @@ import type {
 } from "@/lib/api/types";
 
 import { makeMe } from "./render";
+import { courtNext } from "./nextHearing";
 
 export const ADMIN_FNS: Permission[] = [
   "cases.view_scope",
@@ -75,7 +76,7 @@ export function summary(n: number, extra: Partial<CaseSummary> = {}): CaseSummar
     petitioner_summary: "RAM KUMAR",
     respondent_summary: "STATE OF ASSAM",
     status: "pending",
-    next_hearing_date: null,
+    next_hearing: null,
     last_listed_on: "2026-09-25",
     last_listing: { list_date: "2026-09-25", list_type: "daily", court_no: "3", sr_no: 41 },
     ...extra,
@@ -202,6 +203,8 @@ export function caseDetail(extra: Partial<CaseDetail> = {}): CaseDetail {
       date_first_list: null,
     },
     status: { status: "pending", next_hearing_date: "2026-09-25" },
+    // design next-date-direct, decision 11: the one next hearing the modal reads
+    next_hearing: courtNext("2026-09-25"),
     classification: { category: "Service", bench_name: "Single Bench" },
     court: { est_code: "GAHC01", name: "Principal Seat" },
     parties_as_printed: { petitioner_summary: "RAM KUMAR", respondent_summary: "STATE OF ASSAM", pet_advocate: null, res_advocate: null },

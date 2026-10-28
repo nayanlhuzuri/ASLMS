@@ -242,3 +242,55 @@ def test_listed_tomorrow_text_lists_court_and_printed_item():
 def test_new_note_is_informational_and_listed_is_not():
     assert AlertKind.NEW_NOTE in r.INFO_KINDS and AlertKind.NEW_NOTE in r.CASE_KINDS
     assert AlertKind.LISTED_TOMORROW not in r.INFO_KINDS and AlertKind.LISTED_TOMORROW in r.CASE_KINDS
+
+
+def test_hearing_due_from_the_one_next_hearing():
+    """Design next-date-direct, decision 10: around, an exact order date, a confirmed and a manual date; court and
+    cause-list texts unchanged."""
+    base = {"hearing_date": "2026-03-11", "source": "next_date", "order_date": "2026-02-18"}
+    title, body = r.render_alert(
+        AlertKind.HEARING_DUE, CASE, {**base, "basis": "around", "basis_words": "after 3 weeks"}
+    )
+    assert title == "Hearing around 11 Mar 2026: WP(C)/123/2025"
+    assert body == (
+        "Counted from the order of 18 Feb 2026 (after 3 weeks). The court's own date will replace it when it is known."
+    )
+    title, body = r.render_alert(AlertKind.HEARING_DUE, CASE, {**base, "basis": "order"})
+    assert (
+        title == "Hearing on 11 Mar 2026: WP(C)/123/2025"
+        and body == "Date given in the order of 18 Feb 2026."
+    )
+    _, body = r.render_alert(AlertKind.HEARING_DUE, CASE, {**base, "basis": "confirmed"})
+    assert body == "Date from the order of 18 Feb 2026."
+    _, body = r.render_alert(AlertKind.HEARING_DUE, CASE, {**base, "basis": "manual", "order_date": None})
+    assert body == "Date entered by hand; the court has given no date."
+    # an old alert without a basis keeps its text
+    _, body = r.render_alert(
+        AlertKind.HEARING_DUE, CASE, {"hearing_date": "2026-03-11", "source": "next_date"}
+    )
+    assert body == "Next date entered or read from an order."
+    _, body = r.render_alert(
+        AlertKind.HEARING_DUE, CASE, {"hearing_date": "2026-03-11", "source": "current_status"}
+    )
+    assert body == "Next date per court records."
+
+
+def test_next_date_review_and_reported_texts():
+    title, body = r.render_alert(AlertKind.NEXT_DATE_REVIEW, CASE, {"order_date": "2026-10-12"})
+    assert title == "Enter the next date: WP(C)/123/2025"
+    assert body == "Enter the next date: the order of 12 Oct 2026 gives no next date."
+    title, body = r.render_alert(
+        AlertKind.NEXT_DATE_REPORTED,
+        CASE,
+        {
+            "hearing_date": "2026-11-20",
+            "order_date": "2026-10-12",
+            "reporter_name": "Off One",
+            "reporter_office_code": "EDU",
+            "reason": "the order says four weeks",
+        },
+    )
+    assert (
+        title == "Next date reported as wrong: 20 Nov 2026 read from the order of 12 Oct 2026: WP(C)/123/2025"
+    )
+    assert body == "Reported by Off One, EDU: the order says four weeks"

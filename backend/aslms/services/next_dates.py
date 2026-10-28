@@ -7,24 +7,28 @@ next dates (`NXT`).
   case's current order with a date today or later, writes a `next_dates` row (`order_specific` / `order_period`)
   and supersedes the case's other pending rows; a current order without a usable date supersedes the open rows of
   older orders instead (Deviation 11).
-- Firm only when two sources agree (the owner's second decision of 17 Oct 2026, option B): a row is `not_needed`
-  only when its date equals the court's own date for the case (`cases.next_hearing_date`, or a cause-list entry of
-  the case on that date); every other reading is `pending` for a person to confirm. `match_court_dates` closes a
-  pending row as soon as a matching court date arrives (system closure to `not_needed`, `needs_review` kept true,
-  no reviewer; its review alert closed `done`, reason `matched`): at every reader run, and from the dossier,
-  Current Status and cause-list paths through `match_after_court_change`.
+- Shown directly (design `next-date-direct`, decisions 1 to 3, superseding the owner's option B of 17 Oct 2026):
+  every dated reading of the current order is `not_needed` with `needs_review = false`; it is the court-given date
+  from orders, exact for `list_on_date`, around for periods, qualified and returnable dates. No code path writes
+  `pending` any more; `match_court_dates` still closes old pending rows a court date matches, and `direct_apply`
+  (`aslms next-dates direct`) retires them once. Each reading refreshes the case's one next hearing
+  (`next_hearing.refresh`).
   It emits `next_date_extracted` for every row and for every *enter* item. Pending rows whose date passed expire.
   The reading is system work: no audit row (recorded in `job_runs` and the events); failures go to
   `source_failures` (kind `next_date_read`). Court text only: nothing is sent to SourceTrace, NAPIX or any AI.
-- The queue (decisions 7, 10, 17): *confirm* items (pending rows) and *enter* items (an `unclear` / `no_text` current
-  order dated within `NEXT_DATE_UNCLEAR_DAYS`, with no manual date since it was read), only for claimed cases, only
-  where a membership holding `next_dates.review` has a working basis.
-- Writes (decisions 10-12, 15): `confirm`, `reject` (with an optional replacement date) and `enter` take the case
-  row lock, need the function, a visible case, a claim and a working basis in the same membership; they close the
-  order's review alert, emit `next_date_reviewed` / `next_date_entered` and audit `next_date.*` (the note's length
-  and hash, never its text).
-- Reads (decisions 9, 18): `effective_for_case` (the latest manual / order row among not-needed, pending and
-  confirmed, used only when it is not pending), `case_next_dates`, `next_date_out`."""
+- The queue (next-date-direct, decisions 2 and 9): *enter* items only - the current order of a claimed, not disposed
+  case with no next hearing from the court, read `unclear`, `none` or `no_text` or with its reading marked wrong,
+  dated within `NEXT_DATE_UNCLEAR_DAYS`, with no manual date answering it; only where a membership holding
+  `next_dates.review` has a working basis. *confirm* items no longer exist (the kind is accepted and empty).
+- Writes (decisions 10-12, 15; next-date-direct decision 6): `confirm`, `reject` (with an optional replacement date)
+  and `enter` take the case row lock, need the function, a visible case, a claim and a working basis in the same
+  membership, and answer 409 `court_date_fixed` while the case has a court-given next date; they close the order's
+  review alert, emit `next_date_reviewed` / `next_date_entered`, audit `next_date.*` (the note's length and hash,
+  never its text) and refresh the case's next hearing.
+- Misread readings (next-date-direct, decisions 17 and 18): `report_wrong` (an alert to the holders of
+  `next_dates.correct`), `correct` (the reading `rejected`, an optional `manual` date) and `keep`.
+- Reads (decisions 9, 18): `effective_for_case` (the latest open order reading, else the latest open manual row: the
+  "Next Date From Orders" card), `case_next_dates`, `next_date_out`."""
 
 from __future__ import annotations
 
@@ -39,8 +43,10 @@ from sqlalchemy import (
     Date,
     String,
     and_,
+    case,
     cast,
     exists,
+    false,
     func,
     literal,
     null,
@@ -57,14 +63,14 @@ from sqlalchemy.orm import Session, aliased
 from aslms.core import clock
 from aslms.core.config import Settings, get_settings
 from aslms.domain.alerts import Alert, AlertStatus, NextDate, NextDateSource, ReviewStatus
-from aslms.domain.cases import Case
+from aslms.domain.cases import Case, CaseStatus, NextHearingBasis
 from aslms.domain.causelists import CURRENT_LIST, Causelist, CauselistEntry
 from aslms.domain.documents import Document, DocumentText, Order, OrderNextDateStatus, TextStatus
 from aslms.domain.ops import JobRun, JobStatus
 from aslms.domain.org import Office, User
 from aslms.domain.ownership import CaseOwnership, OwnershipRole, OwnershipStatus
 from aslms.domain.reference import AlertKind, EventType, Permission, RecordType
-from aslms.services import access, calendar, case_filters, visibility
+from aslms.services import access, calendar, case_filters, next_hearing, visibility
 from aslms.services import next_date_rules as rules
 from aslms.services.access import Member
 from aslms.services.alert_rules import IST
@@ -96,7 +102,13 @@ ORDER_SOURCES = (NextDateSource.ORDER_SPECIFIC, NextDateSource.ORDER_PERIOD)
 EFFECTIVE_SOURCES = (NextDateSource.MANUAL, *ORDER_SOURCES)
 OPEN_REVIEW = (ReviewStatus.NOT_NEEDED, ReviewStatus.PENDING, ReviewStatus.CONFIRMED)
 CLOSED_REVIEW = (ReviewStatus.REJECTED, ReviewStatus.SUPERSEDED, ReviewStatus.EXPIRED)
-ENTER_STATUSES = (OrderNextDateStatus.UNCLEAR, OrderNextDateStatus.NO_TEXT)
+# next-date-direct, decision 2: an order that gives no next date at all ("not mentioned") asks a person too
+ENTER_STATUSES = (OrderNextDateStatus.UNCLEAR, OrderNextDateStatus.NONE, OrderNextDateStatus.NO_TEXT)
+REVIEW_READINGS = (rules.UNCLEAR, rules.NONE, rules.NO_TEXT)
+MARKED_WRONG = "marked_wrong"
+REASON_MIN, REASON_MAX = 10, 300
+COURT_DATE_FIXED = "The court has given the next date for this case, so it cannot be changed."
+NOT_ORDER_READING = "Only a next date read from the latest order can be reported or corrected."
 READABLE_TEXT = (TextStatus.EXTRACTED, TextStatus.NONE)
 KINDS = ("confirm", "enter")
 DEFAULT_LIMIT, MAX_LIMIT = 50, 200
@@ -199,6 +211,30 @@ def current_order_condition(order=Order) -> ColumnElement[bool]:
     return ~exists().where(later.case_id == order.case_id, later.order_date > order.order_date)
 
 
+def marked_wrong_condition(order=Order) -> ColumnElement[bool]:
+    """Over `orders` (next-date-direct, decision 18): a reading of the order was rejected (marked wrong) and no
+    reading of it is open any more."""
+    rejected = aliased(NextDate)
+    open_ = aliased(NextDate)
+    return and_(
+        exists().where(
+            rejected.order_id == order.id,
+            rejected.source.in_(ORDER_SOURCES),
+            rejected.review_status == ReviewStatus.REJECTED,
+        ),
+        ~exists().where(
+            open_.order_id == order.id,
+            open_.source.in_(ORDER_SOURCES),
+            open_.review_status.in_(OPEN_REVIEW),
+        ),
+    )
+
+
+def no_court_date_condition() -> ColumnElement[bool]:
+    """Over `cases` (next-date-direct, decision 2): the case's one next hearing is empty or entered by hand."""
+    return or_(Case.next_hearing_basis.is_(None), Case.next_hearing_basis == NextHearingBasis.MANUAL)
+
+
 def queue_subquery(
     session: Session,
     case_condition: ColumnElement[bool],
@@ -208,8 +244,9 @@ def queue_subquery(
     kind: str | None = None,
     filters: CaseFilters | None = None,
 ):
-    """Decision 7: the union of *confirm* rows and *enter* orders as (kind, id, case_id, order_id, act_by,
-    next_date) over live claimed cases matching `case_condition` and the shared case filters."""
+    """Decision 7 as changed by next-date-direct (decisions 2 and 9): *enter* orders as (kind, id, case_id,
+    order_id, act_by, next_date, reason) over live claimed cases matching `case_condition` and the shared case
+    filters. The *confirm* part is kept for the shape and returns no row."""
     if kind is not None and kind not in KINDS:
         raise bad("kind must be confirm or enter")
     base = [
@@ -228,12 +265,17 @@ def queue_subquery(
                 NextDate.order_id.label("order_id"),
                 NextDate.next_date.label("act_by"),
                 NextDate.next_date.label("next_date"),
+                cast(null(), String).label("reason"),
             )
             .join(Case, Case.id == NextDate.case_id)
-            .where(NextDate.review_status == ReviewStatus.PENDING, NextDate.next_date >= today, *base)
+            # next-date-direct, decision 9: a court-given reading is never confirmed, so no confirm item
+            .where(
+                false(), NextDate.review_status == ReviewStatus.PENDING, NextDate.next_date >= today, *base
+            )
         )
     if kind in (None, "enter"):
         manual_since = answered_condition()
+        wrong = marked_wrong_condition()
         parts.append(
             select(
                 literal("enter").label("kind"),
@@ -242,13 +284,19 @@ def queue_subquery(
                 Order.id.label("order_id"),
                 (Order.order_date + literal(cfg.unclear_days)).label("act_by"),
                 cast(null(), Date).label("next_date"),
+                case(
+                    (Order.next_date_status.in_(ENTER_STATUSES), cast(Order.next_date_status, String)),
+                    else_=literal(MARKED_WRONG),
+                ).label("reason"),
             )
             .join(Case, Case.id == Order.case_id)
             .where(
-                Order.next_date_status.in_(ENTER_STATUSES),
+                or_(Order.next_date_status.in_(ENTER_STATUSES), wrong),
                 Order.order_date >= today - timedelta(days=cfg.unclear_days),
                 current_order_condition(),
                 ~manual_since,
+                Case.status != CaseStatus.DISPOSED,
+                no_court_date_condition(),
                 *base,
             )
         )
@@ -465,9 +513,7 @@ def read_order(
         source = (
             NextDateSource.ORDER_SPECIFIC if reading.status == rules.SPECIFIC else NextDateSource.ORDER_PERIOD
         )
-        # firm only when the court's own date agrees (owner's second decision of 17 Oct 2026, point 1)
-        firm = court_date_matches(session, case.id, reading.date)
-        status = ReviewStatus.NOT_NEEDED if firm else ReviewStatus.PENDING
+        # next-date-direct, decision 3: the reading of the current order is shown directly, no court match needed
         new_id = session.execute(
             pg_insert(NextDate.__table__)
             .values(
@@ -476,8 +522,8 @@ def read_order(
                 source=source.value,
                 order_id=order.id,
                 confidence=reading.confidence,
-                needs_review=not firm,
-                review_status=status.value,
+                needs_review=False,
+                review_status=ReviewStatus.NOT_NEEDED.value,
             )
             .on_conflict_do_nothing()
             .returning(NextDate.__table__.c.id)
@@ -494,26 +540,40 @@ def read_order(
                     NextDate.order_id == order.id,
                 )
             )
-            if firm and ReviewStatus(row.review_status) == ReviewStatus.PENDING:  # read again after a reread
+            if ReviewStatus(row.review_status) == ReviewStatus.PENDING:  # read again after a reread
                 row.review_status = ReviewStatus.NOT_NEEDED
+                row.needs_review = False
                 counters["matched"] = counters.get("matched", 0) + 1
         counters["superseded"] = counters.get("superseded", 0) + supersede(session, case.id, keep=row.id)
-        review = ReviewStatus(row.review_status) == ReviewStatus.PENDING
-        if review:
-            counters["review_items"] = counters.get("review_items", 0) + 1
-        _extracted_event(session, case, order, reading, row, review)
+        # the newer order's date replaces the dates of older orders (Deviation 11, kept for dated readings too)
+        counters["superseded"] = counters.get("superseded", 0) + supersede_older(session, order)
+        next_hearing.refresh(session, [case.id], today=today)
+        _extracted_event(session, case, order, reading, row, False)
     else:
         # the latest order gives no date to use: the dates of older orders stop (Deviation 11)
         counters["superseded"] = counters.get("superseded", 0) + supersede_older(session, order)
-        if (
-            reading.status in (rules.UNCLEAR, rules.NO_TEXT)
-            and order.order_date >= today - timedelta(days=cfg.unclear_days)
-            and not _answered(session, order)
-        ):
+        next_hearing.refresh(session, [case.id], today=today)
+        if reading.status in REVIEW_READINGS and is_enter_item(session, case, order, today=today, cfg=cfg):
             counters["review_items"] = counters.get("review_items", 0) + 1
             _extracted_event(session, case, order, reading, None, True)
     session.flush()
     return reading.status
+
+
+def is_enter_item(session: Session, case: Case, order: Order, *, today: date, cfg: NextDateConfig) -> bool:
+    """Decision 2's conditions for one order read without a usable date: recent, not answered by a manual date, the
+    case not disposed and with no next hearing from the court. An unclear or scanned order is an item claimed or not
+    (as before; the event scan checks the owner); an order that gives no date at all only on a claimed case, so the
+    pool's many final and procedural orders raise no event."""
+    if order.order_date < today - timedelta(days=cfg.unclear_days) or _answered(session, order):
+        return False
+    if CaseStatus(case.status) == CaseStatus.DISPOSED:
+        return False
+    if OrderNextDateStatus(order.next_date_status) == OrderNextDateStatus.NONE and not session.scalar(
+        select(claimed_condition()).where(Case.id == case.id)
+    ):
+        return False
+    return not next_hearing.court_given(session, case, today=today)
 
 
 def _answered(session: Session, order: Order) -> bool:
@@ -539,25 +599,53 @@ def supersede_older(session: Session, order: Order) -> int:
     answers to this order stay."""
     older = select(Order.id).where(Order.case_id == order.case_id, Order.order_date < order.order_date)
     start = datetime.combine(order.order_date, time.min, tzinfo=IST)
-    result = session.execute(
-        update(NextDate)
-        .where(
-            NextDate.case_id == order.case_id,
-            NextDate.source.in_(EFFECTIVE_SOURCES),
-            NextDate.review_status.in_(OPEN_REVIEW),
-            or_(
-                NextDate.order_id.in_(older),
-                and_(
-                    NextDate.source == NextDateSource.MANUAL,
-                    NextDate.order_id.is_(None),
-                    NextDate.created_at < start,
+    rows = list(
+        session.scalars(
+            select(NextDate)
+            .where(
+                NextDate.case_id == order.case_id,
+                NextDate.source.in_(EFFECTIVE_SOURCES),
+                NextDate.review_status.in_(OPEN_REVIEW),
+                or_(
+                    NextDate.order_id.in_(older),
+                    and_(
+                        NextDate.source == NextDateSource.MANUAL,
+                        NextDate.order_id.is_(None),
+                        NextDate.created_at < start,
+                    ),
                 ),
-            ),
-        )
-        .values(review_status=ReviewStatus.SUPERSEDED)
-        .execution_options(synchronize_session="fetch")
+            )
+            .order_by(NextDate.created_at, NextDate.id)
+            .with_for_update()
+        ).all()
     )
-    return int(result.rowcount or 0)
+    for row in rows:
+        before = _snapshot(row)
+        row.review_status = ReviewStatus.SUPERSEDED
+        session.flush()
+        # next-date-direct, decision 7: a person's record (a manual or confirmed date) closed by the system is audited
+        if NextDateSource(row.source) == NextDateSource.MANUAL or row.reviewed_at is not None:
+            write_audit(
+                session,
+                Actor.system(next_hearing.SYSTEM_ACTOR),
+                "next_date.superseded_by_court",
+                "next_date",
+                row.id,
+                case_id=row.case_id,
+                before=before,
+                after={
+                    **_snapshot(row),
+                    "replaced_by": {
+                        "basis": "newer_order",
+                        "order": {
+                            "order_id": order.id,
+                            "order_no": order.order_no,
+                            "order_date": order.order_date,
+                        },
+                    },
+                },
+            )
+    return len(rows)
 
 
 def expire_stale(session: Session, today: date) -> int:
@@ -631,6 +719,9 @@ def read_pending(
             record_failure(session, FAILURE_KIND, str(oid), f"{exc.__class__.__name__}: {exc}"[:2000])
     counters["expired"] = expire_stale(session, today)
     session.flush()
+    # next-date-direct (Jobs): rollovers, failed refreshes and the backfill of the case's one next hearing
+    if order_id is None:
+        counters.update(next_hearing.refresh_due(session, today=today))
     return counters
 
 
@@ -650,7 +741,7 @@ def run_job(
         session.flush()
         raise
     run.counters = counters
-    run.status = JobStatus.PARTIAL if counters["failed"] else JobStatus.SUCCEEDED
+    run.status = JobStatus.PARTIAL if counters.get("failed") else JobStatus.SUCCEEDED
     run.finished_at = _now()
     session.flush()
     return counters
@@ -713,12 +804,10 @@ def dry_run(
             out["by_rule"][key] = out["by_rule"].get(key, 0) + 1
             if current and reading.date is not None and reading.date >= today:
                 out["would_write"] += 1
-                case_id = session.scalar(select(Order.case_id).where(Order.id == oid))
-                if court_date_matches(session, case_id, reading.date):
-                    out["would_be_firm"] += 1
+                out["would_be_firm"] += 1  # next-date-direct: every dated current reading is shown directly
             elif (
                 current
-                and reading.status in (rules.UNCLEAR, rules.NO_TEXT)
+                and reading.status in REVIEW_READINGS
                 and order_date >= today - timedelta(days=cfg.unclear_days)
             ):
                 out["would_ask"] += 1
@@ -821,7 +910,7 @@ def review_items(
     total = int(session.scalar(select(func.count()).select_from(q)) or 0)
     limit, offset = clamp(limit, offset)
     rows = session.execute(
-        select(q.c.kind, q.c.id, q.c.case_id, q.c.order_id, q.c.act_by, q.c.next_date)
+        select(q.c.kind, q.c.id, q.c.case_id, q.c.order_id, q.c.act_by, q.c.next_date, q.c.reason)
         .join(Case, Case.id == q.c.case_id)
         .order_by(q.c.act_by, Case.ref_no, q.c.id)
         .limit(limit)
@@ -855,6 +944,7 @@ def review_items(
                 "rule": order.next_date_rule if order else None,
                 "next_date": r.next_date,
                 "act_by": r.act_by,
+                "reason": r.reason,
                 "alert_ref_no": alert.ref_no if alert else None,
                 "departments": depts.get(r.case_id, []),
             }
@@ -912,6 +1002,14 @@ def _check_working(session: Session, user: User | Member, case: Case) -> Member:
 def _check_write(session: Session, user: User | Member, case: Case) -> Member:
     _check_visible(session, user, case)
     return _check_working(session, user, case)
+
+
+def check_no_court_date(session: Session, case: Case, *, today: date | None = None) -> None:
+    """Next-date-direct, decision 6: for every user and every type, nothing is entered, confirmed or rejected while
+    the case has a court-given next date (recomputed for the case under its lock, never the stored column). A refused
+    attempt writes no audit row."""
+    if next_hearing.court_given(session, case, today=today or today_ist()):
+        raise conflict("court_date_fixed", COURT_DATE_FIXED)
 
 
 def check_date(d: date | None, *, today: date, cfg: NextDateConfig, name: str = "next_date") -> date:
@@ -994,6 +1092,7 @@ def confirm(
     row = resolve_next_date(session, next_date_id)
     case = session.get(Case, row.case_id)
     member = _check_write(session, user, case)
+    check_no_court_date(session, case)
     row = _locked_row(session, row.id)
     if ReviewStatus(row.review_status) != ReviewStatus.PENDING:
         raise conflict("not_pending", "the next date is not waiting for review")
@@ -1018,6 +1117,7 @@ def confirm(
         before=before,
         after={**_snapshot(row), "office_code": member.office.code},
     )
+    next_hearing.refresh(session, [case.id])
     return row
 
 
@@ -1041,6 +1141,7 @@ def reject(
     if replacement is not None:
         check_date(replacement, today=today_ist(), cfg=cfg)
     member = _check_working(session, user, case)
+    check_no_court_date(session, case)
     row = _locked_row(session, row.id)
     if ReviewStatus(row.review_status) != ReviewStatus.PENDING:
         raise conflict("not_pending", "the next date is not waiting for review")
@@ -1074,6 +1175,7 @@ def reject(
             session, actor, member, case, next_date=replacement, note=None, order_id=row.order_id
         )
     close_moot_review_alerts(session, case.id, "rejected", actor_user_id=actor.user_id, cfg=cfg)
+    next_hearing.refresh(session, [case.id])
     return row, entered
 
 
@@ -1104,9 +1206,11 @@ def enter(
             raise bad("order is not an order of this case")
     if member is None:
         member = _check_working(session, user, case)
+    check_no_court_date(session, case)
     actor = access.actor_as(actor, member)
     row = _insert_manual(session, actor, member, case, next_date=next_date, note=text_, order_id=oid)
     close_moot_review_alerts(session, case.id, "entered", actor_user_id=actor.user_id, cfg=cfg)
+    next_hearing.refresh(session, [case.id])
     return row
 
 
@@ -1201,21 +1305,23 @@ def _reviewed_event(
 
 
 def effective_for_case(session: Session, case: Case | uuid.UUID) -> NextDate | None:
-    """Decision 9: the latest manual / order row among not-needed, pending and confirmed; None when it is pending."""
+    """The "Next Date From Orders" card (next-date-direct, decision 4's ranking): the latest open order reading
+    (not-needed, pending or confirmed: a reading is shown directly), else the latest open manual row."""
     case_id = case if isinstance(case, uuid.UUID) else case.id
-    row = session.scalar(
-        select(NextDate)
-        .where(
-            NextDate.case_id == case_id,
-            NextDate.source.in_(EFFECTIVE_SOURCES),
-            NextDate.review_status.in_(OPEN_REVIEW),
+    for sources in (ORDER_SOURCES, (NextDateSource.MANUAL,)):
+        row = session.scalar(
+            select(NextDate)
+            .where(
+                NextDate.case_id == case_id,
+                NextDate.source.in_(sources),
+                NextDate.review_status.in_(OPEN_REVIEW),
+            )
+            .order_by(NextDate.created_at.desc(), NextDate.id.desc())
+            .limit(1)
         )
-        .order_by(NextDate.created_at.desc(), NextDate.id.desc())
-        .limit(1)
-    )
-    if row is None or ReviewStatus(row.review_status) == ReviewStatus.PENDING:
-        return None
-    return row
+        if row is not None:
+            return row
+    return None
 
 
 def next_date_out(
@@ -1310,6 +1416,7 @@ def status_report(
         "rows": rows,
         "queue": {k: queue.get(k, 0) for k in KINDS},
         "rules_version": rules.RULES_VERSION,
+        "next_hearing": next_hearing.status_counts(session),
     }
 
 
@@ -1344,3 +1451,536 @@ def sample(
         }
         for o, c in session.execute(stmt).all()
     ]
+
+
+# ------------------------------------------------------------------------------------------------ misread readings
+# next-date-direct, decisions 17 to 19: report a wrong reading, correct it, or keep it
+
+
+def reportable_row(session: Session, case: Case, *, today: date | None = None) -> NextDate | None:
+    """Decision 17's row: the case's latest order reading (decision 4, step 2) - the latest open `order_specific` /
+    `order_period` row, dated today or later."""
+    today = today or today_ist()
+    row = session.scalar(
+        select(NextDate)
+        .where(
+            NextDate.case_id == case.id,
+            NextDate.source.in_(ORDER_SOURCES),
+            NextDate.review_status.in_(OPEN_REVIEW),
+        )
+        .order_by(NextDate.created_at.desc(), NextDate.id.desc())
+        .limit(1)
+    )
+    if row is None or row.next_date < today:
+        return None
+    return row
+
+
+def _reason(value_: str | None) -> str:
+    return clean_text(value_, "reason", min_len=REASON_MIN, max_len=REASON_MAX, required=True)
+
+
+def _check_oversight(session: Session, user: User | Member, case: Case, permission: Permission) -> None:
+    """The function (403) and a visible case (404); no working basis: reporting and correcting are oversight."""
+    require_function(session, user, permission)
+    visibility.require_visible(session, user, case)
+
+
+def _acting_office(session: Session, user: User | Member, permission: Permission) -> Office:
+    """The office acting for the caller: the first membership holding the function (for the super admin, their own
+    office)."""
+    members = access.members(session, user)
+    for m in members:
+        if m.holds(permission):
+            return m.office
+    if members:
+        return members[0].office
+    raise access.Forbidden(f"{permission.value} is not enabled for you")
+
+
+def _member_holding(session: Session, user: User | Member, permission: Permission) -> Member | None:
+    for m in access.members(session, user):
+        if m.holds(permission):
+            return m
+    return None
+
+
+def correctors(session: Session, case: Case) -> list[User]:
+    """The active holders of `next_dates.correct` who may see the case (the super admin always)."""
+    from aslms.domain.org import UserMembership
+
+    out: list[User] = []
+    for m, u in session.execute(
+        select(UserMembership, User)
+        .join(User, User.id == UserMembership.user_id)
+        .where(UserMembership.is_active.is_(True), User.is_active.is_(True))
+        .order_by(User.email, UserMembership.id)
+    ).all():
+        if any(x.id == u.id for x in out):
+            continue
+        if access.member_of(session, m, u).holds(Permission.NEXT_DATES_CORRECT) and visibility.can_view_case(
+            session, u, case
+        ):
+            out.append(u)
+    return out
+
+
+def _report_alert(session: Session, row: NextDate) -> Alert | None:
+    return session.scalars(
+        select(Alert).where(*next_hearing.open_report_alerts([row.id])).with_for_update()
+    ).first()
+
+
+def _new_report_key(session: Session, case: Case, row: NextDate) -> str:
+    """Decision 17 with Deviation 16: the first report of a reading takes `next_date_reported:<id>`; a report after
+    the earlier ones were closed takes the next free number, so it raises a new alert instead of finding the closed
+    one (the key is unique across every status). Read under the case lock."""
+    keys = set(
+        session.scalars(
+            select(Alert.dedupe_key).where(
+                Alert.case_id == case.id, Alert.kind == AlertKind.NEXT_DATE_REPORTED
+            )
+        ).all()
+    )
+    n = 1
+    while next_hearing.report_alert_key(row.id, n) in keys:
+        n += 1
+    return next_hearing.report_alert_key(row.id, n)
+
+
+def _reading_snapshot(session: Session, row: NextDate) -> dict[str, Any]:
+    order = session.get(Order, row.order_id) if row.order_id else None
+    return {
+        **_snapshot(row),
+        "order_no": order.order_no if order else None,
+        "order_date": order.order_date if order else None,
+        "rule": order.next_date_rule if order else None,
+        "phrase": order.next_date_phrase if order else None,
+    }
+
+
+def report_wrong(
+    session: Session,
+    actor: Actor,
+    user: User | Member,
+    next_date_id: uuid.UUID | str,
+    *,
+    reason: str | None,
+) -> Alert:
+    """Decision 17: one `next_date_reported` alert to the correctors; no date changes."""
+    from aslms.domain.alerts import Severity
+    from aslms.services.alerts import raise_alert
+
+    row = resolve_next_date(session, next_date_id)
+    case = session.get(Case, row.case_id)
+    _check_oversight(session, user, case, Permission.NEXT_DATES_REPORT_WRONG)
+    text_ = _reason(reason)
+    lock_case(session, case)
+    row = _locked_row(session, row.id)
+    current = reportable_row(session, case)
+    if current is None or current.id != row.id:
+        raise conflict("not_reportable", NOT_ORDER_READING)
+    if _report_alert(session, row) is not None:
+        raise conflict(
+            "already_reported", "This date has already been reported and is waiting for correction."
+        )
+    office = _ownership_office(session, case) or _acting_office(
+        session, user, Permission.NEXT_DATES_REPORT_WRONG
+    )
+    reporter_office = _acting_office(session, user, Permission.NEXT_DATES_REPORT_WRONG)
+    order = session.get(Order, row.order_id) if row.order_id else None
+    reporter = session.get(User, actor.user_id) if actor.user_id else None
+    alert, _ = raise_alert(
+        session,
+        case=case,
+        kind=AlertKind.NEXT_DATE_REPORTED,
+        key=_new_report_key(session, case, row),
+        office=office,
+        severity=Severity.NORMAL,
+        data={
+            "next_date_id": row.id,
+            "order_id": row.order_id,
+            "document_id": order.document_id if order else None,
+            "order_no": order.order_no if order else None,
+            "order_date": order.order_date if order else None,
+            "hearing_date": row.next_date,
+            "rule": order.next_date_rule if order else None,
+            "reporter_name": reporter.full_name if reporter else actor.name,
+            "reporter_office_code": reporter_office.code,
+            "reason": text_,
+        },
+        recipients=lambda: correctors(session, case),
+    )
+    write_audit(
+        session,
+        actor,
+        "next_date.report_wrong",
+        "next_date",
+        row.id,
+        case_id=case.id,
+        after={**_snapshot(row), "alert_ref_no": alert.ref_no, "reason": digest(text_)},
+    )
+    return alert
+
+
+def _ownership_office(session: Session, case: Case) -> Office | None:
+    from aslms.services.workflow_common import primary_owner
+
+    owner = primary_owner(session, case)
+    return session.get(Office, owner.office_id) if owner is not None else None
+
+
+def correct(
+    session: Session,
+    actor: Actor,
+    user: User | Member,
+    next_date_id: uuid.UUID | str,
+    *,
+    reason: str | None,
+    next_date: date | None = None,
+    cfg: NextDateConfig | None = None,
+) -> tuple[NextDate, NextDate | None]:
+    """Decision 18: the reading becomes `rejected` (the reason in `note`, reviewer and time set; the order's reading
+    columns untouched); with a date, a `manual` row on the corrector's office linked to the same order. Open report
+    alerts close `done` / `corrected`; event `next_date_reviewed` (action `corrected`); audit `next_date.correct`."""
+    from aslms.services.alerts import close_alert
+
+    cfg = cfg or NextDateConfig.from_settings()
+    row = resolve_next_date(session, next_date_id)
+    case = session.get(Case, row.case_id)
+    _check_oversight(session, user, case, Permission.NEXT_DATES_CORRECT)
+    text_ = _reason(reason)
+    if next_date is not None:
+        check_date(next_date, today=today_ist(), cfg=cfg)
+    lock_case(session, case)
+    row = _locked_row(session, row.id)
+    current = reportable_row(session, case)
+    if current is None or current.id != row.id:
+        raise conflict("not_order_reading", NOT_ORDER_READING)
+    member = _member_holding(session, user, Permission.NEXT_DATES_CORRECT)
+    office = (
+        member.office if member is not None else _acting_office(session, user, Permission.NEXT_DATES_CORRECT)
+    )
+    if member is not None:
+        actor = access.actor_as(actor, member)
+    before = _reading_snapshot(session, row)
+    row.review_status = ReviewStatus.REJECTED
+    row.reviewed_by_user_id = actor.user_id
+    row.reviewed_at = _now()
+    row.updated_by = actor.user_id
+    row.note = text_
+    session.flush()
+    entered = None
+    if next_date is not None:
+        entered = _insert_corrected(session, actor, office, case, row, next_date=next_date)
+    for alert in session.scalars(
+        select(Alert).where(*next_hearing.open_report_alerts([row.id])).with_for_update()
+    ).all():
+        close_alert(session, alert, AlertStatus.DONE, "corrected", actor_user_id=actor.user_id)
+    emit_event(
+        session,
+        EventType.NEXT_DATE_REVIEWED,
+        case,
+        {
+            "next_date_id": str(row.id),
+            "action": "corrected",
+            "next_date": row.next_date,
+            "corrected_to": next_date,
+            "office_code": office.code,
+        },
+        dedupe=f"next_date_reviewed:{row.id}",
+        actor_user_id=actor.user_id,
+    )
+    write_audit(
+        session,
+        actor,
+        "next_date.correct",
+        "next_date",
+        row.id,
+        case_id=case.id,
+        before=before,
+        after={
+            **_reading_snapshot(session, row),
+            "office_code": office.code,
+            "reason": digest(text_),
+            "entered_ref_no": entered.ref_no if entered is not None else None,
+            "entered_date": next_date,
+        },
+    )
+    close_moot_review_alerts(session, case.id, "corrected", actor_user_id=actor.user_id, cfg=cfg)
+    next_hearing.refresh(session, [case.id])
+    return row, entered
+
+
+def _insert_corrected(
+    session: Session, actor: Actor, office: Office, case: Case, row: NextDate, *, next_date: date
+) -> NextDate:
+    """The corrected date: a `manual` row (`NXT` on the corrector's office) linked to the order of the reading."""
+    entered = NextDate(
+        ref_no=allocate_ref_no(session, office.code, RecordType.NXT.value),
+        case_id=case.id,
+        next_date=next_date,
+        source=NextDateSource.MANUAL,
+        order_id=row.order_id,
+        confidence=1.0,
+        needs_review=False,
+        review_status=ReviewStatus.NOT_NEEDED,
+        note=None,
+        created_by=actor.user_id,
+        updated_by=actor.user_id,
+    )
+    session.add(entered)
+    session.flush()
+    emit_event(
+        session,
+        EventType.NEXT_DATE_ENTERED,
+        case,
+        {
+            "next_date_id": str(entered.id),
+            "ref_no": entered.ref_no,
+            "next_date": next_date,
+            "order_id": str(row.order_id) if row.order_id else None,
+            "office_code": office.code,
+            "corrects": str(row.id),
+        },
+        dedupe=f"next_date_entered:{entered.id}",
+        actor_user_id=actor.user_id,
+    )
+    return entered
+
+
+def keep(
+    session: Session,
+    actor: Actor,
+    user: User | Member,
+    next_date_id: uuid.UUID | str,
+    *,
+    note: str | None = None,
+) -> int:
+    """Decision 18, "Reading Is Right": the open report alerts close `done` / `kept`; the reading stays."""
+    from aslms.services.alerts import close_alert
+
+    row = resolve_next_date(session, next_date_id)
+    case = session.get(Case, row.case_id)
+    _check_oversight(session, user, case, Permission.NEXT_DATES_CORRECT)
+    text_ = clean_text(note, "note", min_len=1, max_len=NOTE_MAX, required=False)
+    lock_case(session, case)
+    alerts = list(
+        session.scalars(
+            select(Alert).where(*next_hearing.open_report_alerts([row.id])).with_for_update()
+        ).all()
+    )
+    if not alerts:
+        raise conflict("not_reported", "There is no open report on this date.")
+    member = _member_holding(session, user, Permission.NEXT_DATES_CORRECT)
+    if member is not None:
+        actor = access.actor_as(actor, member)
+    for alert in alerts:
+        close_alert(session, alert, AlertStatus.DONE, "kept", actor_user_id=actor.user_id)
+    write_audit(
+        session,
+        actor,
+        "next_date.report_kept",
+        "next_date",
+        row.id,
+        case_id=case.id,
+        after={
+            **_snapshot(row),
+            "alerts": [a.ref_no for a in alerts],
+            "note": digest(text_) if text_ else None,
+        },
+    )
+    return len(alerts)
+
+
+def report_still_current(session: Session, alert: Alert, *, today: date | None = None) -> bool:
+    """The hourly sweep (decision 17): a report stays open while its row is still the case's reportable row."""
+    row_id = _uuid((alert.data or {}).get("next_date_id"))
+    case = session.get(Case, alert.case_id) if alert.case_id else None
+    if row_id is None or case is None:
+        return False
+    current = reportable_row(session, case, today=today)
+    return current is not None and current.id == row_id
+
+
+# ------------------------------------------------------------------------------------------------ direct apply
+# next-date-direct, decision 13: `aslms next-dates direct [--apply]`
+
+
+def direct_apply(
+    session: Session, *, apply: bool, today: date | None = None, cfg: NextDateConfig | None = None
+) -> dict[str, Any]:
+    """Re-evaluates the old suggestions once. The dry run counts and writes nothing; `apply` writes, refreshes every
+    live case and audits `next_dates.direct_apply` (actor `cli`)."""
+    from aslms.services.alerts import close_alert
+
+    today = today or today_ist()
+    cfg = cfg or NextDateConfig.from_settings()
+    current = current_order_condition()
+    pending_current = (
+        select(NextDate)
+        .join(Order, Order.id == NextDate.order_id)
+        .where(
+            NextDate.review_status == ReviewStatus.PENDING,
+            NextDate.source.in_(ORDER_SOURCES),
+            NextDate.next_date >= today,
+            current,
+        )
+        .order_by(NextDate.case_id, NextDate.created_at, NextDate.id)
+    )
+    shown = list(session.scalars(pending_current).all())
+    left = int(
+        session.scalar(
+            select(func.count())
+            .select_from(NextDate)
+            .where(NextDate.review_status == ReviewStatus.PENDING, NextDate.source.in_(ORDER_SOURCES))
+        )
+        or 0
+    ) - len(shown)
+    none_orders = list(
+        session.scalars(
+            select(Order)
+            .join(Case, Case.id == Order.case_id)
+            .where(
+                Order.next_date_status == OrderNextDateStatus.NONE,
+                Order.order_date >= today - timedelta(days=cfg.unclear_days),
+                current,
+                Case.merged_into_case_id.is_(None),
+                Case.status != CaseStatus.DISPOSED,
+            )
+            .order_by(Order.case_id, Order.id)
+        ).all()
+    )
+    rejected_current = session.execute(
+        select(NextDate.id, NextDate.case_id, NextDate.next_date, Case.ref_no)
+        .join(Order, Order.id == NextDate.order_id)
+        .join(Case, Case.id == NextDate.case_id)
+        .where(
+            NextDate.review_status == ReviewStatus.REJECTED,
+            NextDate.source.in_(ORDER_SOURCES),
+            NextDate.next_date >= today,
+            current,
+        )
+        .order_by(Case.ref_no)
+    ).all()
+    out: dict[str, Any] = {
+        "apply": apply,
+        "pending_shown_directly": len(shown),
+        "pending_left_to_expire": max(0, left),
+        "enter_items_added": 0,
+        "manual_superseded": 0,
+        "confirmed_differs": 0,
+        "rejected_kept": len(rejected_current),
+        "cases_refreshed": 0,
+        "conflicts": [],
+    }
+    conflicts: list[dict[str, Any]] = [
+        {"case": ref, "kind": "rejected_kept", "next_date_id": str(nid), "date": d.isoformat()}
+        for nid, _, d, ref in rejected_current
+    ]
+    if not apply:
+        manual_rows = session.execute(
+            select(NextDate.case_id, Case.ref_no)
+            .join(Case, Case.id == NextDate.case_id)
+            .where(NextDate.source == NextDateSource.MANUAL, NextDate.review_status.in_(OPEN_REVIEW))
+        ).all()
+        given = (
+            next_hearing.compute(session, [cid for cid, _ in manual_rows], today=today) if manual_rows else {}
+        )
+        for cid, ref in manual_rows:
+            if given.get(cid) is not None and given[cid].court_given:
+                out["manual_superseded"] += 1
+                conflicts.append({"case": ref, "kind": "manual_superseded"})
+        for o in none_orders:
+            case = session.get(Case, o.case_id)
+            if is_enter_item(session, case, o, today=today, cfg=cfg):
+                out["enter_items_added"] += 1
+        out["conflicts"] = conflicts
+        return out
+    # 1. pending readings of current orders dated today or later -> shown directly
+    for row in shown:
+        row.review_status = ReviewStatus.NOT_NEEDED
+        row.needs_review = False
+        row.updated_by = None
+        session.flush()
+        for alert in session.scalars(
+            select(Alert)
+            .where(
+                Alert.dedupe_key == review_alert_key(row.order_id),
+                Alert.status.in_([AlertStatus.OPEN, AlertStatus.ACKNOWLEDGED]),
+            )
+            .with_for_update()
+        ).all():
+            close_alert(session, alert, AlertStatus.DONE, "shown_directly")
+    # 4. every live case (before 3: the enter rule reads the refreshed value); supersedes and audits manual rows
+    superseded_before = {
+        r
+        for (r,) in session.execute(
+            select(NextDate.id).where(
+                NextDate.source == NextDateSource.MANUAL, NextDate.review_status.in_(OPEN_REVIEW)
+            )
+        ).all()
+    }
+    refreshed = next_hearing.refresh_all(session, today=today)
+    out["cases_refreshed"] = refreshed.refreshed
+    out["manual_superseded"] = refreshed.manual_superseded
+    if superseded_before:
+        for nid, ref in session.execute(
+            select(NextDate.id, Case.ref_no)
+            .join(Case, Case.id == NextDate.case_id)
+            .where(NextDate.id.in_(superseded_before), NextDate.review_status == ReviewStatus.SUPERSEDED)
+        ).all():
+            conflicts.append({"case": ref, "kind": "manual_superseded", "next_date_id": str(nid)})
+    # 3. current `none` orders that are now enter items get their review event
+    for o in none_orders:
+        case = session.get(Case, o.case_id)
+        if is_enter_item(session, case, o, today=today, cfg=cfg):
+            reading = rules.Reading(rules.NONE, phrase=o.next_date_phrase)
+            _extracted_event(session, case, o, reading, None, True)
+            out["enter_items_added"] += 1
+    # 5. confirmed rows whose date differs from the court's (now flagged)
+    for ref, differs_on in session.execute(
+        select(Case.ref_no, Case.next_hearing_differs_on)
+        .join(NextDate, NextDate.id == Case.next_hearing_differs_id)
+        .where(NextDate.review_status == ReviewStatus.CONFIRMED)
+    ).all():
+        out["confirmed_differs"] += 1
+        conflicts.append({"case": ref, "kind": "confirmed_differs", "date": differs_on.isoformat()})
+    out["conflicts"] = conflicts
+    # 6. one audit row
+    write_audit(
+        session,
+        Actor.system("cli"),
+        "next_dates.direct_apply",
+        "next_dates",
+        None,
+        after={k: v for k, v in out.items() if k != "conflicts"} | {"conflicts": len(conflicts)},
+    )
+    session.flush()
+    return out
+
+
+def hearing_refresh(
+    session: Session, *, case: Case | None = None, dry_run: bool = False, today: date | None = None
+) -> dict[str, Any]:
+    """`aslms next-dates hearing-refresh [--all | --case REF] [--dry-run]`: repair and backfill at once; audited
+    `next_dates.hearing_refresh` with the counts when it writes."""
+    today = today or today_ist()
+    if dry_run:
+        if case is not None:
+            value = next_hearing.compute(session, [case.id], today=today).get(case.id)
+            return {"dry_run": True, "case": case.ref_no, "basis": value.basis.value if value else None}
+        return {"dry_run": True, **next_hearing.preview_all(session, today=today)}
+    result = next_hearing.refresh_all(session, today=today, case_id=case.id if case is not None else None)
+    counts = {"dry_run": False, **result.counters()}
+    write_audit(
+        session,
+        Actor.system("cli"),
+        "next_dates.hearing_refresh",
+        "cases",
+        case.id if case is not None else None,
+        case_id=case.id if case is not None else None,
+        after={k: v for k, v in counts.items() if k != "dry_run"} | {"case": case.ref_no if case else None},
+    )
+    session.flush()
+    return counts

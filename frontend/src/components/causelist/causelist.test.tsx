@@ -7,6 +7,7 @@ import { nav, resetNav } from "@/test/nav";
 import { browserApi, json, makeMe, renderWithClient } from "@/test/render";
 
 import { CauseList } from "./CauseList";
+import { courtNext } from "@/test/nextHearing";
 
 const D = "2026-10-13";
 const DAILY = "11111111-1111-4111-8111-111111111111";
@@ -109,7 +110,7 @@ function entry(n: number, extra: Partial<CauselistEntry> = {}): CauselistEntry {
       petitioner_summary: `PETITIONER ${n}`,
       respondent_summary: "STATE OF ASSAM",
       status: "pending",
-      next_hearing_date: null,
+      next_hearing: courtNext(null),
       last_listed_on: null,
       last_listing: null,
     },

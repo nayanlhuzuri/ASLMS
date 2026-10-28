@@ -148,6 +148,7 @@ ALERT_SEVERITY = {
     AlertKind.NEW_DOCUMENT: "normal",
     AlertKind.NEW_NOTE: "normal",  # design alerts-visibility-roles
     AlertKind.LISTED_TOMORROW: "critical",
+    AlertKind.NEXT_DATE_REPORTED: "normal",  # design next-date-direct
 }
 # labels that differ from the code (design alerts-notifications, decision 13; new databases only)
 ALERT_KIND_LABELS = {
@@ -158,6 +159,7 @@ ALERT_KIND_LABELS = {
     AlertKind.NEXT_DATE_REVIEW: "Next date to review",  # design next-date-extraction
     AlertKind.NEW_NOTE: "New note",  # design alerts-visibility-roles
     AlertKind.LISTED_TOMORROW: "Listed for tomorrow",
+    AlertKind.NEXT_DATE_REPORTED: "Next date reported as wrong",  # design next-date-direct, migration 0034
 }
 TRACKING_CARD_EVENTS = {
     EventType.CASE_CREATED,
@@ -182,10 +184,12 @@ EVENT_TIMELINE_LABELS = {
     EventType.LISTING_CHANGED: "Cause list corrected",  # design court-data-freshness, migration 0023
     EventType.CUSTODY_MOVED: "Case moved",  # design case-workspace-admin, decision 4 (migration 0025)
     EventType.ALLOTTED: "Assigned",  # design claim-assign-wording, decision 8 (migration 0030)
+    EventType.NEXT_DATE_DIFFERS: "Next date differs from the court",  # design next-date-direct, migration 0034
 }
 # event-type labels that differ from the code (new rows only)
 EVENT_TYPE_LABELS = {
     EventType.ALLOTTED: "Assigned",  # design claim-assign-wording, decision 8 (migration 0030)
+    EventType.NEXT_DATE_DIFFERS: "Next date differs from the court",  # design next-date-direct, migration 0034
 }
 
 

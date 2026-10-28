@@ -34,6 +34,7 @@ import { nav, resetNav } from "@/test/nav";
 import { browserApi, json, makeMe, renderWithClient, type BrowserCall } from "@/test/render";
 
 import { ClaimFrame } from "./ClaimFrame";
+import { courtNext } from "@/test/nextHearing";
 
 const BASE = `/cases/${REF}`;
 
@@ -179,10 +180,10 @@ describe("tabs and rows", () => {
     browserApi(
       routes({
         "GET /inbox/recommended": {
-          items: [rec(1, { case: summary(1, { next_hearing_date: "2026-10-27" }) }), rec(2, { case: summary(2, { next_hearing_date: "2026-10-30" }) })],
+          items: [rec(1, { case: summary(1, { next_hearing: courtNext("2026-10-27") }) }), rec(2, { case: summary(2, { next_hearing: courtNext("2026-10-30") }) })],
           total: 2,
         },
-        "GET /inbox/pool": { items: [poolItem(1, { case: summary(1, { next_hearing_date: "2026-11-16" }) }), poolItem(2)], total: 2 },
+        "GET /inbox/pool": { items: [poolItem(1, { case: summary(1, { next_hearing: courtNext("2026-11-16") }) }), poolItem(2)], total: 2 },
       }),
     );
     const { unmount } = renderWithClient(<ClaimFrame tab="recommended" params={{}} />);

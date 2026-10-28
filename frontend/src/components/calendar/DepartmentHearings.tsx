@@ -130,6 +130,8 @@ export function Agenda({ items }: { items: CalendarItem[] }) {
                   <CaseLink value={item.case} />
                   {item.critical ? <Badge tone="danger">{T.cal.critical}</Badge> : null}
                   {item.this_week ? <Badge>{T.cal.thisWeek}</Badge> : null}
+                  {/* design next-date-direct, decision 10: a date counted from an order says Around */}
+                  {item.approximate ? <Badge>{T.hearing.badges.around}</Badge> : null}
                 </div>
                 <div>
                   {T.cal.court}: {item.court_no ?? "—"} · {T.cal.item}: {item.item_no ?? "—"} · {T.cal.purpose}:{" "}

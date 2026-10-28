@@ -47,7 +47,7 @@ export function Pool({ params, department, onOpen }: { params: Params; departmen
       cell: (p) => <CaseCell c={{ ...p.case, petitioner_summary: null, respondent_summary: null }} />,
     },
     { key: "parties", header: T.claim.parties, cell: (p) => partiesText(p.case) },
-    { key: "next", header: T.claim.nextHearing, cell: (p) => <HearingDate date={p.case.next_hearing_date} status={p.case.status} /> },
+    { key: "next", header: T.claim.nextHearing, cell: (p) => <HearingDate next={p.case.next_hearing} status={p.case.status} /> },
     {
       key: "best",
       header: T.claim.best,

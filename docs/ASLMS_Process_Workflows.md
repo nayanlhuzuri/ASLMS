@@ -759,19 +759,33 @@ flowchart TD
 
 ### 4.5 Hearings, next dates, alerts and the calendar
 
-**Where hearing dates come from:**
+**Where hearing dates come from, and the one next hearing.** Each case has one next hearing, worked out by the server
+in one place and used by every screen, the calendar and the alerts:
 
-1. The court's own next date, from the daily status and the full record.
-2. Cause-list listings.
-3. Dates read from order text. These are only **suggestions** until confirmed.
+1. **The court's own record** wins: the earliest of the court's next date and the current cause-list listings that is
+   today or later and after the latest order's date.
+2. Otherwise **the latest order's reading**, shown directly with no confirmation.
+3. Otherwise the court's last given date, once it has passed, stays as **Date Passed** (court dates are treated as
+   ultimatums).
+4. Otherwise a date an officer entered by hand, which exists only where the court gave no date at all.
 
-**Next dates from orders.** Every 5 minutes the system reads new order text by fixed rules, with no AI. It looks for
-directions such as "list on 12.11.2026" or "list after four weeks".
+**Next dates from orders.** Every 5 minutes the system reads new order text by fixed rules, with no AI.
 
-- If the date it reads **equals the court's own date or a cause-list listing**, it is firm.
-- Otherwise it is a **suggestion**. An officer working on the case confirms it, rejects it (with a replacement date
-  if needed) or enters the date by hand.
-- A period such as "after four weeks" is calculated from the order date and always shown for confirmation.
+- A direction with a written date ("list on 12.11.2026") shows as that exact date.
+- A period ("list after four weeks"), a qualified date ("after 15.12.2026", "not before") or a returnable date shows
+  as an **approximate** date counted from the order, with the words ("Around 11 Mar 2026, after 3 weeks, order of 18
+  Feb 2026"). The court's own date replaces it when it arrives.
+- When the court's record and an exact reading of the latest order give different dates, the court's date is shown and
+  the difference is **flagged** (an "Order Differs" note, a Department Cases filter and a dashboard count).
+- **No one can edit a date the court has given**, whether the court's own record or one read from an order. Only where
+  the court gave no date (an unclear order, an order that names no next date, or no order) does the case appear under
+  Alerts & Calendar, Next Dates to Enter, and an officer working on the case enters a date by hand. It is replaced
+  automatically when the court gives one.
+- **A misread order.** An officer holding Report Wrong Next Date reports the reading with a reason; the date stays and
+  the Super Administrator is alerted. A holder of Correct Misread Next Date (the Super Administrator by default) then
+  corrects it with the right date, or without one, which sends the case to Next Dates to Enter, or keeps it as read.
+  Both steps are audited, and the court's own record never changes.
+- Dates read from orders drive My Calendar and the hearing alerts without anyone confirming them.
 
 **How a date is shown (the next hearing badge).** Every screen draws a next hearing date with one badge, always in
 words as well as colour:
@@ -781,7 +795,7 @@ words as well as colour:
 | Today, Tomorrow | Strong red |
 | 2 to 7 days away | Soft amber, "In n Days" |
 | Later | The plain date |
-| A date from an order that nobody has confirmed | Outlined, labelled **Suggested** |
+| A date counted from an order (a period or a qualified date) | Labelled **Around** |
 | A court date already past | **Date Passed** |
 | No date held | **No Date Yet** |
 | A disposed case | **Disposed** (the court and item line are hidden, because a date held for a disposed case is stale) |
@@ -800,13 +814,14 @@ window, every Next Hearing column and the dashboard's hearing lists.
 | Action due soon or overdue | Due soon is high, overdue is critical; also to the department's trackers |
 | Strong recommendation | To the department's claimers |
 | Assigned, taken over, transfer requested or decided | To the people concerned |
-| A next date to confirm | To the officers working on the case |
+| A next date to enter (the court gave none) | To the officers working on the case |
+| A next date reported as wrong | To the holders of Correct Misread Next Date |
 
 - **E-mail:** critical alerts are sent at once. The rest come in a **daily digest** at 08:00, which also lists the
   next 7 days' hearings. Each person can change their preferences. E-mails never contain note text or document names.
 - **Alerts only for owned cases.** Case alerts are raised only for cases a department owns or watches, and only for
   court dates in the next 14 days, so the historical load does not flood anyone.
-- **My calendar** shows my hearings, the due dates of files I hold, and next dates waiting for my confirmation.
+- **My calendar** shows my hearings, the due dates of files I hold, and next dates read from orders.
   **Department hearings** shows the whole department.
 - **The Cause list screen** shows any date and bench in court order, with each entry's recommendation or owner, a
   **Claim** button and the original PDF.

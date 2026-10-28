@@ -118,6 +118,9 @@ class AlertKind(enum.StrEnum):
     NEXT_DATE_REVIEW = "next_date_review"  # a next date to confirm or enter (design next-date-extraction)
     NEW_NOTE = "new_note"  # a permanent note added on the case (design alerts-visibility-roles)
     LISTED_TOMORROW = "listed_tomorrow"  # on the next day's cause lists (design alerts-visibility-roles)
+    NEXT_DATE_REPORTED = (
+        "next_date_reported"  # a next date read from an order reported as wrong (next-date-direct)
+    )
 
 
 class EventType(enum.StrEnum):
@@ -163,6 +166,7 @@ class EventType(enum.StrEnum):
     LISTING_CHANGED = (
         "listing_changed"  # a corrected cause list moved, added or removed the case (court-data-freshness)
     )
+    NEXT_DATE_DIFFERS = "next_date_differs"  # an exact order date differs from the court's record (next-date-direct, decision 5)
 
 
 class Permission(enum.StrEnum):
@@ -227,6 +231,8 @@ class Permission(enum.StrEnum):
     # alerts and dates
     ALERTS_ACKNOWLEDGE = "alerts.acknowledge"
     NEXT_DATES_REVIEW = "next_dates.review"
+    NEXT_DATES_REPORT_WRONG = "next_dates.report_wrong"  # report a misread order date (next-date-direct)
+    NEXT_DATES_CORRECT = "next_dates.correct"  # correct a misread order date (next-date-direct)
     # reports and dashboards
     REPORTS_DEPARTMENT = "reports.department"
     REPORTS_STATE = "reports.state"

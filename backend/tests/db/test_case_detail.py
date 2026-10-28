@@ -74,9 +74,18 @@ def test_overview_carries_every_typed_column(api, world, loaded):
     r = api.get(f"/cases/{loaded}", headers=login(api, "edu_admin"))
     assert r.status_code == 200, r.text
     body = r.json()
-    columns = {c.name for c in Case.__table__.columns} - {"id", "ref_no", "court_id", "raw", "search_vector"}
+    # the derived next_hearing_* columns are carried as the one `next_hearing` (design next-date-direct)
+    derived = {c.name for c in Case.__table__.columns if c.name.startswith("next_hearing_")} - {
+        "next_hearing_date"
+    }
+    columns = (
+        {c.name for c in Case.__table__.columns}
+        - {"id", "ref_no", "court_id", "raw", "search_vector"}
+        - derived
+    )
     f = flat(body)
     assert columns <= set(f), columns - set(f)
+    assert "next_hearing" in body
     # the sample's values are where the coverage table says
     assert (
         f["cnr"] == CNR

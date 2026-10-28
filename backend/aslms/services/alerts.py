@@ -1302,6 +1302,7 @@ def sweep_dates(
         "closed_workflow": 0,
         "closed_compliance": 0,
         "closed_next_date": 0,
+        "closed_next_date_report": 0,
         "refreshed_hearing": 0,
     }
     run = _start_run(session, JOB_DATES, now, counters)
@@ -1350,6 +1351,12 @@ def sweep_dates(
             "court_no": r.court_no,
             "item_no": r.item_no,
             "purpose": r.purpose,
+            # design next-date-direct, decision 10: where the date comes from
+            "basis": r.basis,
+            "approximate": r.approximate,
+            "order_date": r.order_date,
+            "order_no": r.order_no,
+            "basis_words": r.basis_words,
         }
         alert, changed = raise_alert(
             session,
@@ -1517,6 +1524,12 @@ def sweep_dates(
                 close_alert(session, a, AlertStatus.EXPIRED, "no_review_item", now=now)
             counters["closed_next_date"] += 1
 
+    # reports of a wrong next date whose reading is no longer the latest one (design next-date-direct, decision 17)
+    for a in _open_alerts(session, AlertKind.NEXT_DATE_REPORTED):
+        if not next_dates.report_still_current(session, a, today=today):
+            close_alert(session, a, AlertStatus.EXPIRED, "no_longer_used", now=now)
+            counters["closed_next_date_report"] += 1
+
     # informational alerts past their age (decision 15)
     aged = session.scalars(
         select(Alert)
@@ -1628,6 +1641,9 @@ def _may_act_on(session: Session, user: User, alert: Alert) -> Case | None:
         raise AlertNotFound("no such alert")
     if is_recipient(session, user, alert):
         return case
+    if AlertKind(alert.kind) == AlertKind.NEXT_DATE_REPORTED:
+        # design next-date-direct, decision 17: the reporter and the reason are shown only to the recipients
+        raise AlertNotFound("no such alert")
     if not (
         visibility.works_on_case(session, user, case)
         and visibility.addressed_to_department(session, user, alert)
@@ -1951,6 +1967,11 @@ def alerts_for_case(
         visibility.alert_document_condition(session, user),
         visibility.alert_note_condition(session, user),  # design alerts-visibility-roles, decision 4
         visibility.alert_office_condition(session, user),
+        # design next-date-direct, decision 17: a report names the reporter and the reason: recipients only
+        or_(
+            Alert.kind != AlertKind.NEXT_DATE_REPORTED,
+            exists().where(Notification.alert_id == Alert.id, Notification.user_id == user.id),
+        ),
     ]
     statuses = parse_statuses(status)
     if statuses is not None:

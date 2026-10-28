@@ -1987,6 +1987,12 @@ def court_order_view(
     case_visible = visibility.can_view_case(session, user, cited.case)
     facts = src.case_contexts(session, [cited.case.id])[0]
     facts.pop("case_id", None)
+    # design next-date-direct, decision 11: the case's one next hearing beside the court's own date
+    from aslms.services import next_hearing
+
+    facts["next_hearing"] = next_hearing.next_hearing_out(session, cited.case)
+    if not case_visible:  # a department's own date never reaches a caller who cannot open the case
+        facts["next_hearing"] = next_hearing.court_public(facts["next_hearing"])
     facts["parties"] = list(facts["parties"])
     facts["advocates"] = list(facts["advocates"])
     facts["acts"] = list(facts["acts"])

@@ -102,7 +102,18 @@ PERMISSION_LABELS: dict[P, tuple[str, str]] = {
     ),
     P.DOCUMENTS_DOWNLOAD: ("Download Documents", "Save a copy of a document you are allowed to see."),
     P.ALERTS_ACKNOWLEDGE: ("Acknowledge Alerts", "Mark an alert as seen and dealt with."),
-    P.NEXT_DATES_REVIEW: ("Confirm Next Dates", "Confirm, reject or enter the next date read from an order."),
+    # design next-date-direct, decision 19
+    P.NEXT_DATES_REVIEW: ("Enter Next Dates", "Enter the next date when the court's order gives none."),
+    P.NEXT_DATES_REPORT_WRONG: (
+        "Report Wrong Next Date",
+        "Tell the people who correct dates that a next date read from an order looks wrong, with your reason.",
+    ),
+    P.NEXT_DATES_CORRECT: (
+        "Correct Misread Next Date",
+        # the design's text shortened to the 120-character rule of the user-type pages (Deviations)
+        "Mark a next date read from an order as wrong and enter the right date if the order shows it. "
+        "Court records never change.",
+    ),
     P.REPORTS_DEPARTMENT: ("Department Reports", "Run and download the department's reports."),
     P.REPORTS_STATE: ("State Reports", "Run and download reports across all departments."),
     P.DASHBOARD_STATE: ("State Dashboard", "See the State-wide dashboard."),
@@ -195,7 +206,11 @@ PERMISSION_GROUPS: tuple[tuple[str, str, tuple[P, ...]], ...] = (
         ),
     ),
     ("documents", "Documents", (P.DOCUMENTS_VIEW, P.DOCUMENTS_UPLOAD, P.DOCUMENTS_DOWNLOAD)),
-    ("alerts", "Alerts", (P.ALERTS_ACKNOWLEDGE, P.NEXT_DATES_REVIEW)),
+    (
+        "alerts",
+        "Alerts",
+        (P.ALERTS_ACKNOWLEDGE, P.NEXT_DATES_REVIEW, P.NEXT_DATES_REPORT_WRONG, P.NEXT_DATES_CORRECT),
+    ),
     ("reports", "Reports", (P.REPORTS_DEPARTMENT, P.REPORTS_STATE, P.DASHBOARD_STATE, P.AUDIT_VIEW)),
     (
         "administration",
@@ -236,6 +251,7 @@ _CASE_WORK = _READ_CASES | {
     P.DOCUMENTS_UPLOAD,
     P.ALERTS_ACKNOWLEDGE,
     P.NEXT_DATES_REVIEW,
+    P.NEXT_DATES_REPORT_WRONG,  # design next-date-direct, decision 19 (correct: no type, the super admin only)
     P.CASES_TAKE_OVER,
 }
 _OWNERSHIP = {

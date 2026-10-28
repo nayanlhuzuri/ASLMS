@@ -48,6 +48,14 @@ const DETAIL: Record<string, (p: Payload, l: TimelineLabels) => string | null> =
     if (!d) return null;
     return `${date(d[0]) ?? "—"} → ${date(d[1]) ?? "—"}`;
   },
+  // design next-date-direct, decision 5: the latest order gives an exact date other than the court's record
+  next_date_differs: (p) => {
+    const court = date(p.court_date);
+    const order = date(p.order_next_date);
+    if (!court || !order) return null;
+    const od = date(p.order_date);
+    return od ? `The order of ${od} gives ${order}; the court's record gives ${court}` : `Order ${order} · court ${court}`;
+  },
   listed: (p) => join([date(p.list_date ?? p.date), str(p.court_no) ? `Court ${str(p.court_no)}` : null]),
   listed_supplementary: (p) => join([date(p.list_date ?? p.date), str(p.court_no) ? `Court ${str(p.court_no)}` : null]),
   order_found: (p) => join([str(p.order_no) ? `Order ${str(p.order_no)}` : null, date(p.order_date)]),

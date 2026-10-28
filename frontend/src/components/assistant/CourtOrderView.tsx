@@ -11,7 +11,7 @@
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 
-import { Card, DefinitionList, EmptyState, ErrorBanner, Loading, Notice, PageHeader, buttonClass } from "@/components/ui";
+import { Card, DefinitionList, EmptyState, ErrorBanner, HearingDate, Loading, Notice, PageHeader, buttonClass } from "@/components/ui";
 import { api, ApiError } from "@/lib/api/client";
 import type { AssistantCourtOrderView } from "@/lib/api/types";
 import { formatDate } from "@/lib/format";
@@ -100,7 +100,7 @@ export function CourtOrderView({ orderId, messageId }: { orderId: string; messag
               [F.advocates, list(c.advocates)],
               [F.acts, list(c.acts)],
               [F.lastHearing, formatDate(c.last_hearing_date)],
-              [F.nextHearing, formatDate(c.next_hearing_date)],
+              [F.nextHearing, c.next_hearing ? <HearingDate key="n" next={c.next_hearing} status={c.status} /> : formatDate(c.next_hearing_date)],
             ]}
           />
         </Card>

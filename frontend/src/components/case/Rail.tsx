@@ -133,17 +133,20 @@ export function NextHearing({
   listing: Listing | null | undefined;
   onAction: (a: RailAction) => void;
 }) {
-  const next = c.status.next_hearing_date;
+  const nh = c.next_hearing ?? null;
+  const next = nh?.basis === "court" ? nh.date : null;
   const disposed = c.status.status === "disposed";
   const onDay = next && !disposed && listing && listing.list_date === next && !listing.superseded ? listing : null;
-  // design next-hearing-highlight, decision 11: the kit's HearingDate, the court and item, and Enter Next Date without a date
+  // design next-hearing-highlight, decision 11, and next-date-direct, decisions 6 and 11: the kit's HearingDate with the
+  // one next hearing, the court and item, and Enter Next Date only where the court gave no date
   return (
     <div className={s.hearing}>
       <div className={s.hearingDate}>
-        <HearingDate date={next} status={c.status.status} size="md" />
+        <HearingDate next={nh} status={c.status.status} size="md" lines={!onDay} />
       </div>
       {onDay ? <div className="muted">{T.rail.courtItem(onDay.court_no ?? null, onDay.printed_sr ?? onDay.sr_no)}</div> : null}
-      {!next && c.workflow.next_dates ? (
+      {nh?.reported_at && !disposed ? <div className="muted">{T.hearing.reported(formatDate(nh.reported_at))}</div> : null}
+      {!nh && c.workflow.next_dates ? (
         <Button variant="link" onClick={() => onAction("next")}>
           {T.rail.enterNext}
         </Button>
@@ -275,14 +278,13 @@ export function Rail({
   const listing = useLatestListing(caseRef);
   const journey = useJourney(caseRef, 4, 0, !!c.custody);
   const quick = quickItems(c);
-  const next = c.status.next_hearing_date;
   const latest = journey.data?.legs[0];
   return (
     <div className={s.rail} data-rail={wide ? "column" : "stacked"}>
       <RailCard wide={wide} title={T.rail.yourTask} open eyebrow>
         <YourTask c={c} journey={c.custody ? journey.data : undefined} onAction={onAction} onRemarks={onRemarks} />
       </RailCard>
-      <RailCard wide={wide} title={T.rail.nextHearing} fact={<HearingDate date={next} status={c.status.status} />}>
+      <RailCard wide={wide} title={T.rail.nextHearing} fact={<HearingDate next={c.next_hearing ?? null} status={c.status.status} />}>
         <NextHearing c={c} listing={listing.data?.items[0]} onAction={onAction} />
       </RailCard>
       {quick.length > 0 ? (

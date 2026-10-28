@@ -42,7 +42,7 @@ function CaseCell({ it }: { it: CaseSearchItem }) {
       <ListingLine c={it.case} />
       {/* design next-hearing-highlight, decision 11: the next hearing on its own line under the listing */}
       <div>
-        <HearingDate date={it.case.next_hearing_date} status={it.case.status} />
+        <HearingDate next={it.case.next_hearing} status={it.case.status} />
       </div>
     </>
   );
@@ -127,7 +127,7 @@ export function CaseResults({
                 [T.search.cnrLabel, open.case.cnr ? <span className="mono">{open.case.cnr}</span> : null],
                 [T.causelist.parties, <PartiesLine key="p" c={open.case} />],
                 [T.inbox.status, <StatusCell key="s" it={open} />],
-                [T.search.nextHearing, <HearingDate key="n" date={open.case.next_hearing_date} status={open.case.status} />],
+                [T.search.nextHearing, <HearingDate key="n" next={open.case.next_hearing} status={open.case.status} />],
                 [T.search.listing, <ListingLine key="l" c={open.case} />],
               ]}
             />

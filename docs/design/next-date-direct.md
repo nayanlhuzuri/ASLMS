@@ -730,3 +730,66 @@ Owner checks at approval (decisions taken, reversible):
   different one, until the court gives a date (decision 18).
 - K. Defaults: Report Wrong Next Date for the department head, department admin, department officer and directorate
   user; Correct Misread Next Date for the Super Administrator only (decision 19).
+
+## Deviations
+
+Recorded by the developer while building (28 Oct 2026); the smallest reasonable choice where the design was silent.
+
+1. **The super admin meets the 403 first.** A Super Administrator holds no other membership and cannot hold a file, so
+   never has a working basis on a department's case: enter, confirm and reject answer 403 `not_working_on_case` before
+   the 409 `court_date_fixed` of decision 6 (the order of checks the decision keeps). The outcome the owner asked for
+   holds: nobody edits a court-given date. `test_court_date_fixed.py` asserts 409 for the department officer, admin
+   and head and 403 for the super admin; `workflow.next_dates_blocked` says `court_date_fixed` for every reader.
+2. **The `next_dates.correct` description is shortened** to the 120-character rule of the user-type pages
+   (`test_permission_groups.py`): "Mark a next date read from an order as wrong and enter the right date if the order
+   shows it. Court records never change."
+3. **`next_hearing_set_at` is written on every computation** (the rollover rule needs to know when a value was made),
+   so the `set_updated_at` trigger also moves `cases.updated_at` when a refresh runs.
+4. **Rollovers** (Jobs): `refresh_due` takes the cases whose stored date has passed since it was computed (a value that
+   was already passed when computed cannot change with time alone, so the ultimatum dates of decision 4 step 3 are not
+   recomputed every five minutes) and the cases whose differing order date has passed; at most `batch` a run, the
+   case locks taken with `SKIP LOCKED`, written 500 at a time.
+5. **A dated reading also closes older dates.** `read_order` runs `supersede_older` for a dated reading of the current
+   order too (it already did for a reading without a usable date), so the open readings of older orders and older
+   manual rows close when a newer order gives a date, and a later correction of the newer reading never falls back to
+   an older order's date. A manual or confirmed row closed this way is audited `next_date.superseded_by_court` with
+   `replaced_by.basis = "newer_order"` (decision 7's second sentence).
+6. **A `none` reading raises its review event only on a claimed case.** An unclear or scanned order keeps the old
+   behaviour (the event, then the scan checks the owner); an order with no next date at all on an unclaimed case raises
+   no event, so the pool's many final and procedural orders do not fill the events table.
+7. **The personal dashboard's `confirm_next_date` item now lists enter items** (title "Next date to enter", the date to
+   answer by, the reason in words, `next_date_id` null), since confirm items no longer exist; the API kind keeps its
+   name and the headline figure `next_dates_to_confirm` counts the enter items ("Next Dates to Enter").
+8. **The local model is not given a manual date.** The Case Details source says "Next hearing: <words>" from the one
+   value as decision 11 asks, except when the value is a date entered by hand: assistant-polish decision 6 (an
+   officer's entry is never put to the model) is kept, and the line then reads "No next hearing known". The quick
+   fact (answered without a model) states every basis.
+9. **A case never computed is computed on the spot when read.** `next_hearing.outs` computes the value without writing
+   for a case whose `next_hearing_set_at` is null, so lists and pages are right before the backfill reaches it; the
+   filters and sorts read the stored column (empty until then), as decision 13 expects.
+10. **Report and Correct act on the Overview card's reading row** (`next_date_from_orders.id`, the latest open order
+    reading), because `NextHearingOut` carries no row id; the server checks that it is decision 17's row. The "Correct
+    It" link of a `next_date_reported` alert opens the case page with `?nd=correct`, which opens the dialog when
+    `workflow.next_date_correct` allows it. "Reading Is Right" is the dialog's left footer button, shown while a report
+    is open.
+11. **The `next_differs` filter** is one more shared field, a check under More Filters, on every case list (not on the
+    Claimed › Disposed list, which has no next-hearing filter either).
+12. **A passed listing is the court's last given date** (decision 4 step 3 counts the listings), so a disposed case keeps
+    its last listing date as its stored value; the badge reads Disposed, and a next-hearing range over past days can
+    match it.
+13. **The rail's Enter Next Date link** stays where it was (only when the case has no next hearing at all); a case
+    whose only date was entered by hand enters a new one from the Overview card, by `workflow.next_dates`.
+14. **The migration test** writes the refusing `next_date_reported` alert with `session_replication_role = replica`,
+    since a wiped database has no case or office rows to point at.
+15. **A row the caller cannot open shows only the court's tiers of the next hearing** (review finding). `CaseSummaryOut`
+    is court-public and is returned for cases the caller cannot open (`GET /cases/search`, the court search, cause-list
+    rows, the case's links, discovery term cases, the Assistant's court-record view). On those rows
+    `next_hearing.court_public` blanks a `manual` or `confirmed` value (a department's own record) and drops `differs`
+    and `reported_at`; the `court`, `order` and `around` tiers, read from the court's record and order text, stay.
+    `inbox.summaries` takes `hidden` (the ids the caller cannot open) for this; the Assistant view applies the same
+    helper when `case_visible` is false.
+16. **A report after a closed one takes a numbered key** (review finding). `alerts.dedupe_key` is unique across every
+    status, so decision 17's key `next_date_reported:<next_date id>` is used for the first report of a reading and
+    `next_date_reported:<next_date id>:<n>` (n = 2, 3, ...) for a later report made after the earlier ones were closed
+    (kept, corrected or expired). Every lookup of the open report (the 409 `already_reported` check, Correct, Reading Is
+    Right, the case page's `reported_at`) matches the reading id in the key's second part, whatever the number.

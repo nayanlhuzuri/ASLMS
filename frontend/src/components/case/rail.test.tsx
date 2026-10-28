@@ -8,6 +8,7 @@ import { browserApi, makeMe, PRIMARY_SELECTOR, renderWithClient } from "@/test/r
 
 import { CaseFrame } from "./CaseFrame";
 import { Rail, type RailAction } from "./Rail";
+import { withNextHearing } from "@/test/nextHearing";
 
 const REF = "ASLMS-GHC-CASE-2026-000001";
 const BASE = `/cases/${REF}`;
@@ -34,12 +35,16 @@ function card(extra: Partial<CustodyCard> = {}): CustodyCard {
 }
 
 function detail(extra: Partial<CaseDetail> = {}): CaseDetail {
+  return withNextHearing(detailBase(extra), extra);
+}
+
+function detailBase(extra: Partial<CaseDetail>): CaseDetail {
   return {
     id: "c-1",
     ref_no: "ASLMS/GHC/CASE/2026/000001",
     identity: { case_no_text: "WP(C)/1234/2026" },
     custody: card(),
-    workflow: { note_mode: "draft", upload: true, set_stage: true, next_dates: true },
+    workflow: { note_mode: "draft", upload: true, set_stage: true, next_dates: true, next_date_report: false, next_date_correct: false },
     status: { status: "pending", next_hearing_date: "2099-11-20" },
     counts: { documents: 0, hearings: 0, links: 0, listings: 0, my_drafts: 0, notes: 3, orders: 0, timeline: 0 },
     ...extra,
@@ -168,7 +173,7 @@ describe("Your task (case-workspace-admin, decision 10)", () => {
 
   it("no custody: one muted line and no buttons; no journey card", async () => {
     browserApi(routes(null));
-    renderRail(detail({ custody: null, workflow: { note_mode: null, upload: false, set_stage: false, next_dates: false } }));
+    renderRail(detail({ custody: null, workflow: { note_mode: null, upload: false, set_stage: false, next_dates: false, next_date_report: false, next_date_correct: false } }));
     const task = await screen.findByRole("region", { name: "Your Task" });
     expect(within(task).getByText("The case moves between officers once a department claims it.")).toBeInTheDocument();
     expect(within(task).queryAllByRole("button")).toHaveLength(0);
@@ -238,10 +243,10 @@ describe("Next hearing, Quick actions and Journey (decisions 11, 12 and 14)", ()
     await userEvent.click(within(quick).getByRole("button", { name: "Upload a Document" }));
     expect(onAction).toHaveBeenCalledWith("upload");
     unmount();
-    const { unmount: u2 } = renderRail(detail({ workflow: { note_mode: null, upload: false, set_stage: true, next_dates: false } }));
+    const { unmount: u2 } = renderRail(detail({ workflow: { note_mode: null, upload: false, set_stage: true, next_dates: false, next_date_report: false, next_date_correct: false } }));
     expect(within(screen.getByRole("region", { name: "Quick Actions" })).getAllByRole("button").map((b) => b.textContent)).toEqual(["Set Stage"]);
     u2();
-    renderRail(detail({ workflow: { note_mode: null, upload: false, set_stage: false, next_dates: false } }));
+    renderRail(detail({ workflow: { note_mode: null, upload: false, set_stage: false, next_dates: false, next_date_report: false, next_date_correct: false } }));
     expect(screen.queryByRole("region", { name: "Quick Actions" })).toBeNull();
   });
 

@@ -11,14 +11,23 @@ import Link from "next/link";
 import { Badge, Card, CaseLink, EmptyState, Lead, ListRow } from "@/components/ui";
 import type { MyCalendarItem } from "@/lib/api/types";
 import { KIND_TONE, type Kind } from "@/lib/calendar";
-import { formatDayLong } from "@/lib/format";
+import { formatDate, formatDayLong } from "@/lib/format";
 import { T } from "@/lib/messages";
 
 import s from "./calendar.module.css";
 
 function Detail({ item }: { item: MyCalendarItem }) {
   if (item.kind === "hearing") {
-    return <span className="muted">{T.mycal.hearingDetail(item.court_no ?? null, item.item_no ?? null, item.purpose ?? null)}</span>;
+    // design next-date-direct, decision 10: a date counted from an order says Around, with the order's words
+    const around = item.approximate
+      ? T.hearing.aroundSentence(formatDate(item.date), item.basis_words ?? null, item.order_date ? formatDate(item.order_date) : null)
+      : null;
+    return (
+      <span className="muted" data-kind={item.approximate ? "around" : undefined}>
+        {around ? `${around} · ` : ""}
+        {T.mycal.hearingDetail(item.court_no ?? null, item.item_no ?? null, item.purpose ?? null)}
+      </span>
+    );
   }
   if (item.kind === "action_due") {
     return (

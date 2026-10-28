@@ -133,7 +133,17 @@ def test_flags_match_outcomes(wide, tmp_path):
                     "set_stage": _stage_outcome(s, wide, key, case),
                     "next_dates": _next_dates_outcome(s, wide, key, case),
                 }
-                assert flags == expected, (state, key)
+                assert {k: flags[k] for k in expected} == expected, (state, key)
+                # design next-date-direct: no court date and no reading here, so nothing is blocked or reportable
+                assert (
+                    flags["next_dates_blocked"],
+                    flags["next_date_report"],
+                    flags["next_date_correct"],
+                ) == (
+                    None,
+                    False,
+                    False,
+                ), (state, key)
                 seen.add(flags["note_mode"])
         # the world covers every mode
         assert seen == {None, "draft", "permanent"}
@@ -173,6 +183,9 @@ def test_flags_null_on_pool_case(wide):
                 "upload": False,
                 "set_stage": False,
                 "next_dates": False,
+                "next_dates_blocked": None,
+                "next_date_report": False,
+                "next_date_correct": False,
             }, key
         s.rollback()
 
@@ -208,11 +221,13 @@ def test_flags_write_nothing(api, wide):
         r = api.get(f"/cases/{case_id}", headers=w.login(api, key))
         assert r.status_code == 200, r.text
     off1 = api.get(f"/cases/{case_id}", headers=w.login(api, "edu_off1")).json()["workflow"]
-    assert off1 == {"note_mode": "draft", "upload": True, "set_stage": True, "next_dates": True}
+    # design next-date-direct: no court date and no reading here, so nothing is blocked or reportable
+    none = {"next_dates_blocked": None, "next_date_report": False, "next_date_correct": False}
+    assert off1 == {"note_mode": "draft", "upload": True, "set_stage": True, "next_dates": True, **none}
     admin = api.get(f"/cases/{case_id}", headers=w.login(api, "edu_admin")).json()["workflow"]
-    assert admin == {"note_mode": "permanent", "upload": True, "set_stage": True, "next_dates": True}
+    assert admin == {"note_mode": "permanent", "upload": True, "set_stage": True, "next_dates": True, **none}
     reader = api.get(f"/cases/{case_id}", headers=w.login(api, "oversight")).json()["workflow"]
-    assert reader == {"note_mode": None, "upload": False, "set_stage": False, "next_dates": False}
+    assert reader == {"note_mode": None, "upload": False, "set_stage": False, "next_dates": False, **none}
     with wide.Session() as s:
         _, off1_user = wide.actor(s, "edu_off1")
         workflow_actions.available(s, off1_user, s.get(Case, case_id))

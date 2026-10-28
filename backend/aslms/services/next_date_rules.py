@@ -742,3 +742,70 @@ def _reading(status: str, d: date, rule: str, phrase: str) -> Reading:
         needs_review=True,
         confidence=CONFIDENCE[rule],
     )
+
+
+# ------------------------------------------------------------------------------------------------ describe
+# design next-date-direct, decision 8: the plain words of an "around" date, made from the stored court sentence
+
+AROUND_RULES = frozenset(
+    {LIST_AFTER_PERIOD, AFTER_RETURNABLE_PERIOD, RETURNABLE_PERIOD, QUALIFIED_DATE, RETURNABLE_DATE}
+)
+FALLBACK_WORDS = {
+    LIST_AFTER_PERIOD: "counted from the order",
+    AFTER_RETURNABLE_PERIOD: "counted from the order",
+    RETURNABLE_PERIOD: "counted from the order",
+    QUALIFIED_DATE: "not before this date",
+    RETURNABLE_DATE: "returnable date of the notice",
+}
+_QUALIFIER_BEFORE = re.compile(
+    r"\b(on\sor\safter|on\sand\safter|not\searlier\sthan|not\sbefore|subsequent\sto|commencing(?:\sfrom|\son)?"
+    r"|after|from)\s(?:the\s)?$"
+)
+
+
+def _period_words(n: int, unit: str) -> str:
+    u = unit.lower().rstrip("s")
+    if u == "fortnight" and n == 1:
+        return "after a fortnight"
+    return f"after {n} {u}{'' if n == 1 else 's'}"
+
+
+def describe(rule: str | None, phrase: str | None, order_date: date | None, found: date | None) -> str | None:
+    """The words after the date of an around reading: "after 3 weeks", "after 15.12.2026" (the date as written),
+    "returnable date of the notice"; a fixed fallback per rule when the words cannot be found in the sentence; None
+    for an exact rule (`list_on_date`) or no rule. Pure; every pattern is bounded and the sentence is at most
+    `PHRASE_MAX` characters."""
+    if rule not in AROUND_RULES:
+        return None
+    fallback = FALLBACK_WORDS[rule]
+    if rule == RETURNABLE_DATE:
+        return fallback
+    raw = _join_dates(_WS.sub(" ", (phrase or "")[:PHRASE_MAX])).strip()
+    low = raw.lower()
+    if not low:
+        return fallback
+    if rule in (LIST_AFTER_PERIOD, AFTER_RETURNABLE_PERIOD, RETURNABLE_PERIOD):
+        for pattern in (PERIOD_PHRASE, RETURNABLE_WITHIN):
+            for m in pattern.finditer(low):
+                p = _period_of(m)
+                if p is None:
+                    continue
+                if order_date is not None and found is not None:
+                    try:
+                        if count_period(order_date, p[0], p[1]) != found:
+                            continue
+                    except ValueError:
+                        continue
+                return _period_words(*p)
+        return fallback
+    # qualified_date: the qualifier written just before the date the reading found
+    same_case = len(raw) == len(low)
+    for start, end, d in _date_spans(low):
+        if d is None or (found is not None and d != found):
+            continue
+        q = _QUALIFIER_BEFORE.search(low, max(0, start - 30), start)
+        if q is None:
+            continue
+        written = raw[start:end] if same_case else low[start:end]
+        return f"{q.group(1)} {written}"
+    return fallback

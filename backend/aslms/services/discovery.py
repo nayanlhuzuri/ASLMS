@@ -572,6 +572,7 @@ def term_cases(
     `case_no` or `year` (design list-search, decision 15). Returns the page, `total` and `total_all`."""
     from aslms.services import inbox
     from aslms.services.ownership import claimable_condition, shown_recommendations_condition
+    from aslms.services.visibility import visible_case_condition
 
     if only not in CASE_FILTERS:
         raise DiscoveryError("bad_input", "only is all, pool, recommended or owned")
@@ -580,7 +581,12 @@ def term_cases(
     picked = list_sort.parse(TERM_CASE_SORT, sort, dir)
     shown = shown_recommendations_condition(session, user)
     stmt = (
-        select(Case, DiscoveryHit, claimable_condition(session, user).label("claimable"))
+        select(
+            Case,
+            DiscoveryHit,
+            claimable_condition(session, user).label("claimable"),
+            visible_case_condition(session, user).label("visible"),
+        )
         .join(DiscoveryHit, DiscoveryHit.case_id == Case.id)
         .where(DiscoveryHit.term_id == term.id, Case.merged_into_case_id.is_(None))
     )
@@ -601,7 +607,7 @@ def term_cases(
     ).all()
     cases = [r[0] for r in rows]
     ids = [c.id for c in cases]
-    summ = inbox.summaries(session, cases)
+    summ = inbox.summaries(session, cases, hidden={r[0].id for r in rows if not r.visible})
     owners = inbox.primary_codes(session, ids)
     recs: dict[uuid.UUID, dict[str, Any]] = {}
     if ids:
@@ -630,7 +636,7 @@ def term_cases(
             "recommendation": recs.get(c.id),
             "claimable": bool(claimable),
         }
-        for c, hit, claimable in rows
+        for c, hit, claimable, _ in rows
     ]
     return items, total, total_all
 

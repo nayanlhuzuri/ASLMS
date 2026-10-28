@@ -42,6 +42,24 @@ class CaseStatus(enum.StrEnum):
     UNKNOWN = "unknown"
 
 
+class NextHearingBasis(enum.StrEnum):
+    """Where the case's one next hearing comes from (design `next-date-direct`, decision 4)."""
+
+    COURT = "court"  # the court's record: NAPIX next date or a current cause-list listing
+    ORDER = "order"  # a written date read from the latest order (`list_on_date`), exact
+    AROUND = "around"  # a period, qualified or returnable date read from the latest order, approximate
+    CONFIRMED = "confirmed"  # a reading a person confirmed before next-date-direct, exact
+    MANUAL = "manual"  # entered by hand where the court gave no date
+
+
+COURT_GIVEN_BASES = (
+    NextHearingBasis.COURT,
+    NextHearingBasis.ORDER,
+    NextHearingBasis.AROUND,
+    NextHearingBasis.CONFIRMED,
+)
+
+
 class FirstSeenSource(enum.StrEnum):
     CAUSELIST = "causelist"
     SEARCH = "search"
@@ -65,6 +83,28 @@ class Case(TimestampMixin, RefNoMixin, CreatedByMixin, Base):
             "ref_no ~ '^ASLMS/[A-Z][A-Z0-9]{1,9}/CASE/[0-9]{4}/[0-9]{6}$' AND ref_no NOT LIKE 'ASLMS/GOA/%'",
             name="ref_no_court",
         ),
+        # the case's one next hearing (design next-date-direct, decision 4): derived, written only by
+        # services/next_hearing.py::refresh
+        CheckConstraint(
+            "(next_hearing_on IS NULL) = (next_hearing_basis IS NULL)", name="next_hearing_basis"
+        ),
+        CheckConstraint(
+            "(COALESCE(next_hearing_basis::text, '') IN ('order', 'around', 'confirmed', 'manual')) = "
+            "(next_hearing_next_date_id IS NOT NULL)",
+            name="next_hearing_row",
+        ),
+        CheckConstraint(
+            "(next_hearing_differs_on IS NULL) = (next_hearing_differs_id IS NULL) AND "
+            "(next_hearing_differs_on IS NULL OR next_hearing_basis = 'court')",
+            name="next_hearing_differs",
+        ),
+        Index("ix_cases_next_hearing_on", "next_hearing_on"),
+        Index(
+            "ix_cases_next_hearing_differs",
+            "id",
+            postgresql_where=text("next_hearing_differs_on IS NOT NULL"),
+        ),
+        Index("ix_cases_next_hearing_unset", "id", postgresql_where=text("next_hearing_set_at IS NULL")),
     )
     id: Mapped[uuid.UUID] = uuid_pk()
     cnr: Mapped[str | None] = mapped_column(String(16), unique=True)  # null only when provisional
@@ -142,6 +182,19 @@ class Case(TimestampMixin, RefNoMixin, CreatedByMixin, Base):
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     search_vector: Mapped[str | None] = mapped_column(TSVECTOR)
     raw: Mapped[dict | None] = mapped_column(JSONB)
+    # the one next hearing, derived (design next-date-direct, decision 4; migration 0034)
+    next_hearing_on: Mapped[date | None] = mapped_column(Date)
+    next_hearing_basis: Mapped[NextHearingBasis | None] = mapped_column(
+        pg_enum(NextHearingBasis, "next_hearing_basis")
+    )
+    next_hearing_next_date_id: Mapped[uuid.UUID | None] = uuid_fk(
+        "next_dates.id", nullable=True, index=False, use_alter=True
+    )
+    next_hearing_differs_on: Mapped[date | None] = mapped_column(Date)
+    next_hearing_differs_id: Mapped[uuid.UUID | None] = uuid_fk(
+        "next_dates.id", nullable=True, index=False, use_alter=True
+    )
+    next_hearing_set_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class PartyRole(enum.StrEnum):

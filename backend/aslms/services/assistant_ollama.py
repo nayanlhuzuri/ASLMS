@@ -44,6 +44,7 @@ from aslms.domain.reference import RefDocType
 from aslms.integration.ollama import ModelState, OllamaClient, OllamaReply, model_name_ok, url_problem
 from aslms.integration.sourcetrace.connector import Answer, AskRequest, Citation, SourceTraceProtocolError
 from aslms.services import assistant_sources as src
+from aslms.services import next_hearing
 from aslms.services.assistant_internal import InternalRecords
 from aslms.services.assistant_preview import (
     NO_MATCH_LINE,
@@ -217,13 +218,14 @@ def details_text(d: dict[str, Any], *, compact: bool) -> str:
         lines.append("Acts: " + "; ".join(d["acts"]))
     if not compact and d.get("coram"):
         lines.append(f"Coram: {d['coram']}")
-    lines.append(f"Next date (court): {_date(d.get('next_hearing_date'))}")
-    order_next = None if compact else d.get("order_next_date")
-    if order_next and order_next.get("next_date"):
-        # design assistant-polish, decision 6: the next date read from an order (never a date entered in ASLMS)
-        lines.append(
-            f"Next date from the order of {_date(order_next.get('order_date'))}: {_date(order_next['next_date'])}"
-        )
+    # design next-date-direct, decision 11: the case's one next hearing in words, and the court's own date when it
+    # is something else (never a date entered in ASLMS: assistant-polish, decision 6)
+    nh = d.get("next_hearing")
+    lines.append(f"Next hearing: {next_hearing.words(nh)}")
+    court = d.get("next_hearing_date")
+    shown = nh.get("date") if nh else None
+    if court is not None and (nh is None or nh.get("basis") != "court" or str(shown) != str(court)):
+        lines.append(f"Court's own record: {_date(court)}")
     hearings = d.get("hearings") or []
     if compact:
         hearings = hearings[:COMPACT_HEARINGS]

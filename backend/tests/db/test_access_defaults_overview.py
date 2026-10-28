@@ -28,7 +28,7 @@ def test_defaults_equal_the_seed_matrix(api):
     body = r.json()
     assert set(body) == {role.value for role in Role}
     active = {p.value for p in ACTIVE_FUNCTIONS}
-    assert len(active) == 51
+    assert len(active) == 53  # next-date-direct: two functions
     for role, enabled in DEFAULT_MATRIX.items():
         assert set(body[role.value]) == active, role
         assert {p for p, on in body[role.value].items() if on} == {p.value for p in enabled} & active, role
@@ -47,7 +47,7 @@ def test_overview_counts_users_in_scope(api, world):
     assert root["dept_admin"]["users"] == 2
     assert root["dept_officer"]["users"] == 3
     assert root["super_admin"]["users"] == 1
-    assert root["super_admin"]["functions_on"] == root["super_admin"]["functions_total"] == 51
+    assert root["super_admin"]["functions_on"] == root["super_admin"]["functions_total"] == 53
     edu = _cards(api.get("/admin/access/overview", headers=w.login(api, "edu_admin")))
     assert edu["dept_admin"]["users"] == 1  # the HEALTH admin is outside the subtree
     assert edu["dept_officer"]["users"] == 2
@@ -67,7 +67,7 @@ def test_changed_from_default_counts_one_change(api):
     after = _cards(api.get("/admin/access/overview", headers=h))["dept_officer"]
     assert after["changed_from_default"] == before["changed_from_default"] + 1
     assert after["functions_on"] == on + 1
-    assert after["functions_total"] == 51
+    assert after["functions_total"] == 53
 
 
 def test_permissions_carry_the_groups_in_order(api):

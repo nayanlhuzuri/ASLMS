@@ -309,6 +309,10 @@ def apply_entries(
         from aslms.services import next_dates
 
         next_dates.match_after_court_change(session, touched)
+        # the listing is the court's record: the cases' one next hearing (design next-date-direct)
+        from aslms.services import next_hearing
+
+        next_hearing.refresh_after_court_change(session, touched)
 
 
 def entry_values(e: Entry) -> dict[str, Any]:
@@ -848,6 +852,9 @@ def _listing_changes(session: Session, old: Causelist, new: Causelist, report: R
     from aslms.services import next_dates
 
     next_dates.match_after_court_change(session, [*before, *after])
+    from aslms.services import next_hearing
+
+    next_hearing.refresh_after_court_change(session, [*before, *after])
     if changed:
         report.warnings.append(f"list {old.id}: version {new.version} changed {changed} case(s)")
     return changed

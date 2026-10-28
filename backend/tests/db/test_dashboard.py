@@ -224,7 +224,7 @@ def test_attention_counts_next_dates_to_review_and_compliance(world):
         compliance_alert(s, world, case, today() - timedelta(days=4), status=AlertStatus.DONE)
         edu = world.office(s, "EDU")
         att = dashboard.department_block(s, world.user(s, "edu_admin"), edu)["attention"]
-        assert att["next_dates_to_review"] == 1
+        assert att["next_dates_to_review"] == 0  # next-date-direct, decision 9: a pending row asks nobody
         assert att["compliance_due_soon"] == 1 and att["compliance_overdue"] == 1
         assert len(att["recent_order_next_dates"]) == 2
         assert {i["case"]["id"] for i in att["recent_order_next_dates"]} == {case.id}
@@ -341,3 +341,27 @@ def test_dashboard_writes_nothing(world):
         assert not s.new and not s.dirty and not s.deleted
         assert row_counts(s) == before
         assert s.execute(sa.text("select count(*) from audit_log where action like 'report%'")).scalar() == 0
+
+
+def test_attention_counts_next_dates_that_differ(world):
+    """Design next-date-direct, decision 5: the department's claimed cases whose latest order gives an exact date
+    other than the court's record."""
+    from aslms.services import next_hearing
+    from tests.db import next_dates_support as h
+
+    with world.Session() as s:
+        differs = h.claimed(s, world, next_hearing=today() + timedelta(days=12))
+        h.order_with_text(s, differs, f"List this matter on {h.dmy(h.days(10))}.", order_date=h.days(-1))
+        agrees = h.claimed(s, world, next_hearing=today() + timedelta(days=10))
+        h.order_with_text(s, agrees, f"List this matter on {h.dmy(h.days(10))}.", order_date=h.days(-1))
+        other = h.claimed(s, world, key="health_admin", next_hearing=today() + timedelta(days=12))
+        h.order_with_text(s, other, f"List this matter on {h.dmy(h.days(10))}.", order_date=h.days(-1))
+        h.read(s)
+        next_hearing.refresh(s, [differs.id, agrees.id, other.id])
+        att = dashboard.department_block(s, world.user(s, "edu_admin"), world.office(s, "EDU"))["attention"]
+        assert att["next_dates_differ"] == 1
+        att = dashboard.department_block(s, world.user(s, "health_admin"), world.office(s, "HEALTH"))[
+            "attention"
+        ]
+        assert att["next_dates_differ"] == 1
+        s.rollback()

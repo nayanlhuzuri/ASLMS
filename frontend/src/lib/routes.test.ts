@@ -234,13 +234,13 @@ describe("Files, My calendar and Alerts navigation (portal-files-alerts; portal-
     expect(alertsTabsFor({ functions: ["users.view"] })).toEqual([]);
   });
 
-  it("the Next dates to confirm tab shows only with next_dates.review (portal-next-dates, decision 1)", () => {
+  it("the Next Dates to Enter tab shows only with next_dates.review (portal-next-dates, decision 1)", () => {
     const both = alertsTabsFor({ functions: ["cases.view_scope", "next_dates.review"] });
     expect(keys(both)).toEqual(["list", "next-dates"]);
-    expect(both[1]!.label).toBe("Next Dates to Confirm");
+    expect(both[1]!.label).toBe("Next Dates to Enter");
     expect(both[1]!.href).toBe("/alerts/next-dates");
     expect(keys(alertsTabsFor({ functions: ["cases.view_scope"] }))).not.toContain("next-dates");
-    expect(crumbLabel("/alerts/next-dates")).toBe("Next Dates to Confirm");
+    expect(crumbLabel("/alerts/next-dates")).toBe("Next Dates to Enter");
   });
 
   it("CRUMB_PATHS names the screens by path, while the segments keep their meaning", () => {

@@ -4,7 +4,18 @@
  */
 import { describe, expect, it, vi } from "vitest";
 
-import { HEARING_SOON_DAYS, hearingBand, hearingTone, hearingWords, type HearingBand } from "./hearingDate";
+import {
+  aroundSentence,
+  basisLine,
+  differsSentence,
+  HEARING_SOON_DAYS,
+  hearingBand,
+  hearingTone,
+  hearingWords,
+  nextHearingProps,
+  type HearingBand,
+  type NextHearing,
+} from "./hearingDate";
 
 // 12:00 IST on Tuesday 27 Oct 2026
 const NOW = new Date("2026-10-27T06:30:00Z");
@@ -117,5 +128,61 @@ describe("hearingTone (decision 4)", () => {
     ["disposed", "muted"],
   ] as [HearingBand, string][])("%s is %s", (band, tone) => {
     expect(hearingTone(band)).toBe(tone);
+  });
+});
+
+// design next-date-direct, decisions 5 and 8
+describe("the one next hearing in words", () => {
+  const ORDER = { id: "o-1", order_no: "4", order_date: "2026-02-18", document_id: null };
+  const around: NextHearing = {
+    date: "2026-03-11",
+    basis: "around",
+    approximate: true,
+    basis_words: "after 3 weeks",
+    order: ORDER,
+    rule: "list_after_period",
+    differs: null,
+  };
+
+  it("puts Around first in both sizes, before the band word", () => {
+    expect(hearingWords("week", 3, { kind: "around" })).toBe("Around · In 3 Days");
+    expect(hearingWords("later", 20, { kind: "around", size: "sm" })).toBe("Around");
+    expect(hearingWords("later", 20, { kind: "around", size: "md" })).toBe("Around · In 20 Days");
+  });
+
+  it("maps the server's value to the badge and writes the owner's sentence", () => {
+    expect(nextHearingProps(around)).toEqual({ date: "2026-03-11", kind: "around" });
+    expect(nextHearingProps({ ...around, basis: "court", approximate: false })).toEqual({ date: "2026-03-11", kind: "firm" });
+    expect(nextHearingProps(null)).toEqual({ date: null, kind: "firm" });
+    expect(aroundSentence(around)).toBe("Around 11 Mar 2026 (after 3 weeks, order of 18 Feb 2026)");
+    expect(aroundSentence({ ...around, basis_words: null })).toBe("Around 11 Mar 2026 (order of 18 Feb 2026)");
+    expect(aroundSentence({ ...around, basis: "order" })).toBeNull();
+  });
+
+  it("gives one basis line for each basis", () => {
+    const at = (basis: NextHearing["basis"], order: NextHearing["order"] = { ...ORDER, order_date: "2026-10-12" }) =>
+      basisLine({ ...around, basis, order });
+    expect(at("court", null)).toBe("From the court's records");
+    expect(at("order")).toBe("Given in the order of 12 Oct 2026");
+    expect(at("confirmed")).toBe("From the order of 12 Oct 2026");
+    expect(at("manual", null)).toBe("Entered by hand; the court has given no date");
+    expect(at("manual")).toBe("Corrected by hand: the date read from the order of 12 Oct 2026 was wrong");
+    expect(at("around", ORDER)).toBe("Around 11 Mar 2026 (after 3 weeks, order of 18 Feb 2026)");
+    expect(basisLine(null)).toBeNull();
+  });
+
+  it("says when the latest order differs from the court's record", () => {
+    const court: NextHearing = {
+      ...around,
+      date: "2026-11-25",
+      basis: "court",
+      approximate: false,
+      order: null,
+      differs: { date: "2026-11-20", order: { ...ORDER, order_date: "2026-10-12" } },
+    };
+    expect(differsSentence(court)).toBe(
+      "The order of 12 Oct 2026 gives 20 Nov 2026; the court's record gives 25 Nov 2026. The court's record is used.",
+    );
+    expect(differsSentence(around)).toBeNull();
   });
 });

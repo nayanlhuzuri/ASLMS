@@ -36,6 +36,7 @@ CASE_KINDS = INFO_KINDS | {
     AlertKind.WORKFLOW,
     AlertKind.NEXT_DATE_REVIEW,
     AlertKind.LISTED_TOMORROW,  # design alerts-visibility-roles, decision 12: not informational
+    AlertKind.NEXT_DATE_REPORTED,  # design next-date-direct, decision 17
 }
 LIST_TYPE_LABELS = {
     "daily": "daily cause list",
@@ -211,7 +212,9 @@ def render_alert(kind: AlertKind | str, case: Any, data: dict[str, Any]) -> tupl
     label = case_label(case)
     if kind == AlertKind.HEARING_DUE:
         title = f"Hearing on {_d(d.get('hearing_date'))}: {label}"
-        if d.get("source") == "causelist":
+        if d.get("source") == "next_date" and d.get("basis"):
+            title, body = render_hearing_from_value(d, label)
+        elif d.get("source") == "causelist":
             where = []
             if d.get("item_no"):
                 where.append(f"item {d['item_no']}")
@@ -296,6 +299,8 @@ def render_alert(kind: AlertKind | str, case: Any, data: dict[str, Any]) -> tupl
         title, body = render_new_note(d, label)
     elif kind == AlertKind.LISTED_TOMORROW:
         title, body = render_listed_tomorrow(d, label)
+    elif kind == AlertKind.NEXT_DATE_REPORTED:
+        title, body = render_next_date_reported(d, label)
     else:
         title = f"{kind.value}: {label}"
         body = ""
@@ -362,9 +367,31 @@ def render_listed_tomorrow(d: dict[str, Any], label: str) -> tuple[str, str]:
     return title, body + "."
 
 
+def render_hearing_from_value(d: dict[str, Any], label: str) -> tuple[str, str]:
+    """A `hearing_due` alert from the case's one next hearing (design next-date-direct, decision 10): around for a
+    period, the order's date for an exact reading, or a date entered by hand."""
+    when = _d(d.get("hearing_date"))
+    basis = d.get("basis")
+    if basis == "around":
+        words = f" ({d['basis_words']})" if d.get("basis_words") else ""
+        return (
+            f"Hearing around {when}: {label}",
+            f"Counted from the order of {_d(d.get('order_date'))}{words}. "
+            "The court's own date will replace it when it is known.",
+        )
+    if basis == "order":
+        return f"Hearing on {when}: {label}", f"Date given in the order of {_d(d.get('order_date'))}."
+    if basis == "confirmed":
+        return f"Hearing on {when}: {label}", f"Date from the order of {_d(d.get('order_date'))}."
+    if basis == "manual":
+        return f"Hearing on {when}: {label}", "Date entered by hand; the court has given no date."
+    return f"Hearing on {when}: {label}", "Next date entered or read from an order."
+
+
 def render_next_date_review(d: dict[str, Any], label: str) -> tuple[str, str]:
-    """A `next_date_review` alert (design next-date-extraction, decision 13): the date to confirm with the order it
-    was read from, or the order that gives no date; never a phrase of the order or a note."""
+    """A `next_date_review` alert (design next-date-extraction, decision 13; next-date-direct, decision 9): an order
+    that gives no clear next date, for a person to enter one; never a phrase of the order or a note. An old alert
+    with a date to confirm keeps its old text."""
     if d.get("hearing_date"):
         how = "counted from" if d.get("source") == "order_period" else "read from"
         title = f"Next date to confirm, {_d(d.get('hearing_date'))}: {label}"
@@ -373,9 +400,21 @@ def render_next_date_review(d: dict[str, Any], label: str) -> tuple[str, str]:
         )
     else:
         title = f"Enter the next date: {label}"
-        body = (
-            f"Enter the next date: the order of {_d(d.get('order_date'))} gives no date that could be read."
-        )
+        body = f"Enter the next date: the order of {_d(d.get('order_date'))} gives no next date."
+    return title, body
+
+
+def render_next_date_reported(d: dict[str, Any], label: str) -> tuple[str, str]:
+    """A `next_date_reported` alert (design next-date-direct, decision 17): the date read and its order in the
+    title; the reporter's name and office and the reason in the body, shown only to the alert's recipients."""
+    title = (
+        f"Next date reported as wrong: {_d(d.get('hearing_date'))} read from the order of "
+        f"{_d(d.get('order_date'))}: {label}"
+    )
+    who = d.get("reporter_name") or "An officer"
+    if d.get("reporter_office_code"):
+        who = f"{who}, {d['reporter_office_code']}"
+    body = f"Reported by {who}: {d.get('reason') or 'no reason given'}"
     return title, body
 
 

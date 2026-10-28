@@ -7,6 +7,7 @@ import { nav, resetNav } from "@/test/nav";
 import { browserApi, json, makeMe, renderWithClient } from "@/test/render";
 
 import { Search } from "./Search";
+import { courtNext } from "@/test/nextHearing";
 
 const READER: Permission[] = ["cases.view_scope", "documents.view"];
 const SEARCHER: Permission[] = ["cases.view_scope", "cases.search_court", "cases.claim"];
@@ -22,7 +23,7 @@ function item(n: number, extra: Partial<CaseSearchItem> = {}, caseExtra: Partial
       petitioner_summary: "RAM KUMAR",
       respondent_summary: "STATE OF ASSAM",
       status: "pending",
-      next_hearing_date: null,
+      next_hearing: courtNext(null),
       last_listed_on: null,
       last_listing: null,
       ...caseExtra,
@@ -532,9 +533,9 @@ describe("the Work list template on Search (portal-ui-redesign, decision 26)", (
     const listed = { last_listed_on: "2026-10-20", last_listing: { list_date: "2026-10-20", list_type: "daily", court_no: "3", sr_no: 41 } };
     browserApi(
       routes([
-        item(1, {}, { ...listed, next_hearing_date: "2026-10-28" }),
-        item(2, {}, { next_hearing_date: "2026-10-20" }),
-        item(3, {}, { next_hearing_date: "2026-10-28", status: "disposed" }),
+        item(1, {}, { ...listed, next_hearing: courtNext("2026-10-28") }),
+        item(2, {}, { next_hearing: courtNext("2026-10-20") }),
+        item(3, {}, { next_hearing: courtNext("2026-10-28"), status: "disposed" }),
       ]),
     );
     renderWithClient(<Search params={{ q: "RAM KUMAR" }} />);

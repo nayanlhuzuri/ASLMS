@@ -99,7 +99,7 @@ def test_retired_functions_excluded_from_the_active_set():
     assert RETIRED_PERMISSIONS == {Permission.REQUESTS_SEND, Permission.REQUESTS_ANSWER}
     assert not (access.ACTIVE_FUNCTIONS & RETIRED_PERMISSIONS)
     assert {Permission.CUSTODY_RECALL, Permission.CUSTODY_TRACK} <= access.ACTIVE_FUNCTIONS
-    assert len(Permission) == 53 and len(access.ACTIVE_FUNCTIONS) == 51
+    assert len(Permission) == 55 and len(access.ACTIVE_FUNCTIONS) == 53  # next-date-direct: two functions
 
 
 def test_send_field_checks():

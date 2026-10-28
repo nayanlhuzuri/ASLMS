@@ -123,7 +123,8 @@ def test_case_details_source_in_every_scope_court_public_only(world, scene):
     conn = _conn(world)
     ol.ask(world, "edu_admin", "affidavit quokka", "case", conn, case=scene.a, include_related=False)
     sent = conn.fake.chats[0]["messages"][-1]["content"]
-    assert "Case Details (Court Record)" in sent and "Next date (court): 04 May 2026" in sent
+    # design next-date-direct, decision 11: the case's one next hearing (here the court's last date, passed)
+    assert "Case Details (Court Record)" in sent and "Next hearing: 04 May 2026 (court's records)" in sent
     assert "Listings (latest first)" in sent and "court 7" in sent
     lowered = sent.lower()
     for banned in ("owner", "stage", "recommend", "custody", "aslms/", "claimed", "education"):

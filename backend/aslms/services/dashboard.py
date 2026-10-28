@@ -153,6 +153,7 @@ def hearing_summary(
             "court_no": r.court_no,
             "item_no": r.item_no,
             "critical": crit,
+            **r.value_fields(),
         }
         for r, crit in ordered
         if r.case_id in cases
@@ -341,7 +342,14 @@ def me_block(
 
 ATTENTION_KINDS = ("overdue_action", "confirm_next_date", "due_soon", "file_received")
 RECEIVED_DAYS = 7
-CONFIRM_TITLE = "Next date to confirm"
+# design next-date-direct, decision 9: the item of the queue is now a date to enter (the API kind keeps its name)
+CONFIRM_TITLE = "Next date to enter"
+ENTER_DETAIL = {
+    "unclear": "The order gives no clear date",
+    "none": "The order gives no next date",
+    "no_text": "This order is a scanned copy and could not be read",
+    "marked_wrong": "The date read from this order was marked wrong",
+}
 RECEIVED_TITLE = "Case received"
 
 
@@ -397,7 +405,21 @@ def personal_headline(session: Session, user: User, *, now: datetime, cfg: Repor
         if i["kind"] == "hearing"
     ]
     upcoming = [
-        {k: i[k] for k in ("date", "case", "court_no", "item_no", "critical", "this_week")}
+        {
+            k: i.get(k)
+            for k in (
+                "date",
+                "case",
+                "court_no",
+                "item_no",
+                "critical",
+                "this_week",
+                "basis",
+                "approximate",
+                "basis_words",
+                "order_date",
+            )
+        }
         for i in week[: cfg.list_size]
     ]
 
@@ -481,12 +503,12 @@ def personal_headline(session: Session, user: User, *, now: datetime, cfg: Repor
             and_(next_dates.review_condition(session, user), visible),
             today=today,
             cfg=review_cfg,
-            kind="confirm",
+            kind="enter",
         )
-        for nd_id, d, c in session.execute(
-            select(q.c.id, q.c.next_date, Case)
+        for d, reason, c in session.execute(
+            select(q.c.act_by, q.c.reason, Case)
             .join(Case, Case.id == q.c.case_id)
-            .order_by(q.c.next_date, Case.case_no_text, Case.ref_no, q.c.id)
+            .order_by(q.c.act_by, Case.case_no_text, Case.ref_no, q.c.id)
             .limit(room)
         ).all():
             attention.append(
@@ -495,10 +517,10 @@ def personal_headline(session: Session, user: User, *, now: datetime, cfg: Repor
                     "case": calendar.case_ref(c),
                     "title": CONFIRM_TITLE,
                     "date": d,
-                    "detail": "Suggested from an order",
+                    "detail": ENTER_DETAIL.get(reason or "", ENTER_DETAIL["unclear"]),
                     "pending_action": None,
                     "overdue_days": 0,
-                    "next_date_id": nd_id,
+                    "next_date_id": None,
                 }
             )
             listed.add(c.id)
@@ -660,6 +682,16 @@ def department_block(
         .order_by(NextDate.created_at.desc(), NextDate.id.desc())
         .limit(cfg.list_size)
     ).all()
+    # design next-date-direct, decision 5: the department's claimed cases whose latest order differs from the court
+    differ = _count(
+        session,
+        select(Case.id).where(
+            Case.merged_into_case_id.is_(None),
+            Case.next_hearing_differs_on.is_not(None),
+            primary_owned_condition(department, Case.id),
+            visibility.visible_case_condition(session, user),
+        ),
+    )
     soon, late = compliance_flags(today, cfg.due_soon_days)
     due_soon, overdue = session.execute(
         select(func.count().filter(soon), func.count().filter(late))
@@ -687,6 +719,7 @@ def department_block(
             ],
             "compliance_due_soon": int(due_soon),
             "compliance_overdue": int(overdue),
+            "next_dates_differ": differ,
         },
     }
 

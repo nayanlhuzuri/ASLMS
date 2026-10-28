@@ -69,8 +69,10 @@ def review_queue(
     session: Session = Depends(get_session),
     user: User = Depends(review),
 ) -> schemas.NextDateReviewListOut:
-    """Next dates to confirm and orders to enter a date for, on claimed cases where one of your memberships holding
-    `next_dates.review` works on the case; sorted by the date to act by, then the case."""
+    """Orders whose next date a person must enter (the order gives no clear date, no date at all, is a scanned copy,
+    or its date was marked wrong), on claimed cases with no next hearing from the court where one of your memberships
+    holding `next_dates.review` works on the case; sorted by the date to act by, then the case. `kind=confirm` is
+    accepted and always empty (design next-date-direct, decision 9)."""
     try:
         page = next_dates.review_items(
             session, user, kind=kind, filters=filters, limit=limit, offset=offset, cfg=_cfg(request)
@@ -174,3 +176,85 @@ def case_next_dates(
     except HANDLED as exc:
         raise _http(exc) from exc
     return schemas.CaseNextDateListOut(items=page.items, total=page.total)
+
+
+# ------------------------------------------------------------------------------------------------ misread readings
+# design next-date-direct, decisions 17 to 19: report a wrong reading, correct it, or keep it
+
+report_wrong = require(Permission.NEXT_DATES_REPORT_WRONG)
+correcting = require(Permission.NEXT_DATES_CORRECT)
+
+
+@router.post(
+    "/next-dates/{id}/report",
+    response_model=schemas.NextDateReportOut,
+    status_code=status.HTTP_201_CREATED,
+    responses=ERRORS,
+)
+def report(
+    id: str,
+    body: schemas.NextDateReportIn,
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(report_wrong),
+) -> schemas.NextDateReportOut:
+    """Report that the next date read from the latest order looks wrong. Nothing changes: the people who correct
+    dates are told, with your reason (10 to 300 characters)."""
+    try:
+        alert = next_dates.report_wrong(
+            session, actor_of(request, user, session), user, id, reason=body.reason
+        )
+    except HANDLED as exc:
+        raise _http(exc) from exc
+    return schemas.NextDateReportOut(reported=True, alert_ref_no=alert.ref_no)
+
+
+@router.post("/next-dates/{id}/correct", response_model=schemas.NextDateCorrectOut, responses=ERRORS)
+def correct(
+    id: str,
+    body: schemas.NextDateCorrectIn,
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(correcting),
+) -> schemas.NextDateCorrectOut:
+    """Mark the next date read from the latest order as wrong, with a reason, and enter the right date when the
+    order shows it. The court's own records cannot be changed."""
+    from aslms.services import next_hearing
+
+    try:
+        rejected, entered = next_dates.correct(
+            session,
+            actor_of(request, user, session),
+            user,
+            id,
+            reason=body.reason,
+            next_date=body.next_date,
+            cfg=_cfg(request),
+        )
+        case = session.get(Case, rejected.case_id)
+        out = schemas.NextDateCorrectOut(
+            rejected=next_dates.next_date_out(session, rejected),
+            entered=next_dates.next_date_out(session, entered) if entered is not None else None,
+            next_hearing=next_hearing.next_hearing_out(session, case),
+        )
+    except HANDLED as exc:
+        raise _http(exc) from exc
+    return out
+
+
+@router.post("/next-dates/{id}/keep", response_model=schemas.NextDateKeepOut, responses=ERRORS)
+def keep(
+    id: str,
+    request: Request,
+    body: schemas.NextDateKeepIn | None = None,
+    session: Session = Depends(get_session),
+    user: User = Depends(correcting),
+) -> schemas.NextDateKeepOut:
+    """Reading Is Right: close the open reports of this date; the date read from the order stays."""
+    try:
+        next_dates.keep(
+            session, actor_of(request, user, session), user, id, note=body.note if body is not None else None
+        )
+    except HANDLED as exc:
+        raise _http(exc) from exc
+    return schemas.NextDateKeepOut(kept=True)

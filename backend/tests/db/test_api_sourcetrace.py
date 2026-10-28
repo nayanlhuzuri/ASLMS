@@ -152,8 +152,8 @@ def test_document_detail_shows_ingested_at(api, world, scene):
 
 def test_seed_adds_admin_sourcetrace(world):
     with world.Session() as s:
-        assert s.scalar(sa.text("select count(*) from ref_permission")) == 53
-        assert s.scalar(sa.text("select count(*) from ref_permission where is_active")) == 51
+        assert s.scalar(sa.text("select count(*) from ref_permission")) == 55  # next-date-direct: + 2
+        assert s.scalar(sa.text("select count(*) from ref_permission where is_active")) == 53
         label = s.scalar(sa.text("select label from ref_permission where code = 'admin.sourcetrace'"))
         assert label == "Case Assistant Intake"
         rows = s.scalars(

@@ -232,6 +232,11 @@ export type AuditActions = S["AuditActionsOut"];
 
 // next dates from orders (design portal-next-dates)
 export type NextDate = S["NextDateOut"];
+// design next-date-direct, decisions 4, 8, 11, 17 and 18
+export type NextHearingOut = S["NextHearingOut"];
+export type NextHearingDetail = S["NextHearingDetailOut"];
+export type NextDateReportOut = S["NextDateReportOut"];
+export type NextDateCorrectOut = S["NextDateCorrectOut"];
 export type CaseNextDate = S["CaseNextDateOut"];
 export type CaseNextDateList = S["CaseNextDateListOut"];
 export type NextDateReviewItem = S["NextDateReviewItemOut"];

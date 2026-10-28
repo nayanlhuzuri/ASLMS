@@ -67,7 +67,7 @@ export function MyCases({ view, params, counts }: { view: MyView; params: Params
   const columns: Column<MyCase>[] = [
     { key: "case", header: T.inbox.case, primary: true, cell: (r) => <CaseCell c={r.case} /> },
     { key: "stage", header: T.inbox.stage, cell: (r) => <StageCell stage={r.stage} /> },
-    { key: "next", header: T.inbox.nextHearingCol, cell: (r) => <HearingDate date={r.case.next_hearing_date} status={r.case.status} /> },
+    { key: "next", header: T.inbox.nextHearingCol, cell: (r) => <HearingDate next={r.case.next_hearing} status={r.case.status} /> },
     { key: "action", header: T.inbox.yourAction, cell: (r) => <ActionCell custody={r.custody?.with_me ? r.custody : null} /> },
     { key: "open", header: <span className="visually-hidden">{T.inbox.actions}</span>, hideOnPhone: true, width: "var(--s6)", cell: () => <Chevron /> },
   ];

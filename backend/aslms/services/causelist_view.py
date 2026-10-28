@@ -619,7 +619,8 @@ def entries(
     rows = session.execute(stmt).all()
     case_ids = sorted({r.case_id for r in rows if r.case_id is not None})
     cases = list(session.scalars(select(Case).where(Case.id.in_(case_ids))).all()) if case_ids else []
-    summaries = inbox.summaries(session, cases)
+    hidden = {r.case_id for r in rows if r.case_id is not None and not r.visible}
+    summaries = inbox.summaries(session, cases, hidden=hidden)
     owners = inbox.primary_codes(session, case_ids)
     recs: dict[uuid.UUID, list[dict[str, Any]]] = {}
     if case_ids:

@@ -116,6 +116,7 @@ const FIELD_LABELS: Record<SharedField, string> = {
   owner: T.filters.owner,
   scored_for: T.filters.scoredFor,
   other_office: T.filters.otherOffice,
+  next_differs: T.filters.nextDiffers,
 };
 
 const CHIP_LABELS: Record<SharedField, string> = { ...FIELD_LABELS, ...T.filters.chipNames };
@@ -133,6 +134,7 @@ const FIELD_ORDER: SharedField[] = [
   "owner",
   "scored_for",
   "other_office",
+  "next_differs",
 ];
 
 function ownChips(params: Params, own: OwnControl[]): Chip[] {
@@ -501,6 +503,17 @@ function FilterForm({
       case "scored_for":
       case "other_office":
         return departmentField(f);
+      case "next_differs":
+        // design next-date-direct, decision 5
+        return (
+          <CheckField
+            key="next_differs"
+            inline
+            label={T.filters.nextDiffers}
+            checked={form.next_differs === "true"}
+            onChange={(e) => set("next_differs", e.target.checked ? "true" : "")}
+          />
+        );
     }
   };
 

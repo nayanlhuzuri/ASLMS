@@ -57,6 +57,10 @@ def cases(world):
         for case in (a, b, c):
             own.claim(s, actor, admin, case)
         refresh_search_vector(s, [a.id, b.id, c.id, d.id])
+        # the next-hearing filters read the case's one next hearing (design next-date-direct, decision 11)
+        from aslms.services import next_hearing
+
+        next_hearing.refresh(s, [a.id, b.id, c.id, d.id])
         s.commit()
         return {k: str(v.id) for k, v in dict(a=a, b=b, c=c, d=d).items()}
 
@@ -94,7 +98,9 @@ def test_search_next_range_court_bench(api, cases):
 
     everyone = sorted(cases.values())
     assert got("") == everyone
-    assert got("next_from=2026-10-01&next_to=2026-10-31") == [cases["a"]]
+    # the one next hearing (design next-date-direct, decision 4): the court's last date stays once passed, so the
+    # disposed `b` keeps its cause-list date of 2 Oct
+    assert got("next_from=2026-10-01&next_to=2026-10-31") == sorted([cases["a"], cases["b"]])
     assert got("next_from=2026-11-01") == [cases["c"]]
     assert got("court_no=5") == [cases["b"]]
     assert got("bench=PHUKAN") == [cases["c"]]

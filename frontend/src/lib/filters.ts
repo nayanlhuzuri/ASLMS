@@ -19,7 +19,9 @@ export type SharedField =
   | "bench"
   | "owner"
   | "scored_for"
-  | "other_office";
+  | "other_office"
+  // design next-date-direct, decision 5: the case's latest order gives an exact date other than the court's record
+  | "next_differs";
 
 export type ListKey =
   | "recommended"
@@ -54,6 +56,7 @@ export const FILTER_KEYS = [
   "owner",
   "scored_for",
   "other_office",
+  "next_differs",
 ] as const;
 
 /** The URL keys of each field. */
@@ -69,12 +72,22 @@ export const FIELD_KEYS: Record<SharedField, readonly string[]> = {
   owner: ["owner"],
   scored_for: ["scored_for"],
   other_office: ["other_office"],
+  next_differs: ["next_differs"],
 };
 
 /** The fields under "More filters" (decision 9); the others are on the first row. */
-export const MORE_FIELDS: readonly SharedField[] = ["year", "case_status", "court_no", "bench", "owner", "scored_for", "other_office"];
+export const MORE_FIELDS: readonly SharedField[] = [
+  "year",
+  "case_status",
+  "court_no",
+  "bench",
+  "owner",
+  "scored_for",
+  "other_office",
+  "next_differs",
+];
 
-const ALL_CASE: SharedField[] = ["q", "listed", "next", "case_type", "year", "case_status", "court_no", "bench"];
+const ALL_CASE: SharedField[] = ["q", "listed", "next", "case_type", "year", "case_status", "court_no", "bench", "next_differs"];
 
 export interface ListFilters {
   /** The shared fields the list shows. */
@@ -101,7 +114,7 @@ export const LIST_FILTERS: Record<ListKey, ListFilters> = {
   recommended: { fields: ALL_CASE, fixed: ["department"] },
   claimed_active: { fields: ALL_CASE.filter((f) => f !== "case_status"), fixed: ["department", "case_state"] },
   claimed_disposed: {
-    fields: ALL_CASE.filter((f) => f !== "case_status" && f !== "next"),
+    fields: ALL_CASE.filter((f) => f !== "case_status" && f !== "next" && f !== "next_differs"),
     fixed: ["department", "case_state"],
   },
   pool: { fields: [...ALL_CASE, "scored_for"], fixed: ["department"], legacy: { status: "case_status" } },
@@ -118,16 +131,16 @@ export const LIST_FILTERS: Record<ListKey, ListFilters> = {
   // Stage, then case type, year and court under "More filters"); design list-search, decision 17: Search Words is on
   // the first row, no longer hidden under More Filters
   mine: {
-    fields: ["q", "next", "case_type", "year", "court_no"],
+    fields: ["q", "next", "case_type", "year", "court_no", "next_differs"],
     fixed: [],
-    more: ["case_type", "year", "court_no"],
+    more: ["case_type", "year", "court_no", "next_differs"],
     hidden: ["next"],
   },
   // Department cases: Search, Unit, Officer, Stage, Next hearing; More: case type, year, court, file holder, action
   department: {
-    fields: ["q", "next", "case_type", "year", "court_no"],
+    fields: ["q", "next", "case_type", "year", "court_no", "next_differs"],
     fixed: ["department", "case_state"],
-    more: ["case_type", "year", "court_no"],
+    more: ["case_type", "year", "court_no", "next_differs"],
     nextChoices: ["", "n7", "n30", "range"],
   },
 };
@@ -205,6 +218,8 @@ export function toApiQuery(params: Params, list: ListKey, now: Date = new Date()
     if (field === "listed" || field === "next") {
       out[`${field}_from`] = dates[`${field}_from`];
       out[`${field}_to`] = dates[`${field}_to`];
+    } else if (field === "next_differs") {
+      out.next_differs = p.next_differs === "true" ? "true" : undefined;
     } else {
       const v = (p[field] ?? "").trim();
       out[field] = v || undefined;
@@ -328,7 +343,11 @@ export function chipsOf(params: Params, list: ListKey, texts: ChipTexts): Chip[]
     let value: string | null;
     if (field === "listed" || field === "next") value = dateChip(p, field, texts);
     else if (field === "case_status") value = p.case_status ? (texts.statuses[p.case_status] ?? p.case_status) : null;
-    else value = (p[field] ?? "").trim() || null;
+    else if (field === "next_differs") {
+      // a check: the chip is the label alone while ticked
+      if (p.next_differs === "true") out.push({ keys, label: texts.field[field] });
+      continue;
+    } else value = (p[field] ?? "").trim() || null;
     if (!value) continue;
     // a chip of a field read from an old name also drops the old name
     for (const old of legacy) if (LIST_FILTERS[list].legacy![old] === field) keys.push(old);

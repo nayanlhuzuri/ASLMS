@@ -1,7 +1,13 @@
 /** The case detail of the case-page tests: an EDU-owned, fetched case with every block filled. */
 import type { CaseDetail } from "@/lib/api/types";
 
+import { withNextHearing } from "./nextHearing";
+
 export function caseDetail(extra: Partial<CaseDetail> = {}): CaseDetail {
+  return withNextHearing(caseDetailBase(extra), extra);
+}
+
+function caseDetailBase(extra: Partial<CaseDetail>): CaseDetail {
   return {
     id: "c-1",
     ref_no: "ASLMS/GHC/CASE/2026/000001",
@@ -27,7 +33,7 @@ export function caseDetail(extra: Partial<CaseDetail> = {}): CaseDetail {
       sub_category: "Transfer",
     },
     counts: { documents: 2, hearings: 7, links: 1, listings: 3, my_drafts: 0, notes: 4, orders: 5, timeline: 12 },
-    workflow: { note_mode: null, upload: false, set_stage: false, next_dates: false },
+    workflow: { note_mode: null, upload: false, set_stage: false, next_dates: false, next_date_report: false, next_date_correct: false },
     court: { est_code: "GAHC01", name: "Principal Seat at Guwahati" },
     court_transfers: [{ from_court_text: "Court 1", to_court_text: "Court 3", transfer_date: "2026-03-01" }],
     custody: {

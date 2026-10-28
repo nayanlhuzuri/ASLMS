@@ -4,20 +4,24 @@
  * The case page's next dates (design portal-next-dates, decisions 8 and 10; plan §5.3 "the latest order with the next
  * date read"):
  * - `NextDateBlock`, the body of the Overview card "Next date from orders": the date in use with where it came from,
- *   the court's sentence and the note; "Waiting for you" with the case's review items when `next_dates_to_review` is
- *   above zero (read from `GET /next-dates/review?q=<case id>`); "Enter next date" by `workflow.next_dates`;
+ *   the court's sentence and the note; "Waiting for you" with the case's enter items when `next_dates_to_review` is
+ *   above zero (read from `GET /next-dates/review?q=<case id>`); "Enter next date" only by `workflow.next_dates`, else
+ *   the plain reason when the court has given the date (design next-date-direct, decision 6); Report Wrong Next Date
+ *   and Correct It only by `workflow.next_date_report` / `next_date_correct` (decisions 17 to 19), and the "Reported as
+ *   possibly wrong" line while a report is open;
  * - `NextDatesSection`, the Hearings tab's "Next dates": `GET /cases/{ref}/next-dates`, newest first, with the row used
  *   for the calendar marked.
  * What may be done comes from the server; the browser never works out review state or who may act.
  */
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { fileUrl } from "@/components/case/Orders";
 import { Badge, Button, EmptyState, ErrorBanner, HearingDate, Loading, Notice, Pagination, DataTable } from "@/components/ui";
 import { api } from "@/lib/api/client";
-import { caseKey, useCase, useMe } from "@/lib/api/hooks";
+import { caseKey, useMe } from "@/lib/api/hooks";
 import type { CaseDetail, CaseNextDate, CaseNextDateList, NextDateReviewList } from "@/lib/api/types";
 import { can } from "@/lib/can";
 import { formatDate } from "@/lib/format";
@@ -26,7 +30,7 @@ import { originLine, sourceLabel, statusLabel } from "@/lib/nextDates";
 import { PAGE } from "@/lib/params";
 import { apiCasePath, casePath } from "@/lib/refs";
 
-import { EnterNextDate, type DialogOutcome } from "./Dialogs";
+import { CorrectNextDate, EnterNextDate, ReportWrongNextDate, type DialogOutcome } from "./Dialogs";
 import s from "./nextdates.module.css";
 import { ReviewTable } from "./ReviewList";
 
@@ -48,10 +52,17 @@ function WaitingForYou({ caseRef, c, outcome }: { caseRef: string; c: CaseDetail
 }
 
 export function NextDateBlock({ caseRef, c }: { caseRef: string; c: CaseDetail }) {
+  const search = useSearchParams();
   const [open, setOpen] = useState(false);
+  const [dialog, setDialog] = useState<"report" | "correct" | null>(() =>
+    search?.get("nd") === "correct" && c.workflow.next_date_correct ? "correct" : null,
+  );
   const [notice, setNotice] = useState<string | null>(null);
   const [stale, setStale] = useState<unknown>(null);
   const row = c.next_date_from_orders ?? null;
+  // the reading of the latest order the report and the correction are about (decision 17's row)
+  const reading = row && row.source !== "manual" ? row : null;
+  const name = c.identity.case_no_text || c.ref_no;
   const outcome: DialogOutcome = {
     onDone: (text) => {
       setStale(null);
@@ -68,12 +79,12 @@ export function NextDateBlock({ caseRef, c }: { caseRef: string; c: CaseDetail }
       <ErrorBanner error={stale} messages={NEXT_DATE_ERRORS} />
       {row ? (
         <>
-          {/* design next-hearing-highlight, decisions 5 and 11: a pending suggestion is outlined and says Suggested */}
+          {/* design next-date-direct, decision 8: a date read from an order is shown directly, around for a period */}
           <div className="row">
             <HearingDate
               date={row.next_date}
               status={c.status.status}
-              kind={row.review_status === "pending" ? "suggested" : "firm"}
+              kind={reading && c.next_hearing?.basis === "around" && c.next_hearing.date === row.next_date ? "around" : "firm"}
               size="md"
             />
           </div>
@@ -93,7 +104,54 @@ export function NextDateBlock({ caseRef, c }: { caseRef: string; c: CaseDetail }
       ) : (
         <p className="muted">{T.nd.noneYet}</p>
       )}
+      {c.next_hearing?.reported_at ? (
+        <p className="muted" data-reported="true">
+          {T.hearing.reported(formatDate(c.next_hearing.reported_at))}
+        </p>
+      ) : null}
       {(c.next_dates_to_review ?? 0) > 0 ? <WaitingForYou caseRef={caseRef} c={c} outcome={outcome} /> : null}
+      {c.workflow.next_dates_blocked === "court_date_fixed" ? <p className="muted">{T.hearing.fixed}</p> : null}
+      {reading && (c.workflow.next_date_report || c.workflow.next_date_correct) ? (
+        <>
+          <div className="row">
+            {c.workflow.next_date_report ? (
+              <Button variant="secondary" onClick={() => setDialog("report")}>
+                {T.nd.report}
+              </Button>
+            ) : null}
+            {c.workflow.next_date_correct ? (
+              <Button variant="secondary" onClick={() => setDialog("correct")}>
+                {T.nd.correct}
+              </Button>
+            ) : null}
+          </div>
+          {c.workflow.next_date_report ? (
+            <ReportWrongNextDate
+              caseRef={caseRef}
+              name={name}
+              nextDateId={reading.id}
+              dateRead={reading.next_date}
+              next={c.next_hearing ?? null}
+              open={dialog === "report"}
+              onClose={() => setDialog(null)}
+              {...outcome}
+            />
+          ) : null}
+          {c.workflow.next_date_correct ? (
+            <CorrectNextDate
+              caseRef={caseRef}
+              name={name}
+              nextDateId={reading.id}
+              dateRead={reading.next_date}
+              next={c.next_hearing ?? null}
+              reported={!!c.next_hearing?.reported_at}
+              open={dialog === "correct"}
+              onClose={() => setDialog(null)}
+              {...outcome}
+            />
+          ) : null}
+        </>
+      ) : null}
       {c.workflow.next_dates ? (
         <>
           <div className="row">
@@ -123,13 +181,11 @@ function By({ row }: { row: CaseNextDate }) {
 
 export function NextDatesSection({ caseRef }: { caseRef: string }) {
   const me = useMe();
-  const detail = useCase(caseRef);
   const [offset, setOffset] = useState(0);
   const list = useQuery({
     queryKey: [...caseKey(caseRef), "next-dates", offset],
     queryFn: () => api<CaseNextDateList>(apiCasePath(caseRef, "next-dates"), { query: { limit: PAGE, offset } }),
   });
-  const canAct = !!detail.data?.workflow.next_dates;
   const canView = can(me.data, "documents.view");
   return (
     <section className="stack" aria-label={T.nd.section} id="next-dates">
@@ -163,7 +219,7 @@ export function NextDatesSection({ caseRef }: { caseRef: string }) {
                   ),
                 },
                 { key: "source", header: T.nd.colSource, cell: (row) => sourceLabel(row.source) },
-                { key: "status", header: T.nd.colStatus, cell: (row) => statusLabel(row.review_status, { canAct }) },
+                { key: "status", header: T.nd.colStatus, cell: (row) => statusLabel(row.review_status) },
                 {
                   key: "order",
                   header: T.nd.colOrder,

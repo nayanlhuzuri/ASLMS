@@ -347,6 +347,9 @@ def merge_provisional(
     c = session.get(Case, result.holder_id)
     refresh_search_vector(session, [p.id, c.id])
     matching.score_cases(session, [c.id], origin=RecommendationOrigin.RESCORE)
+    from aslms.services import next_hearing  # design next-date-direct: the surviving case's next hearing
+
+    next_hearing.refresh_after_court_change(session, [c.id, p.id])
     payload = {
         "merged_ref_no": p.ref_no,
         "merged_case_no": p.case_no_text,

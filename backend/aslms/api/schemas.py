@@ -634,6 +634,47 @@ class CaseLastListingOut(BaseModel):
     sr_no: int
 
 
+class NextHearingOrderOut(BaseModel):
+    id: uuid.UUID
+    order_no: str
+    order_date: date
+    document_id: uuid.UUID | None
+
+
+class NextHearingDiffersOut(BaseModel):
+    """An exact date read from the latest order that differs from the court's record (the court's record is used)."""
+
+    date: date
+    order: NextHearingOrderOut | None
+
+
+class NextHearingOut(BaseModel):
+    """The case's one next hearing (design `next-date-direct`, decisions 4, 5 and 8), made on the server and read by
+    every screen: the court's record (`court`), a date read from the latest order (`order`, exact; `around`, a period,
+    qualified or returnable date counted from the order; `confirmed`, a reading a person confirmed earlier), or a
+    date entered by hand where the court gave none (`manual`). Court information: shown to every reader of the
+    case."""
+
+    date: date
+    basis: Literal["court", "order", "around", "confirmed", "manual"]
+    approximate: bool = Field(description="true exactly when basis is `around`")
+    basis_words: str | None = Field(
+        description="the words of an around date as the order puts them: `after 3 weeks`, `after 15.12.2026`"
+    )
+    order: NextHearingOrderOut | None
+    rule: str | None
+    differs: NextHearingDiffersOut | None
+
+
+class NextHearingDetailOut(NextHearingOut):
+    """The case page's form: the court's sentence, the court's own date (for the discrepancy sentence) and the time
+    of an open report of a wrong reading."""
+
+    phrase: str | None = None
+    court_date: date | None = None
+    reported_at: datetime | None = None
+
+
 class CaseSummaryOut(BaseModel):
     id: uuid.UUID
     ref_no: str
@@ -643,7 +684,7 @@ class CaseSummaryOut(BaseModel):
     petitioner_summary: str | None
     respondent_summary: str | None
     status: str
-    next_hearing_date: date | None
+    next_hearing: NextHearingOut | None
     last_listed_on: date | None
     last_listing: CaseLastListingOut | None
 
@@ -1183,12 +1224,18 @@ class CaseWorkflowActionsOut(BaseModel):
     """Design portal-workflow, decision 20a: what the caller may do, from the checks the writes run. `note_mode`
     is `draft` when the caller's acting membership holds the file, `permanent` when they may write a note
     otherwise, `null` when they may not write one. `next_dates` (design portal-next-dates, decision 3): the caller
-    may confirm, reject and enter next dates on the case."""
+    may enter next dates on the case; false with `next_dates_blocked = "court_date_fixed"` while the court has given
+    the next date (design next-date-direct, decision 6). `next_date_report` / `next_date_correct` (decisions 17 to
+    19): the caller holds the function, may see the case and a reading of the latest order can be reported or
+    corrected."""
 
     note_mode: Literal["draft", "permanent"] | None
     upload: bool
     set_stage: bool
     next_dates: bool
+    next_dates_blocked: Literal["court_date_fixed"] | None = None
+    next_date_report: bool = False
+    next_date_correct: bool = False
 
 
 # ------------------------------------------------------------------------------------------------ next dates
@@ -1258,6 +1305,9 @@ class NextDateReviewItemOut(BaseModel):
     rule: str | None
     next_date: date | None
     act_by: date
+    reason: Literal["unclear", "none", "no_text", "marked_wrong"] | None = Field(
+        None, description="why the order asks a person for the date (design next-date-direct, decision 9)"
+    )
     alert_ref_no: str | None
     departments: list[str]
 
@@ -1280,6 +1330,41 @@ class NextDateRejectIn(BaseModel):
 class NextDateRejectOut(BaseModel):
     rejected: NextDateOut
     entered: NextDateOut | None
+
+
+class NextDateReportIn(BaseModel):
+    """Design next-date-direct, decision 17: the reason is shown to the people who can correct the date."""
+
+    model_config = ConfigDict(extra="forbid")
+    reason: str = Field(..., max_length=300)
+
+
+class NextDateReportOut(BaseModel):
+    reported: bool
+    alert_ref_no: str
+
+
+class NextDateCorrectIn(BaseModel):
+    """Design next-date-direct, decision 18: the reason, and the right date when the order shows it."""
+
+    model_config = ConfigDict(extra="forbid")
+    reason: str = Field(..., max_length=300)
+    next_date: date | None = Field(None, description="the right date, entered as a manual next date (NXT)")
+
+
+class NextDateCorrectOut(BaseModel):
+    rejected: NextDateOut
+    entered: NextDateOut | None
+    next_hearing: NextHearingOut | None
+
+
+class NextDateKeepIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    note: str | None = Field(None, max_length=300)
+
+
+class NextDateKeepOut(BaseModel):
+    kept: bool
 
 
 class NextDateEnterIn(BaseModel):
@@ -1319,6 +1404,7 @@ class CaseDetailOut(BaseModel):
     merged_into_ref_no: str | None
     counts: CaseCountsOut
     workflow: CaseWorkflowActionsOut
+    next_hearing: NextHearingDetailOut | None = None
     next_date_from_orders: NextDateOut | None = None
     next_dates_to_review: int = 0
 
@@ -1703,6 +1789,11 @@ class CalendarItemOut(BaseModel):
     purpose: str | None
     critical: bool
     this_week: bool
+    # design next-date-direct, decision 10: where the date comes from
+    basis: str | None = None
+    approximate: bool = False
+    basis_words: str | None = None
+    order_date: date | None = None
 
 
 class CalendarOut(BaseModel):
@@ -1726,6 +1817,11 @@ class MyCalendarItemOut(BaseModel):
     pending_action_label: str | None = None
     overdue: bool | None = None
     next_date_id: uuid.UUID | None = None
+    # design next-date-direct, decision 10 (hearings only)
+    basis: str | None = None
+    approximate: bool = False
+    basis_words: str | None = None
+    order_date: date | None = None
 
 
 class MyCalendarOut(BaseModel):
@@ -2496,6 +2592,11 @@ class DashboardHearingOut(BaseModel):
     court_no: str | None
     item_no: str | None
     critical: bool
+    # design next-date-direct, decision 10
+    basis: str | None = None
+    approximate: bool = False
+    basis_words: str | None = None
+    order_date: date | None = None
 
 
 class DashboardHearingsOut(BaseModel):
@@ -2575,6 +2676,11 @@ class DashboardUpcomingOut(BaseModel):
     item_no: str | None
     critical: bool
     this_week: bool
+    # design next-date-direct, decision 10
+    basis: str | None = None
+    approximate: bool = False
+    basis_words: str | None = None
+    order_date: date | None = None
 
 
 class DashboardMeAttentionOut(BaseModel):
@@ -2645,6 +2751,11 @@ class DashboardAttentionOut(BaseModel):
     recent_order_next_dates: list[DashboardOrderNextDateOut]
     compliance_due_soon: int
     compliance_overdue: int
+    next_dates_differ: int | None = Field(
+        None,
+        description="the department's claimed cases whose latest order gives a date other than the court's record "
+        "(design next-date-direct, decision 5)",
+    )
 
 
 class DashboardDepartmentOut(BaseModel):
@@ -4571,6 +4682,7 @@ class AssistantCourtCaseOut(BaseModel):
     acts: list[str]
     last_hearing_date: date | None
     next_hearing_date: date | None
+    next_hearing: NextHearingOut | None = None
 
 
 class AssistantCourtOrderViewOut(BaseModel):

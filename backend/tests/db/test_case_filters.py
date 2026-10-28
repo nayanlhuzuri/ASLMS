@@ -67,13 +67,38 @@ def test_bench_contains_finds_division_bench_listings(world):
 
 
 def test_next_hearing_range(world):
+    """Design next-date-direct, decision 11: the range reads the case's one next hearing."""
+    from aslms.services import next_hearing
+    from tests.db import next_dates_support as h
+
     with world.Session() as s:
         a = make_case(s, next_hearing=date(2026, 10, 20))
         b = make_case(s, next_hearing=date(2026, 11, 5))
-        make_case(s)
+        c = make_case(s)  # no court date: the date read from its order
+        h.order_with_text(s, c, f"List this matter on {h.dmy(h.days(40))}.", order_date=h.days(-1))
+        h.read(s)
+        next_hearing.refresh(s, [a.id, b.id, c.id], today=date(2026, 10, 1))
         assert matching(s, next_from=date(2026, 10, 1), next_to=date(2026, 10, 31)) == {a.id}
-        assert matching(s, next_from=date(2026, 10, 21)) == {b.id}
+        assert matching(s, next_from=date(2026, 10, 21), next_to=date(2026, 11, 30)) == {b.id}
         assert matching(s, next_to=date(2026, 10, 20)) == {a.id}
+        assert c.id in matching(s, next_from=h.days(40), next_to=h.days(40))
+        s.rollback()
+
+
+def test_next_differs(world):
+    from aslms.services import next_hearing
+    from tests.db import next_dates_support as h
+
+    with world.Session() as s:
+        differs = make_case(s, next_hearing=h.days(12))
+        h.order_with_text(s, differs, f"List this matter on {h.dmy(h.days(10))}.", order_date=h.days(-1))
+        agrees = make_case(s, next_hearing=h.days(10))
+        h.order_with_text(s, agrees, f"List this matter on {h.dmy(h.days(10))}.", order_date=h.days(-1))
+        h.read(s)
+        next_hearing.refresh(s, [differs.id, agrees.id])
+        assert matching(s, next_differs=True) == {differs.id}
+        assert matching(s, next_differs="true") == {differs.id}
+        assert differs.id in matching(s, next_differs=False) and agrees.id in matching(s, next_differs=False)
         s.rollback()
 
 

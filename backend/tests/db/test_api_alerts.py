@@ -675,6 +675,9 @@ def _two_alerts_for_off1(world) -> tuple[str, str]:
         for case in (a, b):
             h.claim(s, world, "edu_admin", case, officer_user_id=world.users["edu_off1"].id)
         add_listing(s, a, date(2026, 10, 1), court_no="3", bench=SINGLE_BENCH)
+        from aslms.services import next_hearing  # the filters read the one next hearing (next-date-direct)
+
+        next_hearing.refresh(s, [a.id, b.id])
         s.commit()
         alerts.sweep_dates(s, now=NOW)
         s.commit()

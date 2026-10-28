@@ -2103,6 +2103,16 @@
             ],
             "title": "Last Hearing Date"
           },
+          "next_hearing": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NextHearingOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "next_hearing_date": {
             "anyOf": [
               {
@@ -3204,6 +3214,33 @@
       },
       "CalendarItemOut": {
         "properties": {
+          "approximate": {
+            "default": false,
+            "title": "Approximate",
+            "type": "boolean"
+          },
+          "basis": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Basis"
+          },
+          "basis_words": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Basis Words"
+          },
           "case": {
             "$ref": "#/components/schemas/AlertCaseOut"
           },
@@ -3237,6 +3274,18 @@
               }
             ],
             "title": "Item No"
+          },
+          "order_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Date"
           },
           "purpose": {
             "anyOf": [
@@ -3850,6 +3899,16 @@
             "default": 0,
             "title": "Next Dates To Review",
             "type": "integer"
+          },
+          "next_hearing": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NextHearingDetailOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "objections": {
             "items": {
@@ -5063,17 +5122,15 @@
               }
             ]
           },
-          "next_hearing_date": {
+          "next_hearing": {
             "anyOf": [
               {
-                "format": "date",
-                "type": "string"
+                "$ref": "#/components/schemas/NextHearingOut"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Next Hearing Date"
+            ]
           },
           "petitioner_summary": {
             "anyOf": [
@@ -5115,7 +5172,7 @@
           "petitioner_summary",
           "respondent_summary",
           "status",
-          "next_hearing_date",
+          "next_hearing",
           "last_listed_on",
           "last_listing"
         ],
@@ -5204,11 +5261,33 @@
         "type": "object"
       },
       "CaseWorkflowActionsOut": {
-        "description": "Design portal-workflow, decision 20a: what the caller may do, from the checks the writes run. `note_mode`\nis `draft` when the caller's acting membership holds the file, `permanent` when they may write a note\notherwise, `null` when they may not write one. `next_dates` (design portal-next-dates, decision 3): the caller\nmay confirm, reject and enter next dates on the case.",
+        "description": "Design portal-workflow, decision 20a: what the caller may do, from the checks the writes run. `note_mode`\nis `draft` when the caller's acting membership holds the file, `permanent` when they may write a note\notherwise, `null` when they may not write one. `next_dates` (design portal-next-dates, decision 3): the caller\nmay enter next dates on the case; false with `next_dates_blocked = \"court_date_fixed\"` while the court has given\nthe next date (design next-date-direct, decision 6). `next_date_report` / `next_date_correct` (decisions 17 to\n19): the caller holds the function, may see the case and a reading of the latest order can be reported or\ncorrected.",
         "properties": {
+          "next_date_correct": {
+            "default": false,
+            "title": "Next Date Correct",
+            "type": "boolean"
+          },
+          "next_date_report": {
+            "default": false,
+            "title": "Next Date Report",
+            "type": "boolean"
+          },
           "next_dates": {
             "title": "Next Dates",
             "type": "boolean"
+          },
+          "next_dates_blocked": {
+            "anyOf": [
+              {
+                "const": "court_date_fixed",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Dates Blocked"
           },
           "note_mode": {
             "anyOf": [
@@ -7885,6 +7964,18 @@
             "title": "Compliance Overdue",
             "type": "integer"
           },
+          "next_dates_differ": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the department's claimed cases whose latest order gives a date other than the court's record (design next-date-direct, decision 5)",
+            "title": "Next Dates Differ"
+          },
           "next_dates_to_review": {
             "anyOf": [
               {
@@ -8266,6 +8357,33 @@
       },
       "DashboardHearingOut": {
         "properties": {
+          "approximate": {
+            "default": false,
+            "title": "Approximate",
+            "type": "boolean"
+          },
+          "basis": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Basis"
+          },
+          "basis_words": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Basis Words"
+          },
           "case": {
             "$ref": "#/components/schemas/AlertCaseOut"
           },
@@ -8299,6 +8417,18 @@
               }
             ],
             "title": "Item No"
+          },
+          "order_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Date"
           }
         },
         "required": [
@@ -8818,6 +8948,33 @@
       },
       "DashboardUpcomingOut": {
         "properties": {
+          "approximate": {
+            "default": false,
+            "title": "Approximate",
+            "type": "boolean"
+          },
+          "basis": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Basis"
+          },
+          "basis_words": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Basis Words"
+          },
           "case": {
             "$ref": "#/components/schemas/AlertCaseOut"
           },
@@ -8851,6 +9008,18 @@
               }
             ],
             "title": "Item No"
+          },
+          "order_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Date"
           },
           "this_week": {
             "title": "This Week",
@@ -15634,6 +15803,33 @@
       "MyCalendarItemOut": {
         "description": "One of the caller's dates (design `portal-ui-redesign`, A6): a hearing of their case, a due date of a file\nthey hold, or a next date waiting for their confirmation; the fields of the other kinds are null.",
         "properties": {
+          "approximate": {
+            "default": false,
+            "title": "Approximate",
+            "type": "boolean"
+          },
+          "basis": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Basis"
+          },
+          "basis_words": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Basis Words"
+          },
           "case": {
             "$ref": "#/components/schemas/AlertCaseOut"
           },
@@ -15688,6 +15884,18 @@
               }
             ],
             "title": "Next Date Id"
+          },
+          "order_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Date"
           },
           "overdue": {
             "anyOf": [
@@ -16815,6 +17023,69 @@
         "title": "NextDateConfirmIn",
         "type": "object"
       },
+      "NextDateCorrectIn": {
+        "additionalProperties": false,
+        "description": "Design next-date-direct, decision 18: the reason, and the right date when the order shows it.",
+        "properties": {
+          "next_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the right date, entered as a manual next date (NXT)",
+            "title": "Next Date"
+          },
+          "reason": {
+            "maxLength": 300,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "NextDateCorrectIn",
+        "type": "object"
+      },
+      "NextDateCorrectOut": {
+        "properties": {
+          "entered": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NextDateOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "next_hearing": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NextHearingOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rejected": {
+            "$ref": "#/components/schemas/NextDateOut"
+          }
+        },
+        "required": [
+          "rejected",
+          "entered",
+          "next_hearing"
+        ],
+        "title": "NextDateCorrectOut",
+        "type": "object"
+      },
       "NextDateEnterIn": {
         "additionalProperties": false,
         "properties": {
@@ -16854,6 +17125,38 @@
           "next_date"
         ],
         "title": "NextDateEnterIn",
+        "type": "object"
+      },
+      "NextDateKeepIn": {
+        "additionalProperties": false,
+        "properties": {
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "title": "NextDateKeepIn",
+        "type": "object"
+      },
+      "NextDateKeepOut": {
+        "properties": {
+          "kept": {
+            "title": "Kept",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "kept"
+        ],
+        "title": "NextDateKeepOut",
         "type": "object"
       },
       "NextDateOrderOut": {
@@ -17108,6 +17411,40 @@
         "title": "NextDateRejectOut",
         "type": "object"
       },
+      "NextDateReportIn": {
+        "additionalProperties": false,
+        "description": "Design next-date-direct, decision 17: the reason is shown to the people who can correct the date.",
+        "properties": {
+          "reason": {
+            "maxLength": 300,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "NextDateReportIn",
+        "type": "object"
+      },
+      "NextDateReportOut": {
+        "properties": {
+          "alert_ref_no": {
+            "title": "Alert Ref No",
+            "type": "string"
+          },
+          "reported": {
+            "title": "Reported",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "reported",
+          "alert_ref_no"
+        ],
+        "title": "NextDateReportOut",
+        "type": "object"
+      },
       "NextDateReviewItemOut": {
         "properties": {
           "act_by": {
@@ -17182,6 +17519,24 @@
               }
             ],
             "title": "Phrase"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "unclear",
+                  "none",
+                  "no_text",
+                  "marked_wrong"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "why the order asks a person for the date (design next-date-direct, decision 9)",
+            "title": "Reason"
           },
           "rule": {
             "anyOf": [
@@ -17267,6 +17622,265 @@
           "document_id"
         ],
         "title": "NextDateReviewOrderOut",
+        "type": "object"
+      },
+      "NextHearingDetailOut": {
+        "description": "The case page's form: the court's sentence, the court's own date (for the discrepancy sentence) and the time\nof an open report of a wrong reading.",
+        "properties": {
+          "approximate": {
+            "description": "true exactly when basis is `around`",
+            "title": "Approximate",
+            "type": "boolean"
+          },
+          "basis": {
+            "enum": [
+              "court",
+              "order",
+              "around",
+              "confirmed",
+              "manual"
+            ],
+            "title": "Basis",
+            "type": "string"
+          },
+          "basis_words": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the words of an around date as the order puts them: `after 3 weeks`, `after 15.12.2026`",
+            "title": "Basis Words"
+          },
+          "court_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Court Date"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "differs": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NextHearingDiffersOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "order": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NextHearingOrderOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "phrase": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phrase"
+          },
+          "reported_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reported At"
+          },
+          "rule": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule"
+          }
+        },
+        "required": [
+          "date",
+          "basis",
+          "approximate",
+          "basis_words",
+          "order",
+          "rule",
+          "differs"
+        ],
+        "title": "NextHearingDetailOut",
+        "type": "object"
+      },
+      "NextHearingDiffersOut": {
+        "description": "An exact date read from the latest order that differs from the court's record (the court's record is used).",
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "order": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NextHearingOrderOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "date",
+          "order"
+        ],
+        "title": "NextHearingDiffersOut",
+        "type": "object"
+      },
+      "NextHearingOrderOut": {
+        "properties": {
+          "document_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Id"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "order_date": {
+            "format": "date",
+            "title": "Order Date",
+            "type": "string"
+          },
+          "order_no": {
+            "title": "Order No",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "order_no",
+          "order_date",
+          "document_id"
+        ],
+        "title": "NextHearingOrderOut",
+        "type": "object"
+      },
+      "NextHearingOut": {
+        "description": "The case's one next hearing (design `next-date-direct`, decisions 4, 5 and 8), made on the server and read by\nevery screen: the court's record (`court`), a date read from the latest order (`order`, exact; `around`, a period,\nqualified or returnable date counted from the order; `confirmed`, a reading a person confirmed earlier), or a\ndate entered by hand where the court gave none (`manual`). Court information: shown to every reader of the\ncase.",
+        "properties": {
+          "approximate": {
+            "description": "true exactly when basis is `around`",
+            "title": "Approximate",
+            "type": "boolean"
+          },
+          "basis": {
+            "enum": [
+              "court",
+              "order",
+              "around",
+              "confirmed",
+              "manual"
+            ],
+            "title": "Basis",
+            "type": "string"
+          },
+          "basis_words": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the words of an around date as the order puts them: `after 3 weeks`, `after 15.12.2026`",
+            "title": "Basis Words"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "differs": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NextHearingDiffersOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "order": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NextHearingOrderOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rule": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule"
+          }
+        },
+        "required": [
+          "date",
+          "basis",
+          "approximate",
+          "basis_words",
+          "order",
+          "rule",
+          "differs"
+        ],
+        "title": "NextHearingOut",
         "type": "object"
       },
       "NoteAttachmentOut": {
@@ -19117,6 +19731,8 @@
           "documents.download",
           "alerts.acknowledge",
           "next_dates.review",
+          "next_dates.report_wrong",
+          "next_dates.correct",
           "reports.department",
           "reports.state",
           "dashboard.state",
@@ -34637,6 +35253,24 @@
             }
           },
           {
+            "description": "Only cases whose latest order gives a date other than the court's record",
+            "in": "query",
+            "name": "next_differs",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only cases whose latest order gives a date other than the court's record",
+              "title": "Next Differs"
+            }
+          },
+          {
             "description": "The case type: the master's short name or an alias, or the case's type text",
             "in": "query",
             "name": "case_type",
@@ -36766,6 +37400,24 @@
             }
           },
           {
+            "description": "Only cases whose latest order gives a date other than the court's record",
+            "in": "query",
+            "name": "next_differs",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only cases whose latest order gives a date other than the court's record",
+              "title": "Next Differs"
+            }
+          },
+          {
             "description": "The case type: the master's short name or an alias, or the case's type text",
             "in": "query",
             "name": "case_type",
@@ -37078,6 +37730,24 @@
               ],
               "description": "Next hearing date on or before this day",
               "title": "Next To"
+            }
+          },
+          {
+            "description": "Only cases whose latest order gives a date other than the court's record",
+            "in": "query",
+            "name": "next_differs",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only cases whose latest order gives a date other than the court's record",
+              "title": "Next Differs"
             }
           },
           {
@@ -40279,6 +40949,24 @@
             }
           },
           {
+            "description": "Only cases whose latest order gives a date other than the court's record",
+            "in": "query",
+            "name": "next_differs",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only cases whose latest order gives a date other than the court's record",
+              "title": "Next Differs"
+            }
+          },
+          {
             "description": "The case type: the master's short name or an alias, or the case's type text",
             "in": "query",
             "name": "case_type",
@@ -40709,6 +41397,24 @@
               ],
               "description": "Next hearing date on or before this day",
               "title": "Next To"
+            }
+          },
+          {
+            "description": "Only cases whose latest order gives a date other than the court's record",
+            "in": "query",
+            "name": "next_differs",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only cases whose latest order gives a date other than the court's record",
+              "title": "Next Differs"
             }
           },
           {
@@ -41884,6 +42590,24 @@
             }
           },
           {
+            "description": "Only cases whose latest order gives a date other than the court's record",
+            "in": "query",
+            "name": "next_differs",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only cases whose latest order gives a date other than the court's record",
+              "title": "Next Differs"
+            }
+          },
+          {
             "description": "The case type: the master's short name or an alias, or the case's type text",
             "in": "query",
             "name": "case_type",
@@ -42226,6 +42950,24 @@
               ],
               "description": "Next hearing date on or before this day",
               "title": "Next To"
+            }
+          },
+          {
+            "description": "Only cases whose latest order gives a date other than the court's record",
+            "in": "query",
+            "name": "next_differs",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only cases whose latest order gives a date other than the court's record",
+              "title": "Next Differs"
             }
           },
           {
@@ -42587,6 +43329,24 @@
             }
           },
           {
+            "description": "Only cases whose latest order gives a date other than the court's record",
+            "in": "query",
+            "name": "next_differs",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only cases whose latest order gives a date other than the court's record",
+              "title": "Next Differs"
+            }
+          },
+          {
             "description": "The case type: the master's short name or an alias, or the case's type text",
             "in": "query",
             "name": "case_type",
@@ -42859,6 +43619,24 @@
               ],
               "description": "Next hearing date on or before this day",
               "title": "Next To"
+            }
+          },
+          {
+            "description": "Only cases whose latest order gives a date other than the court's record",
+            "in": "query",
+            "name": "next_differs",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only cases whose latest order gives a date other than the court's record",
+              "title": "Next Differs"
             }
           },
           {
@@ -43170,6 +43948,24 @@
               ],
               "description": "Next hearing date on or before this day",
               "title": "Next To"
+            }
+          },
+          {
+            "description": "Only cases whose latest order gives a date other than the court's record",
+            "in": "query",
+            "name": "next_differs",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only cases whose latest order gives a date other than the court's record",
+              "title": "Next Differs"
             }
           },
           {
@@ -43725,7 +44521,7 @@
     },
     "/next-dates/review": {
       "get": {
-        "description": "Next dates to confirm and orders to enter a date for, on claimed cases where one of your memberships holding\n`next_dates.review` works on the case; sorted by the date to act by, then the case.",
+        "description": "Orders whose next date a person must enter (the order gives no clear date, no date at all, is a scanned copy,\nor its date was marked wrong), on claimed cases with no next hearing from the court where one of your memberships\nholding `next_dates.review` works on the case; sorted by the date to act by, then the case. `kind=confirm` is\naccepted and always empty (design next-date-direct, decision 9).",
         "operationId": "review_queue_next_dates_review_get",
         "parameters": [
           {
@@ -43912,6 +44708,24 @@
               ],
               "description": "Next hearing date on or before this day",
               "title": "Next To"
+            }
+          },
+          {
+            "description": "Only cases whose latest order gives a date other than the court's record",
+            "in": "query",
+            "name": "next_differs",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only cases whose latest order gives a date other than the court's record",
+              "title": "Next Differs"
             }
           },
           {
@@ -44147,6 +44961,209 @@
         ]
       }
     },
+    "/next-dates/{id}/correct": {
+      "post": {
+        "description": "Mark the next date read from the latest order as wrong, with a reason, and enter the right date when the\norder shows it. The court's own records cannot be changed.",
+        "operationId": "correct_next_dates__id__correct_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NextDateCorrectIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NextDateCorrectOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Correct",
+        "tags": [
+          "next-dates"
+        ]
+      }
+    },
+    "/next-dates/{id}/keep": {
+      "post": {
+        "description": "Reading Is Right: close the open reports of this date; the date read from the order stays.",
+        "operationId": "keep_next_dates__id__keep_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/NextDateKeepIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NextDateKeepOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Keep",
+        "tags": [
+          "next-dates"
+        ]
+      }
+    },
     "/next-dates/{id}/reject": {
       "post": {
         "description": "Reject a next date read from an order, optionally giving the correct date (entered as a manual date).",
@@ -44240,6 +45257,104 @@
           }
         ],
         "summary": "Reject",
+        "tags": [
+          "next-dates"
+        ]
+      }
+    },
+    "/next-dates/{id}/report": {
+      "post": {
+        "description": "Report that the next date read from the latest order looks wrong. Nothing changes: the people who correct\ndates are told, with your reason (10 to 300 characters).",
+        "operationId": "report_next_dates__id__report_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NextDateReportIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NextDateReportOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Report",
         "tags": [
           "next-dates"
         ]

@@ -103,7 +103,7 @@ def _order(stmt: Select, rank) -> Select:
     cols = []
     if rank is not None:
         cols.append(rank.desc())
-    cols.extend([Case.next_hearing_date.asc().nulls_last(), Case.reg_year.desc().nulls_last(), Case.id])
+    cols.extend([Case.next_hearing_on.asc().nulls_last(), Case.reg_year.desc().nulls_last(), Case.id])
     return stmt.order_by(*cols)
 
 
@@ -111,7 +111,7 @@ def _items(
     session: Session, user: User, rows: list[tuple[Case, bool, bool]], match: str | None
 ) -> list[dict[str, Any]]:
     cases = [c for c, _, _ in rows]
-    summ = inbox.summaries(session, cases)
+    summ = inbox.summaries(session, cases, hidden={c.id for c, visible, _ in rows if not visible})
     owners = inbox.primary_codes(session, [c.id for c in cases])
     may_claim = bool(claim_departments(session, user))
     return [

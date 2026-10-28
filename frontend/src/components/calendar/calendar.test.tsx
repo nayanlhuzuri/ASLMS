@@ -24,7 +24,7 @@ function item(date: string, kind: MyCalendarItem["kind"], extra: Partial<MyCalen
     date,
     kind,
     case: CASE,
-    critical: false,
+    critical: false, approximate: false,
     court_no: null,
     item_no: null,
     purpose: null,

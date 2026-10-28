@@ -18,6 +18,7 @@ import { AutomaticCollection } from "./AutomaticCollection";
 import { CollectNow } from "./CollectNow";
 import { DataFrame, DataIndex } from "./DataFrame";
 import { Overview } from "./Overview";
+import { courtNext } from "@/test/nextHearing";
 
 const READER: Permission[] = ["reports.state"];
 const OPERATOR: Permission[] = ["admin.napix_refetch", "admin.masters_sync", "reports.state"];
@@ -552,7 +553,7 @@ describe("Collect Now (round 1: today's forms moved unchanged)", () => {
       petitioner_summary: null,
       respondent_summary: null,
       status: "pending",
-      next_hearing_date: null,
+      next_hearing: courtNext(null),
       last_listed_on: null,
     },
     visible: false,

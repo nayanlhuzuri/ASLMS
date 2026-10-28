@@ -157,6 +157,12 @@ def make_case(
     )
     s.add(case)
     s.flush()
+    if next_hearing is not None:
+        # the court's record arrived: the case's one next hearing follows, as the dossier path does
+        # (design next-date-direct, Services)
+        from aslms.services import next_hearing as one
+
+        one.refresh(s, [case.id])
     return case
 
 

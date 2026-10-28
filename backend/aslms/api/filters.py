@@ -26,6 +26,7 @@ class _Shared:
     bench: str | None
     next_from: date | None
     next_to: date | None
+    next_differs: bool | None
     case_type: str | None
     year: int | None
     case_status: str | None
@@ -45,13 +46,27 @@ def _shared(
     ),
     next_from: date | None = Query(None, description="Next hearing date on or after this day"),
     next_to: date | None = Query(None, description="Next hearing date on or before this day"),
+    next_differs: bool | None = Query(
+        None, description="Only cases whose latest order gives a date other than the court's record"
+    ),
     case_type: str | None = Query(
         None, description="The case type: the master's short name or an alias, or the case's type text"
     ),
     year: int | None = Query(None, description="Registration year (1900-2100)"),
     case_status: str | None = Query(None, description="pending, disposed or unknown"),
 ) -> _Shared:
-    return _Shared(listed_from, listed_to, court_no, bench, next_from, next_to, case_type, year, case_status)
+    return _Shared(
+        listed_from,
+        listed_to,
+        court_no,
+        bench,
+        next_from,
+        next_to,
+        next_differs,
+        case_type,
+        year,
+        case_status,
+    )
 
 
 Q_DESCRIPTION = (

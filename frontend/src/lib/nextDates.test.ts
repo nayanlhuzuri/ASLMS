@@ -32,21 +32,20 @@ describe("next-date words (portal-next-dates, decision 12)", () => {
     expect(sourceLabel("something_new")).toBe("something new");
     expect(statusLabel("not_needed")).toBe("In Use");
     expect(statusLabel("confirmed")).toBe("Confirmed");
-    expect(statusLabel("rejected")).toBe("Not Accepted");
+    expect(statusLabel("rejected")).toBe("Marked Wrong");
     expect(statusLabel("superseded")).toBe("Replaced by a Later Date");
-    expect(statusLabel("expired")).toBe("Date Passed Before It Was Confirmed");
+    expect(statusLabel("expired")).toBe("Date Passed");
     expect(statusLabel("odd_state")).toBe("odd state");
   });
 
-  it("a pending date reads differently with and without the action", () => {
-    expect(statusLabel("pending", { canAct: true })).toBe("Suggested From the Order — Please Confirm");
-    expect(statusLabel("pending", { canAct: false })).toBe("Waiting for Confirmation");
-    expect(statusLabel("pending")).toBe("Waiting for Confirmation");
+  it("an old pending date reads In Use: a date read from an order is shown directly (design next-date-direct)", () => {
+    expect(statusLabel("pending")).toBe("In Use");
+    expect(statusLabel("rejected")).toBe("Marked Wrong");
   });
 
   it("gives a hint for the known rules and none for an unknown or missing rule", () => {
     expect(ruleHint("returnable_date")).toBe("The order gives this as the returnable date of the notice");
-    expect(ruleHint("qualified_date")).toBe("The order says not before this date — please check the exact day");
+    expect(ruleHint("qualified_date")).toBe("The order says not before this date");
     for (const r of ["list_after_period", "after_returnable_period", "returnable_period"]) {
       expect(ruleHint(r)).toBe("Counted from the order date — the order gives a period, not a date");
     }

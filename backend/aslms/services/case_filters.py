@@ -89,6 +89,7 @@ class CaseFilters:
     bench: str | None = None
     next_from: date | None = None
     next_to: date | None = None
+    next_differs: bool | None = None
     case_type: str | None = None
     year: int | None = None
     case_status: str | None = None
@@ -230,6 +231,20 @@ def parse_office_code(value: Any) -> str | None:
     return text.strip().upper()
 
 
+def _flag(name: str, value: Any) -> bool | None:
+    """`next_differs`: only `true` narrows; false or blank is no filter (design next-date-direct, decision 5)."""
+    if value is None or value == "" or value is False:
+        return None
+    if value is True:
+        return True
+    text_ = str(value).strip().lower()
+    if text_ in ("true", "1", "yes"):
+        return True
+    if text_ in ("false", "0", "no", ""):
+        return None
+    raise CaseFilterError(f"{name} is true or false")
+
+
 def parse(
     *,
     q: Any = None,
@@ -239,6 +254,7 @@ def parse(
     bench: Any = None,
     next_from: Any = None,
     next_to: Any = None,
+    next_differs: Any = None,
     case_type: Any = None,
     year: Any = None,
     case_status: Any = None,
@@ -285,6 +301,7 @@ def parse(
         bench=bench_text,
         next_from=nf,
         next_to=nt,
+        next_differs=_flag("next_differs", next_differs),
         case_type=ctype,
         year=yr,
         case_status=parse_case_status(case_status),
@@ -460,10 +477,13 @@ def conditions(session: Session, f: CaseFilters | None, case=Case) -> list[Colum
     listed = listing_condition(f.listed_from, f.listed_to, f.court_no, f.bench, case)
     if listed is not None:
         out.append(listed)
+    # the case's one next hearing (design next-date-direct, decision 11)
     if f.next_from is not None:
-        out.append(case.next_hearing_date >= f.next_from)
+        out.append(case.next_hearing_on >= f.next_from)
     if f.next_to is not None:
-        out.append(case.next_hearing_date <= f.next_to)
+        out.append(case.next_hearing_on <= f.next_to)
+    if f.next_differs is True:
+        out.append(case.next_hearing_differs_on.is_not(None))
     if f.case_type is not None:
         out.append(case_type_condition(session, f.case_type, case))
     if f.year is not None:

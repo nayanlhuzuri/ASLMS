@@ -185,9 +185,11 @@ export function CaseModal({
   else if (rec?.origin === "discovery") origin = T.claim.discovered;
   else origin = T.claim.suggestedFor(summary?.last_listing ? formatDate(summary.last_listing.list_date) : null);
 
-  const next = c?.status.next_hearing_date ?? summary?.next_hearing_date ?? null;
+  // design next-date-direct, decision 11: the case's one next hearing, never the court's raw date alone
+  const nextHearing = c ? (c.next_hearing ?? null) : (summary?.next_hearing ?? null);
+  const next = nextHearing?.date ?? null;
   const last = summary?.last_listing ?? null;
-  const at = last && last.list_date === next ? last : null;
+  const at = last && last.list_date === next && nextHearing?.basis === "court" ? last : null;
   const status = c?.status.status ?? summary?.status ?? null;
   const owner =
     view?.primary?.office_code ?? c?.ownership.primary?.office_code ?? rec?.current_owner_code ?? (notVisible ? (rowTransfer?.from_office_code ?? null) : null);
@@ -220,7 +222,7 @@ export function CaseModal({
           <dt>{T.claim.factNext}</dt>
           {/* design next-hearing-highlight, decision 11: the kit's HearingDate, then the court and item */}
           <dd className={s.next}>
-            <HearingDate date={next} status={status} size="md" />
+            <HearingDate next={nextHearing} status={status} size="md" lines={!at} />
             {at && status !== "disposed" ? <span className="muted">{T.rail.courtItem(at.court_no ?? null, at.sr_no)}</span> : null}
           </dd>
         </div>

@@ -578,9 +578,17 @@ def test_overlap_measure():
     assert ol.overlap(first, second) >= 0.85
 
 
-def test_details_text_adds_coram_and_order_date():
+def test_details_text_adds_coram_and_the_one_next_hearing():
+    """Design next-date-direct, decision 11: "Next hearing: <words>", plus the court's own record when it differs."""
     from datetime import date
 
+    around = {
+        "date": date(2026, 11, 5),
+        "basis": "around",
+        "approximate": True,
+        "basis_words": "after 3 weeks",
+        "order": {"order_date": date(2026, 10, 15)},
+    }
     base = {
         "case_id": uuid.uuid4(),
         "cnr": "C",
@@ -593,16 +601,21 @@ def test_details_text_adds_coram_and_order_date():
         "hearings": [],
         "listings": [],
         "coram": "HON'BLE MR. JUSTICE A",
-        "order_next_date": {"next_date": date(2026, 11, 5), "order_date": date(2026, 10, 15)},
+        "next_hearing": around,
     }
     full = ol.details_text(base, compact=False)
     assert "Coram: HON'BLE MR. JUSTICE A" in full
-    assert "Next date (court): 15 Oct 2026" in full
-    assert "Next date from the order of 15 Oct 2026: 05 Nov 2026" in full
+    assert "Next hearing: Around 05 Nov 2026 (after 3 weeks, order of 15 Oct 2026)" in full
+    assert "Court's own record: 15 Oct 2026" in full
+    assert "Next date (court)" not in full
     compact = ol.details_text(base, compact=True)
-    assert "Coram" not in compact and "from the order" not in compact
-    none = ol.details_text({**base, "coram": None, "order_next_date": None}, compact=False)
-    assert "Coram" not in none and "from the order" not in none and "entered in ASLMS" not in none
+    assert "Coram" not in compact and "Next hearing: Around 05 Nov 2026" in compact
+    court = {"date": date(2026, 10, 15), "basis": "court", "order": None}
+    same = ol.details_text({**base, "next_hearing": court}, compact=False)
+    assert "Next hearing: 15 Oct 2026 (court's records)" in same and "Court's own record" not in same
+    none = ol.details_text({**base, "coram": None, "next_hearing": None}, compact=False)
+    assert "Coram" not in none and "Next hearing: No next hearing known" in none
+    assert "entered by hand" not in none
 
 
 def test_settings_history_answers():

@@ -700,6 +700,9 @@ const STATES: State[] = [
       }
       await expect(page.locator('[data-band="today"]').first()).toBeVisible();
       await expect(page.locator('[data-band="passed"]').first()).toBeVisible();
+      // design next-date-direct: an around row and a row whose order differs from the court
+      await expect(page.locator('[data-kind="around"]').first()).toBeVisible();
+      await expect(page.locator('[data-differs="true"]').first()).toBeVisible();
     },
   },
   {
@@ -717,9 +720,10 @@ const STATES: State[] = [
     path: `/cases/${SAMPLE.caseRefPath}`,
     open: async (page) => {
       await expect(page.getByRole("region", { name: "Case Summary" }).locator('[data-band="tomorrow"]').first()).toBeVisible();
+      await expect(page.getByRole("region", { name: "Case Summary" }).locator('[data-differs="true"]').first()).toBeVisible();
       const card = page.getByRole("region", { name: "Next Date From Orders" });
       await card.scrollIntoViewIfNeeded();
-      await expect(card.locator('[data-kind="suggested"]').first()).toBeVisible();
+      await expect(card.locator('[data-band]').first()).toBeVisible();
     },
   },
 ];

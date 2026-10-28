@@ -104,7 +104,7 @@ def test_recommended_tab_scope_and_order(api, world):
     body = r.json()
     assert body["total"] == 2 and ids(body) == [a_id, b_id]
     assert body["items"][0]["band"] == "high" and body["items"][0]["signals"][0]["kind"] == "counsel_code"
-    assert body["items"][0]["case"]["next_hearing_date"] == "2026-10-20"
+    assert body["items"][0]["case"]["next_hearing"]["date"] == "2026-10-20"
     assert body["items"][0]["current_owner_code"] is None
     assert api.get("/inbox/recommended?band=medium", headers=admin).json()["total"] == 1
     assert api.get("/inbox/recommended?office=HEALTH", headers=admin).status_code == 403

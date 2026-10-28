@@ -188,6 +188,9 @@ def test_list_visible_filters_and_counts(world):
         own.claim(s, actor, admin, a)
         own.claim(s, actor, admin, b)
         refresh_search_vector(s, [a.id, b.id])
+        from aslms.services import next_hearing  # the filters read the one next hearing (next-date-direct)
+
+        next_hearing.refresh(s, [a.id, b.id])
         off1 = world.user(s, "edu_off1")
         own.allot(s, actor, admin, a, officer_user_id=off1.id)
         page = case_search.list_visible(s, off1)

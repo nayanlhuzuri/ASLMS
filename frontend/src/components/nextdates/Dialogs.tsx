@@ -1,24 +1,33 @@
 "use client";
 
 /**
- * The three next-date dialogs (design portal-next-dates, decisions 5-7, 9 and 17), each one existing API call:
- * Confirm (`POST /next-dates/{id}/confirm`, `{}`), Not correct (`POST /next-dates/{id}/reject` with the correct date
- * and the reason only when filled) and Enter date (`POST /cases/{ref}/next-dates`, with `order` when it answers an
- * order of the review list). A 409 `not_pending` closes the dialog, hands the message to the page (the row it came
- * from leaves the list) and reads the list and the case again.
+ * The next-date dialogs, each one existing API call:
+ * - Enter date (design portal-next-dates, decisions 7, 9 and 17: `POST /cases/{ref}/next-dates`, with `order` when it
+ *   answers an order of the review list), offered only where the court gave no date (design next-date-direct,
+ *   decision 6: the server answers 409 `court_date_fixed` otherwise);
+ * - Report Wrong Next Date (design next-date-direct, decision 17: `POST /next-dates/{id}/report` with the reason) and
+ *   Correct Misread Next Date (decision 18: `POST /next-dates/{id}/correct` with the reason and the right date only when
+ *   filled, or "Reading Is Right", `POST /next-dates/{id}/keep`), shown only by the server's flags.
+ * Confirm and Not Correct are gone (decision 9): a date the court gave is never confirmed or replaced by a person. A
+ * 409 `not_pending` closes the dialog, hands the message to the page and reads the list and the case again.
  */
 import { useState } from "react";
 
 import { CharCounter, ConfirmDialog, TextArea, TextField } from "@/components/ui";
 import { api } from "@/lib/api/client";
-import type { NextDate, NextDateRejectOut, NextDateReviewItem } from "@/lib/api/types";
+import type { NextDate, NextDateCorrectOut, NextDateReportOut } from "@/lib/api/types";
 import { formatDate } from "@/lib/format";
+import type { NextHearing } from "@/lib/hearingDate";
 import { NEXT_DATE_ERRORS, T } from "@/lib/messages";
 import { apiCasePath } from "@/lib/refs";
 import { useAction } from "@/lib/useAction";
 import { todayIst } from "@/lib/workflow";
 
-import { caseName, dateProblem, isStale, NOTE_MAX, noteProblem, useNextDateRefresh } from "./common";
+import { dateProblem, isStale, NOTE_MAX, noteProblem, useNextDateRefresh } from "./common";
+
+/** The reason of a report or a correction (`NextDateReportIn` / `NextDateCorrectIn`): 10 to 300 characters. */
+export const REASON_MIN = 10;
+export const REASON_MAX = 300;
 
 export interface DialogOutcome {
   /** The notice after a success. */
@@ -80,100 +89,28 @@ function NoteField({ label, value, onChange, error }: { label: string; value: st
   );
 }
 
-export function ConfirmNextDate({
-  item,
-  open,
-  onClose,
-  ...outcome
-}: { item: NextDateReviewItem; open: boolean; onClose: () => void } & DialogOutcome) {
-  const { action, run } = useNextDateAction(item.case.ref_no, outcome);
-  const name = caseName(item.case);
-  const date = formatDate(item.next_date);
-  function close() {
-    action.reset();
-    onClose();
-  }
-  return (
-    <ConfirmDialog
-      open={open}
-      title={T.nd.confirmTitle(date, name)}
-      subtitle={name}
-      onClose={close}
-      onConfirm={() =>
-        run(
-          () => api<NextDate>(`/next-dates/${encodeURIComponent(item.id)}/confirm`, { method: "POST", body: {} }),
-          (row) => T.nd.confirmed(formatDate(row.next_date), name),
-          close,
-        )
-      }
-      busy={action.busy}
-      error={action.error}
-      messages={NEXT_DATE_ERRORS}
-      confirmLabel={T.nd.confirm}
-    >
-      <Sentence phrase={item.phrase} />
-      <p>{T.nd.confirmEffect}</p>
-    </ConfirmDialog>
-  );
+function reasonProblem(value: string): string | null {
+  const n = value.trim().length;
+  if (n < REASON_MIN) return T.nd.reasonTooShort;
+  if (n > REASON_MAX) return T.nd.noteTooLong(REASON_MAX);
+  return null;
 }
 
-export function RejectNextDate({
-  item,
-  open,
-  onClose,
-  ...outcome
-}: { item: NextDateReviewItem; open: boolean; onClose: () => void } & DialogOutcome) {
-  const { action, run } = useNextDateAction(item.case.ref_no, outcome);
-  const [date, setDate] = useState("");
-  const [note, setNote] = useState("");
-  const [tried, setTried] = useState(false);
-  const dateError = dateProblem(date, { required: false });
-  const noteError = noteProblem(note);
-  function close() {
-    setDate("");
-    setNote("");
-    setTried(false);
-    action.reset();
-    onClose();
-  }
-  async function submit() {
-    setTried(true);
-    if (dateError || noteError) return;
-    const body: { next_date?: string; note?: string } = {};
-    if (date) body.next_date = date;
-    if (note.trim()) body.note = note.trim();
-    await run(
-      () => api<NextDateRejectOut>(`/next-dates/${encodeURIComponent(item.id)}/reject`, { method: "POST", body }),
-      (out) => (out.entered ? T.nd.rejectedWith(formatDate(out.entered.next_date)) : T.nd.rejected),
-      close,
-    );
-  }
+function ReasonField({ label, hint, value, onChange, error }: { label: string; hint: string; value: string; onChange: (v: string) => void; error?: string | null }) {
   return (
-    <ConfirmDialog
-      open={open}
-      title={T.nd.rejectTitle}
-      subtitle={caseName(item.case)}
-      onClose={close}
-      onConfirm={submit}
-      busy={action.busy}
-      error={action.error}
-      messages={NEXT_DATE_ERRORS}
-      confirmLabel={T.nd.save}
-    >
-      <p>
-        {T.nd.suggestedDate}: <strong>{formatDate(item.next_date)}</strong> · <span className="mono">{caseName(item.case)}</span>
-      </p>
-      <Sentence phrase={item.phrase} />
-      <TextField
-        label={T.nd.correctDate}
-        type="date"
-        min={todayIst()}
-        value={date}
-        error={tried && dateError ? dateError : undefined}
-        onChange={(e) => setDate(e.target.value)}
+    <>
+      <TextArea
+        label={label}
+        value={value}
+        rows={3}
+        maxLength={REASON_MAX}
+        hint={hint}
+        aria-required
+        error={error ?? undefined}
+        onChange={(e) => onChange(e.target.value)}
       />
-      <NoteField label={T.nd.reason} value={note} onChange={setNote} error={tried ? noteError : null} />
-    </ConfirmDialog>
+      <CharCounter value={value} max={REASON_MAX} />
+    </>
   );
 }
 
@@ -244,6 +181,149 @@ export function EnterNextDate({
       />
       <NoteField label={T.nd.note} value={note} onChange={setNote} error={tried ? noteError : null} />
       <p className="muted">{T.nd.enterLine}</p>
+    </ConfirmDialog>
+  );
+}
+
+/** The reading a report or a correction is about: the case's one next hearing read from its latest order. */
+interface ReadingProps {
+  caseRef: string;
+  name: string;
+  /** The `next_dates` row read from the latest order (the shown value, or the reading that differs from the court). */
+  nextDateId: string;
+  /** The date read from the order. */
+  dateRead: string;
+  next: NextHearing | null;
+  open: boolean;
+  onClose: () => void;
+}
+
+/** Design next-date-direct, decision 17: the reason (10 to 300 characters) is shown to the people who correct dates. */
+export function ReportWrongNextDate({ caseRef, name, nextDateId, dateRead, next, open, onClose, ...outcome }: ReadingProps & DialogOutcome) {
+  const { action, run } = useNextDateAction(caseRef, outcome);
+  const [reason, setReason] = useState("");
+  const [tried, setTried] = useState(false);
+  const error = reasonProblem(reason);
+  function close() {
+    setReason("");
+    setTried(false);
+    action.reset();
+    onClose();
+  }
+  async function submit() {
+    setTried(true);
+    if (error) return;
+    await run(
+      () =>
+        api<NextDateReportOut>(`/next-dates/${encodeURIComponent(nextDateId)}/report`, {
+          method: "POST",
+          body: { reason: reason.trim() },
+        }),
+      () => T.nd.reported,
+      close,
+    );
+  }
+  return (
+    <ConfirmDialog
+      open={open}
+      title={T.nd.reportTitle}
+      subtitle={name}
+      onClose={close}
+      onConfirm={submit}
+      busy={action.busy}
+      error={action.error}
+      messages={NEXT_DATE_ERRORS}
+      confirmLabel={T.nd.reportSend}
+    >
+      <p>
+        {T.nd.dateRead}: <strong>{formatDate(dateRead)}</strong>
+        {next?.order ? <> · {T.nd.orderOf(formatDate(next.order.order_date))}</> : null}
+      </p>
+      <Sentence phrase={next?.phrase} />
+      <ReasonField label={T.nd.reportReason} hint={T.nd.reportHint} value={reason} onChange={setReason} error={tried ? error : null} />
+      <p className="muted">{T.nd.reportLine}</p>
+    </ConfirmDialog>
+  );
+}
+
+/**
+ * Design next-date-direct, decision 18: Correct (a required reason, the right date only when filled) or Reading Is Right
+ * (closes the open reports). The court's own records cannot be changed.
+ */
+export function CorrectNextDate({
+  caseRef,
+  name,
+  nextDateId,
+  dateRead,
+  next,
+  open,
+  onClose,
+  reported,
+  ...outcome
+}: ReadingProps & DialogOutcome & { /** A report is open: Reading Is Right is offered. */ reported: boolean }) {
+  const { action, run } = useNextDateAction(caseRef, outcome);
+  const keep = useNextDateAction(caseRef, outcome);
+  const [reason, setReason] = useState("");
+  const [date, setDate] = useState("");
+  const [tried, setTried] = useState(false);
+  const error = reasonProblem(reason);
+  const dateError = dateProblem(date, { required: false });
+  function close() {
+    setReason("");
+    setDate("");
+    setTried(false);
+    action.reset();
+    keep.action.reset();
+    onClose();
+  }
+  async function submit() {
+    setTried(true);
+    if (error || dateError) return;
+    const body: { reason: string; next_date?: string } = { reason: reason.trim() };
+    if (date) body.next_date = date;
+    await run(
+      () => api<NextDateCorrectOut>(`/next-dates/${encodeURIComponent(nextDateId)}/correct`, { method: "POST", body }),
+      (out) => (out.entered ? T.nd.corrected(formatDate(out.entered.next_date)) : T.nd.correctedNoDate),
+      close,
+    );
+  }
+  async function keepIt() {
+    await keep.run(
+      () => api<{ kept: boolean }>(`/next-dates/${encodeURIComponent(nextDateId)}/keep`, { method: "POST", body: {} }),
+      () => T.nd.kept,
+      close,
+    );
+  }
+  return (
+    <ConfirmDialog
+      open={open}
+      title={T.nd.correctTitle}
+      subtitle={name}
+      onClose={close}
+      onConfirm={submit}
+      busy={action.busy || keep.action.busy}
+      error={action.error ?? keep.action.error}
+      messages={NEXT_DATE_ERRORS}
+      confirmLabel={T.nd.correctSave}
+      cancelLabel={reported ? T.nd.readingIsRight : undefined}
+      onCancel={reported ? keepIt : undefined}
+    >
+      <p>
+        {T.nd.dateRead}: <strong>{formatDate(dateRead)}</strong>
+        {next?.order ? <> · {T.nd.orderOf(formatDate(next.order.order_date))}</> : null}
+      </p>
+      <Sentence phrase={next?.phrase} />
+      <ReasonField label={T.nd.correctReason} hint={T.nd.correctReasonHint} value={reason} onChange={setReason} error={tried ? error : null} />
+      <TextField
+        label={T.nd.rightDate}
+        type="date"
+        min={todayIst()}
+        value={date}
+        hint={T.nd.rightDateHint}
+        error={tried && dateError ? dateError : undefined}
+        onChange={(e) => setDate(e.target.value)}
+      />
+      <p className="muted">{T.nd.courtUnchanged}</p>
     </ConfirmDialog>
   );
 }

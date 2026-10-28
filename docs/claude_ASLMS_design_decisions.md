@@ -3016,3 +3016,29 @@ Backlog row 198 `assistant-polish`; design `docs/design/assistant-polish.md` (ap
 - Deploy: no migration; `docker compose build` and restart with the court-data switch carried. The owner's live check in the design note's Verification (Enter, no repeats on follow-ups, crisp quick facts, source dialog, Copy to Note, 375 px dialog); run `aslms assistant repeat-check` on a real case.
 - The hosting guide's environment table (Annexure B) takes the `ASSISTANT_OLLAMA_HISTORY_ANSWERS` row at its next revision.
 - Row 199 `next-date-direct` follows and changes the quick-fact next date rule.
+
+## Next hearing shown directly from the latest court order (2026-10-28)
+Backlog row 199 `next-date-direct`; design `docs/design/next-date-direct.md` (approved by the owner on 28 Oct 2026). Migration 0034; `docs/schema/schema.md` carries the as-built `cases` and `next_dates` paragraphs. This changes the rule of row 26 `next-date-extraction` (a reading was firm only when the court's own date agreed; periods were always confirmed).
+
+**Built**
+- Migration `0034_next_date_direct`: six derived columns on `cases` (`next_hearing_on`, `next_hearing_basis`, `next_hearing_next_date_id`, `next_hearing_differs_on`, `next_hearing_differs_id`, `next_hearing_set_at`) with three CHECKs, an index and two partial indexes; reference data: event type `next_date_differs`, alert kind `next_date_reported`, functions `next_dates.report_wrong` and `next_dates.correct` (55 `ref_permission` rows, 53 active); `next_dates.review` relabelled "Enter Next Dates".
+- `services/next_hearing.py`: the case's one next hearing, computed in one function and stored by `refresh` (the only writer): the court's record, else the latest order's reading, else the court's last date as Date Passed, else a date entered by hand, else none. Basis `court`, `order`, `around`, `confirmed` or `manual`. Every list, filter, sort, calendar, alert, the dashboard, the Case Assistant's quick fact and the court-record view read it; `CaseSummaryOut.next_hearing_date` is removed in favour of `next_hearing`.
+- `services/next_dates.py`: a reading of the case's current order dated today or later is written `not_needed` and shown directly, around for periods, qualified dates and returnable dates. The review queue is enter-only (unclear orders and orders giving no date). A court-given date cannot be edited by anyone (409 `court_date_fixed`); an open manual date is superseded and audited when the court gives one.
+- The discrepancy flag: the court's date wins; an exact order reading that differs is flagged (`next_date_differs` event, "Order Differs", the `next_differs` filter and a dashboard count). An around reading never raises it.
+- Two grantable functions: `next_dates.report_wrong` (department head, department admin, department officer, directorate user) and `next_dates.correct` (Super Administrator). `POST /next-dates/{id}/report`, `/correct` and `/keep`; the only path that changes a reading taken from an order. The court's record never changes.
+- Calendar and alerts: order readings drive My Calendar and `hearing_due` without confirmation, with "around" wording for periods; `listed_tomorrow` stays a cause-list alert.
+- `aslms next-dates direct` (dry run, `--apply`) retires the old pending suggestions and writes one `next_dates.direct_apply` audit row; `aslms next-dates hearing-refresh` (`--all`, `--case`, `--dry-run`); the 5-minute `next_dates_read` job does rollovers and the backfill.
+- Portal: the one `HearingDate` badge gains Around and the discrepancy words on every screen; the Next Dates to Enter list and dialogs; Report Wrong Next Date and Correct dialogs; the `?nd=correct` link from the alert.
+
+**Decisions and reasons (owner's answers, 28 Oct 2026)**
+- Directly shown, not suggested: the owner said the court's directions must be visible from the latest order and only missing or unclear ones go to a person. A period is shown as an approximate date with its words.
+- The court's record wins and the difference is flagged (owner). Court dates are ultimatums (owner): a passed court-given date stays as Date Passed and entering a replacement is refused.
+- Stored on `cases` in derived columns, not computed per list and not over `cases.next_hearing_date`, which stays the court's verbatim value ("every NAPIX field is kept").
+- Qualified and returnable dates shown as around and `none` orders joining the enter queue are owner checks A to C of the design note, reversible.
+
+**Deviations** (the design note's Deviations, sixteen): the Super Administrator meets 403 before 409 (1); the shortened function description (2); `next_hearing_set_at` also moves `updated_at` (3); rollover rules (4); a dated reading also closes older dates (5); `none` raises its event only on a claimed case (6); the dashboard `confirm_next_date` item lists enter items (7); the local model is never given a manual date (8); a never-computed case is computed on read (9); and the review findings: rows the caller cannot open show only the court's tiers (15) and a later report takes a numbered alert key (16).
+
+**Left for later / owner steps**
+- Deploy: `migrate` (0034), `init` (seed), `docker compose build`; then `aslms next-dates direct` (dry run, then `--apply`) and `aslms next-dates hearing-refresh --all`. The owner's live checks are in the design note's Verification.
+- Owner checks A to K of the design note stay open until the owner's browser check.
+- The hosting guide was not regenerated (no environment change). Software Documentation 1.4 records the change.

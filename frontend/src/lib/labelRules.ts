@@ -147,6 +147,10 @@ export const SENTENCE_EXCEPTIONS: Record<string, string> = {
   "wf.currentMarkShort": "a marker inside parentheses",
   "nd.noun": "a noun inside a count sentence",
   "nd.reading.period": "a fragment after a period of days",
+  // design next-date-direct: muted lines and reasons written as sentences in a row of the list or under a badge
+  "hearing.basis.court": "a muted sentence under the next hearing badge",
+  "nd.reasons.unclear": "a sentence saying why an order asks for the next date",
+  "nd.enterNeeded": "a sentence saying why an order asks for the next date",
   "assistant.suggested.research.0": "a suggested question typed for the person",
   "assistant.includedHere": "a line marking a point in the conversation (design assistant-ollama, decision 14)",
   "assistant.usesInternal": "a sentence under an answer (design assistant-ollama, decision 14)",

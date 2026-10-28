@@ -309,6 +309,10 @@ def test_working_order_my_due_first(api, world, cases):
         g = w.claimed_case(s, world, officer="edu_off1")
         w.send(s, world, "edu_off1", g, "edu_off2")
         s.get(Custody, g.id).due_date = None
+        # the order reads the case's one next hearing (design next-date-direct, decision 11)
+        from aslms.services import next_hearing
+
+        next_hearing.refresh(s, [cases["a"], cases["b"], cases["x"], e.id, f.id, g.id])
         s.commit()
         e_id, f_id, g_id = str(e.id), str(f.id), str(g.id)
     order = ids(mine(api, w.login(api, "edu_off1"), "working"))

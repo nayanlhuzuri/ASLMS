@@ -1,12 +1,12 @@
-"""Firm only when two sources agree (design `next-date-extraction`, the owner's second decision of 17 Oct 2026,
-option B): a date read from an order is `not_needed` only when it equals the court's own date for the case
-(`cases.next_hearing_date` or a cause-list listing); otherwise it is a suggestion to confirm. A suggestion becomes
-firm by itself when a matching court date arrives later (Current Status, the dossier, a cause list, or the next
-reader run), and its review alert is closed `done`, reason `matched`. Confirm refuses a date already passed."""
+"""Shown directly (design `next-date-direct`, decisions 1 to 3, superseding the owner's option B of 17 Oct 2026): a date
+read from the latest order is `not_needed` at once, whatever the court's record says, and becomes the case's next
+hearing unless the court's record gives a later date. `pending` rows written before migration 0034 are still matched
+by a court date that agrees (`match_court_dates`, kept for those rows) until `aslms next-dates direct --apply` retires
+them; a match failure never fails the court data."""
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime
 
 import pytest
 import sqlalchemy as sa
@@ -15,11 +15,10 @@ from aslms.domain.alerts import AlertStatus, NextDate, NextDateSource, ReviewSta
 from aslms.domain.causelists import Causelist, CauselistEntry, EntrySource, ListSource, ListType
 from aslms.domain.courts import Court
 from aslms.domain.ops import SourceFailure
-from aslms.services import alerts, calendar, cases, next_dates
+from aslms.services import alerts, calendar, cases, next_dates, next_hearing
 from aslms.services.workflow_common import WorkflowError
 from tests.db import next_dates_support as h
 from tests.db.conftest import sample
-from tests.db.test_matching import entry, load_list
 from tests.db.world import make_case
 
 
@@ -55,7 +54,23 @@ def _status_block(case, on: date) -> dict:
     }
 
 
-def test_a_written_date_without_the_courts_date_waits_for_confirmation(world):
+def _pending(s, case, on: date, *, order=None, source=NextDateSource.ORDER_SPECIFIC) -> NextDate:
+    """A suggestion written as before migration 0034 (pending, needs review)."""
+    order = order or h.order_with_text(s, case, "x", order_date=h.days(-1))
+    row = NextDate(
+        case_id=case.id,
+        next_date=on,
+        source=source,
+        order_id=order.id,
+        needs_review=True,
+        review_status=ReviewStatus.PENDING,
+    )
+    s.add(row)
+    s.flush()
+    return row
+
+
+def test_a_written_date_is_shown_directly_whatever_the_court_says(world):
     with world.Session() as s:
         _, admin = world.actor(s, "edu_admin")
         alone = h.claimed(s, world)
@@ -65,146 +80,59 @@ def test_a_written_date_without_the_courts_date_waits_for_confirmation(world):
         other = h.claimed(s, world, next_hearing=h.days(11))  # the court gives another date
         h.order_with_text(s, other, f"List this matter on {h.dmy(h.days(10))}.", order_date=h.days(-1))
         c = h.read(s)
-        assert c["specific"] == 2 and c["rows_written"] == 2 and c["review_items"] == 2
+        assert c["specific"] == 2 and c["rows_written"] == 2 and c["review_items"] == 0
         for case in (alone, other):
             (row,) = h.rows(s, case)
             assert (row.source, row.review_status, row.needs_review, float(row.confidence)) == (
                 NextDateSource.ORDER_SPECIFIC,
-                ReviewStatus.PENDING,
-                True,
+                ReviewStatus.NOT_NEEDED,
+                False,
                 1.0,
             )
-            assert _calendar_dates(s, case) == []
         (ev,) = h.events(s, alone)
-        assert ev.payload["review"] is True and ev.payload["rule"] == "list_on_date"
+        assert ev.payload["review"] is False and ev.payload["rule"] == "list_on_date"
         s.refresh(order)
         assert order.next_date_rule == "list_on_date" and order.next_date_found == h.days(10)
-        items = [i for i in next_dates.review_items(s, admin).items if i["case"]["id"] == alone.id]
-        assert [(i["kind"], i["next_date"]) for i in items] == [("confirm", h.days(10))]
+        s.refresh(alone)
+        s.refresh(other)
+        assert (alone.next_hearing_on, alone.next_hearing_basis.value) == (h.days(10), "order")
+        assert _calendar_dates(s, alone) == [h.days(10)]
+        # the court's record wins and the difference is flagged
+        assert (other.next_hearing_on, other.next_hearing_basis.value) == (h.days(11), "court")
+        assert other.next_hearing_differs_on == h.days(10)
+        assert _calendar_dates(s, other, None) == [h.days(11)]
+        assert next_dates.review_items(s, admin).total == 0
         s.rollback()
 
 
-@pytest.mark.parametrize(
-    ("text", "court"),
-    [
-        ("List this matter on {d}.", "status"),
-        ("List this matter on {d}.", "causelist"),
-        ("List the matter after {d}.", "status"),  # a not-before date the court then gives
-        ("List this matter after four weeks.", "status"),  # a period counted to the court's date
-    ],
-)
-def test_any_reading_equal_to_the_courts_date_is_firm_at_once(world, text, court):
+def test_a_legacy_pending_row_is_still_matched_by_the_courts_date(world):
     with world.Session() as s:
-        order_date = h.days(-1)
-        on = order_date + timedelta(weeks=4)
-        case = h.claimed(s, world, next_hearing=on if court == "status" else None)
-        if court == "causelist":
-            _listed(s, case, on)
-        h.order_with_text(s, case, text.format(d=h.dmy(on)), order_date=order_date)
-        c = h.read(s)
-        assert c["rows_written"] == 1 and c["review_items"] == 0
-        (row,) = h.rows(s, case)
-        assert (row.review_status, row.needs_review, row.next_date) == (ReviewStatus.NOT_NEEDED, False, on)
-        (ev,) = h.events(s, case)
-        assert ev.payload["review"] is False
-        # the calendar shows the date once (from the cause list when the case is listed: it ranks first)
-        assert _calendar_dates(s, case, None) == [on]
-        assert next_dates.effective_for_case(s, case).id == row.id
-        s.rollback()
-
-
-def test_current_status_makes_a_suggestion_firm_and_closes_its_alert(world):
-    with world.Session() as s:
-        _, admin = world.actor(s, "edu_admin")
         case = h.claimed(s, world)
-        h.order_with_text(s, case, f"List this matter on {h.dmy(h.days(6))}.", order_date=h.days(-1))
-        h.read(s)
-        alerts.scan_events(s)
-        (alert,) = h.review_alerts(s, case)
-        assert alert.status == AlertStatus.OPEN
-        (row,) = h.rows(s, case)
-        # another date from the court changes nothing
-        cases.apply_status(s, case, _status_block(case, h.days(7)))
+        row = _pending(s, case, h.days(6))
+        cases.apply_status(s, case, _status_block(case, h.days(7)))  # another date: nothing matched
         assert h.refreshed(s, row).review_status == ReviewStatus.PENDING
-        # the court's date agrees: firm, no person needed
         rep = cases.apply_status(s, case, _status_block(case, h.days(6)))
         assert "next_hearing_date" in rep.status_changes
         row = h.refreshed(s, row)
-        assert (row.review_status, row.needs_review, row.reviewed_by_user_id, row.reviewed_at) == (
+        assert (row.review_status, row.needs_review, row.reviewed_by_user_id) == (
             ReviewStatus.NOT_NEEDED,
             True,
             None,
-            None,
         )
-        (alert,) = h.review_alerts(s, case)
-        assert alert.status == AlertStatus.DONE and alert.data["closed_reason"] == "matched"
-        assert next_dates.review_items(s, admin).total == 0
-        assert _calendar_dates(s, case) == [h.days(6)]
-        assert next_dates.effective_for_case(s, case).id == row.id
-        actor, admin = world.actor(s, "edu_admin")
-        with pytest.raises(WorkflowError) as exc:
-            next_dates.confirm(s, actor, admin, row.id)
-        assert exc.value.code == "not_pending"
+        s.refresh(case)
+        assert (case.next_hearing_on, case.next_hearing_basis.value) == (h.days(6), "court")
         s.rollback()
 
 
-def test_the_dossier_makes_a_suggestion_firm(world):
-    with world.Session() as s:
-        case = make_case(s, cnr="GAHC010129772026", case_no="WP(C)/3600/2026")
-        h.order_with_text(s, case, "List the matter after 3 (three weeks).", order_date=h.days(-2))
-        h.read(s)
-        (row,) = h.rows(s, case)
-        assert (row.source, row.review_status) == (NextDateSource.ORDER_PERIOD, ReviewStatus.PENDING)
-        assert row.next_date == h.days(19)
-        data = {**sample("cnr_pending.json"), "date_next_list": h.days(19).isoformat()}
-        cases.apply_dossier(s, case, data)
-        assert h.refreshed(s, row).review_status == ReviewStatus.NOT_NEEDED
-        s.rollback()
-
-
-def test_a_cause_list_listing_makes_a_suggestion_firm(world):
+def test_a_legacy_pending_row_is_matched_by_a_listing_and_the_reader_run(world):
     with world.Session() as s:
         case = h.claimed(s, world)
-        h.order_with_text(s, case, f"List the matter on {h.dmy(h.days(8))}.", order_date=h.days(-1))
-        h.read(s)
-        alerts.scan_events(s)
-        (row,) = h.rows(s, case)
-        # a list of another day changes nothing
-        load_list(s, [entry(1, case.cnr, case.case_no_text)], list_date=h.days(9))
-        assert h.refreshed(s, row).review_status == ReviewStatus.PENDING
-        load_list(s, [entry(1, case.cnr, case.case_no_text)], list_date=h.days(8))
-        assert h.refreshed(s, row).review_status == ReviewStatus.NOT_NEEDED
-        (alert,) = h.review_alerts(s, case)
-        assert alert.status == AlertStatus.DONE and alert.data["closed_reason"] == "matched"
-        s.rollback()
-
-
-def test_the_reader_run_matches_and_the_sweep_closes_a_matched_alert_done(world):
-    with world.Session() as s:
-        case = h.claimed(s, world)
-        h.order_with_text(s, case, f"List the matter on {h.dmy(h.days(5))}.", order_date=h.days(-1))
-        h.read(s)
-        alerts.scan_events(s)
-        (row,) = h.rows(s, case)
+        row = _pending(s, case, h.days(5))
         _listed(s, case, h.days(5))  # no hook: the next reader run matches it
         c = h.read(s)
-        assert c["matched"] == 1 and c["claimed"] == 0
+        assert c["matched"] == 1
         assert h.refreshed(s, row).review_status == ReviewStatus.NOT_NEEDED
-        (alert,) = h.review_alerts(s, case)
-        assert alert.status == AlertStatus.DONE and alert.data["closed_reason"] == "matched"
         assert h.read(s)["matched"] == 0  # once
-        # a match whose alert was left open (written directly here) is closed done by the hourly sweep
-        other = h.claimed(s, world)
-        h.order_with_text(s, other, f"List the matter on {h.dmy(h.days(4))}.", order_date=h.days(-1))
-        h.read(s)
-        alerts.scan_events(s)
-        (row2,) = h.rows(s, other)
-        s.execute(
-            sa.update(NextDate).where(NextDate.id == row2.id).values(review_status=ReviewStatus.NOT_NEEDED)
-        )
-        alerts.sweep_dates(s, now=datetime.now(UTC))
-        (alert2,) = h.review_alerts(s, other)
-        assert alert2.status == AlertStatus.DONE and alert2.data["closed_reason"] == "matched"
         s.rollback()
 
 
@@ -212,16 +140,7 @@ def test_a_past_suggestion_is_not_matched(world):
     with world.Session() as s:
         case = h.claimed(s, world, next_hearing=h.days(-1))
         order = h.order_with_text(s, case, "x", order_date=h.days(-5))
-        stale = NextDate(
-            case_id=case.id,
-            next_date=h.days(-1),
-            source=NextDateSource.ORDER_SPECIFIC,
-            order_id=order.id,
-            needs_review=True,
-            review_status=ReviewStatus.PENDING,
-        )
-        s.add(stale)
-        s.flush()
+        stale = _pending(s, case, h.days(-1), order=order)
         assert next_dates.match_court_dates(s, case_ids=[case.id]) == 0
         assert h.refreshed(s, stale).review_status == ReviewStatus.PENDING
         s.rollback()
@@ -230,9 +149,7 @@ def test_a_past_suggestion_is_not_matched(world):
 def test_a_match_failure_never_fails_the_court_data(world, monkeypatch):
     with world.Session() as s:
         case = h.claimed(s, world)
-        h.order_with_text(s, case, f"List the matter on {h.dmy(h.days(6))}.", order_date=h.days(-1))
-        h.read(s)
-        (row,) = h.rows(s, case)
+        row = _pending(s, case, h.days(6))
 
         def boom(*a, **kw):
             raise RuntimeError("match broke")
@@ -248,28 +165,25 @@ def test_a_match_failure_never_fails_the_court_data(world, monkeypatch):
         s.rollback()
 
 
-def test_confirm_refuses_a_date_already_passed(world):
+def test_a_passed_reading_of_the_latest_order_is_an_ultimatum(world):
+    """Owner, 28 Oct 2026: a court date that has passed stays the value (Date Passed); nothing is confirmed, rejected
+    or entered over it."""
     with world.Session() as s:
         case = h.claimed(s, world)
         order = h.order_with_text(s, case, "x", order_date=h.days(-5))
-        stale = NextDate(
-            case_id=case.id,
-            next_date=h.days(-1),
-            source=NextDateSource.ORDER_PERIOD,
-            order_id=order.id,
-            needs_review=True,
-            review_status=ReviewStatus.PENDING,
-        )
-        s.add(stale)
-        s.flush()
+        stale = _pending(s, case, h.days(-1), order=order, source=NextDateSource.ORDER_PERIOD)
+        value = next_hearing.compute(s, [case.id])[case.id]
+        assert (value.date, value.basis.value) == (h.days(-1), "around")
         actor, admin = world.actor(s, "edu_admin")
-        with pytest.raises(WorkflowError) as exc:
-            next_dates.confirm(s, actor, admin, stale.id)
-        assert (exc.value.code, exc.value.http_status) == ("date_passed", 409)
+        for call in (
+            lambda: next_dates.confirm(s, actor, admin, stale.id),
+            lambda: next_dates.reject(s, actor, admin, stale.id),
+            lambda: next_dates.enter(s, actor, admin, case, next_date=h.days(3)),
+        ):
+            with pytest.raises(WorkflowError) as exc:
+                call()
+            assert (exc.value.code, exc.value.http_status) == ("court_date_fixed", 409)
         assert h.refreshed(s, stale).review_status == ReviewStatus.PENDING
-        # reject is still allowed (a person may say the reading was wrong)
-        rejected, _ = next_dates.reject(s, actor, admin, stale.id)
-        assert rejected.review_status == ReviewStatus.REJECTED
         s.rollback()
 
 
@@ -277,11 +191,24 @@ def test_another_cases_listing_on_the_same_day_does_not_match(world):
     with world.Session() as s:
         case = h.claimed(s, world)
         other = make_case(s)
-        h.order_with_text(s, case, f"List the matter on {h.dmy(h.days(8))}.", order_date=h.days(-1))
-        h.read(s)
-        (row,) = h.rows(s, case)
+        row = _pending(s, case, h.days(8))
         _listed(s, other, h.days(8))
-        s.flush()
         h.read(s)
         assert h.refreshed(s, row).review_status == ReviewStatus.PENDING
+        s.rollback()
+
+
+def test_the_sweep_closes_a_review_alert_without_an_item(world):
+    with world.Session() as s:
+        case = h.claimed(s, world)
+        h.order_with_text(s, case, "Notice issued. Steps within a week.", order_date=h.days(-1))
+        h.read(s)
+        alerts.scan_events(s)
+        (alert,) = h.review_alerts(s, case)  # an order that gives no next date: Next Dates to Enter
+        assert alert.status == AlertStatus.OPEN
+        assert "gives no next date" in alert.body
+        cases.apply_status(s, case, _status_block(case, h.days(9)))  # the court gives a date: no item left
+        alerts.sweep_dates(s, now=datetime.now(UTC))
+        (alert,) = h.review_alerts(s, case)
+        assert alert.status == AlertStatus.EXPIRED and alert.data["closed_reason"] == "no_review_item"
         s.rollback()

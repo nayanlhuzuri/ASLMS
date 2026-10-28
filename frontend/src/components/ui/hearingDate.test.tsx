@@ -124,3 +124,61 @@ describe("HearingDate", () => {
     expect(css).toMatch(/flex-wrap:\s*wrap/);
   });
 });
+
+// design next-date-direct, decisions 5 and 8
+describe("HearingDate with the one next hearing", () => {
+  const ORDER = { id: "o-1", order_no: "4", order_date: "2026-10-12", document_id: null };
+
+  it("an around date says Around first in the band's normal fill, with the owner's sentence", () => {
+    const next = {
+      date: "2026-10-30",
+      basis: "around" as const,
+      approximate: true,
+      basis_words: "after 3 weeks",
+      order: ORDER,
+      rule: "list_after_period",
+      differs: null,
+    };
+    const sm = render(<HearingDate next={next} now={NOW} />);
+    const el = badge(sm.container);
+    expect(el).toHaveAttribute("data-kind", "around");
+    expect(el).toHaveAttribute("data-band", "week");
+    expect(el).toHaveTextContent(/^Around · In 3 Days · 30 Oct 2026$/);
+    expect(el).toHaveAttribute("title", "Around 30 Oct 2026 (after 3 weeks, order of 12 Oct 2026)");
+    expect(el).not.toHaveAttribute("aria-label");
+    const md = render(<HearingDate next={next} size="md" now={NOW} />);
+    expect(md.container).toHaveTextContent("Around 30 Oct 2026 (after 3 weeks, order of 12 Oct 2026)");
+  });
+
+  it("a court date with a differing order date shows the Order Differs chip, the sentence as its title", () => {
+    const next = {
+      date: "2026-11-16",
+      basis: "court" as const,
+      approximate: false,
+      basis_words: null,
+      order: null,
+      rule: null,
+      differs: { date: "2026-11-10", order: ORDER },
+    };
+    const { container } = render(<HearingDate next={next} now={NOW} />);
+    const chip = container.querySelector("[data-differs]") as HTMLElement;
+    expect(chip).toHaveAttribute("data-differs", "true");
+    expect(chip).toHaveTextContent("Order Differs");
+    expect(chip).toHaveAttribute(
+      "title",
+      "The order of 12 Oct 2026 gives 10 Nov 2026; the court's record gives 16 Nov 2026. The court's record is used.",
+    );
+    expect(chip).not.toHaveAttribute("aria-label");
+    expect(badge(container)).toHaveAttribute("data-kind", "firm");
+    const md = render(<HearingDate next={next} size="md" now={NOW} />);
+    expect(md.container).toHaveTextContent("From the court's records");
+    expect(md.container).toHaveTextContent("The court's record is used.");
+  });
+
+  it("no next hearing reads No Date Yet; a manual date says it was entered by hand", () => {
+    expect(badge(render(<HearingDate next={null} now={NOW} />).container)).toHaveAttribute("data-band", "none");
+    const manual = { date: "2026-11-16", basis: "manual" as const, approximate: false, basis_words: null, order: null, rule: null, differs: null };
+    const md = render(<HearingDate next={manual} size="md" now={NOW} />);
+    expect(md.container).toHaveTextContent("Entered by hand; the court has given no date");
+  });
+});

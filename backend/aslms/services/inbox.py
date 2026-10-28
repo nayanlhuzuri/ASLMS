@@ -16,6 +16,7 @@ per department the caller works in."""
 from __future__ import annotations
 
 import uuid
+from collections.abc import Collection
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Any, Literal
@@ -161,8 +162,18 @@ def _last_listings(session: Session, case_ids: list[uuid.UUID]) -> dict[uuid.UUI
     }
 
 
-def summaries(session: Session, cases: list[Case]) -> dict[uuid.UUID, CaseSummary]:
+def summaries(
+    session: Session, cases: list[Case], *, hidden: Collection[uuid.UUID] = ()
+) -> dict[uuid.UUID, CaseSummary]:
+    """The one builder of `CaseSummaryOut`. `next_hearing` is the case's one next hearing (design next-date-direct,
+    decision 11), never the court's raw `next_hearing_date`. `hidden` names the cases the caller cannot open: their
+    `next_hearing` keeps only the court-public tiers (`next_hearing.court_public`), never a department's own date."""
+    from aslms.services import next_hearing
+
     listings = _last_listings(session, [c.id for c in cases])
+    hearings = next_hearing.outs(session, cases)
+    for cid in set(hidden) & hearings.keys():
+        hearings[cid] = next_hearing.court_public(hearings[cid])
     out: dict[uuid.UUID, CaseSummary] = {}
     for c in cases:
         last = listings.get(c.id)
@@ -175,7 +186,7 @@ def summaries(session: Session, cases: list[Case]) -> dict[uuid.UUID, CaseSummar
             "petitioner_summary": c.petitioner_summary,
             "respondent_summary": c.respondent_summary,
             "status": CaseStatus(c.status).value,
-            "next_hearing_date": c.next_hearing_date,
+            "next_hearing": hearings.get(c.id),
             "last_listed_on": last["list_date"] if last else None,
             "last_listing": last,
         }
@@ -271,7 +282,7 @@ def recommended(
         stmt.order_by(
             (Recommendation.band == ScoreBand.HIGH).desc(),
             Recommendation.score.desc(),
-            Case.next_hearing_date.asc().nulls_last(),
+            Case.next_hearing_on.asc().nulls_last(),
             Recommendation.created_at,
         )
         .limit(limit)
@@ -438,7 +449,7 @@ def claimed(
     )
     total = _count(session, stmt)
     rows = session.execute(
-        stmt.order_by(Case.next_hearing_date.asc().nulls_last(), CaseOwnership.claimed_at.desc())
+        stmt.order_by(Case.next_hearing_on.asc().nulls_last(), CaseOwnership.claimed_at.desc())
         .limit(limit)
         .offset(offset)
     ).all()
@@ -559,7 +570,7 @@ def pool(
     total = _count(session, stmt)
     cases = list(
         session.scalars(
-            stmt.order_by(Case.next_hearing_date.asc().nulls_last(), Case.created_at, Case.id)
+            stmt.order_by(Case.next_hearing_on.asc().nulls_last(), Case.created_at, Case.id)
             .limit(limit)
             .offset(offset)
         ).all()
@@ -756,7 +767,7 @@ def _counts_for(session: Session, user: User, dept: Office | None, *, today: dat
         out["pool_with_hearing_7d"] = _count(
             session,
             pool_stmt(session).where(
-                Case.next_hearing_date >= today, Case.next_hearing_date <= today + timedelta(days=7)
+                Case.next_hearing_on >= today, Case.next_hearing_on <= today + timedelta(days=7)
             ),
         )
     return out

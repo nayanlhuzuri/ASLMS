@@ -141,6 +141,7 @@ COURT_EVENTS = (
     EventType.ORDER_FOUND,
     EventType.ORDER_STORED,
     EventType.LISTING_CHANGED,  # design court-data-freshness: cause-list placement is public court data
+    EventType.NEXT_DATE_DIFFERS,  # design next-date-direct, decision 5: court information
 )
 OWNERSHIP_EVENTS = (
     EventType.CLAIMED,
@@ -394,10 +395,12 @@ def overview(session: Session, user: User, case: Case) -> dict[str, Any]:
 def _next_date_block(session: Session, user: User, case: Case) -> dict[str, Any]:
     """Design next-date-extraction, decision 18: the next date from orders (decision 9's row with its order and
     phrase) and the case's review items the caller may act on."""
-    from aslms.services import next_dates
+    from aslms.services import next_dates, next_hearing
 
     row = next_dates.effective_for_case(session, case)
     return {
+        # design next-date-direct, decision 11: the one next hearing, detail form
+        "next_hearing": next_hearing.next_hearing_out(session, case, detail=True),
         "next_date_from_orders": next_dates.next_date_out(session, row) if row is not None else None,
         "next_dates_to_review": next_dates.to_review_for_case(session, user, case),
     }
@@ -555,7 +558,7 @@ def _summaries_with_visibility(
     ).all()
     cases = [c for c, _ in rows]
     visible = {c.id for c, v in rows if v}
-    return inbox.summaries(session, cases), visible
+    return inbox.summaries(session, cases, hidden=ids - visible), visible
 
 
 def links(session: Session, user: User, case: Case) -> dict[str, Any]:

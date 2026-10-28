@@ -712,8 +712,17 @@ function held(): HeldList {
  * Working on (design case-inbox-merge, decision 8): one row per lead badge on a case with me (Overdue, Due soon, New),
  * then a case allotted to me but with someone else (no badge, "—" for action, due and From). The Next Hearing column
  * draws every band (design next-hearing-highlight): today, tomorrow, in 3 days and in 20 days on those four rows, then
- * three cases allotted to me with no custody: a date 5 days past, no date, and a disposed case.
+ * three cases allotted to me with no custody: a date 5 days past, no date, and a disposed case; then (design
+ * next-date-direct, decisions 5 and 8) a date counted from an order ("Around") and a court date whose order differs
+ * ("Order Differs").
  */
+function courtNext(date: string | null): S["NextHearingOut"] | null {
+  if (!date) return null;
+  return { date, basis: "court", approximate: false, basis_words: null, order: null, rule: null, differs: null };
+}
+
+const ORDER_REF = { id: "0192a3b4-0000-7000-8000-000000000901", order_no: "4", order_date: "2026-10-12", document_id: null };
+
 function working(): MyCaseList {
   const base = synthFor("/inbox/mine")!.body as MyCaseList;
   const first = base.items[0]!;
@@ -740,7 +749,7 @@ function working(): MyCaseList {
   const dates = [0, 1, 3, 20];
   const items: MyCaseList["items"] = variants.map((v, i) => ({
     ...first,
-    case: { ...first.case, id: `0192a3b4-0000-7000-8000-00000000050${i}`, status: "pending", next_hearing_date: istDayPlus(dates[i]!) },
+    case: { ...first.case, id: `0192a3b4-0000-7000-8000-00000000050${i}`, status: "pending", next_hearing: courtNext(istDayPlus(dates[i]!)) },
     reasons: v.with_me === false ? ["allotted"] : ["allotted", "file"],
     custody: { ...brief, ...v },
   }));
@@ -752,7 +761,27 @@ function working(): MyCaseList {
   bare.forEach(([date, status], i) => {
     items.push({
       ...first,
-      case: { ...first.case, id: `0192a3b4-0000-7000-8000-00000000050${4 + i}`, status, next_hearing_date: date },
+      case: { ...first.case, id: `0192a3b4-0000-7000-8000-00000000050${4 + i}`, status, next_hearing: courtNext(date) },
+      reasons: ["allotted"],
+      custody: null,
+    });
+  });
+  const extra: S["NextHearingOut"][] = [
+    {
+      date: istDayPlus(9),
+      basis: "around",
+      approximate: true,
+      basis_words: "after 3 weeks",
+      order: ORDER_REF,
+      rule: "list_after_period",
+      differs: null,
+    },
+    { ...courtNext(istDayPlus(12))!, differs: { date: istDayPlus(10), order: ORDER_REF } },
+  ];
+  extra.forEach((next, i) => {
+    items.push({
+      ...first,
+      case: { ...first.case, id: `0192a3b4-0000-7000-8000-00000000060${i}`, status: "pending", next_hearing: next },
       reasons: ["allotted"],
       custody: null,
     });
@@ -945,8 +974,9 @@ const OVERRIDES: [RegExp, Override][] = [
 function tidy(path: string, body: unknown): unknown {
   if (/^\/cases\/[^/]+$/.test(path) && body && typeof body === "object") {
     const c = body as S["CaseDetailOut"];
-    // design next-hearing-highlight: the court's date tomorrow (header and rail) and a suggestion from an order in 3
-    // days waiting for a person (the Overview card, outlined "Suggested")
+    // design next-hearing-highlight and next-date-direct: the court's date tomorrow (header and rail), with an exact order
+    // date that differs ("Order Differs"), and a period read from the latest order in 3 days shown directly ("Around")
+    // on the Overview card
     const suggestion = synth({ $ref: "#/components/schemas/NextDateOut" }) as S["NextDateOut"];
     return {
       ...c,
@@ -955,7 +985,14 @@ function tidy(path: string, body: unknown): unknown {
       identity: { ...c.identity, case_no_text: STRESS.caseNo },
       portal: { ...c.portal, merged_into_case_id: null, is_provisional: false },
       status: { ...c.status, status: "pending", next_hearing_date: istDayPlus(1) },
-      next_date_from_orders: { ...suggestion, next_date: istDayPlus(3), review_status: "pending", needs_review: true, source: "order_period" },
+      next_hearing: {
+        ...courtNext(istDayPlus(1))!,
+        differs: { date: istDayPlus(4), order: ORDER_REF },
+        phrase: "List this matter on the date fixed.",
+        court_date: istDayPlus(1),
+        reported_at: null,
+      },
+      next_date_from_orders: { ...suggestion, next_date: istDayPlus(3), review_status: "not_needed", needs_review: false, source: "order_period" },
     };
   }
   return body;

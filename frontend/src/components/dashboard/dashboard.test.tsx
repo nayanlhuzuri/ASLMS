@@ -19,8 +19,8 @@ function department(code: string, name: string, extra: Partial<DashboardDepartme
       total: 2,
       critical: 1,
       items: [
-        { case: CASE, date: "2026-10-11", court_no: "3", item_no: "14", critical: true },
-        { case: { ...CASE, id: "c2", case_no_text: "WA/55/2026" }, date: "2026-10-15", court_no: "5", item_no: "2", critical: false },
+        { case: CASE, date: "2026-10-11", court_no: "3", item_no: "14", critical: true, approximate: false },
+        { case: { ...CASE, id: "c2", case_no_text: "WA/55/2026" }, date: "2026-10-15", court_no: "5", item_no: "2", critical: false, approximate: false },
       ],
     },
     attention: { compliance_due_soon: 4, compliance_overdue: 1, next_dates_to_review: null, recent_order_next_dates: [] },
@@ -156,7 +156,7 @@ describe("dashboard", () => {
     expect(within(block).queryByText("Pending Actions")).toBeNull();
     expect(within(block).queryByText("Cases by Office")).toBeNull();
     expect(within(block).queryByText("Open Transfers")).toBeNull();
-    expect(within(block).queryByText("Next Dates to Confirm")).toBeNull();
+    expect(within(block).queryByText("Next Dates to Enter")).toBeNull();
     expect(within(block).getByText("Hearings in 7 Days")).toBeInTheDocument();
   });
 
@@ -324,7 +324,24 @@ describe("dashboard", () => {
     expect(within(plain).queryByRole("link", { name: "Department Reports" })).toBeNull();
   });
 
-  it("Next dates to confirm links to the review list for the department when above zero (portal-next-dates, decision 13)", async () => {
+  it("Next Dates That Differ From the Court links to Department Cases with the filter (next-date-direct, decision 5)", async () => {
+    const d = department("EDU", "Education", {
+      attention: { compliance_due_soon: 0, compliance_overdue: 0, next_dates_to_review: null, recent_order_next_dates: [], next_dates_differ: 2 },
+    });
+    browserApi({
+      "GET /me": makeMe(["cases.view_scope"]),
+      "GET /dashboard": { me: false, state: false, departments: [{ code: "EDU", name: "Education" }] },
+      "GET /dashboard/department": d,
+    });
+    renderWithClient(<Dashboard />);
+    const block = await screen.findByRole("region", { name: "Department: Education" });
+    expect(within(block).getByRole("link", { name: "Next Dates That Differ From the Court" })).toHaveAttribute(
+      "href",
+      "/inbox/department?department=EDU&next_differs=true",
+    );
+  });
+
+  it("Next dates to enter links to the review list for the department when above zero (portal-next-dates, decision 13)", async () => {
     const att = (n: number | null, recent: DashboardDepartment["attention"]["recent_order_next_dates"] = []) =>
       department("EDU", "Education", {
         attention: { compliance_due_soon: 0, compliance_overdue: 0, next_dates_to_review: n, recent_order_next_dates: recent },
@@ -344,25 +361,25 @@ describe("dashboard", () => {
     );
     const { unmount } = renderWithClient(<Dashboard />);
     let block = await screen.findByRole("region", { name: "Department: Education" });
-    expect(within(block).getByRole("link", { name: "Next Dates to Confirm" })).toHaveAttribute("href", "/alerts/next-dates?owner=EDU");
+    expect(within(block).getByRole("link", { name: "Next Dates to Enter" })).toHaveAttribute("href", "/alerts/next-dates?owner=EDU");
     const table = within(block).getByRole("table", { name: "Recent Order Next Dates" });
     expect(within(table).getByRole("columnheader", { name: "Where It Came From" })).toBeInTheDocument();
     expect(within(table).getByRole("columnheader", { name: "Status" })).toBeInTheDocument();
     expect(within(table).getByText("Counted From the Order")).toBeInTheDocument();
-    expect(within(table).getByText("Waiting for Confirmation")).toBeInTheDocument();
     expect(within(table).getByText("Date in the Order")).toBeInTheDocument();
-    expect(within(table).getByText("In Use")).toBeInTheDocument();
+    // design next-date-direct: an old pending reading is shown directly, so both rows read In Use
+    expect(within(table).getAllByText("In Use")).toHaveLength(2);
     unmount();
     browserApi(routes(att(0)));
     const second = renderWithClient(<Dashboard />);
     block = await screen.findByRole("region", { name: "Department: Education" });
-    expect(within(block).getByText("Next Dates to Confirm")).toBeInTheDocument();
-    expect(within(block).queryByRole("link", { name: "Next Dates to Confirm" })).toBeNull();
+    expect(within(block).getByText("Next Dates to Enter")).toBeInTheDocument();
+    expect(within(block).queryByRole("link", { name: "Next Dates to Enter" })).toBeNull();
     second.unmount();
     browserApi(routes(att(null)));
     renderWithClient(<Dashboard />);
     block = await screen.findByRole("region", { name: "Department: Education" });
-    expect(within(block).queryByText("Next Dates to Confirm")).toBeNull();
+    expect(within(block).queryByText("Next Dates to Enter")).toBeNull();
   });
 });
 
@@ -423,7 +440,7 @@ describe("the personal dashboard (portal-ui-redesign, decision 23)", () => {
       ["Hearings This Week: 4", "/calendar"],
       ["Cases with Me: 6", "/inbox/working?held=me"],
       ["Overdue Actions: 3", "/inbox/working?overdue=true"],
-      ["Next Dates to Confirm: 2", "/alerts/next-dates"],
+      ["Next Dates to Enter: 2", "/alerts/next-dates"],
     ]);
     expect(within(headline).getByText("5 strong · 7 possible")).toBeInTheDocument();
     expect(within(headline).getByText("2 within 48 hours")).toBeInTheDocument();
@@ -440,7 +457,7 @@ describe("the personal dashboard (portal-ui-redesign, decision 23)", () => {
     expect(within(fewer).getAllByRole("link")).toHaveLength(3);
     expect(fewer).toHaveAttribute("data-count", "3");
     expect(within(fewer).queryByText("Cases to Claim")).toBeNull();
-    expect(within(fewer).queryByText("Next Dates to Confirm")).toBeNull();
+    expect(within(fewer).queryByText("Next Dates to Enter")).toBeNull();
   });
 
   it("under reduced motion the numbers show their final value at once", async () => {
@@ -472,7 +489,7 @@ describe("the personal dashboard (portal-ui-redesign, decision 23)", () => {
     const rows = within(list).getAllByRole("listitem");
     expect(rows).toHaveLength(4);
     for (const row of rows) expect(row.firstElementChild).toHaveAttribute("data-lead", "lead");
-    expect(rows.map((r) => r.firstElementChild!.textContent)).toEqual(["Overdue", "Confirm", "Due Soon", "New"]);
+    expect(rows.map((r) => r.firstElementChild!.textContent)).toEqual(["Overdue", "Enter", "Due Soon", "New"]);
     expect(within(rows[0]!).getByRole("link", { name: "Parawise comments" })).toHaveAttribute("href", "/cases/EDU-2026-0001");
     expect(within(rows[0]!).getByText("WP(C)/1234/2026 · Overdue 6 days")).toBeInTheDocument();
     expect(within(rows[1]!).getByRole("link", { name: "Next Date to Confirm" })).toHaveAttribute("href", "/alerts/next-dates?q=c3");
@@ -484,10 +501,10 @@ describe("the personal dashboard (portal-ui-redesign, decision 23)", () => {
       mine(
         personal({
           upcoming: [
-            { case: CASE, date: "2026-10-22", court_no: "3", item_no: "14", critical: false, this_week: true },
+            { case: CASE, date: "2026-10-22", court_no: "3", item_no: "14", critical: false, approximate: false, this_week: true },
             // the API's 48-hour flag no longer colours the row: the band of the IST day does (next-hearing-highlight)
-            { case: { ...CASE, id: "c2", case_no_text: "WA/55/2026" }, date: "2026-10-23", court_no: null, item_no: null, critical: true, this_week: true },
-            { case: { ...CASE, id: "c3", case_no_text: "WA/56/2026" }, date: "2026-10-28", court_no: null, item_no: null, critical: false, this_week: false },
+            { case: { ...CASE, id: "c2", case_no_text: "WA/55/2026" }, date: "2026-10-23", court_no: null, item_no: null, critical: true, approximate: false, this_week: true },
+            { case: { ...CASE, id: "c3", case_no_text: "WA/56/2026" }, date: "2026-10-28", court_no: null, item_no: null, critical: false, approximate: false, this_week: false },
           ],
         }),
       ),
@@ -567,6 +584,7 @@ describe("every Upcoming hearings row has a badge (design portal-ui-polish, deci
       item_no: null,
       critical,
       this_week: true,
+      approximate: false,
     });
     browserApi(mine(personal({ upcoming: [row("1", "2026-10-24", true), row("2", "2026-10-25", false), row("3", "2026-10-26", true), row("4", "2026-10-30", false)] })));
     renderWithClient(<Dashboard />);

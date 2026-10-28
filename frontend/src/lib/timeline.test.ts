@@ -114,3 +114,12 @@ describe("recommendation_closed (ownership-refinements, decision 10)", () => {
     expect(timelineDetail("recommendation_closed", {})).toBeNull();
   });
 });
+
+describe("next_date_differs (design next-date-direct, decision 5)", () => {
+  it("names the order's date and the court's", () => {
+    expect(
+      timelineDetail("next_date_differs", { court_date: "2026-11-25", order_next_date: "2026-11-20", order_date: "2026-10-12" }),
+    ).toBe("The order of 12 Oct 2026 gives 20 Nov 2026; the court's record gives 25 Nov 2026");
+    expect(timelineDetail("next_date_differs", { court_date: "2026-11-25" })).toBeNull();
+  });
+});

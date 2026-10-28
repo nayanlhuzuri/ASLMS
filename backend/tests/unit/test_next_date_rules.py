@@ -674,3 +674,55 @@ def test_hostile_text_reads_quickly():
     out = read(text)
     assert time.perf_counter() - t0 < 1.0
     assert out.status in {"specific", "period", "unclear", "none"}
+
+
+# ------------------------------------------------------------------------------------------------ describe
+# design next-date-direct, decision 8: the words of an around date, from the stored court sentence
+
+
+@pytest.mark.parametrize(
+    ("rule", "phrase", "found", "words"),
+    [
+        (r.LIST_AFTER_PERIOD, "List the matter after 3 weeks.", date(2026, 9, 29), "after 3 weeks"),
+        (r.LIST_AFTER_PERIOD, "List after 30 (thirty) days.", date(2026, 10, 8), "after 30 days"),
+        (r.LIST_AFTER_PERIOD, "List the matter after two months.", date(2026, 11, 8), "after 2 months"),
+        (r.LIST_AFTER_PERIOD, "List the matter after a fortnight.", date(2026, 9, 22), "after a fortnight"),
+        (r.QUALIFIED_DATE, "List the matter after 15.12.2026.", date(2026, 12, 15), "after 15.12.2026"),
+        (
+            r.QUALIFIED_DATE,
+            "List on or after 20.11.2026 for hearing.",
+            date(2026, 11, 20),
+            "on or after 20.11.2026",
+        ),
+        (
+            r.RETURNABLE_DATE,
+            "Notice returnable on 25.11.2026.",
+            date(2026, 11, 25),
+            "returnable date of the notice",
+        ),
+        (r.RETURNABLE_PERIOD, "Notice returnable within 4 weeks.", date(2026, 10, 6), "after 4 weeks"),
+    ],
+)
+def test_describe_gives_the_words_of_an_around_date(rule, phrase, found, words):
+    assert r.describe(rule, phrase, OD, found) == words
+
+
+def test_describe_falls_back_and_is_none_for_exact_rules():
+    # the words cannot be found: a fixed fallback per rule
+    assert (
+        r.describe(r.LIST_AFTER_PERIOD, "List as directed.", OD, date(2026, 9, 29))
+        == "counted from the order"
+    )
+    assert r.describe(r.QUALIFIED_DATE, "List tomorrow, i.e. 09.09.2026.", OD, date(2026, 9, 9)) == (
+        "not before this date"
+    )
+    # a period that does not count to the date found is not used
+    assert (
+        r.describe(r.LIST_AFTER_PERIOD, "List after 5 weeks.", OD, date(2026, 9, 29))
+        == "counted from the order"
+    )
+    assert r.describe(r.LIST_AFTER_PERIOD, None, OD, None) == "counted from the order"
+    assert r.describe(r.LIST_ON_DATE, "List this matter on 14.10.2026.", OD, date(2026, 10, 14)) is None
+    assert r.describe(None, "x", OD, None) is None
+    # bounded: a hostile sentence is cut at the phrase cap
+    assert r.describe(r.QUALIFIED_DATE, "after " * 10_000, OD, date(2026, 12, 1)) == "not before this date"

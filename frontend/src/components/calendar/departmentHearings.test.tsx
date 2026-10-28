@@ -19,14 +19,14 @@ function item(date: string, extra: Partial<CalendarItem> = {}): CalendarItem {
     item_no: "14",
     purpose: "Admission",
     source: "causelist",
-    critical: false,
+    critical: false, approximate: false,
     this_week: false,
     ...extra,
   };
 }
 
 const ITEMS: CalendarItem[] = [
-  item("2026-10-14", { critical: true, this_week: true }),
+  item("2026-10-14", { critical: true, approximate: false, this_week: true }),
   item("2026-10-14", { case: { ...CASE, id: "c2", case_no_text: "WA/2/2026" }, source: "next_date", this_week: true }),
   item("2026-10-14", { case: { ...CASE, id: "c3", case_no_text: "WA/3/2026" }, source: "current_status" }),
   item("2026-10-20", { case: { ...CASE, id: "c4", case_no_text: "WA/4/2026" }, source: "mystery" }),

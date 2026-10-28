@@ -73,7 +73,8 @@ export function HearingList({ hearings, caption }: { hearings: DashboardHearings
       rowKey={(h) => `${h.case.id}-${h.date}-${h.item_no ?? ""}`}
       columns={[
         // design next-hearing-highlight, decision 11: the date cell carries the band, so no separate badge column
-        { key: "date", header: T.dash.date, cell: (h) => <HearingDate date={h.date} /> },
+        // design next-date-direct, decision 10: an around date says Around
+        { key: "date", header: T.dash.date, cell: (h) => <HearingDate date={h.date} kind={h.approximate ? "around" : undefined} /> },
         { key: "case", header: T.dash.case, primary: true, cell: (h) => <CaseRef value={h.case} /> },
         { key: "court", header: T.dash.court, cell: (h) => h.court_no ?? "—" },
         { key: "item", header: T.dash.item, cell: (h) => h.item_no ?? "—" },
@@ -168,6 +169,17 @@ export function DepartmentBlock({ data }: { data: DashboardDepartment }) {
                   <span>{T.dash.nextDatesReview}</span>
                 )}
                 <strong>{n(att.next_dates_to_review)}</strong>
+              </li>
+            ) : null}
+            {att.next_dates_differ !== null && att.next_dates_differ !== undefined ? (
+              <li>
+                {/* design next-date-direct, decision 5: to Department Cases with the shared filter */}
+                {att.next_dates_differ > 0 ? (
+                  <Link href={`/inbox/department?department=${encodeURIComponent(code)}&next_differs=true`}>{T.dash.nextDatesDiffer}</Link>
+                ) : (
+                  <span>{T.dash.nextDatesDiffer}</span>
+                )}
+                <strong>{n(att.next_dates_differ)}</strong>
               </li>
             ) : null}
             <li>

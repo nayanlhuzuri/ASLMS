@@ -143,7 +143,7 @@ export function UpcomingPanel({ items }: { items: DashboardUpcoming[] }) {
                 as="li"
                 key={`${h.case.id}-${h.date}`}
                 lead={<DateChip date={h.date} hot={band === "today" || band === "tomorrow"} />}
-                trail={<HearingDate date={h.date} showDate={false} />}
+                trail={<HearingDate date={h.date} kind={h.approximate ? "around" : undefined} showDate={false} />}
               >
                 <CaseLink value={h.case} />
                 {where ? <div className="muted">{where}</div> : null}

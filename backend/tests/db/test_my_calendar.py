@@ -1,7 +1,8 @@
-"""My calendar (design portal-ui-redesign, decision 8 and A6): `GET /me/calendar` — the three kinds for an officer
-(a hearing of an allotted case, a due date of a held file, a next date to confirm), a colleague's and an unseen
-case absent, no confirm items without `next_dates.review`, the range limits (422), the default month grid, the
-order (date, kind, case) and that reading writes nothing."""
+"""My calendar (design portal-ui-redesign, decision 8 and A6, as changed by next-date-direct, decision 10): `GET
+/me/calendar` — the kinds for an officer (a hearing of an allotted case, a hearing counted from an order shown
+directly as around, a due date of a held file; no next date to confirm any more), a colleague's and an unseen case
+absent, the range limits (422), the default month grid, the order (date, kind, case) and that reading writes
+nothing."""
 
 from __future__ import annotations
 
@@ -49,7 +50,7 @@ def _due(s, case, days: int, action=PendingAction.PARAWISE_COMMENTS):
 def dates(world, api):
     """EDU cases claimed by the EDU admin:
     - `a`: allotted to off1 (who holds its file), hearing in 3 days, action due in 5 days;
-    - `p`: allotted to off1, an order read into a pending next date (to confirm);
+    - `p`: allotted to off1, an order read into a period shown directly (around);
     - `c`: a colleague's (off2), hearing in 3 days, action due in 5 days on off2's file;
     - `u`: HEALTH's case, hearing in 3 days (unseen by off1)."""
     with world.Session() as s:
@@ -60,7 +61,7 @@ def dates(world, api):
         h.order_with_text(s, p, TEXT, order_date=d(-1))
         h.read(s)
         (row,) = h.rows(s, p)
-        assert row.review_status == ReviewStatus.PENDING
+        assert row.review_status == ReviewStatus.NOT_NEEDED
         c = w.claimed_case(s, world, officer="edu_off2")
         c.next_hearing_date = d(3)
         _due(s, c, 5)
@@ -88,7 +89,7 @@ def rng(lo: date, hi: date) -> str:
     return f"from={lo}&to={hi}"
 
 
-def test_the_three_kinds_for_an_officer(api, world, dates):
+def test_the_kinds_for_an_officer(api, world, dates):
     off1 = w.login(api, "edu_off1")
     items = get(api, off1, rng(d(-1), d(40)))
     by_kind = {(i["kind"], i["case"]["id"]): i for i in items}
@@ -98,12 +99,17 @@ def test_the_three_kinds_for_an_officer(api, world, dates):
     due = by_kind[("action_due", dates["a"])]
     assert due["date"] == str(d(5)) and due["pending_action"] == "parawise_comments"
     assert due["pending_action_label"] and due["overdue"] is False and due["critical"] is False
-    confirm = by_kind[("confirm", dates["p"])]
-    assert confirm["date"] == str(dates["proposed"]) and confirm["next_date_id"] == dates["next_date_id"]
-    assert confirm["source"] in ("order_specific", "order_period")
-    assert set(by_kind) == {("hearing", dates["a"]), ("action_due", dates["a"]), ("confirm", dates["p"])}
+    around = by_kind[("hearing", dates["p"])]
+    assert around["date"] == str(dates["proposed"]) and around["source"] == "next_date"
+    assert (
+        around["basis"] == "around"
+        and around["approximate"] is True
+        and around["basis_words"] == "after 2 weeks"
+    )
+    assert hearing["basis"] == "court" and hearing["approximate"] is False
+    assert set(by_kind) == {("hearing", dates["a"]), ("action_due", dates["a"]), ("hearing", dates["p"])}
     # the fields of the other kinds are null
-    assert hearing["next_date_id"] is None and due["court_no"] is None and confirm["pending_action"] is None
+    assert hearing["next_date_id"] is None and due["court_no"] is None and around["pending_action"] is None
 
 
 def test_a_colleagues_case_and_an_unseen_case_are_absent(api, world, dates):
@@ -200,15 +206,17 @@ def test_the_order_is_date_then_kind_then_case(api, world, dates):
         _case(s, dates["a"]).next_hearing_date = dates["proposed"]
         row = s.get(Custody, dates["a"])
         row.due_date = dates["proposed"]
-        # an earlier hearing of `p` itself
+        # an earlier hearing of `p` itself, from the court: it replaces the date counted from the order
         _case(s, dates["p"]).next_hearing_date = dates["proposed"] - timedelta(days=1)
+        from aslms.services import next_hearing
+
+        next_hearing.refresh(s, [_case(s, dates["p"]).id])
         s.commit()
     items = get(api, w.login(api, "edu_off1"), rng(d(-1), dates["proposed"] + timedelta(days=1)))
     assert [(i["date"], i["kind"]) for i in items] == [
         (str(dates["proposed"] - timedelta(days=1)), "hearing"),
         (str(dates["proposed"]), "hearing"),
         (str(dates["proposed"]), "action_due"),
-        (str(dates["proposed"]), "confirm"),
     ]
     dates_only = [i["date"] for i in items]
     assert dates_only == sorted(dates_only)

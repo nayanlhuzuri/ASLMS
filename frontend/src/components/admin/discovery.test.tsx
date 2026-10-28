@@ -9,6 +9,7 @@ import { browserApi, expectDataTable, json, makeMe, renderWithClient } from "@/t
 
 import { CourtSearch } from "./mapping/CourtSearch";
 import { MappingFrame } from "./mapping/MappingFrame";
+import { courtNext } from "@/test/nextHearing";
 
 function term(extra: Partial<DiscoveryTerm> = {}): DiscoveryTerm {
   return {
@@ -38,7 +39,7 @@ function found(n: number, extra: Partial<DiscoveryCase> = {}): DiscoveryCase {
       petitioner_summary: "RAM KUMAR",
       respondent_summary: "PRITAM SAIKIA AND 2 ORS",
       status: "pending",
-      next_hearing_date: null,
+      next_hearing: courtNext(null),
       last_listed_on: null,
       last_listing: null,
     },

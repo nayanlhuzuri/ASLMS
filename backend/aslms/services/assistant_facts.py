@@ -5,10 +5,10 @@ answered in one or two lines per fact, each ending with `[S1]`, the case's Case 
 
 - `recognise` is pure: normalise, strip fixed fillers, match whole frames. A question that does not match completely
   goes to the model, never to a guess.
-- `next_hearing` is the assistant's **only** reader of the next hearing, used by the quick fact and by the Case
-  Details source given to the model (`assistant_sources.case_details`, decision 6). Until row 199 it states the two
-  values the case page shows (the court's date of the header, and the next date from orders of the Overview card,
-  `next_dates.effective_for_case`) without choosing between them.
+- `next_hearing` is the assistant's **only** reader of the next hearing, used by the quick fact. Since row 199
+  (design `next-date-direct`, decision 11) it answers from the case's one next hearing
+  (`services/next_hearing.describe_case`), the value the case header and every list show, never from
+  `cases.next_hearing_date` alone.
 - `facts_of` and `answer` read the same court tables the case page shows (`cases`, current `case_parties` and
   `case_advocates`, the case's `orders` in the Orders tab's order, the latest `case_hearings.bench_text`). Nothing
   internal: no owner, stage, custody, notes, recommendation or `ref_no`.
@@ -20,14 +20,13 @@ from __future__ import annotations
 import re
 import uuid
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from aslms.core import clock
-from aslms.domain.alerts import NextDateSource
 from aslms.domain.cases import AdvocateSide, Case, CaseAdvocate, CaseHearing, CaseParty, CaseStatus, PartyRole
 from aslms.domain.documents import Order
 
@@ -37,6 +36,7 @@ ENGINE = "case_record"
 CONNECTOR = "facts"
 LABEL = "S1"
 ORDER_SOURCES = ("order_specific", "order_period")
+ORDER_BASES = ("order", "around", "confirmed")
 
 # ------------------------------------------------------------------------------------------------ recognising
 
@@ -188,22 +188,25 @@ def _plural(n: int, word: str) -> str:
 
 @dataclass(frozen=True)
 class NextHearing:
-    """Decision 13: the court's date and purpose (the header), the next date from orders with its source row (the
-    Overview card: order-read or manual, never a pending suggestion), the disposal, and the answer in words."""
+    """Decision 13 as changed by row 199 (design next-date-direct, decision 11): the case's one next hearing (date,
+    basis, the order it comes from, the words of an around date, a differing order date), the court's own date and
+    purpose, the disposal, and the answer in words."""
 
     court_date: date | None
     purpose: str | None
-    source: str | None  # order_specific | order_period | manual | None
-    next_date: date | None
-    order_date: date | None
-    created_at: datetime | None
-    disposed: bool
-    disposal_date: date | None
+    basis: str | None  # court | order | around | confirmed | manual | None
+    date: date | None
+    order_date: date | None = None
+    basis_words: str | None = None
+    differs_on: date | None = None
+    differs_order_date: date | None = None
+    disposed: bool = False
+    disposal_date: date | None = None
     lines: tuple[str, ...] = field(default_factory=tuple)
 
     @property
     def from_order(self) -> bool:
-        return self.source in ORDER_SOURCES and self.next_date is not None
+        return self.basis in ORDER_BASES and self.date is not None
 
 
 def _value(v: Any) -> Any:
@@ -211,40 +214,34 @@ def _value(v: Any) -> Any:
 
 
 def next_hearing(session: Session, case: Case, *, today: date | None = None) -> NextHearing:
-    """Decision 13, before row 199: the two values the case page shows today, stated without choosing between them.
-    Row 199 replaces the reading with its shared next-hearing reader."""
-    from aslms.services import next_dates  # the case page's own reader (lazy: next_dates is a large module)
+    """Decision 13 after row 199: the case's one next hearing (`next_hearing.describe_case`), in words."""
+    from aslms.services import next_hearing as one  # the shared reader (lazy: it imports the next-date rules)
 
     today = today or clock.today_ist()
-    row = next_dates.effective_for_case(session, case)
-    source = _value(row.source) if row is not None else None
-    order_date = None
-    if row is not None and row.order_id is not None:
-        order_date = session.scalar(select(Order.order_date).where(Order.id == row.order_id))
-    created = row.created_at if row is not None else None
+    out = one.describe_case(session, case) or {}
+    order = out.get("order") or {}
+    differs = out.get("differs") or {}
     nh = NextHearing(
         court_date=case.next_hearing_date,
         purpose=(case.next_purpose or "").strip() or None,
-        source=source,
-        next_date=row.next_date if row is not None else None,
-        order_date=order_date,
-        created_at=created,
+        basis=out.get("basis"),
+        date=out.get("date"),
+        order_date=order.get("order_date"),
+        basis_words=out.get("basis_words"),
+        differs_on=differs.get("date"),
+        differs_order_date=(differs.get("order") or {}).get("order_date"),
         disposed=_value(case.status) == CaseStatus.DISPOSED.value,
         disposal_date=case.disposal_date,
     )
     return NextHearing(**{**nh.__dict__, "lines": tuple(_next_lines(nh, today))})
 
 
-def _origin(nh: NextHearing, *, read: bool = False) -> str:
-    """Where the next date from orders came from: "from the order of <date>" ("read from" in the comparison), or for
-    a manual date "entered in ASLMS on <created date>"."""
-    if nh.source == NextDateSource.MANUAL.value:
-        made = clock.today_ist(nh.created_at) if nh.created_at is not None else None
-        return f"entered in ASLMS on {plain_date(made)}"
-    verb = "read from" if read else "from"
-    if nh.order_date is not None:
-        return f"{verb} the order of {plain_date(nh.order_date)}"
-    return f"{verb} an order"
+def _upper_first(text_: str) -> str:
+    return text_[:1].upper() + text_[1:]
+
+
+def _of_order(order_date: date | None) -> str:
+    return f"the order of {plain_date(order_date)}" if order_date is not None else "an order"
 
 
 def _next_lines(nh: NextHearing, today: date) -> list[str]:
@@ -254,34 +251,35 @@ def _next_lines(nh: NextHearing, today: date) -> list[str]:
                 f"The case was disposed of on {plain_date(nh.disposal_date)}; no further hearing is listed [S1]."
             ]
         return ["The case has been disposed of; no further hearing is listed [S1]."]
-    court, other = nh.court_date, nh.next_date
-    court_ahead = court is not None and court >= today
-    other_ahead = other is not None and other >= today
-    if court is not None and other is not None and court == other and court_ahead:
-        return [f"Next hearing: {hearing_date(court, today)} [S1]."]
-    if court_ahead and (other is None or other == court):
-        purpose = f", for {nh.purpose}" if nh.purpose else ""
-        return [f"Next hearing: {hearing_date(court, today)}{purpose} (the court's record) [S1]."]
-    if other is not None and not court_ahead:
-        when = hearing_date(other, today) if other_ahead else f"{plain_date(other)}, which has passed"
-        lines = [f"Next date {_origin(nh)}: {when} [S1]."]
-        if court is not None and court != other:
-            lines.append(f"The court's own record still shows {plain_date(court)}, which has passed [S1].")
+    d = nh.date
+    if d is None or nh.basis is None:
+        return ["No next hearing date is held for this case yet [S1]."]
+    if d < today:
+        if nh.basis == "court":
+            return [
+                f"The last date the court fixed was {plain_date(d)}, which has passed; no later date is held yet "
+                "[S1]."
+            ]
+        return [
+            f"The date given in {_of_order(nh.order_date)} was {plain_date(d)}, which has passed; no later date is "
+            "held yet [S1]."
+        ]
+    when = hearing_date(d, today)
+    if nh.basis == "court":
+        purpose = f", for {nh.purpose}" if nh.purpose and nh.court_date == d else ""
+        lines = [f"Next hearing: {when}{purpose} (the court's record) [S1]."]
+        if nh.differs_on is not None:
+            lines.append(
+                f"{_upper_first(_of_order(nh.differs_order_date))} gives {plain_date(nh.differs_on)}; the court's "
+                "record is used [S1]."
+            )
         return lines
-    if court_ahead and other is not None:
-        if other_ahead:
-            said = f"is {hearing_date(other, today)}"
-        else:
-            said = f"was {plain_date(other)}, which has passed"
-        return [
-            f"The court's record shows {hearing_date(court, today)}. "
-            f"The next date {_origin(nh, read=True)} {said} [S1]."
-        ]
-    if court is not None:
-        return [
-            f"The last date the court fixed was {plain_date(court)}, which has passed; no later date is held yet [S1]."
-        ]
-    return ["No next hearing date is held for this case yet [S1]."]
+    if nh.basis == "around":
+        bits = ", ".join(b for b in (nh.basis_words, _of_order(nh.order_date)) if b)
+        return [f"Next hearing: around {when} ({bits}) [S1]."]
+    if nh.basis in ("order", "confirmed"):
+        return [f"Next hearing: {when} (given in {_of_order(nh.order_date)}) [S1]."]
+    return [f"Next hearing: {when} (entered by hand; the court has given no date) [S1]."]
 
 
 # ------------------------------------------------------------------------------------------------ the other facts

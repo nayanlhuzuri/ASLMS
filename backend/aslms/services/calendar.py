@@ -1,11 +1,11 @@
 """The hearing calendar (design `alerts-notifications`, decisions 6 and 20). A case's hearing dates are the
 union of `cases.next_hearing_date`, its listings in cause lists (`causelist_entries` → `causelists.list_date`)
-and its next date from orders: the latest `next_dates` row (by `created_at`, then `id`) of source `manual`,
-`order_specific` or `order_period` among `not_needed`, `pending` and `confirmed`, used only when it is not `pending`
-(design `next-date-extraction`, decision 9: a newer order's date awaiting review stops an older one from alerting;
-a rejected or closed row falls back to the earlier one). `hearing_rows` is shared by the date sweep (owned cases) and
-`calendar_for_user` (the caller's working cases, or one department's owned cases for a State-wide reader);
-one row per (case, date), the cause-list listing preferred because it names the court and the item."""
+and the case's one next hearing where it comes from an order or a person (design `next-date-direct`, decision 10:
+`cases.next_hearing_on` with basis `order`, `around`, `confirmed` or `manual`), so a court date replaces an order
+date instead of standing beside it, and a period drives the calendar and the alerts at once. `hearing_rows` is
+shared by the date sweep (owned cases) and `calendar_for_user` (the caller's working cases, or one department's
+owned cases for a State-wide reader); one row per (case, date), the cause-list listing preferred because it names the
+court and the item."""
 
 from __future__ import annotations
 
@@ -15,12 +15,12 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import ColumnElement, and_, exists, select
-from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.orm import Session, aliased
 
 from aslms.domain.alerts import NextDate, NextDateSource, ReviewStatus
-from aslms.domain.cases import Case
+from aslms.domain.cases import Case, NextHearingBasis
 from aslms.domain.causelists import CURRENT_LIST, Causelist, CauselistEntry
+from aslms.domain.documents import Order
 from aslms.domain.org import Office, User
 from aslms.domain.ownership import CaseOwnership, OwnershipStatus
 from aslms.domain.reference import Permission
@@ -35,6 +35,14 @@ DEFAULT_RANGE_DAYS = 7
 SOURCE_RANK = {"causelist": 0, "next_date": 1, "current_status": 2}
 NEXT_DATE_SOURCES = (NextDateSource.MANUAL, NextDateSource.ORDER_SPECIFIC, NextDateSource.ORDER_PERIOD)
 NEXT_DATE_OPEN = (ReviewStatus.NOT_NEEDED, ReviewStatus.PENDING, ReviewStatus.CONFIRMED)
+# next-date-direct, decision 10: the bases of the one next hearing that the calendar reads (court dates come from the
+# court's own two sources above)
+VALUE_BASES = (
+    NextHearingBasis.ORDER,
+    NextHearingBasis.AROUND,
+    NextHearingBasis.CONFIRMED,
+    NextHearingBasis.MANUAL,
+)
 
 
 class CalendarError(ValueError):
@@ -49,6 +57,20 @@ class HearingRow:
     court_no: str | None = None
     item_no: str | None = None
     purpose: str | None = None
+    # next-date-direct, decision 10: rows from the case's one next hearing
+    basis: str | None = None
+    approximate: bool = False
+    order_date: date | None = None
+    order_no: str | None = None
+    basis_words: str | None = None
+
+    def value_fields(self) -> dict[str, Any]:
+        return {
+            "basis": self.basis,
+            "approximate": self.approximate,
+            "order_date": self.order_date,
+            "basis_words": self.basis_words,
+        }
 
 
 def owned_case_condition() -> ColumnElement[bool]:
@@ -105,25 +127,50 @@ def hearing_rows(
                 case_id, d, "causelist", court_no=court_no, item_no=printed or str(sr_no), purpose=section
             )
         )
-    latest = (
-        select(NextDate.case_id, NextDate.next_date, NextDate.review_status)
-        .where(NextDate.source.in_(NEXT_DATE_SOURCES), NextDate.review_status.in_(NEXT_DATE_OPEN))
-        .ext(distinct_on(NextDate.case_id))
-        .order_by(NextDate.case_id, NextDate.created_at.desc(), NextDate.id.desc())
-        .subquery()
-    )
-    for case_id, d in session.execute(
-        select(latest.c.case_id, latest.c.next_date)
-        .join(Case, Case.id == latest.c.case_id)
+    from aslms.services import next_date_rules
+
+    for case_id, d, basis, nd, rule, phrase, order_date, order_no in session.execute(
+        select(
+            Case.id,
+            Case.next_hearing_on,
+            Case.next_hearing_basis,
+            NextDate.next_date,
+            Order.next_date_rule,
+            Order.next_date_phrase,
+            Order.order_date,
+            Order.order_no,
+        )
+        .outerjoin(NextDate, NextDate.id == Case.next_hearing_next_date_id)
+        .outerjoin(Order, Order.id == NextDate.order_id)
         .where(
-            latest.c.next_date.between(from_, to),
-            latest.c.review_status != ReviewStatus.PENDING,
+            Case.next_hearing_on.between(from_, to),
+            Case.next_hearing_basis.in_(VALUE_BASES),
             live,
             case_condition,
         )
     ).all():
-        keep(HearingRow(case_id, d, "next_date"))
-    return sorted(found.values(), key=lambda r: (r.date, str(r.case_id)))
+        b = NextHearingBasis(basis)
+        keep(
+            HearingRow(
+                case_id,
+                d,
+                "next_date",
+                basis=b.value,
+                approximate=b == NextHearingBasis.AROUND,
+                order_date=order_date if b != NextHearingBasis.MANUAL else None,
+                order_no=order_no if b != NextHearingBasis.MANUAL else None,
+                basis_words=(
+                    next_date_rules.describe(rule, phrase, order_date, nd)
+                    if b == NextHearingBasis.AROUND
+                    else None
+                ),
+            )
+        )
+    rows = sorted(found.values(), key=lambda r: (r.date, str(r.case_id)))
+    for r in rows:
+        if r.source != "next_date" and r.basis is None:
+            r.basis = "court"
+    return rows
 
 
 def working_condition(session: Session, user: User) -> ColumnElement[bool] | None:
@@ -198,6 +245,7 @@ def calendar_for_user(
                 "purpose": r.purpose,
                 "critical": critical,
                 "this_week": this_week,
+                **r.value_fields(),
             }
         )
     return items
@@ -287,6 +335,7 @@ def my_calendar(
                 "purpose": r.purpose,
                 "source": r.source,
                 "this_week": this_week,
+                **r.value_fields(),
             }
         )
         case_ids.add(r.case_id)

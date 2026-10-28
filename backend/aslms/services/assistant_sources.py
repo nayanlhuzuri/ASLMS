@@ -26,13 +26,12 @@ from typing import Any, Literal
 from sqlalchemy import ColumnElement, String, and_, exists, func, literal, not_, select
 from sqlalchemy.orm import Session, aliased
 
-from aslms.core import clock
 from aslms.domain.cases import Case, CaseAct, CaseAdvocate, CaseHearing, CaseParty, CaseStatus, PartyRole
 from aslms.domain.causelists import Causelist, CauselistEntry
 from aslms.domain.courts import Court
 from aslms.domain.documents import Document, DocumentText, Order, SourcetraceStatus, Visibility
 from aslms.domain.org import User
-from aslms.services import assistant_facts, visibility
+from aslms.services import next_hearing, visibility
 from aslms.services.my_cases import my_cases_condition
 from aslms.services.sourcetrace_ingest import filing_nature, has_cnr, order_nature
 
@@ -157,7 +156,7 @@ def focus_cases(
             )
             .order_by(
                 Case.last_hearing_date.desc().nulls_last(),
-                Case.next_hearing_date.desc().nulls_last(),
+                Case.next_hearing_on.desc().nulls_last(),
                 Case.updated_at.desc(),
                 Case.id,
             )
@@ -271,7 +270,8 @@ def case_details(
     purpose, bench, short order text as held) and the last `listings` listings (list date, list type, bench, court
     number and printed item; rows of a list replaced by a corrected one marked `superseded`). The same tables as
     `case_detail.hearings` and `case_detail.listings`; nothing internal: no owner, recommendation, stage, custody or
-    `ref_no`. Imports no connector. Design `assistant-polish`, decision 6: plus `coram` and `order_next_date`."""
+    `ref_no`. Imports no connector. Design `assistant-polish`, decision 6: plus `coram`; design `next-date-direct`,
+    decision 11: plus `next_hearing` (the case's one next hearing, never a date entered by hand)."""
     out = case_contexts(session, case_ids)
     ids = [c["case_id"] for c in out]
     if not ids:
@@ -341,7 +341,6 @@ def case_details(
                     "superseded": bool(row.superseded),
                 }
             )
-    today = clock.today_ist()
     for c in out:
         c["hearings"] = by_case_h.get(c["case_id"], [])
         c["listings"] = by_case_l.get(c["case_id"], [])
@@ -349,10 +348,10 @@ def case_details(
         # assistant's one next-hearing reader; a manual date is an officer's entry and is never put here
         row = session.get(Case, c["case_id"])
         c["coram"] = (row.coram or "").strip() or None
-        nh = assistant_facts.next_hearing(session, row, today=today)
-        c["order_next_date"] = (
-            {"next_date": nh.next_date, "order_date": nh.order_date} if nh.from_order else None
-        )
+        # design next-date-direct, decision 11: the case's one next hearing; a date entered by hand is an officer's
+        # entry and is never given to the model (assistant-polish, decision 6)
+        nh = next_hearing.describe_case(session, row)
+        c["next_hearing"] = nh if nh is not None and nh.get("basis") != "manual" else None
     return out
 
 

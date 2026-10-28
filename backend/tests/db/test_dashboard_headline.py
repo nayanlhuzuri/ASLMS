@@ -16,7 +16,7 @@ from aslms.domain.workflow import Custody
 from aslms.services import dashboard, my_cases, next_dates
 from aslms.services.reporting_common import ReportConfig
 from tests.db.alerts_support import recommend
-from tests.db.report_support import claim, new_case, next_date, override, row_counts, today
+from tests.db.report_support import claim, new_case, override, row_counts, today
 from tests.db.workflow_support import send
 
 
@@ -37,6 +37,17 @@ def _me(s, world, key: str, **kw) -> dict:
     return dashboard.me_block(s, world.user(s, key), **kw)
 
 
+def _enter_item(s, case):
+    """An order of the case that gives no clear next date: a date to enter (design next-date-direct, decision 2)."""
+    from tests.db import next_dates_support as nds
+
+    order = nds.order_with_text(
+        s, case, "List the matter after the ensuing vacation.", order_date=today() - timedelta(days=1)
+    )
+    nds.read(s)
+    return order
+
+
 def test_headline_figures(world):
     with world.Session() as s:
         for band in (ScoreBand.HIGH, ScoreBand.HIGH, ScoreBand.MEDIUM):
@@ -47,7 +58,7 @@ def test_headline_figures(world):
         _sent(s, world, -1, hearing=9)  # overdue 1 day, hearing beyond the week
         _sent(s, world, 6)
         nd_case = _sent(s, world, None)
-        next_date(s, nd_case, today() + timedelta(days=20))
+        _enter_item(s, nd_case)
         off2 = world.user(s, "edu_off2")
         head = dashboard.me_block(s, off2)["headline"]
         assert head["to_claim"] is None  # an officer holds no cases.claim
@@ -80,7 +91,20 @@ def test_upcoming_lists_my_hearings_of_the_week_in_order(world):
         up = _me(s, world, "edu_off2")["upcoming"]
         assert [i["case"]["id"] for i in up] == [soon.id, late.id]
         assert [i["critical"] for i in up] == [True, False] and all(i["this_week"] for i in up)
-        assert set(up[0]) == {"date", "case", "court_no", "item_no", "critical", "this_week"}
+        assert set(up[0]) == {
+            "date",
+            "case",
+            "court_no",
+            "item_no",
+            "critical",
+            "this_week",
+            # design next-date-direct, decision 10
+            "basis",
+            "approximate",
+            "basis_words",
+            "order_date",
+        }
+        assert up[0]["basis"] == "court" and up[0]["approximate"] is False
         assert len(_me(s, world, "edu_off2", config=ReportConfig(list_size=1))["upcoming"]) == 1
         # another department's officer sees none of these
         assert _me(s, world, "health_off")["upcoming"] == []
@@ -91,7 +115,7 @@ def test_attention_order_and_limits(world):
         old = _sent(s, world, -5, ago_hours=200)
         recent = _sent(s, world, -1, ago_hours=200)
         confirm_case = _sent(s, world, None, ago_hours=300)  # received 12.5 days ago: not "received" now
-        nd = next_date(s, confirm_case, today() + timedelta(days=20))
+        _enter_item(s, confirm_case)
         due = _sent(s, world, 1, ago_hours=200)
         later = _sent(s, world, 20, ago_hours=5)  # due far ahead, received 5 hours ago
         newest = _sent(s, world, None, ago_hours=1)
@@ -108,7 +132,8 @@ def test_attention_order_and_limits(world):
         assert att[0]["overdue_days"] == 5 and att[0]["detail"] == "Overdue 5 days"
         assert att[0]["title"] == "Parawise comments" and att[0]["date"] == today() - timedelta(days=5)
         assert att[1]["detail"] == "Overdue 1 day"
-        assert att[2]["next_date_id"] == nd.id and att[2]["date"] == nd.next_date
+        assert att[2]["next_date_id"] is None and att[2]["date"] == today() + timedelta(days=29)
+        assert att[2]["title"] == "Next date to enter" and att[2]["detail"] == "The order gives no clear date"
         assert att[2]["pending_action"] is None
         assert att[3]["detail"] == "Due tomorrow" and att[3]["overdue_days"] == 0
         sender = world.user(s, "edu_off1").full_name
@@ -163,7 +188,7 @@ def test_the_headline_writes_nothing(world):
     with world.Session() as s:
         _sent(s, world, -1, hearing=2)
         nd_case = _sent(s, world, None)
-        next_date(s, nd_case, today() + timedelta(days=20))
+        _enter_item(s, nd_case)
         s.commit()
         before = row_counts(s)
         for key in ("edu_off2", "edu_admin", "oversight", "health_off"):
@@ -204,20 +229,20 @@ def test_the_api_answers_the_headline(world):
 
 
 def test_attention_lists_a_confirm_case_once(world):
-    """A case with a next date to confirm and a file received within 7 days gives one `confirm_next_date` row
+    """A case with a next date to enter and a file received within 7 days gives one `confirm_next_date` row
     and no `file_received` row."""
     with world.Session() as s:
         case = _sent(s, world, None, ago_hours=2)
-        next_date(s, case, today() + timedelta(days=20))
+        _enter_item(s, case)
         att = [(i["kind"], i["case"]["id"]) for i in _me(s, world, "edu_off2")["attention"]]
         assert att == [("confirm_next_date", case.id)]
 
 
 def test_attention_keeps_overdue_and_confirm_on_one_case(world):
-    """An overdue file action and a next date to confirm on the same case are two things to do: both stay; the
+    """An overdue file action and a next date to enter on the same case are two things to do: both stay; the
     file received on it gives way."""
     with world.Session() as s:
         case = _sent(s, world, -2, ago_hours=2)
-        next_date(s, case, today() + timedelta(days=20))
+        _enter_item(s, case)
         att = [(i["kind"], i["case"]["id"]) for i in _me(s, world, "edu_off2")["attention"]]
         assert att == [("overdue_action", case.id), ("confirm_next_date", case.id)]

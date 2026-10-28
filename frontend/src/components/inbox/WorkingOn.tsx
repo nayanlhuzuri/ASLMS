@@ -123,7 +123,7 @@ function WorkingAll({ params, counts }: { params: Params; counts: MyCaseCounts |
       cell: (r) => <LeadCell badge={leadBadge(r, "working")} />,
     },
     { key: "case", header: T.files.case, primary: true, cell: (r) => <CaseCell c={r.case} /> },
-    { key: "next", header: T.inbox.nextHearingCol, cell: (r) => <HearingDate date={r.case.next_hearing_date} status={r.case.status} /> },
+    { key: "next", header: T.inbox.nextHearingCol, cell: (r) => <HearingDate next={r.case.next_hearing} status={r.case.status} /> },
     {
       key: "action",
       header: T.files.action,

@@ -282,16 +282,14 @@ def test_quick_fact_equals_case_page(world, case_id, store):
             case = s.get(Case, cid)
             page = case_detail.overview(s, user, case)
             nh = af.next_hearing(s, case, today=today)
-        court = page["status"]["next_hearing_date"]
-        from_orders = (page["next_date_from_orders"] or {}).get("next_date")
-        assert nh.court_date == court, name
-        assert nh.next_date == from_orders, name
+        # row 199: the quick fact answers from the case's one next hearing, the value the header shows
+        shown = (page["next_hearing"] or {}).get("date")
+        assert nh.court_date == page["status"]["next_hearing_date"], name
+        assert nh.date == shown, name
         if name == "disposed":
             assert af.plain_date(case.disposal_date) in text, (name, text)
             continue
-        for d in (court, from_orders):
-            if d is not None:
-                assert af.plain_date(d) in text, (name, text)
+        assert shown is not None and af.plain_date(shown) in text, (name, text)
         assert text.endswith("[S1]."), text
 
 
@@ -328,7 +326,7 @@ def test_quick_fact_rereads_under_reader(world, case_id):
     assert out["citations"][0]["available"] is False and out["citations"][0]["context"] is None
 
 
-def test_order_next_date_given_to_the_model_never_manual(world, case_id, store):
+def test_the_one_next_hearing_given_to_the_model_never_manual(world, case_id, store):
     today = clock.today_ist()
     with world.Session() as s:
         case = s.get(Case, case_id)
@@ -342,11 +340,11 @@ def test_order_next_date_given_to_the_model_never_manual(world, case_id, store):
             order=order,
         )
         s.commit()
-        expected = af.plain_date(af.next_hearing(s, case, today=today).next_date)
+        expected = af.plain_date(af.next_hearing(s, case, today=today).date)
     conn = _conn(world)
     _ask(world, "edu_admin", "what did the court direct on these matters", case_id, conn)
     sent = conn.fake.chats[0]["messages"][-1]["content"]
-    assert f"Next date from the order of 12 Mar 2026: {expected}" in sent
+    assert f"Next hearing: {expected} (order of 12 Mar 2026)" in sent
     assert "Coram: HON'BLE MR. JUSTICE QUOKKA" in sent
     # a manual date is an officer's entry: never given to the model
     with world.Session() as s:
@@ -359,4 +357,4 @@ def test_order_next_date_given_to_the_model_never_manual(world, case_id, store):
     conn2 = _conn(world)
     _ask(world, "edu_admin", "what did the court direct on these matters", case_id, conn2)
     sent2 = conn2.fake.chats[0]["messages"][-1]["content"]
-    assert manual not in sent2 and "entered in ASLMS" not in sent2 and "Next date from the order" not in sent2
+    assert manual not in sent2 and "entered by hand" not in sent2
