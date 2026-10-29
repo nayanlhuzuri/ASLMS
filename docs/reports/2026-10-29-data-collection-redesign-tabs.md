@@ -29,3 +29,10 @@ See the final result of the integrator run: `main` and tag `feature/data-collect
 
 ## Load status
 `aslms queue-status` answered after the merge: order_pdf 163086 done and 226529 pending, status_batch 1567 done, masters 1 done, dossier rows skipped 70 (excerpt; the historical load continues in the shared worker).
+
+## Deploying
+Screen check on a private network against a `web` built from the merged tree (the shared stack untouched):
+467 passed, 0 findings (147 routes and states). CI on `main` passed (run 40841538447).
+
+Deployed on 29 Oct 2026 at 14:38 IST (no migration): images built, `up` with the court-data switch (checked true
+in api and worker), `portal_smoke.py` passed.
