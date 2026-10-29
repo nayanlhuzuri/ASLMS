@@ -2,10 +2,10 @@
 
 ```
 slug: case-inbox-simplify
-status: awaiting-approval
+status: approved
 author: architect
 date: 2026-10-29
-approved_by:
+approved_by: owner on 2026-10-29
 ```
 
 ## Context
@@ -17,14 +17,37 @@ overlap:
 - a case with me after disposal is in Working On and in Disposed;
 - Department Cases and Pending Action both list the department's cases, under different functions.
 
-The owner approved this four-tab shape, which is the scope:
+The owner approved this four-tab shape, then the decisions of this note, on 29 Oct 2026:
 
 | Tab | Answers | Replaces | Who sees it |
 |---|---|---|---|
-| **With Me** | What do I have to do now? The cases with me, most urgent due date first, with the action asked and who sent it. The count is on the tab. | Working On's "Show: With Me / With My Offices" | every case reader |
-| **My Cases** | Which cases am I connected to? Every case assigned to me or to a unit under my membership, claimed by me or through a transfer I accepted, or with me. Each row has a badge saying why. Active / Disposed switch, default Active. | Working On, Claimed by Me, Disposed | holders of `cases.view_scope` |
+| **With Me** | What do I have to do now? Every case with me, whatever the court status, most urgent due date first, with the action asked and who sent it. The count is on the tab. | Working On's "Show: With Me / With My Offices" | every case reader |
+| **My Cases** | Which cases am I connected to? Every case assigned to me or to a unit under my membership, claimed by me or through a transfer I accepted, or with me. Each row has a badge saying why. Active and court-disposed cases are listed together, disposed after active, with no status switch. | Working On, Claimed by Me, Disposed | holders of `cases.view_scope` |
 | **Sent by Me** | What did I send that is still out? Overdue first, with Show Earlier for the full history. | Sent by Me (today it shows everything) | every case reader |
-| **Department** | The department's cases, Active / Disposed, with the quick filters Overdue and With Another Office. | Department Cases, Pending Action | heads, claimers, trackers and State-wide readers (today's rules for both tabs) |
+| **Department** | The department's cases, active and court-disposed together with disposed after active and no status switch, with the quick filters Overdue and With Another Office. | Department Cases, Pending Action | heads, claimers, trackers and State-wide readers (today's rules for both tabs) |
+
+**There is no Disposed switch or tab anywhere in this row** (owner, 29 Oct 2026).
+- In the department's terms a case is **Open** or **Closed**. A court-disposed case is still open until an officer
+  closes it.
+- Closed arrives only with **row 207 `close-case`**, which follows this row with its own design and migration.
+- Until then, a disposed row is told apart by the existing **Disposed** badge: `HearingDate` already reads "Disposed"
+  for a disposed case.
+- Row 207 adds an Open / Closed switch to My Cases and Department, and takes a closed case out of With Me.
+
+**Row 207 `close-case`, recorded here so this row leaves room for it** (owner's rules, 29 Oct 2026; **row 206 builds
+none of it**):
+- **The function.** Close Case is a new grantable function. By default it belongs to department heads and department
+  officers.
+- **Who may close.**
+  - The officer the file is with may close the case.
+  - The department head may close it.
+  - The head also closes a file that sits with the department, or with one of its units, with no named officer.
+- **Which cases.** Only claimed cases, and only when the court's status is disposed.
+- **Closing itself.**
+  - A remark is required. It is saved as an append-only note, with an audit row and a timeline event.
+  - Closing ends the file's movement and clears the pending action.
+- **Reopening.** There is no manual reopen. The case reopens only when the court's status changes from disposed, with
+  an alert to the department.
 
 The owner also added a small portal fix to the same build (29 Oct 2026, section E). On the case page, "More" in the tab
 bar opens its menu inside the bar, so only the first item shows and the button's focus outline is cut off.
@@ -35,29 +58,36 @@ bar opens its menu inside the bar, so only the first item shows and the button's
 - `frontend/src/components/inbox/`:
   - `InboxFrame.tsx`: the tabs, the counts and the `InboxIndex` redirect;
   - `WorkingOn.tsx` and `MyCases.tsx`: the `/inbox/mine` lists;
-  - `DepartmentCases.tsx`: `/inbox/claimed` on Layout B, with the `holder` and `action` selects under More Filters;
+  - `DepartmentCases.tsx`: `/inbox/claimed` on Layout B, with an Active / Disposed `SegmentedSwitch` and the `holder`
+    and `action` selects under More Filters;
   - `Redirects.tsx`: `Redirect`, `redirectTarget` and `ClaimedRedirect`.
 - `frontend/src/components/files/`: `Held.tsx` (scopes `me`, `office` and `owned`), `Sent.tsx` and
   `TrackingSummary.tsx`.
 - **`GET /inbox/mine`** (`services/my_cases.py`):
   - views `working`, `files`, `claimed` and `disposed`;
   - every row already carries `reasons`, a list drawn from `allotted`, `file` and `claimed`;
-  - `claimed` is active only; `disposed` is the disposed cases of all three sets;
+  - no view gives all three sets whatever the status;
   - `/inbox/mine/counts` returns all four figures.
 - **`GET /custody/held`**:
   - `scope=me|office|owned`, `overdue`, `holder_department` and the shared filters;
+  - no status rule, so a disposed case with me is listed;
   - ordered by due date, then since;
   - each item carries the custody card, with the remark when `shows_remark` allows it.
 - **`GET /custody/sent`**:
   - every leg the caller wrote (`sent` and `recalled`), newest first;
   - `visible`, and `current`, which is null when the caller can no longer open the case (row 135, decision 20);
   - no "still out" filter.
-- **`GET /inbox/claimed`**: `case_state=active|disposed|all`, `holder=department|elsewhere` (the file is held outside
-  the department's subtree), `action=overdue|due_week` (the file's due date has passed with an action pending) and the
-  shared filters. It is ordered by next hearing.
+- **`GET /inbox/claimed`**:
+  - `case_state=active|disposed|all`; no portal screen sends `all` today;
+  - `holder=department|elsewhere` (the file is held outside the department's subtree);
+  - `action=overdue|due_week` (the file's due date has passed with an action pending);
+  - the shared filters;
+  - ordered by next hearing, then claimed-on newest first.
+
+  `/inbox/counts` gives `claimed_active` and `claimed_disposed` per department.
 - **Dashboard figures.**
-  - The headline "Cases with Me" counts the custody rows held by me on visible cases. A merged case never holds custody:
-    `case_dedupe.merge_provisional` refuses a case that has portal records.
+  - The headline "Cases with Me" counts the custody rows held by me on visible cases, whatever the status. A merged case
+    never holds custody: `case_dedupe.merge_provisional` refuses a case that has portal records.
   - "Overdue Actions" counts the same rows with an action pending and a due date before today. A due date only exists
     on a send, and a send always names an action (`workflow_common.pending_action`, `check_due`).
 - **Links into the tabs.**
@@ -72,6 +102,7 @@ bar opens its menu inside the bar, so only the first item shows and the button's
 - Case Claim (Recommended, Unclaimed Pool, Transfers to Us).
 - Server-side visibility and the functions.
 - The case page itself, apart from section E.
+- Closing a case (row 207).
 - Sorting on the case lists. That is row 179, approved; decision 21 says how it maps onto the new tabs.
 
 ## Decisions
@@ -83,9 +114,9 @@ bar opens its menu inside the bar, so only the first item shows and the button's
    | Tab | Route | Shows when (display only; the API decides) | Data |
    |---|---|---|---|
    | With Me | `/inbox/with-me` (new) | `cases.view_scope` or `cases.view_all` (the `/custody/held` gate) | `GET /custody/held?scope=me`, or `scope=office` under "With My Offices" |
-   | My Cases | `/inbox/my-cases` (new) | `cases.view_scope` | `GET /inbox/mine?view=active` or `view=disposed` |
+   | My Cases | `/inbox/my-cases` (new) | `cases.view_scope` | `GET /inbox/mine?view=all` (decision 4) |
    | Sent by Me | `/inbox/sent` (kept) | `cases.view_scope` or `cases.view_all` | `GET /custody/sent?still_out=true`, or without it under Show Earlier |
-   | Department | `/inbox/department` (kept) | `cases.view_all`, or a `/inbox/counts` block with `whole_department`, or `tracksDepartment(me)` | `GET /inbox/claimed` (decision 9); the `scope=owned` list for a tracker without whole-department sight (decision 11) |
+   | Department | `/inbox/department` (kept) | `cases.view_all`, or a `/inbox/counts` block with `whole_department`, or `tracksDepartment(me)` | `GET /inbox/claimed?case_state=all` (decision 9); the `scope=owned` list for a tracker without whole-department sight (decision 11) |
 
    - `INBOX_TABS` becomes `with-me`, `mine`, `sent` and `department`. `inboxTabsFor(me, { whole })` follows the table.
    - `/inbox` opens the first tab the login may open (With Me), or `/search` when there is none.
@@ -102,28 +133,28 @@ bar opens its menu inside the bar, so only the first item shows and the button's
      (`held=offices`, `scope=office`). An incoming `held=me` is the default.
    - "Overdue Only" stays (`overdue=true`).
    - **A Next Hearing column with the `HearingDate` badge is added** after Case. Working On had it, and the held items
-     already carry `case.next_hearing` and `case.status`. That makes seven columns, which fit at 1280 px as Working On's
-     seven did.
-   - Every case with me is listed, whatever its status (decision 5).
+     already carry `case.next_hearing` and `case.status`. So a disposed case reads "Disposed" there. That makes seven
+     columns, which fit at 1280 px as Working On's seven did.
    - Alternative: read `/inbox/mine?view=files`. Refused, because it has no "my offices" scope and its rows carry no
      remark for the panel.
 3. **The count on With Me, and the sidebar pill, is `/inbox/mine/counts`.`files`.** That count is "held by me, visible,
-   not merged". It equals `GET /custody/held?scope=me` `total` and the dashboard's "Cases with Me" figure, and a test
-   pins both equalities.
+   not merged, whatever the status". It equals `GET /custody/held?scope=me` `total` and the dashboard's "Cases with Me"
+   figure, and a test pins both equalities.
    - This changes case-inbox-merge decision 10, where the pill was the Working On count. Now the pill counts the work
-     waiting on the person.
+     waiting on the person. The owner approved this on 29 Oct.
    - My Cases, Sent by Me and Department show no count on the tab. The owner put the count on With Me, and the other
-     three are lists to browse, not queues. My Cases shows "n cases" or "n of m cases" in its own count line, where m is
-     the `active` or `disposed` figure.
+     three are lists to browse, not queues.
+   - My Cases shows "n cases", or "n of m cases" when filtered, in its own count line, where m is the new `all` figure.
    - The Pending Action figure (the sum of `held` over `/custody/summary`) leaves the tab strip.
    - Alternative: counts on all four tabs. Refused, because four numbers bring back the noise the owner complained of.
-4. **My Cases reads one new view, `view=active`.** The view is `(allotted OR file OR claimed) AND status in (pending,
-   unknown)`, the active mirror of today's `disposed` view.
-   - The Active / Disposed switch (`SegmentedSwitch`, the URL key `case_state=disposed`, the same key as Department)
-     picks `view=active` or `view=disposed`. The default is Active.
-   - `/inbox/mine/counts` gains `active`.
-   - The order is today's default for the non-working views: next hearing, then the file's due date, then case number.
-   - **The badges come from the existing `reasons`, in this order:**
+4. **My Cases reads one new view, `view=all`, with no status switch.**
+   - The view is `allotted OR file OR claimed`, whatever the court status.
+   - **The order puts active cases first, disposed after them** (`Case.status = disposed` sorts last). Inside each
+     group it keeps the existing default order: next hearing, then the file's due date, then case number, then id.
+   - `/inbox/mine/counts` gains `all`.
+   - A disposed row carries the existing Disposed badge through `HearingDate` in the Next Hearing column, on the table
+     and on the phone card.
+   - **The connection badges come from the existing `reasons`, in this order:**
      - `allotted` reads **Assigned to Me**;
      - `claimed` reads **Claimed by Me**;
      - `file` reads **With Me** (decision 17).
@@ -134,7 +165,7 @@ bar opens its menu inside the bar, so only the first item shows and the button's
      (`claimed_conditions(…, whole=False)`), so both read "Assigned to Me".
    - **The other columns:**
      - Stage;
-     - Next Hearing (`HearingDate`);
+     - Next Hearing (`HearingDate`, which says Disposed for a disposed case);
      - Your Action, filled only when the case is with me;
      - the chevron.
 
@@ -142,22 +173,22 @@ bar opens its menu inside the bar, so only the first item shows and the button's
    - **The controls:**
      - the quick chip "Hearing This Week";
      - Stage;
-     - the shared filters of `LIST_FILTERS.mine`, with Search Words on the first row (row 175);
-     - `case_state` is added to `mine.fixed`, so Clear All keeps the switch.
+     - the shared filters of `LIST_FILTERS.mine`, with Search Words on the first row (row 175).
 
-     "Action Overdue" leaves My Cases, because overdue work is With Me's.
-   - The `working`, `files` and `claimed` views stay in the API for compatibility. The portal reads only the `files`
-     count, and row 189's My Work questions read the services, not the views.
+     There is no `case_state` control, and "Action Overdue" leaves My Cases, because overdue work is With Me's.
+   - The `working`, `files`, `claimed` and `disposed` views stay in the API for compatibility. The portal reads only the
+     `files` count from them. Row 189's My Work questions read the services, not the views.
+   - Row 207 adds an Open / Closed switch here.
+   - Alternative: an Active / Disposed switch. Refused by the owner: disposed is a court status, and the department's
+     own Open / Closed comes with row 207.
    - Alternative: a reason filter (All / Assigned / Claimed / With Me). Refused, because the owner asked for badges, not
-     another control. It can be added later without an API change beyond one parameter.
-5. **Where a disposed case with me goes now** (case-inbox-merge decision 3, the owner's choice of 25 Oct, "a case with
-   me stays in Working On after disposal").
-   - It is in **With Me**, because the held list has no status rule. The holder keeps the pending action in sight, which
-     is what decision 3 protected.
-   - It is also in **My Cases → Disposed**, with the With Me badge.
-   - It is not in My Cases → Active.
-   - **This is a change to an owner decision, flagged for approval.** Decision 3's purpose is kept, but under a
-     different tab.
+     another control.
+5. **A disposed case with me stays in With Me** (owner, 29 Oct 2026). The held list has no status rule, so every case
+   with me is listed whatever the court status, with the Disposed badge, and the With Me count includes it.
+   - The owner's reason: closing is the officer's responsibility, and the case leaves With Me once it is closed
+     (row 207).
+   - The case is also in My Cases, among the disposed rows, with the With Me badge.
+   - This matches case-inbox-merge decision 3 (25 Oct 2026). **No deviation.**
 6. **Sent by Me shows the files still out by default.** One additive filter is added: `GET /custody/sent?still_out=true`
    (decision 12).
    - A leg is still out when all four of these hold:
@@ -171,63 +202,72 @@ bar opens its menu inside the bar, so only the first item shows and the button's
    - The lead badge (Overdue, Due soon, Waiting), the columns, the side panel with the sender's own remark and the
      filter bar are unchanged.
    - Alternative: filter in the browser on `current`. Refused, because paging and the total would be wrong.
-7. **A send on a case the sender can no longer open is not "still out".** Row 135, decision 20 (owner, 23 Oct 2026)
-   says the sender who lost sight learns nothing about where the case went. Listing such a leg as still out would reveal
-   that the recipient has not moved it.
+7. **A send on a case the sender can no longer open is not "still out"** (owner, 29 Oct 2026, as recommended). Row 135,
+   decision 20 (owner, 23 Oct 2026) says the sender who lost sight learns nothing about where the case went.
    - Such legs appear only under Show Earlier, as today: the number is plain text and there is no badge.
    - Who loses sight on sending? Mostly an officer who held the case only through its custody, for example a
      directorate returning parawise comments. Heads, claimers and assigned officers keep sight through the ownership
      basis, so their sends are listed.
    - `CustodyDialogs` therefore goes to **`/inbox/sent?earlier=true`** after a send that loses sight. The just-sent leg
      is then the first row, under the notice. The default list would not show it.
-   - **Flagged:** this keeps decision 20 over a literal reading of "files I sent that are still out". The owner may
-     relax decision 20 at approval. That would be a visibility change, and this note does not make it.
 8. **Department keeps today's rules for who sees it.** The rules are `cases.view_all`, or the server's whole-department
    reading of the selected department (`cases.claim` or `cases.allot` in the membership), or `custody.track` in a
    department membership (`tracksDepartment`). This is the union of today's Department Cases and Pending Action rules.
    - It includes State-wide readers (Auditor, State Oversight, Central Operator), because today's Department Cases rule
-     includes them. The owner's "heads, claimers and trackers" describes the department users. The State readers are
-     kept, not added.
-   - Alternative: drop the State-wide readers. Refused, because they would lose the only per-department case list they
-     have today. That would be a visibility change, and the owner said visibility does not change.
-9. **Department, for a whole-department or State-wide reader, is today's `DepartmentCases`.**
-   - It keeps the department selector, the Active / Disposed switch, Layout B with Search Words as the hero, Unit,
-     Officer, Stage and Next Hearing, and the More Filters.
+     includes them.
+   - Alternative: drop the State-wide readers. Refused, because that would be a visibility change, and the owner said
+     visibility does not change.
+9. **Department, for a whole-department or State-wide reader, is `DepartmentCases` without its status switch.**
+   - **The Active / Disposed `SegmentedSwitch` is removed.**
+     - The page always sends `case_state=all`, which the API already accepts.
+     - `case_state` leaves `LIST_FILTERS.department.fixed`.
+     - An incoming `case_state` in an old link is ignored.
+     - The API parameter stays for compatibility.
+   - The list shows the department's active and disposed cases together, with active first (decision 13). Disposed rows
+     show the Disposed badge through `HearingDate`.
+   - The unfiltered m of "n of m" is `claimed_active + claimed_disposed` of the selected `/inbox/counts` block. A test
+     pins that it equals the `case_state=all` total.
+   - It keeps the department selector, Layout B with Search Words as the hero, Unit, Officer, Stage and Next Hearing,
+     and the More Filters.
    - It gains a **Quick Filters** chip row above the filter bar:
      - **Overdue** toggles the existing `action=overdue`;
      - **With Another Office** toggles the existing `holder=elsewhere`.
 
      The selects under More Filters edit the same keys, so a chip and its select always agree.
-   - No new API filter is needed: both already exist on `/inbox/claimed`.
-10. **"With Another Office" means "held outside this department and its units".** This is the existing
-    `holder=elsewhere` rule, approved in round 2 (row 102).
+   - No new API filter is needed.
+   - Row 207 adds an Open / Closed switch here.
+10. **"With Another Office" means "held outside this department and its units"** (owner, 29 Oct 2026, as
+    recommended). This is the existing `holder=elsewhere` rule, approved in round 2 (row 102).
     - The chip's hint reads "Outside this department and its units."
     - The More Filters option for `elsewhere` is relabelled from "Another Department" to **"Another Office"**, so one
-      value has one name. A holder outside the department may be any office: another department or a State office.
-    - Alternative: "anywhere but the department's own office", which would count files with its directorates and units
-      too. Refused, because it needs a new `holder` value, and a file with the department's own unit is not "out".
-      **The owner may choose it at approval.** It would be one new `holder` value.
+      value has one name.
+    - Alternative: "anywhere but the department's own office". Refused, because a file with the department's own unit
+      is not "out".
 11. **A tracker without whole-department sight sees today's Pending Action list under Department.** By default every
     holder of `custody.track` (Department Head, Department Administrator) also holds `cases.claim` and `cases.allot`.
     Only a per-user override can make a tracker who is not whole-department.
     - For such a login, the selected department's Department tab renders the existing `Held tab="pending"`
-      (`/custody/held?scope=owned`), narrowed to that department through its `owner` filter. Its Overdue chip uses the
-      same URL key `action=overdue`, which this list sends as `overdue=true`.
+      (`/custody/held?scope=owned`, which has no status rule), narrowed to that department through its `owner` filter.
+      Its Overdue chip uses the same URL key `action=overdue`, which this list sends as `overdue=true`.
     - Nothing that login sees today is lost.
     - Alternative: show "not found". Refused, because it would remove access the function grants today.
 12. **The tracking summary moves into Department, folded.** For a login that tracks the selected department, a closed
     `Collapsible` "Tracking Summary" holds that department's `DepartmentSummary` (held, due soon, overdue, by holder
     department, by holder), read from the `/custody/summary` call `InboxFrame` already makes for trackers.
     - Non-trackers make no `/custody/summary` request, as today.
-    - Alternative: drop it, since the dashboard and the Pending Actions report show counts. Refused, because the
-      by-holder tables appear only here and in the report export.
-13. **With Overdue on, the most overdue file comes first.** `/inbox/claimed` orders by the file's due date first
-    (ascending, nulls last), then today's next-hearing order, **when `action` is set**. That keeps Pending Action's
-    order inside Department.
-    - Without `action`, the order is unchanged.
-    - An explicit `sort` from row 179, when it lands, wins.
-    - Alternative: keep the next-hearing order. Refused, because a head opening Overdue wants the oldest delay at the
-      top.
+    - Alternative: drop it. Refused, because the by-holder tables appear only here and in the report export.
+13. **Department's order: active first, then the most overdue file when Overdue is on.** `/inbox/claimed` with
+    `case_state=all` orders by:
+    1. `Case.status = disposed` last;
+    2. **when `action` is set**, the file's due date, ascending, nulls last;
+    3. `Case.next_hearing_on`, ascending, nulls last;
+    4. `claimed_at`, newest first.
+
+    - `case_state=active` and `disposed` without `action` keep today's order exactly.
+    - No portal screen sends `case_state=all` today, so no consumer changes.
+    - An explicit `sort` from row 179, when it lands, wins after the active-first key.
+    - Alternative: next-hearing order only. Refused, because disposed cases with a stale next date would mix into the
+      active ones, and a head opening Overdue wants the oldest delay at the top.
 14. **Department rows still open the case page.** Pending Action's side panel with the remark is not carried over; the
     case page shows the remark under the same rule.
     - The Reports line becomes "The live list of your department's cases is under Case Inbox:", linking to
@@ -239,7 +279,8 @@ bar opens its menu inside the bar, so only the first item shows and the button's
 
 15. **Old addresses redirect in one hop, keeping the query string.** They are client redirects, as today. A pure
     function `oldInboxTarget(path, params)` in `routes.ts` serves the redirects that depend on the query; the static maps
-    serve the rest. Every target is final: none is itself in a redirect map.
+    serve the rest. Every target is final: none is itself in a redirect map. A `case_state` carried by an old address is
+    kept in the URL and ignored by both tabs.
 
     | Old address | Goes to |
     |---|---|
@@ -248,7 +289,7 @@ bar opens its menu inside the bar, so only the first item shows and the button's
     | `/inbox/working?overdue=true` or `?action=overdue` | `/inbox/with-me?overdue=true` (`action` dropped) |
     | `/inbox/working` (anything else) | `/inbox/my-cases` (`held` and `overdue` dropped; `q`, `next`, `stage` and the shared filters kept) |
     | `/inbox/claimed-by-me` | `/inbox/my-cases` |
-    | `/inbox/disposed` | `/inbox/my-cases?case_state=disposed` |
+    | `/inbox/disposed` | `/inbox/my-cases` (disposed cases are listed after the active ones) |
     | `/inbox/pending`, `/files/department`, `/cases/pending` | `/inbox/department`, with `overdue=true` read as `action=overdue`, and `owner=X` read as `department=X` when no `department` is given (`holder_department` stays and is ignored) |
     | `/inbox/claimed` (`ClaimedRedirect`) | `/inbox/department` for a whole-department reader, else `/inbox/my-cases` |
     | `/inbox/files`, `/files`, `/files/mine`, `/cases/with-me` | `/inbox/with-me` |
@@ -276,38 +317,38 @@ bar opens its menu inside the bar, so only the first item shows and the button's
     | `CustodyDialogs.tsx`, after a send that loses sight | `/inbox/sent` | `/inbox/sent?earlier=true` (decision 7) |
     | `PortalShell.tsx`, the Case Inbox pill | `mine.working` | `mine.files` (decision 3) |
 
-    - The department "Pending Actions" KPI counts the files of every case the department owns, disposed ones included.
-      Department opens on Active, so the figures can differ by the department's disposed cases that still hold a
-      custody row. The KPI's label and figure are unchanged.
+    - The department "Pending Actions" KPI counts the files of every case the department owns, disposed included.
+      Department now lists active and disposed together, so the list holds every case behind the figure.
     - **Alerts, the bell and e-mails need no change.** They link to case pages and tickets only.
 
 ### C. Wording
 
-17. **The wording guards win over two of the owner's labels. This conflict is flagged for approval.**
-    - The owner's shape says "File With Me" and "File With Another Office".
-    - The custody-sense "file" guard (row 135, case-workspace-admin decision 6, owner 23 Oct 2026) denies `/file (is
-      )?with/i` in every `messages.ts` value and in component text, with no allow-list for this sense.
-    - The coordinator's brief says to follow the existing guards.
-    - So the badge reads **"With Me"**, matching the tab, and the chip reads **"With Another Office"**. The meaning is
-      the same.
+17. **The wording guards win over two of the owner's first labels** (owner, 29 Oct 2026, as recommended).
+    - The custody-sense "file" guard (row 135, case-workspace-admin decision 6) denies `/file (is )?with/i` in every
+      `messages.ts` value and in component text.
+    - So the badge reads **"With Me"** and the chip reads **"With Another Office"**, in place of "File With Me" and
+      "File With Another Office".
     - Alternative: allow-list both labels. Refused, because it would reopen the eOffice vocabulary the owner removed.
 18. **New and changed user text**, all in Title Case under the existing helper and both guards.
     - **Tabs:** "With Me", "My Cases", "Sent by Me" and "Department". `T.tabs.inbox` loses `working`, `claimed`,
       `disposed` and `pending`.
-    - **Badges:** "Assigned to Me", "Claimed by Me" and "With Me", with the column header "Reason".
+    - **Badges:** "Assigned to Me", "Claimed by Me" and "With Me", with the column header "Reason". The Disposed badge is
+      `HearingDate`'s existing text.
     - **Controls:**
       - Show: "With Me" and "With My Offices";
       - "Show Earlier";
       - Quick Filters: "Overdue" and "With Another Office";
-      - "Tracking Summary";
-      - Active and Disposed reuse `T.inbox.caseStates`.
+      - "Tracking Summary".
     - **Empty states:**
-      - My Cases, Active: "Cases assigned to you, cases you claimed and cases sent to you appear here.";
+      - My Cases: "Cases assigned to you, cases you claimed and cases sent to you appear here.";
       - Sent by Me, still out: "Nothing you sent is still out. Tick Show Earlier to see everything you sent and
         recalled.";
-      - With Me reuses `T.files.emptyMine` and `emptyOffices`.
+      - With Me reuses `T.files.emptyMine` and `emptyOffices`;
+      - Department keeps `T.inbox.emptyViews.department`.
     - **Other text:** the hint "Outside this department and its units."; `T.inbox.holders.elsewhere` "Another Office";
       the Reports line of decision 14.
+    - **Removed:** `T.inbox.emptyViews.working`, `claimed` and `disposed`. Department's switch no longer uses
+      `T.inbox.caseStates`. The strings stay only if another screen reads them.
     - No eOffice words, and no "allot". The page header and subtitle are unchanged.
 
 ### D. Plan and earlier decisions
@@ -318,25 +359,27 @@ bar opens its menu inside the bar, so only the first item shows and the button's
     - Plan §5.7's custody card and tracking keep every function: With Me, the tracking summary in Department, and the
       Pending Actions report.
     - **No deviation from the plan.** Recommend-and-claim, visibility, the remark rule and the functions are untouched.
-20. **Earlier decisions this note changes, each flagged above:**
-    - case-inbox-merge decision 3: a disposed case with me now sits in With Me and in My Cases → Disposed (decision 5);
-    - case-inbox-merge decision 7: six tabs become four, and the Claimed by Me tab gives way to the badge;
+20. **Earlier decisions this note changes, all approved by the owner on 29 Oct 2026:**
+    - case-inbox-merge decision 7: six tabs become four, and the Claimed by Me and Disposed tabs give way to the badges
+      and the Disposed badge;
     - case-inbox-merge decision 8: Working On's "Show: All" goes; With Me and With My Offices remain (decision 2);
     - case-inbox-merge decision 10: the pill counts With Me (decision 3);
+    - portal-ui-redesign round 2: Department Cases' Active / Disposed switch goes (decision 9);
     - the owner's own "File With …" labels are worded "With …" (decision 17).
 
     These are kept as they are:
+    - case-inbox-merge decision 3 (decision 5);
     - case-workspace-admin decision 20 (decision 7);
     - the portal-ui-polish-2 Layout B rules (decision 9).
 21. **Row 179 (sorting on the case lists, approved) maps onto the new tabs.** If this row merges first, row 179's lists
     C1 to C5 become:
     - With Me: `/custody/held`, default `due`;
-    - My Cases: `/inbox/mine` with `view=active|disposed`, today's order;
+    - My Cases: `/inbox/mine?view=all`, today's order after the active-first key;
     - Sent by Me: `/custody/sent`, default `due` with `still_out=true`, and `sent` desc under Show Earlier;
-    - Department: `/inbox/claimed`, default `next_hearing`, or `due` with `action`.
+    - Department: `/inbox/claimed?case_state=all`, active first, then `next_hearing`, or `due` with `action`.
 
     The scribe adds this note to row 179's pointer note. If row 179 merges first, this row keeps its sort controls on
-    the four tabs.
+    the four tabs, after the active-first key.
 
 ### E. The case page's More menu (owner, 29 Oct 2026; a portal fix in the same build)
 
@@ -393,18 +436,21 @@ bar opens its menu inside the bar, so only the first item shows and the button's
 
 ## Data
 None. No table, column, reference code or migration. Every list reads existing tables through existing services.
-`alembic heads` is unchanged.
+`alembic heads` is unchanged. Row 207 brings its own migration; this row adds nothing for it.
 
 ## Services
 **`backend/aslms/services/my_cases.py`** (read-only):
-- `VIEWS` gains `"active"`.
-  - `_view_set(c, "active")` is `or_(c.allotted, c.file, c.claimed)`.
-  - `_state("active")` is `_active()`.
-  - The error text becomes "view is one of working, files, active, claimed, disposed".
-- `mine(view="active")` uses the default order branch: next hearing, then due date, then case number, then id.
+- `VIEWS` gains `"all"`.
+  - `_view_set(c, "all")` is `or_(c.allotted, c.file, c.claimed)`.
+  - `_state("all")` is `None`, so there is no status rule.
+  - The error text becomes "view is one of working, files, all, claimed, disposed".
+- `mine(view="all")` orders by:
+  1. `(Case.status == CaseStatus.DISPOSED)` ascending, so active cases come first;
+  2. then the default branch: next hearing (nulls last), the file's due date (nulls last), case number, id.
+
   `reasons` is filled as today.
-- `mine_counts` returns `active` as well, because it loops over `VIEWS`.
-- The module docstring names the views the portal reads: `active`, `disposed` and the `files` count.
+- `mine_counts` returns `all` as well, because it loops over `VIEWS`.
+- The module docstring names what the portal reads: `all` and the `files` count.
 - **Unchanged:** `visible_case_condition`, merged cases excluded, `cases.view_scope` required, no writes.
 
 **`backend/aslms/services/custody.py`** (read-only):
@@ -420,13 +466,18 @@ None. No table, column, reference code or migration. Every list reads existing t
 - Items are built as today. Under `still_out`, every item has `visible = true` and `current = true`.
 
 **`backend/aslms/services/inbox.py`** (read-only):
-- `claimed(...)`: when `action` is set, the order is a scalar subquery of the file's `due_date` (an alias of
-  `custody`), ascending, nulls last, then `Case.next_hearing_on` ascending, nulls last, then `claimed_at` descending.
-  Otherwise the order is unchanged (decision 13).
+- `claimed(...)` builds its order (decision 13):
+  1. when `case_state == "all"`, `(Case.status == CaseStatus.DISPOSED)` ascending;
+  2. when `action` is set, a scalar subquery of the file's `due_date` (an alias of `custody`), ascending, nulls last;
+  3. then today's `Case.next_hearing_on` ascending, nulls last;
+  4. then `claimed_at` descending.
+
+  `case_state=active|disposed` without `action` produce exactly today's order.
 
 No other service changes, no audit rows (these are reads), and no events.
 
-**`backend/aslms/api/schemas.py`**: `MyCaseCountsOut` gains `active: int`. Then:
+**`backend/aslms/api/schemas.py`**: `MyCaseCountsOut` gains `all: int`. The `/inbox/mine` `view` description names
+`all`. Then:
 - `frontend/openapi.json` is regenerated;
 - `npm run gen:api` is run by the developer in the build, not in this design step.
 
@@ -435,13 +486,13 @@ No new endpoint, no new `Permission`, no visibility change.
 
 | Method and path | Permission | Change |
 |---|---|---|
-| `GET /inbox/mine` | `cases.view_scope` | `view` accepts `active`: the active cases of the three sets, each with `reasons`. |
-| `GET /inbox/mine/counts` | `cases.view_scope` | adds `active`. The portal reads `files` (pill, With Me), `active` and `disposed`. |
+| `GET /inbox/mine` | `cases.view_scope` | `view` accepts `all`: the three sets whatever the status, active first, each with `reasons`. |
+| `GET /inbox/mine/counts` | `cases.view_scope` | adds `all`. The portal reads `files` (pill, With Me) and `all` (My Cases count line). |
 | `GET /custody/sent` | `cases.view_scope` or `cases.view_all` | new `still_out: bool = false`. When true: sends only, still the current leg, on a case the caller can open, not held by the caller, overdue first. When false: unchanged. |
-| `GET /inbox/claimed` | as today (`cases.view_scope`; whole department with `cases.claim` or `cases.allot`; another department with `cases.view_all`) | when `action` is set, ordered by the file's due date first. Filters unchanged (`holder`, `action`, `case_state` serve Department). |
-| `GET /custody/held` (`scope=me`, `office`, `owned`) | `cases.view_scope` or `cases.view_all`; `owned` needs `custody.track` | unchanged. Read by With Me and the tracker fallback of Department. |
+| `GET /inbox/claimed` | as today (`cases.view_scope`; whole department with `cases.claim` or `cases.allot`; another department with `cases.view_all`) | `case_state=all` (now sent by Department) puts active cases first. With `action`, the file's due date comes next. `case_state` stays for compatibility; the filters are unchanged. |
+| `GET /custody/held` (`scope=me`, `office`, `owned`) | `cases.view_scope` or `cases.view_all`; `owned` needs `custody.track` | unchanged (no status rule). Read by With Me and the tracker fallback of Department. |
 | `GET /custody/summary` | `custody.track` | unchanged. Read only for trackers (the tracking summary in Department). |
-| `GET /inbox/counts` | `cases.view_scope` | unchanged. Decides the Department tab (`whole_department`) and the unfiltered "n of m". |
+| `GET /inbox/counts` | `cases.view_scope` | unchanged. Decides the Department tab (`whole_department`) and gives `claimed_active + claimed_disposed` for "n of m". |
 
 ## Jobs
 None.
@@ -450,17 +501,19 @@ None.
 
 **Backend** (`backend/tests/db/`, the scripted fixtures in `tests/db/conftest.py`):
 - `test_my_cases.py`:
-  - `test_active_view_is_three_sets_active`: an allotted case, a claimed case and a case with me, all active, are in
-    `view=active`, each once. A disposed case of each set is not.
-  - `test_active_reasons_badges`: a case both allotted to me and with me carries `reasons == ["allotted", "file"]`. A
-    case claimed through an accepted transfer carries `["claimed"]`.
-  - `test_disposed_case_with_me_in_disposed_not_active`: it is in `view=disposed` with `file` in its reasons, not in
-    `view=active`, and it is in `/custody/held?scope=me`.
-  - `test_counts_active_matches_list`: `mine_counts()["active"]` equals the unfiltered `mine(view="active").total`.
+  - `test_all_view_is_three_sets_any_status`: an allotted case, a claimed case and a case with me, each once active and
+    once disposed, are all in `view=all`, each once.
+  - `test_all_view_active_first`: every active row comes before every disposed row, including a disposed case that
+    still has a past or stale next hearing date. Inside each group the default order holds.
+  - `test_all_reasons_badges`: a case both allotted to me and with me carries `reasons == ["allotted", "file"]`. A case
+    claimed through an accepted transfer carries `["claimed"]`.
+  - `test_disposed_case_with_me_in_with_me_and_all`: it is in `/custody/held?scope=me` and counted in `files`, and it is
+    in `view=all` with `file` in its reasons.
+  - `test_counts_all_matches_list`: `mine_counts()["all"]` equals the unfiltered `mine(view="all").total`.
   - `test_files_count_equals_held_me_and_headline`: `mine_counts()["files"]` equals `held(scope="me").total`, which
-    equals the dashboard headline `files_with_me.total`. The headline `overdue_actions.total` equals
-    `held(scope="me", overdue=True).total`.
-  - `test_unknown_view_400`: `view=nope` answers 400 and names `active`.
+    equals the dashboard headline `files_with_me.total`, disposed cases included. The headline `overdue_actions.total`
+    equals `held(scope="me", overdue=True).total`.
+  - `test_unknown_view_400`: `view=nope` answers 400 and names `all`.
 - `test_custody_sent_still_out.py` (new):
   - `test_still_out_keeps_current_sends_only`: a send still current is kept. A send moved on, a recall leg and a send
     now held by the caller (their other membership) are left out.
@@ -472,12 +525,16 @@ None.
     first).
   - `test_still_out_writes_nothing`: no audit row and no event.
 - `test_inbox_claimed.py`:
-  - `test_claimed_action_orders_by_due`: with `action=overdue` the most overdue comes first. Without `action`, the
-    next-hearing order is unchanged.
+  - `test_claimed_all_active_first`: with `case_state=all`, the active rows come before the disposed rows.
+  - `test_claimed_all_total_equals_counts`: the total equals `claimed_active + claimed_disposed` of `/inbox/counts`.
+  - `test_claimed_action_orders_by_due`: with `case_state=all&action=overdue`, active first and then the most overdue
+    first.
+  - `test_claimed_active_and_disposed_order_unchanged`: without `action`, `case_state=active` and `case_state=disposed`
+    keep today's order.
   - `test_holder_elsewhere_is_outside_subtree`: a file with the department's own unit is not `elsewhere`; a file with
     another department is.
-- API: the OpenAPI schema lists `still_out` on `/custody/sent`, `active` in `MyCaseCountsOut`, and `active` in the
-  `view` description.
+- API: the OpenAPI schema lists `still_out` on `/custody/sent`, `all` in `MyCaseCountsOut`, and `all` in the `view`
+  description.
 - The existing tests stay green: visibility, merged cases, 403 without `cases.view_scope`, no writes. `ruff check` and
   `pytest -q` pass.
 
@@ -504,23 +561,27 @@ None.
     - it calls `/custody/held?scope=me`;
     - "With My Offices" calls `scope=office`;
     - Show has no "All";
-    - the Next Hearing column shows `HearingDate`;
+    - the Next Hearing column shows `HearingDate`, and a disposed row reads "Disposed";
     - "Overdue Only" sends `overdue=true`;
     - the side panel shows the card's remark.
   - **My Cases:**
-    - Active calls `view=active` and Disposed `view=disposed`;
-    - `case_state` survives Clear All;
+    - it calls `view=all`;
+    - **there is no status switch, and no `case_state` is sent**, even when the URL carries one;
+    - a disposed row shows the Disposed badge;
     - the badges come in the order Assigned to Me, Claimed by Me, With Me, with two badges on a two-reason row;
     - "Your Action" is filled only when `custody.with_me`;
-    - the count line is "n of m", with m from `active` or `disposed`.
+    - the count line is "n of m", with m from `all`.
   - **Sent by Me:**
     - the default calls `/custody/sent?still_out=true`;
     - Show Earlier (`earlier=true`) calls it without `still_out`;
     - the still-out empty state text;
     - muted rows appear only under Show Earlier.
   - **Department:**
-    - the Overdue chip sets `action=overdue` and With Another Office sets `holder=elsewhere`;
-    - each chip and its More Filters select agree;
+    - **no Active / Disposed switch is drawn**, and the request carries `case_state=all` whatever the URL says;
+    - a disposed row shows the Disposed badge;
+    - m is `claimed_active + claimed_disposed`;
+    - the Overdue chip sets `action=overdue` and With Another Office sets `holder=elsewhere`, and each chip and its More
+      Filters select agree;
     - the tracker fallback renders the `scope=owned` list narrowed to the department, and its Overdue chip sends
       `overdue=true`;
     - the Tracking Summary is closed by default and shown only to a tracker of the selected department.
@@ -557,20 +618,22 @@ None.
 - **The redirect map** in `uicheck.spec.ts`:
   - the `/files/*`, `/inbox/files` and `/cases/*` targets follow decision 15;
   - new entries: `/inbox/working` to `/inbox/my-cases`, `/inbox/claimed-by-me` to `/inbox/my-cases`, `/inbox/disposed`
-    to `/inbox/my-cases?case_state=disposed`, and `/inbox/pending` to `/inbox/department`.
+    to `/inbox/my-cases`, and `/inbox/pending` to `/inbox/department`.
 - **States**, at 375, 768 and 1280 px. They replace the three `/inbox/working …` states:
   - `/inbox/with-me (side panel)`;
   - `/inbox/with-me?held=offices`;
-  - `/inbox/my-cases (badges)`: a row with each badge and one with two;
+  - `/inbox/my-cases (badges)`: a row with each badge, one with two, and a disposed row with the Disposed badge after
+    the active rows;
   - `/inbox/my-cases (Search Words on the first row)`;
-  - `/inbox/my-cases (next hearing bands)`: moved from Working On, with the same band and next-date assertions;
-  - `/inbox/my-cases?case_state=disposed` (the empty state);
+  - `/inbox/my-cases (next hearing bands)`: moved from Working On, with the same band and next-date assertions,
+    including the `disposed` band;
   - `/inbox/sent` (still out) and `/inbox/sent?earlier=true`;
-  - `/inbox/department (quick filters)` and `/inbox/department?action=overdue&holder=elsewhere`.
+  - `/inbox/department (quick filters)`: no status switch, and active and disposed rows;
+  - `/inbox/department?action=overdue&holder=elsewhere`.
 - **The More menu states:**
-  - `/cases/<sample> (More menu open)`: click "More" in the tab bar. Every `[role='menuitem']` lies fully inside the
-    viewport, and `document.elementFromPoint` at each item's centre returns the item or a descendant, so it is neither
-    clipped nor covered.
+  - `/cases/<sample> (More menu open)`: click "More" in the tab bar. Every `[role='menuitem']` (Parties, Linked Cases,
+    Journey and Stage, Alerts, Details) lies fully inside the viewport, and `document.elementFromPoint` at each item's
+    centre returns the item or a descendant, so it is neither clipped nor covered.
   - `/cases/<sample> (More button focused)`: open with ArrowDown, press Escape, and measure. The focused button's box
     lies inside the bar's client rect vertically, and its computed `outline-offset` is at most minus the outline width,
     so the ring is inside the box.
@@ -578,9 +641,11 @@ None.
 - **A new generic check, `menu-clipped`, in `checks.ts`:** for any open `[role='menu']`, each item must be inside the
   viewport and be the element at its own centre. With no menu open it costs nothing.
 - **Fixtures:**
-  - the `/inbox/mine` matcher answers `view=active` with rows covering every reason and one two-reason row, and keeps
-    the empty `disposed` branch;
-  - `/inbox/mine/counts` has `active`;
+  - the `/inbox/mine` matcher answers `view=all` with rows covering every reason, one two-reason row and disposed rows
+    last;
+  - `/inbox/mine/counts` has `all`;
+  - the `/inbox/claimed` fixture for `case_state=all` has active and disposed rows;
+  - the `/custody/held` fixture has one disposed row;
   - the `/custody/sent` matcher reads `still_out`: current, visible rows when it is set, today's mixed rows otherwise.
 
 ## Verification
@@ -588,27 +653,29 @@ None.
    all green.
 2. **No migration.** `alembic heads` is unchanged; the `migrate` step reports nothing to apply.
 3. **API checks** on the dev proxy, with a department officer's session holding one case assigned, one case sent to
-   them due tomorrow, and one case they sent on that is still with the recipient:
-   - `GET /inbox/mine/counts`: `files` equals `GET /custody/held?scope=me` `total` and the dashboard's "Cases with Me".
-     `active` equals `GET /inbox/mine?view=active` `total`.
-   - `GET /inbox/mine?view=active`: each row's `reasons` matches why it is there.
+   them due tomorrow, one disposed case still with them, and one case they sent on that is still with the recipient:
+   - `GET /inbox/mine/counts`: `files` equals `GET /custody/held?scope=me` `total` (the disposed case included) and the
+     dashboard's "Cases with Me". `all` equals `GET /inbox/mine?view=all` `total`.
+   - `GET /inbox/mine?view=all`: active rows first, the disposed case last. Each row's `reasons` matches why it is
+     there.
    - `GET /custody/sent?still_out=true` lists the case sent on. After the recipient sends it further, it is gone from
      the list and present without the parameter, muted.
-   - `GET /inbox/claimed?office=<dept>&action=overdue` puts the most overdue first.
+   - `GET /inbox/claimed?office=<dept>&case_state=all`: active first; its total equals `claimed_active +
+     claimed_disposed`. With `&action=overdue`, the most overdue active case is first.
 4. **Browser checks** at http://localhost:3000 by the owner and the tester, at 1280, 768 and 375 px:
    - **Tabs per login:**
      - an officer sees With Me, My Cases and Sent by Me;
      - a head or department administrator sees all four;
      - an Auditor sees With Me, Sent by Me and Department.
    - **The pill** equals the With Me count and the dashboard's "Cases with Me".
-   - **With Me:** the most urgent due date is first, with the action and From. "With My Offices" works. The side panel
-     shows the remark.
-   - **My Cases:** the badges are right, Active / Disposed switches, and a disposed case with me is under Disposed with
-     "With Me" and still in With Me.
+   - **With Me:** the most urgent due date is first, with the action and From. A disposed case with me is listed with
+     "Disposed". "With My Offices" works. The side panel shows the remark.
+   - **My Cases:** the badges are right, disposed cases come after active ones with "Disposed", and there is no status
+     switch.
    - **Sent by Me:** only files still out, overdue first. Show Earlier shows the full history. Sending a case out of
      one's sight lands on Sent by Me with Show Earlier on, the case first and the notice above.
-   - **Department:** the Overdue and With Another Office chips, the Tracking Summary for a head, the selects agreeing
-     with the chips.
+   - **Department:** no status switch, active first, disposed with "Disposed"; the Overdue and With Another Office
+     chips; the Tracking Summary for a head; the selects agreeing with the chips.
    - **Old addresses** land on the right tab with the query kept: `/inbox/working?held=offices`,
      `/inbox/working?overdue=true`, `/inbox/claimed-by-me`, `/inbox/disposed`, `/inbox/pending?overdue=true`,
      `/cases/with-me`, `/files/department` and `/inbox/claimed`.
@@ -623,18 +690,17 @@ None.
 5. **`uicheck`** on a private network against temporary images (runbook section 16, never on the shared stack) exits 0
    with `findings.json` empty. The run directory is recorded in the cycle report.
 6. **Scribe** records the change in:
-   - `docs/claude_ASLMS_design_decisions.md`: the four tabs, the flagged changes of decision 20, and the More menu;
+   - `docs/claude_ASLMS_design_decisions.md`: the four tabs, no Disposed switch until row 207's Open / Closed, the
+     changes of decision 20, and the More menu;
    - `docs/ASLMS_Process_Workflows.md`: the user sections that name the six tabs;
    - CLAUDE.md's current focus;
    - row 179's pointer note (decision 21).
 
 ## Open questions
-None. Every decision is made. These points go beyond the owner's table or touch an earlier owner decision, and the owner
-may override any of them at approval:
-- decision 5: a disposed case with me sits in With Me and My Cases → Disposed (case-inbox-merge decision 3);
-- decision 7: a send on a case the sender can no longer open is shown only under Show Earlier (case-workspace-admin
-  decision 20);
-- decision 10: "With Another Office" means outside the department and its units;
-- decision 17: "With Me" and "With Another Office" in place of the owner's "File With …" labels, because of the wording
-  guard;
-- decision 3: the pill moves from the Working On count to the With Me count.
+None. The owner answered every point on 29 Oct 2026:
+- no Disposed switch or tab in this row; active and disposed together, disposed after, with the Disposed badge; Open /
+  Closed comes with row 207;
+- With Me keeps disposed cases with me until they are closed (row 207);
+- the other recommendations stand: Sent by Me still out with Show Earlier, and a send on a case the sender can no longer
+  open only under Show Earlier; "With Another Office" means outside the department and its units; the labels "With Me"
+  and "With Another Office"; the pill on the With Me count; the More menu fix and the other clipped menus.
