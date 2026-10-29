@@ -3064,3 +3064,7 @@ Backlog row 173 `data-collection-redesign-tabs`; design `docs/design/data-collec
 - Pruning the unused `T.data` strings.
 - Deploy: no migration; `docker compose build` and restart with the court-data switch carried.
 - No hosting-guide or software-documentation regeneration: no environment variable, command or deploy step changed.
+
+## 2026-10-29 — Next.js security upgrade added and approved (row 205, owner)
+
+Row 173's build printed Next.js's vulnerability notice. `npm audit --omit=dev` reports one critical finding on `next` 16.4.0: GHSA-2464-fhr4-w9xw (image optimiser with SVG, through `sharp` on glibc), GHSA-673q-mjm6-r5xr (`use cache`) and GHSA-p3m5-59mp-jv5r (Server Actions), all fixed from 16.4.1. Read against the portal: `sharp` 0.35.5 already in the lock file, the `web` image on Alpine, no `use cache`, no Server Action, so none is exploitable today. The owner approved upgrading to 16.4.3 as row 205 `nextjs-security-upgrade`, built straight after row 174; frontend only, no migration. Design `docs/design/nextjs-security-upgrade.md`.
