@@ -387,6 +387,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/data-load/gaps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Gaps
+         * @description Problems and Fixes' Data Gaps (design data-collection-redesign, decision 45): the cases held without details
+         *     with the state of their dossier row (`kind=cases`), or the orders whose PDF is not available at the court or
+         *     failed (`kind=orders`), paged, with counts by state and the documents without searchable text. References, CNRs
+         *     and case numbers only. Never calls NAPIX; writes nothing; 503 `search_timeout` when the query takes too long.
+         */
+        get: operations["get_gaps_admin_data_load_gaps_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/data-load/order": {
         parameters: {
             query?: never;
@@ -7509,6 +7532,27 @@ export interface components {
             /** Within 48H */
             within_48h: number;
         };
+        /**
+         * DataGapsOut
+         * @description `GET /admin/data-load/gaps`: one page of `cases` or `orders` (`items` of `GapCaseOut` or `GapOrderOut`),
+         *     `total` and `counts` by state, and the documents without searchable text.
+         */
+        DataGapsOut: {
+            /** Counts */
+            counts: {
+                [key: string]: number;
+            };
+            documents_text: components["schemas"]["DocumentsTextOut"];
+            /** Items */
+            items: components["schemas"]["GapCaseOut"][] | components["schemas"]["GapOrderOut"][];
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "cases" | "orders";
+            /** Total */
+            total: number;
+        };
         /** DataHealthOut */
         DataHealthOut: {
             /**
@@ -8730,6 +8774,53 @@ export interface components {
          * @enum {string}
          */
         FetchStatus: "pending" | "running" | "done" | "failed" | "skipped";
+        /**
+         * GapCaseOut
+         * @description A case held without details and the state of its dossier row (design data-collection-redesign, decision
+         *     45).
+         */
+        GapCaseOut: {
+            /** Attempts */
+            attempts?: number | null;
+            case: components["schemas"]["DuplicateCaseOut"];
+            /** First Seen At */
+            first_seen_at: string | null;
+            /** Problem */
+            problem?: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "being_fetched" | "not_found" | "failed" | "not_queued";
+        };
+        /**
+         * GapOrderOut
+         * @description An order whose PDF the court marked not available, or whose fetch failed.
+         */
+        GapOrderOut: {
+            /** Attempts */
+            attempts: number;
+            case: components["schemas"]["DuplicateCaseOut"];
+            /**
+             * Order Date
+             * Format: date
+             */
+            order_date: string;
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /** Order No */
+            order_no: string;
+            /** Problem */
+            problem?: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "not_available" | "failed";
+        };
         /** GraphEdgeOut */
         GraphEdgeOut: {
             /** From */
@@ -13972,6 +14063,102 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FetchDetailsOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    get_gaps_admin_data_load_gaps_get: {
+        parameters: {
+            query?: {
+                kind?: string;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataGapsOut"];
                 };
             };
             /** @description Bad Request */

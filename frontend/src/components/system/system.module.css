@@ -331,3 +331,17 @@
   font-family: var(--font-mono);
   font-size: var(--t-sm);
 }
+
+/* design data-collection-redesign, decision 3: Court Calls' resets and e-mail side by side from 900 px */
+.callsGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--s4);
+  align-items: start;
+}
+
+@media (max-width: 899px) {
+  .callsGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

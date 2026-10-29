@@ -145,6 +145,26 @@ def get_duplicates(
     return schemas.DuplicatesOut(total=total, items=items)
 
 
+@router.get("/gaps", response_model=schemas.DataGapsOut, responses=ERRORS)
+def get_gaps(
+    request: Request,
+    kind: str = Query("cases", pattern="^(cases|orders)$"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    session: Session = Depends(get_session),
+    user: User = Depends(load_reader),
+) -> schemas.DataGapsOut:
+    """Problems and Fixes' Data Gaps (design data-collection-redesign, decision 45): the cases held without details
+    with the state of their dossier row (`kind=cases`), or the orders whose PDF is not available at the court or
+    failed (`kind=orders`), paged, with counts by state and the documents without searchable text. References, CNRs
+    and case numbers only. Never calls NAPIX; writes nothing; 503 `search_timeout` when the query takes too long."""
+    try:
+        out = data_load.gaps(session, request.app.state.settings, kind, limit=limit, offset=offset)
+    except HANDLED as exc:
+        raise _http(exc) from exc
+    return schemas.DataGapsOut(**out)
+
+
 # ------------------------------------------------------------------------------------------------ the load
 
 

@@ -158,31 +158,44 @@ export interface DataTab {
 export const COLLECT_FUNCTIONS: readonly Permission[] = ["admin.data_load", "admin.napix_refetch", "admin.masters_sync"];
 
 /**
- * The Data Collection tabs (design data-collection-redesign, decision 1): Overview (where `/data` opens), Collect Now
- * and Automatic Collection. Until round 2 the old Health, Queue and Calls and Duplicates tabs stay as they are, listed
- * after them (decision 49); Load and Discovery redirect (`OLD_DATA_REDIRECTS`).
+ * The Data Collection tabs (design data-collection-redesign, decision 1): Overview (where `/data` opens), Collect Now,
+ * Automatic Collection and Problems and Fixes. The old Load, Discovery, Health, Queue and Calls and Duplicates tabs
+ * redirect (`OLD_DATA_REDIRECTS`, decision 2).
  */
 export const DATA_TABS: readonly DataTab[] = [
   { key: "overview", label: T.tabs.data.overview, href: "/data/overview", functions: DATA_READERS },
   { key: "collect", label: T.tabs.data.collect, href: "/data/collect", functions: COLLECT_FUNCTIONS },
   { key: "automatic", label: T.tabs.data.automatic, href: "/data/automatic", functions: DATA_READERS },
-  { key: "health", label: T.tabs.data.health, href: "/data/health", functions: DATA_READERS },
-  { key: "queue", label: T.tabs.data.queue, href: "/data/queue", functions: DATA_READERS },
-  { key: "duplicates", label: T.tabs.data.duplicates, href: "/data/duplicates", functions: DATA_READERS },
+  { key: "problems", label: T.tabs.data.problems, href: "/data/problems", functions: DATA_READERS },
 ];
 
 /**
  * The old Data Collection addresses (decision 2), client redirects keeping the query string (and the target's
- * anchor). Round 1 retires Load and Discovery and the first version's Fetch tab; Health, Queue and Calls and
- * Duplicates follow in round 2. Every target is a final address.
+ * anchor). Round 1 retired Load and Discovery and the first version's Fetch tab; round 2 Health, Queue and Calls and
+ * Duplicates (decision 3 says where each of their pieces went). Every target is a final address.
  */
 export const OLD_DATA_REDIRECTS: Record<string, string> = {
   "/data/load": "/data/automatic",
   "/data/discovery": "/data/automatic#department-names",
   "/data/fetch": "/data/collect",
+  "/data/health": "/data/overview",
+  "/data/queue": "/data/problems",
+  "/data/duplicates": "/data/problems#duplicates",
 };
 
-/** The System Health entry's sections (decision 14): two anchors of `/system` and the Access Token modal. */
+/**
+ * The functions that read the court-health endpoints (`/admin/data-health`, `/admin/napix/*`): the API's
+ * `health_reader`. The failed-fetch rows and the court connection line read them; System Health's Court Calls section
+ * needs one of them beside `admin.service_health` (design data-collection-redesign, decision 3).
+ */
+export const HEALTH_READERS: readonly Permission[] = ["reports.state", "admin.napix_refetch", "admin.masters_sync"];
+
+/** Court Calls on System Health shows with `admin.service_health` and a health-reader function (decision 3). */
+export function showsCourtCalls(me: Pick<Me, "functions"> | null | undefined): boolean {
+  return can(me, "admin.service_health") && canAny(me, HEALTH_READERS);
+}
+
+/** The System Health entry's sections (decision 14): three anchors of `/system` and the Access Token modal. */
 export const SYSTEM_SECTIONS: readonly NavChild[] = [
   {
     key: "court",
@@ -197,6 +210,15 @@ export const SYSTEM_SECTIONS: readonly NavChild[] = [
     href: "/system#services",
     functions: ["admin.service_health"],
     match: (loc) => loc.pathname === "/system" && loc.hash === "#services" && !apiOf(loc),
+  },
+  // design data-collection-redesign, decision 3: the call log, the recent resets and the e-mail outbox
+  {
+    key: "calls",
+    label: T.nav.systemSections.calls,
+    href: "/system#calls",
+    functions: ["admin.service_health"],
+    show: showsCourtCalls,
+    match: (loc) => loc.pathname === "/system" && loc.hash === "#calls" && !apiOf(loc),
   },
   {
     key: "token",

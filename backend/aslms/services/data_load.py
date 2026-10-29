@@ -57,7 +57,7 @@ from aslms.domain.ops import (
 from aslms.domain.org import User
 from aslms.domain.reference import Permission
 from aslms.integration.napix.hc import API, NapixHighCourt
-from aslms.services import access, case_dedupe, court_search, napix_window, queue
+from aslms.services import access, case_dedupe, court_search, data_health, napix_window, queue
 from aslms.services.access import Member
 from aslms.services.audit import Actor, write_audit
 from aslms.services.audit_search import to_ist
@@ -1565,12 +1565,12 @@ def _coverage_months(
     return months
 
 
-def _timed(fn):
+def _timed(fn, message: str = "the coverage took too long; ask for fewer months"):
     try:
         return fn()
     except OperationalError as exc:
         if getattr(getattr(exc, "orig", None), "sqlstate", None) == QUERY_CANCELED:
-            raise SearchTimeout("the coverage took too long; ask for fewer months") from exc
+            raise SearchTimeout(message) from exc
         raise
 
 
@@ -1900,6 +1900,121 @@ def fetch_details(
         },
     )
     return out
+
+
+# ------------------------------------------------------------------------------------------------ data gaps
+# design `data-collection-redesign`, round 2 (decision 45): the cases held without details, each with the state of its
+# `dossier` row in any lane; the orders whose PDF is not available at the court or failed; and the documents without
+# searchable text. Reads only, under the report statement timeout; references, CNRs and case numbers only (as
+# Duplicates and the queue already show the same readers), never parties or notes.
+
+GAP_KINDS = ("cases", "orders")
+GAP_MAX = 200
+GAP_CASE_STATES = ("being_fetched", "not_found", "failed", "not_queued")
+
+# the case's dossier row by CNR or `<est_code>|<case number>` (`napix_admin.dossier_ref`), a waiting one first
+_GAP_CASES = """
+    SELECT c.id, c.ref_no, c.cnr, c.case_no_text, c.created_at,
+           CASE WHEN q.status IN ('pending', 'running') THEN 'being_fetched'
+                WHEN q.status = 'skipped' THEN 'not_found'
+                WHEN q.status = 'failed' THEN 'failed'
+                ELSE 'not_queued' END AS state,
+           q.last_error, q.attempts
+    FROM cases c
+    LEFT JOIN LATERAL (
+        SELECT q.status, q.last_error, q.attempts FROM fetch_queue q
+        WHERE q.kind = 'dossier'
+          AND (q.ref = c.cnr
+               OR q.ref = (SELECT co.est_code FROM courts co WHERE co.id = c.court_id) || '|' || c.case_no_text)
+        ORDER BY (q.status IN ('pending', 'running')) DESC, q.updated_at DESC
+        LIMIT 1) q ON true
+    WHERE c.merged_into_case_id IS NULL AND c.last_full_refresh_at IS NULL
+"""
+
+_GAP_ORDERS = """
+    FROM orders o JOIN cases c ON c.id = o.case_id
+    WHERE o.document_id IS NULL AND o.download_status IN ('not_available', 'failed')
+"""
+
+
+def _gap_cases(session: Session, limit: int, offset: int) -> tuple[int, dict[str, int], list[dict[str, Any]]]:
+    counts = dict.fromkeys(GAP_CASE_STATES, 0)
+    for state, n in session.execute(
+        text(f"SELECT g.state, count(*) FROM ({_GAP_CASES}) g GROUP BY g.state")
+    ).all():
+        counts[state] = int(n)
+    rows = session.execute(
+        text(f"{_GAP_CASES} ORDER BY c.created_at DESC, c.id DESC LIMIT :l OFFSET :o"),
+        {"l": limit, "o": offset},
+    ).all()
+    items = [
+        {
+            "case": {"id": r.id, "ref_no": r.ref_no, "cnr": r.cnr, "case_no_text": r.case_no_text},
+            "first_seen_at": to_ist(r.created_at),
+            "state": r.state,
+            "attempts": r.attempts,
+            "problem": r.last_error if r.state in ("failed", "not_found") else None,
+        }
+        for r in rows
+    ]
+    return sum(counts.values()), counts, items
+
+
+def _gap_orders(
+    session: Session, limit: int, offset: int
+) -> tuple[int, dict[str, int], list[dict[str, Any]]]:
+    counts = {"not_available": 0, "failed": 0}
+    for status, n in session.execute(
+        text(f"SELECT o.download_status, count(*) {_GAP_ORDERS} GROUP BY o.download_status")
+    ).all():
+        counts[_value(status)] = int(n)
+    rows = session.execute(
+        text(
+            f"""
+            SELECT o.id AS order_id, o.order_no, o.order_date, o.download_status, o.last_error,
+                   o.download_attempts, c.id, c.ref_no, c.cnr, c.case_no_text
+            {_GAP_ORDERS}
+            ORDER BY o.order_date DESC, o.id DESC LIMIT :l OFFSET :o
+            """
+        ),
+        {"l": limit, "o": offset},
+    ).all()
+    items = [
+        {
+            "case": {"id": r.id, "ref_no": r.ref_no, "cnr": r.cnr, "case_no_text": r.case_no_text},
+            "order_id": r.order_id,
+            "order_no": r.order_no,
+            "order_date": r.order_date,
+            "state": _value(r.download_status),
+            "attempts": int(r.download_attempts or 0),
+            "problem": r.last_error,
+        }
+        for r in rows
+    ]
+    return sum(counts.values()), counts, items
+
+
+def gaps(session: Session, cfg: Settings, kind: str, *, limit: int = 50, offset: int = 0) -> dict[str, Any]:
+    """`GET /admin/data-load/gaps` (decision 45): `cases` held without details (not merged), newest first, each with
+    its dossier row's state (`being_fetched` pending or running, `not_found` skipped, `failed`, `not_queued` no row);
+    or `orders` without a PDF that the court marked not available or whose fetch failed, latest order first. `counts`
+    splits the total by state; `documents_text` is the document-text block of the data-health snapshot. A cancelled
+    query raises `SearchTimeout`."""
+    if kind not in GAP_KINDS:
+        raise LoadInputError("bad_input", f"kind is one of {', '.join(GAP_KINDS)}")
+    limit = max(1, min(int(limit), GAP_MAX))
+    offset = max(0, int(offset))
+    with_timeout(session, cfg.report_statement_timeout_seconds)
+    reader = _gap_cases if kind == "cases" else _gap_orders
+    slow = "the data gaps took too long; try again"
+    total, counts, items = _timed(lambda: reader(session, limit, offset), slow)
+    return {
+        "kind": kind,
+        "total": total,
+        "counts": counts,
+        "items": items,
+        "documents_text": _timed(lambda: data_health.documents_text(session), slow),
+    }
 
 
 # ------------------------------------------------------------------------------------------------ duplicates

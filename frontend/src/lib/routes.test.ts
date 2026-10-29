@@ -221,12 +221,19 @@ describe("Files, My calendar and Alerts navigation (portal-files-alerts; portal-
       "/data/load": "/data/automatic",
       "/data/discovery": "/data/automatic#department-names",
       "/data/fetch": "/data/collect",
+      // round 2 (decisions 2 and 3): the old Health, Queue and Calls and Duplicates tabs
+      "/data/health": "/data/overview",
+      "/data/queue": "/data/problems",
+      "/data/duplicates": "/data/problems#duplicates",
     });
+    expect(DATA_TABS.map((t) => t.key)).toEqual(["overview", "collect", "automatic", "problems"]);
+    expect(DATA_TABS[3]!.label).toBe("Problems and Fixes");
     // every target is a final address, never itself redirected
     for (const target of Object.values(OLD_DATA_REDIRECTS)) expect(OLD_DATA_REDIRECTS[target.split("#")[0]!]).toBeUndefined();
     expect(crumbLabel("/data/overview")).toBe("Overview");
     expect(crumbLabel("/data/collect")).toBe("Collect Now");
     expect(crumbLabel("/data/automatic")).toBe("Automatic Collection");
+    expect(crumbLabel("/data/problems")).toBe("Problems and Fixes");
   });
 
   it("the Alerts frame has the alerts tab for case readers (the calendar moved to My calendar)", () => {
@@ -394,10 +401,13 @@ describe("the one-level menu (design portal-ui-polish-2, decisions 14 and 15)", 
     expect(keys(["users.view", "access.manage_types", "offices.manage", "admin.designations", "admin.keywords", "admin.tickets"], "admin")).toEqual(
       ["users", "access", "offices", "designations", "mapping", "tickets"],
     );
-    expect(keys(["admin.data_load"], "data")).toEqual(["overview", "collect", "automatic", "health", "queue", "duplicates"]);
-    expect(keys(["reports.state"], "data")).toEqual(["overview", "automatic", "health", "queue", "duplicates"]);
+    expect(keys(["admin.data_load"], "data")).toEqual(["overview", "collect", "automatic", "problems"]);
+    expect(keys(["reports.state"], "data")).toEqual(["overview", "automatic", "problems"]);
     expect(keys(["reports.state"], "reports")).toEqual(["pending-cases", "hearings-disposals", "pending-actions", "data-health"]);
     expect(keys(["admin.service_health"], "system")).toEqual(["court", "services", "token"]);
+    // design data-collection-redesign, decision 3: Court Calls needs a health-reader function as well
+    expect(keys(["admin.service_health", "reports.state"], "system")).toEqual(["court", "services", "calls", "token"]);
+    expect(keys(["admin.service_health", "admin.data_load"], "system")).toEqual(["court", "services", "token"]);
     for (const e of navFor({ functions: ["cases.view_scope", "cases.view_all", "cases.claim", "audit.view"] })) {
       if (!["reports", "data", "system", "admin"].includes(e.key)) expect(e.children, e.key).toBeUndefined();
     }
@@ -440,7 +450,9 @@ describe("the one-level menu (design portal-ui-polish-2, decisions 14 and 15)", 
 
   it("the /system children match by hash and by the api key", async () => {
     const { childActive, SYSTEM_SECTIONS } = await import("./routes");
-    const [court, services, token] = SYSTEM_SECTIONS;
+    const [court, services, calls, token] = SYSTEM_SECTIONS;
+    expect(childActive(calls!, { pathname: "/system", hash: "#calls" })).toBe(true);
+    expect(childActive(calls!, { pathname: "/system", hash: "#court" })).toBe(false);
     expect(childActive(court!, { pathname: "/system", hash: "#court" })).toBe(true);
     expect(childActive(court!, { pathname: "/system", hash: "#services" })).toBe(false);
     expect(childActive(services!, { pathname: "/system", hash: "#services" })).toBe(true);

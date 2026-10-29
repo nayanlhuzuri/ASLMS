@@ -3042,3 +3042,25 @@ Backlog row 199 `next-date-direct`; design `docs/design/next-date-direct.md` (ap
 - Deploy: `migrate` (0034), `init` (seed), `docker compose build`; then `aslms next-dates direct` (dry run, then `--apply`) and `aslms next-dates hearing-refresh --all`. The owner's live checks are in the design note's Verification.
 - Owner checks A to K of the design note stay open until the owner's browser check.
 - The hosting guide was not regenerated (no environment change). Software Documentation 1.4 records the change.
+
+## Data Collection redesign, round 2 of 4: Problems and Fixes and Court Calls (2026-10-29)
+Backlog row 173 `data-collection-redesign-tabs`; design `docs/design/data-collection-redesign-tabs.md`, a pointer to decisions 2 to 4 and 42 to 46 of `docs/design/data-collection-redesign.md` (approved by the owner on 26 Oct 2026). No migration; no schema change, so `docs/schema/schema.md` is unchanged.
+
+**Built**
+- `GET /admin/data-load/gaps` (`kind=cases|orders`, `limit` 1-200, `offset`): the cases held without details with the state of their dossier row, or the orders whose PDF is not available or failed, with counts by state and the documents without searchable text. Read only, never calls NAPIX, 503 `search_timeout` on a slow query. Tests in `backend/tests/db/test_data_collection_gaps.py`.
+- Portal: the Problems and Fixes tab (Court Connection, Failed Fetches with Retry and Retry All, Possible Duplicates now "To Confirm", Data Gaps with Collect These and Try Again); the Court Calls section on System Health (recent resets, e-mail, the call log); the old Health, Queue and Calls and Duplicates tabs removed, their addresses redirecting; links `/data/problems#failed`, `#duplicates`, `#gaps`.
+
+**Decisions and reasons**
+- Additive `counts` on the gaps answer, because a page of 50 cannot give the count with its split that decision 45 shows.
+- Readers holding only `admin.data_load` cannot read `/admin/napix/*`; no guard was widened, so they see the last court call from the pulse and a summary by kind instead of failed items.
+- Collect These reuses `POST /admin/data-load/fetch-details` until the Several Cases request arrives in row 174, which repoints it.
+
+**Deviations** (nine, in the design note's "Deviations, round 2"): `counts` on the gaps answer; Collect These sends at most 50 listed cases; the readers-only fallback; Failed Fetches summary from Overview `waiting_work`; "To Confirm"; anchors and the old query string not read; the data-health report's link now opens Overview; Court Calls layout and wording; unused `T.data` strings left for a cleanup.
+
+**Verification**: browser screen check on a private network (run `20261029-0847`, 147 routes and states, 350 screenshots, 0 findings), recorded in the design note; the shared stack was not touched.
+
+**Left for later**
+- Row 174 (manual requests at once), row 177, and the advisories of row 191 (which also touch these screens' links).
+- Pruning the unused `T.data` strings.
+- Deploy: no migration; `docker compose build` and restart with the court-data switch carried.
+- No hosting-guide or software-documentation regeneration: no environment variable, command or deploy step changed.

@@ -9055,6 +9055,59 @@
         "title": "DashboardWeekHearingsOut",
         "type": "object"
       },
+      "DataGapsOut": {
+        "description": "`GET /admin/data-load/gaps`: one page of `cases` or `orders` (`items` of `GapCaseOut` or `GapOrderOut`),\n`total` and `counts` by state, and the documents without searchable text.",
+        "properties": {
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Counts",
+            "type": "object"
+          },
+          "documents_text": {
+            "$ref": "#/components/schemas/DocumentsTextOut"
+          },
+          "items": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/GapCaseOut"
+                },
+                "type": "array"
+              },
+              {
+                "items": {
+                  "$ref": "#/components/schemas/GapOrderOut"
+                },
+                "type": "array"
+              }
+            ],
+            "title": "Items"
+          },
+          "kind": {
+            "enum": [
+              "cases",
+              "orders"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "total",
+          "counts",
+          "items",
+          "documents_text"
+        ],
+        "title": "DataGapsOut",
+        "type": "object"
+      },
       "DataHealthOut": {
         "properties": {
           "as_of": {
@@ -12774,6 +12827,120 @@
         ],
         "title": "FetchStatus",
         "type": "string"
+      },
+      "GapCaseOut": {
+        "description": "A case held without details and the state of its dossier row (design data-collection-redesign, decision\n45).",
+        "properties": {
+          "attempts": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attempts"
+          },
+          "case": {
+            "$ref": "#/components/schemas/DuplicateCaseOut"
+          },
+          "first_seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Seen At"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem"
+          },
+          "state": {
+            "enum": [
+              "being_fetched",
+              "not_found",
+              "failed",
+              "not_queued"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "case",
+          "first_seen_at",
+          "state"
+        ],
+        "title": "GapCaseOut",
+        "type": "object"
+      },
+      "GapOrderOut": {
+        "description": "An order whose PDF the court marked not available, or whose fetch failed.",
+        "properties": {
+          "attempts": {
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "case": {
+            "$ref": "#/components/schemas/DuplicateCaseOut"
+          },
+          "order_date": {
+            "format": "date",
+            "title": "Order Date",
+            "type": "string"
+          },
+          "order_id": {
+            "format": "uuid",
+            "title": "Order Id",
+            "type": "string"
+          },
+          "order_no": {
+            "title": "Order No",
+            "type": "string"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem"
+          },
+          "state": {
+            "enum": [
+              "not_available",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "case",
+          "order_id",
+          "order_no",
+          "order_date",
+          "state",
+          "attempts"
+        ],
+        "title": "GapOrderOut",
+        "type": "object"
       },
       "GraphEdgeOut": {
         "properties": {
@@ -27481,6 +27648,149 @@
           }
         ],
         "summary": "Fetch Details",
+        "tags": [
+          "data-load"
+        ]
+      }
+    },
+    "/admin/data-load/gaps": {
+      "get": {
+        "description": "Problems and Fixes' Data Gaps (design data-collection-redesign, decision 45): the cases held without details\nwith the state of their dossier row (`kind=cases`), or the orders whose PDF is not available at the court or\nfailed (`kind=orders`), paged, with counts by state and the documents without searchable text. References, CNRs\nand case numbers only. Never calls NAPIX; writes nothing; 503 `search_timeout` when the query takes too long.",
+        "operationId": "get_gaps_admin_data_load_gaps_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "default": "cases",
+              "pattern": "^(cases|orders)$",
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataGapsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Gaps",
         "tags": [
           "data-load"
         ]

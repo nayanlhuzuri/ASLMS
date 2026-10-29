@@ -10,7 +10,8 @@
  * makes the one call (design system-health-inspector, decision 1). The Access token card opens `?api=token` (decision
  * 10). The court cards are read again every minute while the page is visible and after each send; the services when
  * the page opens, on "Check services again" (the page's one primary button) and on window focus. People are never
- * named: calls read "background work", "a person" or "your test".
+ * named: calls read "background work", "a person" or "your test". The Court Calls section (design
+ * data-collection-redesign, decision 3) follows the services for holders of a health-reader function as well.
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -32,14 +33,17 @@ import {
   SparkBars,
 } from "@/components/ui";
 import { api } from "@/lib/api/client";
+import { useMe } from "@/lib/api/hooks";
 import type { ApiCard, ServicesHealth, SystemHealth as SystemHealthData } from "@/lib/api/types";
 import { formatNumber, formatTime } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { queryString, type Params } from "@/lib/params";
+import { showsCourtCalls } from "@/lib/routes";
 import { cardsOf, courtTotals, percent, ringTone, toneOf, typicalMs } from "@/lib/systemHealth";
 import { useUrlOverlay } from "@/lib/useUrlOverlay";
 
 import { CONSOLE_TABS, ConsoleModal, type ConsoleTab } from "./Console";
+import { CourtCalls } from "./CourtCalls";
 import s from "./system.module.css";
 import { TOKEN_TABS, TokenCard, TokenModal, useToken, type TokenTab } from "./Token";
 
@@ -53,6 +57,7 @@ function tabOf<K extends string>(tabs: readonly K[], value: string | undefined):
 }
 
 export function SystemHealth({ params }: { params: Params }) {
+  const me = useMe();
   const overlay = useUrlOverlay("api", params, "/system", ["tab"]);
   const qc = useQueryClient();
   const summary = useQuery({
@@ -123,6 +128,7 @@ export function SystemHealth({ params }: { params: Params }) {
         </section>
       ) : null}
       <Services query={services} />
+      {showsCourtCalls(me.data) ? <CourtCalls /> : null}
       {summary.data && openCard ? (
         <ConsoleModal
           apiKey={openCard.key}

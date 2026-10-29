@@ -13,6 +13,9 @@ export type DataPulse = S["DataLoadPulseOut"];
 export type DataSchedule = S["DataLoadScheduleOut"];
 export type EstimateLine = S["EstimateLineOut"];
 export type MonthRow = S["MonthCoverageOut"];
+export type DataGaps = S["DataGapsOut"];
+export type GapCase = S["GapCaseOut"];
+export type GapOrder = S["GapOrderOut"];
 
 /**
  * Decision 17: the pulse every 5 s, the overview every 30 s (and at once after any action), the month table every
@@ -28,6 +31,9 @@ export const DC_KEYS = {
   months: ["data-load", "coverage"] as const,
   schedule: ["data-load", "schedule"] as const,
   progress: ["data-load", "progress"] as const,
+  gaps: ["data-load", "gaps"] as const,
+  failed: ["data-load", "failed"] as const,
+  duplicates: ["data-load", "duplicates"] as const,
 };
 
 const n = (value: number | null | undefined) => formatNumber(value ?? 0);
@@ -56,15 +62,12 @@ export function problemParts(p: DataOverview["problems"]): { key: string; text: 
   return counts.filter(([, c]) => c > 0).map(([key, c]) => ({ key, count: c, text: T.dc.problemParts[key]!(n(c)) }));
 }
 
-/**
- * Where each part of the Problems line leads. Problems and Fixes arrives in round 2; until then the failed fetches
- * open the queue's failed rows and the duplicates the Duplicates tab, and the two gaps have no page yet.
- */
+/** Where each part of the Problems line leads: its section of Problems and Fixes (decisions 16 and 42). */
 export const PROBLEM_LINKS: Record<string, string | null> = {
-  failed: "/data/queue?status=failed",
-  duplicates_review: "/data/duplicates",
-  cases_without_details: null,
-  orders_not_available: null,
+  failed: "/data/problems#failed",
+  duplicates_review: "/data/problems#duplicates",
+  cases_without_details: "/data/problems#gaps",
+  orders_not_available: "/data/problems#gaps",
 };
 
 /** One estimate line in words (decision 21), never JSON. */
@@ -135,4 +138,68 @@ export function dailyStatus(d: S["DailyCycleDayOut"]): string {
 export function minutesToReset(seconds: number | null | undefined, fetchedAt: number, now: number): number | null {
   if (seconds === null || seconds === undefined) return null;
   return Math.ceil((seconds - (now - fetchedAt) / 1000) / 60);
+}
+
+/** A NAPIX error family in plain words (decision 47); the family itself when it has no words. */
+export function familyWords(family: string | null | undefined): string {
+  if (!family) return T.pf.unknownReason;
+  return T.pf.families[family] ?? family;
+}
+
+/**
+ * What a failed queue row was fetching, in words (decision 44): a cause-list day by its date, an order PDF by its
+ * number, date and CNR, a provisional case by its printed number; any other reference as it is.
+ */
+export function failedWhat(kind: string, ref: string): string {
+  if (kind === "masters") return T.pf.what.masters;
+  if ((kind === "causelist_day" || kind === "causelist_recheck") && /^\d{4}-\d{2}-\d{2}$/.test(ref)) {
+    return T.pf.what.day(formatDayLongYear(ref));
+  }
+  if (kind === "order_pdf") {
+    const [cnr, no, date] = ref.split("|");
+    if (cnr && no && date && /^\d{4}-\d{2}-\d{2}$/.test(date)) return T.pf.what.order(cnr, no, formatDayLongYear(date));
+  }
+  if (kind === "dossier" && ref.includes("|")) {
+    const [court, ...rest] = ref.split("|");
+    return T.pf.what.provisional(court ?? "", rest.join("|"));
+  }
+  return ref;
+}
+
+/** The function a Retry of a failed row of this kind needs (the API's rule: reference lists need `admin.masters_sync`). */
+export function retryFunction(kind: string): "admin.masters_sync" | "admin.napix_refetch" {
+  return kind === "masters" ? "admin.masters_sync" : "admin.napix_refetch";
+}
+
+/**
+ * The court service of a call-log path in plain words (System Health's Court Calls, decision 3): the first segment of
+ * the path names the API (`hc-cnr-api/CNR` → Case Details by CNR); an unknown path is shown as it is.
+ */
+const COURT_SERVICES: Record<string, string> = {
+  overview: "overview",
+  "hc-state-api": "state",
+  "hc-district-api": "district",
+  "hc-bench-master-api": "bench_master",
+  "hc-case-type-master-api": "case_type",
+  "hc-act-master-api": "act",
+  "hc-causelist-bench-api": "causelist_bench",
+  "hc-causelist-details-api": "causelist_details",
+  "hc-show-causelist-api": "show_causelist",
+  "hc-cnr-api": "cnr",
+  "hc-current-status-api": "current_status",
+  "hc-order-api": "order",
+  "hc-show-business-api": "show_business",
+  "hc-case-search-api": "case_search",
+  "hc-filing-api": "filing",
+  "hc-party-name-api": "party_name",
+  "hc-advocate-name-api": "advocate_name",
+  "hc-advocate-bar-reg-api": "advocate_bar_reg",
+  "hc-act-details-api": "act_details",
+  "hc-nuetral-citation-number-api": "neutral_citation",
+};
+
+export function courtServiceName(path: string): string {
+  const key = COURT_SERVICES[path.split("/")[0] ?? ""];
+  if (!key) return path;
+  return T.system.apis[key] ?? T.system.callsApis[key] ?? path;
 }

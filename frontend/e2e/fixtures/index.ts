@@ -901,6 +901,20 @@ function assistantThread(): AssistantThread {
   };
 }
 
+/**
+ * Problems and Fixes' Data Gaps (design data-collection-redesign, decision 45): the answer follows `kind`, a case or an
+ * order page, as the API's does (the synthetic answer of the union would give case rows to the orders table).
+ */
+function dataGaps(url: URL): unknown {
+  const kind = url.searchParams.get("kind") === "orders" ? "orders" : "cases";
+  const base = synthFor("/admin/data-load/gaps")!.body as S["DataGapsOut"];
+  const schema = kind === "orders" ? "GapOrderOut" : "GapCaseOut";
+  const items = [0, 1].map((i) => synth({ $ref: `#/components/schemas/${schema}` }, "", "", i));
+  const counts =
+    kind === "orders" ? { not_available: 1, failed: 1 } : { being_fetched: 1, not_found: 0, failed: 0, not_queued: 1 };
+  return { ...base, kind, total: items.length, counts, items };
+}
+
 type Override = (url: URL) => unknown;
 
 /** Overrides by API path (exact) or pattern. */
@@ -924,6 +938,7 @@ const OVERRIDES: [RegExp, Override][] = [
     /^\/admin\/discovery$/,
     () => ({ ...(synthFor("/admin/discovery")!.body as Record<string, unknown>), terms: { active: 0, inactive: 0 } }),
   ],
+  [/^\/admin\/data-load\/gaps$/, (url) => dataGaps(url)],
   [/^\/dashboard$/, () => DASHBOARD],
   [/^\/dashboard\/me$/, () => dashboardMe()],
   [/^\/inbox\/counts$/, () => inboxCounts()],

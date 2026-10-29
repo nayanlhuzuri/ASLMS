@@ -302,3 +302,11 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* round 2, decision 44: Scan Now with its hint beside it */
+.scan {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}

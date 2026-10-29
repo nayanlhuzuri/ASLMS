@@ -112,7 +112,7 @@ export function ReportPage({ reportKey, params }: { reportKey: ReportKey; params
       ) : null}
       {reportKey === "data-health" ? (
         <p>
-          {T.reports.liveHealthLine} <Link href="/data/health">{T.reports.liveHealth}</Link>
+          {T.reports.liveHealthLine} <Link href="/data/overview">{T.reports.liveHealth}</Link>
         </p>
       ) : null}
       {reportKey === "pending-actions" && tracksDepartment(me.data) ? (

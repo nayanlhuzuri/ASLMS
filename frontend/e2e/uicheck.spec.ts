@@ -66,6 +66,10 @@ const OLD_FILES: Record<string, string> = {
   "/data/load": "/data/automatic",
   "/data/discovery": "/data/automatic",
   "/data/fetch": "/data/collect",
+  // round 2 (decisions 2 and 3): the old Health, Queue and Calls and Duplicates tabs
+  "/data/health": "/data/overview",
+  "/data/queue": "/data/problems",
+  "/data/duplicates": "/data/problems",
 };
 
 interface Visit {
@@ -688,6 +692,27 @@ const STATES: State[] = [
     path: "/data/automatic#department-names",
     open: async (page) => {
       await page.getByText(/No department names are registered yet/).waitFor();
+    },
+  },
+  // design data-collection-redesign, round 2: Problems and Fixes with every section, and System Health's Court Calls
+  {
+    name: "data-problems-all-sections",
+    path: "/data/problems",
+    open: async (page) => {
+      await page.getByRole("heading", { name: /^Failed Fetches/ }).waitFor();
+      await page.getByRole("table", { name: "Failed Fetches" }).waitFor();
+      await page.getByRole("table", { name: "Cases Without Details" }).waitFor();
+      await page.getByRole("table", { name: "Orders Not Available or Failed" }).waitFor();
+      await page.getByRole("table", { name: "Documents Without Searchable Text" }).waitFor();
+    },
+  },
+  {
+    name: "system-court-calls",
+    path: "/system#calls",
+    open: async (page) => {
+      const section = page.getByRole("region", { name: "Court Calls" });
+      await section.getByRole("table", { name: "Court Call Log" }).waitFor();
+      await section.scrollIntoViewIfNeeded();
     },
   },
   // design next-hearing-highlight: the next hearing badge in every band, as a table at 1280 px and as cards below

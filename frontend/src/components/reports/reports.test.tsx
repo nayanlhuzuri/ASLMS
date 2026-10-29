@@ -376,7 +376,7 @@ describe("the period", () => {
     resetNav("/reports/data-health");
     browserApi({ "GET /me": stateMe(), "GET /reports": catalogue(true), "GET /reports/data-health": report("data-health") });
     renderWithClient(<ReportPage reportKey="data-health" params={{}} />);
-    expect(await screen.findByRole("link", { name: "Live Health" })).toHaveAttribute("href", "/data/health");
+    expect(await screen.findByRole("link", { name: "Data Collection Overview" })).toHaveAttribute("href", "/data/overview");
   });
 });
 

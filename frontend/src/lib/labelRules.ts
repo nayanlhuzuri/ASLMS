@@ -82,6 +82,9 @@ export const SENTENCE_EXCEPTIONS: Record<string, string> = {
   "dc.reasons.connection_off": "a reason read inside the estimate sentence",
   "dc.reasons.paused": "a reason read inside the estimate sentence",
   "dc.notMeasured": "a value read inside a sentence of the estimate inputs",
+  // design data-collection-redesign, round 2: reasons read inside the Court Connection line and the call log's result
+  "pf.families.NapixNotFound": "a reason read inside a sentence",
+  "pf.unknownReason": "a reason read inside a sentence",
   "system.kpiSub.median": "a unit under a figure",
   "system.kpiSub.leftUnknown": "a value read in a sentence under a figure",
   "system.ms": "a unit abbreviation, written after a number",

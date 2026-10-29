@@ -294,14 +294,14 @@ describe("Overview (data-collection-redesign, decisions 14-21)", () => {
     expect(within(table).getByText(f(167388))).toBeInTheDocument();
   });
 
-  it("the Problems line links each part, and says No Problems when every count is 0", async () => {
+  it("the Problems line links each part to its section of Problems and Fixes, and says No Problems when every count is 0", async () => {
     overviewRoutes(READER);
     const { unmount } = renderWithClient(<Overview />);
     const line = await screen.findByLabelText("Problems");
-    expect(within(line).getByRole("link", { name: "12 failed fetches" })).toHaveAttribute("href", "/data/queue?status=failed");
-    expect(within(line).getByRole("link", { name: "3 possible duplicates" })).toHaveAttribute("href", "/data/duplicates");
-    expect(within(line).getByText("109 cases without details")).toBeInTheDocument();
-    expect(within(line).getByText("8 orders not available")).toBeInTheDocument();
+    expect(within(line).getByRole("link", { name: "12 failed fetches" })).toHaveAttribute("href", "/data/problems#failed");
+    expect(within(line).getByRole("link", { name: "3 possible duplicates" })).toHaveAttribute("href", "/data/problems#duplicates");
+    expect(within(line).getByRole("link", { name: "109 cases without details" })).toHaveAttribute("href", "/data/problems#gaps");
+    expect(within(line).getByRole("link", { name: "8 orders not available" })).toHaveAttribute("href", "/data/problems#gaps");
     unmount();
     const none = { failed: 0, duplicates_review: 0, cases_without_details: 0, orders_not_available: 0, orders_failed: 0 };
     overviewRoutes(READER, { "GET /admin/data-load/overview": { ...OVERVIEW, problems: none } });

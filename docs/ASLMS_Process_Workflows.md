@@ -308,8 +308,8 @@ date the operator chooses (2025-01-01 in development):
 - Before re-fetching days already held, it asks whether to skip them or fetch them again.
 
 **The Data Collection screen** (super admin, with the `admin.data_load` function) has the tabs **Overview**,
-**Collect Now** and **Automatic Collection**, followed for now by the older Health, Queue and Calls and Duplicates
-tabs.
+**Collect Now**, **Automatic Collection** and **Problems and Fixes**. The older Health, Queue and Calls and
+Duplicates tabs are retired; their old addresses lead to Overview or Problems and Fixes.
 
 - **Overview** counts honestly across every queue lane (people's requests, the daily cycle and the historical load):
   cause-list days, cases and order PDFs held, what is left in each lane, problems, and an estimate in **two dates**
@@ -320,6 +320,11 @@ tabs.
   schedule in plain words with the last run of each job, the daily updates of the last 7 days, and **Search by
   Department Names** (department discovery).
 - **Collect Now** holds the manual forms: fetch one case, refresh the court's reference lists and the like.
+- **Problems and Fixes** gathers what needs a person: the court connection line with its check, **Failed Fetches**
+  (the failed work by kind and the failed items, with Retry and Retry All), **Possible Duplicates** (cases to confirm as
+  the same) and **Data Gaps** (cases held without details with Collect These, orders not available from the court with
+  Try Again, and documents without searchable text). The court's call log, recent quota resets and e-mail figures are
+  in the Court Calls section of System Health.
 - None of these reads calls NAPIX.
 
 *Status on 28 October 2026, 14:15 IST.* All 666 cause-list days of the collection period are fetched. (The four days

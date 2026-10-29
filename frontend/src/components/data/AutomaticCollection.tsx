@@ -35,7 +35,7 @@ import { api } from "@/lib/api/client";
 import { useMe } from "@/lib/api/hooks";
 import type { DataLoad, DiscoverySummary, DiscoverySweep, LoadOrderOut, LoadPreview, LoadStart, NapixHealth } from "@/lib/api/types";
 import { can, canAny } from "@/lib/can";
-import { dailyStatus, DC_KEYS, minutesToReset, POLL, type DataSchedule } from "@/lib/dataCollection";
+import { dailyStatus, DC_KEYS, minutesToReset, POLL, PROBLEM_LINKS, type DataSchedule } from "@/lib/dataCollection";
 import { formatDate, formatDateTime, formatNumber, formatTime } from "@/lib/format";
 import { T } from "@/lib/messages";
 import { useAction } from "@/lib/useAction";
@@ -122,7 +122,7 @@ function LoadControl({ data, manage }: { data: DataLoad; manage: boolean }) {
           {failed > 0 ? (
             <>
               {" · "}
-              <Link href="/data/queue?status=failed&lane=load">{T.dc.failedLink(n(failed))}</Link>
+              <Link href={PROBLEM_LINKS.failed!}>{T.dc.failedLink(n(failed))}</Link>
             </>
           ) : null}
         </p>

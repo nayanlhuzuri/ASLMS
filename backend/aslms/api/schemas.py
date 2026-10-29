@@ -3687,6 +3687,40 @@ class DedupeScanOut(BaseModel):
     court_linked: int
 
 
+class GapCaseOut(BaseModel):
+    """A case held without details and the state of its dossier row (design data-collection-redesign, decision
+    45)."""
+
+    case: DuplicateCaseOut
+    first_seen_at: datetime | None
+    state: Literal["being_fetched", "not_found", "failed", "not_queued"]
+    attempts: int | None = None
+    problem: str | None = None
+
+
+class GapOrderOut(BaseModel):
+    """An order whose PDF the court marked not available, or whose fetch failed."""
+
+    case: DuplicateCaseOut
+    order_id: uuid.UUID
+    order_no: str
+    order_date: date
+    state: Literal["not_available", "failed"]
+    attempts: int
+    problem: str | None = None
+
+
+class DataGapsOut(BaseModel):
+    """`GET /admin/data-load/gaps`: one page of `cases` or `orders` (`items` of `GapCaseOut` or `GapOrderOut`),
+    `total` and `counts` by state, and the documents without searchable text."""
+
+    kind: Literal["cases", "orders"]
+    total: int
+    counts: dict[str, int]
+    items: list[GapCaseOut] | list[GapOrderOut]
+    documents_text: DocumentsTextOut
+
+
 # ------------------------------------------------------------------------------------------------ cause lists
 
 
