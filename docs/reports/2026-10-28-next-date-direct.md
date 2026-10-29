@@ -31,3 +31,19 @@ Apply 0034 with the `migrate` step, `docker compose build`, then `aslms next-dat
 
 ## Load status
 `aslms queue-status` did not return within the time given at merge; not recorded.
+
+## Deploying
+Screen check on a private network against a `web` built from the merged tree (the shared stack untouched):
+458 passed, 7 skipped, 0 findings (144 routes and states). CI on `main` passed (run 40784535259).
+
+Deployed on 29 Oct 2026: images built; api, worker, scheduler, web and pgbouncer stopped at 07:25; `migrate`
+0033 -> 0034 (seed 21 rows, audit row `system.migrated`) by 07:46; `up` with the court-data switch (`init` exited 0,
+switch checked true in api and worker). With the worker and scheduler stopped (review advisory 4):
+`aslms next-dates direct` dry run (941 suggestions shown directly, 1 left to expire, no enter items, no manual date
+superseded, no conflicts), then `--apply` at 07:48 (83,203 cases refreshed, so `hearing-refresh --all` was not
+needed). `aslms next-dates status`: next hearing by basis none 64,874, court 17,497, around 472, order 359,
+confirmed 1; 100 flagged; none left to compute. Worker and scheduler started again; `portal_smoke.py` passed.
+
+The integrator had rebuilt `web` alone at 04:27 for its smoke check, so from then until 07:25 the portal ran the
+new screens on the earlier api. The tester's and integrator's instructions now use the private-network screen check
+and never recreate a service of the shared stack.

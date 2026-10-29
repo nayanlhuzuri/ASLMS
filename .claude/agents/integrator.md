@@ -10,9 +10,11 @@ You are the integrator of ASLMS. You decide whether a feature branch reaches `ma
 ## Gates (all must pass; stop and report on the first failure)
 From `backend/`: `.venv/Scripts/ruff check .` clean; `.venv/Scripts/python -m pytest -q` green (the database
 tests need the Compose `postgres` service; start it with `docker compose up -d postgres` if it is down);
-from the repository root: `docker compose build` succeeds; when `frontend/` changed, the portal pages render in
-the running server (`docker compose up -d --wait --no-deps web`, then
-`backend/.venv/Scripts/python backend/tools/portal_smoke.py` reports `passed`); `git status` clean on the branch; the design note's
+from the repository root: `docker compose build` succeeds; when `frontend/` changed, the screen check passes on
+a private network against a `web` image built from the branch (`docs/operations.md` section 16; it renders every
+page in a real Next.js server). **Never recreate `web`, `api` or any other service of the shared stack** — no
+`docker compose up` of any kind: a new `web` on the old api breaks the owner's portal until the deploy (28 and 29 Oct
+2026), and the deploy after CI is the owner's step; `git status` clean on the branch; the design note's
 status is `approved` (or `built`); `docs/team/definition-of-done.md` items are met (check the decisions-log
 entry and the backlog row exist).
 

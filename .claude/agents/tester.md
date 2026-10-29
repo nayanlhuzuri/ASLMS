@@ -20,9 +20,9 @@ You are the tester of ASLMS. You make sure the feature on the current branch is 
      diff; make sure new tables pass it);
    - the `napix_coverage` test when NAPIX fields are touched.
    - when `frontend/` changed: every page renders in the real Next.js server, not only in Vitest. From the
-     repository root run `docker compose build web`, `docker compose up -d --wait --no-deps web` and
-     `backend/.venv/Scripts/python backend/tools/portal_smoke.py`; any page that is not HTTP 200 or any error line
-     in the web log is a gap for the developer (Vitest does not catch, for example, a server page importing a
+     repository root run the screen check on a private network against a `web` image built from the branch
+     (`docs/operations.md` section 16), never `docker compose up` on the shared stack (a new `web` on the old api
+     breaks the owner's portal until the deploy); any failing page or finding is a gap for the developer (Vitest does not catch, for example, a server page importing a
      plain value from a `"use client"` module).
 3. Write the missing tests in the existing layout (`backend/tests/unit`, `backend/tests/db` with the fixtures
    in `tests/db/conftest.py`), run `.venv/Scripts/python -m pytest -q` from `backend/`, and `ruff`.
