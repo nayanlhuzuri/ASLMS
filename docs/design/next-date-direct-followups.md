@@ -2,10 +2,10 @@
 
 ```
 slug: next-date-direct-followups
-status: awaiting-approval
+status: approved
 author: architect
 date: 2026-10-30
-approved_by: —
+approved_by: owner on 2026-10-30
 ```
 
 ## Context
