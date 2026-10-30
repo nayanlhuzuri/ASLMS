@@ -47,3 +47,14 @@ Row 208 `case-inbox-simplify-followups` (proposed).
 
 ## Load status
 `aslms queue-status` after the merge (30 Oct 2026, 06:47 IST): causelist_day 410 done and 259 skipped, dossier 83,154 done and 70 skipped, order_pdf 177,056 done and 212,572 pending (excerpt; the historical load continues in the shared worker).
+
+## Push
+`main` (78002c7, report 64a54af) and tag `feature/case-inbox-simplify-done` pushed fast-forward. CI on `main`
+passed (run 40984913802: changes, policy, frontend, backend, compose, ci-ok). The feature branch is kept: a
+squash merge leaves `git branch -d` refusing it.
+
+## Deploying
+The screen check result stands for the merged tree: its `frontend/` is identical to the screen-checked branch head
+(eab0454), the test fix touched only backend tests. Deployed on 30 Oct 2026 at 07:08 IST (no migration): images
+built (`docker compose build`, `--profile ops build migrate`), `up` with the court-data switch (checked true in api
+and worker), `portal_smoke.py` passed; old inbox addresses answer through the sign-in redirect.
