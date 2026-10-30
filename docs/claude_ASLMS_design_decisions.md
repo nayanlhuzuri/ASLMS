@@ -3111,3 +3111,14 @@ Changes earlier decisions: row 207's "No manual reopen"; case-inbox-simplify 4 a
 ## 2026-10-30 — Ten design notes approved (rows 186, 187, 191, 196, 200, 201, 202, 203, 204, 208)
 
 The owner approved, as written ("approve all", 30 Oct 2026): 186 `user-picker-enter-retry`, 187 `data-collection-gutter-live-check` (with the owner's signed-in measuring step, built after row 174), 191 `data-collection-redesign-advisories` (advisory 1 closed as already fixed by row 173), 196 `causelist-pdf-access` (bench chooser, per-list PDF links, the always-shown note), 200 `causelist-day-gap-sweep` (nightly 04:15 sweep; missed days within 7 days go to the daily lane, older ones to the load lane; catch-up at scheduler start), 201 `list-search-followups` (rule fingerprint in place of timestamps), 202 `assistant-polish-followups` ("Facts From the Case Record" shown open for quick facts), 203 `next-date-direct-followups` (a correction ranks where the order's reading stood: changes one sentence of next-date-direct decision 18), 204 `data-collection-redesign-tabs-followups` and 208 `case-inbox-simplify-followups` (old overdue links go to With Me's overdue list). Build order after rows 174, 205 and 207; 187 and 191 after 174 merges.
+
+## 2026-10-30 — Authenticator app sign-in approved (rows 209 `totp-authenticator` and 210 `totp-authenticator-portal`)
+
+Changes otp-and-profile decision 1 (authenticator apps set aside). The owner's rules, given over the discussion of 30 Oct 2026 and approved with `docs/design/totp-authenticator.md`:
+- Sign-in codes stay free: the e-mailed code and the authenticator app only; SMS is a provision shown as Not Available, never charged ("i dont want to incur charges using SMS ... build the provision so that later on ... i can enable in the portal").
+- The authenticator is optional for every login, the Super Administrator included ("if they enable it, only then it will be required"); once switched on the login always uses the app code and is never offered the e-mailed code; anyone may switch it off with a current app code ("yes and this will be for everyone").
+- One recovery code shown on screen, never e-mailed, replaced after each use; a lost phone is reset only by the Super Administrator on a ticket; the Super Administrator's own from the command line.
+- Password reset: e-mailed code alone without the app; e-mailed code and an app code when the app is switched on (owner confirmed).
+- Any authenticator app; no warning e-mail after wrong codes; passkeys later.
+- The designer's two choices confirmed: a session opened with the recovery code may move the app to a new phone; reset tickets raised by the department admin in scope or by the person, as head-change tickets are.
+Row 209 is the backend with migration 0036 (or the next free number) and the new `.env` key `ASLMS_TOTP_KEY` (keep a sealed offline copy); row 210 the portal, after row 209. Placed at the end of the build queue.
