@@ -3097,3 +3097,13 @@ Built on `feature/case-inbox-simplify` from the design `docs/design/case-inbox-s
 - Row 207 `close-case` (Open / Closed, own migration); row 179's pointer note (decision 21).
 - Deploy: no migration; `docker compose build` and restart with the court-data switch carried.
 - `docs/ASLMS_Process_Workflows.md` updated (the Case inbox paragraph and two pointers). No hosting-guide or software-documentation regeneration: no variable, command or deploy step changed.
+
+## 2026-10-30 — Close Case approved (row 207 `close-case`)
+
+The owner answered the design's points on 30 Oct 2026 and approved `docs/design/close-case.md`:
+- Only officers of the owning department close a case as its holder; the owning department's head closes it wherever it is; the Super Administrator may close any case (all under the same conditions: claimed, court status disposed, a closing remark, no transfer waiting).
+- Manual reopen kept as a function, `cases.reopen`, by default for the Super Administrator, the department head and the department admin, with a required Reopening Remark; the automatic reopen when the court's status changes stays.
+- No closing while a transfer waits for a decision; the old "Closed" stage is retired from Set Stage.
+- "If a case is reopened at any stage, an alert should be generated": every reopen, automatic or manual, raises one alert to the department (a manual reopen does not also send a note alert).
+- The designer's five gap choices approved (a department admin closes only as a holder of the department; others given `cases.reopen` may reopen; the manual reopen alert kind; one alert per reopen; the court status recorded at a manual reopen).
+Changes earlier decisions: row 207's "No manual reopen"; case-inbox-simplify 4 and 9 (the Open / Closed switch); custody-workflow 2, 19 and 27; the DB_STANDARD section 6 wording on `cases.closed_at`. Own migration (0035, or the next free number at build time). Placed after rows 174 and 205 in the build order.
