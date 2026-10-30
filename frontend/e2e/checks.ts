@@ -26,7 +26,10 @@
  *   visible element inside it reaches past its content box, unless it sits in a `[data-scroll-x]` or `[data-bleed]`
  *   region, is fixed or absolute (or inside such a box), is visually hidden, or is clipped by a box of its own;
  * - doubled heading (decision 12): a visible `h1`-`h4`, `caption` or `legend` whose normalised text equals the nearest
- *   visible heading above it in the same `section`, `article`, `[data-ui=card]` or `[role=dialog]`.
+ *   visible heading above it in the same `section`, `article`, `[data-ui=card]` or `[role=dialog]`;
+ * - menu clipped (design case-inbox-simplify, decision 23): for any open `[role='menu']`, each `[role='menuitem']` must
+ *   lie fully inside the viewport and be the element at its own centre (or hold it), so no scrolling box cuts it off and
+ *   nothing covers it. With no menu open it costs nothing.
  */
 
 /**
@@ -44,6 +47,7 @@ export const GEOMETRY_KINDS = [
   "primary",
   "gutter",
   "doubled-heading",
+  "menu-clipped",
 ] as const;
 
 export interface PageFinding {
@@ -351,6 +355,30 @@ export function pageChecks({ width }: CheckArgs): PageFinding[] {
     }
     if (above && norm(above) === norm(el)) {
       out.push({ kind: "doubled-heading", element: describe(el), detail: `repeats ${describe(above)}` });
+    }
+  }
+
+  // menus (design case-inbox-simplify, decision 23): every item of an open menu fully on screen and not covered
+  const vh = document.documentElement.clientHeight;
+  for (const menu of Array.from(document.querySelectorAll("[role='menu']"))) {
+    for (const item of Array.from(menu.querySelectorAll("[role='menuitem']"))) {
+      const box = item.getBoundingClientRect();
+      if (box.width === 0 || box.height === 0) {
+        out.push({ kind: "menu-clipped", element: describe(item), detail: "an item of an open menu has no size" });
+        continue;
+      }
+      if (box.left < 0 || box.top < 0 || box.right > vw + 0.5 || box.bottom > vh + 0.5) {
+        out.push({
+          kind: "menu-clipped",
+          element: describe(item),
+          detail: `box ${Math.round(box.left)},${Math.round(box.top)}-${Math.round(box.right)},${Math.round(box.bottom)} outside the viewport ${vw}x${vh}`,
+        });
+        continue;
+      }
+      const at = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+      if (!at || !(at === item || item.contains(at))) {
+        out.push({ kind: "menu-clipped", element: describe(item), detail: `covered or cut off: ${at ? describe(at) : "nothing"} at its centre` });
+      }
     }
   }
   return out;

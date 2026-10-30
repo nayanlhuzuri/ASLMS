@@ -20,6 +20,13 @@
   gap: var(--s2);
 }
 
+/* design case-inbox-simplify, decision 4: My Cases' Reason badges, wrapping under the case on phones */
+.reasons {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--s1);
+}
+
 .chevron {
   color: var(--text-3);
   vertical-align: middle;

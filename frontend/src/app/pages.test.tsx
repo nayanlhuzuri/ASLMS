@@ -205,6 +205,16 @@ describe("every page has at most one primary action (decision 16)", () => {
     expect(routes).toEqual(expect.arrayContaining(["/inbox/sent", "/inbox/pending"]));
   });
 
+  it("the four Case inbox tabs are pages, and the six-tab addresses are redirect pages (case-inbox-simplify, decision 15)", async () => {
+    const routes = PAGES.map(routeOf);
+    expect(routes).toEqual(expect.arrayContaining(["/inbox/with-me", "/inbox/my-cases", "/inbox/sent", "/inbox/department"]));
+    for (const route of ["/inbox/working", "/inbox/claimed-by-me", "/inbox/disposed", "/inbox/pending"]) {
+      expect(routes).toContain(route);
+      const file = PAGES.find((p) => routeOf(p) === route)!;
+      expect(readFileSync(file, "utf8"), route).toContain(`<OldInboxRedirect from="${route}"`);
+    }
+  });
+
   it("the not-found page renders too", async () => {
     const { default: NotFound } = await import("./not-found");
     const { container } = render(<NotFound />);

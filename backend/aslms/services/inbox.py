@@ -23,7 +23,7 @@ from typing import Any, Literal
 
 from sqlalchemy import Select, and_, exists, func, or_, select
 from sqlalchemy.dialects.postgresql import distinct_on
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from aslms.core.clock import today_ist
 from aslms.domain.cases import Case, CaseStatus
@@ -42,6 +42,7 @@ from aslms.domain.ownership import (
     TransferStatus,
 )
 from aslms.domain.reference import Permission
+from aslms.domain.workflow import Custody
 from aslms.services import access, case_filters
 from aslms.services.case_filters import CaseFilters
 from aslms.services.offices import find_office
@@ -58,6 +59,10 @@ from aslms.services.visibility import never_owned as visibility_never_owned
 MAX_LIMIT = 200
 DEFAULT_LIMIT = 50
 MIN_QUERY = 3
+
+# the file's due date in the Claimed order, under an alias: the visibility rule correlates on `custody` itself
+_CLAIMED_DUE = aliased(Custody, name="claimed_due")
+
 Direction = Literal["in", "out"]
 
 
@@ -401,6 +406,20 @@ def _case_state(value: str | None) -> CaseState:
     return v  # type: ignore[return-value]
 
 
+def claimed_order(state: CaseState, action: str | None) -> list[Any]:
+    """Design `case-inbox-simplify`, decision 13: with `case_state=all` active cases first; with `action` the
+    file's due date next (nulls last); then the next hearing (nulls last) and the newest claim. `active` and
+    `disposed` without `action` keep the earlier order exactly."""
+    order: list[Any] = []
+    if state == "all":
+        order.append((Case.status == CaseStatus.DISPOSED).asc())
+    if action is not None and str(action).strip() != "":
+        due = select(_CLAIMED_DUE.due_date).where(_CLAIMED_DUE.case_id == Case.id).scalar_subquery()
+        order.append(due.asc().nulls_last())
+    order += [Case.next_hearing_on.asc().nulls_last(), CaseOwnership.claimed_at.desc()]
+    return order
+
+
 def claimed(
     session: Session,
     user: User,
@@ -448,11 +467,7 @@ def claimed(
         action=action,
     )
     total = _count(session, stmt)
-    rows = session.execute(
-        stmt.order_by(Case.next_hearing_on.asc().nulls_last(), CaseOwnership.claimed_at.desc())
-        .limit(limit)
-        .offset(offset)
-    ).all()
+    rows = session.execute(stmt.order_by(*claimed_order(state, action)).limit(limit).offset(offset)).all()
     cases = [c for _, c in rows]
     summ = summaries(session, cases)
     briefs = my_cases.case_briefs(session, user, [c.id for c in cases])

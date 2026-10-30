@@ -704,3 +704,29 @@ None. The owner answered every point on 29 Oct 2026:
 - the other recommendations stand: Sent by Me still out with Show Earlier, and a send on a case the sender can no longer
   open only under Show Earlier; "With Another Office" means outside the department and its units; the labels "With Me"
   and "With Another Office"; the pill on the With Me count; the More menu fix and the other clipped menus.
+
+## Deviations
+Recorded by the developer during the build (29 Oct 2026); each is the smallest choice where the note was silent.
+- **The chip's hint.** The kit `Chip` gains an optional `hint`, drawn as the button's tooltip (`title`) and its
+  description (`aria-describedby` on a visually hidden span). With Another Office uses it for "Outside this department
+  and its units."
+- **Show Earlier survives Clear All.** `earlier` is added to `LIST_FILTERS.sent.fixed`, so clearing the filters keeps
+  the chosen view, as Department keeps its department.
+- **The tracker's Department list (decision 11).** Its Quick Filters show only Overdue: `/custody/held?scope=owned` has
+  no "held elsewhere" filter, so With Another Office is left out there. Its own "Overdue Only" check is dropped, so
+  the chip (`action=overdue`, sent as `overdue=true`) is the one control; an `overdue=true` in an old link still
+  reads as on. The owner filter of that list offers only the selected department. The Next Hearing column is With
+  Me's only.
+- **One redirect component.** Every old Case inbox, Files and Cases page renders `OldInboxRedirect from="…"`, which
+  calls `oldInboxTarget`; the fixed maps (`OLD_FILES_REDIRECTS`, `OLD_CASES_REDIRECTS` and the new `OLD_TAB_REDIRECTS`)
+  serve the addresses with no query rule. `redirectTarget` moved to `routes.ts` and is re-exported from
+  `Redirects.tsx`.
+- **Tab in an open menu.** Tab closes the list and returns the focus to the button first, so the next Tab moves on
+  from the button (the list now sits at the end of the page or dialog, not after the button).
+- **Closing on scroll (decision 23).** A scroll outside the list closes the menu only when it moves the button from
+  where the list was placed. Pressing More makes the tab bar bring the button into view, and that scroll's event
+  arrives just after the list opens; closing on it shut the menu at once (found by a local uicheck run). Scrolling the
+  page or the bar while the menu is open still moves the button and closes it.
+- **A local uicheck run.** Besides the integrator's run on temporary images, the developer ran the full uicheck on the
+  host against `next start` of this branch's build (private port, not the shared stack): 503 passed, 7 skipped by
+  width, 0 findings.

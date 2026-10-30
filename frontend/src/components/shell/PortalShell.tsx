@@ -55,7 +55,8 @@ function useNavCounts(me: Me): Partial<Record<NavCount, number>> {
   const claim = inbox.data
     ? blocks.reduce((n, b) => n + (b.recommended_high ?? 0) + (b.recommended_medium ?? 0) + (b.transfers_in_open ?? 0), 0)
     : undefined;
-  return { alerts: alerts.data?.unread, inbox: mine.data?.working, claim };
+  // design case-inbox-simplify, decision 3: the pill counts With Me
+  return { alerts: alerts.data?.unread, inbox: mine.data?.files, claim };
 }
 
 /** Below this width the sidebar is a drawer (decision 18). */

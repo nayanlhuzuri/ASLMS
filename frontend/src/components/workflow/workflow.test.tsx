@@ -265,7 +265,7 @@ describe("Send case and Recall case", () => {
     renderWithClient(<CustodyActions caseRef={REF} detail={detail()} card={card()} />);
     await userEvent.click(screen.getByRole("button", { name: "Send Case" }));
     await fillAndSend(screen.getByRole("dialog", { name: "Send the Case" }));
-    await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/inbox/sent"));
+    await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/inbox/sent?earlier=true"));
     expect(sessionStorage.getItem("aslms.flash")).toBe(
       "Case sent to Health Off, Under Secretary, HEALTH. It is no longer with you. Made permanent: ASLMS/HEALTH/NOTE/2026/000001",
     );
@@ -298,7 +298,7 @@ describe("Send case and Recall case", () => {
     expect(await screen.findByText("case loaded")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Send Case" }));
     await fillAndSend(screen.getByRole("dialog", { name: "Send the Case" }));
-    await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/inbox/sent"));
+    await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/inbox/sent?earlier=true"));
     await new Promise((r) => setTimeout(r, 50));
     expect(calls.calls.filter((c) => c.method === "GET" && c.path === BASE)).toHaveLength(1);
     expect(screen.getByText("case loaded")).toBeInTheDocument();

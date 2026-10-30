@@ -121,7 +121,8 @@ export const LIST_FILTERS: Record<ListKey, ListFilters> = {
   transfers: { fields: [...ALL_CASE, "other_office"], fixed: ["department", "direction"] },
   held: { fields: [...ALL_CASE, "owner"], fixed: [] },
   held_owned: { fields: [...ALL_CASE, "owner"], fixed: [] },
-  sent: { fields: [...ALL_CASE, "owner"], fixed: [] },
+  // design case-inbox-simplify, decision 6: Show Earlier is the list's view, kept by Clear All
+  sent: { fields: [...ALL_CASE, "owner"], fixed: ["earlier"] },
   alerts: { fields: [...ALL_CASE, "owner"], fixed: [] },
   search: { fields: [...ALL_CASE, "owner"], fixed: ["tab"], legacy: { status: "case_status", office: "owner" } },
   documents: { fields: ["q"], fixed: ["tab"] },
@@ -136,10 +137,11 @@ export const LIST_FILTERS: Record<ListKey, ListFilters> = {
     more: ["case_type", "year", "court_no", "next_differs"],
     hidden: ["next"],
   },
-  // Department cases: Search, Unit, Officer, Stage, Next hearing; More: case type, year, court, file holder, action
+  // Department: Search, Unit, Officer, Stage, Next hearing; More: case type, year, court, file holder, action; no status
+  // switch (design case-inbox-simplify, decision 9)
   department: {
     fields: ["q", "next", "case_type", "year", "court_no", "next_differs"],
-    fixed: ["department", "case_state"],
+    fixed: ["department"],
     more: ["case_type", "year", "court_no", "next_differs"],
     nextChoices: ["", "n7", "n30", "range"],
   },

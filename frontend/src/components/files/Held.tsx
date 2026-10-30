@@ -1,10 +1,12 @@
 "use client";
 
 /**
- * The held lists (design case-workspace-admin, decisions 17 and 19; custody-workflow decision 24), now tabs of the Case
- * inbox (design case-inbox-merge, decisions 7 and 8): Working on's "Show: With me" (`scope=me`, `?held=me`) and "With
- * my offices" (`scope=office`, `?held=offices`), and Pending action (`scope=owned`, with the tracking summary and
- * "Department it is with"). The API's order (due date, then since), paged
+ * The held lists (design case-workspace-admin, decisions 17 and 19; custody-workflow decision 24), tabs of the Case
+ * inbox (design case-inbox-simplify, decisions 2 and 11): With Me, whose "Show" reads With Me (`scope=me`, the default)
+ * or With My Offices (`scope=office`, `?held=offices`), with a Next Hearing column; and, for a tracker without
+ * whole-department sight, the Department tab's list (`scope=owned` narrowed to the selected department through its
+ * `owner` filter, "Department it is with", its Overdue chip the URL key `action=overdue`). The API's order (due date,
+ * then since), paged
  * by 50 in the query string. No action buttons: sending and recalling happen on the case page, where the card's flags
  * are current. The one filter bar (design portal-filters): the shared case filters with the owning department (on
  * Pending action only the departments the login tracks), Overdue only and the list's own controls. On the Work list
@@ -17,7 +19,7 @@ import { useState } from "react";
 import { FilterBar, type OwnControl } from "@/components/filters/FilterBar";
 import { useFilters } from "@/components/inbox/common";
 import { Chevron } from "@/components/inbox/rows";
-import { Badge, CaseLink, DataTable, EmptyState, ErrorBanner, Lead, Loading, Pagination, type Column } from "@/components/ui";
+import { Badge, CaseLink, DataTable, EmptyState, ErrorBanner, HearingDate, Lead, Loading, Pagination, type Column } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { useDepartments, useMe } from "@/lib/api/hooks";
 import type { HeldItem, HeldList, Me } from "@/lib/api/types";
@@ -28,7 +30,7 @@ import { T } from "@/lib/messages";
 import { offsetOf, PAGE, type Params } from "@/lib/params";
 
 import { FilePanel } from "./FilePanel";
-import { TRACK_ERRORS, TrackingSummary } from "./TrackingSummary";
+import { TRACK_ERRORS } from "./TrackingSummary";
 import s from "./files.module.css";
 import { caseFiltersSet, NoCaseMatches } from "@/components/filters/NoCaseMatches";
 
@@ -96,14 +98,18 @@ export function trackedDepartments(me: Me | undefined): { value: string; label: 
   return out;
 }
 
-export function Held({ tab, params }: { tab: "with-me" | "pending"; params: Params }) {
+/**
+ * `tab="with-me"`: With Me. `tab="pending"`: the tracker's Department list; `department` narrows it to that department
+ * (sent as `owner`), and its overdue key is `action=overdue` (the Department tab's chip), sent as `overdue=true`.
+ */
+export function Held({ tab, params, department }: { tab: "with-me" | "pending"; params: Params; department?: string }) {
   const setFilters = useFilters(params);
   const me = useMe();
   const meId = me.data?.user.id ?? null;
   const [open, setOpen] = useState<HeldItem | null>(null);
   const scope: HeldScope = tab === "pending" ? "owned" : params.held === "offices" ? "office" : "me";
   const offset = offsetOf(params);
-  const overdue = params.overdue === "true";
+  const overdue = scope === "owned" ? params.action === "overdue" || params.overdue === "true" : params.overdue === "true";
   const holderDepartment = scope === "owned" ? params.holder_department || undefined : undefined;
   const departments = useDepartments(scope === "owned");
   const listKey = scope === "owned" ? "held_owned" : "held";
@@ -112,6 +118,7 @@ export function Held({ tab, params }: { tab: "with-me" | "pending"; params: Para
     overdue: overdue || undefined,
     holder_department: holderDepartment,
     ...toApiQuery(params, listKey),
+    ...(scope === "owned" && department ? { owner: department } : {}),
     limit: PAGE,
     offset,
   };
@@ -123,7 +130,6 @@ export function Held({ tab, params }: { tab: "with-me" | "pending"; params: Para
   const own: OwnControl[] =
     scope === "owned"
       ? [
-          { key: "overdue", kind: "check", label: T.files.overdueOnly },
           {
             key: "holder_department",
             kind: "select" as const,
@@ -134,14 +140,13 @@ export function Held({ tab, params }: { tab: "with-me" | "pending"; params: Para
           },
         ]
       : [
-          // design case-inbox-merge, decision 8: Working on's Show control; All leaves for `/inbox/mine`
+          // design case-inbox-simplify, decision 2: With Me (the default) or With My Offices; no "All"
           {
             key: "held",
             kind: "segmented",
             label: T.cases.show,
             options: [
-              { value: "", label: T.cases.showAll },
-              { value: "me", label: T.cases.showMe },
+              { value: "", label: T.cases.showMe },
               { value: "offices", label: T.cases.showOffices },
             ],
             first: true,
@@ -159,6 +164,10 @@ export function Held({ tab, params }: { tab: "with-me" | "pending"; params: Para
       cell: (r) => <LeadCell badge={leadBadge(r, tab)} />,
     },
     { key: "case", header: T.files.case, primary: true, cell: (r) => <CaseCell c={r.case} /> },
+    // design case-inbox-simplify, decision 2: a disposed case with me reads "Disposed" here
+    ...(scope === "owned"
+      ? []
+      : [{ key: "next", header: T.inbox.nextHearingCol, cell: (r: HeldItem) => <HearingDate next={r.case.next_hearing} status={r.case.status} /> }]),
     { key: "action", header: T.files.action, cell: (r) => r.card?.pending_action_label ?? "—" },
     { key: "due", header: T.files.due, cell: (r) => <DueCell date={r.card?.due_date} overdue={!!r.card?.overdue} /> },
     { key: "who", header: whoHeader, cell: (r) => <WithCell party={who(r)} meId={meId} /> },
@@ -167,12 +176,11 @@ export function Held({ tab, params }: { tab: "with-me" | "pending"; params: Para
   const card = open?.card;
   return (
     <div className="stack">
-      {scope === "owned" ? <TrackingSummary /> : null}
       <FilterBar
         list={listKey}
         params={params}
         own={own}
-        ownerOptions={scope === "owned" ? trackedDepartments(me.data) : undefined}
+        ownerOptions={scope === "owned" ? (department ? [{ value: department, label: department }] : trackedDepartments(me.data)) : undefined}
         total={list.data?.total}
         noun="files"
       />

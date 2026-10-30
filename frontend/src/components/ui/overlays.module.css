@@ -243,10 +243,10 @@
   cursor: pointer;
 }
 
+/* design case-inbox-simplify, decision 23: the list mounts in a portal, placed from the button's rectangle (the inline
+   style sets top or bottom, and left), so no scrolling box clips it */
 .menuList {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 4px);
+  position: fixed;
   z-index: 40;
   min-width: 200px;
   margin: 0;
@@ -257,11 +257,6 @@
   border-radius: var(--r-md);
   box-shadow: var(--shadow-2);
   animation: scale-in var(--fast) var(--ease);
-}
-
-.menuStart {
-  left: 0;
-  right: auto;
 }
 
 .menuList a,

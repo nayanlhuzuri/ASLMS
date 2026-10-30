@@ -12,12 +12,15 @@ import Link from "next/link";
 import {
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
+  type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
   type RefObject,
 } from "react";
+import { createPortal } from "react-dom";
 
 import { T, type ErrorTexts } from "@/lib/messages";
 
@@ -411,9 +414,45 @@ export interface MenuItem {
   separator?: boolean;
 }
 
+const useIsoLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
+
+/** The gap between the button and the list, and the least margin kept inside the viewport (design case-inbox-simplify,
+ * decision 23). */
+const MENU_GAP = 4;
+const MENU_EDGE = 8;
+
+/**
+ * Where the list of a `Menu` goes, from the button's rectangle (design case-inbox-simplify, decision 23): below the
+ * button, or above it when the room below is under the list's height and the room above is larger; aligned to the
+ * button's start or end edge; kept `MENU_EDGE` px inside the viewport on both sides. `position: fixed`.
+ */
+export function menuPlacement(
+  rect: Pick<DOMRect, "top" | "bottom" | "left" | "right">,
+  list: { width: number; height: number },
+  view: { width: number; height: number },
+  align: "start" | "end",
+): CSSProperties {
+  const below = view.height - rect.bottom - MENU_GAP;
+  const above = rect.top - MENU_GAP;
+  const up = below < list.height && above > below;
+  const wanted = align === "start" ? rect.left : rect.right - list.width;
+  const left = Math.max(MENU_EDGE, Math.min(wanted, view.width - MENU_EDGE - list.width));
+  return up
+    ? { position: "fixed", left, bottom: view.height - rect.top + MENU_GAP }
+    : { position: "fixed", left, top: rect.bottom + MENU_GAP };
+}
+
 /**
  * An accessible dropdown (decision 17): a button with `aria-expanded`, a list of `menuitem`s, the arrow keys, Home
  * and End move between them, Escape closes and returns the focus to the button, a click outside closes.
+ *
+ * The list always mounts in a portal, `position: fixed` from the button's rectangle (design case-inbox-simplify,
+ * decision 23), so no box that scrolls (the case page's tab bar, a wide table, a side panel) can clip it: in
+ * `document.body`, or in the closest `[role='dialog']` when the menu sits in an overlay, so the focus trap holds. It
+ * closes on a window resize, on a scroll outside the list that moves the button away from where the list was placed,
+ * on a mousedown outside both the button and the list, and on choosing an item. A scroll event that leaves the button
+ * where it was (the late event of the tab bar bringing the button into view as it was pressed) is ignored. The first
+ * item takes the focus without scrolling anything.
  */
 export function Menu({
   label,
@@ -431,23 +470,74 @@ export function Menu({
   triggerClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [host, setHost] = useState<Element | null>(null);
+  const [place, setPlace] = useState<CSSProperties>({ position: "fixed" });
   const wrap = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
+  const list = useRef<HTMLUListElement>(null);
+  /** The button's place when the list was placed: a scroll that moves it closes the menu. */
+  const anchor = useRef<{ top: number; left: number } | null>(null);
   const listId = useId();
 
   function itemsEls(): HTMLElement[] {
-    return Array.from(wrap.current?.querySelectorAll<HTMLElement>("[role='menuitem']") ?? []);
+    return Array.from(list.current?.querySelectorAll<HTMLElement>("[role='menuitem']") ?? []);
   }
 
+  function openMenu() {
+    setHost(wrap.current?.closest("[role='dialog']") ?? document.body);
+    // a first place from the button alone; the layout effect corrects it with the list's size before the paint (the list
+    // is never hidden, so its first item can take the focus at once)
+    const b = button.current;
+    if (b) {
+      const r = b.getBoundingClientRect();
+      anchor.current = { top: r.top, left: r.left };
+      setPlace(menuPlacement(r, { width: 0, height: 0 }, { width: window.innerWidth, height: window.innerHeight }, align));
+    }
+    setOpen(true);
+  }
+
+  useIsoLayoutEffect(() => {
+    if (!open || !host) return;
+    const b = button.current;
+    const l = list.current;
+    if (!b || !l) return;
+    const box = l.getBoundingClientRect();
+    const r = b.getBoundingClientRect();
+    anchor.current = { top: r.top, left: r.left };
+    setPlace(
+      menuPlacement(
+        r,
+        { width: l.offsetWidth || box.width, height: l.offsetHeight || box.height },
+        { width: window.innerWidth, height: window.innerHeight },
+        align,
+      ),
+    );
+  }, [open, host, align]);
+
   useEffect(() => {
-    if (!open) return;
-    wrap.current?.querySelector<HTMLElement>("[role='menuitem']")?.focus();
+    if (!open || !host) return;
+    list.current?.querySelector<HTMLElement>("[role='menuitem']")?.focus({ preventScroll: true });
+    const inside = (t: EventTarget | null) =>
+      t instanceof Node && (!!wrap.current?.contains(t) || !!list.current?.contains(t));
     const onDown = (e: MouseEvent) => {
-      if (!wrap.current?.contains(e.target as Node)) setOpen(false);
+      if (!inside(e.target)) setOpen(false);
     };
+    const onScroll = (e: Event) => {
+      if (e.target instanceof Node && list.current?.contains(e.target)) return;
+      const r = button.current?.getBoundingClientRect();
+      const at = anchor.current;
+      if (!r || !at || Math.abs(r.top - at.top) > 0.5 || Math.abs(r.left - at.left) > 0.5) setOpen(false);
+    };
+    const onResize = () => setOpen(false);
     document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [open]);
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onResize);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [open, host]);
 
   function close(returnFocus = true) {
     setOpen(false);
@@ -468,21 +558,67 @@ export function Menu({
       close();
       return;
     } else if (e.key === "Tab") {
-      close(false);
+      // the list sits outside the button's place in the page: the focus goes back to the button first, so Tab moves
+      // on from there
+      close();
       return;
     }
     if (next >= 0) {
       e.preventDefault();
-      els[next]?.focus();
+      els[next]?.focus({ preventScroll: true });
     }
   }
 
   function onButtonKey(e: ReactKeyboardEvent<HTMLButtonElement>) {
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
-      setOpen(true);
+      openMenu();
     }
   }
+
+  const popover = open ? (
+    <ul
+      ref={list}
+      id={listId}
+      role="menu"
+      aria-label={label}
+      className={s.menuList}
+      style={place}
+      onKeyDown={onListKey}
+    >
+      {items.map((item) => [
+        item.separator ? <li key={`${item.key}-sep`} role="separator" className={s.menuSeparator} /> : null,
+        <li key={item.key} role="none" className={item.danger ? s.menuDanger : undefined}>
+          {item.href ? (
+            <Link
+              href={item.href}
+              role="menuitem"
+              tabIndex={-1}
+              aria-current={item.current ? "page" : undefined}
+              onClick={() => {
+                item.onSelect?.();
+                close(false);
+              }}
+            >
+              {item.label}
+            </Link>
+          ) : (
+            <button
+              type="button"
+              role="menuitem"
+              tabIndex={-1}
+              onClick={() => {
+                close();
+                item.onSelect?.();
+              }}
+            >
+              {item.label}
+            </button>
+          )}
+        </li>,
+      ])}
+    </ul>
+  ) : null;
 
   return (
     <div className={s.menu} ref={wrap}>
@@ -494,46 +630,12 @@ export function Menu({
         aria-expanded={open}
         aria-controls={open ? listId : undefined}
         aria-label={label}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => (open ? setOpen(false) : openMenu())}
         onKeyDown={onButtonKey}
       >
         {trigger ?? label}
       </button>
-      {open ? (
-        <ul id={listId} role="menu" aria-label={label} className={cx(s.menuList, align === "start" && s.menuStart)} onKeyDown={onListKey}>
-          {items.map((item) => [
-            item.separator ? <li key={`${item.key}-sep`} role="separator" className={s.menuSeparator} /> : null,
-            <li key={item.key} role="none" className={item.danger ? s.menuDanger : undefined}>
-              {item.href ? (
-                <Link
-                  href={item.href}
-                  role="menuitem"
-                  tabIndex={-1}
-                  aria-current={item.current ? "page" : undefined}
-                  onClick={() => {
-                    item.onSelect?.();
-                    close(false);
-                  }}
-                >
-                  {item.label}
-                </Link>
-              ) : (
-                <button
-                  type="button"
-                  role="menuitem"
-                  tabIndex={-1}
-                  onClick={() => {
-                    close();
-                    item.onSelect?.();
-                  }}
-                >
-                  {item.label}
-                </button>
-              )}
-            </li>,
-          ])}
-        </ul>
-      ) : null}
+      {popover && host ? createPortal(popover, host) : null}
     </div>
   );
 }

@@ -6,6 +6,11 @@ Working on (design `case-inbox-merge`, decisions 3 and 4) is the active cases al
 case whose custody row the caller holds whatever its status; it is ordered by the caller's own due date, then the
 next hearing. The `files` view stays for compatibility; the portal no longer reads it.
 
+The portal reads `all` and the `files` count (design `case-inbox-simplify`, decisions 3 and 4): `all` is the three
+sets whatever the court status, active cases first, each row with the reasons that put it there (the My Cases
+tab); the `files` count is the With Me tab's count and the sidebar pill. The `working`, `claimed` and `disposed`
+views stay for compatibility.
+
 Three sets over `cases`, each a condition (correlated `EXISTS`):
 - allotted (A): for each active membership with a department, the Claimed-tab rule for the membership itself
   (`visibility.claimed_conditions(..., whole=False)`): the officer is the person, or, for a membership below the
@@ -52,7 +57,7 @@ from aslms.services.case_filters import CaseFilters
 from aslms.services.inbox import InboxError, Page
 from aslms.services.workflow_common import today_ist
 
-VIEWS = ("working", "files", "claimed", "disposed")
+VIEWS = ("working", "files", "all", "claimed", "disposed")
 ACTIONS = ("overdue", "due_week")
 NO_STAGE = "none"
 DUE_WEEK_DAYS = 7
@@ -188,7 +193,8 @@ def _active() -> ColumnElement[bool]:
 
 
 def _state(view: str) -> ColumnElement[bool] | None:
-    """The status rule of a view; Working on carries its own inside `_view_set` (decision 3)."""
+    """The status rule of a view; Working on carries its own inside `_view_set` (decision 3); `files` and `all`
+    have none (design case-inbox-simplify, decision 4)."""
     if view == "claimed":
         return _active()
     if view == "disposed":
@@ -204,6 +210,7 @@ def _view_set(c: MyConditions, view: str) -> ColumnElement[bool]:
         return c.file
     if view == "claimed":
         return c.claimed
+    # `all` and `disposed`: the three sets (`disposed` adds its status rule in `_state`)
     return or_(c.allotted, c.file, c.claimed)
 
 
@@ -218,7 +225,7 @@ def mine_stmt(
     conds: MyConditions | None = None,
 ) -> Select:
     if view not in VIEWS:
-        raise InboxError("view is one of working, files, claimed, disposed")
+        raise InboxError("view is one of working, files, all, claimed, disposed")
     if filters is not None and filters.owner is not None:
         raise InboxError("owner is not a filter of this list")
     c = conds or my_conditions(session, user)
@@ -286,6 +293,9 @@ def mine(
             Case.case_no_text,
             Case.id,
         ]
+        if view == "all":
+            # design case-inbox-simplify, decision 4: active cases first, disposed after them
+            order.insert(0, (Case.status == CaseStatus.DISPOSED).asc())
     rows = session.execute(
         stmt.add_columns(c.allotted.label("r_allotted"), c.file.label("r_file"), c.claimed.label("r_claimed"))
         .order_by(*order)
@@ -313,7 +323,7 @@ def mine(
 
 
 def mine_counts(session: Session, user: User) -> dict[str, int]:
-    """A2: the unfiltered totals of the four views."""
+    """A2: the unfiltered totals of the views (`all` added by design case-inbox-simplify, decision 3)."""
     _require(session, user)
     c = my_conditions(session, user)
     return {view: inbox._count(session, mine_stmt(session, user, view=view, conds=c)) for view in VIEWS}

@@ -103,7 +103,7 @@ describe("navigation by functions", () => {
   });
 
   it("Case inbox stays current across its tabs and on a case page", () => {
-    for (const path of ["/inbox/sent", "/inbox/pending", "/cases/EDU-2026-0001", "/cases/EDU-2026-0001/notes"]) {
+    for (const path of ["/inbox/sent", "/inbox/with-me", "/inbox/department", "/cases/EDU-2026-0001", "/cases/EDU-2026-0001/notes"]) {
       resetNav(path);
       browserApi({ "GET /reference/labels": labels() });
       const { unmount } = renderWithClient(<Sidebar me={makeMe(OFFICER)} />);
@@ -299,8 +299,9 @@ describe("header and sidebar foot", () => {
 
   it("the breadcrumb names the Case inbox and Alerts screens by path, the case tab by segment", () => {
     for (const [path, last] of [
-      ["/inbox/working", "Working On"],
-      ["/inbox/pending", "Pending Action"],
+      ["/inbox/with-me", "With Me"],
+      ["/inbox/my-cases", "My Cases"],
+      ["/inbox/department", "Department"],
       ["/inbox/sent", "Sent by Me"],
       ["/alerts", "Alerts"],
       ["/calendar", "My Calendar"],
@@ -605,7 +606,7 @@ describe("navigation counts (portal-ui-redesign, decision 4; round 2)", () => {
       ],
     });
 
-  it("Case inbox shows the Working on count from /inbox/mine/counts, no Cases pill; Case claim the sum over the departments", async () => {
+  it("Case inbox shows the With Me count (files) from /inbox/mine/counts, no Cases pill; Case claim the sum over the departments", async () => {
     const block = (code: string, high: number, medium: number, transfers: number | null) => ({
       office_code: code,
       recommended_high: high,
@@ -619,11 +620,12 @@ describe("navigation counts (portal-ui-redesign, decision 4; round 2)", () => {
     browserApi({
       "GET /reference/labels": labels(),
       "GET /alerts/counts": { unread: 0, open: { critical: 0, high: 0, normal: 0 } },
-      "GET /inbox/mine/counts": { working: 5, files: 2, claimed: 7, disposed: 1 },
+      "GET /inbox/mine/counts": { working: 5, files: 3, all: 9, claimed: 7, disposed: 1 },
       "GET /inbox/counts": { departments: [block("EDU", 2, 1, 1), block("HEALTH", 0, 4, null)] },
     });
     renderWithClient(<Sidebar me={claimer()} />);
-    expect(await screen.findByRole("treeitem", { name: "Case Inbox, 5" })).toHaveAttribute("href", "/inbox");
+    // design case-inbox-simplify, decision 3: the pill is the With Me count (`files`)
+    expect(await screen.findByRole("treeitem", { name: "Case Inbox, 3" })).toHaveAttribute("href", "/inbox");
     expect(await screen.findByRole("treeitem", { name: "Case Claim, 8" })).toHaveAttribute("href", "/claim");
     expect(screen.queryByRole("treeitem", { name: /^Cases/ })).toBeNull();
     expect(screen.queryByText("2")).toBeNull();
@@ -823,7 +825,7 @@ describe("the one-level side menu (design portal-ui-polish-2, decisions 14-19)",
     browserApi({
       "GET /reference/labels": labels(),
       "GET /alerts/counts": { unread: 4, open: { critical: 0, high: 0, normal: 4 } },
-      "GET /inbox/mine/counts": { working: 2, files: 0, claimed: 0, disposed: 0 },
+      "GET /inbox/mine/counts": { working: 0, files: 2, all: 2, claimed: 0, disposed: 0 },
     });
     renderWithClient(<Sidebar me={makeMe(["cases.view_scope"])} />);
     expect(await screen.findByRole("treeitem", { name: "Alerts, 4" })).toBeInTheDocument();

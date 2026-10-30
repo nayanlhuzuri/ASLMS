@@ -11,7 +11,7 @@ import pytest
 import sqlalchemy as sa
 
 from aslms.core.config import get_settings
-from aslms.domain.cases import Case, CaseStatus
+from aslms.domain.cases import Case, CaseStatus, NextHearingBasis
 from aslms.domain.events import AuditLog
 from aslms.domain.org import UserMembership
 from aslms.domain.ownership import Recommendation, RecommendationOrigin, ScoreBand
@@ -185,6 +185,7 @@ def test_visibility_lost_membership_and_another_department(api, world, cases):
     assert api.get("/inbox/mine/counts", headers=health_off).json() == {
         "working": 0,
         "files": 0,
+        "all": 0,
         "claimed": 0,
         "disposed": 0,
     }
@@ -408,3 +409,123 @@ def test_claimed_items_carry_new_brief_fields(api, world, cases):
 def test_openapi_brief_lists_the_new_fields(api):
     schema = api.app.openapi()["components"]["schemas"]["CustodyBriefOut"]  # /openapi.json is 404 outside dev
     assert {"due_soon", "sent_by"} <= set(schema["properties"])
+
+
+# ------------------------------------------------------------------- design case-inbox-simplify, decisions 3 to 5
+
+
+@pytest.fixture()
+def more(world, cases):
+    """Disposed and allotted-only cases for off1, beside the fixture's `a`, `b` and `x`:
+    - `p`: allotted to off1, file sent to off2, active (allotted only);
+    - `p2`: as `p`, disposed;
+    - `q2`: allotted to off2, file sent to off1, disposed (file only)."""
+    with world.Session() as s:
+        p = w.claimed_case(s, world, officer="edu_off1")
+        w.send(s, world, "edu_off1", p, "edu_off2")
+        p2 = w.claimed_case(s, world, officer="edu_off1")
+        w.send(s, world, "edu_off1", p2, "edu_off2")
+        p2.status = CaseStatus.DISPOSED
+        q2 = w.claimed_case(s, world, officer="edu_off2")
+        w.send(s, world, "edu_off2", q2, "edu_off1")
+        q2.status = CaseStatus.DISPOSED
+        s.commit()
+        return {k: str(v.id) for k, v in dict(p=p, p2=p2, q2=q2).items()}
+
+
+def test_all_view_is_three_sets_any_status(api, world, cases, more):
+    off1 = w.login(api, "edu_off1")
+    got = ids(mine(api, off1, "all"))
+    expected = [cases["a"], cases["b"], cases["x"], more["p"], more["p2"], more["q2"]]
+    assert sorted(got) == sorted(expected)
+    assert len(got) == len(set(got))  # each once
+    assert cases["c"] not in got  # a colleague's
+    # the claimed set, active and disposed: the admin's claims and the accepted transfer, not the head's claim
+    admin = ids(mine(api, w.login(api, "edu_admin"), "all", "limit=200"))
+    assert {cases["c"], cases["d"], cases["x"], cases["t"], more["p2"], more["q2"]} <= set(admin)
+    assert cases["h"] not in admin
+    assert len(admin) == len(set(admin))
+
+
+def test_all_view_active_first(api, world, cases, more):
+    today = today_ist()
+
+    def next_on(s, key_id, days):
+        case = s.get(Case, key_id)
+        case.next_hearing_on = today + timedelta(days=days)
+        case.next_hearing_basis = NextHearingBasis.COURT
+
+    with world.Session() as s:
+        # a disposed case with a stale past next hearing, and one with the nearest date of all
+        next_on(s, cases["x"], -30)
+        next_on(s, more["q2"], 1)
+        next_on(s, cases["a"], 9)
+        next_on(s, cases["b"], 4)
+        s.commit()
+    body = mine(api, w.login(api, "edu_off1"), "all")
+    order = ids(body)
+    status = {str(i["case"]["id"]): i["case"]["status"] for i in body["items"]}
+    flags = [status[i] == "disposed" for i in order]
+    assert flags == sorted(flags), order  # every active row before every disposed row
+    # inside each group: next hearing (nulls last)
+    assert order[:3] == [cases["b"], cases["a"], more["p"]]
+    assert order[3:5] == [cases["x"], more["q2"]] and order[5] == more["p2"]
+
+
+def test_all_reasons_badges(api, world, cases):
+    by_id = {str(i["case"]["id"]): i for i in mine(api, w.login(api, "edu_off1"), "all")["items"]}
+    assert by_id[cases["a"]]["reasons"] == ["allotted", "file"]
+    assert by_id[cases["b"]]["reasons"] == ["file"]
+    admin = {
+        str(i["case"]["id"]): i for i in mine(api, w.login(api, "edu_admin"), "all", "limit=200")["items"]
+    }
+    assert "claimed" in admin[cases["t"]]["reasons"]
+    assert "allotted" not in admin[cases["t"]]["reasons"]
+    assert admin[cases["c"]]["reasons"] == ["claimed"]
+
+
+def test_disposed_case_with_me_in_with_me_and_all(api, world, cases):
+    off1 = w.login(api, "edu_off1")
+    held = api.get("/custody/held?scope=me", headers=off1).json()
+    assert cases["x"] in ids(held)
+    counts = api.get("/inbox/mine/counts", headers=off1).json()
+    assert counts["files"] == held["total"] == 3
+    by_id = {str(i["case"]["id"]): i for i in mine(api, off1, "all")["items"]}
+    assert by_id[cases["x"]]["case"]["status"] == "disposed"
+    assert "file" in by_id[cases["x"]]["reasons"]
+
+
+def test_counts_all_matches_list(api, world, cases, more):
+    for key in ("edu_off1", "edu_off2", "edu_admin", "dse_user", "edu_head"):
+        headers = w.login(api, key)
+        counts = api.get("/inbox/mine/counts", headers=headers).json()
+        assert counts["all"] == mine(api, headers, "all")["total"], key
+
+
+def test_files_count_equals_held_me_and_headline(api, world, cases, more):
+    with world.Session() as s:
+        s.get(Custody, cases["b"]).due_date = today_ist() - timedelta(days=3)
+        s.get(Custody, more["q2"]).due_date = today_ist() - timedelta(days=1)  # disposed, overdue
+        s.commit()
+    off1 = w.login(api, "edu_off1")
+    counts = api.get("/inbox/mine/counts", headers=off1).json()
+    held = api.get("/custody/held?scope=me", headers=off1).json()
+    head = api.get("/dashboard/me", headers=off1).json()["headline"]
+    assert counts["files"] == held["total"] == head["files_with_me"]["total"] == 4
+    overdue = api.get("/custody/held?scope=me&overdue=true", headers=off1).json()
+    assert head["overdue_actions"]["total"] == overdue["total"] == 2
+
+
+def test_unknown_view_400(api, world, cases):
+    r = api.get("/inbox/mine?view=nope", headers=w.login(api, "edu_off1"))
+    assert r.status_code == 400
+    assert "all" in r.text
+
+
+def test_openapi_lists_all_and_still_out(api):
+    spec = api.app.openapi()
+    assert "all" in spec["components"]["schemas"]["MyCaseCountsOut"]["properties"]
+    view = next(p for p in spec["paths"]["/inbox/mine"]["get"]["parameters"] if p["name"] == "view")
+    assert "all" in view["description"]
+    names = [p["name"] for p in spec["paths"]["/custody/sent"]["get"]["parameters"]]
+    assert "still_out" in names

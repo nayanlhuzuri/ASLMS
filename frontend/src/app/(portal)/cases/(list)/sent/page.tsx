@@ -1,10 +1,9 @@
-import { Redirect } from "@/components/inbox/Redirects";
+import { OldInboxRedirect } from "@/components/inbox/Redirects";
 import { plainParams } from "@/lib/params";
-import { OLD_CASES_REDIRECTS } from "@/lib/routes";
 
 type SP = Promise<Record<string, string | string[] | undefined>>;
 
-// design case-inbox-merge, decision 12: the Cases list tab now lives in the Case inbox; the query string is kept
+// an old address (design case-inbox-simplify, decision 15): one client redirect keeping the query string
 export default async function Page({ searchParams }: { searchParams: SP }) {
-  return <Redirect to={OLD_CASES_REDIRECTS["/cases/sent"]!} params={plainParams(await searchParams)} />;
+  return <OldInboxRedirect from="/cases/sent" params={plainParams(await searchParams)} />;
 }

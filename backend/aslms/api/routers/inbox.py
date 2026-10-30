@@ -81,8 +81,9 @@ def claimed(
 ) -> schemas.OwnershipListOut:
     """The department's active ownership rows the caller may see: the whole department for holders of
     `cases.claim` or `cases.allot`, otherwise the cases allotted to the caller or to a unit in their subtree.
-    `case_state` splits Active (`pending` / `unknown`) from Disposed. Each item carries the case's stage and
-    where its file is."""
+    `case_state` splits Active (`pending` / `unknown`) from Disposed; `all` lists both, active first (design
+    case-inbox-simplify, decision 13). With `action`, the file's due date orders next. Each item carries the
+    case's stage and where its file is."""
     try:
         page = inbox.claimed(
             session,
@@ -107,7 +108,11 @@ def claimed(
 
 @router.get("/mine", response_model=schemas.MyCaseListOut)
 def mine(
-    view: str = Query(..., description="working, files, claimed or disposed"),
+    view: str = Query(
+        ...,
+        description="all (the My Cases tab: the three sets whatever the status, active first), working, files, "
+        "claimed or disposed",
+    ),
     stage: str | None = Query(None, description="The case's current stage (a ref_case_stage code), or none"),
     action: str | None = Query(None, description="On the caller's file: overdue or due_week"),
     filters: CaseFilters = Depends(inbox_filter_query),
@@ -119,7 +124,8 @@ def mine(
     """The caller's own cases (design portal-ui-redesign, A1): `working` (active cases allotted to me, and every
     case whose file I hold whatever its status, my own due date first: design case-inbox-merge, decisions 3 and 4),
     `files` (every file I hold), `claimed` (active cases I claimed or whose transfer I accepted), `disposed`
-    (disposed cases of the three sets). Visibility applies; nothing is written."""
+    (disposed cases of the three sets), `all` (the three sets whatever the court status, active cases first: design
+    case-inbox-simplify, decision 4). Visibility applies; nothing is written."""
     try:
         page = my_cases.mine(
             session, user, view=view, filters=filters, stage=stage, action=action, limit=limit, offset=offset
@@ -134,7 +140,8 @@ def mine_counts(
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
 ) -> schemas.MyCaseCountsOut:
-    """The unfiltered totals of the four views of `/inbox/mine`."""
+    """The unfiltered totals of the views of `/inbox/mine`: `files` is the With Me count, `all` the My Cases
+    total (design case-inbox-simplify, decision 3)."""
     try:
         return schemas.MyCaseCountsOut(**my_cases.mine_counts(session, user))
     except (Forbidden, ValueError) as exc:

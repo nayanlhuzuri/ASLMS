@@ -49,19 +49,24 @@ function routes(dir = APP): string[] {
 
 /**
  * The old Files and Cases list addresses and where they lead (design case-workspace-admin, decision 3; case-inbox-merge,
- * decision 12; `OLD_FILES_REDIRECTS` and `OLD_CASES_REDIRECTS` in `src/lib/routes.ts`, pinned by `routes.test.ts`): each
- * is checked as a redirect that lands on its Case inbox tab.
+ * decision 12; case-inbox-simplify, decision 15; `oldInboxTarget` in `src/lib/routes.ts`, pinned by `routes.test.ts`):
+ * each is checked as a redirect that lands on its Case inbox tab.
  */
 const OLD_FILES: Record<string, string> = {
-  "/files": "/inbox/working",
-  "/files/mine": "/inbox/working",
-  "/files/offices": "/inbox/working?held=offices",
-  "/files/department": "/inbox/pending",
+  "/files": "/inbox/with-me",
+  "/files/mine": "/inbox/with-me",
+  "/files/offices": "/inbox/with-me?held=offices",
+  "/files/department": "/inbox/department",
   "/files/sent": "/inbox/sent",
-  "/inbox/files": "/inbox/working",
-  "/cases/with-me": "/inbox/working",
+  "/inbox/files": "/inbox/with-me",
+  "/cases/with-me": "/inbox/with-me",
   "/cases/sent": "/inbox/sent",
-  "/cases/pending": "/inbox/pending",
+  "/cases/pending": "/inbox/department",
+  // the six-tab Case inbox's addresses (design case-inbox-simplify, decision 15)
+  "/inbox/working": "/inbox/my-cases",
+  "/inbox/claimed-by-me": "/inbox/my-cases",
+  "/inbox/disposed": "/inbox/my-cases",
+  "/inbox/pending": "/inbox/department",
   // design data-collection-redesign, decision 2 (`OLD_DATA_REDIRECTS`): the anchor is not part of the landed path
   "/data/load": "/data/automatic",
   "/data/discovery": "/data/automatic",
@@ -285,21 +290,115 @@ const STATES: State[] = [
     },
   },
   {
-    // design case-inbox-merge, decision 9: Working on's side panel, the remark read from the case's custody card
-    name: "/inbox/working (side panel)",
-    path: "/inbox/working",
+    // design case-inbox-simplify, decision 2: With Me's side panel with the card's remark
+    name: "/inbox/with-me (side panel)",
+    path: "/inbox/with-me",
     open: async (page) => {
       await page.locator("tbody tr").first().click();
       await page.getByRole("dialog").first().waitFor();
     },
   },
   {
-    // decision 8: Show "With my offices", the held list inside Working on
-    name: "/inbox/working?held=offices",
-    path: "/inbox/working?held=offices",
+    // decision 2: Show "With My Offices"
+    name: "/inbox/with-me?held=offices",
+    path: "/inbox/with-me?held=offices",
     open: async (page) => {
       await page.getByRole("radiogroup", { name: "Show" }).waitFor();
       await page.locator("tbody tr").first().waitFor();
+    },
+  },
+  {
+    // decision 4: a row with each badge, rows with two and three, and the disposed row after the active rows
+    name: "/inbox/my-cases (badges)",
+    path: "/inbox/my-cases",
+    open: async (page) => {
+      for (const word of ["Assigned to Me", "Claimed by Me", "With Me"]) await page.getByText(word, { exact: true }).first().waitFor();
+      const bands = await page.locator("[data-band]").evaluateAll((els) => els.map((e) => e.getAttribute("data-band")));
+      const first = bands.indexOf("disposed");
+      expect(first, "a disposed row").toBeGreaterThanOrEqual(0);
+      expect(bands.slice(first).every((b) => b === "disposed"), "disposed rows come after the active rows").toBe(true);
+    },
+  },
+  {
+    // decision 6: the files still out, overdue first
+    name: "/inbox/sent (still out)",
+    path: "/inbox/sent",
+    open: async (page) => {
+      await page.locator("tbody tr").first().waitFor();
+      await expect(page.getByRole("checkbox", { name: "Show Earlier" })).not.toBeChecked();
+    },
+  },
+  {
+    // decision 6: Show Earlier, every send and recall with the legs that moved on muted
+    name: "/inbox/sent?earlier=true",
+    path: "/inbox/sent?earlier=true",
+    open: async (page) => {
+      await page.locator("tbody tr").first().waitFor();
+      await expect(page.getByRole("checkbox", { name: "Show Earlier" })).toBeChecked();
+    },
+  },
+  {
+    // decisions 9 and 10: no status switch, active and disposed rows, the Quick Filters
+    name: "/inbox/department (quick filters)",
+    path: "/inbox/department",
+    open: async (page) => {
+      const quick = page.getByRole("group", { name: "Quick Filters" });
+      await quick.getByRole("button", { name: "Overdue" }).waitFor();
+      await quick.getByRole("button", { name: "With Another Office" }).waitFor();
+      await page.locator('[data-band="disposed"]').first().waitFor();
+      await expect(page.getByRole("radio", { name: "Disposed" })).toHaveCount(0);
+    },
+  },
+  {
+    name: "/inbox/department?action=overdue&holder=elsewhere",
+    path: "/inbox/department?action=overdue&holder=elsewhere",
+    open: async (page) => {
+      const quick = page.getByRole("group", { name: "Quick Filters" });
+      await expect(quick.getByRole("button", { name: "Overdue" })).toHaveAttribute("aria-pressed", "true");
+      await expect(quick.getByRole("button", { name: "With Another Office" })).toHaveAttribute("aria-pressed", "true");
+    },
+  },
+  {
+    // design case-inbox-simplify, decisions 22 and 23: More in the case page's tab bar opens a list showing every item,
+    // over the page (the menu-clipped check measures each item)
+    name: `/cases/${SAMPLE.caseRefPath} (More menu open)`,
+    path: `/cases/${SAMPLE.caseRefPath}`,
+    open: async (page) => {
+      const bar = page.getByRole("navigation", { name: "Case Sections" });
+      await bar.getByRole("button", { name: "More" }).click();
+      const menu = page.getByRole("menu");
+      await menu.waitFor();
+      // the tab bar's late scroll (bringing More into view as it is pressed) must not close the list
+      await page.waitForTimeout(300);
+      const names = await menu.getByRole("menuitem").allTextContents();
+      expect(names).toEqual(["Parties", "Linked Cases", "Journey and Stage", "Alerts", "Details"]);
+    },
+  },
+  {
+    // decision 24: the focus ring of More sits inside the tab, so the bar does not cut it
+    name: `/cases/${SAMPLE.caseRefPath} (More button focused)`,
+    path: `/cases/${SAMPLE.caseRefPath}`,
+    open: async (page) => {
+      const bar = page.getByRole("navigation", { name: "Case Sections" });
+      const more = bar.getByRole("button", { name: "More" });
+      await more.focus();
+      await page.keyboard.press("ArrowDown");
+      await page.getByRole("menu").waitFor();
+      await page.keyboard.press("Escape");
+      await expect(more).toBeFocused();
+      const fit = await more.evaluate((el) => {
+        const nav = el.closest("nav")!;
+        const b = el.getBoundingClientRect();
+        const n = nav.getBoundingClientRect();
+        const style = getComputedStyle(el);
+        return {
+          inside: b.top >= n.top + nav.clientTop - 0.5 && b.bottom <= n.top + nav.clientTop + nav.clientHeight + 0.5,
+          offset: parseFloat(style.outlineOffset),
+          width: parseFloat(style.outlineWidth),
+        };
+      });
+      expect(fit.inside, "the focused More lies inside the bar").toBe(true);
+      expect(fit.offset, "the ring is drawn inside the box").toBeLessThanOrEqual(-fit.width);
     },
   },
   {
@@ -483,6 +582,20 @@ const STATES: State[] = [
     },
   },
   {
+    // design case-inbox-simplify, decision 25: the row menu of the table's last row shows in full, over the page, not cut
+    // at the table's bottom edge (the menu-clipped check measures each item)
+    name: "/admin/mapping/codes (row menu on the last row)",
+    path: "/admin/mapping/codes",
+    open: async (page) => {
+      const table = page.getByRole("table", { name: "Counsel Codes" });
+      await table.waitFor();
+      const buttons = table.getByRole("button", { name: /^More actions for / });
+      await buttons.last().scrollIntoViewIfNeeded();
+      await buttons.last().click();
+      await page.getByRole("menu").waitFor();
+    },
+  },
+  {
     // design list-search, decision 14: the keywords searched in the browser
     name: "/admin/mapping/keywords (search typed)",
     path: "/admin/mapping/keywords",
@@ -493,9 +606,9 @@ const STATES: State[] = [
     },
   },
   {
-    // design list-search, decision 17: Search Words on the first row of the Case inbox's own views
-    name: "/inbox/working (Search Words on the first row)",
-    path: "/inbox/working",
+    // design list-search, decision 17: Search Words on the first row of My Cases
+    name: "/inbox/my-cases (Search Words on the first row)",
+    path: "/inbox/my-cases",
     open: async (page) => {
       await page.getByLabel(/^Words/).first().waitFor();
     },
@@ -717,8 +830,8 @@ const STATES: State[] = [
   },
   // design next-hearing-highlight: the next hearing badge in every band, as a table at 1280 px and as cards below
   {
-    name: "/inbox/working (next hearing bands)",
-    path: "/inbox/working",
+    name: "/inbox/my-cases (next hearing bands)",
+    path: "/inbox/my-cases",
     open: async (page) => {
       for (const band of ["today", "tomorrow", "week", "later", "passed", "none", "disposed"]) {
         await page.locator(`[data-band="${band}"]`).first().waitFor();

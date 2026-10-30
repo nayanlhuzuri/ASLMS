@@ -319,6 +319,11 @@ def custody_held(
 
 @router.get("/custody/sent", response_model=schemas.SentListOut, responses=ERRORS)
 def custody_sent(
+    still_out: bool = Query(
+        False,
+        description="true: only sends still the case's current leg, on a case you can open, not held by you; "
+        "overdue first",
+    ),
     filters: CaseFilters = Depends(case_filter_query),
     limit: int = 50,
     offset: int = 0,
@@ -326,9 +331,12 @@ def custody_sent(
     user: User = Depends(read),
 ) -> schemas.SentListOut:
     """The legs the caller wrote (sends and recalls) with the case summary and `visible`: whether the caller can
-    open the case now (the sender usually loses sight of a case sent on). The shared case filters narrow them."""
+    open the case now (the sender usually loses sight of a case sent on). The shared case filters narrow them.
+    `still_out` keeps the files still out (design case-inbox-simplify, decisions 6 and 7)."""
     try:
-        page = custody_svc.sent(session, user, filters=filters, limit=limit, offset=offset)
+        page = custody_svc.sent(
+            session, user, still_out=still_out, filters=filters, limit=limit, offset=offset
+        )
     except HANDLED as exc:
         raise _http(exc) from exc
     return schemas.SentListOut(items=page.items, total=page.total)

@@ -356,7 +356,7 @@ describe("the layout (decision 8)", () => {
       expect(within(group).getByRole("button", { name: "Send Case" })).toHaveAttribute("data-variant", "primary");
       for (const name of ["Add Note", "Upload a Document", "Set Stage"]) expect(within(group).queryByRole("button", { name })).toBeNull();
       await userEvent.click(within(group).getByRole("button", { name: "More Actions" }));
-      const items = within(group).getAllByRole("menuitem").map((m) => m.textContent);
+      const items = screen.getAllByRole("menuitem").map((m) => m.textContent);
       for (const name of ["Add Note", "Upload a Document", "Set Stage"]) expect(items).not.toContain(name);
       expect(container.querySelectorAll(PRIMARY_SELECTOR)).toHaveLength(1);
     });

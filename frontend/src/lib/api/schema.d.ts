@@ -3653,6 +3653,7 @@ export interface paths {
          * Custody Sent
          * @description The legs the caller wrote (sends and recalls) with the case summary and `visible`: whether the caller can
          *     open the case now (the sender usually loses sight of a case sent on). The shared case filters narrow them.
+         *     `still_out` keeps the files still out (design case-inbox-simplify, decisions 6 and 7).
          */
         get: operations["custody_sent_custody_sent_get"];
         put?: never;
@@ -3900,8 +3901,9 @@ export interface paths {
          * Claimed
          * @description The department's active ownership rows the caller may see: the whole department for holders of
          *     `cases.claim` or `cases.allot`, otherwise the cases allotted to the caller or to a unit in their subtree.
-         *     `case_state` splits Active (`pending` / `unknown`) from Disposed. Each item carries the case's stage and
-         *     where its file is.
+         *     `case_state` splits Active (`pending` / `unknown`) from Disposed; `all` lists both, active first (design
+         *     case-inbox-simplify, decision 13). With `action`, the file's due date orders next. Each item carries the
+         *     case's stage and where its file is.
          */
         get: operations["claimed_inbox_claimed_get"];
         put?: never;
@@ -3945,7 +3947,8 @@ export interface paths {
          * @description The caller's own cases (design portal-ui-redesign, A1): `working` (active cases allotted to me, and every
          *     case whose file I hold whatever its status, my own due date first: design case-inbox-merge, decisions 3 and 4),
          *     `files` (every file I hold), `claimed` (active cases I claimed or whose transfer I accepted), `disposed`
-         *     (disposed cases of the three sets). Visibility applies; nothing is written.
+         *     (disposed cases of the three sets), `all` (the three sets whatever the court status, active cases first: design
+         *     case-inbox-simplify, decision 4). Visibility applies; nothing is written.
          */
         get: operations["mine_inbox_mine_get"];
         put?: never;
@@ -3965,7 +3968,8 @@ export interface paths {
         };
         /**
          * Mine Counts
-         * @description The unfiltered totals of the four views of `/inbox/mine`.
+         * @description The unfiltered totals of the views of `/inbox/mine`: `files` is the With Me count, `all` the My Cases
+         *     total (design case-inbox-simplify, decision 3).
          */
         get: operations["mine_counts_inbox_mine_counts_get"];
         put?: never;
@@ -9856,6 +9860,8 @@ export interface components {
         };
         /** MyCaseCountsOut */
         MyCaseCountsOut: {
+            /** All */
+            all: number;
             /** Claimed */
             claimed: number;
             /** Disposed */
@@ -22194,6 +22200,8 @@ export interface operations {
     custody_sent_custody_sent_get: {
         parameters: {
             query?: {
+                /** @description true: only sends still the case's current leg, on a case you can open, not held by you; overdue first */
+                still_out?: boolean;
                 limit?: number;
                 offset?: number;
                 /** @description Words as the Search box (at least 3 characters): a CNR, a case number (`WP(C) 4326/2025`), a `ref_no`, or words matched as prefixes over parties, advocates, counsel codes and numbers */
@@ -22837,7 +22845,7 @@ export interface operations {
     mine_inbox_mine_get: {
         parameters: {
             query: {
-                /** @description working, files, claimed or disposed */
+                /** @description all (the My Cases tab: the three sets whatever the status, active first), working, files, claimed or disposed */
                 view: string;
                 /** @description The case's current stage (a ref_case_stage code), or none */
                 stage?: string | null;

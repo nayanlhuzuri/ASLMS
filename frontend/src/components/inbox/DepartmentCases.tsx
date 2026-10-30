@@ -1,10 +1,12 @@
 "use client";
 
 /**
- * Department cases (design portal-ui-redesign, decision 5; API A3): the department's claimed cases for the readers
- * the server reads whole (`whole_department` on `/inbox/counts`: `cases.claim` or `cases.allot` in the membership, or a
- * State-wide reader). It replaces the old Claimed tab. Active and Disposed are the Status switch (default Active). The
- * full filter bar of the mock-up: Search, Responsible Unit, Dealing Officer (with "Not Assigned Yet", sent as `unallotted=true`), Stage, Next
+ * Department (design portal-ui-redesign, decision 5; case-inbox-simplify, decisions 9, 10 and 13; API A3): the
+ * department's claimed cases for the readers the server reads whole (`whole_department` on `/inbox/counts`:
+ * `cases.claim` or `cases.allot` in the membership, or a State-wide reader). Active and court-disposed cases together,
+ * disposed after active (`case_state=all`, the API's order), with no status switch; a disposed row reads "Disposed" in
+ * the Next Hearing column. Quick Filters: Overdue (`action=overdue`) and With Another Office (`holder=elsewhere`), the
+ * same keys as the selects under More Filters. The full filter bar of the mock-up: Search, Responsible Unit, Dealing Officer (with "Not Assigned Yet", sent as `unallotted=true`), Stage, Next
  * hearing (Any date / This week / Next 30 days / Choose dates…); "More filters": Case type, Year, Court, File is with,
  * Action; removable chips, "Clear all" and "n of m cases". Rows: the case, unit · officer, stage, next hearing and who
  * holds the file; a row opens the case page. Allot stays on the case page (its ownership actions).
@@ -13,7 +15,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 
 import { FilterBar, type OwnControl } from "@/components/filters/FilterBar";
-import { DataTable, EmptyState, ErrorBanner, HearingDate, Loading, Pagination, SegmentedSwitch, type Column } from "@/components/ui";
+import { Chip, ChipGroup, DataTable, EmptyState, ErrorBanner, HearingDate, Loading, Pagination, type Column } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { INBOX_KEY, useDepartmentPeople } from "@/lib/api/hooks";
 import type { InboxCounts, Ownership, OwnershipList } from "@/lib/api/types";
@@ -66,16 +68,39 @@ function AllotmentCell({ row }: { row: Ownership }) {
   );
 }
 
+/**
+ * The Quick Filters of the Department tab (design case-inbox-simplify, decisions 9 to 11): Overdue toggles
+ * `action=overdue`; With Another Office toggles `holder=elsewhere` (left out of the tracker's list, which has no such
+ * filter).
+ */
+export function DepartmentChips({ params, elsewhere = true }: { params: Params; elsewhere?: boolean }) {
+  const setFilters = useFilters(params);
+  const overdueOn = params.action === "overdue";
+  const elsewhereOn = params.holder === "elsewhere";
+  return (
+    <ChipGroup label={T.inbox.quick}>
+      <Chip on={overdueOn} onClick={() => setFilters({ action: overdueOn ? undefined : "overdue" })}>
+        {T.inbox.overdueChip}
+      </Chip>
+      {elsewhere ? (
+        <Chip on={elsewhereOn} hint={T.inbox.withAnotherOfficeHint} onClick={() => setFilters({ holder: elsewhereOn ? undefined : "elsewhere" })}>
+          {T.inbox.withAnotherOffice}
+        </Chip>
+      ) : null}
+    </ChipGroup>
+  );
+}
+
 export function DepartmentCases({ params, department, block }: { params: Params; department: string; block: InboxCounts }) {
   const router = useRouter();
   const setFilters = useFilters(params);
   const people = useDepartmentPeople(department);
   const stages = useStageOptions();
   const offset = offsetOf(params);
-  const caseState = params.case_state === "disposed" ? "disposed" : "active";
+  // an incoming `case_state` (an old link) is ignored: the tab always reads both, active first
   const query = {
     office: department,
-    case_state: caseState,
+    case_state: "all",
     ...departmentQuery(params),
     ...toApiQuery(params, "department"),
     limit: PAGE,
@@ -133,15 +158,11 @@ export function DepartmentCases({ params, department, block }: { params: Params;
     { key: "holder", header: T.inbox.fileWith, cell: (r) => <HolderCell custody={r.custody} /> },
     { key: "open", header: <span className="visually-hidden">{T.inbox.actions}</span>, hideOnPhone: true, width: "var(--s6)", cell: () => <Chevron /> },
   ];
-  const unfiltered = caseState === "disposed" ? block.claimed_disposed : block.claimed_active;
+  const unfiltered =
+    block.claimed_active === null || block.claimed_disposed === null ? null : block.claimed_active + block.claimed_disposed;
   return (
     <section className="stack" aria-label={T.tabs.inbox.department}>
-      <SegmentedSwitch
-        label={T.inbox.status}
-        options={(["active", "disposed"] as const).map((v) => ({ value: v, label: T.inbox.caseStates[v]! }))}
-        value={caseState}
-        onChange={(v) => setFilters({ case_state: v === "active" ? undefined : v })}
-      />
+      <DepartmentChips params={params} />
       {/* design portal-ui-polish-2, decision 23: Layout B with Words as the hero; Unit, Officer, Stage, Next Hearing and
           Case Type on the right; Year, Court, File Is With and Action under More Filters */}
       <FilterBar

@@ -355,16 +355,35 @@ export function Chip({
   onClick,
   children,
   disabled,
+  hint,
 }: {
   on?: boolean;
   onClick?: () => void;
   children: ReactNode;
   disabled?: boolean;
+  /** What the chip keeps, as the button's description and tooltip (design case-inbox-simplify, decision 10). */
+  hint?: string;
 }) {
+  const hintId = useId();
   return (
-    <button type="button" className={cx(s.chip, on && s.chipOn)} aria-pressed={!!on} onClick={onClick} disabled={disabled}>
-      {children}
-    </button>
+    <>
+      <button
+        type="button"
+        className={cx(s.chip, on && s.chipOn)}
+        aria-pressed={!!on}
+        onClick={onClick}
+        disabled={disabled}
+        title={hint}
+        aria-describedby={hint ? hintId : undefined}
+      >
+        {children}
+      </button>
+      {hint ? (
+        <span id={hintId} className="visually-hidden">
+          {hint}
+        </span>
+      ) : null}
+    </>
   );
 }
 

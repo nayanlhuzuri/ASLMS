@@ -266,7 +266,7 @@ describe("dashboard", () => {
     await screen.findByText(/File recalled/);
     const block = screen.getByRole("region", { name: "My Work" });
     expect(within(block).getByRole("link", { name: "My Alerts" })).toHaveAttribute("href", "/alerts");
-    for (const link of within(block).getAllByRole("link", { name: "Cases with Me: 3" })) expect(link).toHaveAttribute("href", "/inbox/working?held=me");
+    for (const link of within(block).getAllByRole("link", { name: "Cases with Me: 3" })) expect(link).toHaveAttribute("href", "/inbox/with-me");
     // a visible case is a link; a case the reader can no longer open is text
     expect(within(block).getByRole("link", { name: "WP(C)/1234/2026" })).toHaveAttribute("href", "/cases/EDU-2026-0001");
     expect(within(block).getByText("WA/9/2026").tagName).toBe("SPAN");
@@ -314,8 +314,8 @@ describe("dashboard", () => {
       "href",
       "/reports/pending-cases?department=EDU",
     );
-    // design case-inbox-merge, decision 13: the department's pending figure leads to the Case inbox's Pending action
-    expect(within(block).getByRole("link", { name: "Pending Actions: 9" })).toHaveAttribute("href", "/inbox/pending");
+    // design case-inbox-simplify, decision 16: the department's pending figure leads to that department's Department tab
+    expect(within(block).getByRole("link", { name: "Pending Actions: 9" })).toHaveAttribute("href", "/inbox/department?department=EDU");
     unmount();
     browserApi({ ...routes, "GET /me": makeMe(["cases.view_scope"]) });
     renderWithClient(<Dashboard />);
@@ -438,8 +438,8 @@ describe("the personal dashboard (portal-ui-redesign, decision 23)", () => {
     expect(links.map((l) => [l.getAttribute("aria-label"), l.getAttribute("href")])).toEqual([
       ["Cases to Claim: 12", "/claim/recommended"],
       ["Hearings This Week: 4", "/calendar"],
-      ["Cases with Me: 6", "/inbox/working?held=me"],
-      ["Overdue Actions: 3", "/inbox/working?overdue=true"],
+      ["Cases with Me: 6", "/inbox/with-me"],
+      ["Overdue Actions: 3", "/inbox/with-me?overdue=true"],
       ["Next Dates to Enter: 2", "/alerts/next-dates"],
     ]);
     expect(within(headline).getByText("5 strong · 7 possible")).toBeInTheDocument();

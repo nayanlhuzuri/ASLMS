@@ -1,8 +1,9 @@
-import { InboxFrame } from "@/components/inbox/InboxFrame";
+import { OldInboxRedirect } from "@/components/inbox/Redirects";
 import { plainParams } from "@/lib/params";
 
 type SP = Promise<Record<string, string | string[] | undefined>>;
 
+// an old address (design case-inbox-simplify, decision 15): one client redirect keeping the query string
 export default async function Page({ searchParams }: { searchParams: SP }) {
-  return <InboxFrame tab="pending" params={plainParams(await searchParams)} />;
+  return <OldInboxRedirect from="/inbox/pending" params={plainParams(await searchParams)} />;
 }

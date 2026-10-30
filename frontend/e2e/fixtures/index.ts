@@ -24,6 +24,7 @@ import type {
   MembershipOut,
   MyCaseList,
   Note,
+  OwnershipList,
   NoteList,
   OfficeChoices,
   OfficeDetail,
@@ -689,7 +690,10 @@ function counselCodes(): CounselCodeList {
   return { ...base, items, total: items.length };
 }
 
-/** Cases with me and Pending action (design case-workspace-admin, decision 19): one row per lead badge. */
+/**
+ * With Me and the tracker's Department list (design case-workspace-admin, decision 19): one row per lead badge, and
+ * (design case-inbox-simplify, decision 5) a disposed case still with me, read "Disposed" in the Next Hearing column.
+ */
 function held(): HeldList {
   const base = synthFor("/custody/held")!.body as HeldList;
   const first = base.items[0]!;
@@ -703,7 +707,11 @@ function held(): HeldList {
   ];
   const items = variants.map((v, i) => {
     const item = base.items[i % base.items.length]!;
-    return { ...item, case: { ...item.case, id: `0192a3b4-0000-7000-8000-00000000020${i}` }, card: { ...card, ...v } };
+    return {
+      ...item,
+      case: { ...item.case, id: `0192a3b4-0000-7000-8000-00000000020${i}`, status: i === variants.length - 1 ? "disposed" : "pending" },
+      card: { ...card, ...v },
+    };
   });
   return { ...base, items, total: items.length };
 }
@@ -722,6 +730,59 @@ function courtNext(date: string | null): S["NextHearingOut"] | null {
 }
 
 const ORDER_REF = { id: "0192a3b4-0000-7000-8000-000000000901", order_no: "4", order_date: "2026-10-12", document_id: null };
+
+/** The Reason badges of My Cases (design case-inbox-simplify, decision 4), one set per row of `working()`. */
+const MINE_REASONS: string[][] = [
+  ["allotted", "file"],
+  ["file"],
+  ["claimed", "file"],
+  ["allotted"],
+  ["claimed"],
+  ["allotted", "claimed"],
+  ["allotted", "claimed", "file"],
+  ["claimed"],
+  ["allotted"],
+];
+
+/**
+ * My Cases (`view=all`, design case-inbox-simplify, decision 4): the rows of `working()` with every reason, one row with
+ * two badges and one with three, active first and the disposed case last, as the API orders them; every band of the
+ * Next Hearing column shows.
+ */
+function mineAll(): MyCaseList {
+  const base = working();
+  const items = base.items.map((row, i) => ({ ...row, reasons: MINE_REASONS[i % MINE_REASONS.length]! }));
+  const ordered = [...items.filter((r) => r.case.status !== "disposed"), ...items.filter((r) => r.case.status === "disposed")];
+  return { ...base, items: ordered, total: ordered.length };
+}
+
+/**
+ * The Department tab (`/inbox/claimed?case_state=all`, design case-inbox-simplify, decisions 9 and 13): two active cases,
+ * one of them overdue with another office, then a disposed case.
+ */
+function claimed(url: URL): OwnershipList {
+  const base = synthFor("/inbox/claimed")!.body as OwnershipList;
+  const row = base.items[0]!;
+  const both = url.searchParams.get("case_state") === "all";
+  const custody = row.custody ? { ...row.custody } : null;
+  const rows: OwnershipList["items"] = [
+    { ...row, id: "0192a3b4-0000-7000-8000-000000000a01", case: { ...row.case, id: "0192a3b4-0000-7000-8000-000000000a11", status: "pending", next_hearing: courtNext(istDayPlus(2)) } },
+    {
+      ...row,
+      id: "0192a3b4-0000-7000-8000-000000000a02",
+      case: { ...row.case, id: "0192a3b4-0000-7000-8000-000000000a12", status: "pending", next_hearing: courtNext(istDayPlus(9)) },
+      custody: custody ? { ...custody, with_me: false, overdue: true, overdue_days: 6, due_date: istDayPlus(-6), holder_office: { code: "HEALTH", name: "Health" } } : null,
+    },
+  ];
+  if (both) {
+    rows.push({
+      ...row,
+      id: "0192a3b4-0000-7000-8000-000000000a03",
+      case: { ...row.case, id: "0192a3b4-0000-7000-8000-000000000a13", status: "disposed", next_hearing: courtNext(istDayPlus(1)) },
+    });
+  }
+  return { ...base, items: rows, total: rows.length };
+}
 
 function working(): MyCaseList {
   const base = synthFor("/inbox/mine")!.body as MyCaseList;
@@ -789,10 +850,24 @@ function working(): MyCaseList {
   return { ...base, items, total: items.length };
 }
 
-/** Sent by me (decision 20): the current leg, a past leg (muted) and a case the sender can no longer open. */
-function sent(): SentList {
+/**
+ * Sent by me (decision 20): the current leg, a past leg (muted) and a case the sender can no longer open. With
+ * `still_out` (design case-inbox-simplify, decision 6) only current sends on visible cases, overdue first.
+ */
+function sent(url: URL): SentList {
   const base = synthFor("/custody/sent")!.body as SentList;
   const item = base.items[0]!;
+  if (url.searchParams.get("still_out") === "true") {
+    const dues = [istDayPlus(-4), istDayPlus(1), null];
+    const items = dues.map((due, i) => ({
+      ...item,
+      visible: true,
+      current: true,
+      leg: { ...item.leg, reason: "sent", reason_label: "Sent", due_date: due },
+      case: { ...item.case, id: `0192a3b4-0000-7000-8000-00000000031${i}` },
+    }));
+    return { ...base, items, total: items.length };
+  }
   const rows: Partial<typeof item>[] = [
     { visible: true, current: true },
     { visible: true, current: false, leg: { ...item.leg, reason: "recalled", reason_label: "Recalled" } },
@@ -973,16 +1048,18 @@ const OVERRIDES: [RegExp, Override][] = [
   [/^\/reports$/, () => catalogue()],
   [/^\/reports\/[^/]+$/, (url) => report(url.pathname.split("/").pop()!)],
   [/^\/alerts$/, () => emptyList<AlertList>("AlertListOut")],
-  [/^\/custody\/sent$/, () => sent()],
-  // design case-inbox-merge: the matcher reads `view` (the API's parameter); Disposed is seen empty
+  [/^\/custody\/sent$/, (url) => sent(url)],
+  // design case-inbox-simplify, decision 4: the matcher reads `view` (the API's parameter); the portal reads `all`
   [
     /^\/inbox\/mine$/,
     (url) => {
       const view = url.searchParams.get("view");
+      if (view === "all") return mineAll();
       if (view === "working") return working();
       return view === "disposed" ? emptyList<S["MyCaseListOut"]>("MyCaseListOut") : synthFor("/inbox/mine")!.body;
     },
   ],
+  [/^\/inbox\/claimed$/, (url) => claimed(url)],
 ];
 
 /** Fields that must be absent for the ordinary screen to show (a merged case shows a link instead of its tabs). */

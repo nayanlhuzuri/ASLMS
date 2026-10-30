@@ -148,7 +148,7 @@ export function DepartmentBlock({ data }: { data: DashboardDepartment }) {
               value={pending.held}
               sub={T.dash.overdue(n(pending.overdue))}
               tone={pending.overdue > 0 ? "danger" : undefined}
-              href="/inbox/pending"
+              href={`/inbox/department?department=${encodeURIComponent(code)}`}
             />
           ) : null,
           <Kpi key="claimed" label={T.dash.claimed} value={data.cases.claimed_active} sub={T.dash.claimedSub(n(data.cases.claimed_disposed))} />,
@@ -293,7 +293,7 @@ export function PersonalExtras({ data }: { data: DashboardMe }) {
             label={T.dash.files}
             value={data.files.held}
             sub={T.dash.filesSub(n(data.files.with_pending_action), n(data.files.overdue))}
-            href="/inbox/working?held=me"
+            href="/inbox/with-me"
           />,
           <Kpi key="alerts" label={T.dash.myAlerts} value={data.alerts.unread} sub={T.dash.unread(n(data.alerts.unread))} href="/alerts" />,
           <Kpi key="drafts" label={T.dash.drafts} value={data.drafts} />,

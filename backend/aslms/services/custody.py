@@ -723,28 +723,52 @@ def held(
     return inbox.Page([{"case": summaries[c.id], "card": card(session, user, c)} for _, c in rows], total)
 
 
+# `sent(still_out=True)` reads custody under an alias: the visibility rule correlates on `custody` itself
+SENT_CUR = aliased(Custody, name="sent_current")
+
+
 def sent(
     session: Session,
     user: User | Member,
     *,
+    still_out: bool = False,
     filters: CaseFilters | None = None,
     limit: int | None = None,
     offset: int | None = None,
 ) -> inbox.Page:
     """Decision 24: the legs the caller wrote (sends and recalls), with the case summary (searchable facts) and
     the leg; the remark is the caller's own. Detail still needs the case visibility. `filters`: the shared case
-    filters on the leg's case (design `portal-filters`, decision 8: they match the facts the row shows)."""
+    filters on the leg's case (design `portal-filters`, decision 8: they match the facts the row shows).
+
+    `still_out` (design `case-inbox-simplify`, decisions 6 and 7): only sends that are still the case's current
+    leg, on a case the caller can open now, not held by the caller; ordered overdue first (the leg's due date,
+    nulls last), then newest first. Without it the list and order are unchanged."""
     stmt = (
         select(CustodyHistory, Case)
         .join(Case, Case.id == CustodyHistory.case_id)
         .where(CustodyHistory.actor_user_id == user.id, CustodyHistory.reason.in_(SENT_LIST_REASONS))
         .where(*case_filters.conditions(session, filters))
     )
+    if still_out:
+        stmt = stmt.where(
+            CustodyHistory.reason == "sent",
+            exists().where(
+                SENT_CUR.case_id == CustodyHistory.case_id,
+                SENT_CUR.current_leg_id == CustodyHistory.id,
+                SENT_CUR.holder_user_id.is_distinct_from(user.id),
+            ),
+            visibility.visible_case_condition(session, user),
+        )
+        order = [
+            CustodyHistory.due_date.asc().nulls_last(),
+            CustodyHistory.created_at.desc(),
+            CustodyHistory.id.desc(),
+        ]
+    else:
+        order = [CustodyHistory.created_at.desc(), CustodyHistory.id.desc()]
     limit, offset = inbox.clamp(limit, offset)
     total = int(session.scalar(select(func.count()).select_from(stmt.order_by(None).subquery())) or 0)
-    rows = session.execute(
-        stmt.order_by(CustodyHistory.created_at.desc(), CustodyHistory.id.desc()).limit(limit).offset(offset)
-    ).all()
+    rows = session.execute(stmt.order_by(*order).limit(limit).offset(offset)).all()
     summaries = inbox.summaries(session, [c for _, c in rows])
     ids = list({c.id for _, c in rows})
     current_legs = (

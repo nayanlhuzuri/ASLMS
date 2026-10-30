@@ -161,6 +161,13 @@
   height: auto;
 }
 
+/* design case-inbox-simplify, decision 24: the bar scrolls sideways, so it clips on both axes; the focus ring of a tab
+   link and of the More button is drawn inside the tab's own box */
+.tabs .tab:focus-visible {
+  outline-offset: -2px;
+  box-shadow: inset 0 0 0 4px var(--accent-ring);
+}
+
 .ink {
   position: absolute;
   bottom: 0;

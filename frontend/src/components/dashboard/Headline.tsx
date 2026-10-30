@@ -100,7 +100,7 @@ export function HeadlineKpis({ headline }: { headline: DashboardHeadline }) {
       value={headline.files_with_me.total}
       sub={T.dash.kpiFilesSub(n(headline.files_with_me.due_today))}
       tone={headline.files_with_me.due_today > 0 ? "warning" : undefined}
-      href="/inbox/working?held=me"
+      href="/inbox/with-me"
     />,
     <Kpi
       key="overdue"
@@ -108,7 +108,7 @@ export function HeadlineKpis({ headline }: { headline: DashboardHeadline }) {
       value={overdue.total}
       sub={overdue.oldest_days !== null && overdue.oldest_days !== undefined ? T.dash.kpiOverdueSub(overdue.oldest_days) : T.dash.kpiOverdueNone}
       tone={overdue.total > 0 ? "danger" : undefined}
-      href="/inbox/working?overdue=true"
+      href="/inbox/with-me?overdue=true"
     />,
     headline.next_dates_to_confirm !== null && headline.next_dates_to_confirm !== undefined ? (
       <Kpi

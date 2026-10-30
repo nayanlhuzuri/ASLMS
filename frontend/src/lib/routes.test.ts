@@ -28,6 +28,9 @@ import {
   navFor,
   OLD_CASES_REDIRECTS,
   OLD_FILES_REDIRECTS,
+  OLD_INBOX_REDIRECTS,
+  OLD_TAB_REDIRECTS,
+  oldInboxTarget,
   PEOPLE_ADMIN_FUNCTIONS,
 } from "./routes";
 
@@ -145,34 +148,36 @@ describe("Files, My calendar and Alerts navigation (portal-files-alerts; portal-
     expect(BOTTOM_BAR_KEYS).toEqual(["dashboard", "inbox", "alerts"]);
   });
 
-  it("the Case inbox tabs per login (case-inbox-merge, decision 7)", () => {
+  it("the Case inbox tabs per login (case-inbox-simplify, decisions 1 and 8)", () => {
     const officer = { functions: ["cases.view_scope"] as Permission[], memberships: [membership("EDU", ["cases.view_scope"], "dept_officer")] };
-    expect(keys(inboxTabsFor(officer))).toEqual(["working", "sent", "disposed"]);
+    expect(keys(inboxTabsFor(officer))).toEqual(["with-me", "mine", "sent"]);
+    // a claim no longer adds a tab: Claimed by Me is a badge in My Cases
     const claimer = {
       functions: ["cases.view_scope", "cases.claim"] as Permission[],
       memberships: [membership("EDU", ["cases.view_scope", "cases.claim"], "dept_officer")],
     };
-    expect(keys(inboxTabsFor(claimer))).toEqual(["working", "sent", "claimed", "disposed"]);
+    expect(keys(inboxTabsFor(claimer))).toEqual(["with-me", "mine", "sent"]);
     const headFns: Permission[] = ["cases.view_scope", "cases.claim", "cases.allot", "custody.track"];
     const head = { functions: headFns, memberships: [membership("EDU", headFns)] };
-    const all = inboxTabsFor(head, { whole: true });
-    expect(keys(all)).toEqual(["working", "sent", "claimed", "disposed", "department", "pending"]);
-    expect(all.map((t) => t.label)).toEqual(["Working On", "Sent by Me", "Claimed by Me", "Disposed", "Department Cases", "Pending Action"]);
-    expect(all.map((t) => t.href)).toEqual([
-      "/inbox/working",
-      "/inbox/sent",
-      "/inbox/claimed-by-me",
-      "/inbox/disposed",
-      "/inbox/department",
-      "/inbox/pending",
-    ]);
+    for (const whole of [true, false]) {
+      const all = inboxTabsFor(head, { whole });
+      expect(keys(all)).toEqual(["with-me", "mine", "sent", "department"]);
+      expect(all.map((t) => t.label)).toEqual(["With Me", "My Cases", "Sent by Me", "Department"]);
+      expect(all.map((t) => t.href)).toEqual(["/inbox/with-me", "/inbox/my-cases", "/inbox/sent", "/inbox/department"]);
+    }
     expect(tracksDepartment(head)).toBe(true);
-    // State oversight: Department cases, no Pending action (its State membership has no department)
+    // State oversight (cases.view_all without cases.view_scope): no My Cases
+    const oversight = { functions: ["cases.view_all"] as Permission[], memberships: [membership(null, ["cases.view_all"], "state_oversight")] };
+    expect(keys(inboxTabsFor(oversight))).toEqual(["with-me", "sent", "department"]);
     const state = {
       functions: ["cases.view_scope", "cases.view_all", "custody.track"] as Permission[],
       memberships: [membership(null, ["cases.view_scope", "cases.view_all", "custody.track"], "state_oversight")],
     };
-    expect(keys(inboxTabsFor(state))).toEqual(["working", "sent", "disposed", "department"]);
+    expect(keys(inboxTabsFor(state))).toEqual(["with-me", "mine", "sent", "department"]);
+    // a tracker by override without whole sight keeps Department (decision 11)
+    const trackerFns: Permission[] = ["cases.view_scope", "custody.track"];
+    const tracker = { functions: trackerFns, memberships: [membership("EDU", trackerFns, "dept_officer")] };
+    expect(keys(inboxTabsFor(tracker, { whole: false }))).toEqual(["with-me", "mine", "sent", "department"]);
     expect(inboxTabsFor(null)).toEqual([]);
   });
 
@@ -188,20 +193,78 @@ describe("Files, My calendar and Alerts navigation (portal-files-alerts; portal-
     }
   });
 
-  it("the old Files and Cases list addresses lead to the Case inbox tabs (case-inbox-merge, decision 12)", () => {
+  it("the old Files and Cases list addresses lead to the Case inbox tabs (case-inbox-simplify, decision 15)", () => {
     expect(OLD_FILES_REDIRECTS).toEqual({
-      "/files": "/inbox/working",
-      "/files/mine": "/inbox/working",
-      "/files/offices": "/inbox/working?held=offices",
-      "/files/department": "/inbox/pending",
+      "/files": "/inbox/with-me",
+      "/files/mine": "/inbox/with-me",
+      "/files/offices": "/inbox/with-me?held=offices",
+      "/files/department": "/inbox/department",
       "/files/sent": "/inbox/sent",
-      "/inbox/files": "/inbox/working",
+      "/inbox/files": "/inbox/with-me",
     });
     expect(OLD_CASES_REDIRECTS).toEqual({
-      "/cases/with-me": "/inbox/working",
+      "/cases/with-me": "/inbox/with-me",
       "/cases/sent": "/inbox/sent",
-      "/cases/pending": "/inbox/pending",
+      "/cases/pending": "/inbox/department",
     });
+    expect(OLD_TAB_REDIRECTS).toEqual({
+      "/inbox/working": "/inbox/my-cases",
+      "/inbox/claimed-by-me": "/inbox/my-cases",
+      "/inbox/disposed": "/inbox/my-cases",
+      "/inbox/pending": "/inbox/department",
+    });
+  });
+
+  it("oldInboxTarget lands every old address in one hop, translating the query (decision 15)", () => {
+    const cases: [string, Record<string, string>, string][] = [
+      ["/inbox/working", { held: "offices" }, "/inbox/with-me?held=offices"],
+      ["/inbox/working", { held: "me" }, "/inbox/with-me"],
+      ["/inbox/working", { overdue: "true" }, "/inbox/with-me?overdue=true"],
+      ["/inbox/working", { action: "overdue", q: "ram" }, "/inbox/with-me?q=ram&overdue=true"],
+      ["/inbox/working", { held: "offices", overdue: "true" }, "/inbox/with-me?held=offices&overdue=true"],
+      ["/inbox/working", { q: "ram", next: "n7", stage: "none", year: "2025", action: "due_week" }, "/inbox/my-cases?q=ram&next=n7&stage=none&year=2025"],
+      ["/inbox/working", {}, "/inbox/my-cases"],
+      ["/inbox/claimed-by-me", { q: "x" }, "/inbox/my-cases?q=x"],
+      ["/inbox/disposed", { case_state: "disposed" }, "/inbox/my-cases?case_state=disposed"],
+      ["/inbox/pending", { overdue: "true", owner: "EDU" }, "/inbox/department?action=overdue&department=EDU"],
+      ["/inbox/pending", { owner: "EDU", department: "FIN" }, "/inbox/department?owner=EDU&department=FIN"],
+      ["/inbox/pending", { holder_department: "HEALTH" }, "/inbox/department?holder_department=HEALTH"],
+      ["/files/department", { overdue: "true" }, "/inbox/department?action=overdue"],
+      ["/cases/pending", { owner: "EDU" }, "/inbox/department?department=EDU"],
+      ["/inbox/files", {}, "/inbox/with-me"],
+      ["/files", { q: "ram" }, "/inbox/with-me?q=ram"],
+      ["/files/mine", {}, "/inbox/with-me"],
+      ["/files/offices", { overdue: "true" }, "/inbox/with-me?overdue=true&held=offices"],
+      ["/cases/with-me", {}, "/inbox/with-me"],
+      ["/files/sent", {}, "/inbox/sent"],
+      ["/cases/sent", { q: "a" }, "/inbox/sent?q=a"],
+      ["/inbox/recommended", {}, "/claim/recommended"],
+      ["/inbox/pool", {}, "/claim/pool"],
+      ["/inbox/transfers", {}, "/claim/transfers"],
+    ];
+    for (const [from, params, to] of cases) expect(oldInboxTarget(from, params), `${from} ${JSON.stringify(params)}`).toBe(to);
+  });
+
+  it("no redirect target is itself a redirect source", () => {
+    const sources = new Set([
+      ...Object.keys(OLD_FILES_REDIRECTS),
+      ...Object.keys(OLD_CASES_REDIRECTS),
+      ...Object.keys(OLD_TAB_REDIRECTS),
+      ...Object.keys(OLD_INBOX_REDIRECTS),
+      "/inbox/claimed",
+      "/cases",
+      "/inbox",
+    ]);
+    const targets = [
+      ...Object.values(OLD_FILES_REDIRECTS),
+      ...Object.values(OLD_CASES_REDIRECTS),
+      ...Object.values(OLD_TAB_REDIRECTS),
+      ...Object.values(OLD_INBOX_REDIRECTS),
+      ...[...Object.keys(OLD_FILES_REDIRECTS), ...Object.keys(OLD_CASES_REDIRECTS), ...Object.keys(OLD_TAB_REDIRECTS)].map((src) =>
+        oldInboxTarget(src, { held: "offices", overdue: "true", owner: "EDU" }),
+      ),
+    ];
+    for (const target of targets) expect(sources.has(target.split("?")[0]!), target).toBe(false);
   });
 
   it("the Data Collection tabs and the round 1 redirects (data-collection-redesign, decisions 1 and 2)", () => {
@@ -252,8 +315,12 @@ describe("Files, My calendar and Alerts navigation (portal-files-alerts; portal-
 
   it("CRUMB_PATHS names the screens by path, while the segments keep their meaning", () => {
     expect(crumbLabel("/inbox/sent")).toBe("Sent by Me");
-    expect(crumbLabel("/inbox/pending")).toBe("Pending Action");
-    expect(crumbLabel("/inbox/working")).toBe("Working On");
+    expect(crumbLabel("/inbox/with-me")).toBe("With Me");
+    expect(crumbLabel("/inbox/my-cases")).toBe("My Cases");
+    expect(crumbLabel("/inbox/department")).toBe("Department");
+    for (const gone of ["/inbox/working", "/inbox/claimed-by-me", "/inbox/disposed", "/inbox/pending"]) {
+      expect(CRUMB_PATHS[gone], gone).toBeUndefined();
+    }
     expect(CRUMB_PATHS["/cases/with-me"]).toBeUndefined();
     expect(crumbLabel("/admin/offices")).toBe("Offices");
     expect(crumbLabel("/alerts")).toBe("Alerts");

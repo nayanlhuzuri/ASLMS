@@ -12,6 +12,7 @@
 import type { Me, Permission } from "./api/types";
 import { can, canAny, departmentsOf, readsAudit, tracksDepartment } from "./can";
 import { T } from "./messages";
+import { queryString, type Params } from "./params";
 import { REPORT_TABS } from "./reports";
 
 /** What the navigation reads of `/me`: the functions, and the memberships where an entry needs them. */
@@ -19,8 +20,9 @@ export type MeLike = Pick<Me, "functions"> & Partial<Pick<Me, "memberships" | "a
 
 export type NavGroupKey = "work" | "oversight" | "settings";
 
-/** The server figure shown in an entry's pill (decision 4): Case inbox (`working`) from `/inbox/mine/counts`, Case
- * claim from `/inbox/counts`, Alerts (`unread`) from `/alerts/counts`. */
+/** The server figure shown in an entry's pill (decision 4): Case inbox (`files`, the With Me count, design
+ * case-inbox-simplify, decision 3) from `/inbox/mine/counts`, Case claim from `/inbox/counts`, Alerts (`unread`) from
+ * `/alerts/counts`. */
 export type NavCount = "alerts" | "inbox" | "claim";
 
 /** Where the person is: the path, and the hash and query the `/system` sections are told apart by. */
@@ -429,24 +431,89 @@ export const CASES_LIST_SEGMENTS: readonly string[] = ["with-me", "sent", "pendi
 
 /**
  * The old Files addresses and where they now live (design case-workspace-admin, decision 3, re-pointed by
- * case-inbox-merge, decision 12; a client redirect keeping the query string, as `OLD_INBOX_REDIRECTS`). Every target is
- * a final address: none is itself in a redirect map.
+ * case-inbox-merge, decision 12 and case-inbox-simplify, decision 15; a client redirect keeping the query string, as
+ * `OLD_INBOX_REDIRECTS`). Every target is a final address: none is itself in a redirect map. `/files/department` reads
+ * its query through `oldInboxTarget`.
  */
 export const OLD_FILES_REDIRECTS: Record<string, string> = {
-  "/files": "/inbox/working",
-  "/files/mine": "/inbox/working",
-  "/files/offices": "/inbox/working?held=offices",
-  "/files/department": "/inbox/pending",
+  "/files": "/inbox/with-me",
+  "/files/mine": "/inbox/with-me",
+  "/files/offices": "/inbox/with-me?held=offices",
+  "/files/department": "/inbox/department",
   "/files/sent": "/inbox/sent",
-  "/inbox/files": "/inbox/working",
+  "/inbox/files": "/inbox/with-me",
 };
 
-/** The old Cases list addresses (design case-inbox-merge, decision 12): the tabs now live in the Case inbox. */
+/** The old Cases list addresses (design case-inbox-merge, decision 12; case-inbox-simplify, decision 15). */
 export const OLD_CASES_REDIRECTS: Record<string, string> = {
-  "/cases/with-me": "/inbox/working",
+  "/cases/with-me": "/inbox/with-me",
   "/cases/sent": "/inbox/sent",
-  "/cases/pending": "/inbox/pending",
+  "/cases/pending": "/inbox/department",
 };
+
+/**
+ * The six-tab Case inbox's addresses that the four tabs replace (design case-inbox-simplify, decision 15). Working On
+ * depends on its query (`oldInboxTarget`); the others are fixed.
+ */
+export const OLD_TAB_REDIRECTS: Record<string, string> = {
+  "/inbox/working": "/inbox/my-cases",
+  "/inbox/claimed-by-me": "/inbox/my-cases",
+  "/inbox/disposed": "/inbox/my-cases",
+  "/inbox/pending": "/inbox/department",
+};
+
+/** The old addresses that read as the Department tab: `overdue=true` is its `action=overdue`, `owner` its department. */
+const OLD_DEPARTMENT_SOURCES = new Set(["/inbox/pending", "/files/department", "/cases/pending"]);
+
+/**
+ * `to` with the old address's query string; a query in `to` itself (`/inbox/with-me?held=offices`) is kept and wins,
+ * and an anchor in `to` (`/data/automatic#department-names`) stays last.
+ */
+export function redirectTarget(to: string, params: Params): string {
+  const [base = "", hash] = to.split("#", 2);
+  const [path, query] = base.split("?", 2);
+  const own: Params = Object.fromEntries(new URLSearchParams(query ?? ""));
+  return path + queryString({ ...params, ...own }) + (hash ? `#${hash}` : "");
+}
+
+function without(params: Params, keys: string[]): Params {
+  return Object.fromEntries(Object.entries(params).filter(([k]) => !keys.includes(k)));
+}
+
+/**
+ * Where an old Case inbox, Files or Cases address lands, in one hop with the query string (design case-inbox-simplify,
+ * decision 15):
+ * - `/inbox/working`: With Me for `held=me|offices` or `overdue=true` / `action=overdue` (With My Offices kept as
+ *   `held=offices`, overdue as `overdue=true`), otherwise My Cases without `held`, `overdue` and `action`;
+ * - `/inbox/pending`, `/files/department` and `/cases/pending`: Department, `overdue=true` read as `action=overdue`
+ *   and `owner=X` as `department=X` when no `department` is given;
+ * - the rest from the fixed maps. A `case_state` is kept in the URL and ignored by the tabs.
+ */
+export function oldInboxTarget(path: string, params: Params): string {
+  if (path === "/inbox/working") {
+    const offices = params.held === "offices";
+    const overdue = params.overdue === "true" || params.action === "overdue";
+    if (offices || params.held === "me" || overdue) {
+      const rest = without(params, ["held", "overdue", "action"]);
+      return "/inbox/with-me" + queryString({ ...(offices ? { held: "offices" } : {}), ...rest, ...(overdue ? { overdue: "true" } : {}) });
+    }
+    return "/inbox/my-cases" + queryString(without(params, ["held", "overdue", "action"]));
+  }
+  if (OLD_DEPARTMENT_SOURCES.has(path)) {
+    let next: Params = { ...params };
+    if (next.overdue !== undefined) {
+      const on = next.overdue === "true";
+      next = without(next, ["overdue"]);
+      if (on) next.action = "overdue";
+    }
+    if (next.owner && !next.department) {
+      next = { ...without(next, ["owner"]), department: next.owner };
+    }
+    return "/inbox/department" + queryString(next);
+  }
+  const to = OLD_TAB_REDIRECTS[path] ?? OLD_FILES_REDIRECTS[path] ?? OLD_CASES_REDIRECTS[path] ?? OLD_INBOX_REDIRECTS[path];
+  return to ? redirectTarget(to, params) : path + queryString(params);
+}
 
 /**
  * The Alerts tabs (design portal-ui-redesign, decision 8: the calendar moved to My calendar): the alerts show to case
@@ -493,37 +560,31 @@ export const CRUMBS: Record<string, string> = T.crumbs;
 export const CRUMBS_WITHOUT_PAGE: readonly string[] = ["/assistant/orders"];
 
 /**
- * The Case inbox tabs (design portal-ui-redesign, decision 5; case-inbox-merge, decision 7: the Cases list folded in),
- * in the owner's order, each its own route. Which show is `inboxTabsFor`; the API decides every list.
+ * The Case inbox tabs (design case-inbox-simplify, decision 1: four tabs in the owner's order, each its own route):
+ * With Me, My Cases, Sent by Me and Department. Which show is `inboxTabsFor`; the API decides every list.
  */
 export const INBOX_TABS = [
-  { key: "working", label: T.tabs.inbox.working, href: "/inbox/working" },
+  { key: "with-me", label: T.tabs.inbox.withMe, href: "/inbox/with-me" },
+  { key: "mine", label: T.tabs.inbox.mine, href: "/inbox/my-cases" },
   { key: "sent", label: T.tabs.inbox.sent, href: "/inbox/sent" },
-  { key: "claimed", label: T.tabs.inbox.claimed, href: "/inbox/claimed-by-me" },
-  { key: "disposed", label: T.tabs.inbox.disposed, href: "/inbox/disposed" },
   { key: "department", label: T.tabs.inbox.department, href: "/inbox/department" },
-  { key: "pending", label: T.tabs.inbox.pending, href: "/inbox/pending" },
 ] as const;
 
 export type InboxTab = (typeof INBOX_TABS)[number]["key"];
 export type InboxTabEntry = (typeof INBOX_TABS)[number];
-/** The own-work views of `/inbox/mine` the portal reads (`files` stays in the API, unread by the portal). */
-export type MyView = "working" | "claimed" | "disposed";
 
 /**
- * Design case-inbox-merge, decision 7 (display only): Working on and Disposed with `cases.view_scope`; Sent by me with
- * `cases.view_scope` or `cases.view_all`; Claimed by me with `cases.claim`; Department cases with `cases.view_all` or a
- * `/inbox/counts` block read whole (`whole`); Pending action for a department membership holding `custody.track`.
+ * Design case-inbox-simplify, decisions 1 and 8 (display only): With Me and Sent by Me with `cases.view_scope` or
+ * `cases.view_all` (the `/custody/held` and `/custody/sent` gate); My Cases with `cases.view_scope`; Department with
+ * `cases.view_all`, a `/inbox/counts` block read whole (`whole`), or `custody.track` in a department membership.
  */
 export function inboxTabsFor(me: MeLike | null | undefined, { whole = false }: { whole?: boolean } = {}): InboxTabEntry[] {
   if (!me) return [];
   const show: Record<InboxTab, boolean> = {
-    working: can(me, "cases.view_scope"),
+    "with-me": canAny(me, CASE_READERS),
+    mine: can(me, "cases.view_scope"),
     sent: canAny(me, CASE_READERS),
-    claimed: can(me, "cases.claim"),
-    disposed: can(me, "cases.view_scope"),
-    department: can(me, "cases.view_all") || whole,
-    pending: tracksDepartment(me),
+    department: can(me, "cases.view_all") || whole || tracksDepartment(me),
   };
   return INBOX_TABS.filter((t) => show[t.key]);
 }
@@ -539,7 +600,8 @@ export type ClaimTab = (typeof CLAIM_TABS)[number]["key"];
 
 /**
  * Decision 10.4: the old inbox URLs and where they now live (a client redirect keeping the query string).
- * `/inbox/claimed` goes to Department cases when the API says `whole_department`, else to Working on.
+ * `/inbox/claimed` goes to Department when the API says `whole_department`, else to My Cases (design
+ * case-inbox-simplify, decision 15).
  */
 export const OLD_INBOX_REDIRECTS: Record<string, string> = {
   "/inbox/recommended": "/claim/recommended",

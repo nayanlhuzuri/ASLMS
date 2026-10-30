@@ -8,11 +8,15 @@
  * the case went. The remark is the caller's own. The one filter bar (design portal-filters): the shared case filters
  * with the owning department. Work list template: the lead badge (Overdue, Due soon or Waiting while the leg is
  * current), case and parties ("Recalled" under the number for a recall), action needed, due by, Sent to and the chevron.
+ *
+ * Design case-inbox-simplify, decisions 6 and 7: by default the files still out (`still_out=true`: sends still the
+ * case's current leg, on a case the caller can open, not held by the caller, overdue first); "Show Earlier"
+ * (`earlier=true`) drops the filter and shows every send and recall, newest first, with legs that have moved on muted.
  */
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { FilterBar } from "@/components/filters/FilterBar";
+import { FilterBar, type OwnControl } from "@/components/filters/FilterBar";
 import { useFilters } from "@/components/inbox/common";
 import { Chevron } from "@/components/inbox/rows";
 import { DataTable, EmptyState, ErrorBanner, Loading, Pagination, type Column } from "@/components/ui";
@@ -37,7 +41,9 @@ export function Sent({ params }: { params: Params }) {
   const setFilters = useFilters(params);
   const [open, setOpen] = useState<SentItem | null>(null);
   const offset = offsetOf(params);
-  const query = { ...toApiQuery(params, "sent"), limit: PAGE, offset };
+  const earlier = params.earlier === "true";
+  const query = { still_out: earlier ? undefined : true, ...toApiQuery(params, "sent"), limit: PAGE, offset };
+  const own: OwnControl[] = [{ key: "earlier", kind: "check", label: T.files.showEarlier }];
   const list = useQuery({
     queryKey: ["files", "sent", query],
     queryFn: () => api<SentList>("/custody/sent", { query }),
@@ -65,7 +71,7 @@ export function Sent({ params }: { params: Params }) {
   const leg = open?.leg;
   return (
     <div className="stack">
-      <FilterBar list="sent" params={params} total={list.data?.total} noun="files" />
+      <FilterBar list="sent" params={params} own={own} total={list.data?.total} noun="files" />
       <ErrorBanner error={list.error} onRetry={() => list.refetch()} />
       {list.isPending ? <Loading /> : null}
       {list.data ? (
@@ -77,9 +83,13 @@ export function Sent({ params }: { params: Params }) {
             rowKey={(r) => `${r.case.id}-${r.leg.seq_no}`}
             onRowClick={setOpen}
             rowLabel={(r) => T.files.openFile(r.case.case_no_text || r.case.ref_no)}
-            rowClassName={(r) => (r.current === false ? s.mutedRow : undefined)}
+            rowClassName={(r) => (earlier && r.current === false ? s.mutedRow : undefined)}
             empty={
-              caseFiltersSet(params, "sent") ? <NoCaseMatches params={params} list="sent" /> : <EmptyState>{T.files.emptySent}</EmptyState>
+              caseFiltersSet(params, "sent") ? (
+                <NoCaseMatches params={params} list="sent" />
+              ) : (
+                <EmptyState>{earlier ? T.files.emptySent : T.files.emptyStillOut}</EmptyState>
+              )
             }
           />
           {list.data.items.length > 0 ? (

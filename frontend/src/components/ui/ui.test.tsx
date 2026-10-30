@@ -1,4 +1,6 @@
-import { act, screen, within } from "@testing-library/react";
+import { act, fireEvent, screen, within } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import userEvent from "@testing-library/user-event";
 import { useState, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -185,6 +187,163 @@ describe("Menu", () => {
     await userEvent.keyboard("{Enter}");
     expect(onSelect).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("menu")).toBeNull();
+  });
+});
+
+describe("Menu in a portal (design case-inbox-simplify, decisions 22 to 25)", () => {
+  const ITEMS = [
+    { key: "a", label: "Parties", href: "/p" },
+    { key: "b", label: "Linked Cases", href: "/l" },
+    { key: "c", label: "Details", href: "/d" },
+  ];
+  const rect = (top: number, left: number, width = 80, height = 32) =>
+    ({ top, bottom: top + height, left, right: left + width, width, height, x: left, y: top, toJSON: () => ({}) }) as DOMRect;
+
+  function place(button: HTMLElement, r: DOMRect) {
+    button.getBoundingClientRect = () => r;
+  }
+
+  function sized<T>(height: number, width: number, run: () => T): T {
+    const h = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetHeight");
+    const w = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetWidth");
+    Object.defineProperty(HTMLElement.prototype, "offsetHeight", { configurable: true, get: () => height });
+    Object.defineProperty(HTMLElement.prototype, "offsetWidth", { configurable: true, get: () => width });
+    try {
+      return run();
+    } finally {
+      if (h) Object.defineProperty(HTMLElement.prototype, "offsetHeight", h);
+      if (w) Object.defineProperty(HTMLElement.prototype, "offsetWidth", w);
+    }
+  }
+
+  it("the list mounts in document.body, position fixed, its top the button's bottom plus 4", async () => {
+    const { container } = renderWithClient(<Menu label="More" items={ITEMS} align="start" />);
+    const button = screen.getByRole("button", { name: "More" });
+    place(button, rect(100, 50));
+    await userEvent.click(button);
+    const menu = screen.getByRole("menu");
+    expect(container.contains(menu)).toBe(false);
+    expect(menu.parentElement).toBe(document.body);
+    expect(menu.style.position).toBe("fixed");
+    expect(menu.style.top).toBe("136px");
+    expect(menu.style.left).toBe("50px");
+  });
+
+  it("opens above when the room below is short and the room above larger; stays 8 px inside the right edge", () => {
+    sized(200, 220, () => {
+      renderWithClient(<Menu label="More" items={ITEMS} align="start" />);
+      const button = screen.getByRole("button", { name: "More" });
+      place(button, rect(window.innerHeight - 40, window.innerWidth - 60, 50));
+      fireEvent.click(button);
+      const menu = screen.getByRole("menu");
+      expect(menu.style.top).toBe("");
+      expect(menu.style.bottom).toBe(`${40 + 4}px`);
+      expect(parseFloat(menu.style.left) + 220).toBeLessThanOrEqual(window.innerWidth - 8);
+    });
+  });
+
+  it("inside a [role='dialog'] the list mounts in the dialog", async () => {
+    renderWithClient(
+      <div role="dialog" aria-label="Panel">
+        <Menu label="More" items={ITEMS} />
+      </div>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "More" }));
+    expect(screen.getByRole("menu").parentElement).toBe(screen.getByRole("dialog", { name: "Panel" }));
+  });
+
+  it("keyboard: ArrowDown opens on the first item; Arrow, Home and End move; Escape returns the focus; Tab closes", async () => {
+    renderWithClient(<Menu label="More" items={ITEMS} />);
+    const button = screen.getByRole("button", { name: "More" });
+    button.focus();
+    await userEvent.keyboard("{ArrowDown}");
+    expect(screen.getByRole("menuitem", { name: "Parties" })).toHaveFocus();
+    await userEvent.keyboard("{End}");
+    expect(screen.getByRole("menuitem", { name: "Details" })).toHaveFocus();
+    await userEvent.keyboard("{Home}");
+    expect(screen.getByRole("menuitem", { name: "Parties" })).toHaveFocus();
+    await userEvent.keyboard("{ArrowUp}");
+    expect(screen.getByRole("menuitem", { name: "Details" })).toHaveFocus();
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(button).toHaveFocus();
+    await userEvent.keyboard("{ArrowDown}");
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    await userEvent.keyboard("{Tab}");
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("a mousedown on an item does not close before the click; an outside mousedown closes", async () => {
+    const onSelect = vi.fn();
+    renderWithClient(
+      <>
+        <p>outside</p>
+        <Menu label="More" items={[{ key: "x", label: "Recall", onSelect }]} />
+      </>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "More" }));
+    fireEvent.mouseDown(screen.getByRole("menuitem", { name: "Recall" }));
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("menuitem", { name: "Recall" }));
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    await userEvent.click(screen.getByRole("button", { name: "More" }));
+    fireEvent.mouseDown(screen.getByText("outside"));
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("a scroll on an ancestor that moves the button closes; a scroll inside the list or a late one that moves nothing does not; a resize closes", async () => {
+    renderWithClient(
+      <div data-testid="scroller">
+        <Menu label="More" items={ITEMS} />
+      </div>,
+    );
+    const button = screen.getByRole("button", { name: "More" });
+    place(button, rect(100, 50));
+    await userEvent.click(button);
+    fireEvent.scroll(screen.getByRole("menu"));
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    // the tab bar's late scroll event from bringing the button into view as it was pressed: the button stays put
+    fireEvent.scroll(screen.getByTestId("scroller"));
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    // the page scrolls: the button moves away from where the list was placed
+    place(button, rect(60, 50));
+    fireEvent.scroll(screen.getByTestId("scroller"));
+    expect(screen.queryByRole("menu")).toBeNull();
+    place(button, rect(100, 50));
+    await userEvent.click(button);
+    act(() => {
+      window.dispatchEvent(new Event("resize"));
+    });
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("Tabs with more: every More item is rendered, none inside the nav", async () => {
+    renderWithClient(
+      <Tabs
+        label="Case Sections"
+        items={[{ href: "/a", label: "Overview", active: true }]}
+        more={[
+          { href: "/p", label: "Parties", active: false },
+          { href: "/l", label: "Linked Cases", active: false },
+          { href: "/j", label: "Journey and Stage", active: false },
+          { href: "/al", label: "Alerts", active: false },
+          { href: "/d", label: "Details", active: false },
+        ]}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "More" }));
+    const nav = screen.getByRole("navigation", { name: "Case Sections" });
+    const items = screen.getAllByRole("menuitem");
+    expect(items.map((i) => i.textContent)).toEqual(["Parties", "Linked Cases", "Journey and Stage", "Alerts", "Details"]);
+    for (const item of items) expect(nav.contains(item)).toBe(false);
+  });
+
+  it("the tab bar draws the focus ring inside the tab (a negative outline-offset)", () => {
+    const css = readFileSync(join(process.cwd(), "src", "components", "ui", "layout.module.css"), "utf-8");
+    const rule = /\.tabs \.tab:focus-visible\s*\{([^}]*)\}/.exec(css);
+    expect(rule).not.toBeNull();
+    expect(rule![1]).toMatch(/outline-offset:\s*-\d+px/);
+    expect(rule![1]).toMatch(/box-shadow:\s*inset/);
   });
 });
 

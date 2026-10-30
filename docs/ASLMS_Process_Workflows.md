@@ -618,7 +618,7 @@ sequenceDiagram
 
 **After the claim:**
 
-- The case is Education's. It appears in **Case inbox → Department cases**, and in **Working on** for the officer it
+- The case is Education's. It appears in **Case inbox → Department**, and in **With Me** and **My Cases** for the officer it
   is assigned to.
 - It can **never return to the unclaimed pool**.
 - If another department claims it later through its own recommendation, that department becomes a **watcher**, not
@@ -644,7 +644,7 @@ sequenceDiagram
 ### 4.2 The department admin organises the work
 
 - **Assign:** give a claimed case to a unit or an officer (**Assign This Case**, with a Responsible Unit and a Dealing
-  Officer). That officer gets an alert, and the case appears in their **Working on** list. To pass a case on for an
+  Officer). That officer gets an alert, and the case appears in their **With Me** tab. To pass a case on for an
   action, use **Send Case** instead (section 4.3). *(Wording only: the code, API and audit names still say "allot";
   rows written before the change keep their old text.)*
 - **Take over:** an officer of the owning department can take a colleague's case, with no approval. The previous
@@ -681,11 +681,15 @@ stateDiagram-v2
     WithAdmin --> WithOfficer: Send Case
 ```
 
-**The Case inbox** (one menu entry) has six tabs: **Working On** (cases with me or my offices, with a Show control of
-All, With Me or With My Offices; a case with me stays here after it is disposed, and the person's own due dates come
-first), **Sent By Me**, **Claimed By Me** (with the claim function), **Disposed**, **Department Cases** (department
-heads, admins and State-wide readers) and **Pending Action** (people who may track files). The old Cases and Files
-addresses redirect to it.
+**The Case inbox** (one menu entry) has four tabs, each answering one question. **With Me** is every case whose file is
+with me now, whatever the court's status (a disposed case stays until it is closed), the most urgent due date first,
+with the action asked and who sent it; a Show control gives With Me or With My Offices, and the count is on the tab and
+the side-menu pill. **My Cases** is every case I am connected to (assigned to me or my unit, claimed by me or through an
+accepted transfer, or with me), active and disposed together with disposed after, with the badges Assigned to Me,
+Claimed by Me and With Me. **Sent By Me** is the files I sent that are still out, overdue first, with Show Earlier for
+the history. **Department** (heads, admins, trackers and State-wide readers) is the department's cases, active first,
+with the quick filters Overdue and With Another Office. There is no Disposed tab or switch: a disposed row carries the
+Disposed badge. The old Cases and Files addresses redirect to it.
 
 - **The file (custody).** Whoever holds the file can **send it** (**Send Case**) to any officer, in any department. The sender
   writes a remark, chooses a pending action (examine, reply, file, comply, parawise comments…) and may set a due

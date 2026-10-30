@@ -156,3 +156,37 @@ test("a button whose label is cut off is still clipped content (the exemption is
   const findings = (await page.evaluate(pageChecks, { width: 1280 })).filter((f) => f.kind === "clipped");
   expect(findings).toHaveLength(1);
 });
+
+/**
+ * The menu-clipped rule (design case-inbox-simplify, decision 23): a menu list cut by a box that scrolls sideways fails;
+ * the same list placed `position: fixed` passes; with no menu open nothing is measured.
+ */
+const MENU_ITEMS = `<li><a role="menuitem" href="#">Parties</a></li><li><a role="menuitem" href="#">Linked Cases</a></li>
+  <li><a role="menuitem" href="#">Details</a></li>`;
+
+test("a menu cut off by a sideways-scrolling bar is a menu-clipped finding", async ({ page }) => {
+  await page.setContent(
+    clipPage(
+      `<nav data-scroll-x style="overflow-x:auto;position:relative;height:40px;white-space:nowrap">
+         <span style="position:relative;display:inline-block">
+           <button>More</button>
+           <ul role="menu" style="position:absolute;top:100%;left:0;margin:0;padding:0;list-style:none;background:#fff">${MENU_ITEMS}</ul>
+         </span>
+       </nav>`,
+    ),
+  );
+  const findings = (await page.evaluate(pageChecks, { width: 1280 })).filter((f) => f.kind === "menu-clipped");
+  expect(findings.length).toBeGreaterThan(0);
+});
+
+test("a menu placed fixed over the page passes, and a page with no menu raises nothing", async ({ page }) => {
+  await page.setContent(
+    clipPage(
+      `<nav data-scroll-x style="overflow-x:auto;height:40px"><button>More</button></nav>
+       <ul role="menu" style="position:fixed;top:60px;left:16px;z-index:40;margin:0;padding:0;list-style:none;background:#fff">${MENU_ITEMS}</ul>`,
+    ),
+  );
+  expect((await page.evaluate(pageChecks, { width: 1280 })).filter((f) => f.kind === "menu-clipped")).toEqual([]);
+  await page.setContent(clipPage("<p>No menu here</p>"));
+  expect((await page.evaluate(pageChecks, { width: 1280 })).filter((f) => f.kind === "menu-clipped")).toEqual([]);
+});

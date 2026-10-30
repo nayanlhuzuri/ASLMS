@@ -75,7 +75,7 @@ describe("screens and retired helpers", () => {
     "components/dashboard/Headline.tsx",
     "components/inbox/DepartmentCases.tsx",
     "components/inbox/MyCases.tsx",
-    "components/inbox/WorkingOn.tsx",
+    "components/files/Held.tsx",
     "components/nextdates/CaseNextDate.tsx",
     "components/search/CaseResults.tsx",
   ])("%s renders the kit HearingDate", (rel) => {

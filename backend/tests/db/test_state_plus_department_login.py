@@ -55,7 +55,12 @@ def test_remark_hidden_from_state_only_login_without_view_private_all(world, dua
 def test_my_calendar_lists_department_cases(world, dual, tmp_path):
     api = ds.make_api(world, tmp_path)
     try:
-        r = api.get("/me/calendar", headers=w.login(api, "oversight"))
+        today = today_ist()  # an explicit range: the default month grid misses the hearing near a month end
+        r = api.get(
+            "/me/calendar",
+            params={"from": today.isoformat(), "to": (today + timedelta(days=7)).isoformat()},
+            headers=w.login(api, "oversight"),
+        )
         assert r.status_code == 200, r.text
         hearings = {i["case"]["id"] for i in r.json()["items"] if i["kind"] == "hearing"}
         assert str(dual["case"]) in hearings

@@ -1,19 +1,20 @@
 "use client";
 
 /**
- * The Case inbox's own-work views (design portal-ui-redesign, decision 5; API A1): Claimed by me and Disposed (Working
- * on has its own list, `WorkingOn.tsx`, design case-inbox-merge, decision 8), each read from `GET /inbox/mine?view=…`
- * with its filters in the query string. Rows (Work list
- * template): the case number with the parties under it, the stage, the next hearing with its badge, "Your action" (the
- * pending action and due date of a file with me) and a chevron; a row opens the case page by click or Enter. The filter
- * bar: quick chips (Hearing this week, Action overdue), Stage, and "More filters" (words, case type, year, court);
- * "n cases", or "n of m cases" when filtered, m being the tab's unfiltered count from `/inbox/mine/counts`.
+ * My Cases (design case-inbox-simplify, decision 4; API A1): every case I am connected to, read from
+ * `GET /inbox/mine?view=all` with its filters in the query string, active and court-disposed together, disposed after
+ * active (the API's order), with no status switch; a disposed row reads "Disposed" in the Next Hearing column
+ * (`HearingDate`). Rows (Work list template): the case number with the parties under it, the Reason badges from the
+ * row's `reasons` (Assigned to Me, Claimed by Me, With Me, in that order), the stage, the next hearing, "Your Action"
+ * (the pending action and due date of a case with me) and a chevron; a row opens the case page by click or Enter. The
+ * filter bar: the quick chip Hearing This Week, Stage, and the shared filters with Search Words on the first row;
+ * "n cases", or "n of m cases" when filtered, m being the `all` figure of `/inbox/mine/counts`.
  */
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 
 import { FilterBar, type OwnControl } from "@/components/filters/FilterBar";
-import { Chip, ChipGroup, DataTable, EmptyState, ErrorBanner, HearingDate, Loading, Pagination, type Column } from "@/components/ui";
+import { Badge, Chip, ChipGroup, DataTable, EmptyState, ErrorBanner, HearingDate, Loading, Pagination, type Column } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { INBOX_KEY, useWorkflowCodes } from "@/lib/api/hooks";
 import type { MyCase, MyCaseCounts, MyCaseList } from "@/lib/api/types";
@@ -21,7 +22,6 @@ import { FIELD_KEYS, LIST_FILTERS, toApiQuery } from "@/lib/filters";
 import { T } from "@/lib/messages";
 import { offsetOf, PAGE, type Params } from "@/lib/params";
 import { casePath } from "@/lib/refs";
-import type { MyView } from "@/lib/routes";
 
 import { useFilters } from "./common";
 import s from "./inbox.module.css";
@@ -42,17 +42,35 @@ export function isFiltered(params: Params, keys: string[]): boolean {
   return keys.some((k) => !!params[k]);
 }
 
-const MINE_KEYS = [...LIST_FILTERS.mine.fields.flatMap((f) => FIELD_KEYS[f]), "stage", "action"];
+const MINE_KEYS = [...LIST_FILTERS.mine.fields.flatMap((f) => FIELD_KEYS[f]), "stage"];
 
-export function MyCases({ view, params, counts }: { view: MyView; params: Params; counts: MyCaseCounts | undefined }) {
+/** The order of the Reason badges (design case-inbox-simplify, decision 4). */
+export const REASON_ORDER = ["allotted", "claimed", "file"] as const;
+
+/** Why the case is in My Cases: one badge per reason, in the fixed order. */
+export function ReasonBadges({ reasons }: { reasons: readonly string[] }) {
+  const shown = REASON_ORDER.filter((r) => reasons.includes(r));
+  if (shown.length === 0) return <span className="muted">—</span>;
+  return (
+    <span className={s.reasons}>
+      {shown.map((r) => (
+        <Badge key={r} tone={r === "file" ? "info" : undefined}>
+          {T.inbox.reasons[r]}
+        </Badge>
+      ))}
+    </span>
+  );
+}
+
+export function MyCases({ params, counts }: { params: Params; counts: MyCaseCounts | undefined }) {
   const router = useRouter();
   const setFilters = useFilters(params);
   const stages = useStageOptions();
   const offset = offsetOf(params);
+  // no `case_state` and no `action`: there is no status switch, and overdue work is With Me's
   const query = {
-    view,
+    view: "all",
     stage: params.stage || undefined,
-    action: params.action || undefined,
     ...toApiQuery(params, "mine"),
     limit: PAGE,
     offset,
@@ -63,34 +81,31 @@ export function MyCases({ view, params, counts }: { view: MyView; params: Params
   });
   const own: OwnControl[] = [{ key: "stage", kind: "select", label: T.inbox.stage, options: stages, placeholder: T.inbox.anyStage }];
   const weekOn = params.next === "n7" && !params.next_from && !params.next_to;
-  const overdueOn = params.action === "overdue";
   const columns: Column<MyCase>[] = [
     { key: "case", header: T.inbox.case, primary: true, cell: (r) => <CaseCell c={r.case} /> },
+    { key: "reason", header: T.inbox.reasonCol, cell: (r) => <ReasonBadges reasons={r.reasons} /> },
     { key: "stage", header: T.inbox.stage, cell: (r) => <StageCell stage={r.stage} /> },
     { key: "next", header: T.inbox.nextHearingCol, cell: (r) => <HearingDate next={r.case.next_hearing} status={r.case.status} /> },
     { key: "action", header: T.inbox.yourAction, cell: (r) => <ActionCell custody={r.custody?.with_me ? r.custody : null} /> },
     { key: "open", header: <span className="visually-hidden">{T.inbox.actions}</span>, hideOnPhone: true, width: "var(--s6)", cell: () => <Chevron /> },
   ];
   return (
-    <section className="stack" aria-label={T.tabs.inbox[view]}>
+    <section className="stack" aria-label={T.tabs.inbox.mine}>
       <ChipGroup label={T.inbox.quick}>
         <Chip on={weekOn} onClick={() => setFilters({ next: weekOn ? undefined : "n7", next_from: undefined, next_to: undefined })}>
           {T.inbox.hearingWeek}
         </Chip>
-        <Chip on={overdueOn} onClick={() => setFilters({ action: overdueOn ? undefined : "overdue" })}>
-          {T.inbox.actionOverdue}
-        </Chip>
       </ChipGroup>
       <FilterBar list="mine" params={params} own={own} />
       <div className={s.toolbar}>
-        <CountLine total={list.data?.total} of={counts?.[view]} filtered={isFiltered(params, MINE_KEYS)} />
+        <CountLine total={list.data?.total} of={counts?.all} filtered={isFiltered(params, MINE_KEYS)} />
       </div>
       <ErrorBanner error={list.error} onRetry={() => list.refetch()} />
       {list.isPending ? <Loading /> : null}
       {list.data ? (
         <>
           <DataTable
-            caption={T.tabs.inbox[view]}
+            caption={T.tabs.inbox.mine}
             columns={columns}
             rows={list.data.items}
             rowKey={(r) => r.case.id}
@@ -100,7 +115,7 @@ export function MyCases({ view, params, counts }: { view: MyView; params: Params
               isFiltered(params, MINE_KEYS) ? (
                 <NoCaseMatches params={params} list="mine" />
               ) : (
-                <EmptyState title={T.inbox.nothingWaiting}>{T.inbox.emptyViews[view]}</EmptyState>
+                <EmptyState title={T.inbox.nothingWaiting}>{T.inbox.emptyViews.mine}</EmptyState>
               )
             }
           />

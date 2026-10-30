@@ -295,7 +295,7 @@ def test_duplicate_rule_per_case_and_office(api, world, owned):
         ({"doc_type": "other"}, "doc_group is required"),
         ({"doc_type": "other", "doc_group": "court_record"}, "reserved"),
         ({"doc_type": "petition", "doc_group": "court_filing"}, "set by doc_type"),
-        ({"doc_date": (today_ist() + timedelta(days=1)).isoformat()}, "future"),
+        ({"doc_date": "tomorrow"}, "future"),
         ({"doc_date": "1949-12-31"}, "before"),
         ({"description": "ab"}, "description"),
         ({"description": "x" * 501}, "description"),
@@ -303,6 +303,8 @@ def test_duplicate_rule_per_case_and_office(api, world, owned):
     ],
 )
 def test_field_rules(api, world, owned, kwargs, fragment):
+    if kwargs.get("doc_date") == "tomorrow":  # worked out when the test runs, so a run past midnight holds
+        kwargs = {"doc_date": (today_ist() + timedelta(days=1)).isoformat()}
     r = ds.upload(api, ds.login(api, "edu_admin"), owned["owned"], sf.text_pdf(["f"]), **kwargs)
     assert r.status_code == 400, r.text
     assert r.json()["detail"]["code"] == "bad_field" and fragment in r.json()["detail"]["message"]

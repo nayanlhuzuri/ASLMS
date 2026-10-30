@@ -425,14 +425,15 @@ describe("pending actions", () => {
     browserApi({ ...routes, "GET /me": deptMe() });
     const { unmount } = renderWithClient(<ReportPage reportKey="pending-actions" params={{ department: "EDU" }} />);
     await screen.findByRole("link", { name: "Download Excel" });
-    expect(screen.queryByRole("link", { name: "Pending Action" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Department" })).toBeNull();
     unmount();
     const tracker = deptMe();
     tracker.memberships = (tracker.memberships ?? []).map((m) => ({ ...m, functions: ["custody.track", "reports.department"] }));
     browserApi({ ...routes, "GET /me": tracker });
     renderWithClient(<ReportPage reportKey="pending-actions" params={{ department: "EDU" }} />);
-    expect(await screen.findByRole("link", { name: "Pending Action" })).toHaveAttribute("href", "/inbox/pending");
-    expect(screen.getByText(/is under Case inbox:/)).toBeInTheDocument();
+    // design case-inbox-simplify, decision 14
+    expect(await screen.findByRole("link", { name: "Department" })).toHaveAttribute("href", "/inbox/department");
+    expect(screen.getByText(/The live list of your department's cases is under Case Inbox:/)).toBeInTheDocument();
   });
 });
 

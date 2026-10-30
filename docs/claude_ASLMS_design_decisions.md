@@ -3074,3 +3074,26 @@ Row 173's build printed Next.js's vulnerability notice. `npm audit --omit=dev` r
 The owner found the six Case Inbox tabs confusing and approved four, each answering one question: With Me (files with me now, whatever the court status, most urgent first, the count on the tab and the side-menu pill), My Cases (every case I am connected to with a badge saying why: Assigned to Me, Claimed by Me, With Me), Sent by Me (files I sent that are still out, Show Earlier for the history; a send on a case the sender can no longer open only under Show Earlier) and Department (heads, claimers and trackers; quick filters Overdue and With Another Office, meaning outside the department and its units). Replaces Working On, Claimed by Me, Disposed, Department Cases and Pending Action; old addresses redirect. The labels avoid "File With" because of the 23 Oct wording guard. No Disposed tab or switch: for the department a case is Open or Closed, and a disposed case stays open (with the Disposed badge) until an officer closes it, so a disposed case with me stays in With Me (the 25 Oct case-inbox-merge rule kept). The same build fixes the case page's More menu, clipped by the scrolling tab bar, and four other clipped menus (kit `Menu` in a portal). Built straight after row 174 and ahead of row 205, aiming for the owner's demo at 10:00 on 30 Oct 2026.
 
 Row 207 `close-case` (designing): a grantable function Close Case, default for department heads and officers; only the officer the file is with or the department head may close, the head also when the file sits with the department or a unit with no named officer; only claimed cases and only when the court's status is disposed ("close case and dispose cases are" not the same: disposed is the court's, closed is the department's); a required remark saved as an append-only note with an audit row and a timeline event; closing ends the file's movement and clears its pending action; no manual reopen, the case reopens only when the court's status changes from disposed, with an alert. It adds an Open / Closed switch to My Cases and Department and needs a migration. Design `docs/design/case-inbox-simplify.md`.
+
+## The Case Inbox in four tabs, built (row 206 `case-inbox-simplify`) (2026-10-29)
+
+Built on `feature/case-inbox-simplify` from the design `docs/design/case-inbox-simplify.md` approved by the owner on 29 Oct 2026. No migration; no schema change, so `docs/schema/schema.md` is unchanged.
+
+**Built**
+- Backend (read paths only): `view=all` on `GET /inbox/mine` (active rows first, disposed after) with `all` in `/inbox/mine/counts`; `still_out` on `GET /custody/sent` (current, visible rows only; without it the history is unchanged); on `GET /inbox/claimed`, active first with `case_state=all` and the due-date order with `action`. Tests: `test_custody_sent_still_out.py`, `test_inbox_claimed.py`, `test_my_cases.py`.
+- Portal: the Case Inbox has four tabs, With Me, My Cases, Sent by Me and Department, replacing Working On, Claimed by Me, Disposed, Department Cases and Pending Action; no Disposed switch (disposed rows carry the Disposed badge, Open / Closed comes with row 207). The With Me count is on the tab and the side-menu pill. Department has the quick filters Overdue and With Another Office. Old Case inbox, Files and Cases addresses redirect with the query kept, through one `OldInboxRedirect` and the maps in `routes.ts`.
+- Kit `Menu` placed in a portal, fixed from the button and closing on scroll and resize; the tab bar draws its focus ring inside each tab. This fixes the case page's More menu and the other clipped menus (mapping row menus, User Details menus). `uicheck` extended with the four tabs, the old addresses, the More menu states and a menu-clipped check.
+
+**Decisions and reasons**
+- No Disposed tab or switch, and a disposed case with me stays in With Me, because the department's notion is Open / Closed (row 207), not the court's status.
+- Labels "With Me" and "With Another Office" avoid "File With" under the 23 Oct wording guard.
+- Visibility rules and Case Claim are untouched.
+
+**Deviations** (design note, "Deviations"): the kit `Chip` gains an optional `hint`; Show Earlier survives Clear All; the tracker's Department list offers only the Overdue chip, because `/custody/held?scope=owned` has no held-elsewhere filter; one redirect component; Tab closes an open menu and returns focus to the button; a scroll closes the menu only when it moves the button (found by a local uicheck run).
+
+**Verification**: the developer's local uicheck against `next start` of this branch (503 passed, 7 skipped by width, 0 findings); the integrator runs the temporary-image uicheck; the owner's browser check is in the design note's Verification.
+
+**Left for later**
+- Row 207 `close-case` (Open / Closed, own migration); row 179's pointer note (decision 21).
+- Deploy: no migration; `docker compose build` and restart with the court-data switch carried.
+- `docs/ASLMS_Process_Workflows.md` updated (the Case inbox paragraph and two pointers). No hosting-guide or software-documentation regeneration: no variable, command or deploy step changed.

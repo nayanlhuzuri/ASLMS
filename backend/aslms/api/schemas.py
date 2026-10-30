@@ -794,6 +794,7 @@ class MyCaseListOut(BaseModel):
 class MyCaseCountsOut(BaseModel):
     working: int
     files: int
+    all: int
     claimed: int
     disposed: int
 

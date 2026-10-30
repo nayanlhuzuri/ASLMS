@@ -173,7 +173,9 @@ describe("the frame", () => {
     expect(within(tabs).getByRole("link", { name: "Timeline (12)" })).toBeInTheDocument();
     expect(within(tabs).queryByRole("link", { name: "Journey and Stage" })).toBeNull();
     await userEvent.click(within(tabs).getByRole("button", { name: "More" }));
-    const more = within(tabs).getByRole("menu");
+    // design case-inbox-simplify, decision 23: the list mounts outside the scrolling tab bar
+    const more = screen.getByRole("menu");
+    expect(tabs.contains(more)).toBe(false);
     expect(within(more).getAllByRole("menuitem").map((m) => m.textContent)).toEqual([
       "Parties",
       "Linked Cases",
@@ -287,9 +289,9 @@ describe("the frame", () => {
     expect(within(group).queryByRole("button", { name: "Claim" })).toBeNull();
     await waitFor(() => expect(within(group).getByRole("button", { name: "More Actions" })).toBeInTheDocument());
     await userEvent.click(within(group).getByRole("button", { name: "More Actions" }));
-    expect(within(group).getByRole("menuitem", { name: "Recall Case" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Recall Case" })).toBeInTheDocument();
     // the claim that is not primary waits in the menu
-    await waitFor(() => expect(within(group).getByRole("menuitem", { name: "Claim" })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("menuitem", { name: "Claim" })).toBeInTheDocument());
     expect(primaries()).toHaveLength(1);
     view.unmount();
     // nothing to send: Claim is the primary
@@ -335,7 +337,7 @@ describe("the frame", () => {
     const group = await screen.findByRole("group", { name: "Case Actions" });
     expect(within(group).queryByRole("button", { name: "Add Note" })).toBeNull();
     await userEvent.click(within(group).getByRole("button", { name: "More Actions" }));
-    expect(within(group).getAllByRole("menuitem").map((m) => m.textContent)).toEqual(["Enter Next Date"]);
+    expect(screen.getAllByRole("menuitem").map((m) => m.textContent)).toEqual(["Enter Next Date"]);
     await userEvent.keyboard("{Escape}");
     // below 1100 px the Quick actions card is closed, its title line saying how many actions it holds
     const quick = screen.getByRole("region", { name: "Quick Actions" });
