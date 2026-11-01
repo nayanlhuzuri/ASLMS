@@ -34,3 +34,8 @@ Row 211 `data-collection-fetch-followups` (already in the backlog). Round 4 of t
 
 ## Push
 After the merge and this report, `main` and the tag are pushed fast-forward only; the result and the CI run's address are returned with the hand-off.
+
+## Deploying
+CI on `main` passed (run 41319524069: changes, policy, backend, frontend, compose, ci-ok). Deployed on 1 Nov 2026 at
+21:08 IST (no migration): images built (`docker compose build`, `--profile ops build migrate`), `up` with the
+court-data switch (checked true in api and worker), `portal_smoke.py` passed.
