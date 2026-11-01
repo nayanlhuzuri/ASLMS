@@ -3147,3 +3147,18 @@ Row 174 `data-collection-fetch` (pointer note `docs/design/data-collection-fetch
 - Row 211 `data-collection-fetch-followups`: `collect.py` `spawned` rebuilds the order reference from the order's current number and date, so a dossier that later corrects them can drop a pending tagged PDF from a running request's list (display only, rare).
 - Round 4 (the case page's Update From the Court) uses this engine, as a new row; the integrator runs the full uicheck.
 - Deploy: no migration; `docker compose build` and restart with the court-data switch carried. No change to the Word guides, `operations.md`, `.env.example` or the Process Workflows (no variable, command or deploy step added; `aslms queue-retry-failed` behaviour is in the note).
+
+## Next.js security upgrade (2026-11-01)
+
+Row 205 `nextjs-security-upgrade` (design `docs/design/nextjs-security-upgrade.md`), branch `feature/nextjs-security-upgrade`. Frontend dependencies only: no source change, no backend change, no migration, no new table or column.
+
+**What was built**
+- `next` and `eslint-config-next` raised from 16.4.0 to 16.4.3 in `frontend/package.json` and the lock file (the `@next/*` packages follow). This fixes GHSA-2464-fhr4-w9xw, GHSA-673q-mjm6-r5xr and GHSA-p3m5-59mp-jv5r; `npm audit --omit=dev` now reports 0 vulnerabilities.
+
+**Decisions and reasons**
+- Both packages are pinned to exactly 16.4.3 (no caret), as the design's decision 1 asks; the first commit used a caret, which would let a later `npm install` move to a newer 16.x, so a second commit removed it. Lock file versions unchanged by the pin.
+- No other dependency was bumped.
+
+**Verification** (from the commit message): lint, typecheck, vitest (1878 passed), `npm run build` on Next.js 16.4.3, e2e tsc, `gen:api` with no diff, and the runbook section 16 screen check on a private network against images built from the branch (163 routes and states, 386 screenshots, 0 findings).
+
+**Left for later**: nothing new. Deploy: `docker compose build` and restart with the court-data switch carried; no migration. No change to the Word guides, `operations.md`, `.env.example`, `schema.md` or the Process Workflows (no variable, command, table or behaviour changed).

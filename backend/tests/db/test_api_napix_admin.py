@@ -6,12 +6,13 @@ from __future__ import annotations
 
 import uuid
 from contextlib import contextmanager
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 
 import httpx
 import pytest
 import sqlalchemy as sa
 
+from aslms.core.clock import IST
 from aslms.core.config import Settings
 from aslms.domain.cases import Case
 from aslms.domain.documents import DownloadStatus, Order
@@ -518,6 +519,9 @@ def test_by_user_operator_only(api, world, gateway, switch_on):
     `by_user: null`, null user fields, and 403 for the `user_id` filter."""
     with world.Session() as s:
         op = world.user(s, "central_op")
+        now = datetime.now(UTC)
+        # never before today's IST midnight, so a run just after midnight still counts all three as today
+        start = datetime.combine(today_ist(), time.min, IST).astimezone(UTC)
         for i in range(3):
             s.add(
                 NapixCallLog(
@@ -526,7 +530,7 @@ def test_by_user_operator_only(api, world, gateway, switch_on):
                     ok=i < 2,
                     lane="request" if i == 0 else None,
                     user_id=op.id,
-                    called_at=datetime.now(UTC) - timedelta(minutes=i + 1),
+                    called_at=max(now - timedelta(minutes=i + 1), start),
                 )
             )
         s.commit()

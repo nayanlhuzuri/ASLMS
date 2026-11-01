@@ -27,8 +27,6 @@ from aslms.services.reporting_common import today_ist
 from tests.db import docs_support as ds
 from tests.db.world import add_listing, make_case
 
-TODAY = today_ist()
-
 
 @pytest.fixture()
 def api(world, tmp_path):
@@ -351,7 +349,7 @@ def _day_world(world, d: date) -> dict[str, Case]:
 
 
 def test_check_day_counts_and_writes_nothing(api, world):
-    d = TODAY - timedelta(days=1)
+    d = today_ist() - timedelta(days=1)
     _day_world(world, d)
     h = ds.login(api, "root")
     r = api.get("/admin/data-load/collect/day", params={"date": d.isoformat()}, headers=h)
@@ -366,7 +364,7 @@ def test_check_day_counts_and_writes_nothing(api, world):
 
 
 def test_collect_day_never_and_all_with_the_6_hour_rule(api, world):
-    d = TODAY
+    d = today_ist()
     cases = _day_world(world, d)
     h = ds.login(api, "root")
     r = api.post("/admin/data-load/collect", json={"kind": "day", "date": d.isoformat()}, headers=h)
@@ -390,7 +388,7 @@ def test_collect_day_never_and_all_with_the_6_hour_rule(api, world):
 
 
 def test_collect_day_uses_current_lists_only(api, world):
-    d = TODAY - timedelta(days=2)
+    d = today_ist() - timedelta(days=2)
     with world.Session() as s:
         listed = make_case(s, cnr="GAHC010000312025")
         dropped = make_case(s, cnr="GAHC010000322025")
@@ -424,8 +422,10 @@ def test_collect_day_uses_current_lists_only(api, world):
 
 def test_collect_day_refuses_no_lists_future_and_over_2000(api, world, monkeypatch):
     h = ds.login(api, "root")
-    future = (TODAY + timedelta(days=2)).isoformat()
-    for params in ({"date": future}, {"date": (TODAY - timedelta(days=9)).isoformat()}):
+    future = (
+        today_ist() + timedelta(days=2)
+    ).isoformat()  # worked out when the test runs, so a run past midnight holds
+    for params in ({"date": future}, {"date": (today_ist() - timedelta(days=9)).isoformat()}):
         r = api.get("/admin/data-load/collect/day", params=params, headers=h)
         assert r.status_code == 400
         r2 = api.post("/admin/data-load/collect", json={"kind": "day", **params}, headers=h)
@@ -433,7 +433,7 @@ def test_collect_day_refuses_no_lists_future_and_over_2000(api, world, monkeypat
     assert _err(api.get("/admin/data-load/collect/day", params={"date": future}, headers=h))["code"] == (
         "date_in_future"
     )
-    d = TODAY - timedelta(days=9)
+    d = today_ist() - timedelta(days=9)
     assert _err(api.get("/admin/data-load/collect/day", params={"date": d.isoformat()}, headers=h))[
         "code"
     ] == ("no_lists")
@@ -511,7 +511,7 @@ def test_collect_writes_one_audit_row_with_refs(api, world):
 
 def test_collect_needs_admin_data_load(api, world):
     refs = _list_world(world)
-    day = (TODAY - timedelta(days=1)).isoformat()
+    day = (today_ist() - timedelta(days=1)).isoformat()
     for key in ("central_op", "oversight", "edu_off1"):
         h = ds.login(api, key)
         writes = [
@@ -693,7 +693,7 @@ def test_requests_include_refetch_and_masters_rows(api, world):
         ref = case.ref_no
         s.commit()
     h = ds.login(api, "central_op")
-    day = (TODAY - timedelta(days=3)).isoformat()
+    day = (today_ist() - timedelta(days=3)).isoformat()
     assert api.post("/admin/napix/refetch/day", json={"date": day}, headers=h).status_code == 202
     assert api.post("/admin/napix/sync-masters", json={}, headers=h).status_code == 202
     assert api.post("/admin/napix/refetch/case", json={"case": ref}, headers=h).status_code == 202
@@ -717,7 +717,7 @@ def test_refetch_and_sync_masters_queue_at_now_one(api, world):
         ref, order_id = case.ref_no, str(order.id)
         s.commit()
     h = ds.login(api, "central_op")
-    day = (TODAY - timedelta(days=4)).isoformat()
+    day = (today_ist() - timedelta(days=4)).isoformat()
     answers = [
         api.post("/admin/napix/refetch/day", json={"date": day}, headers=h),
         api.post("/admin/napix/sync-masters", json={}, headers=h),
@@ -900,7 +900,7 @@ def test_cli_collect_day_and_stop(world, monkeypatch):
 
     monkeypatch.setattr(cli, "session_scope", scope)
     monkeypatch.setattr(cli, "get_settings", lambda: Settings(_env_file=None, redis_url=None))
-    d = TODAY - timedelta(days=1)
+    d = today_ist() - timedelta(days=1)
     _day_world(world, d)
     runner = CliRunner()
     r = runner.invoke(cli.data_load_app, ["collect", "--date", d.isoformat(), "--dry-run"])
