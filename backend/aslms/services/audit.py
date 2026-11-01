@@ -53,8 +53,12 @@ def write_audit(
     before: Any = None,
     after: Any = None,
     case_id: uuid.UUID | None = None,
+    row_id: uuid.UUID | None = None,
 ) -> AuditLog:
+    """One append-only audit row. `row_id` gives the row an id chosen before it is written (a Collect Now request tags
+    its queue rows with its own id, design `data-collection-redesign`, decision 32); by default a new UUID v7."""
     row = AuditLog(
+        **({"id": row_id} if row_id is not None else {}),
         action=action[:80],
         entity_type=entity_type[:60],
         entity_id=entity_id,

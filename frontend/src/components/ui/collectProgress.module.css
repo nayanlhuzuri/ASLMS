@@ -1,0 +1,79 @@
+/* the progress panel of a collection (design data-collection-redesign, decision 25) */
+.panel {
+  display: grid;
+  gap: var(--s2);
+  min-width: 0;
+  padding: var(--s3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+
+.steps {
+  display: grid;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  display: grid;
+  grid-template-columns: minmax(8rem, max-content) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--s3);
+  min-width: 0;
+}
+
+.stepName {
+  font-weight: 600;
+  font-size: var(--t-sm);
+}
+
+.state {
+  justify-self: start;
+  font-size: var(--t-sm);
+  color: var(--text-2);
+}
+
+.state-done {
+  color: var(--green);
+}
+
+.state-failed {
+  color: var(--red);
+}
+
+.state-fetching {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.bar {
+  min-width: 0;
+}
+
+.note {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--t-sm);
+  overflow-wrap: anywhere;
+}
+
+/* the active step pulses in opacity; under reduced motion --slow is 0 ms, so nothing moves */
+.pulse {
+  animation: collect-pulse calc(var(--slow) * 5) ease-in-out infinite alternate;
+}
+
+@keyframes collect-pulse {
+  to {
+    opacity: 0.55;
+  }
+}
+
+@media (max-width: 599px) {
+  .step {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s1);
+  }
+}

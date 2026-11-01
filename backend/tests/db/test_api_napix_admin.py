@@ -169,21 +169,24 @@ def test_buttons_enqueue_and_audit_without_calling_napix(api, world, gateway, ed
     calls_before = _count(world, NapixCallLog)
     r = api.post("/admin/napix/sync-masters", headers=h)
     assert r.status_code == 202, r.text
-    assert r.json() | {"queue_id": None} == {
+    # carried out at once (design data-collection-redesign, decisions 28-29): the "now" priority 3, and the request id
+    assert r.json()["request_id"] is not None
+    assert r.json() | {"queue_id": None, "request_id": None} == {
         "kind": "masters",
         "ref": "all",
         "queue_id": None,
+        "request_id": None,
         "status": "pending",
-        "priority": 10,
+        "priority": 3,
         "attempts": 0,
         "not_before": None,
         "lane": "request",
         "napix_enabled": False,
     }
     r = api.post("/admin/napix/refetch/day", json={"date": "2025-01-06"}, headers=h)
-    assert r.status_code == 202 and (r.json()["ref"], r.json()["priority"]) == ("2025-01-06", 20)
+    assert r.status_code == 202 and (r.json()["ref"], r.json()["priority"]) == ("2025-01-06", 3)
     r = api.post("/admin/napix/refetch/case", json={"case": edu_case.ref_no.replace("/", "-")}, headers=h)
-    assert r.status_code == 202 and (r.json()["ref"], r.json()["priority"]) == (edu_case.cnr, 30)
+    assert r.status_code == 202 and (r.json()["ref"], r.json()["priority"]) == (edu_case.cnr, 3)
     r = api.post(
         "/admin/napix/refetch/order", json={"case": edu_case.cnr, "order_id": str(order_id)}, headers=h
     )
@@ -193,9 +196,9 @@ def test_buttons_enqueue_and_audit_without_calling_napix(api, world, gateway, ed
     assert _count(world, NapixCallLog) == calls_before
     rows = _audits(world, "napix.refetch_requested")
     assert [(a.after["kind"], a.after["ref"], a.after["priority"]) for a in rows] == [
-        ("causelist_day", "2025-01-06", 20),
-        ("dossier", edu_case.cnr, 30),
-        ("order_pdf", order_ref, 30),
+        ("causelist_day", "2025-01-06", 3),
+        ("dossier", edu_case.cnr, 3),
+        ("order_pdf", order_ref, 3),
     ]
     assert [a.case_id for a in rows] == [None, edu_case.id, edu_case.id]
     assert all(a.entity_type == "fetch_queue" and a.after["status_after"] == "pending" for a in rows)
@@ -204,7 +207,7 @@ def test_buttons_enqueue_and_audit_without_calling_napix(api, world, gateway, ed
     assert sync.entity_id == _row(world, FetchKind.MASTERS, "all").id
     with world.Session() as s:
         assert s.get(Order, order_id).download_status == DownloadStatus.PENDING
-    assert _row(world, FetchKind.ORDER_PDF, order_ref).priority == 30
+    assert _row(world, FetchKind.ORDER_PDF, order_ref).priority == 3
 
 
 def test_refetch_day_rules(api, world):
@@ -213,7 +216,7 @@ def test_refetch_day_rules(api, world):
     h = ds.login(api, "central_op")
     r = api.post("/admin/napix/refetch/day", json={"date": "2025-01-06"}, headers=h)
     assert r.status_code == 202
-    assert (r.json()["status"], r.json()["attempts"], r.json()["priority"]) == ("pending", 0, 20)
+    assert (r.json()["status"], r.json()["attempts"], r.json()["priority"]) == ("pending", 0, 3)
     r = api.post("/admin/napix/refetch/day", json={"date": "2025-01-07"}, headers=h)
     assert r.status_code == 202 and r.json()["status"] == "running"
     (_a, running) = _audits(world, "napix.refetch_requested")
@@ -467,7 +470,7 @@ def test_cli_refetch_is_audited(world, edu_case, monkeypatch):
         ("dossier", edu_case.cnr),
     ]
     assert all(a.actor_user_id == world.users["root"].id for a in rows)
-    assert _row(world, FetchKind.DOSSIER, edu_case.cnr).priority == 30
+    assert _row(world, FetchKind.DOSSIER, edu_case.cnr).priority == 3
     assert date.fromisoformat(rows[0].after["ref"]) == date(2025, 1, 6)
 
 

@@ -15,7 +15,7 @@ from aslms.db.session import get_sessionmaker, session_scope
 from aslms.domain.ops import FetchKind, FetchLane
 from aslms.services import queue
 from aslms.services.napix_store import NapixRecorder
-from aslms.services.runner import enqueue_days, open_hc, run_queue
+from aslms.services.runner import claim_kinds, enqueue_days, open_hc, run_queue
 
 
 def _date(s: str) -> date:
@@ -182,8 +182,8 @@ def refetch_case(
     ref: str = typer.Argument(..., help="the case: CNR, ref_no or id"),
     force: bool = typer.Option(False, "--force", help="queue a case whose details are held anyway"),
 ) -> None:
-    """Queue a dossier fetch for one case at priority 30 (audited `napix.refetch_requested`); a case whose details
-    are held needs `--force`."""
+    """Queue a dossier fetch for one case at the "now" priority 3, carried out at once (audited
+    `napix.refetch_requested`); a case whose details are held needs `--force`."""
     from aslms.services import napix_admin
     from aslms.services.cases import CaseNotFound, resolve_case_ref
 
@@ -232,6 +232,49 @@ def worker_wait(report, idle_seconds: int, now: datetime | None = None) -> tuple
     return None, None
 
 
+NOW_POLL_SECONDS = 2
+
+
+def nap(
+    wait: float,
+    wake=None,
+    *,
+    sleep=None,
+    slice_seconds: float = NOW_POLL_SECONDS,
+) -> float:
+    """Sleep `wait` seconds in slices of `NOW_POLL_SECONDS`, returning early when `wake()` is true (design
+    `data-collection-redesign`, decision 24: the worker wakes within 2 s for a "now" row). Without `wake` one sleep.
+    Returns the seconds slept."""
+    import time
+
+    sleep = sleep or time.sleep
+    if wake is None:
+        sleep(wait)
+        return wait
+    slept = 0.0
+    while slept < wait:
+        step = min(slice_seconds, wait - slept)
+        sleep(step)
+        slept += step
+        if slept < wait and wake():
+            break
+    return slept
+
+
+def has_now_check(factory, kinds=None):
+    """`queue.has_now` for `kinds` (those the pass can claim, `runner.claim_kinds`) in a session of its own; an error
+    reads as false (the sleep goes on)."""
+
+    def check() -> bool:
+        try:
+            with factory() as s:
+                return queue.has_now(s, kinds)
+        except Exception:  # noqa: BLE001 — a failed probe of the queue never ends the worker
+            return False
+
+    return check
+
+
 def queue_worker(
     idle_seconds: int = typer.Option(60, "--idle", help="sleep this long when the queue is empty"),
     max_items: int | None = typer.Option(None, "--max-items", help="rows per pass (default: unlimited)"),
@@ -273,7 +316,11 @@ def queue_worker(
         if line:
             rprint(line)
         if wait:
-            time.sleep(wait)
+            # a person's "now" request wakes the worker within 2 s, unless the court's limit, a fault pause or a
+            # failed probe holds every row
+            # only for the kinds a pass can claim: with the gateway off a "now" dossier must not wake it every 2 s
+            wake = has_now_check(factory, claim_kinds(settings, None)) if report.now_may_wake() else None
+            nap(wait, wake)
 
 
 def daily_cycle(

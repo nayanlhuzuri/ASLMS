@@ -95,6 +95,31 @@ def test_lane_precedence_on_enqueue(clean_db):
         s.rollback()
 
 
+def test_now_priority_ends_with_the_run(clean_db):
+    """Design `data-collection-redesign`, decision 24: a pending "now" row keeps its priority when ordinary work asks
+    for it too, but once it has finished a later re-queue takes the caller's priority and lane."""
+    ref = "GAHC010000000003"
+    with clean_db() as s:
+        queue.enqueue(s, FetchKind.DOSSIER, ref, 5, lane=FetchLane.REQUEST)
+        queue.enqueue(s, FetchKind.DOSSIER, ref, 50, requeue=True)  # still waiting: the request holds it
+        row = _row(s, FetchKind.DOSSIER, ref)
+        assert (row.status, row.priority, row.lane) == (FetchStatus.PENDING, 5, FetchLane.REQUEST)
+        row.status = FetchStatus.DONE
+        s.flush()
+        queue.enqueue(s, FetchKind.DOSSIER, ref, 50)  # done, no requeue: untouched
+        assert _row(s, FetchKind.DOSSIER, ref).status == FetchStatus.DONE
+        queue.enqueue(s, FetchKind.DOSSIER, ref, 50, requeue=True)
+        row = _row(s, FetchKind.DOSSIER, ref)
+        assert (row.status, row.priority, row.lane) == (FetchStatus.PENDING, 50, FetchLane.DAILY)
+        row.status = FetchStatus.FAILED
+        row.priority = 3
+        s.flush()
+        queue.enqueue(s, FetchKind.DOSSIER, ref, 40, lane=FetchLane.LOAD)
+        row = _row(s, FetchKind.DOSSIER, ref)
+        assert (row.status, row.priority, row.lane) == (FetchStatus.PENDING, 40, FetchLane.LOAD)
+        s.rollback()
+
+
 def test_spawned_rows_inherit_lane_and_list_date(clean_db, napix, tmp_path):
     gw, client, hc = napix
     Session = clean_db

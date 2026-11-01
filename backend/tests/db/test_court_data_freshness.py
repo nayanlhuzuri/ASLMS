@@ -1082,9 +1082,7 @@ def test_operator_recheck(world):
         napix_admin.refetch_day(s, actor, member, today, settings(), today=today, recheck=True)
         s.commit()
         row = s.scalar(sa.select(FetchQueueItem).where(FetchQueueItem.kind == FetchKind.CAUSELIST_RECHECK))
-        assert (
-            row.ref == today.isoformat() and row.priority == 20 and FetchLane(row.lane) == FetchLane.REQUEST
-        )
+        assert row.ref == today.isoformat() and row.priority == 3 and FetchLane(row.lane) == FetchLane.REQUEST
         assert row.requested_by == member.id
         audit = s.scalar(sa.select(AuditLog).where(AuditLog.action == "napix.refetch_requested"))
         assert audit.after["kind"] == "causelist_recheck"
@@ -1124,7 +1122,7 @@ def test_system_revival_of_an_operator_recheck(world):
         s.flush()
         schedules.enqueue_evening_lists(s, today)  # pending: the operator's request stands
         row = recheck_row(s)
-        assert (row.priority, FetchLane(row.lane), row.requested_by) == (20, FetchLane.REQUEST, member.id)
+        assert (row.priority, FetchLane(row.lane), row.requested_by) == (3, FetchLane.REQUEST, member.id)
         row.status = QueueStatus.DONE
         s.flush()
         schedules.enqueue_evening_lists(s, today)  # done: revived as the system's
@@ -1135,7 +1133,7 @@ def test_system_revival_of_an_operator_recheck(world):
         s.flush()
         napix_admin.refetch_day(s, actor, member, today, settings(), today=today, recheck=True)
         row = recheck_row(s)  # the operator reviving the system's row: request lane, 20, the person
-        assert (row.priority, FetchLane(row.lane), row.requested_by) == (20, FetchLane.REQUEST, member.id)
+        assert (row.priority, FetchLane(row.lane), row.requested_by) == (3, FetchLane.REQUEST, member.id)
 
 
 # ================================================================================================ the purge

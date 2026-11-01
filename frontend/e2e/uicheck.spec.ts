@@ -828,6 +828,65 @@ const STATES: State[] = [
       await section.scrollIntoViewIfNeeded();
     },
   },
+  // design data-collection-redesign, round 3: Collect Now's progress and result (through Show Items, as the checker never
+  // acts), the two checks, the bulk request using the allowance and Stop's dialog
+  {
+    name: "data-collect-one-case-progress",
+    path: "/data/collect",
+    open: async (page) => {
+      const card = page.getByRole("region", { name: "Requests" });
+      await card.getByRole("button", { name: "Show Items" }).nth(1).click();
+      await page.getByRole("dialog").getByRole("region", { name: "Collection Progress" }).waitFor();
+    },
+  },
+  {
+    name: "data-collect-one-case-result",
+    path: "/data/collect",
+    open: async (page) => {
+      const card = page.getByRole("region", { name: "Requests" });
+      await card.getByRole("button", { name: "Show Items" }).nth(2).click();
+      await page.getByRole("dialog").getByRole("list", { name: "Result" }).waitFor();
+    },
+  },
+  {
+    name: "data-collect-day-check",
+    path: "/data/collect",
+    open: async (page) => {
+      const form = page.getByRole("form", { name: "All Cases Listed on a Day" });
+      await form.scrollIntoViewIfNeeded();
+      await form.getByLabel("Date").fill("2025-01-06");
+      await form.getByRole("button", { name: "Check This Day" }).click();
+      await page.getByText("Lists on That Day").waitFor();
+    },
+  },
+  {
+    name: "data-collect-list-check",
+    path: "/data/collect",
+    open: async (page) => {
+      const form = page.getByRole("form", { name: "Several Cases" });
+      await form.scrollIntoViewIfNeeded();
+      await form.getByLabel(/Cases, One Per Line/).fill("GAHC010129772026\nGAHC019999992025\nWP(C) 999/2025");
+      await form.getByRole("button", { name: "Check List" }).click();
+      await page.getByRole("table", { name: "Several Cases" }).waitFor();
+    },
+  },
+  {
+    name: "data-collect-bulk-running",
+    path: "/data/collect",
+    open: async (page) => {
+      const card = page.getByRole("region", { name: "Requests" });
+      await card.getByText("Using the Whole Allowance").waitFor();
+      await card.getByRole("button", { name: "Stop Using Everything" }).waitFor();
+    },
+  },
+  {
+    name: "data-collect-stop-dialog",
+    path: "/data/collect",
+    open: async (page) => {
+      await page.getByRole("region", { name: "Requests" }).getByRole("button", { name: "Stop Using Everything" }).click();
+      await page.getByRole("dialog", { name: "Stop Using the Whole Allowance" }).waitFor();
+    },
+  },
   // design next-hearing-highlight: the next hearing badge in every band, as a table at 1280 px and as cards below
   {
     name: "/inbox/my-cases (next hearing bands)",

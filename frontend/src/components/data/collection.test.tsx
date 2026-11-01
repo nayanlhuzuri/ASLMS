@@ -19,6 +19,18 @@ import { CollectNow } from "./CollectNow";
 import { DataFrame, DataIndex } from "./DataFrame";
 import { Overview } from "./Overview";
 import { courtNext } from "@/test/nextHearing";
+import { detail, finishedCase } from "@/test/collectFixtures";
+
+const COLLECT_OUT = {
+  request_id: "r-1",
+  kind: "cases",
+  to_fetch: 1,
+  queued: 1,
+  already_waiting: 0,
+  left_out: [],
+  priority: 3,
+  expected_end: null,
+};
 
 const READER: Permission[] = ["reports.state"];
 const OPERATOR: Permission[] = ["admin.napix_refetch", "admin.masters_sync", "reports.state"];
@@ -540,7 +552,7 @@ describe("Automatic Collection (data-collection-redesign, decisions 34-41)", () 
 
 // ------------------------------------------------------------------------------------------------ Collect Now
 
-describe("Collect Now (round 1: today's forms moved unchanged)", () => {
+describe("Collect Now (round 1 forms; round 3 carries them out at once)", () => {
   beforeEach(() => resetNav("/data/collect"));
 
   const held = {
@@ -593,6 +605,8 @@ describe("Collect Now (round 1: today's forms moved unchanged)", () => {
         (call.body as { force: boolean }).force
           ? { source: "court", calls: 1, created: 0, items: [held], unmatched: [] }
           : json(409, { detail: { code: "already_held", message: "held", cases: [held] } }),
+      "POST /admin/data-load/collect": COLLECT_OUT,
+      "GET /admin/data-load/requests/r-1": detail(),
     });
     renderWithClient(<CollectNow />);
     const form = await screen.findByRole("form", { name: "One Case" });
@@ -605,7 +619,7 @@ describe("Collect Now (round 1: today's forms moved unchanged)", () => {
     await userEvent.click(within(form).getByRole("button", { name: "Fetch" }));
     const again = await screen.findByRole("dialog", { name: "Already in the Database" });
     await userEvent.click(within(again).getByRole("button", { name: "Fetch Anyway" }));
-    expect(await screen.findByText(/not visible to you/)).toBeInTheDocument();
+    expect(await screen.findByText("(not visible to you)")).toBeInTheDocument();
     expect(api.calls.filter((c) => c.path === "/admin/data-load/fetch").map((c) => c.body)).toEqual([
       { kind: "cnr", cnr: "GAHC010129772026", force: false },
       { kind: "cnr", cnr: "GAHC010129772026", force: false },
@@ -613,26 +627,79 @@ describe("Collect Now (round 1: today's forms moved unchanged)", () => {
     ]);
   });
 
-  it("One Case: the results can be queued for details", async () => {
-    const found = { ...held, visible: true, dossier_status: "none" };
+  it("One Case: a CNR search with one result collects at once; the steps show, the result only at the end", async () => {
+    let finished = false;
     const api = browserApi({
       "GET /me": makeMe(MANAGER, "super_admin"),
-      "POST /admin/data-load/fetch": { source: "court", calls: 1, created: 1, items: [found], unmatched: [] },
-      "POST /admin/data-load/fetch-details": {
-        items: [{ ref: "ASLMS/GHC/CASE/2026/000001", case: found, state: "queued", queue: null }],
-      },
+      "POST /admin/data-load/fetch": { source: "court", calls: 1, created: 1, items: [{ ...held, visible: true }], unmatched: [] },
+      "POST /admin/data-load/collect": COLLECT_OUT,
+      "GET /admin/data-load/requests/r-1": () =>
+        finished
+          ? finishedCase()
+          : detail({
+              counts: { waiting: 30, waiting_retry: 0, fetching: 1, done: 10, not_found: 0, failed: 0 },
+              steps: {
+                details: { waiting: 0, waiting_retry: 0, fetching: 0, done: 1, not_found: 0, failed: 0 },
+                orders: { total: 40, stored: 12, not_available: 1, failed: 0, waiting: 27 },
+              },
+              results: finishedCase().results,
+              eta_seconds: 120,
+            }),
     });
     renderWithClient(<CollectNow />);
     const form = await screen.findByRole("form", { name: "One Case" });
     await userEvent.type(within(form).getByLabelText("CNR"), "GAHC010129772026");
     await userEvent.click(within(form).getByRole("button", { name: "Fetch" }));
-    await userEvent.click(await screen.findByRole("checkbox", { name: "ASLMS/GHC/CASE/2026/000001" }));
-    await userEvent.click(screen.getByRole("button", { name: "Fetch Details" }));
-    expect(await screen.findByText("1 cases queued for details.")).toBeInTheDocument();
-    expect(api.calls.find((c) => c.path === "/admin/data-load/fetch-details")?.body).toEqual({
-      cases: ["ASLMS/GHC/CASE/2026/000001"],
-      force: false,
+    const steps = await screen.findByRole("region", { name: "Collection Progress" });
+    expect(within(steps).getByText("Case Details")).toBeInTheDocument();
+    expect(within(steps).getByText("Done")).toBeInTheDocument();
+    expect(within(steps).getByRole("progressbar", { name: "Order PDFs" })).toHaveAttribute(
+      "aria-valuetext",
+      "12 of 40 stored · 1 not available at the court",
+    );
+    expect(within(steps).getByText("About 2 min left at the current pace.")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Open the Case" })).toBeNull(); // no result before everything has run
+    expect(api.calls.find((c) => c.path === "/admin/data-load/collect")?.body).toEqual({
+      kind: "cases",
+      refs: ["ASLMS/GHC/CASE/2026/000001"],
     });
+    finished = true;
+    const result = await screen.findByRole("list", { name: "Result" }, { timeout: 4000 });
+    expect(within(result).getByText("Order PDFs: 39 stored, 1 not available at the court")).toBeInTheDocument();
+    expect(within(result).getByText(/will be tried again at about/)).toBeInTheDocument();
+    expect(within(result).getByRole("link", { name: "Open the Case" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("ASLMS-GHC-CASE-2026-000001"),
+    );
+  });
+
+  it("One Case: several results are ticked (up to 20) and sent with Collect Everything; the Details say when", async () => {
+    const other = { ...held, case: { ...held.case, id: "c-2", ref_no: "ASLMS/GHC/CASE/2026/000002" }, dossier_fetched_at: null };
+    const api = browserApi({
+      "GET /me": makeMe(MANAGER, "super_admin"),
+      "POST /admin/data-load/fetch": { source: "court", calls: 1, created: 1, items: [held, other], unmatched: [] },
+      "POST /admin/data-load/collect": COLLECT_OUT,
+      "GET /admin/data-load/requests/r-1": detail(),
+    });
+    renderWithClient(<CollectNow />);
+    const form = await screen.findByRole("form", { name: "One Case" });
+    await userEvent.selectOptions(within(form).getByLabelText("Search By"), "party");
+    await userEvent.type(within(form).getByLabelText("Party Name"), "Ram Kumar");
+    await userEvent.type(within(form).getByLabelText("Year"), "2026");
+    await userEvent.click(within(form).getByRole("button", { name: "Fetch" }));
+    const table = await screen.findByRole("table", { name: "Results" });
+    expect(within(table).getByText("Details Held 8 Oct 2026")).toBeInTheDocument();
+    expect(within(table).getByText("Not Fetched Yet")).toBeInTheDocument();
+    expect(api.calls.some((c) => c.path === "/admin/data-load/collect")).toBe(false); // not a CNR search
+    const send = screen.getByRole("button", { name: "Collect Everything" });
+    expect(send).toBeDisabled();
+    await userEvent.click(within(table).getByRole("checkbox", { name: "ASLMS/GHC/CASE/2026/000002" }));
+    await userEvent.click(send);
+    expect(api.calls.find((c) => c.path === "/admin/data-load/collect")?.body).toEqual({
+      kind: "cases",
+      refs: ["ASLMS/GHC/CASE/2026/000002"],
+    });
+    expect(await screen.findByRole("heading", { name: "Collecting" })).toBeInTheDocument();
   });
 
   it("One Case: no result says so in words, and results sit in a scroll box", async () => {

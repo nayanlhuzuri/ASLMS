@@ -314,6 +314,20 @@ As built by `alerts-notifications` (migration 0007, 6 Oct 2026): `alerts` gains 
 > (`http_status = 401 AND error_family IS NULL`); the quota window and per-person counts include it
 > (design `api-health-checker-followups`).
 
+> `fetch_queue.result.request_ids` (design `data-collection-redesign`, decision 32; row 174 `data-collection-fetch`,
+> deviations 20, 21 and 27-29; no migration, no column): a JSON list of request ids, each the `audit_log.id` of a Collect
+> Now request (`data_load.collect_requested`), a re-fetch or reference-list button (`napix.refetch_requested`,
+> `napix.masters_sync_requested`) or Fetch Details (`data_load.details_requested`), whose run the row's pending,
+> running or latest run is. The request's audit row says `after.tagged`. Written by `services/queue.py`, and
+> removed by `napix_admin.retry_failed` in its own UPDATE: `enqueue(..., request_ids=)` sets exactly the caller's ids on an inserted or revived row and removes them when a
+> caller without ids (system work, a claim's court refresh, a person's court search) revives it; it adds them to a
+> pending or running row and leaves a `done` row's alone. `complete` keeps them next to the run's result and `fail`
+> leaves them, so a retry is still the request's; the order PDFs a claimed row spawns take the ids it carries at
+> that moment, in the request lane (`from_parent`). Retry All (`napix_admin.retry_failed`, `aslms
+> queue-retry-failed`) and the single Retry clear them. Read by `services/collect.py`: a request's items are its
+> own rows and the `order_pdf` rows of its cases carrying its id; an item is open while pending or running with the
+> id. The rest of `result` stays the latest run's outcome.
+
 > System health (design `api-health-checker`, no migration, no table or column): the function `admin.service_health`
 > joins `ref_permission` through `aslms seed`. No user type has it by default; the super admin holds every function.
 > The screen reads `napix_call_log` over the last 7 days for its court cards, served by `ix_napix_call_log_called_at`.

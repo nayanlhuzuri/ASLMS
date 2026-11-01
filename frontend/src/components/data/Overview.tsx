@@ -143,7 +143,9 @@ function StatusLine({ data }: { data: DataOverview }) {
       {data.bulk ? (
         <li>
           <b>{T.dc.collectLabel}</b>
-          <span>{T.dc.bulkLine(formatTime(String((data.bulk as Record<string, unknown>).expected_end ?? "")))}</span>
+          <span className={ds.pulse}>
+            {data.bulk.expected_end ? T.dc.bulkLine(formatTime(data.bulk.expected_end)) : T.dc.bulkLineOpen}
+          </span>
         </li>
       ) : null}
       <li>{data.period ? T.dc.periodLine(formatDate(data.period.from), formatDate(data.period.to)) : T.dc.noPeriodNote}</li>

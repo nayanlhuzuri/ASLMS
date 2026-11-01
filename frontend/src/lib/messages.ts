@@ -187,6 +187,19 @@ export const NEXT_DATE_ERRORS: ErrorTexts = {
   not_reported: () => "There is no open report on this date.",
 };
 
+/** Collect Now (design data-collection-redesign, decisions 25-31). */
+export const COLLECT_ERRORS: ErrorTexts = {
+  too_many: (x) =>
+    x.limit
+      ? `Too many: at most ${String(x.limit)} at once.`
+      : `Too many cases to fetch at once (${String(x.to_fetch ?? "")}); at most 2,000.`,
+  no_lists: () => "No cause list of that day is held. Fetch the day's cause lists first.",
+  date_in_future: () => "Cases can be collected for days up to tomorrow.",
+  nothing_to_fetch: () => "Nothing to fetch: every case already has details or cannot be fetched.",
+  not_running: () => "This request is no longer using the whole allowance. The list has been read again.",
+  not_found: () => "No such request.",
+};
+
 // codes whose server message says more than a fixed text (the password policy, the field at fault)
 // `unchanged` and `too_many_drafts` name the stage or the limit in the server's own words (portal-workflow)
 const SERVER_MESSAGE = new Set([
@@ -791,6 +804,32 @@ export const T = {
     legend: "Legend",
     updatedAgo: (seconds: number) =>
       seconds < 5 ? "Updated just now" : seconds < 60 ? `Updated ${seconds} s ago` : `Updated ${Math.floor(seconds / 60)} min ago`,
+    // design data-collection-redesign, decision 25: the progress panel of a collection, shared with the case page
+    collect: {
+      label: "Collection Progress",
+      detailsLabel: "Case Details",
+      ordersLabel: "Order PDFs",
+      states: {
+        waiting: "Waiting",
+        waiting_retry: "Waiting to Retry",
+        fetching: "Fetching",
+        done: "Done",
+        not_found: "Not Found at the Court",
+        failed: "Failed",
+      } as Record<string, string>,
+      ordersText: (stored: number, total: number, unavailable: number, failed: number) =>
+        [
+          `${stored} of ${total} stored`,
+          unavailable ? `${unavailable} not available at the court` : "",
+          failed ? `${failed} failed` : "",
+        ]
+          .filter(Boolean)
+          .join(" · "),
+      ordersNone: "No order is known for this case yet.",
+      ordersWaitNote: "The order PDFs are counted once the case details are in.",
+      etaNote: (minutes: number) =>
+        minutes <= 1 ? "About a minute left at the current pace." : `About ${minutes} min left at the current pace.`,
+    },
   },
   // design list-search, decisions 2, 7, 8, 27-29, 33 and 35: the kit's list search and sort
   list: {
@@ -2304,7 +2343,12 @@ export const T = {
     anyAction: "Any Action",
     allActions: (group: string) => `All ${group} Actions`,
     // design portal-ui-polish-2, decision 13: actions with a name of their own (others show their code)
-    actionNames: { "access.type_edited": "User Type Name Changed" } as Record<string, string>,
+    actionNames: {
+      "access.type_edited": "User Type Name Changed",
+      // design data-collection-redesign, decision 47
+      "data_load.collect_requested": "Collection Requested",
+      "data_load.collect_stopped": "Collection Stopped",
+    } as Record<string, string>,
     groups: {
       access: "Access",
       alert: "Alert",
@@ -2639,6 +2683,7 @@ export const T = {
     states: { running: "Running", paused: "Paused", finished: "Finished", not_started: "Not Started" } as Record<string, string>,
     collectLabel: "Collect Now",
     bulkLine: (until: string) => `A request is using the whole court allowance until about ${until}`,
+    bulkLineOpen: "A request is using the whole court allowance",
     periodLine: (from: string, to: string) => `Past months from ${from} to ${to}`,
     noPeriodNote: "No past-months collection has been started.",
     reportLink: "Open the Dated Report",
@@ -2910,6 +2955,124 @@ export const T = {
     masterRows: (n: string) => `${n} rows`,
     neverUpdated: "Never",
     collectNothingNote: "No card on this tab is open to you.",
+    // Collect Now carried out at once (round 3, decisions 22-33)
+    collectNowIntro:
+      "Requests made here are carried out at once by the collector, ahead of all other work, and keep going if you leave this page.",
+    requestsTitle: "Requests",
+    requestListLabel: "Request List",
+    requestsEmpty: "No request in the last 7 days.",
+    requestWhat: {
+      cases: (n: number) => (n === 1 ? "One Case" : `${n} Cases`),
+      list: (n: number) => `List of ${n} Cases`,
+      day: (date: string) => `Cases Listed on ${date}`,
+      refetchDay: (date: string) => `Cause Lists of ${date}`,
+      recheckDay: (date: string) => `Cause Lists of ${date} Checked Again`,
+      refetchCase: "One Case Again",
+      refetchOrder: "One Order PDF Again",
+      masters: "Court Reference Lists",
+      details: (n: number) => `Details of ${n} Cases`,
+      update: "Updated From the Case Page",
+    },
+    reqCols: { what: "What", askedBy: "Asked By", when: "When", progress: "Progress", state: "State" } as Record<
+      string,
+      string
+    >,
+    reqCounts: (done: number, total: number, fetching: number, waiting: number, failed: number) =>
+      [
+        `${done} of ${total} done`,
+        fetching ? `${fetching} fetching` : "",
+        waiting ? `${waiting} waiting` : "",
+        failed ? `${failed} failed` : "",
+      ]
+        .filter(Boolean)
+        .join(" · "),
+    usingBadge: "Using the Whole Allowance",
+    stoppedBadge: "Stopped",
+    finishedBadge: "Finished",
+    runningBadge: "Running",
+    showItemsButton: "Show Items",
+    itemsTitle: (what: string) => `Items: ${what}`,
+    itemCols: { what: "What", kind: "Kind of Work", state: "State", tries: "Tries", problem: "Problem" } as Record<
+      string,
+      string
+    >,
+    retryAtNote: (at: string) => `Tried again at about ${at}.`,
+    stopButton: "Stop Using Everything",
+    stopTitle: "Stop Using the Whole Allowance",
+    stopBody: (n: number) =>
+      `The rest of this request (${n} items) will be fetched in the normal turn, after daily updates, within the usual limits. Other people's searches work again.`,
+    stoppedNote: (n: number) => `Stopped: ${n} items go back to the normal turn.`,
+    collectorWaitingNote: (at: string) => `Waiting for the collector to start (last active ${at}).`,
+    collectorNeverNote: "Waiting for the collector to start.",
+    limitUsedNote: (at: string) => `The court's hourly limit is used up; this continues at about ${at}.`,
+    // One Case: everything before showing (decision 25)
+    pickHint: "Tick up to 20 cases, then Collect Everything: their details and every missing order PDF.",
+    collectEverythingButton: "Collect Everything",
+    detailsCol: "Details",
+    detailsHeld: (at: string) => `Details Held ${at}`,
+    detailsNotYet: "Not Fetched Yet",
+    tooManyNote: "At most 20 cases at once.",
+    collectingTitle: "Collecting",
+    resultTitle: "Result",
+    resultOrders: (stored: number, unavailable: number) =>
+      `Order PDFs: ${stored} stored${unavailable ? `, ${unavailable} not available at the court` : ""}`,
+    resultRetry: (n: number, at: string) => `${n} will be tried again at about ${at}.`,
+    resultDetailsAt: (at: string) => `Details fetched ${at}`,
+    resultNoDetails: "The court has no details for this case.",
+    openCaseButton: "Open the Case",
+    // Several Cases (decision 26)
+    severalTitle: "Several Cases",
+    linesLabel: "Cases, One Per Line",
+    linesHint: "Up to 200: ASLMS case numbers, CNRs or case numbers such as WP(C) 123/2025.",
+    forceLabel: "Also Fetch Cases That Already Have Details",
+    checkListButton: "Check List",
+    lineStates: {
+      will_fetch: "Will Fetch",
+      already_has_details: "Already Has Details",
+      not_held: "Not Held",
+      several_match: "Several Cases Match",
+      not_a_reference: "Not a Case Reference",
+      merged: "Merged",
+      no_reference: "No Court Reference",
+    } as Record<string, string>,
+    notHeldHint: "Use One Case to search the court for it.",
+    mergedInto: (ref: string) => `Merged Into ${ref}`,
+    lineCols: { line: "Line", state: "State", case: "Case", details: "Details" } as Record<string, string>,
+    newFromCourt: "New From the Court",
+    toFetchNote: (n: number) => `${n} cases will be fetched.`,
+    // All Cases Listed on a Day (decision 27)
+    dayTitle: "All Cases Listed on a Day",
+    whichLabel: "Which Cases",
+    scopeOptions: { never: "Only Cases Never Fetched", all: "Every Case Listed" } as Record<string, string>,
+    scopeAllHint: "Cases refreshed in the last 6 hours are left out, so a second click soon after spends nothing.",
+    checkDayButton: "Check This Day",
+    dayFacts: {
+      lists: "Lists on That Day",
+      listed: "Cases Listed",
+      withDetails: "With Details",
+      never: "Never Fetched",
+      recent: "Refreshed in the Last 6 Hours",
+      noReference: "No Court Reference",
+      toFetch: "To Fetch",
+    } as Record<string, string>,
+    detailsBetween: (from: string, to: string) => `last refreshed between ${from} and ${to}`,
+    dayNothingNote: "Every case listed on this day already has details.",
+    // "Use everything" (decision 30)
+    useTitle: "This Request Uses the Whole Allowance",
+    useIntro: "While this request runs:",
+    useOthers: (floor: number) =>
+      `Other people's court searches, and other people's Update From the Court, wait or are refused once fewer than ${floor} calls are left in the hour.`,
+    useDaily: "Daily updates and the past-months collection wait, and catch up afterwards.",
+    useSafe: "Nothing already collected is affected.",
+    useCalls: (calls: string) => `About ${calls} court calls.`,
+    useSplit: (calls: string, thisHour: string, reset: string) =>
+      `About ${calls} court calls: about ${thisHour} in this hour and the rest after the ${reset} reset.`,
+    useFinish: (at: string) => `It finishes about ${at}.`,
+    confirmCollectTitle: "Collect Everything",
+    confirmCollectButton: "Collect Everything",
+    bulkRunningNote: (who: string, what: string, since: string) =>
+      `A request by ${who} (${what}) is using the whole allowance since ${since}. One such request runs at a time; stop it or wait for it to finish.`,
+    requestStartedNote: "The request has started. Its progress shows under Requests.",
   },
   // design data-collection-redesign, round 2 (decisions 42-46): Problems and Fixes, in plain words
   pf: {
@@ -3012,7 +3175,7 @@ export const T = {
     } as Record<string, string>,
     collectThese: "Collect These",
     collectTheseHint: (n: number) => `Asks the court for the details of the ${n} listed cases that are not being fetched.`,
-    collectedNote: (n: number) => `${n} cases queued for their details.`,
+    collectedNote: (n: number) => `${n} cases are being collected now. The progress shows on Collect Now.`,
     ordersGapTitle: "Orders Not Available or Failed",
     ordersGapNone: "No order PDF is missing at the court or has failed.",
     orderStates: { not_available: "Not Available at the Court", failed: "Failed" } as Record<string, string>,

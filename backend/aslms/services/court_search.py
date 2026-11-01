@@ -196,16 +196,22 @@ def user_searches_last_hour(session: Session, user: User) -> tuple[int, datetime
 def guard(session: Session, user: User, settings: Settings, now: datetime | None = None) -> None:
     """Decision 13: refuses before any call; a refused search writes nothing. The quota floor reads the detected
     window (design napix-window, decision 6): refused when its remaining count is known and below
-    `NAPIX_SEARCH_FLOOR`, with `retry_after` to the expected reset plus the margin (or one probe interval)."""
+    `NAPIX_SEARCH_FLOOR`, with `retry_after` to the expected reset plus the margin (or one probe interval); while a
+    bulk Collect Now request uses the whole allowance the message names it and its expected end."""
     if not settings.napix_configured:
         raise CourtSearchUnavailable("napix_off", "court search is switched off on this server")
     now = now or _now()
     window = napix_window.current(session, settings, now)
     remaining = window.remaining
     if remaining is not None and remaining < settings.napix_search_floor:
+        message = f"the court gateway's hourly quota is nearly spent ({remaining} calls left)"
+        # design data-collection-redesign, decision 30: the refusal names a bulk request using the allowance
+        from aslms.services.collect import bulk_message
+
+        named = bulk_message(session, settings, now)
         raise CourtSearchUnavailable(
             "napix_budget",
-            f"the court gateway's hourly quota is nearly spent ({remaining} calls left)",
+            f"{message}. {named}" if named else message,
             retry_after=window.retry_after(now),
         )
     n, oldest = user_searches_last_hour(session, user)

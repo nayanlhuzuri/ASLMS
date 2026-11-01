@@ -16,6 +16,7 @@ import { formatNumber } from "@/lib/format";
 import { DATA_TABS, OLD_DATA_REDIRECTS } from "@/lib/routes";
 import { resetNav } from "@/test/nav";
 import { browserApi, expectDataTable, labels, makeMe, primaryActions, renderWithClient } from "@/test/render";
+import { PLAN } from "@/test/collectFixtures";
 import { routes as systemRoutes } from "@/test/systemFixtures";
 
 import { DataFrame } from "./DataFrame";
@@ -299,11 +300,16 @@ describe("Problems and Fixes (decisions 42-46)", () => {
 
   it("Data Gaps: the cases with their state and Collect These for the ones not being fetched (admin.data_load)", async () => {
     const api = problemRoutes(MANAGER, {
-      "POST /admin/data-load/fetch-details": {
-        items: [
-          { ref: "a", case: null, state: "queued", queue: null, merged_into_ref_no: null },
-          { ref: "b", case: null, state: "queued", queue: null, merged_into_ref_no: null },
-        ],
+      "POST /admin/data-load/collect/list/check": { items: [], counts: {}, force: false, to_fetch: 2, plan: PLAN, bulk: null },
+      "POST /admin/data-load/collect": {
+        request_id: "r-9",
+        kind: "list",
+        to_fetch: 2,
+        queued: 2,
+        already_waiting: 0,
+        left_out: [],
+        priority: 5,
+        expected_end: null,
       },
     });
     renderWithClient(<ProblemsAndFixes />);
@@ -314,14 +320,22 @@ describe("Problems and Fixes (decisions 42-46)", () => {
     expect(within(table).getByText("NapixUnavailable: 502")).toBeInTheDocument();
     expect(within(table).getByText("Not Yet Queued")).toBeInTheDocument();
     expect(within(section).getByText("Failed · 1")).toBeInTheDocument();
+    // round 3: a Several Cases request, after the "use everything" panel is shown and confirmed
     await userEvent.click(within(section).getByRole("button", { name: "Collect These" }));
+    const dialog = await screen.findByRole("dialog", { name: "Collect Everything" });
+    expect(within(dialog).getByText(/Daily updates and the past-months collection wait/)).toBeInTheDocument();
+    expect(api.calls.some((c) => c.path === "/admin/data-load/collect")).toBe(false);
+    await userEvent.click(within(dialog).getByRole("button", { name: "Collect Everything" }));
     await waitFor(() =>
-      expect(api.calls.find((c) => c.method === "POST" && c.path === "/admin/data-load/fetch-details")?.body).toEqual({
-        cases: ["ASLMS/GHC/CASE/2026/000002", "ASLMS/GHC/CASE/2026/000003"],
-        force: false,
+      expect(api.calls.find((c) => c.method === "POST" && c.path === "/admin/data-load/collect")?.body).toEqual({
+        kind: "list",
+        lines: ["ASLMS/GHC/CASE/2026/000002", "ASLMS/GHC/CASE/2026/000003"],
       }),
     );
-    expect(await within(section).findByText("2 cases queued for their details.")).toBeInTheDocument();
+    expect(
+      await within(section).findByText("2 cases are being collected now. The progress shows on Collect Now."),
+    ).toBeInTheDocument();
+    expect(api.calls.some((c) => c.path === "/admin/data-load/fetch-details")).toBe(false);
     // Try Again needs admin.napix_refetch
     const orders = await within(section).findByRole("table", { name: "Orders Not Available or Failed" });
     expect(within(orders).queryByRole("button", { name: "Try Again" })).toBeNull();

@@ -456,7 +456,8 @@ def test_refetch_day_and_case_warn_then_force(api, world, tmp_path):
     r = api.post("/admin/napix/refetch/case", json={"case": CNR}, headers=h)
     assert r.status_code == 409 and _err(r)["code"] == "already_held" and _err(r)["dossier_fetched_at"]
     r = api.post("/admin/napix/refetch/case", json={"case": CNR, "force": True}, headers=h)
-    assert r.status_code == 202 and r.json()["lane"] == "request" and r.json()["priority"] == 30
+    # carried out at once (design data-collection-redesign, decision 28): the "now" priority 3
+    assert r.status_code == 202 and r.json()["lane"] == "request" and r.json()["priority"] == 3
     r = api.post("/admin/napix/refetch/order", json={"case": CNR, "order_id": str(order.id)}, headers=h)
     assert r.status_code == 409 and _err(r)["code"] == "already_stored"
     assert len(_audits(world, "napix.refetch_requested")) == 3

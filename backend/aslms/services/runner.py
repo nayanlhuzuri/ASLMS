@@ -5,6 +5,11 @@ below `NAPIX_LIVE_RESERVE`. The discovery lane (design `department-discovery`, d
 only and while its calls in the current window are below `NAPIX_DISCOVERY_SHARE`; once the share is spent the pass
 claims the other lanes only, and when they hold nothing runnable it ends as a load-only block.
 
+A person's "now" request (design `data-collection-redesign`, decision 24) is claimed before the bands: a row at
+priority 5 or less whenever the window's remaining count is unknown or at least 1, whatever the reserves and the
+discovery share. Only the court's own limit stops it. The claimed row's priority goes into `QueueOrigin.now_priority`,
+so what it spawns runs at the same priority.
+
 The window is detected, not assumed (design `napix-window`, decisions 3-4): each pass seeds the remaining count from
 `napix_window.current`. When that count is unknown (the reset is due, overdue or the timing not known yet) and work is
 waiting, the pass first makes one **probe** (an Overview call, lane and user NULL, the pass's `job_run_id`), at most one
@@ -46,7 +51,7 @@ from aslms.integration.napix.hc import NapixHighCourt
 from aslms.services import case_dedupe, court_search, discovery, napix_window, queue
 from aslms.services.cases import find_case, get_or_create_case
 from aslms.services.causelists import load_causelist_day, recheck_day
-from aslms.services.load_policy import QueueOrigin, current_settings, load_priority
+from aslms.services.load_policy import NOW_BULK, QueueOrigin, current_settings, load_priority, now_priority_of
 from aslms.services.masters import sync_masters
 from aslms.services.napix_store import NapixRecorder
 from aslms.services.orders import fetch_order_pdf
@@ -77,6 +82,42 @@ class RunReport:
     window: napix_window.WindowState | None = None
     # design safety-fixes, decision 8: the pass stopped on a run of gateway faults; `resume_at` says when to go on
     fault_pause: bool = False
+    # design data-collection-redesign, decision 24: the remaining count when the pass ended (None = unknown) and
+    # whether its window probe failed; the sleeping worker wakes for a "now" row only when neither forbids it
+    remaining: int | None = None
+    probe_failed: bool = False
+
+    def now_may_wake(self) -> bool:
+        """A "now" row may cut the sleep short unless the pass stopped on a fault pause, a failed probe or the court's
+        own limit (no call left in the window): those waits hold for every row."""
+        if self.fault_pause or self.probe_failed:
+            return False
+        return self.remaining is None or self.remaining >= 1
+
+
+@dataclass(frozen=True)
+class Claimed:
+    """The fields of a claimed row the pass needs after its session closed."""
+
+    id: uuid.UUID
+    kind: FetchKind
+    ref: str
+    lane: FetchLane
+    list_date: date | None
+    requested_by: uuid.UUID | None
+    priority: int
+
+    @classmethod
+    def of(cls, item: FetchQueueItem) -> Claimed:
+        return cls(
+            item.id,
+            FetchKind(item.kind),
+            item.ref,
+            FetchLane(item.lane),
+            item.list_date,
+            item.requested_by,
+            int(item.priority),
+        )
 
 
 class QueueRunner:
@@ -170,6 +211,19 @@ class QueueRunner:
         self.recorder.last_remaining = self.window.remaining
         return self.window
 
+    def _claim_now(self, kinds: list[FetchKind] | None) -> Claimed | None:
+        """Design `data-collection-redesign`, decision 24: before the bands, a row at a "now" priority (5 or less)
+        whenever the window's remaining count is unknown or at least 1. It ignores both reserves and the discovery
+        share; only the court's own limit stops it (the bands then stop the pass until the reset)."""
+        rem = self.recorder.last_remaining
+        if rem is not None and rem < 1:
+            return None
+        with self.session_factory() as s:
+            item = queue.claim(s, kinds, max_priority=NOW_BULK)
+            claimed = Claimed.of(item) if item is not None else None
+            s.commit()
+        return claimed
+
     def has_runnable(self, kinds: list[FetchKind] | None) -> bool:
         with self.session_factory() as s:
             return queue.has_runnable(s, kinds)
@@ -241,6 +295,7 @@ class QueueRunner:
                     and self.has_runnable(kinds)
                 ):
                     if not await self.probe(report):
+                        report.probe_failed = True
                         report.resume_at = datetime.now(UTC) + timedelta(
                             seconds=self.settings.napix_window_probe_seconds
                         )
@@ -248,25 +303,26 @@ class QueueRunner:
                         break
                     report.window = self.seed_remaining()
                     read_at = report.processed
-                allowed, lanes = self.budget_lanes()
-                if not allowed:
-                    reason = (
-                        f"rate budget: {self.recorder.last_remaining} left < live reserve {self.live_reserve}"
-                    )
-                    if self._blocked(report, reason, load_only=False, read_at=read_at):
-                        break
-                    read_at = report.processed
-                    continue
-                with self.session_factory() as s:
-                    item = queue.claim(s, kinds, lanes=lanes)
-                    share_waits = (
-                        item is None
-                        and lanes is not None
-                        and FetchLane.LOAD in lanes
-                        and queue.has_runnable(s, kinds, [FetchLane.DISCOVERY])
-                    )
-                    if item is None:
+                claimed = self._claim_now(kinds)
+                if claimed is None:
+                    allowed, lanes = self.budget_lanes()
+                    if not allowed:
+                        reason = f"rate budget: {self.recorder.last_remaining} left < live reserve {self.live_reserve}"
+                        if self._blocked(report, reason, load_only=False, read_at=read_at):
+                            break
+                        read_at = report.processed
+                        continue
+                    with self.session_factory() as s:
+                        item = queue.claim(s, kinds, lanes=lanes)
+                        share_waits = (
+                            item is None
+                            and lanes is not None
+                            and FetchLane.LOAD in lanes
+                            and queue.has_runnable(s, kinds, [FetchLane.DISCOVERY])
+                        )
+                        claimed = Claimed.of(item) if item is not None else None
                         s.commit()
+                    if claimed is None:
                         if lanes is None or (FetchLane.LOAD in lanes and not share_waits):
                             report.stopped_reason = report.stopped_reason or "queue empty"
                             break
@@ -280,14 +336,19 @@ class QueueRunner:
                             break
                         read_at = report.processed
                         continue
-                    kind, ref, item_id = item.kind, item.ref, item.id
-                    lane, list_date = FetchLane(item.lane), item.list_date
-                    requested_by = item.requested_by
-                    s.commit()
+                kind, ref, item_id = claimed.kind, claimed.ref, claimed.id
+                lane = claimed.lane
                 report.processed += 1
                 calls_before = self.recorder.calls
                 error = await self._process(
-                    item_id, kind, ref, report, lane=lane, list_date=list_date, requested_by=requested_by
+                    item_id,
+                    kind,
+                    ref,
+                    report,
+                    lane=lane,
+                    list_date=claimed.list_date,
+                    requested_by=claimed.requested_by,
+                    priority=claimed.priority,
                 )
                 if lane == FetchLane.DISCOVERY:
                     self.discovery_used += self.recorder.calls - calls_before
@@ -309,6 +370,7 @@ class QueueRunner:
             report.stopped_reason = traceback.format_exc()[-2000:]
             raise
         finally:
+            report.remaining = self.recorder.last_remaining
             if report.failed and status == JobStatus.SUCCEEDED:
                 status = JobStatus.PARTIAL
             self.finish_job(report.job_run_id, report, status)
@@ -324,6 +386,7 @@ class QueueRunner:
         lane: FetchLane = FetchLane.DAILY,
         list_date: date | None = None,
         requested_by: uuid.UUID | None = None,
+        priority: int | None = None,
     ) -> Exception | None:
         """One item; returns the exception that failed it (None when it ended done or skipped)."""
         calls_before = self.recorder.calls
@@ -339,6 +402,8 @@ class QueueRunner:
                     list_date,
                     current_settings(s) if lane == FetchLane.LOAD else None,
                     requested_by=requested_by,
+                    now_priority=now_priority_of(priority),
+                    parent_id=item_id,  # order PDFs re-read its priority and requests when spawned
                 )
                 result, skipped = await self.dispatch(s, kind, ref, origin)
                 queue.complete(s, item, result, skipped=skipped)
@@ -560,6 +625,15 @@ def open_hc(settings: Settings | None = None) -> tuple[NapixClient, NapixHighCou
     return client, NapixHighCourt(client, s.napix_est_code, s.napix_state_code)
 
 
+def claim_kinds(settings: Settings, kinds: list[FetchKind] | None) -> list[FetchKind] | None:
+    """The kinds a pass can claim: those asked (every NAPIX kind when None) with the gateway configured; with it off,
+    only cause-list days (read from the stored PDFs). The worker's wake check asks for these only (row 174 review), so
+    a "now" row the pass could not claim never wakes it."""
+    if settings.napix_configured:
+        return kinds
+    return kinds or [FetchKind.CAUSELIST_DAY]
+
+
 async def run_queue_once(
     session_factory: sessionmaker[Session],
     *,
@@ -576,7 +650,7 @@ async def run_queue_once(
             runner = QueueRunner(session_factory, hc, settings=s, recorder=recorder)
             return await runner.run(max_items=max_items, kinds=kinds)
     runner = QueueRunner(session_factory, None, settings=s)
-    return await runner.run(max_items=max_items, kinds=kinds or [FetchKind.CAUSELIST_DAY])
+    return await runner.run(max_items=max_items, kinds=claim_kinds(s, kinds))
 
 
 def run_queue(session_factory: sessionmaker[Session], **kw: Any) -> RunReport:

@@ -3122,3 +3122,28 @@ Changes otp-and-profile decision 1 (authenticator apps set aside). The owner's r
 - Any authenticator app; no warning e-mail after wrong codes; passkeys later.
 - The designer's two choices confirmed: a session opened with the recovery code may move the app to a new phone; reset tickets raised by the department admin in scope or by the person, as head-change tickets are.
 Row 209 is the backend with migration 0036 (or the next free number) and the new `.env` key `ASLMS_TOTP_KEY` (keep a sealed offline copy); row 210 the portal, after row 209. Placed at the end of the build queue.
+
+## Data Collection redesign, round 3: Collect Now carried out at once (2026-11-01)
+
+Row 174 `data-collection-fetch` (pointer note `docs/design/data-collection-fetch.md`, decisions 22-33 of `docs/design/data-collection-redesign.md`), branch `feature/data-collection-fetch`. No migration, no new table or column.
+
+**What was built**
+- Engine: the "now" priorities for manual requests, `collect` and `stop`, requests as records (the audit row of `data_load.collect_requested`, with `data_load.collect_stopped`) read live through the requests list, a request's detail and its items, and the "use everything" figures with one bulk request at a time under an advisory lock.
+- Portal: Collect Now with requests and live progress, One Case, Several Cases (check, then a confirm with the "use everything" panel), a day, and Stop; the kit's `CollectProgress` (for round 4's case page); Collect These on Problems and Fixes sends a Several Cases request.
+- The existing buttons' answers gain `request_id`; search results gain `dossier_fetched_at`; the worker wakes early for a "now" row; the uicheck draws the six request states.
+
+**Decisions and reasons** (29 deviations with reasons are in the design note, "Deviations, round 3")
+- A request's items are exactly the rows of its own run. Review rounds 1 to 4 tried time and lane rules (deviations 4, 18, 19) and each let later work (a weekly sweep, a claim's court refresh, a person's court search) reopen a finished request. Round 4's blocking finding was settled by tagging: the request's id (`audit_log.id`) is chosen before its rows are written and stored on them in `fetch_queue.result.request_ids` (deviation 20).
+- Retry All, `aslms queue-retry-failed` and the single Retry never reopen a finished request: both clear the ids; the single Retry brings a failed "now" row back at 30 in its own lane (27).
+- A request's spawns go to the request lane with its id and priority, whatever lane the claimed row was in, so Stop reaches them and a "now" priority never sits in the daily or load lane (28, 21).
+- Spawned order PDFs are found through the request's own rows (CNRs, fresh cases, resolved provisional rows), their orders and the unique (kind, ref) index, then the id; no queue scan, no new index (29, 26).
+- Polled readers are bounded and run under the report statement timeout (26).
+- A provisional reference matches its own establishment only (23). More than 200 pasted lines are refused by the request model, 422 (24). The worker's wake check asks only for kinds a pass can claim (25). A "now" priority ends with its run (18). A bulk request with only retries left still holds the allowance (22).
+- Collect requests check no case visibility, as Fetch Details does: the screen shows references only (3).
+
+**Review**: five rounds; round 5 passed with `mayMerge` true.
+
+**Left for later**
+- Row 211 `data-collection-fetch-followups`: `collect.py` `spawned` rebuilds the order reference from the order's current number and date, so a dossier that later corrects them can drop a pending tagged PDF from a running request's list (display only, rare).
+- Round 4 (the case page's Update From the Court) uses this engine, as a new row; the integrator runs the full uicheck.
+- Deploy: no migration; `docker compose build` and restart with the court-data switch carried. No change to the Word guides, `operations.md`, `.env.example` or the Process Workflows (no variable, command or deploy step added; `aslms queue-retry-failed` behaviour is in the note).

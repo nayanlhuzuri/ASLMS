@@ -340,7 +340,8 @@ def test_pulse_counts_the_queue_across_lanes_without_refs(world):
         assert p["running"] == [
             {"kind": "dossier", "lane": "request", "started_at": p["running"][0]["started_at"]}
         ]
-        assert p["calls_last_5_min"] == 1 and p["requests_active"] == 1
+        # round 3: requests are records (audit rows); a request-lane row alone is not a request
+        assert p["calls_last_5_min"] == 1 and p["requests_active"] == 0
         assert p["window"]["hourly_limit"] == 800 and p["window"]["remaining"] == 700
         text = json.dumps(p, default=str)
         assert "GAHC0100009" not in text and "GAHC010000012025" not in text  # no reference leaves the pulse

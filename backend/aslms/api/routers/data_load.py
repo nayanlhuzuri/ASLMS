@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import uuid
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
@@ -18,7 +19,7 @@ from aslms.api.deps import actor_of, apart_factory, get_session, napix_request, 
 from aslms.api.errors import detail
 from aslms.domain.org import User
 from aslms.domain.reference import Permission
-from aslms.services import case_search, data_load, schedules
+from aslms.services import case_search, collect, data_load, schedules
 from aslms.services.access import Forbidden
 from aslms.services.audit_search import to_ist
 from aslms.services.court_search import CourtSearchError, CourtSearchFailure
@@ -30,6 +31,7 @@ load_manager = require(Permission.ADMIN_DATA_LOAD)
 ERRORS = {
     400: {"model": schemas.ErrorOut},
     403: {"model": schemas.ErrorOut},
+    404: {"model": schemas.ErrorOut},
     409: {"model": schemas.ErrorOut},
     429: {"model": schemas.ErrorOut},
     502: {"model": schemas.ErrorOut},
@@ -41,12 +43,18 @@ ERRORS = {
 def _http(exc: Exception) -> HTTPException:
     if isinstance(exc, Forbidden):
         return HTTPException(status.HTTP_403_FORBIDDEN, detail(exc.code, str(exc)))
+    if isinstance(exc, collect.CollectInputError):
+        return HTTPException(status.HTTP_400_BAD_REQUEST, detail(exc.code, str(exc), **exc.extra))
     if isinstance(exc, data_load.LoadInputError):
         return HTTPException(status.HTTP_400_BAD_REQUEST, detail(exc.code, str(exc)))
     if isinstance(exc, CourtSearchError | ValueError):
         return HTTPException(status.HTTP_400_BAD_REQUEST, detail("bad_input", str(exc)))
     if isinstance(exc, data_load.LoadConflict):
         return HTTPException(status.HTTP_409_CONFLICT, detail(exc.code, str(exc), **exc.extra))
+    if isinstance(exc, collect.CollectConflict):
+        return HTTPException(status.HTTP_409_CONFLICT, detail(exc.code, str(exc), **exc.extra))
+    if isinstance(exc, collect.RequestNotFound):
+        return HTTPException(status.HTTP_404_NOT_FOUND, detail("not_found", str(exc)))
     if isinstance(exc, data_load.SearchTimeout):
         return HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail("search_timeout", str(exc)))
     if isinstance(exc, CourtSearchFailure):
@@ -64,6 +72,9 @@ HANDLED = (
     data_load.SearchTimeout,
     CourtSearchFailure,
     CourtSearchError,
+    collect.CollectInputError,
+    collect.CollectConflict,
+    collect.RequestNotFound,
 )
 
 
@@ -385,3 +396,118 @@ def scan_duplicates(
     except HANDLED as exc:
         raise _http(exc) from exc
     return schemas.DedupeScanOut(**report.counts())
+
+
+# ------------------------------------------------------------------------------------------------ collect now
+# design data-collection-redesign, round 3 (decisions 22-33): requests written at a "now" priority and carried out at
+# once by the worker; these endpoints never call NAPIX.
+
+
+@router.get("/collect/day", response_model=schemas.CollectDayCheckOut, responses=ERRORS)
+def check_day(
+    request: Request,
+    date_: date = Query(..., alias="date"),
+    scope: str = Query("never", pattern="^(never|all)$"),
+    session: Session = Depends(get_session),
+    user: User = Depends(load_manager),
+) -> schemas.CollectDayCheckOut:
+    """All Cases Listed on a Day, the check (decision 27): the day's current lists, the cases listed (not merged), with
+    details, never fetched, refreshed in the last 6 hours, without a court reference, and what the scope would fetch,
+    with the calls and the "use everything" panel. Writes nothing; 400 `no_lists`, `date_in_future`, `too_many`."""
+    try:
+        data_load.acting_member(session, user, Permission.ADMIN_DATA_LOAD)
+        out = collect.check_day(session, request.app.state.settings, date_, scope)
+    except HANDLED as exc:
+        raise _http(exc) from exc
+    return schemas.CollectDayCheckOut(**out)
+
+
+@router.post("/collect/list/check", response_model=schemas.CollectListCheckOut, responses=ERRORS)
+def check_list(
+    body: schemas.CollectListCheckIn,
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(load_manager),
+) -> schemas.CollectListCheckOut:
+    """Several Cases, the check (decision 26): each line read as a case reference, id, CNR or case number, the counts
+    and the calls, and the "use everything" panel. Writes nothing."""
+    try:
+        data_load.acting_member(session, user, Permission.ADMIN_DATA_LOAD)
+        out = collect.check_list(session, request.app.state.settings, body.lines, body.force)
+    except HANDLED as exc:
+        raise _http(exc) from exc
+    return schemas.CollectListCheckOut(**out)
+
+
+@router.post(
+    "/collect", response_model=schemas.CollectOut, status_code=status.HTTP_202_ACCEPTED, responses=ERRORS
+)
+def collect_now(
+    body: schemas.CollectIn,
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(load_manager),
+) -> schemas.CollectOut:
+    """Collect at once (decisions 23-27): `cases` (1-20, each case's details unless fetched in the last 10 minutes,
+    then every order PDF it lacks, at priority 3), `list` or `day` (bulk, at priority 5, using the whole allowance; one
+    at a time: 409 `bulk_running` naming who asked, what and since when). The worker carries them out; the answer
+    comes at once with the request id. Audited `data_load.collect_requested`."""
+    try:
+        out = collect.collect(
+            session,
+            actor_of(request, user, session),
+            user,
+            request.app.state.settings,
+            body.model_dump(),
+        )
+    except HANDLED as exc:
+        raise _http(exc) from exc
+    return schemas.CollectOut(**out.as_dict())
+
+
+@router.get("/requests", response_model=schemas.CollectRequestsOut, responses=ERRORS)
+def get_requests(
+    request: Request,
+    limit: int = Query(20, ge=1, le=100),
+    session: Session = Depends(get_session),
+    user: User = Depends(load_reader),
+) -> schemas.CollectRequestsOut:
+    """The last 7 days' requests with their live progress (decision 32): Collect Now's, the re-fetch and reference-list
+    buttons' and Fetch Details', each from its audit row; whether the collector is working and the court's limit."""
+    return schemas.CollectRequestsOut(**collect.requests(session, request.app.state.settings, limit))
+
+
+@router.get("/requests/{request_id}", response_model=schemas.CollectRequestOut, responses=ERRORS)
+def get_request(
+    request_id: uuid.UUID,
+    request: Request,
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    session: Session = Depends(get_session),
+    user: User = Depends(load_reader),
+) -> schemas.CollectRequestOut:
+    """One request: its items paged with their states, the per-case result of a small request and the steps for the
+    progress panel; 404 `not_found`."""
+    try:
+        out = collect.request_detail(
+            session, request.app.state.settings, request_id, limit=limit, offset=offset
+        )
+    except HANDLED as exc:
+        raise _http(exc) from exc
+    return schemas.CollectRequestOut(**out)
+
+
+@router.post("/requests/{request_id}/stop", response_model=schemas.CollectStopOut, responses=ERRORS)
+def stop_request(
+    request_id: uuid.UUID,
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(load_manager),
+) -> schemas.CollectStopOut:
+    """Stop Using Everything (decision 31): the rest goes to the normal turn (priority 30, within the usual limits);
+    running rows finish; nothing is thrown away. 409 `not_running`; audited `data_load.collect_stopped`."""
+    try:
+        out = collect.stop(session, actor_of(request, user, session), user, request_id)
+    except HANDLED as exc:
+        raise _http(exc) from exc
+    return schemas.CollectStopOut(**out)

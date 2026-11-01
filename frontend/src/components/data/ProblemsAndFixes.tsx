@@ -15,6 +15,7 @@ import { useEffect, useId, useState, type ReactNode } from "react";
 import {
   Badge,
   Button,
+  ConfirmDialog,
   DataTable,
   EmptyState,
   ErrorBanner,
@@ -25,14 +26,13 @@ import {
   SegmentedSwitch,
   TabToolbar,
 } from "@/components/ui";
-import { api } from "@/lib/api/client";
+import { api, ApiError } from "@/lib/api/client";
 import { useMe } from "@/lib/api/hooks";
 import type {
   DataHealth,
   DedupeScan,
   DuplicateItem,
   Duplicates as DuplicatesList,
-  FetchDetails,
   HealthCheck,
   NapixHealth,
   QueueList,
@@ -46,6 +46,8 @@ import {
   POLL,
   familyWords,
   retryFunction,
+  type CollectListCheck,
+  type CollectOut,
   type DataGaps,
   type DataOverview,
   type DataPulse,
@@ -53,12 +55,13 @@ import {
   type GapOrder,
 } from "@/lib/dataCollection";
 import { formatDate, formatDateTime, formatNumber } from "@/lib/format";
-import { T } from "@/lib/messages";
+import { COLLECT_ERRORS, T } from "@/lib/messages";
 import { casePath } from "@/lib/refs";
 import { HEALTH_READERS } from "@/lib/routes";
 import { useAction } from "@/lib/useAction";
 
 import ds from "./data.module.css";
+import { UseEverything } from "./CollectRequests";
 import { useOverview } from "./Overview";
 
 const LIMIT = 50;
@@ -462,15 +465,39 @@ function CasesGap({ query, offset, onPage }: { query: GapsQuery; offset: number;
   const qc = useQueryClient();
   const action = useAction();
   const [message, setMessage] = useState<string | null>(null);
+  const [checked, setChecked] = useState<CollectListCheck | null>(null);
   const items = (query.data?.items ?? []) as GapCase[];
   const toCollect = items.filter((i) => i.state !== "being_fetched").map((i) => i.case.ref_no);
-  async function collect() {
+  // decision 45 (round 3): the listed cases not being fetched go as a Several Cases request, once the "use
+  // everything" panel is shown and confirmed
+  async function prepare() {
     setMessage(null);
     const out = await action.run(() =>
-      api<FetchDetails>("/admin/data-load/fetch-details", { method: "POST", body: { cases: toCollect, force: false } }),
+      api<CollectListCheck>("/admin/data-load/collect/list/check", { method: "POST", body: { lines: toCollect } }),
     );
-    if (out.ok) {
-      setMessage(T.pf.collectedNote(out.value.items.filter((i) => i.state === "queued").length));
+    if (out.ok) setChecked(out.value);
+  }
+  async function collect() {
+    const out = await action.run(() =>
+      api<CollectOut>("/admin/data-load/collect", { method: "POST", body: { kind: "list", lines: toCollect } }).catch(
+        (err) => {
+          if (err instanceof ApiError && err.code === "bulk_running") {
+            setMessage(
+              T.dc.bulkRunningNote(
+                String(err.extra.asked_by ?? "—"),
+                String(err.extra.kind ?? ""),
+                formatDateTime(String(err.extra.asked_at ?? "")),
+              ),
+            );
+            return null;
+          }
+          throw err;
+        },
+      ),
+    );
+    setChecked(null);
+    if (out.ok && out.value) {
+      setMessage(T.pf.collectedNote(out.value.to_fetch));
       await Promise.all([qc.invalidateQueries({ queryKey: DC_KEYS.gaps }), qc.invalidateQueries({ queryKey: DC_KEYS.overview })]);
     }
   }
@@ -481,13 +508,28 @@ function CasesGap({ query, offset, onPage }: { query: GapsQuery; offset: number;
       <div className={ds.panelHead}>
         <h3>{T.pf.withCount(T.pf.casesGapTitle, n(total))}</h3>
         {can(me.data, "admin.data_load") && toCollect.length > 0 ? (
-          <Button variant="secondary" busy={action.busy} onClick={collect} title={T.pf.collectTheseHint(toCollect.length)}>
+          <Button variant="secondary" busy={action.busy} onClick={() => void prepare()} title={T.pf.collectTheseHint(toCollect.length)}>
             {T.pf.collectThese}
           </Button>
         ) : null}
       </div>
-      <ErrorBanner error={action.error ?? query.error} onRetry={() => query.refetch()} />
+      <ErrorBanner error={action.error ?? query.error} onRetry={() => query.refetch()} messages={COLLECT_ERRORS} />
       {message ? <Notice>{message}</Notice> : null}
+      <ConfirmDialog
+        open={checked !== null}
+        title={T.dc.confirmCollectTitle}
+        onClose={() => setChecked(null)}
+        onConfirm={() => void collect()}
+        busy={action.busy}
+        confirmLabel={T.dc.confirmCollectButton}
+      >
+        {checked ? (
+          <div className="stack">
+            <p>{T.dc.toFetchNote(checked.to_fetch)}</p>
+            <UseEverything plan={checked.plan} />
+          </div>
+        ) : null}
+      </ConfirmDialog>
       {query.isPending ? <Loading /> : null}
       {query.data ? (
         total === 0 ? (

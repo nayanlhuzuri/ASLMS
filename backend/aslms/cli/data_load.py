@@ -1,5 +1,7 @@
-"""`aslms data-load status | coverage | start | pause | resume | order | pdfs-after-details | dedupe` (design
-`data-load-console`, decision 20; `pdfs-after-details`: case details before order PDFs, owner 24 Oct 2026).
+"""`aslms data-load status | coverage | start | pause | resume | order | pdfs-after-details | dedupe | collect |
+stop` (design `data-load-console`, decision 20; `pdfs-after-details`: case details before order PDFs, owner 24 Oct
+2026; `collect` and `stop`: Collect Now's all cases listed on a day and Stop Using Everything, design
+`data-collection-redesign`, round 3).
 Every action acts as the single active super admin through its super-admin membership (the `system`
 actor before one exists) and is audited, as the API's actions are. `status` and `coverage` read only."""
 
@@ -15,14 +17,22 @@ from rich.table import Table
 from aslms.core.config import get_settings
 from aslms.db.session import get_sessionmaker, session_scope
 from aslms.domain.ops import LoadOrder
-from aslms.services import data_load
+from aslms.services import collect, data_load
 from aslms.services.access import Forbidden
 
 data_load_app = typer.Typer(
     no_args_is_help=True, help="The backdated NAPIX load: progress, start, pause, order"
 )
 
-REFUSED = (Forbidden, data_load.LoadInputError, data_load.LoadConflict, data_load.SearchTimeout)
+REFUSED = (
+    Forbidden,
+    data_load.LoadInputError,
+    data_load.LoadConflict,
+    data_load.SearchTimeout,
+    collect.CollectInputError,
+    collect.CollectConflict,
+    collect.RequestNotFound,
+)
 
 
 def _cli_actor(session):
@@ -271,3 +281,61 @@ def dedupe(dry_run: bool = typer.Option(False, "--dry-run", help="print the pair
         )
     rprint(table)
     rprint({**report.counts(), "dry_run": dry_run})
+
+
+@data_load_app.command("collect")
+def collect_day(
+    on: str = typer.Option(..., "--date", help="the cause-list date (YYYY-MM-DD, up to tomorrow)"),
+    every: bool = typer.Option(
+        False,
+        "--all",
+        help="every case listed (but those refreshed in the last 6 hours); default: never fetched",
+    ),
+    dry_run: bool = typer.Option(False, "--dry-run", help="print the check; write nothing"),
+) -> None:
+    """All Cases Listed on a Day (design data-collection-redesign, decision 27): the cases of the day's current lists
+    fetched at once at the bulk "now" priority, using the whole hourly allowance; one bulk request at a time. Audited
+    `data_load.collect_requested`."""
+    d = _date(on)
+    scope = "all" if every else "never"
+    settings = get_settings()
+    with session_scope() as s:
+        actor, member = _cli_actor(s)
+        try:
+            check = collect.check_day(s, settings, d, scope)
+            plan = check["plan"]
+            rprint(
+                f"{d}: {check['lists']} list(s), {check['cases_listed']} case(s) listed, "
+                f"{check['with_details']} with details, {check['never_fetched']} never fetched, "
+                f"{check['refreshed_recently']} refreshed in the last 6 hours, {check['no_reference']} without a "
+                f"court reference; to fetch ({scope}): {check['to_fetch']}, about {plan['calls']} court calls"
+            )
+            if dry_run or not check["to_fetch"]:
+                if not check["to_fetch"]:
+                    rprint("nothing to fetch")
+                s.rollback()
+                return
+            out = collect.collect(s, actor, member, settings, {"kind": "day", "date": d, "scope": scope})
+        except REFUSED as exc:
+            raise _refused(exc) from exc
+    end = f", finishing about {out.expected_end:%d %b %H:%M} IST" if out.expected_end else ""
+    rprint(f"request {out.request_id}: {out.to_fetch} case(s) at priority {out.priority}{end}")
+
+
+@data_load_app.command("stop")
+def stop_request(request_id: str = typer.Argument(..., help="the request id (its audit row)")) -> None:
+    """Stop Using Everything (decision 31): the rest of a bulk request goes to the normal turn (priority 30); running
+    rows finish; nothing is thrown away. Audited `data_load.collect_stopped`."""
+    import uuid
+
+    try:
+        rid = uuid.UUID(request_id)
+    except ValueError as exc:
+        raise typer.BadParameter("not a request id") from exc
+    with session_scope() as s:
+        actor, member = _cli_actor(s)
+        try:
+            out = collect.stop(s, actor, member, rid)
+        except REFUSED as exc:
+            raise _refused(exc) from exc
+    rprint(f"request {out['request_id']} stopped: {out['moved']} row(s) back to the normal turn")

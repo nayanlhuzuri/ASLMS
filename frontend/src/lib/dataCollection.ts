@@ -4,7 +4,7 @@
  * computes a figure the API did not send; it only words it.
  */
 import type { components } from "./api/schema";
-import { formatDayLongYear, formatMonthYear, formatNumber } from "./format";
+import { formatDate, formatDayLongYear, formatMonthYear, formatNumber } from "./format";
 import { T } from "./messages";
 
 type S = components["schemas"];
@@ -16,6 +16,14 @@ export type MonthRow = S["MonthCoverageOut"];
 export type DataGaps = S["DataGapsOut"];
 export type GapCase = S["GapCaseOut"];
 export type GapOrder = S["GapOrderOut"];
+export type CollectRequests = S["CollectRequestsOut"];
+export type CollectRequest = S["CollectRequestOut"];
+export type CollectSummary = S["CollectRequestSummaryOut"];
+export type CollectPlan = S["CollectPlanOut"];
+export type CollectOut = S["CollectOut"];
+export type CollectListCheck = S["CollectListCheckOut"];
+export type CollectDayCheck = S["CollectDayCheckOut"];
+export type CollectItem = S["CollectItemOut"];
 
 /**
  * Decision 17: the pulse every 5 s, the overview every 30 s (and at once after any action), the month table every
@@ -34,7 +42,72 @@ export const DC_KEYS = {
   gaps: ["data-load", "gaps"] as const,
   failed: ["data-load", "failed"] as const,
   duplicates: ["data-load", "duplicates"] as const,
+  requests: ["data-load", "requests"] as const,
+  request: (id: string) => ["data-load", "requests", id] as const,
 };
+
+/**
+ * Decision 32: a watched request every 2 s until it has finished, the list every 5 s while any request runs and every
+ * 30 s otherwise. Only while the tab is visible.
+ */
+export const REQUEST_POLL = { watched: 2_000, active: 5_000, idle: 30_000 } as const;
+
+/** What a request asked for, in words (decision 32). */
+export function requestWhat(r: Pick<CollectSummary, "kind" | "cases" | "date" | "ref" | "total">): string {
+  const w = T.dc.requestWhat;
+  const count = r.cases ?? r.total ?? 0;
+  const day = r.date ?? r.ref ?? "";
+  switch (r.kind) {
+    case "cases":
+      return w.cases(count);
+    case "list":
+      return w.list(count);
+    case "day":
+      return w.day(formatDate(day));
+    case "refetch_day":
+      return w.refetchDay(formatDate(day));
+    case "recheck_day":
+      return w.recheckDay(formatDate(day));
+    case "refetch_case":
+      return w.refetchCase;
+    case "refetch_order":
+      return w.refetchOrder;
+    case "masters":
+      return w.masters;
+    case "details":
+      return w.details(count);
+    case "update":
+      return w.update;
+    default:
+      return r.kind;
+  }
+}
+
+/** A request's bar: done, fetching (pulsing), waiting (ready or for a retry), failed (not found counts as done). */
+export function requestSegments(c: Record<string, number>): { tone: "done" | "active" | "waiting" | "failed"; value: number }[] {
+  return [
+    { tone: "done", value: (c.done ?? 0) + (c.not_found ?? 0) },
+    { tone: "active", value: c.fetching ?? 0 },
+    { tone: "waiting", value: (c.waiting ?? 0) + (c.waiting_retry ?? 0) },
+    { tone: "failed", value: c.failed ?? 0 },
+  ];
+}
+
+/** The counts of a request in words: "12 of 40 done · 1 fetching · 27 waiting". */
+export function requestCounts(c: Record<string, number>, total: number): string {
+  return T.dc.reqCounts(
+    (c.done ?? 0) + (c.not_found ?? 0),
+    total,
+    c.fetching ?? 0,
+    (c.waiting ?? 0) + (c.waiting_retry ?? 0),
+    c.failed ?? 0,
+  );
+}
+
+/** The rows of a request still to run: waiting or fetching (the rows Stop moves to the normal turn and the finish). */
+export function requestLeft(c: Record<string, number>): number {
+  return (c.waiting ?? 0) + (c.fetching ?? 0);
+}
 
 const n = (value: number | null | undefined) => formatNumber(value ?? 0);
 

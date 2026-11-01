@@ -282,6 +282,72 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/data-load/collect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Collect Now
+         * @description Collect at once (decisions 23-27): `cases` (1-20, each case's details unless fetched in the last 10 minutes,
+         *     then every order PDF it lacks, at priority 3), `list` or `day` (bulk, at priority 5, using the whole allowance; one
+         *     at a time: 409 `bulk_running` naming who asked, what and since when). The worker carries them out; the answer
+         *     comes at once with the request id. Audited `data_load.collect_requested`.
+         */
+        post: operations["collect_now_admin_data_load_collect_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/data-load/collect/day": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Check Day
+         * @description All Cases Listed on a Day, the check (decision 27): the day's current lists, the cases listed (not merged), with
+         *     details, never fetched, refreshed in the last 6 hours, without a court reference, and what the scope would fetch,
+         *     with the calls and the "use everything" panel. Writes nothing; 400 `no_lists`, `date_in_future`, `too_many`.
+         */
+        get: operations["check_day_admin_data_load_collect_day_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/data-load/collect/list/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Check List
+         * @description Several Cases, the check (decision 26): each line read as a case reference, id, CNR or case number, the counts
+         *     and the calls, and the "use everything" panel. Writes nothing.
+         */
+        post: operations["check_list_admin_data_load_collect_list_check_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/data-load/coverage": {
         parameters: {
             query?: never;
@@ -509,6 +575,69 @@ export interface paths {
         get: operations["get_pulse_admin_data_load_pulse_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/data-load/requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Requests
+         * @description The last 7 days' requests with their live progress (decision 32): Collect Now's, the re-fetch and reference-list
+         *     buttons' and Fetch Details', each from its audit row; whether the collector is working and the court's limit.
+         */
+        get: operations["get_requests_admin_data_load_requests_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/data-load/requests/{request_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Request
+         * @description One request: its items paged with their states, the per-case result of a small request and the steps for the
+         *     progress panel; 404 `not_found`.
+         */
+        get: operations["get_request_admin_data_load_requests__request_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/data-load/requests/{request_id}/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stop Request
+         * @description Stop Using Everything (decision 31): the rest goes to the normal turn (priority 30, within the usual limits);
+         *     running rows finish; nothing is thrown away. 409 `not_running`; audited `data_load.collect_stopped`.
+         */
+        post: operations["stop_request_admin_data_load_requests__request_id__stop_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5819,6 +5948,20 @@ export interface components {
              */
             user_name?: string | null;
         };
+        /** CaseBriefOut */
+        CaseBriefOut: {
+            /** Case No Text */
+            case_no_text: string | null;
+            /** Cnr */
+            cnr: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Ref No */
+            ref_no: string;
+        };
         /** CaseClassificationOut */
         CaseClassificationOut: {
             /** Bench Id */
@@ -6124,6 +6267,8 @@ export interface components {
             case: components["schemas"]["CaseSummaryOut"];
             /** Claimable */
             claimable: boolean;
+            /** Dossier Fetched At */
+            dossier_fetched_at?: string | null;
             /** Dossier Status */
             dossier_status: string;
             /** In Pool */
@@ -6545,6 +6690,443 @@ export interface components {
             code: string;
             /** Label */
             label: string;
+        };
+        /** CollectCaseOrdersOut */
+        CollectCaseOrdersOut: {
+            /** Failed */
+            failed: number;
+            /** Not Available */
+            not_available: number;
+            /** Retry At */
+            retry_at?: string | null;
+            /** Stored */
+            stored: number;
+            /** Total */
+            total: number;
+            /** Waiting */
+            waiting: number;
+        };
+        /** CollectCaseResultOut */
+        CollectCaseResultOut: {
+            case: components["schemas"]["CaseBriefOut"];
+            /**
+             * Details
+             * @enum {string}
+             */
+            details: "waiting" | "waiting_retry" | "fetching" | "done" | "not_found" | "failed";
+            /** Details Fetched At */
+            details_fetched_at: string | null;
+            orders: components["schemas"]["CollectCaseOrdersOut"];
+            /** Status */
+            status: string | null;
+        };
+        /** CollectDayCheckOut */
+        CollectDayCheckOut: {
+            bulk: components["schemas"]["CollectRequestSummaryOut"] | null;
+            /** Cases Listed */
+            cases_listed: number;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Details From */
+            details_from: string | null;
+            /** Details To */
+            details_to: string | null;
+            /** Lists */
+            lists: number;
+            /** Never Fetched */
+            never_fetched: number;
+            /** No Reference */
+            no_reference: number;
+            plan: components["schemas"]["CollectPlanOut"];
+            /** Refreshed Recently */
+            refreshed_recently: number;
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "never" | "all";
+            /** To Fetch */
+            to_fetch: number;
+            /** With Details */
+            with_details: number;
+        };
+        /**
+         * CollectIn
+         * @description `{kind: "cases", refs}` (1-20 cases), `{kind: "list", lines, force}` (1-200 lines) or `{kind: "day", date,
+         *     scope}`.
+         */
+        CollectIn: {
+            /** Date */
+            date?: string | null;
+            /**
+             * Force
+             * @default false
+             */
+            force: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "cases" | "list" | "day";
+            /**
+             * Lines
+             * @description 1-200 lines (more: 422, before any line is read)
+             */
+            lines?: string[] | null;
+            /**
+             * Refs
+             * @description 1-20 cases (more: 400 `too_many`)
+             */
+            refs?: string[] | null;
+            /**
+             * Scope
+             * @default never
+             * @enum {string}
+             */
+            scope: "never" | "all";
+        };
+        /** CollectItemOut */
+        CollectItemOut: {
+            /** Attempts */
+            attempts: number;
+            /** Kind */
+            kind: string;
+            /** Not Before */
+            not_before: string | null;
+            /** Priority */
+            priority: number | null;
+            /** Problem */
+            problem: string | null;
+            /** Ref */
+            ref: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "waiting" | "waiting_retry" | "fetching" | "done" | "not_found" | "failed";
+        };
+        /** CollectLeftOutOut */
+        CollectLeftOutOut: {
+            /** Count */
+            count?: number | null;
+            /** Merged Into Ref No */
+            merged_into_ref_no?: string | null;
+            /** Reason */
+            reason: string;
+            /** Ref */
+            ref?: string | null;
+        };
+        /** CollectLineOut */
+        CollectLineOut: {
+            case: components["schemas"]["CaseBriefOut"] | null;
+            /** Cnr */
+            cnr: string | null;
+            /** Details Fetched At */
+            details_fetched_at: string | null;
+            /** Line */
+            line: string;
+            /** Matches */
+            matches: number;
+            /** Merged Into Ref No */
+            merged_into_ref_no: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "will_fetch" | "already_has_details" | "not_held" | "several_match" | "not_a_reference" | "merged" | "no_reference";
+        };
+        /** CollectListCheckIn */
+        CollectListCheckIn: {
+            /**
+             * Force
+             * @default false
+             */
+            force: boolean;
+            /**
+             * Lines
+             * @description 1-200 lines (more: 422, before any line is read)
+             */
+            lines: string[];
+        };
+        /** CollectListCheckOut */
+        CollectListCheckOut: {
+            bulk: components["schemas"]["CollectRequestSummaryOut"] | null;
+            /** Counts */
+            counts: {
+                [key: string]: number;
+            };
+            /** Force */
+            force: boolean;
+            /** Items */
+            items: components["schemas"]["CollectLineOut"][];
+            plan: components["schemas"]["CollectPlanOut"];
+            /** To Fetch */
+            to_fetch: number;
+        };
+        /** CollectOut */
+        CollectOut: {
+            /** Already Waiting */
+            already_waiting: number;
+            /** Expected End */
+            expected_end: string | null;
+            /** Kind */
+            kind: string;
+            /** Left Out */
+            left_out: components["schemas"]["CollectLeftOutOut"][];
+            /** Priority */
+            priority: number;
+            /** Queued */
+            queued: number;
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+            /** To Fetch */
+            to_fetch: number;
+        };
+        /**
+         * CollectPlanOut
+         * @description The "use everything" panel (decision 30): the calls, how many fit in this hour and how many after the next
+         *     reset, and when it should finish; `finish_at` is null when the court's limit or the remaining count is unknown.
+         */
+        CollectPlanOut: {
+            /** After Reset */
+            after_reset: number | null;
+            /** Calls */
+            calls: number;
+            /** Finish At */
+            finish_at: string | null;
+            /** Hourly Limit */
+            hourly_limit: number | null;
+            /** Live Reserve */
+            live_reserve: number;
+            /** Next Reset At */
+            next_reset_at: string | null;
+            /** Rate Reserve */
+            rate_reserve: number;
+            /** Remaining */
+            remaining: number | null;
+            /** Search Floor */
+            search_floor: number;
+            /** This Hour */
+            this_hour: number | null;
+        };
+        /**
+         * CollectRequestOut
+         * @description `GET /admin/data-load/requests/{id}`: the summary, one page of items, the per-case result of a request of at
+         *     most 20 cases, the steps for the progress panel, the collector and the court's limit.
+         */
+        CollectRequestOut: {
+            /** Action */
+            action: string;
+            /**
+             * Asked At
+             * Format: date-time
+             */
+            asked_at: string;
+            /** Asked By */
+            asked_by: string | null;
+            /** Asked By Office */
+            asked_by_office: string | null;
+            /** Bulk */
+            bulk: boolean;
+            /** By Kind */
+            by_kind: {
+                [key: string]: {
+                    [key: string]: number;
+                };
+            };
+            /** Cases */
+            cases?: number | null;
+            collector: components["schemas"]["CollectorOut"];
+            /** Counts */
+            counts: {
+                [key: string]: number;
+            };
+            /** Date */
+            date?: string | null;
+            /** Eta Seconds */
+            eta_seconds?: number | null;
+            /** Expected End */
+            expected_end?: string | null;
+            /** Finished */
+            finished: boolean;
+            /** Items */
+            items: components["schemas"]["CollectItemOut"][];
+            /** Kind */
+            kind: string;
+            /** Left Out */
+            left_out: components["schemas"]["CollectLeftOutOut"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Priority */
+            priority?: number | null;
+            /** Ref */
+            ref?: string | null;
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+            /** Results */
+            results: components["schemas"]["CollectCaseResultOut"][];
+            /** Retry At */
+            retry_at?: string | null;
+            /** Scope */
+            scope?: string | null;
+            steps: components["schemas"]["CollectStepsOut"];
+            /** Stopped */
+            stopped: boolean;
+            /** Stopped At */
+            stopped_at?: string | null;
+            /** Stopped By */
+            stopped_by?: string | null;
+            /** Total */
+            total: number;
+            /** Using Everything */
+            using_everything: boolean;
+            window: components["schemas"]["CollectWindowOut"];
+        };
+        /**
+         * CollectRequestSummaryOut
+         * @description One request (decision 32): its record is its audit row (`request_id`). `kind`: `cases`, `list`, `day`
+         *     (Collect Now), `refetch_day`, `recheck_day`, `refetch_case`, `refetch_order`, `masters` (the existing buttons) or
+         *     `details` (Fetch Details). `counts` are its items by state; `finished` when none waits ready or is fetching.
+         */
+        CollectRequestSummaryOut: {
+            /** Action */
+            action: string;
+            /**
+             * Asked At
+             * Format: date-time
+             */
+            asked_at: string;
+            /** Asked By */
+            asked_by: string | null;
+            /** Asked By Office */
+            asked_by_office: string | null;
+            /** Bulk */
+            bulk: boolean;
+            /** By Kind */
+            by_kind: {
+                [key: string]: {
+                    [key: string]: number;
+                };
+            };
+            /** Cases */
+            cases?: number | null;
+            /** Counts */
+            counts: {
+                [key: string]: number;
+            };
+            /** Date */
+            date?: string | null;
+            /** Eta Seconds */
+            eta_seconds?: number | null;
+            /** Expected End */
+            expected_end?: string | null;
+            /** Finished */
+            finished: boolean;
+            /** Kind */
+            kind: string;
+            /** Priority */
+            priority?: number | null;
+            /** Ref */
+            ref?: string | null;
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+            /** Retry At */
+            retry_at?: string | null;
+            /** Scope */
+            scope?: string | null;
+            /** Stopped */
+            stopped: boolean;
+            /** Stopped At */
+            stopped_at?: string | null;
+            /** Stopped By */
+            stopped_by?: string | null;
+            /** Total */
+            total: number;
+            /** Using Everything */
+            using_everything: boolean;
+        };
+        /** CollectRequestsOut */
+        CollectRequestsOut: {
+            /** Active */
+            active: number;
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            bulk: components["schemas"]["CollectRequestSummaryOut"] | null;
+            collector: components["schemas"]["CollectorOut"];
+            /** Items */
+            items: components["schemas"]["CollectRequestSummaryOut"][];
+            window: components["schemas"]["CollectWindowOut"];
+        };
+        /** CollectStepOrdersOut */
+        CollectStepOrdersOut: {
+            /** Failed */
+            failed: number;
+            /** Not Available */
+            not_available: number;
+            /** Stored */
+            stored: number;
+            /** Total */
+            total: number;
+            /** Waiting */
+            waiting: number;
+        };
+        /** CollectStepsOut */
+        CollectStepsOut: {
+            /** Details */
+            details: {
+                [key: string]: number;
+            };
+            orders: components["schemas"]["CollectStepOrdersOut"];
+        };
+        /** CollectStopOut */
+        CollectStopOut: {
+            /** Moved */
+            moved: number;
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+        };
+        /** CollectWindowOut */
+        CollectWindowOut: {
+            /** Limit Used Up */
+            limit_used_up: boolean;
+            /** Next Reset At */
+            next_reset_at: string | null;
+            /** Remaining */
+            remaining: number | null;
+            /** Resumes At */
+            resumes_at: string | null;
+        };
+        /** CollectorOut */
+        CollectorOut: {
+            /** Last Active At */
+            last_active_at: string | null;
+            /**
+             * Not Running
+             * @description 'now' rows wait and the worker shows no sign of work for 2 minutes
+             */
+            not_running: boolean;
+            /** Now Waiting */
+            now_waiting: boolean;
         };
         /** ConsoleFieldOut */
         ConsoleFieldOut: {
@@ -7655,13 +8237,8 @@ export interface components {
              * Format: date-time
              */
             as_of: string;
-            /**
-             * Bulk
-             * @description the active bulk request (round 3); null until then
-             */
-            bulk?: {
-                [key: string]: unknown;
-            } | null;
+            /** @description the bulk request using the whole allowance (round 3), or null */
+            bulk?: components["schemas"]["CollectRequestSummaryOut"] | null;
             cases: components["schemas"]["DataLoadCasesOut"];
             /**
              * Collection
@@ -11320,6 +11897,11 @@ export interface components {
             queue_id: string | null;
             /** Ref */
             ref: string;
+            /**
+             * Request Id
+             * @description the audit row recording the request (Collect Now's progress panel)
+             */
+            request_id?: string | null;
             /** Status */
             status: string | null;
         };
@@ -13632,6 +14214,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorOut"];
                 };
             };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
             /** @description Conflict */
             409: {
                 headers: {
@@ -13639,6 +14230,320 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    collect_now_admin_data_load_collect_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CollectIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    check_day_admin_data_load_collect_day_get: {
+        parameters: {
+            query: {
+                date: string;
+                scope?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectDayCheckOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    check_list_admin_data_load_collect_list_check_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CollectListCheckIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectListCheckOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
             /** @description Too Many Requests */
@@ -13711,6 +14616,15 @@ export interface operations {
             };
             /** @description Forbidden */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -13814,6 +14728,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorOut"];
                 };
             };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
             /** @description Conflict */
             409: {
                 headers: {
@@ -13906,6 +14829,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorOut"];
                 };
             };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
             /** @description Conflict */
             409: {
                 headers: {
@@ -13986,6 +14918,15 @@ export interface operations {
             };
             /** @description Forbidden */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -14089,6 +15030,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorOut"];
                 };
             };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
             /** @description Conflict */
             409: {
                 headers: {
@@ -14178,6 +15128,15 @@ export interface operations {
             };
             /** @description Forbidden */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -14281,6 +15240,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorOut"];
                 };
             };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
             /** @description Conflict */
             409: {
                 headers: {
@@ -14373,6 +15341,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorOut"];
                 };
             };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
             /** @description Conflict */
             409: {
                 headers: {
@@ -14453,6 +15430,15 @@ export interface operations {
             };
             /** @description Forbidden */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -14556,6 +15542,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorOut"];
                 };
             };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
             /** @description Conflict */
             409: {
                 headers: {
@@ -14648,6 +15643,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorOut"];
                 };
             };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
             /** @description Conflict */
             409: {
                 headers: {
@@ -14655,6 +15659,318 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    get_requests_admin_data_load_requests_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectRequestsOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    get_request_admin_data_load_requests__request_id__get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectRequestOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    stop_request_admin_data_load_requests__request_id__stop_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectStopOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
             /** @description Too Many Requests */
@@ -14728,6 +16044,15 @@ export interface operations {
             };
             /** @description Forbidden */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -14827,6 +16152,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorOut"];
                 };
             };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
             /** @description Conflict */
             409: {
                 headers: {
@@ -14907,6 +16241,15 @@ export interface operations {
             };
             /** @description Forbidden */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

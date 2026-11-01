@@ -17,7 +17,12 @@ cycle.
   `load_priority`, order PDFs 60 / 80. Request: dossiers 30, order PDFs 40, so a person's own case gets its orders
   quickly. Discovery (design `department-discovery`, decision 6): dossiers 41, order PDFs 60 / 80; its searches 42
   (weekly sweep and a user's requested years) and 43 (a new term's first sweep). A request origin also carries
-  `requested_by`, the person who asked (design `napix-window`, decision 9); the rows it spawns inherit it."""
+  `requested_by`, the person who asked (design `napix-window`, decision 9); the rows it spawns inherit it.
+- The two "now" priorities (design `data-collection-redesign`, decision 24): `NOW_ONE` (3) for one case, fetch again,
+  one day's cause lists and the court reference lists, `NOW_BULK` (5) for several cases and all cases of a day. Both
+  are request-lane priorities ahead of the masters (10) and the daily lists (20), claimed by the runner outside the
+  reserve bands. A row claimed at 5 or less passes its priority to what it spawns (`QueueOrigin.now_priority`), so a
+  "now" dossier's order PDFs and a "now" day's new dossiers run at once too."""
 
 from __future__ import annotations
 
@@ -41,6 +46,9 @@ OTHERWISE = (44, 46)  # rank 1, 2 otherwise
 LOAD_KINDS = (FetchKind.CAUSELIST_DAY, FetchKind.DOSSIER, FetchKind.ORDER_PDF)
 
 REQUEST_PRIORITY = 30
+# the "now" priorities of manual requests (design data-collection-redesign, decision 24): one case before a bulk request
+NOW_ONE = 3
+NOW_BULK = 5
 DAILY_DOSSIER = 40
 # a person's search, fetch from the court or claim refresh: ahead of the queue
 REQUEST_ORDER_PDF = 40
@@ -131,8 +139,16 @@ class QueueOrigin:
     list_date: date | None = None
     settings: LoadSettings | None = None  # the load settings (read once per item); defaults when absent
     requested_by: uuid.UUID | None = None  # the person behind a request origin; None for system work
+    now_priority: int | None = (
+        None  # the "now" priority of the claimed row (5 or less); spawned rows inherit it
+    )
+    # the claimed row whose work this is: what it spawns re-reads its priority and requests (`queue.from_parent`)
+    parent_id: uuid.UUID | None = None
+    request_ids: tuple[str, ...] = ()  # the requests (audit row ids) spawned rows are tagged with
 
     def dossier_priority(self) -> int:
+        if self.now_priority is not None:
+            return self.now_priority
         if self.lane == FetchLane.LOAD:
             return load_priority(self.settings or DEFAULTS, FetchKind.DOSSIER, self.list_date)
         if self.lane == FetchLane.REQUEST:
@@ -143,10 +159,17 @@ class QueueOrigin:
 
     def order_pdf_priority(self, pending_case: bool) -> int:
         """Request 40; every other lane after the detail kinds: 60 for a pending case, 80 for any other (disposed or
-        unknown)."""
+        unknown); a "now" origin's own priority."""
+        if self.now_priority is not None:
+            return self.now_priority
         if self.lane == FetchLane.REQUEST:
             return REQUEST_ORDER_PDF
         return LIVE_ORDER_PDF if pending_case else DISPOSED_ORDER_PDF
+
+
+def now_priority_of(priority: int | None) -> int | None:
+    """The claimed row's priority when it is a "now" priority (5 or less), else None."""
+    return priority if priority is not None and priority <= NOW_BULK else None
 
 
 DAILY = QueueOrigin()

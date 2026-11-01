@@ -37,6 +37,7 @@ from typing import Any
 from sqlalchemy import and_, func, or_, select, text
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, sessionmaker
+from uuid6 import uuid7
 
 from aslms.core.config import Settings
 from aslms.domain.cases import Case, CaseLink, CaseParty, LinkKind
@@ -57,7 +58,7 @@ from aslms.domain.ops import (
 from aslms.domain.org import User
 from aslms.domain.reference import Permission
 from aslms.integration.napix.hc import API, NapixHighCourt
-from aslms.services import access, case_dedupe, court_search, data_health, napix_window, queue
+from aslms.services import access, case_dedupe, collect, court_search, data_health, napix_window, queue
 from aslms.services.access import Member
 from aslms.services.audit import Actor, write_audit
 from aslms.services.audit_search import to_ist
@@ -1412,8 +1413,8 @@ def overview(session: Session, cfg: Settings, now: datetime | None = None) -> di
     """`GET /admin/data-load/overview` (decisions 14-16, 21): what is held, done and left, in one snapshot under the
     report statement timeout. `days` counts the calendar days of the load period up to today (any lane: the daily
     cycle collects the recent ones); `cases` every case held; `orders` every order known, and `in_period` those dated
-    inside the period; `left` the work in every lane; `bulk` is the active bulk request (always None until round
-    3)."""
+    inside the period; `left` the work in every lane; `bulk` is the bulk request using the whole allowance, or None
+    (round 3, `services/collect.py`)."""
     now = _now(now)
     today = today_ist(now)
     with_timeout(session, cfg.report_statement_timeout_seconds)
@@ -1443,15 +1444,17 @@ def overview(session: Session, cfg: Settings, now: datetime | None = None) -> di
         "waiting_work": work,
         "problems": problem_counts(session, work, cases, orders),
         "estimate": estimate_all(session, settings, cfg, now),
-        "bulk": None,
+        "bulk": collect.active_bulk_summary(session, cfg, now),
     }
 
 
 def pulse(session: Session, cfg: Settings, now: datetime | None = None) -> dict[str, Any]:
     """`GET /admin/data-load/pulse` (decisions 17-18), polled every 5 s: the quota window and its calls, the queue by
     kind in every lane, what is fetching now (kind, lane and start, never a reference), calls in the last 5 minutes,
-    the last call and the request-lane rows waiting or fetching. A handful of indexed counts."""
+    the last call and the request-lane rows waiting or fetching. A handful of indexed counts, under the report
+    statement timeout as the Overview is (row 174 review)."""
     now = _now(now)
+    with_timeout(session, cfg.report_statement_timeout_seconds)
     window = napix_window.current(session, cfg, now)
     used = napix_window.calls_since(session, window.observed_at)["calls"]
     q = FetchQueueItem
@@ -1480,12 +1483,7 @@ def pulse(session: Session, cfg: Settings, now: datetime | None = None) -> dict[
     recent = int(
         session.scalar(select(func.count()).where(NapixCallLog.called_at >= now - PULSE_RECENT)) or 0
     )
-    requests = int(
-        session.scalar(
-            select(func.count()).select_from(q).where(q.lane == FetchLane.REQUEST, q.status.in_(ACTIVE))
-        )
-        or 0
-    )
+    requests = collect.active_count(session, cfg, now)  # round 3: the requests not finished yet
     return {
         "as_of": to_ist(now),
         "napix_enabled": bool(cfg.napix_configured),
@@ -1851,6 +1849,7 @@ def fetch_details(
     if not refs or len(refs) > DETAILS_MAX:
         raise LoadInputError("bad_input", f"between 1 and {DETAILS_MAX} cases")
     out: list[DetailState] = []
+    request_id = uuid7()  # the request's rows carry its id (row 174 review)
     for ref in dict.fromkeys(r.strip() for r in refs if r and r.strip()):
         try:
             case = resolve_case_ref(session, ref)
@@ -1880,6 +1879,7 @@ def fetch_details(
             requeue=held,
             lane=FetchLane.REQUEST,
             requested_by=napix_window.user_id_of(user),
+            request_ids=[str(request_id)],
         )
         row = queue.get_state(session, FetchKind.DOSSIER, dref)
         out.append(
@@ -1897,7 +1897,11 @@ def fetch_details(
             "queued": len(queued),
             "force": force,
             "refs": [d.case.ref_no if d.case else d.ref for d in out],
+            # the queue rows, so the request shows on Collect Now's Requests (design data-collection-redesign, 32)
+            "queue_refs": [{"kind": d.queue["kind"], "ref": d.queue["ref"]} for d in queued if d.queue],
+            "tagged": True,
         },
+        row_id=request_id,
     )
     return out
 

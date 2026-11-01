@@ -993,6 +993,7 @@ class CaseSearchItemOut(BaseModel):
     claimable: bool
     match: str | None = None
     dossier_status: str
+    dossier_fetched_at: datetime | None = None
 
 
 class CaseSearchListOut(BaseModel):
@@ -3225,6 +3226,9 @@ class QueueStateOut(BaseModel):
     not_before: datetime | None
     lane: str | None = None
     napix_enabled: bool
+    request_id: uuid.UUID | None = Field(
+        None, description="the audit row recording the request (Collect Now's progress panel)"
+    )
 
 
 class RefetchDayIn(BaseModel):
@@ -3519,8 +3523,8 @@ class DataLoadOverviewOut(BaseModel):
     waiting_work: list[WaitingWorkOut]
     problems: DataProblemsOut
     estimate: EstimateAllOut
-    bulk: dict[str, Any] | None = Field(
-        None, description="the active bulk request (round 3); null until then"
+    bulk: CollectRequestSummaryOut | None = Field(
+        None, description="the bulk request using the whole allowance (round 3), or null"
     )
 
 
@@ -3720,6 +3724,234 @@ class DataGapsOut(BaseModel):
     counts: dict[str, int]
     items: list[GapCaseOut] | list[GapOrderOut]
     documents_text: DocumentsTextOut
+
+
+# ------------------------------------------------------------------------------------------------ collect now
+# design data-collection-redesign, round 3 (decisions 22-33): manual requests carried out at once by the worker
+
+
+class CaseBriefOut(BaseModel):
+    id: uuid.UUID
+    ref_no: str
+    cnr: str | None
+    case_no_text: str | None
+
+
+class CollectPlanOut(BaseModel):
+    """The "use everything" panel (decision 30): the calls, how many fit in this hour and how many after the next
+    reset, and when it should finish; `finish_at` is null when the court's limit or the remaining count is unknown."""
+
+    calls: int
+    remaining: int | None
+    this_hour: int | None
+    after_reset: int | None
+    next_reset_at: datetime | None
+    finish_at: datetime | None
+    hourly_limit: int | None
+    search_floor: int
+    rate_reserve: int
+    live_reserve: int
+
+
+ItemState = Literal["waiting", "waiting_retry", "fetching", "done", "not_found", "failed"]
+
+
+class CollectRequestSummaryOut(BaseModel):
+    """One request (decision 32): its record is its audit row (`request_id`). `kind`: `cases`, `list`, `day`
+    (Collect Now), `refetch_day`, `recheck_day`, `refetch_case`, `refetch_order`, `masters` (the existing buttons) or
+    `details` (Fetch Details). `counts` are its items by state; `finished` when none waits ready or is fetching."""
+
+    request_id: uuid.UUID
+    action: str
+    kind: str
+    bulk: bool
+    asked_by: str | None
+    asked_by_office: str | None
+    asked_at: datetime
+    date: str | None = None
+    scope: str | None = None
+    cases: int | None = None
+    ref: str | None = None
+    priority: int | None = None
+    counts: dict[str, int]
+    by_kind: dict[str, dict[str, int]]
+    total: int
+    finished: bool
+    stopped: bool
+    stopped_at: datetime | None = None
+    stopped_by: str | None = None
+    using_everything: bool
+    retry_at: datetime | None = None
+    eta_seconds: int | None = None
+    expected_end: datetime | None = None
+
+
+class CollectorOut(BaseModel):
+    last_active_at: datetime | None
+    now_waiting: bool
+    not_running: bool = Field(
+        description="'now' rows wait and the worker shows no sign of work for 2 minutes"
+    )
+
+
+class CollectWindowOut(BaseModel):
+    remaining: int | None
+    next_reset_at: datetime | None
+    limit_used_up: bool
+    resumes_at: datetime | None
+
+
+class CollectRequestsOut(BaseModel):
+    as_of: datetime
+    items: list[CollectRequestSummaryOut]
+    active: int
+    bulk: CollectRequestSummaryOut | None
+    collector: CollectorOut
+    window: CollectWindowOut
+
+
+class CollectItemOut(BaseModel):
+    kind: str
+    ref: str
+    state: ItemState
+    attempts: int
+    not_before: datetime | None
+    problem: str | None
+    priority: int | None
+
+
+class CollectCaseOrdersOut(BaseModel):
+    total: int
+    stored: int
+    not_available: int
+    failed: int
+    waiting: int
+    retry_at: datetime | None = None
+
+
+class CollectCaseResultOut(BaseModel):
+    case: CaseBriefOut
+    status: str | None
+    details_fetched_at: datetime | None
+    details: ItemState
+    orders: CollectCaseOrdersOut
+
+
+class CollectStepOrdersOut(BaseModel):
+    total: int
+    stored: int
+    not_available: int
+    failed: int
+    waiting: int
+
+
+class CollectStepsOut(BaseModel):
+    details: dict[str, int]
+    orders: CollectStepOrdersOut
+
+
+class CollectLeftOutOut(BaseModel):
+    ref: str | None = None
+    reason: str
+    merged_into_ref_no: str | None = None
+    count: int | None = None
+
+
+class CollectRequestOut(CollectRequestSummaryOut):
+    """`GET /admin/data-load/requests/{id}`: the summary, one page of items, the per-case result of a request of at
+    most 20 cases, the steps for the progress panel, the collector and the court's limit."""
+
+    items: list[CollectItemOut]
+    limit: int
+    offset: int
+    results: list[CollectCaseResultOut]
+    steps: CollectStepsOut
+    collector: CollectorOut
+    window: CollectWindowOut
+    left_out: list[CollectLeftOutOut]
+
+
+_Date = date  # the type, for fields named `date`
+
+
+class CollectIn(BaseModel):
+    """`{kind: "cases", refs}` (1-20 cases), `{kind: "list", lines, force}` (1-200 lines) or `{kind: "day", date,
+    scope}`."""
+
+    kind: Literal["cases", "list", "day"]
+    refs: list[str] | None = Field(None, description="1-20 cases (more: 400 `too_many`)")
+    lines: list[str] | None = Field(
+        None, max_length=200, description="1-200 lines (more: 422, before any line is read)"
+    )
+    force: bool = False
+    date: _Date | None = None
+    scope: Literal["never", "all"] = "never"
+
+
+class CollectOut(BaseModel):
+    request_id: uuid.UUID
+    kind: str
+    to_fetch: int
+    queued: int
+    already_waiting: int
+    left_out: list[CollectLeftOutOut]
+    priority: int
+    expected_end: datetime | None
+
+
+class CollectListCheckIn(BaseModel):
+    lines: list[str] = Field(
+        min_length=1, max_length=200, description="1-200 lines (more: 422, before any line is read)"
+    )
+    force: bool = False
+
+
+class CollectLineOut(BaseModel):
+    line: str
+    state: Literal[
+        "will_fetch",
+        "already_has_details",
+        "not_held",
+        "several_match",
+        "not_a_reference",
+        "merged",
+        "no_reference",
+    ]
+    case: CaseBriefOut | None
+    cnr: str | None
+    details_fetched_at: datetime | None
+    merged_into_ref_no: str | None
+    matches: int
+
+
+class CollectListCheckOut(BaseModel):
+    items: list[CollectLineOut]
+    counts: dict[str, int]
+    force: bool
+    to_fetch: int
+    plan: CollectPlanOut
+    bulk: CollectRequestSummaryOut | None
+
+
+class CollectDayCheckOut(BaseModel):
+    date: date
+    scope: Literal["never", "all"]
+    lists: int
+    cases_listed: int
+    with_details: int
+    details_from: datetime | None
+    details_to: datetime | None
+    never_fetched: int
+    refreshed_recently: int
+    no_reference: int
+    to_fetch: int
+    plan: CollectPlanOut
+    bulk: CollectRequestSummaryOut | None
+
+
+class CollectStopOut(BaseModel):
+    request_id: uuid.UUID
+    moved: int
 
 
 # ------------------------------------------------------------------------------------------------ cause lists

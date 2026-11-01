@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from aslms.domain.cases import Case
 from aslms.domain.org import User
 from aslms.services import case_filters, inbox
+from aslms.services.audit_search import to_ist
 from aslms.services.case_filters import CaseFilterError, CaseFilters
 from aslms.services.visibility import (
     CaseState,
@@ -123,6 +124,8 @@ def _items(
             "claimable": bool(in_pool) and may_claim,
             "match": match,
             "dossier_status": "fetched" if c.last_full_refresh_at is not None else "not_fetched",
+            # Collect Now's One Case words it ("Details Held 21 Oct"; design data-collection-redesign, decision 25)
+            "dossier_fetched_at": to_ist(c.last_full_refresh_at),
         }
         for c, visible, in_pool in rows
     ]

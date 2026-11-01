@@ -7,7 +7,9 @@ or an order PDF, retry a failed queue row or every failed row of a kind, and the
 - **Functions**: masters (sync, retry of `masters` rows) need `admin.masters_sync`; the other kinds
   `admin.napix_refetch`; the check either of them. A re-fetch of a case or an order needs the case visible.
 - **Never a made-up identifier**: a case with neither a CNR nor a printed number answers `no_reference`.
-- **Lanes and the warning** (design `data-load-console`, decision 12): every button queues in the `request` lane.
+- **Lanes and the warning** (design `data-load-console`, decision 12): every button queues in the `request` lane, at
+  the "now" priority `NOW_ONE` (design `data-collection-redesign`, decisions 28-29: carried out at once, outside the
+  reserve bands); the answer carries `request_id`, the audit row that is the request's record.
   Re-fetching a day already held (done with lists stored, or skipped) or a case with details answers 409
   `already_held` unless `force`; a stored order PDF keeps answering `already_stored` (no `force`).
 - **Audit** (decision 11): one row per button (`napix.masters_sync_requested`, `napix.refetch_requested`,
@@ -33,6 +35,7 @@ from typing import Any
 import httpx
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session, sessionmaker
+from uuid6 import uuid7
 
 from aslms.core.config import Settings
 from aslms.core.errors import IntegrationError
@@ -49,6 +52,7 @@ from aslms.services.access import Forbidden, Member
 from aslms.services.audit import Actor, write_audit
 from aslms.services.audit_search import to_ist
 from aslms.services.data_health import OVERVIEW_API
+from aslms.services.load_policy import NOW_BULK, NOW_ONE
 from aslms.services.napix_store import NapixRecorder
 from aslms.services.orders import order_ref
 from aslms.services.reporting_common import today_ist
@@ -187,6 +191,8 @@ def _enqueue(
 ) -> dict[str, Any]:
     before = queue.get_state(session, kind, ref)
     status_before = _value(before.status) if before is not None else None
+    # the request's id, chosen first: the row (and the order PDFs a dossier spawns) carry it (row 174 review)
+    request_id = uuid7()
     queue.enqueue(
         session,
         kind,
@@ -196,9 +202,10 @@ def _enqueue(
         lane=FetchLane.REQUEST,
         list_date=list_date,
         requested_by=member.id if member is not None else None,
+        request_ids=[str(request_id)],
     )
     row = queue.get_state(session, kind, ref)
-    write_audit(
+    entry = write_audit(
         session,
         access.actor_as(actor, member),
         action,
@@ -211,11 +218,14 @@ def _enqueue(
             "status_before": status_before,
             "status_after": _value(row.status) if row is not None else None,
             "lane": _value(row.lane) if row is not None else FetchLane.REQUEST.value,
+            "tagged": True,
             **(extra or {}),
         },
         case_id=case_id,
+        row_id=request_id,
     )
-    return state_of(session, row, kind, ref, settings)
+    # the request record is its audit row (design data-collection-redesign, decision 32): Collect Now's progress panel
+    return {**state_of(session, row, kind, ref, settings), "request_id": entry.id}
 
 
 # ------------------------------------------------------------------------------------------------ buttons
@@ -224,7 +234,8 @@ def _enqueue(
 def request_masters_sync(
     session: Session, actor: Actor, user: User | Member | None, settings: Settings
 ) -> dict[str, Any]:
-    """`masters/all` at priority 10, re-queued even when done."""
+    """`masters/all` at the "now" priority `NOW_ONE` (design data-collection-redesign, decision 29), re-queued even when
+    done."""
     member = acting_member(session, user, Permission.ADMIN_MASTERS_SYNC)
     return _enqueue(
         session,
@@ -233,7 +244,7 @@ def request_masters_sync(
         "napix.masters_sync_requested",
         FetchKind.MASTERS,
         "all",
-        queue.PRIORITY["masters"],
+        NOW_ONE,
         settings,
     )
 
@@ -249,12 +260,13 @@ def refetch_day(
     force: bool = False,
     recheck: bool = False,
 ) -> dict[str, Any]:
-    """`causelist_day/<date>` at priority 20 in the request lane, as `aslms refetch-date`; not after tomorrow
+    """`causelist_day/<date>` at the "now" priority `NOW_ONE` in the request lane (design data-collection-redesign,
+    decision 28: carried out at once; its new dossiers inherit the priority), as `aslms refetch-date`; not after tomorrow
     (IST). A day already held (done with lists stored, or skipped: the court published none) answers
     `already_held` without `force`, before anything is written.
 
     With `recheck` (design court-data-freshness, decision 16): `causelist_recheck/<date>` instead, request lane,
-    priority 20, for a date from yesterday to tomorrow (IST) only (`date_out_of_range`); the `already_held` guard does
+    `NOW_ONE`, for a date from yesterday to tomorrow (IST) only (`date_out_of_range`); the `already_held` guard does
     not apply (a recheck is for held lists). Audited `napix.refetch_requested` with `after.kind`."""
     member = acting_member(session, user, Permission.ADMIN_NAPIX_REFETCH)
     today = today or today_ist()
@@ -270,7 +282,7 @@ def refetch_day(
             "napix.refetch_requested",
             FetchKind.CAUSELIST_RECHECK,
             list_date.isoformat(),
-            queue.PRIORITY["list_today"],
+            NOW_ONE,
             settings,
             list_date=list_date,
         )
@@ -288,7 +300,7 @@ def refetch_day(
         "napix.refetch_requested",
         FetchKind.CAUSELIST_DAY,
         list_date.isoformat(),
-        queue.PRIORITY["list_today"],
+        NOW_ONE,
         settings,
         extra=extra,
         list_date=list_date,
@@ -340,7 +352,8 @@ def refetch_case(
     *,
     force: bool = False,
 ) -> dict[str, Any]:
-    """`dossier/<ref>` at priority 30 in the request lane, as `aslms refetch-case`; the case visible to the caller.
+    """`dossier/<ref>` at `NOW_ONE` in the request lane (decision 28), as `aslms refetch-case`; the case visible to the
+    caller; its order PDFs inherit the priority.
     A case whose details are held answers `already_held` without `force`."""
     member = acting_member(session, user, Permission.ADMIN_NAPIX_REFETCH)
     _visible(session, user, case)
@@ -364,7 +377,7 @@ def refetch_case(
         "napix.refetch_requested",
         FetchKind.DOSSIER,
         ref,
-        REQUEST_PRIORITY,
+        NOW_ONE,
         settings,
         case_id=case.id,
         extra={"force": True} if force else None,
@@ -379,7 +392,7 @@ def refetch_order(
     order_id: uuid.UUID,
     settings: Settings,
 ) -> dict[str, Any]:
-    """The order of this case goes back to `pending` and `order_pdf/<CNR>|<order_no>|<date>` is queued at 30."""
+    """The order of this case goes back to `pending` and `order_pdf/<CNR>|<order_no>|<date>` is queued at `NOW_ONE`."""
     member = acting_member(session, user, Permission.ADMIN_NAPIX_REFETCH)
     _visible(session, user, case)
     order = session.scalar(select(Order).where(Order.id == order_id, Order.case_id == case.id))
@@ -399,7 +412,7 @@ def refetch_order(
         "napix.refetch_requested",
         FetchKind.ORDER_PDF,
         order_ref(case.cnr, order),
-        REQUEST_PRIORITY,
+        NOW_ONE,
         settings,
         case_id=case.id,
         extra={"order_id": str(order.id), "download_status_before": status_before},
@@ -413,7 +426,8 @@ def _kind_permission(kind: FetchKind) -> Permission:
 def retry_item(
     session: Session, actor: Actor, user: User | Member, item_id: uuid.UUID, settings: Settings
 ) -> dict[str, Any]:
-    """A `failed` or `skipped` row back to `pending` with no attempts; any other state is `not_retryable`."""
+    """A `failed` or `skipped` row back to `pending` with no attempts, in its own lane, without its requests' ids; a
+    row failed at a "now" priority at 30. Any other state is `not_retryable`."""
     row = session.scalar(
         select(FetchQueueItem)
         .where(FetchQueueItem.id == item_id)
@@ -429,8 +443,11 @@ def retry_item(
         raise NotRetryable(
             f"the row is {status_before}; only failed or skipped rows are retried", status=status_before
         )
-    ref, priority = row.ref, row.priority
-    queue.enqueue(session, kind, ref, priority)
+    ref, lane = row.ref, FetchLane(_value(row.lane))
+    # a row failed at a "now" priority comes back at the request lane's normal priority (30), as Retry All does: the
+    # request that set it has ended (decision 24, deviation 18); every row stays in its own lane
+    priority = REQUEST_PRIORITY if row.priority <= NOW_BULK else row.priority
+    queue.enqueue(session, kind, ref, priority, lane=lane)
     row = queue.get_state(session, kind, ref)
     write_audit(
         session,
@@ -453,7 +470,10 @@ def retry_failed(
     session: Session, actor: Actor, user: User | Member, kind: FetchKind, lane: FetchLane | None = None
 ) -> int:
     """Every `failed` row of one kind (of one lane when given: "retry the load's failed details" leaves the daily
-    lane alone) back to `pending` in one statement; one audit row with the count."""
+    lane alone) back to `pending` in one statement; one audit row with the count. A row failed at a "now" priority
+    comes back at the request lane's normal priority (30): the request that set it has ended (design
+    `data-collection-redesign`, decision 24). The rows lose their requests' ids (`result.request_ids`, deviation 20):
+    the retry is later work, so a finished request never reopens."""
     member = acting_member(session, user, _kind_permission(kind))
     lane_filter = "AND lane = CAST(:lane AS fetch_lane)" if lane is not None else ""
     n = (
@@ -461,11 +481,17 @@ def retry_failed(
             text(
                 f"""
                 UPDATE fetch_queue SET status = 'pending', attempts = 0, not_before = NULL, last_error = NULL,
-                    requested_by = NULL
+                    requested_by = NULL, result = result - 'request_ids',
+                    priority = CASE WHEN priority <= :now_max THEN :normal ELSE priority END
                 WHERE kind = CAST(:kind AS fetch_kind) AND status = 'failed' {lane_filter}
                 """
             ),
-            {"kind": kind.value, "lane": FetchLane(lane).value if lane is not None else None},
+            {
+                "kind": kind.value,
+                "lane": FetchLane(lane).value if lane is not None else None,
+                "now_max": NOW_BULK,
+                "normal": REQUEST_PRIORITY,
+            },
         ).rowcount
         or 0
     )

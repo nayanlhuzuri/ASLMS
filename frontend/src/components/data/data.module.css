@@ -310,3 +310,70 @@
   align-items: center;
   gap: var(--s2);
 }
+
+/* round 3 (decisions 25-32): Collect Now's results, the "use everything" panel and the requests' states */
+.results {
+  display: grid;
+  gap: var(--s3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.result {
+  display: grid;
+  gap: var(--s1);
+  min-width: 0;
+  padding: var(--s3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+
+.result > p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.useEverything {
+  display: grid;
+  gap: var(--s1);
+  padding: var(--s3);
+  border: 1px solid var(--border-strong);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--r-md);
+  background: var(--accent-soft);
+  font-size: var(--t-sm);
+}
+
+.useEverything > p,
+.useEverything > ul {
+  margin: 0;
+}
+
+.useEverything > ul {
+  padding-left: var(--s4);
+}
+
+.useTitle {
+  font-weight: 600;
+}
+
+.rowActions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--s1) var(--s2);
+}
+
+.inlineState {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s1) var(--s2);
+}
+
+.fieldRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  align-items: end;
+  gap: var(--s3);
+}

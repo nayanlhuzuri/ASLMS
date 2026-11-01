@@ -3601,6 +3601,49 @@
         "title": "CallRowOut",
         "type": "object"
       },
+      "CaseBriefOut": {
+        "properties": {
+          "case_no_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Case No Text"
+          },
+          "cnr": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cnr"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "ref_no": {
+            "title": "Ref No",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "ref_no",
+          "cnr",
+          "case_no_text"
+        ],
+        "title": "CaseBriefOut",
+        "type": "object"
+      },
       "CaseClassificationOut": {
         "properties": {
           "bench_id": {
@@ -4831,6 +4874,18 @@
           "claimable": {
             "title": "Claimable",
             "type": "boolean"
+          },
+          "dossier_fetched_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dossier Fetched At"
           },
           "dossier_status": {
             "title": "Dossier Status",
@@ -6185,6 +6240,1386 @@
           "label"
         ],
         "title": "CodeLabelOut",
+        "type": "object"
+      },
+      "CollectCaseOrdersOut": {
+        "properties": {
+          "failed": {
+            "title": "Failed",
+            "type": "integer"
+          },
+          "not_available": {
+            "title": "Not Available",
+            "type": "integer"
+          },
+          "retry_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retry At"
+          },
+          "stored": {
+            "title": "Stored",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "waiting": {
+            "title": "Waiting",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "stored",
+          "not_available",
+          "failed",
+          "waiting"
+        ],
+        "title": "CollectCaseOrdersOut",
+        "type": "object"
+      },
+      "CollectCaseResultOut": {
+        "properties": {
+          "case": {
+            "$ref": "#/components/schemas/CaseBriefOut"
+          },
+          "details": {
+            "enum": [
+              "waiting",
+              "waiting_retry",
+              "fetching",
+              "done",
+              "not_found",
+              "failed"
+            ],
+            "title": "Details",
+            "type": "string"
+          },
+          "details_fetched_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details Fetched At"
+          },
+          "orders": {
+            "$ref": "#/components/schemas/CollectCaseOrdersOut"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "required": [
+          "case",
+          "status",
+          "details_fetched_at",
+          "details",
+          "orders"
+        ],
+        "title": "CollectCaseResultOut",
+        "type": "object"
+      },
+      "CollectDayCheckOut": {
+        "properties": {
+          "bulk": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CollectRequestSummaryOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cases_listed": {
+            "title": "Cases Listed",
+            "type": "integer"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "details_from": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details From"
+          },
+          "details_to": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details To"
+          },
+          "lists": {
+            "title": "Lists",
+            "type": "integer"
+          },
+          "never_fetched": {
+            "title": "Never Fetched",
+            "type": "integer"
+          },
+          "no_reference": {
+            "title": "No Reference",
+            "type": "integer"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/CollectPlanOut"
+          },
+          "refreshed_recently": {
+            "title": "Refreshed Recently",
+            "type": "integer"
+          },
+          "scope": {
+            "enum": [
+              "never",
+              "all"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
+          "to_fetch": {
+            "title": "To Fetch",
+            "type": "integer"
+          },
+          "with_details": {
+            "title": "With Details",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "date",
+          "scope",
+          "lists",
+          "cases_listed",
+          "with_details",
+          "details_from",
+          "details_to",
+          "never_fetched",
+          "refreshed_recently",
+          "no_reference",
+          "to_fetch",
+          "plan",
+          "bulk"
+        ],
+        "title": "CollectDayCheckOut",
+        "type": "object"
+      },
+      "CollectIn": {
+        "description": "`{kind: \"cases\", refs}` (1-20 cases), `{kind: \"list\", lines, force}` (1-200 lines) or `{kind: \"day\", date,\nscope}`.",
+        "properties": {
+          "date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
+          },
+          "force": {
+            "default": false,
+            "title": "Force",
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "cases",
+              "list",
+              "day"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "lines": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 200,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "1-200 lines (more: 422, before any line is read)",
+            "title": "Lines"
+          },
+          "refs": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "1-20 cases (more: 400 `too_many`)",
+            "title": "Refs"
+          },
+          "scope": {
+            "default": "never",
+            "enum": [
+              "never",
+              "all"
+            ],
+            "title": "Scope",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "CollectIn",
+        "type": "object"
+      },
+      "CollectItemOut": {
+        "properties": {
+          "attempts": {
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "not_before": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Not Before"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Priority"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "waiting",
+              "waiting_retry",
+              "fetching",
+              "done",
+              "not_found",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "ref",
+          "state",
+          "attempts",
+          "not_before",
+          "problem",
+          "priority"
+        ],
+        "title": "CollectItemOut",
+        "type": "object"
+      },
+      "CollectLeftOutOut": {
+        "properties": {
+          "count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Count"
+          },
+          "merged_into_ref_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merged Into Ref No"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "CollectLeftOutOut",
+        "type": "object"
+      },
+      "CollectLineOut": {
+        "properties": {
+          "case": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CaseBriefOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cnr": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cnr"
+          },
+          "details_fetched_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details Fetched At"
+          },
+          "line": {
+            "title": "Line",
+            "type": "string"
+          },
+          "matches": {
+            "title": "Matches",
+            "type": "integer"
+          },
+          "merged_into_ref_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merged Into Ref No"
+          },
+          "state": {
+            "enum": [
+              "will_fetch",
+              "already_has_details",
+              "not_held",
+              "several_match",
+              "not_a_reference",
+              "merged",
+              "no_reference"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "line",
+          "state",
+          "case",
+          "cnr",
+          "details_fetched_at",
+          "merged_into_ref_no",
+          "matches"
+        ],
+        "title": "CollectLineOut",
+        "type": "object"
+      },
+      "CollectListCheckIn": {
+        "properties": {
+          "force": {
+            "default": false,
+            "title": "Force",
+            "type": "boolean"
+          },
+          "lines": {
+            "description": "1-200 lines (more: 422, before any line is read)",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Lines",
+            "type": "array"
+          }
+        },
+        "required": [
+          "lines"
+        ],
+        "title": "CollectListCheckIn",
+        "type": "object"
+      },
+      "CollectListCheckOut": {
+        "properties": {
+          "bulk": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CollectRequestSummaryOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Counts",
+            "type": "object"
+          },
+          "force": {
+            "title": "Force",
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CollectLineOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/CollectPlanOut"
+          },
+          "to_fetch": {
+            "title": "To Fetch",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "counts",
+          "force",
+          "to_fetch",
+          "plan",
+          "bulk"
+        ],
+        "title": "CollectListCheckOut",
+        "type": "object"
+      },
+      "CollectOut": {
+        "properties": {
+          "already_waiting": {
+            "title": "Already Waiting",
+            "type": "integer"
+          },
+          "expected_end": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected End"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "left_out": {
+            "items": {
+              "$ref": "#/components/schemas/CollectLeftOutOut"
+            },
+            "title": "Left Out",
+            "type": "array"
+          },
+          "priority": {
+            "title": "Priority",
+            "type": "integer"
+          },
+          "queued": {
+            "title": "Queued",
+            "type": "integer"
+          },
+          "request_id": {
+            "format": "uuid",
+            "title": "Request Id",
+            "type": "string"
+          },
+          "to_fetch": {
+            "title": "To Fetch",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "request_id",
+          "kind",
+          "to_fetch",
+          "queued",
+          "already_waiting",
+          "left_out",
+          "priority",
+          "expected_end"
+        ],
+        "title": "CollectOut",
+        "type": "object"
+      },
+      "CollectPlanOut": {
+        "description": "The \"use everything\" panel (decision 30): the calls, how many fit in this hour and how many after the next\nreset, and when it should finish; `finish_at` is null when the court's limit or the remaining count is unknown.",
+        "properties": {
+          "after_reset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "After Reset"
+          },
+          "calls": {
+            "title": "Calls",
+            "type": "integer"
+          },
+          "finish_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finish At"
+          },
+          "hourly_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hourly Limit"
+          },
+          "live_reserve": {
+            "title": "Live Reserve",
+            "type": "integer"
+          },
+          "next_reset_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Reset At"
+          },
+          "rate_reserve": {
+            "title": "Rate Reserve",
+            "type": "integer"
+          },
+          "remaining": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining"
+          },
+          "search_floor": {
+            "title": "Search Floor",
+            "type": "integer"
+          },
+          "this_hour": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "This Hour"
+          }
+        },
+        "required": [
+          "calls",
+          "remaining",
+          "this_hour",
+          "after_reset",
+          "next_reset_at",
+          "finish_at",
+          "hourly_limit",
+          "search_floor",
+          "rate_reserve",
+          "live_reserve"
+        ],
+        "title": "CollectPlanOut",
+        "type": "object"
+      },
+      "CollectRequestOut": {
+        "description": "`GET /admin/data-load/requests/{id}`: the summary, one page of items, the per-case result of a request of at\nmost 20 cases, the steps for the progress panel, the collector and the court's limit.",
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "asked_at": {
+            "format": "date-time",
+            "title": "Asked At",
+            "type": "string"
+          },
+          "asked_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asked By"
+          },
+          "asked_by_office": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asked By Office"
+          },
+          "bulk": {
+            "title": "Bulk",
+            "type": "boolean"
+          },
+          "by_kind": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "integer"
+              },
+              "type": "object"
+            },
+            "title": "By Kind",
+            "type": "object"
+          },
+          "cases": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cases"
+          },
+          "collector": {
+            "$ref": "#/components/schemas/CollectorOut"
+          },
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Counts",
+            "type": "object"
+          },
+          "date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
+          },
+          "eta_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eta Seconds"
+          },
+          "expected_end": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected End"
+          },
+          "finished": {
+            "title": "Finished",
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CollectItemOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "left_out": {
+            "items": {
+              "$ref": "#/components/schemas/CollectLeftOutOut"
+            },
+            "title": "Left Out",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Priority"
+          },
+          "ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref"
+          },
+          "request_id": {
+            "format": "uuid",
+            "title": "Request Id",
+            "type": "string"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/CollectCaseResultOut"
+            },
+            "title": "Results",
+            "type": "array"
+          },
+          "retry_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retry At"
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope"
+          },
+          "steps": {
+            "$ref": "#/components/schemas/CollectStepsOut"
+          },
+          "stopped": {
+            "title": "Stopped",
+            "type": "boolean"
+          },
+          "stopped_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stopped At"
+          },
+          "stopped_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stopped By"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "using_everything": {
+            "title": "Using Everything",
+            "type": "boolean"
+          },
+          "window": {
+            "$ref": "#/components/schemas/CollectWindowOut"
+          }
+        },
+        "required": [
+          "request_id",
+          "action",
+          "kind",
+          "bulk",
+          "asked_by",
+          "asked_by_office",
+          "asked_at",
+          "counts",
+          "by_kind",
+          "total",
+          "finished",
+          "stopped",
+          "using_everything",
+          "items",
+          "limit",
+          "offset",
+          "results",
+          "steps",
+          "collector",
+          "window",
+          "left_out"
+        ],
+        "title": "CollectRequestOut",
+        "type": "object"
+      },
+      "CollectRequestSummaryOut": {
+        "description": "One request (decision 32): its record is its audit row (`request_id`). `kind`: `cases`, `list`, `day`\n(Collect Now), `refetch_day`, `recheck_day`, `refetch_case`, `refetch_order`, `masters` (the existing buttons) or\n`details` (Fetch Details). `counts` are its items by state; `finished` when none waits ready or is fetching.",
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "asked_at": {
+            "format": "date-time",
+            "title": "Asked At",
+            "type": "string"
+          },
+          "asked_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asked By"
+          },
+          "asked_by_office": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asked By Office"
+          },
+          "bulk": {
+            "title": "Bulk",
+            "type": "boolean"
+          },
+          "by_kind": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "integer"
+              },
+              "type": "object"
+            },
+            "title": "By Kind",
+            "type": "object"
+          },
+          "cases": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cases"
+          },
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Counts",
+            "type": "object"
+          },
+          "date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
+          },
+          "eta_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eta Seconds"
+          },
+          "expected_end": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected End"
+          },
+          "finished": {
+            "title": "Finished",
+            "type": "boolean"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Priority"
+          },
+          "ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref"
+          },
+          "request_id": {
+            "format": "uuid",
+            "title": "Request Id",
+            "type": "string"
+          },
+          "retry_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retry At"
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope"
+          },
+          "stopped": {
+            "title": "Stopped",
+            "type": "boolean"
+          },
+          "stopped_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stopped At"
+          },
+          "stopped_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stopped By"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "using_everything": {
+            "title": "Using Everything",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "request_id",
+          "action",
+          "kind",
+          "bulk",
+          "asked_by",
+          "asked_by_office",
+          "asked_at",
+          "counts",
+          "by_kind",
+          "total",
+          "finished",
+          "stopped",
+          "using_everything"
+        ],
+        "title": "CollectRequestSummaryOut",
+        "type": "object"
+      },
+      "CollectRequestsOut": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "integer"
+          },
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "bulk": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CollectRequestSummaryOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "collector": {
+            "$ref": "#/components/schemas/CollectorOut"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CollectRequestSummaryOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "window": {
+            "$ref": "#/components/schemas/CollectWindowOut"
+          }
+        },
+        "required": [
+          "as_of",
+          "items",
+          "active",
+          "bulk",
+          "collector",
+          "window"
+        ],
+        "title": "CollectRequestsOut",
+        "type": "object"
+      },
+      "CollectStepOrdersOut": {
+        "properties": {
+          "failed": {
+            "title": "Failed",
+            "type": "integer"
+          },
+          "not_available": {
+            "title": "Not Available",
+            "type": "integer"
+          },
+          "stored": {
+            "title": "Stored",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "waiting": {
+            "title": "Waiting",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "stored",
+          "not_available",
+          "failed",
+          "waiting"
+        ],
+        "title": "CollectStepOrdersOut",
+        "type": "object"
+      },
+      "CollectStepsOut": {
+        "properties": {
+          "details": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Details",
+            "type": "object"
+          },
+          "orders": {
+            "$ref": "#/components/schemas/CollectStepOrdersOut"
+          }
+        },
+        "required": [
+          "details",
+          "orders"
+        ],
+        "title": "CollectStepsOut",
+        "type": "object"
+      },
+      "CollectStopOut": {
+        "properties": {
+          "moved": {
+            "title": "Moved",
+            "type": "integer"
+          },
+          "request_id": {
+            "format": "uuid",
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id",
+          "moved"
+        ],
+        "title": "CollectStopOut",
+        "type": "object"
+      },
+      "CollectWindowOut": {
+        "properties": {
+          "limit_used_up": {
+            "title": "Limit Used Up",
+            "type": "boolean"
+          },
+          "next_reset_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Reset At"
+          },
+          "remaining": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining"
+          },
+          "resumes_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resumes At"
+          }
+        },
+        "required": [
+          "remaining",
+          "next_reset_at",
+          "limit_used_up",
+          "resumes_at"
+        ],
+        "title": "CollectWindowOut",
+        "type": "object"
+      },
+      "CollectorOut": {
+        "properties": {
+          "last_active_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Active At"
+          },
+          "not_running": {
+            "description": "'now' rows wait and the worker shows no sign of work for 2 minutes",
+            "title": "Not Running",
+            "type": "boolean"
+          },
+          "now_waiting": {
+            "title": "Now Waiting",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "last_active_at",
+          "now_waiting",
+          "not_running"
+        ],
+        "title": "CollectorOut",
         "type": "object"
       },
       "ConsoleFieldOut": {
@@ -9391,15 +10826,13 @@
           "bulk": {
             "anyOf": [
               {
-                "additionalProperties": true,
-                "type": "object"
+                "$ref": "#/components/schemas/CollectRequestSummaryOut"
               },
               {
                 "type": "null"
               }
             ],
-            "description": "the active bulk request (round 3); null until then",
-            "title": "Bulk"
+            "description": "the bulk request using the whole allowance (round 3), or null"
           },
           "cases": {
             "$ref": "#/components/schemas/DataLoadCasesOut"
@@ -20721,6 +22154,19 @@
             "title": "Ref",
             "type": "string"
           },
+          "request_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the audit row recording the request (Collect Now's progress panel)",
+            "title": "Request Id"
+          },
           "status": {
             "anyOf": [
               {
@@ -26960,6 +28406,16 @@
             },
             "description": "Forbidden"
           },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
           "409": {
             "content": {
               "application/json": {
@@ -27017,6 +28473,400 @@
           }
         ],
         "summary": "Get Progress",
+        "tags": [
+          "data-load"
+        ]
+      }
+    },
+    "/admin/data-load/collect": {
+      "post": {
+        "description": "Collect at once (decisions 23-27): `cases` (1-20, each case's details unless fetched in the last 10 minutes,\nthen every order PDF it lacks, at priority 3), `list` or `day` (bulk, at priority 5, using the whole allowance; one\nat a time: 409 `bulk_running` naming who asked, what and since when). The worker carries them out; the answer\ncomes at once with the request id. Audited `data_load.collect_requested`.",
+        "operationId": "collect_now_admin_data_load_collect_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollectIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Collect Now",
+        "tags": [
+          "data-load"
+        ]
+      }
+    },
+    "/admin/data-load/collect/day": {
+      "get": {
+        "description": "All Cases Listed on a Day, the check (decision 27): the day's current lists, the cases listed (not merged), with\ndetails, never fetched, refreshed in the last 6 hours, without a court reference, and what the scope would fetch,\nwith the calls and the \"use everything\" panel. Writes nothing; 400 `no_lists`, `date_in_future`, `too_many`.",
+        "operationId": "check_day_admin_data_load_collect_day_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "date",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "Date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "schema": {
+              "default": "never",
+              "pattern": "^(never|all)$",
+              "title": "Scope",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectDayCheckOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Check Day",
+        "tags": [
+          "data-load"
+        ]
+      }
+    },
+    "/admin/data-load/collect/list/check": {
+      "post": {
+        "description": "Several Cases, the check (decision 26): each line read as a case reference, id, CNR or case number, the counts\nand the calls, and the \"use everything\" panel. Writes nothing.",
+        "operationId": "check_list_admin_data_load_collect_list_check_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollectListCheckIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectListCheckOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Check List",
         "tags": [
           "data-load"
         ]
@@ -27092,6 +28942,16 @@
               }
             },
             "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
           },
           "409": {
             "content": {
@@ -27236,6 +29096,16 @@
             },
             "description": "Forbidden"
           },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
           "409": {
             "content": {
               "application/json": {
@@ -27342,6 +29212,16 @@
               }
             },
             "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
           },
           "409": {
             "content": {
@@ -27469,6 +29349,16 @@
             },
             "description": "Forbidden"
           },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
           "409": {
             "content": {
               "application/json": {
@@ -27585,6 +29475,16 @@
               }
             },
             "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
           },
           "409": {
             "content": {
@@ -27729,6 +29629,16 @@
             },
             "description": "Forbidden"
           },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
           "409": {
             "content": {
               "application/json": {
@@ -27846,6 +29756,16 @@
             },
             "description": "Forbidden"
           },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
           "409": {
             "content": {
               "application/json": {
@@ -27953,6 +29873,16 @@
             },
             "description": "Forbidden"
           },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
           "409": {
             "content": {
               "application/json": {
@@ -28059,6 +29989,16 @@
               }
             },
             "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
           },
           "409": {
             "content": {
@@ -28177,6 +30117,16 @@
             },
             "description": "Forbidden"
           },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
           "409": {
             "content": {
               "application/json": {
@@ -28284,6 +30234,16 @@
             },
             "description": "Forbidden"
           },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
           "409": {
             "content": {
               "application/json": {
@@ -28346,6 +30306,418 @@
         ]
       }
     },
+    "/admin/data-load/requests": {
+      "get": {
+        "description": "The last 7 days' requests with their live progress (decision 32): Collect Now's, the re-fetch and reference-list\nbuttons' and Fetch Details', each from its audit row; whether the collector is working and the court's limit.",
+        "operationId": "get_requests_admin_data_load_requests_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectRequestsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Requests",
+        "tags": [
+          "data-load"
+        ]
+      }
+    },
+    "/admin/data-load/requests/{request_id}": {
+      "get": {
+        "description": "One request: its items paged with their states, the per-case result of a small request and the steps for the\nprogress panel; 404 `not_found`.",
+        "operationId": "get_request_admin_data_load_requests__request_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "request_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Request Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectRequestOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Request",
+        "tags": [
+          "data-load"
+        ]
+      }
+    },
+    "/admin/data-load/requests/{request_id}/stop": {
+      "post": {
+        "description": "Stop Using Everything (decision 31): the rest goes to the normal turn (priority 30, within the usual limits);\nrunning rows finish; nothing is thrown away. 409 `not_running`; audited `data_load.collect_stopped`.",
+        "operationId": "stop_request_admin_data_load_requests__request_id__stop_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "request_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Request Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectStopOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Stop Request",
+        "tags": [
+          "data-load"
+        ]
+      }
+    },
     "/admin/data-load/resume": {
       "post": {
         "operationId": "resume_admin_data_load_resume_post",
@@ -28396,6 +30768,16 @@
               }
             },
             "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
           },
           "409": {
             "content": {
@@ -28504,6 +30886,16 @@
             },
             "description": "Forbidden"
           },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
           "409": {
             "content": {
               "application/json": {
@@ -28610,6 +31002,16 @@
               }
             },
             "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
           },
           "409": {
             "content": {

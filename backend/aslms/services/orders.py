@@ -41,10 +41,12 @@ def order_ref(cnr: str, order: Order) -> str:
 def enqueue_order_pdfs(session: Session, case: Case, origin: QueueOrigin | None = None) -> int:
     """Queue the PDFs this case still lacks, in the lane of the work that found them (design `data-load-console`,
     decisions 1 and 5): the daily cycle, the load and discovery put a pending case's PDFs at 60, after every detail
-    kind, and a disposed case's at 80 (owner, 24 Oct 2026); a person's request 40."""
+    kind, and a disposed case's at 80 (owner, 24 Oct 2026); a person's request 40. Each row is tagged with the requests
+    of the work that found it (`origin.request_ids`, or those of the claimed row `origin.parent_id` as it is now)."""
     if not case.cnr:
         return 0
-    origin = origin or DAILY
+    # spawned by a claimed row: its priority and requests as they are now (row 174 review)
+    origin = queue.from_parent(session, origin or DAILY)
     priority = origin.order_pdf_priority(case.status == CaseStatus.PENDING)
     n = 0
     for o in session.scalars(
@@ -69,6 +71,7 @@ def enqueue_order_pdfs(session: Session, case: Case, origin: QueueOrigin | None 
             lane=origin.lane,
             list_date=origin.list_date,
             requested_by=origin.requested_by,
+            request_ids=origin.request_ids or None,
         ):
             n += 1
     return n

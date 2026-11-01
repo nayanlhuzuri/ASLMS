@@ -4,7 +4,8 @@
  * answer built from the API's OpenAPI document (`synth.ts`); a `GET` the API does not have is answered 404 and is a
  * finding, and any other method is answered 405 and is a finding too (the check never acts), apart from the session
  * watch's ping `POST /me/activity`, which records nothing and is answered with the default limits (design
- * session-timeout, "Tests"). The overrides are typed
+ * session-timeout, "Tests"), the Start dialog's check `POST /admin/data-load/preview` and Several Cases' check
+ * `POST /admin/data-load/collect/list/check`, which write nothing and call no court. The overrides are typed
  * against the generated `schema.d.ts`, so a fixture that no longer matches the API breaks the image build.
  */
 import type { components } from "@/lib/api/schema";
@@ -990,6 +991,200 @@ function dataGaps(url: URL): unknown {
   return { ...base, kind, total: items.length, counts, items };
 }
 
+/**
+ * Collect Now's requests (design data-collection-redesign, round 3, decisions 25 and 30-32): a bulk request using the
+ * whole allowance (Stop and its dialog), a one-case request still collecting (the progress panel) and a finished one
+ * (the result), each read through Show Items' `GET /admin/data-load/requests/{id}`.
+ */
+const COLLECT_STATES = { waiting: 0, waiting_retry: 0, fetching: 0, done: 0, not_found: 0, failed: 0 };
+const COLLECT_CASE = { id: "0192a3b4-0000-7000-8000-0000000000c1", ref_no: SAMPLE.caseRef, cnr: "GAHC010129772026", case_no_text: STRESS.caseNo };
+
+function collectSummary(id: string, over: Partial<S["CollectRequestSummaryOut"]>): S["CollectRequestSummaryOut"] {
+  return {
+    request_id: id,
+    action: "data_load.collect_requested",
+    kind: "cases",
+    bulk: false,
+    asked_by: "Anita Sharma Baruah",
+    asked_by_office: "GOA",
+    asked_at: `${istDayPlus(0)}T10:05:00+05:30`,
+    date: null,
+    scope: null,
+    cases: 1,
+    ref: null,
+    priority: 3,
+    counts: { ...COLLECT_STATES },
+    by_kind: {},
+    total: 0,
+    finished: false,
+    stopped: false,
+    stopped_at: null,
+    stopped_by: null,
+    using_everything: false,
+    retry_at: null,
+    eta_seconds: null,
+    expected_end: null,
+    ...over,
+  };
+}
+
+const COLLECT_REQUESTS: S["CollectRequestSummaryOut"][] = [
+  collectSummary("collect-bulk", {
+    kind: "day",
+    bulk: true,
+    date: istDayPlus(-1),
+    cases: STRESS.count,
+    priority: 5,
+    using_everything: true,
+    expected_end: `${istDayPlus(0)}T17:20:00+05:30`,
+    counts: { ...COLLECT_STATES, done: 40_000, fetching: 1, waiting: 83_000, waiting_retry: 400, failed: 55 },
+    total: STRESS.count,
+  }),
+  collectSummary("collect-one", {
+    counts: { ...COLLECT_STATES, done: 13, fetching: 1, waiting: 27 },
+    by_kind: { dossier: { ...COLLECT_STATES, done: 1 }, order_pdf: { ...COLLECT_STATES, done: 12, fetching: 1, waiting: 27 } },
+    total: 41,
+    eta_seconds: 130,
+  }),
+  collectSummary("collect-done", {
+    finished: true,
+    counts: { ...COLLECT_STATES, done: 40, not_found: 1, waiting_retry: 1 },
+    by_kind: { dossier: { ...COLLECT_STATES, done: 1 }, order_pdf: { ...COLLECT_STATES, done: 39, not_found: 1, waiting_retry: 1 } },
+    total: 42,
+    retry_at: `${istDayPlus(0)}T16:40:00+05:30`,
+  }),
+];
+
+function collectRequests(): S["CollectRequestsOut"] {
+  return {
+    as_of: `${istDayPlus(0)}T10:30:00+05:30`,
+    items: COLLECT_REQUESTS,
+    active: 2,
+    bulk: COLLECT_REQUESTS[0]!,
+    collector: { last_active_at: `${istDayPlus(0)}T10:29:00+05:30`, now_waiting: true, not_running: false },
+    window: { remaining: 640, next_reset_at: `${istDayPlus(0)}T16:35:00+05:30`, limit_used_up: false, resumes_at: null },
+  };
+}
+
+function collectRequest(url: URL): S["CollectRequestOut"] {
+  const id = url.pathname.split("/").pop() ?? "";
+  const s = COLLECT_REQUESTS.find((r) => r.request_id === id) ?? COLLECT_REQUESTS[1]!;
+  const done = s.finished;
+  const item = (kind: string, ref: string, state: S["CollectItemOut"]["state"], over: Partial<S["CollectItemOut"]> = {}) => ({
+    kind,
+    ref,
+    state,
+    attempts: state === "waiting" ? 0 : 1,
+    not_before: null,
+    problem: null,
+    priority: s.priority ?? 3,
+    ...over,
+  });
+  return {
+    ...s,
+    items: [
+      item("dossier", COLLECT_CASE.cnr, "done"),
+      item("order_pdf", `${COLLECT_CASE.cnr}|1|${istDayPlus(-30)}`, done ? "done" : "fetching"),
+      item("order_pdf", `${COLLECT_CASE.cnr}|2|${istDayPlus(-20)}`, "waiting_retry", {
+        attempts: 2,
+        not_before: `${istDayPlus(0)}T16:40:00+05:30`,
+        problem: STRESS.error,
+      }),
+    ],
+    limit: 100,
+    offset: 0,
+    results: [
+      {
+        case: COLLECT_CASE,
+        status: "pending",
+        details_fetched_at: `${istDayPlus(0)}T10:06:00+05:30`,
+        details: "done",
+        orders: {
+          total: 41,
+          stored: done ? 39 : 12,
+          not_available: 1,
+          failed: 0,
+          waiting: done ? 0 : 28,
+          retry_at: done ? `${istDayPlus(0)}T16:40:00+05:30` : null,
+        },
+      },
+    ],
+    steps: {
+      details: { ...COLLECT_STATES, done: 1 },
+      orders: { total: 41, stored: done ? 39 : 12, not_available: 1, failed: 0, waiting: done ? 0 : 28 },
+    },
+    collector: { last_active_at: `${istDayPlus(0)}T10:29:00+05:30`, now_waiting: !done, not_running: false },
+    window: { remaining: 640, next_reset_at: `${istDayPlus(0)}T16:35:00+05:30`, limit_used_up: false, resumes_at: null },
+    left_out: [],
+  };
+}
+
+/** The "use everything" panel's figures for the checks (decision 30). */
+const COLLECT_PLAN: S["CollectPlanOut"] = {
+  calls: 1250,
+  remaining: 640,
+  this_hour: 640,
+  after_reset: 610,
+  next_reset_at: `${istDayPlus(0)}T16:35:00+05:30`,
+  finish_at: `${istDayPlus(0)}T17:20:00+05:30`,
+  hourly_limit: 1000,
+  search_floor: 50,
+  rate_reserve: 150,
+  live_reserve: 100,
+};
+
+/** All Cases Listed on a Day's check (decision 27): something to fetch, with the panel. */
+function collectDay(url: URL): S["CollectDayCheckOut"] {
+  return {
+    date: url.searchParams.get("date") ?? istDayPlus(-1),
+    scope: url.searchParams.get("scope") === "all" ? "all" : "never",
+    lists: 14,
+    cases_listed: 1191,
+    with_details: 1100,
+    details_from: `${istDayPlus(-28)}T10:00:00+05:30`,
+    details_to: `${istDayPlus(-1)}T10:00:00+05:30`,
+    never_fetched: 91,
+    refreshed_recently: 30,
+    no_reference: 2,
+    to_fetch: 89,
+    plan: COLLECT_PLAN,
+    bulk: null,
+  };
+}
+
+/**
+ * Several Cases' check (decision 26): `POST /admin/data-load/collect/list/check` writes nothing and calls no court, so
+ * the checker answers it like the Start dialog's check; one line of each state, a long line among them.
+ */
+function collectListCheck(): S["CollectListCheckOut"] {
+  const line = (text: string, state: S["CollectLineOut"]["state"], over: Partial<S["CollectLineOut"]> = {}) => ({
+    line: text,
+    state,
+    case: null,
+    cnr: null,
+    details_fetched_at: null,
+    merged_into_ref_no: null,
+    matches: 0,
+    ...over,
+  });
+  return {
+    items: [
+      line(COLLECT_CASE.cnr, "will_fetch", { case: COLLECT_CASE, cnr: COLLECT_CASE.cnr }),
+      line("GAHC019999992025", "will_fetch", { cnr: "GAHC019999992025" }),
+      line(STRESS.caseNo, "already_has_details", { case: COLLECT_CASE, details_fetched_at: `${istDayPlus(-3)}T10:00:00+05:30` }),
+      line("WP(C) 999/2025", "not_held"),
+      line("CRL.A/14/2025", "several_match", { matches: 2 }),
+      line(STRESS.party, "not_a_reference"),
+      line(SAMPLE.caseRef, "merged", { merged_into_ref_no: SAMPLE.caseRef }),
+    ],
+    counts: { will_fetch: 2, already_has_details: 1, not_held: 1, several_match: 1, not_a_reference: 1, merged: 1, no_reference: 0 },
+    force: false,
+    to_fetch: 2,
+    plan: COLLECT_PLAN,
+    bulk: null,
+  };
+}
+
 type Override = (url: URL) => unknown;
 
 /** Overrides by API path (exact) or pattern. */
@@ -1014,6 +1209,10 @@ const OVERRIDES: [RegExp, Override][] = [
     () => ({ ...(synthFor("/admin/discovery")!.body as Record<string, unknown>), terms: { active: 0, inactive: 0 } }),
   ],
   [/^\/admin\/data-load\/gaps$/, (url) => dataGaps(url)],
+  // design data-collection-redesign, round 3: Collect Now's requests and the day check
+  [/^\/admin\/data-load\/requests$/, () => collectRequests()],
+  [/^\/admin\/data-load\/requests\/[^/]+$/, (url) => collectRequest(url)],
+  [/^\/admin\/data-load\/collect\/day$/, (url) => collectDay(url)],
   [/^\/dashboard$/, () => DASHBOARD],
   [/^\/dashboard\/me$/, () => dashboardMe()],
   [/^\/inbox\/counts$/, () => inboxCounts()],
@@ -1136,6 +1335,8 @@ export function answer(
 ): Answer {
   if (method === "POST" && apiPath === "/me/activity") return { status: 200, body: { ...ACTIVITY_DEFAULT, ...activity } };
   if (method === "POST" && apiPath === "/admin/data-load/preview") return { status: 200, body: loadPreview(body) };
+  // Several Cases' check writes nothing and calls no court (design data-collection-redesign, decision 26)
+  if (method === "POST" && apiPath === "/admin/data-load/collect/list/check") return { status: 200, body: collectListCheck() };
   if (method !== "GET") return { status: 405, body: { detail: "the browser check never acts" }, problem: `${method} ${apiPath}` };
   // design office-head-picker: New User's e-mail check for a new person answers 404, as the API does
   if (apiPath === "/admin/users/lookup" && (url.searchParams.get("email") ?? "").startsWith("new.")) {
