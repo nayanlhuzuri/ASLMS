@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | Owner | Government of Assam |
-| Describes | The system as built on `main`, 21 October 2026; the court-call slots, renewals, State-plus-department remarks and the no-local-model guard of row 137, 24 October 2026; court data freshness (section 2, items 10 to 12 of section 6) as changed on 24 October 2026; the Case Assistant in preview mode (sections 4.9 and 5), 24 October 2026; and, as built on `main` on 28 October 2026 (rows 135 to 190): the single Case inbox, the Administration hub and Title Case labels, the Office Picker and Filter Layout B, the sixth scoring weight for partial counsel codes (4.1), case numbers on the court's code (2.3), the head of a department chosen from existing logins and a login with no office (3.1), "Assign" in place of "Allot" throughout, the Data Collection tabs (2.5), the next hearing badge (4.5), search and sort on lists (4.2, 4.4), the session timeout (3.3, 5, 6) and the Case Assistant answered by a local model (1, 4.9, 5) |
+| Describes | The system as built on `main`, 21 October 2026; the court-call slots, renewals, State-plus-department remarks and the no-local-model guard of row 137, 24 October 2026; court data freshness (section 2, items 10 to 12 of section 6) as changed on 24 October 2026; the Case Assistant in preview mode (sections 4.9 and 5), 24 October 2026; and, as built on `main` on 28 October 2026 (rows 135 to 190): the single Case inbox, the Administration hub and Title Case labels, the Office Picker and Filter Layout B, the sixth scoring weight for partial counsel codes (4.1), case numbers on the court's code (2.3), the head of a department chosen from existing logins and a login with no office (3.1), "Assign" in place of "Allot" throughout, the Data Collection tabs (2.5), the next hearing badge (4.5), search and sort on lists (4.2, 4.4), the session timeout (3.3, 5, 6) and the Case Assistant answered by a local model (1, 4.9, 5); and, as built on `main` on 1 November 2026 (rows 173, 206 and 174): the Case inbox in four tabs (4.3), the Problems and Fixes tab and Collect Now requests carried out at once (2.5) |
 | Readers | The product owner, department and State officials, auditors and anyone asked how ASLMS handles data |
 | Status | Living document: updated when a workflow changes |
 
@@ -319,13 +319,31 @@ Duplicates tabs are retired; their old addresses lead to Overview or Problems an
 - **Automatic Collection** holds Load Control (Start, Pause, Resume), What Goes First, the Court Allowance, the daily
   schedule in plain words with the last run of each job, the daily updates of the last 7 days, and **Search by
   Department Names** (department discovery).
-- **Collect Now** holds the manual forms: fetch one case, refresh the court's reference lists and the like.
+- **Collect Now** carries requests out **at once**, ahead of all other work, and they keep going if the person leaves
+  the page (row 174):
+  - **One Case**: tick up to 20 cases and press Collect Everything; each case's details and every missing order PDF
+    are fetched before the result is shown, with live progress.
+  - **Several Cases**: up to 200 lines of ASLMS numbers, CNRs or case numbers such as WP(C) 123/2025, checked line by
+    line (Will Fetch, Already Has Details, Not Held and so on) before anything is fetched.
+  - **All Cases Listed on a Day**: only the cases never fetched, or every case listed; cases refreshed in the last
+    6 hours are left out, so a second click soon after spends nothing (at most 2,000 cases).
+  - One day's cause lists again, and the court's reference lists (case types, benches, acts, states, districts).
+  - Several Cases and All Cases Listed on a Day **use the whole allowance**: the confirmation says how many court
+    calls, when it should finish, and that other people's court searches wait or are refused once few calls are left
+    in the hour, while daily updates and the past-months collection catch up afterwards. Only one such request runs at a time;
+    **Stop Using Everything** returns the rest to the normal turn.
+  - The **Requests** list shows every request of the last 7 days with who asked, its progress (done, fetching,
+    waiting, failed) and its items. Each request and each stop is written to the audit log.
 - **Problems and Fixes** gathers what needs a person: the court connection line with its check, **Failed Fetches**
   (the failed work by kind and the failed items, with Retry and Retry All), **Possible Duplicates** (cases to confirm as
   the same) and **Data Gaps** (cases held without details with Collect These, orders not available from the court with
   Try Again, and documents without searchable text). The court's call log, recent quota resets and e-mail figures are
   in the Court Calls section of System Health.
 - None of these reads calls NAPIX.
+
+*Status on 2 November 2026, 00:00 IST.* All 671 cause-list days of the collection period are fetched; 83,203 cases are
+held, 83,135 with full details; 200,734 of 389,663 order PDFs are stored and none has failed. The worker makes about
+900 court calls an hour of the 1,000 allowed, so every order PDF should be stored around 12 November 2026.
 
 *Status on 28 October 2026, 14:15 IST.* All 666 cause-list days of the collection period are fetched. (The four days
 2 to 5 October 2026 had not been queued, because the historical load ended on 1 October and the daily cycle began on 6
@@ -842,7 +860,7 @@ window, every Next Hearing column and the dashboard's hearing lists.
 | Offices and designations | Creates departments with their head (picked from existing logins), directorates, units and designations |
 | Users and access | Creates department admins and logins with no office yet, changes the type matrix, edits user-type names, grants single functions, approves head-change tickets. The Administration hub has a Users side panel and one page per user type. |
 | Department mapping | Everything a department admin does, for any department. Plus the **scoring weights and thresholds**, and the generic State counsel codes. |
-| Data collection | Starts, pauses and orders the historical load (Automatic Collection), watches the Overview, fetches single cases (Collect Now). Sees duplicates, the queue and discovery (section 2.5). |
+| Data collection | Starts, pauses and orders the historical load (Automatic Collection), watches the Overview, carries out requests at once (Collect Now) and fixes failed fetches, duplicates and data gaps (Problems and Fixes). Sees duplicates, the queue and discovery (section 2.5). |
 | System health | Watches the 17 court APIs and ten ASLMS services. "Test now" makes one live court call, limited and audited. |
 | Audit log | Searches every audited action, with before-and-after values |
 | Reports | All four reports, State-wide, with Excel and PDF export (exports are audited) |

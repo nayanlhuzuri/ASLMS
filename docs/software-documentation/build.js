@@ -167,8 +167,8 @@ function cover() {
   const meta = table(["Document", "Details"], [
     ["Title", "ASLMS Software Documentation"],
     ["Owner", "Government of Assam"],
-    ["Version", "1.2"],
-    ["Date", "28 October 2026"],
+    ["Version", "1.5"],
+    ["Date", "2 November 2026"],
     ["Status", "Submitted for review"],
     ["Classification", "For official use"],
   ], [2600, CW - 2600], { boldFirst: true });
@@ -203,7 +203,7 @@ function brochure() {
   out.push(band("Who uses it"));
   out.push(spacer(120));
   out.push(...table(["User group", "What ASLMS gives them"], [
-    ["Departments", "A case inbox with recommendations, claimed cases, transfers and the unclaimed pool; assignment to units and officers; department reports and hearing calendar."],
+    ["Departments", "Case Claim with recommendations, transfers and the unclaimed pool; a case inbox of files with them, their cases, files sent and the department’s cases; assignment to units and officers; department reports and hearing calendar."],
     ["Officers", "The cases with them, pending actions and due dates, the full case record with orders, notes and documents, and alerts by portal and e-mail."],
     ["Standing counsel", "The cases carrying their department’s counsel codes, and the notes and documents shared with counsel."],
     ["State oversight", "A read-only State-wide view: cases by department, hearings, unclaimed cases and overdue actions, with State reports."],
@@ -216,16 +216,16 @@ function brochure() {
   out.push(band("Features", "One portal for the whole life of a case"));
   out.push(spacer(160));
   out.push(tileGrid([
-    ["Case inbox", "Recommended cases strongest first, with the reasons behind each score; claim, dismiss or suggest another department; department cases, transfers and the unclaimed pool."],
+    ["Case claim and inbox", "Recommended cases strongest first, with the reasons behind each score; claim, dismiss or suggest another department. An inbox of four tabs: With Me, My Cases, Sent by Me, Department."],
     ["Case page", "Summary, hearings, orders, documents, notes, timeline, parties, linked cases, custody and stage, all read from the ASLMS database."],
     ["Search", "Search ASLMS by CNR, case number, party or advocate, or the text of orders; search the High Court by CNR, case, filing number, party or advocate."],
-    ["Hearings and alerts", "Bell and e-mail alerts, a personal calendar, department hearings and next dates read from orders for confirmation."],
+    ["Hearings and alerts", "Bell and e-mail alerts, a personal calendar, department hearings and the next hearing from the latest court order."],
     ["Cause list", "Any date and bench in court order, with each entry’s recommendation or owner, a Claim button and the original list."],
     ["Notes and documents", "Append-only notes with corrections linked to the original; uploads checked by content and scanned for viruses; visibility per item."],
     ["Case Assistant", "Questions answered from court records with every source cited. Prepared for the in-house SourceTrace service; until it is connected, answers may be written by a local model on Government servers, never a cloud service."],
     ["Dashboards and reports", "Personal, department and State dashboards; four reports with Excel and PDF export."],
     ["Administration", "Offices in the government hierarchy, users and memberships, user types and functions, department mapping and scoring."],
-    ["Data collection", "Live overview with progress and finish estimates, collection on request, and automatic collection with load control."],
+    ["Data collection", "Live overview with finish estimates, requests carried out at once, automatic collection with load control, and problems and fixes."],
     ["System health", "The state of every court API and ASLMS service, with a limited, audited live test."],
     ["Audit log", "Every significant action, searchable by person, case, office and date, with before-and-after values."],
   ], 3, [[PALE, NAVY], [PALE_TEAL, TEAL], [PALE_GOLD, GOLD]]));
@@ -243,11 +243,11 @@ function brochure() {
 const C = [];
 function add(...xs) { xs.flat().forEach((x) => C.push(x)); }
 
-const TOC_PAGES = { "1. Introduction": 6, "2. System overview": 7, "3. Users, roles and access": 9, "4. Functional description": 11, "5. Court data integration (NAPIX)": 16, "6. Case Assistant and SourceTrace": 18, "7. System architecture": 20, "8. Data design": 22, "9. Security": 24, "10. Non-functional characteristics": 26, "11. Deployment and operations": 27, "12. Quality assurance": 28, "13. Status, variations from the plan and planned enhancements": 29, "Annexure A. Scheduled jobs": 31, "Annexure B. Functions": 32, "Annexure C. Court APIs": 35, "Annexure D. Glossary": 36 };
+const TOC_PAGES = { "1. Introduction": 7, "2. System overview": 8, "3. Users, roles and access": 10, "4. Functional description": 12, "5. Court data integration (NAPIX)": 17, "6. Case Assistant and SourceTrace": 19, "7. System architecture": 21, "8. Data design": 23, "9. Security": 25, "10. Non-functional characteristics": 27, "11. Deployment and operations": 28, "12. Quality assurance": 29, "13. Status, variations from the plan and planned enhancements": 30, "Annexure A. Scheduled jobs": 33, "Annexure B. Functions": 34, "Annexure C. Court APIs": 37, "Annexure D. Glossary": 38 };
 function documentControl() {
   add(H1("Document control"));
-  add(table(["Version", "Date", "Description"], [["1.0", "27 October 2026", "First issue for submission: product overview, requirements and design of the system as built, security, operations and planned enhancements."], ["1.1", "27 October 2026", "Data collection console (first part) in service; the local-model Case Assistant approved as a variation from the plan; status figures and planned enhancements brought up to date."], ["1.2", "28 October 2026", "Session time-out, the next-hearing highlight, the Case Assistant’s local model (first part) and search and sort in lists (first round) in service; sign-in session rules corrected; status figures of 28 October 2026; Case Assistant polish and the next hearing shown directly from the latest court order added as planned enhancements."], ["1.3", "28 October 2026", "Case Assistant polish built: Enter sends a question, six quick facts answered from the court record held for the case without the AI, sources opened from their reference, fewer repeated answers; a variation from the plan added for the quick facts."], ["1.4", "28 October 2026", "Next hearing shown directly from the latest court order: one next hearing per case, court-given dates not editable, approximate dates for periods, a flag where the order and the court differ, and functions to report and correct a misread order."]], [1400, 2200, CW - 3600]));
-  add(H3("Contents"));
+  add(table(["Version", "Date", "Description"], [["1.0", "27 October 2026", "First issue for submission: product overview, requirements and design of the system as built, security, operations and planned enhancements."], ["1.1", "27 October 2026", "Data collection console (first part) in service; the local-model Case Assistant approved as a variation from the plan; status figures and planned enhancements brought up to date."], ["1.2", "28 October 2026", "Session time-out, the next-hearing highlight, the Case Assistant’s local model (first part) and search and sort in lists (first round) in service; sign-in session rules corrected; status figures of 28 October 2026; Case Assistant polish and the next hearing shown directly from the latest court order added as planned enhancements."], ["1.3", "28 October 2026", "Case Assistant polish built: Enter sends a question, six quick facts answered from the court record held for the case without the AI, sources opened from their reference, fewer repeated answers; a variation from the plan added for the quick facts."], ["1.4", "28 October 2026", "Next hearing shown directly from the latest court order: one next hearing per case, court-given dates not editable, approximate dates for periods, a flag where the order and the court differ, and functions to report and correct a misread order."], ["1.5", "2 November 2026", "Brought up to date with the portal of 2 November 2026: the case inbox in four tabs (With Me, My Cases, Sent by Me, Department); the data collection console’s Problems and Fixes tab and requests carried out at once from Collect Now; the court calls section of system health; the Case Assistant polish and the next hearing from the latest court order in service; functions annexure refreshed (53 functions); status figures of 2 November 2026; the portal framework upgraded to its latest security release; Close Case and sign-in with an authenticator app added as planned enhancements."]], [1400, 2200, CW - 3600]));
+  add(new Paragraph({ heading: HeadingLevel.HEADING_3, pageBreakBefore: true, children: [new TextRun({ text: "Contents", font: FONT })] })); // its own page, so a longer version table never moves the sections
   [
     "1. Introduction", "2. System overview", "3. Users, roles and access", "4. Functional description", "5. Court data integration (NAPIX)",
     "6. Case Assistant and SourceTrace", "7. System architecture", "8. Data design", "9. Security", "10. Non-functional characteristics",
@@ -376,7 +376,12 @@ function s4() {
   add(P("A case another department has already claimed can be followed as a **watcher**. Ownership can move only by a **transfer** that the receiving department accepts. Inside the department, a case can be **assigned** to a unit and officer, or **taken over** by a colleague."));
 
   add(H2("4.3 Case inbox"));
-  add(P("The case inbox brings a person’s work together in tabs: the cases they are working on, recommended cases, department cases, transfers, the unclaimed pool and cases sent by them. Each list has server-side filters (status, year, case type, bench, dates, stage and more) and shows due dates first. **Search Words** on the case lists narrow a list by the words typed; the search runs on the server and never widens what the person may see."));
+  add(P("The case inbox is one menu entry with four tabs, each answering one question:"));
+  add(B("**With Me:** every case whose file is with the person now, whatever the court’s status, the most urgent due date first, with the action asked and who sent it. A Show control switches between the person’s own files and those with their offices; the count appears on the tab and in the side menu."));
+  add(B("**My Cases:** every case the person is connected to (assigned to them or their unit, claimed by them or through an accepted transfer, or with them), active cases first and disposed cases after, with the badges Assigned to Me, Claimed by Me and With Me."));
+  add(B("**Sent by Me:** the files the person sent that are still out, overdue first, with the earlier history on request."));
+  add(B("**Department:** for heads, administrators, trackers and State-wide readers, the department’s cases, active first, with the quick filters Overdue and With Another Office."));
+  add(P("A disposed case carries a Disposed badge rather than a separate tab. Recommendations, the unclaimed pool and transfers are reached from **Case Claim**. Each list has server-side filters (status, year, case type, bench, dates, stage and more), and **Search Words** narrow a list by the words typed; filtering and searching run on the server and never widen what the person may see."));
 
   add(H2("4.4 Search"));
   add(P("Search has two parts. **Search ASLMS** reads only the ASLMS database: a CNR, an ASLMS reference or a case number is matched exactly, words are matched against parties and advocates, and a separate tab searches the text of orders and documents. **Search the High Court** is used deliberately, by people holding that function, by CNR, case number, filing number, party name or advocate name."));
@@ -447,10 +452,11 @@ function s4() {
   add(H2("4.14 Data collection and system health"));
   add(P("The data collection console shows what the system holds and what is left to fetch, in tabs:"));
   add(B("**Overview:** honest counts of cause-list days, case records and orders across all collection work, two finish estimates (case records, and every order as well) worked out from the measured pace, a month-by-month table and a live refresh while collection runs."));
-  add(B("**Collect Now:** collection on request, such as fetching a single case or a period."));
+  add(B("**Collect Now:** requests carried out at once, ahead of all other work, which keep going if the person leaves the page: **One Case** (up to 20 ticked cases, each with its details and every missing order before the result is shown, with live progress); **Several Cases** (up to 200 lines of ASLMS numbers, CNRs or case numbers, checked line by line before fetching); **All Cases Listed on a Day** (only cases never fetched, or every case listed, leaving out cases refreshed in the last six hours); one day’s cause lists; and the court’s reference lists. A request of several cases uses the whole hourly allowance: the screen says beforehand how many court calls it needs, when it should finish and how other people’s court searches are affected; only one such request runs at a time and **Stop Using Everything** returns the rest to the normal turn. The Requests list shows each request of the last seven days with its progress and items. Every request and stop is audited."));
   add(B("**Automatic Collection:** load control (start, pause, resume and the collection order) through confirmation dialogs, the daily schedule in plain words, and the search by department names."));
-  add(P("A tab for problems and fixes, immediate manual requests and an Update From the Court button follow (section 13.3). The failures and duplicates screens remain available."));
-  add(P("The system health screen shows the state of each of the 17 court APIs from the call log, ten ASLMS services, and a live test of one court API that is limited, guarded and audited."));
+  add(B("**Problems and Fixes:** what needs a person: the court connection with its check; **Failed Fetches** by kind with Retry and Retry All; **Possible Duplicates** to confirm as the same case; and **Data Gaps** (cases held without details, orders the court could not supply, and documents without searchable text), each with its fix."));
+  add(P("Reading these screens never calls the court; only the explicit requests and checks do, and they are audited. An Update From the Court button on the case page follows (section 13.3)."));
+  add(P("The system health screen shows the state of each of the 17 court APIs from the call log, ten ASLMS services, a live test of one court API that is limited, guarded and audited, and a Court Calls section with the call log, the recent resets of the hourly allowance and e-mail delivery figures."));
 
   add(H2("4.15 Audit log"));
   add(P("The Super Administrator and the Auditor can search every audited action by person, case, office, action and date, newest first, and open each entry to see the values before and after. Links lead to the audit trail from each case, person and office page. Reading the audit log is not itself audited, and audit records cannot be changed."));
@@ -698,9 +704,9 @@ function s12() {
   add(H2("12.1 How changes are made"));
   add(P("Every change starts as a written design that the owner approves before any building begins. It is then built, tested, reviewed against the project’s rules and the database standard, documented in the decisions log, and merged only when every check passes. A failing test always stops a merge."));
   add(H2("12.2 Automated testing"));
-  add(table(["Suite", "Size (27 October 2026)", "Covers"], [
-    ["Application server", "About 2,500 tests", "Services, interfaces, visibility, audit records, migrations up and down, court gateway behaviour with a scripted court"],
-    ["Portal", "About 1,540 tests", "Screens, dialogs, wording rules, accessibility of controls"],
+  add(table(["Suite", "Size (2 November 2026)", "Covers"], [
+    ["Application server", "About 3,000 tests", "Services, interfaces, visibility, audit records, migrations up and down, court gateway behaviour with a scripted court"],
+    ["Portal", "About 1,880 tests", "Screens, dialogs, wording rules, accessibility of controls"],
     ["Layout check", "Three widths", "Browser checks of key screens at 375, 768 and 1280 pixels"],
     ["Page check", "Every page", "Each portal page answers after a deployment"],
   ], [2400, 2400, CW - 4800], { boldFirst: true }));
@@ -713,7 +719,7 @@ function s13() {
   add(H1("13. Status, variations from the plan and planned enhancements"));
   add(H2("13.1 Status"));
   add(P("The core and workflow functions of the plan are built and running in development, with the historical load of court data from 1 January 2025 complete for cause lists, all but 70 cases fetched with their full court records, and continuing for order documents. Deployment arrangements (proxy, backups, monitoring, connection pooling, continuous integration) are built and await the pilot checks."));
-  add(P("On 28 October 2026 the cause lists of all 666 days in the collection period (from 1 January 2025) had been fetched; 83,205 cases had been found, 83,135 of them with their full court records; and 142,634 of 389,623 court orders had been stored. Order documents are being fetched at about 863 court calls an hour of the 1,000 the court allows, and the data collection console expects every order to be stored around 9 November 2026."));
+  add(P("On 2 November 2026 the cause lists of all 671 days in the collection period (from 1 January 2025) had been fetched; 83,203 cases had been found, 83,135 of them with their full court records; and 200,734 of 389,663 court orders had been stored, with none failed. Collection runs at about 900 court calls an hour of the 1,000 the court allows; at that pace every order is expected to be stored around 12 November 2026."));
   add(H2("13.2 Variations from the approved plan"));
   add(table(["Plan", "As built", "Reason"], [
     ["Migrate the data collected by the earlier system", "The database starts empty and is filled only from the official court interface, user actions and discovery", "Every record traceable to the official source; no inherited errors"],
@@ -732,13 +738,15 @@ function s13() {
     ["Session time-out", "Sign-out after 30 minutes without activity, with a two-minute warning, and a 12-hour limit on any session, enforced on the server, with an audit record for every session end (in service)"],
     ["Next hearing highlighted", "One date badge for the next hearing on the case page, case lists and dashboards, coloured by how soon: today and tomorrow, within a week, later, passed, none (in service)"],
     ["Case Assistant with a local model", "The approved local-model alternative described in section 6.4: first part in service; still to come: questions about the officer’s own work from the Assistant page"],
-    ["Data collection console", "First part in service (overview, collect now, automatic collection); still to come: problems and fixes, immediate manual requests carried out at once"],
-    ["Update from the court", "Update a case and fetch its orders at once from the case and claim screens, at priority, behind a function held by the Super Administrator by default"],
+    ["Data collection console", "Overview, Collect Now with requests carried out at once, Automatic Collection, and Problems and Fixes (in service)"],
+    ["Update from the court", "Update a case and fetch its missing orders at once from the case page, the claim window and the inbox, at the top priority with live progress, behind a function held by the Super Administrator by default; stored orders never fetched again; audited"],
     ["Search and sort in lists", "First round in service: search and sort on the Department Mapping lists; Recommended From Cause Lists reading every unmapped counsel code in pages of 100; Search Words on the case lists. Searches and sorts run on the server and never widen what a person may see. Still to come (rounds 2 to 4): search and sort in the remaining lists"],
-    ["Case Assistant polish", "Enter sends a question; six quick facts such as the next date and the parties answered from the court record; the sources of an answer shown in a dialog when a reference is clicked; fewer repeated answers (built; awaiting deployment)"],
-    ["Next hearing from the latest court order", "The next hearing shown directly from the latest court order: dates given by the court shown without confirmation and not editable by anyone; a Report Wrong Next Date function and a Correct Misread Next Date function; periods such as “list after three weeks” shown as an approximate date counted from the order (built; awaiting deployment)"],
+    ["Case Assistant polish", "Enter sends a question; six quick facts such as the next date and the parties answered from the court record; the sources of an answer shown in a dialog when a reference is clicked; fewer repeated answers (in service)"],
+    ["Next hearing from the latest court order", "The next hearing shown directly from the latest court order: dates given by the court shown without confirmation and not editable by anyone; a Report Wrong Next Date function and a Correct Misread Next Date function; periods such as “list after three weeks” shown as an approximate date counted from the order (in service)"],
+    ["Close Case", "A department closes a claimed case once the court has disposed of it, with a required remark kept as a permanent note and an audit record; closing ends the file’s movement. A case reopens by itself when the court record shows it active again, and the Super Administrator, department head and department administrator can reopen it with a reason; every reopening raises an alert"],
+    ["Sign-in with an authenticator app", "An optional second way to sign in, for every login including the Super Administrator: a code from any standard authenticator app on the person’s phone (time-based codes, RFC 6238) in place of the e-mailed code. Once switched on it is always used; one recovery code is shown on screen and replaced after use; a lost phone is reset only by the Super Administrator on a ticket. SMS is provided for only as a later option, switched off, with no charges"],
     ["SourceTrace connector", "The real connection for the Case Assistant and the ingestion of court orders and filings, when the API documentation is received"],
-    ["Portal framework upgrade", "Upgrade of the web framework to its latest security release"],
+    ["Portal framework upgrade", "The web framework upgraded to its latest security release, Next.js 16.4.3 (in service)"],
     ["Text recognition of scanned orders", "Reading scanned orders through SourceTrace"],
     ["District courts", "District court cases through the NAPIX District Court API (plan phase 3)"],
     ["SMS", "High-priority alerts by SMS when a gateway is provided"],
@@ -771,7 +779,7 @@ function annexA() {
 
 function annexB() {
   add(H1("Annexure B. Functions"));
-  add(P("The 51 functions that can be granted to user types and to individual people. The Super Administrator holds all of them."));
+  add(P("The " + ref.functions.length + " functions that can be granted to user types and to individual people. The Super Administrator holds all of them."));
   const area = { access: "Access", admin: "Administration", alerts: "Alerts", assistant: "Case Assistant", audit: "Audit", cases: "Cases", custody: "File movement", dashboard: "Dashboard", documents: "Documents", next_dates: "Next dates", notes: "Notes", offices: "Offices", reports: "Reports", stages: "Stages", users: "Users" };
   add(table(["Area", "Function", "What it allows"], ref.functions.map((f) => [area[f.module] || f.module, f.label, f.description]), [1800, 2800, CW - 4600]));
 }
