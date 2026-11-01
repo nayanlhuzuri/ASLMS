@@ -25,3 +25,8 @@ None. No follow-up rows added by the integrator.
 
 ## Load status (`aslms queue-status`)
 dossier pending 31,294 (skipped 20); order_pdf done 200,734, pending 188,929; status_batch done 2,017 (skipped 6); masters done 1.
+
+## Deploying
+CI on `main` passed (run 41344596662: changes, policy, backend, frontend, compose, ci-ok). Deployed on 2 Nov 2026 at
+01:53 IST (no migration): images built (`docker compose build`, `--profile ops build migrate`), `up` with the
+court-data switch on (`api` and `worker` both report it on), `web` reports Next.js 16.4.3, `portal_smoke.py` passed.
