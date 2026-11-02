@@ -30,3 +30,12 @@ Merged 2 Nov 2026 as squash commit 45edb4c on `main`, tag `feature/causelist-pdf
 
 ## Load status
 `aslms queue-status` did not answer within 2 minutes (the historical load is running); not recorded.
+
+## Deployed
+Deployed 2 Nov 2026 at 18:33 IST, after CI on `main` passed (run 41445135208: policy, backend, frontend, compose). No
+migration. Images built from the clean `main` checkout at 4572d0b; `docker compose --profile monitoring up -d --wait`
+with the court-data switch on recreated the app services, then `api`, `worker`, `scheduler` and `web` once more with
+`--no-deps --force-recreate`; court data on in `api` and `worker`; the running `web` has the image's build ID;
+`portal_smoke.py` passed. The second review advisory was checked on a rendered copy of
+`docs/ASLMS_Software_Documentation.docx` (version 1.7): 38 pages, and all 17 contents entries match their headings'
+pages, so `TOC_PAGES` needs no change.
