@@ -713,6 +713,37 @@ const STATES: State[] = [
     },
   },
   {
+    // design causelist-pdf-access, decisions 3 and 4: All Benches with the note and View PDF / Download PDF on each list
+    // heading of the entries
+    name: "/causelist (All Benches, note and heading PDF links)",
+    path: `/causelist?date=${SAMPLE.causelistDate}`,
+    open: async (page) => {
+      await page.getByText(/publishes a separate cause list for each bench, each with its own original PDF/).waitFor();
+      await page.getByRole("link", { name: /^View the Original PDF of / }).first().waitFor();
+    },
+  },
+  {
+    // decisions 1 and 2: View Cause List with All Benches opens Choose a Bench
+    name: "/causelist (Choose a Bench open)",
+    path: `/causelist?date=${SAMPLE.causelistDate}`,
+    open: async (page) => {
+      await page.getByRole("button", { name: "View Cause List" }).click();
+      await page.getByRole("dialog", { name: /^Choose a Bench · / }).getByRole("table").waitFor();
+    },
+  },
+  {
+    // decision 2: Original PDF in the chooser opens the View Cause List modal on its Original PDF tab
+    name: "/causelist (Choose a Bench, Original PDF)",
+    path: `/causelist?date=${SAMPLE.causelistDate}`,
+    open: async (page) => {
+      await page.getByRole("button", { name: "View Cause List" }).click();
+      const chooser = page.getByRole("dialog", { name: /^Choose a Bench · / });
+      await chooser.getByRole("button", { name: /^Open the Original PDF of / }).first().click();
+      await page.waitForURL((u) => u.searchParams.get("view") === SAMPLE.benchId && u.searchParams.get("vtab") === "pdf");
+      await page.getByRole("dialog").locator("iframe").waitFor();
+    },
+  },
+  {
     // decisions 21-23: Search on Layout B (Search For as the hero)
     name: "/search (Layout B)",
     path: "/search",

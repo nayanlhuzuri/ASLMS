@@ -3,12 +3,15 @@ import { describe, expect, it } from "vitest";
 import type { CauselistBench } from "./api/types";
 import {
   bandLabel,
+  benchesWithLists,
   benchParams,
+  benchPdfState,
   benchValue,
   benchValueOf,
   causelistHref,
   ENTRY_PAGE,
   headingsOf,
+  listsById,
   recommendationText,
   toApiQuery,
   validDate,
@@ -106,5 +109,31 @@ describe("labels", () => {
     expect(benchValueOf({ list_id: LIST })).toBe(`l:${LIST}`);
     expect(causelistHref("2026-10-13", 1854)).toBe("/causelist?date=2026-10-13&bench_id=1854");
     expect(causelistHref("2026-10-20", null)).toBe("/causelist?date=2026-10-20");
+  });
+});
+
+describe("the original PDF without a bench (causelist-pdf-access)", () => {
+  const l = (id: string, has_pdf: boolean, fetch_status: string) => ({ id, has_pdf, fetch_status }) as unknown as CauselistBench["lists"][number];
+  const a = { bench_id: 1, lists: [l("a1", true, "fetched"), l("a2", false, "pending")] } as unknown as CauselistBench;
+  const b = { bench_id: 2, lists: [] } as unknown as CauselistBench;
+  const c = { bench_id: null, lists: [l("c1", false, "pending")] } as unknown as CauselistBench;
+  const d = { bench_id: 4, lists: [l("d1", false, "pending"), l("d2", false, "not_available")] } as unknown as CauselistBench;
+
+  it("benchesWithLists keeps the benches with a list, in the given order", () => {
+    expect(benchesWithLists([a, b, c, d])).toEqual([a, c, d]);
+    expect(benchesWithLists([b])).toEqual([]);
+  });
+
+  it("listsById indexes every list of the day", () => {
+    const out = listsById([a, b, c]);
+    expect(Object.keys(out).sort()).toEqual(["a1", "a2", "c1"]);
+    expect(out.c1).toBe(c.lists[0]);
+  });
+
+  it("benchPdfState: available, pending, none", () => {
+    expect(benchPdfState(a)).toBe("available");
+    expect(benchPdfState(c)).toBe("pending");
+    expect(benchPdfState(d)).toBe("none");
+    expect(benchPdfState(b)).toBe("none");
   });
 });

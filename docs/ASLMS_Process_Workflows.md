@@ -873,7 +873,12 @@ window, every Next Hearing column and the dashboard's hearing lists.
 - **My calendar** shows my hearings, the due dates of files I hold, and next dates read from orders.
   **Department hearings** shows the whole department.
 - **The Cause list screen** shows any date and bench in court order, with each entry's recommendation or owner, a
-  **Claim** button and the original PDF.
+  **Claim** button and the original PDF. The High Court publishes a separate list, with its own PDF, for each bench, so
+  with **All Benches** a note above the entries says so; **View Cause List** then opens **Choose a Bench** (the day's
+  benches in court order with their judges, lists and entries; **View** for the printed entries, **Original PDF** for
+  the court's file), or opens the bench at once when only one bench has lists. Each list heading in the entries carries
+  **View PDF** and **Download PDF** (with the documents functions). On a day with no list the button is disabled and
+  says "No cause list is held for this day." Opening a cause-list PDF calls no court and is not audited.
 
 ### 4.6 The super admin runs the system
 

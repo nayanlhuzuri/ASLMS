@@ -3221,3 +3221,26 @@ Row 200 `causelist-day-gap-sweep` (design `docs/design/causelist-day-gap-sweep.m
 **Deviations from the design note** (all in its Deviations section): the catch-up inside the 06:30 / 18:30 runs is in a savepoint; the window is strict (window 0 sends yesterday to the load lane); `not_asked` is null when the start is after yesterday; helpers `lane_for` and `plan` added; several ranges joined with commas; the Word guides' contents page numbers were not checked against a rendered copy (no renderer on that machine).
 
 **Left for later**: a Prometheus metric or alert for days not asked for; the contents page numbers of the two Word guides to be checked at the next regeneration. Deploy: `docker compose build`, then restart `api`, `worker`, `scheduler` and `web` with the court-data switch carried; no migration, no seed. Documents changed: `schema.md` (operations addendum), `operations.md` (section 22), `ASLMS_Process_Workflows.md`, both Word guides, `.env.example`, `CLAUDE.md`, `backlog.md`.
+
+## The original cause-list PDF without first choosing a bench (2026-11-02)
+
+Row 196 `causelist-pdf-access` (design `docs/design/causelist-pdf-access.md`, approved 30 Oct 2026), branch `feature/causelist-pdf-access`. Frontend only: no backend file, API, table or migration; `schema.md` unchanged.
+
+**What was built**
+- View Cause List on the Cause List page is enabled whenever the day is held and at least one bench has a list. With a bench chosen it opens that bench as before; with All Benches it opens the new `BenchChooser` ("Choose a Bench", a `DataTable` of the day's benches in court order with Court, Judges, Lists, Entries, and per row View and Original PDF); with only one bench holding lists it opens that bench at once. On a day with no list it stays disabled with "No cause list is held for this day."
+- A non-dismissible info `Notice` above the entries while All Benches is chosen, saying the court publishes a separate list and PDF per bench.
+- View PDF and Download PDF links on each list heading of `EntryTable` (inline and attachment URLs of the existing `GET /causelists/lists/{id}/file`, shown by `documents.view` and `documents.download`); muted "PDF Not Available" or "PDF Not Fetched Yet" text when no file is stored.
+- `lib/causelist.ts`: `benchesWithLists`, `listsById`, `benchPdfState`; wording in `T.causelist`; `viewListHint` retired.
+- Tests: Vitest in `causelist.test.tsx` (chooser, no-list bench, View and Original PDF, court-wide file, single bench, chosen bench, no-list day, note, heading links, no extra request) and `lib/causelist.test.ts`; three new `uicheck` states.
+
+**Decisions and reasons**
+1. The court publishes one PDF per bench and list, so there is no single original for All Benches; a chooser (not a disabled button) answers the owner's complaint that data was on screen with no way to the original.
+2. Choosing a bench writes no `bench_id`, so closing the modal returns to the page as it was; the chooser is local state.
+3. PDF links sit on the list heading because the PDF is per bench and list.
+4. No server change: the file endpoint's gates are unchanged and stay on the server; opening a cause-list PDF stays unaudited (`portal-causelist` decision 9) and makes no NAPIX call.
+
+**Deviations from the design note** (its Deviations section): accessible names naming the bench in the chooser; the Lists column marks a corrected version with "Corrected List"; heading links are small secondary anchors; the All Benches note is also hidden while an earlier version is open by `list_id`; the uicheck fixture gives the synthetic entries the sample bench's list id; the software documentation contents page numbers were not checked against a rendered copy.
+
+**Verification**: screen check on a private network on commit 8631bc0: 551 passed, 7 skipped, 173 routes and states, 0 findings (the six `/causelist` states at 375, 768 and 1280 px). The owner's signed-in check is in the design note's Verification.
+
+**Left for later**: row 216 (contents page numbers of the Software Documentation). Deploy: `docker compose build web`, bring `web` up with the court-data switch carried; no migration. Documents changed: `ASLMS_Process_Workflows.md` and `ASLMS_Software_Documentation.docx` (1.7, via `build.js`); no change to `schema.md`, `operations.md`, `.env.example`, the Hosting Guide or `docs/team/README.md` (no table, variable, command or setting changed).

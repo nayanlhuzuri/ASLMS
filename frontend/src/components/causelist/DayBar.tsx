@@ -6,7 +6,9 @@
  * `DateHero` is the left zone of Layout B (design portal-ui-polish-2, decisions 23-25): the weekday over the date, large;
  * Previous Day and Next Day as icon buttons with accessible names; Pick Date opening the browser's own date picker
  * (`showPicker`, focus as the fallback); the "Lists Held: n" badge counting the day's lists from `GET /causelists/{date}`
- * ("No Lists" in amber when there are none); and View Cause List under it, enabled once a bench is chosen.
+ * ("No Lists" in amber when there are none); and View Cause List under it, enabled whenever the day holds a list (design
+ * causelist-pdf-access, decision 1: the chosen bench, the only bench with lists, or the bench chooser) and disabled with
+ * "No cause list is held for this day." otherwise.
  *
  * `DayNotice` is the day's state when no list is held (design portal-causelist, decisions 4 and 5): the state's banner
  * with "Previous List" and "Next List" to the nearest dates with lists, and, on a day not loaded, failed or without a
@@ -27,6 +29,8 @@ import { useAction } from "@/lib/useAction";
 
 import s from "./causelist.module.css";
 
+export type ViewState = "bench" | "choose" | "single" | "none";
+
 /** The number of lists the day holds (none unless the day's state is `held`). */
 export function listsHeld(day: CauselistDay | undefined): number {
   if (!day || day.state !== "held") return 0;
@@ -44,20 +48,26 @@ function Chevron({ back }: { back?: boolean }) {
 export function DateHero({
   date,
   day,
-  canView,
+  viewState,
   onDate,
   onView,
 }: {
   date: string;
   day: CauselistDay | undefined;
-  /** A bench is chosen, so View Cause List is enabled. */
-  canView: boolean;
+  /**
+   * What View Cause List does (design causelist-pdf-access, decision 1): open the chosen bench (`bench`), the only bench
+   * holding lists (`single`) or the bench chooser (`choose`); `none` (no list held) disables it.
+   */
+  viewState: ViewState;
   onDate: (date: string) => void;
   onView: () => void;
 }) {
   const picker = useRef<HTMLInputElement>(null);
   const hintId = useId();
   const held = listsHeld(day);
+  const canView = viewState !== "none";
+  // the reason is given once the day is known, not while it loads
+  const showHint = !canView && day !== undefined;
 
   function pick() {
     const input = picker.current;
@@ -103,14 +113,14 @@ export function DateHero({
         {held > 0 ? <Badge tone="info">{T.causelist.listsHeld(formatNumber(held))}</Badge> : <Badge tone="warning">{T.causelist.noLists}</Badge>}
       </span>
       <div className={s.heroView}>
-        <Button variant="secondary" disabled={!canView} aria-describedby={canView ? undefined : hintId} onClick={onView}>
+        <Button variant="secondary" disabled={!canView} aria-describedby={showHint ? hintId : undefined} onClick={onView}>
           {T.causelist.viewListButton}
         </Button>
-        {canView ? null : (
+        {showHint ? (
           <span id={hintId} className={s.heroHint}>
-            {T.causelist.viewListHint}
+            {T.causelist.noListHint}
           </span>
-        )}
+        ) : null}
       </div>
     </div>
   );

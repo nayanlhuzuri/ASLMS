@@ -3,7 +3,7 @@
  * query, the heading breaks of the court order, and the labels of bands, day states and list types. A plain module
  * (no "use client"), so the server page and the tests import values, not client references.
  */
-import type { CauselistBench as Bench } from "./api/types";
+import type { Causelist, CauselistBench as Bench } from "./api/types";
 import type { Params } from "./params";
 
 export const ONLY_VALUES = ["recommended", "mine", "claimable", "unclaimed", "claimed", "visible"] as const;
@@ -198,4 +198,31 @@ export function viewQuery(value: string, offset: number): Record<string, string 
 /** The `vtab` of the URL, `entries` unless it names the PDF. */
 export function viewTabOf(value: string | undefined): ViewTab {
   return value === "pdf" ? "pdf" : "entries";
+}
+
+/**
+ * The day's benches that hold at least one list, in the given (court) order (design causelist-pdf-access, decision 1):
+ * none disables View Cause List, one opens that bench at once, more open the bench chooser.
+ */
+export function benchesWithLists(benches: Bench[]): Bench[] {
+  return benches.filter((b) => b.lists.length > 0);
+}
+
+/** Every list of the day by its id (design causelist-pdf-access, decision 4: the PDF links on the list headings). */
+export function listsById(benches: Bench[]): Record<string, Causelist> {
+  const out: Record<string, Causelist> = {};
+  for (const b of benches) for (const l of b.lists) out[l.id] = l;
+  return out;
+}
+
+export type BenchPdfState = "available" | "pending" | "none";
+
+/**
+ * Whether a bench's original PDF can be opened (design causelist-pdf-access, decision 2): `available` when some list has
+ * a stored PDF; otherwise `pending` when every list without one is still to be fetched; otherwise `none`.
+ */
+export function benchPdfState(bench: Bench): BenchPdfState {
+  if (bench.lists.some((l) => l.has_pdf)) return "available";
+  if (bench.lists.length > 0 && bench.lists.every((l) => l.fetch_status === "pending")) return "pending";
+  return "none";
 }

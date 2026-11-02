@@ -1314,6 +1314,15 @@ const OVERRIDES: [RegExp, Override][] = [
 
 /** Fields that must be absent for the ordinary screen to show (a merged case shows a link instead of its tabs). */
 function tidy(path: string, body: unknown): unknown {
+  // design causelist-pdf-access, decision 4: the day's entries belong to the sample bench's daily list, so each list
+  // heading of the entries table carries its View PDF and Download PDF
+  if (/^\/causelists\/\d{4}-\d{2}-\d{2}\/entries$/.test(path) && body && typeof body === "object") {
+    const page = body as S["CauselistEntriesOut"];
+    return {
+      ...page,
+      items: page.items.map((e) => ({ ...e, causelist_id: SAMPLE.causelistId, list_type: "daily", bench_id: Number(SAMPLE.benchId) })),
+    };
+  }
   if (/^\/cases\/[^/]+$/.test(path) && body && typeof body === "object") {
     const c = body as S["CaseDetailOut"];
     // design next-hearing-highlight and next-date-direct: the court's date tomorrow (header and rail), with an exact order

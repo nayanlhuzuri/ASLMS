@@ -289,7 +289,7 @@ describe("the entries", () => {
     const headings = within(table)
       .getAllByRole("columnheader")
       .filter((th) => th.getAttribute("scope") === "colgroup")
-      .map((th) => th.textContent);
+      .map((th) => th.querySelector("[data-heading-text]")!.textContent);
     expect(headings).toEqual([
       "Court 2",
       "HONOURABLE MR. JUSTICE SOUMITRA SAIKIA",
@@ -554,18 +554,13 @@ describe("View Cause List (portal-ui-polish-2, decision 25)", () => {
     return sp.get("limit") === "100" ? page([ITEMS[1]!, entry(4, { owner_office_code: "EDU", held_by_you: "primary" })], 140) : page(ITEMS);
   };
 
-  it("is disabled with All Benches, with the hint, and opens ?view=<bench>&vtab=entries once a bench is chosen", async () => {
-    browserApi(routes());
-    const { unmount } = renderWithClient(<CauseList params={{ date: D }} />);
-    const button = await screen.findByRole("button", { name: "View Cause List" });
-    expect(button).toBeDisabled();
-    expect(button).toHaveAccessibleDescription("Choose a bench to view its list.");
-    unmount();
+  it("with a bench chosen View Cause List opens that bench as before, without the chooser", async () => {
     browserApi(routes());
     renderWithClient(<CauseList params={{ date: D, bench_id: "1854" }} />);
     await waitFor(() => expect(screen.getByRole("button", { name: "View Cause List" })).toBeEnabled());
     await userEvent.click(screen.getByRole("button", { name: "View Cause List" }));
     expect(nav.push).toHaveBeenLastCalledWith(`/causelist?date=${D}&bench_id=1854&view=1854&vtab=entries`);
+    expect(screen.queryByRole("dialog", { name: /^Choose a Bench/ })).toBeNull();
   });
 
   it("shows the bench's printed entries paged by 100 with the page's badges, and Close leaves the page as it was", async () => {
@@ -641,5 +636,223 @@ describe("View Cause List (portal-ui-polish-2, decision 25)", () => {
     expect(await within(second).findByText("The stored PDF of this list is missing.")).toBeInTheDocument();
     expect(second.querySelector("iframe")).toBeNull();
     expect(within(second).queryByRole("link", { name: "Download" })).toBeNull();
+  });
+});
+
+describe("the original PDF without first choosing a bench (causelist-pdf-access)", () => {
+  const NO_LIST: CauselistBench = { bench_id: 999, label: "HONOURABLE MR. JUSTICE N. ABSENT", court_nos: ["7"], source: "napix", entries: 0, lists: [] };
+  const NOTE = /The High Court publishes a separate cause list for each bench, each with its own original PDF\./;
+
+  async function openChooser() {
+    const button = await screen.findByRole("button", { name: "View Cause List" });
+    await waitFor(() => expect(button).toBeEnabled());
+    await userEvent.click(button);
+    return screen.findByRole("dialog", { name: "Choose a Bench · 13 Oct 2026" });
+  }
+
+  function rowOf(dialog: HTMLElement, judges: string): HTMLElement {
+    return within(dialog).getByRole("rowheader", { name: judges }).closest("tr")!;
+  }
+
+  it("View Cause List is enabled with All Benches and opens the bench chooser", async () => {
+    browserApi(routes());
+    renderWithClient(<CauseList params={{ date: D }} />);
+    const dialog = await openChooser();
+    expect(
+      within(dialog).getByText(
+        "The High Court publishes a separate cause list for each bench. Choose the bench whose list you want to see.",
+      ),
+    ).toBeInTheDocument();
+    const judges = within(dialog)
+      .getAllByRole("rowheader")
+      .map((th) => th.textContent);
+    expect(judges).toEqual(["HONOURABLE MR. JUSTICE SOUMITRA SAIKIA", "HONOURABLE THE CHIEF JUSTICE", "Court-wide List"]);
+    const chief = rowOf(dialog, "HONOURABLE THE CHIEF JUSTICE");
+    expect(within(chief).getAllByRole("cell")[0]).toHaveTextContent("10");
+    expect(within(chief).getByText("Daily List, Supplementary List")).toBeInTheDocument();
+    expect(within(chief).getByText("53")).toBeInTheDocument();
+    // View Cause List and the chooser's buttons are secondary: one primary per page at most
+    expect(document.querySelectorAll("[data-variant='primary']").length).toBeLessThanOrEqual(1);
+  });
+
+  it("a bench without a list shows No List Published and no buttons in the chooser", async () => {
+    browserApi(routes({ [`GET /causelists/${D}`]: day({ benches: [...BENCHES, NO_LIST] }) }));
+    renderWithClient(<CauseList params={{ date: D }} />);
+    const dialog = await openChooser();
+    const row = rowOf(dialog, "HONOURABLE MR. JUSTICE N. ABSENT");
+    expect(within(row).getByText("No List Published")).toBeInTheDocument();
+    expect(within(row).queryByRole("button")).toBeNull();
+    expect(within(row).getAllByRole("cell")[0]).toHaveTextContent("7");
+  });
+
+  it("the chooser marks a corrected list (version above 1) in the Lists column", async () => {
+    const corrected = { ...list(DAILY, "daily", true, 51), version: 2 };
+    const bench: CauselistBench = { ...BENCHES[1]!, lists: [corrected] };
+    browserApi(routes({ [`GET /causelists/${D}`]: day({ benches: [BENCHES[0]!, bench] }) }));
+    renderWithClient(<CauseList params={{ date: D }} />);
+    const dialog = await openChooser();
+    expect(within(rowOf(dialog, "HONOURABLE THE CHIEF JUSTICE")).getByText(/Daily List · Corrected List/)).toBeInTheDocument();
+  });
+
+  it("View in the chooser opens ?view=<bench>&vtab=entries and writes no bench_id", async () => {
+    browserApi(routes());
+    const { unmount } = renderWithClient(<CauseList params={{ date: D }} />);
+    const dialog = await openChooser();
+    await userEvent.click(within(rowOf(dialog, "HONOURABLE THE CHIEF JUSTICE")).getByRole("button", { name: /^View the Printed Entries of / }));
+    expect(nav.push).toHaveBeenLastCalledWith(`/causelist?date=${D}&view=1854&vtab=entries`);
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: /^Choose a Bench/ })).toBeNull());
+    expect(nav.replace).not.toHaveBeenCalledWith(expect.stringContaining("bench_id"));
+    unmount();
+    // the address the chooser opened: closing the modal returns to the page on All Benches
+    browserApi(routes());
+    renderWithClient(<CauseList params={{ date: D, view: "1854", vtab: "entries" }} />);
+    const modal = await screen.findByRole("dialog", { name: "Cause List: HONOURABLE THE CHIEF JUSTICE · 13 Oct 2026" });
+    await userEvent.click(within(modal).getByRole("button", { name: "Close" }));
+    expect(nav.replace).toHaveBeenLastCalledWith(`/causelist?date=${D}`);
+  });
+
+  it("Original PDF in the chooser opens vtab=pdf, and is hidden without documents.view and documents.download", async () => {
+    browserApi(routes());
+    const { unmount } = renderWithClient(<CauseList params={{ date: D }} />);
+    const dialog = await openChooser();
+    const chief = rowOf(dialog, "HONOURABLE THE CHIEF JUSTICE");
+    const pdf = within(chief).getByRole("button", { name: /^Open the Original PDF of / });
+    expect(pdf).toHaveTextContent("Original PDF");
+    await userEvent.click(pdf);
+    expect(nav.push).toHaveBeenLastCalledWith(`/causelist?date=${D}&view=1854&vtab=pdf`);
+    unmount();
+    browserApi(routes({}, ["cases.view_scope"]));
+    renderWithClient(<CauseList params={{ date: D }} />);
+    const second = await openChooser();
+    const row = rowOf(second, "HONOURABLE THE CHIEF JUSTICE");
+    expect(within(row).queryByRole("button", { name: /Original PDF/ })).toBeNull();
+    expect(within(row).getByText("PDF Not Available")).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: /^View the Printed Entries of / })).toBeInTheDocument();
+  });
+
+  it("PDF Not Available when no list has a PDF; PDF Not Fetched Yet when the lists are pending", async () => {
+    const pending = { ...list(SUPP, "supplementary", false, 2), fetch_status: "pending" };
+    const benches: CauselistBench[] = [BENCHES[0]!, { ...BENCHES[1]!, lists: [pending] }, BENCHES[2]!];
+    browserApi(routes({ [`GET /causelists/${D}`]: day({ benches }) }));
+    renderWithClient(<CauseList params={{ date: D }} />);
+    const dialog = await openChooser();
+    expect(within(rowOf(dialog, "HONOURABLE THE CHIEF JUSTICE")).getByText("PDF Not Fetched Yet")).toBeInTheDocument();
+    expect(within(rowOf(dialog, "Court-wide List")).getByText("PDF Not Available")).toBeInTheDocument();
+    expect(
+      within(rowOf(dialog, "HONOURABLE MR. JUSTICE SOUMITRA SAIKIA")).getByRole("button", { name: /^Open the Original PDF of / }),
+    ).toBeInTheDocument();
+  });
+
+  it("a court-wide file is offered in the chooser and opens by its list id", async () => {
+    browserApi(routes());
+    renderWithClient(<CauseList params={{ date: D }} />);
+    const dialog = await openChooser();
+    const row = rowOf(dialog, "Court-wide List");
+    expect(within(row).getAllByRole("cell")[0]).toHaveTextContent("5");
+    await userEvent.click(within(row).getByRole("button", { name: /^View the Printed Entries of / }));
+    expect(nav.push).toHaveBeenLastCalledWith(`/causelist?date=${D}&view=${WEBSITE}&vtab=entries`);
+  });
+
+  it("with one bench holding lists View Cause List opens that bench directly", async () => {
+    browserApi(routes({ [`GET /causelists/${D}`]: day({ benches: [NO_LIST, BENCHES[1]!] }) }));
+    renderWithClient(<CauseList params={{ date: D }} />);
+    const button = await screen.findByRole("button", { name: "View Cause List" });
+    await waitFor(() => expect(button).toBeEnabled());
+    await userEvent.click(button);
+    expect(nav.push).toHaveBeenLastCalledWith(`/causelist?date=${D}&view=1854&vtab=entries`);
+    expect(screen.queryByRole("dialog", { name: /^Choose a Bench/ })).toBeNull();
+  });
+
+  it("on a day holding no list View Cause List is disabled with the no-list hint", async () => {
+    browserApi(routes({ [`GET /causelists/${D}`]: day({ state: "no_list", benches: [], totals: { benches: 0, lists: 0, entries: 0 } }) }));
+    renderWithClient(<CauseList params={{ date: D }} />);
+    await screen.findByText(/published no cause list/);
+    const button = screen.getByRole("button", { name: "View Cause List" });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAccessibleDescription("No cause list is held for this day.");
+    expect(screen.queryByText("Choose a bench to view its list.")).toBeNull();
+  });
+
+  it("the All Benches note shows above the entries only while All Benches is chosen on a held day", async () => {
+    browserApi(routes());
+    const first = renderWithClient(<CauseList params={{ date: D }} />);
+    const shown = await screen.findByText(NOTE);
+    const table = await screen.findByRole("table", { name: "Cause-list Entries" });
+    expect(shown.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    first.unmount();
+    browserApi(routes());
+    const second = renderWithClient(<CauseList params={{ date: D, bench_id: "1854" }} />);
+    await screen.findByRole("table", { name: "Cause-list Entries" });
+    expect(screen.queryByText(NOTE)).toBeNull();
+    second.unmount();
+    browserApi(routes({ [`GET /causelists/${D}`]: day({ state: "no_list", benches: [] }) }));
+    renderWithClient(<CauseList params={{ date: D }} />);
+    await screen.findByText(/published no cause list/);
+    expect(screen.queryByText(NOTE)).toBeNull();
+  });
+
+  it("each list heading row offers View PDF with documents.view and Download PDF with documents.download, named by list and bench", async () => {
+    const two = page([entry(2), entry(6, { causelist_id: SUPP, list_type: "supplementary" })]);
+    browserApi(routes({ [`GET /causelists/${D}/entries`]: two }));
+    const { unmount } = renderWithClient(<CauseList params={{ date: D }} />);
+    const table = await screen.findByRole("table", { name: "Cause-list Entries" });
+    const view = within(table).getByRole("link", { name: "View the Original PDF of the Daily List, Court 10 · HONOURABLE THE CHIEF JUSTICE" });
+    expect(view).toHaveTextContent("View PDF");
+    expect(view).toHaveAttribute("href", `/api/backend/causelists/lists/${DAILY}/file?disposition=inline`);
+    expect(view).toHaveAttribute("target", "_blank");
+    expect(view).toHaveAttribute("rel", "noopener noreferrer");
+    const download = within(table).getByRole("link", {
+      name: "Download the Original PDF of the Daily List, Court 10 · HONOURABLE THE CHIEF JUSTICE",
+    });
+    expect(download).toHaveTextContent("Download PDF");
+    expect(download).toHaveAttribute("href", `/api/backend/causelists/lists/${DAILY}/file?disposition=attachment`);
+    expect(download).toHaveAttribute("download");
+    expect(view.closest("th")).toHaveAttribute("scope", "colgroup");
+    unmount();
+    browserApi(routes({ [`GET /causelists/${D}/entries`]: page([entry(2)]) }, ["cases.view_scope", "documents.view"]));
+    const second = renderWithClient(<CauseList params={{ date: D }} />);
+    const t2 = await screen.findByRole("table", { name: "Cause-list Entries" });
+    expect(within(t2).getAllByRole("link", { name: /^View the Original PDF/ })).toHaveLength(1);
+    expect(within(t2).queryByRole("link", { name: /^Download the Original PDF/ })).toBeNull();
+    second.unmount();
+    browserApi(routes({ [`GET /causelists/${D}/entries`]: page([entry(2)]) }, ["cases.view_scope"]));
+    renderWithClient(<CauseList params={{ date: D }} />);
+    const t3 = await screen.findByRole("table", { name: "Cause-list Entries" });
+    expect(within(t3).queryByRole("link", { name: /Original PDF/ })).toBeNull();
+  });
+
+  it("a list heading without a stored PDF shows the not-available or not-fetched text and no link", async () => {
+    const pending = { ...list(SUPP, "supplementary", false, 2), fetch_status: "pending" };
+    const benches: CauselistBench[] = [{ ...BENCHES[1]!, lists: [list(DAILY, "daily", false, 51), pending] }];
+    const items = [
+      entry(2),
+      entry(6, { causelist_id: SUPP, list_type: "supplementary" }),
+      entry(7, { causelist_id: "l-elsewhere", list_type: "vacation" }),
+    ];
+    browserApi(routes({ [`GET /causelists/${D}`]: day({ benches }), [`GET /causelists/${D}/entries`]: page(items) }));
+    renderWithClient(<CauseList params={{ date: D }} />);
+    const table = await screen.findByRole("table", { name: "Cause-list Entries" });
+    const head = (text: string) => within(table).getByText(text, { selector: "[data-heading-text]" }).closest("th")!;
+    expect(within(head("Daily List")).getByText("PDF not available from the court")).toBeInTheDocument();
+    expect(within(head("Supplementary List")).getByText("PDF Not Fetched Yet")).toBeInTheDocument();
+    // a list not in the day (an earlier version) shows no link and no text
+    expect(head("Vacation List").textContent).toBe("Vacation List");
+    expect(within(table).queryByRole("link", { name: /Original PDF/ })).toBeNull();
+  });
+
+  it("no extra request: the chooser and the links make no call beyond GET /causelists/{date} and the entries", async () => {
+    const api = browserApi(routes());
+    renderWithClient(<CauseList params={{ date: D }} />);
+    await screen.findByRole("link", { name: /^View the Original PDF of the Daily List, Court 10/ });
+    await waitFor(() => expect(api.calls.some((c) => c.path.startsWith("/custody/recipients"))).toBe(true));
+    const before = api.calls.length;
+    const dialog = await openChooser();
+    expect(within(dialog).getAllByRole("rowheader")).toHaveLength(3);
+    await userEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(api.calls.slice(before)).toEqual([]);
+    const causelistPaths = [...new Set(api.calls.map((c) => c.path.split("?")[0]!))].filter((p) => p.startsWith("/causelists"));
+    expect(causelistPaths).toEqual(expect.arrayContaining([`/causelists/${D}`, `/causelists/${D}/entries`]));
+    expect(causelistPaths.every((p) => p === `/causelists/${D}` || p === `/causelists/${D}/entries`)).toBe(true);
   });
 });

@@ -8,17 +8,23 @@
  * beneath, "provisional" without one) with its parties, the ownership, and Claim when the API says `claimable`. Rows
  * become cards on phones; a row opens the whole entry (advocates and counsel codes as printed, remarks) in a side
  * panel.
+ *
+ * Each list heading row carries the court's original PDF of that list (design causelist-pdf-access, decision 4): View
+ * PDF (inline, new tab, `documents.view`) and Download PDF (`documents.download`), or the muted "not available" / "not
+ * fetched yet" text, read from the day already loaded (`lists`, by list id); a list not in the day shows nothing.
  */
 import Link from "next/link";
 import { Fragment, useState, type KeyboardEvent, type MouseEvent } from "react";
 
 import { Chevron } from "@/components/inbox/rows";
 import { Button, buttonClass, CaseLink, KvList, Lead, SidePanel } from "@/components/ui";
-import type { CauselistEntry } from "@/lib/api/types";
+import type { Causelist, CauselistEntry } from "@/lib/api/types";
 import { headingsOf } from "@/lib/causelist";
+import { canViewInline } from "@/lib/documents";
 import { T } from "@/lib/messages";
 import { casePath } from "@/lib/refs";
 
+import { listFileUrl } from "./ListStrip";
 import { OwnershipCell } from "./OwnershipCell";
 import s from "./causelist.module.css";
 
@@ -125,14 +131,62 @@ function EntryPanel({
   );
 }
 
+/** View PDF and Download PDF of one list on its heading row (design causelist-pdf-access, decision 4). */
+function ListPdfLinks({
+  list,
+  name,
+  bench,
+  canView,
+  canDownload,
+}: {
+  list: Causelist;
+  name: string;
+  bench: string;
+  canView: boolean;
+  canDownload: boolean;
+}) {
+  if (!list.has_pdf) {
+    return <span className={s.headingNote}>{list.fetch_status === "pending" ? T.causelist.pdfPending : T.causelist.noPdf}</span>;
+  }
+  const view = canView && canViewInline("application/pdf");
+  if (!view && !canDownload) return null;
+  return (
+    <span className={s.headingLinks}>
+      {view ? (
+        <a
+          className={buttonClass("secondary", "sm")}
+          href={listFileUrl(list.id, "inline")}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={T.causelist.viewPdfOf(name, bench)}
+        >
+          {T.causelist.viewPdf}
+        </a>
+      ) : null}
+      {canDownload ? (
+        <a className={buttonClass("secondary", "sm")} href={listFileUrl(list.id, "attachment")} download aria-label={T.causelist.downloadPdfOf(name, bench)}>
+          {T.causelist.downloadPdf}
+        </a>
+      ) : null}
+    </span>
+  );
+}
+
 export function EntryTable({
   items,
   names,
   onClaim,
+  lists = {},
+  canView = false,
+  canDownload = false,
 }: {
   items: CauselistEntry[];
   names: Record<string, string>;
   onClaim: (ref: string) => void;
+  /** The day's lists by id, for the PDF links on each list heading. */
+  lists?: Record<string, Causelist>;
+  canView?: boolean;
+  canDownload?: boolean;
 }) {
   const heads = headingsOf(items, TEXTS);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -173,13 +227,29 @@ export function EntryTable({
           <tbody>
             {items.map((e, i) => (
               <Fragment key={e.id}>
-                {heads[i]!.map((h, j) => (
-                  <tr key={`${e.id}-h${j}`} className={`${s.heading} ${s[`heading-${h.kind}`] ?? ""}`}>
-                    <th scope="colgroup" colSpan={COLUMNS}>
-                      {h.text}
-                    </th>
-                  </tr>
-                ))}
+                {heads[i]!.map((h, j) => {
+                  const list = h.kind === "list" ? lists[e.causelist_id] : undefined;
+                  return (
+                    <tr key={`${e.id}-h${j}`} className={`${s.heading} ${s[`heading-${h.kind}`] ?? ""}`}>
+                      <th scope="colgroup" colSpan={COLUMNS}>
+                        {list ? (
+                          <span className={s.headingRow}>
+                            <span data-heading-text="">{h.text}</span>
+                            <ListPdfLinks
+                              list={list}
+                              name={h.text}
+                              bench={`${T.causelist.courtHeading(e.court_no?.trim() || null)} · ${TEXTS.bench(e.bench_label, e.bench_id)}`}
+                              canView={canView}
+                              canDownload={canDownload}
+                            />
+                          </span>
+                        ) : (
+                          <span data-heading-text="">{h.text}</span>
+                        )}
+                      </th>
+                    </tr>
+                  );
+                })}
                 <tr
                   className={s.entry}
                   tabIndex={0}

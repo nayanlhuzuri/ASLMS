@@ -13,6 +13,11 @@
  * chips and the Show select in place of the show-only chips. View Cause List opens the chosen bench's list in a large
  * modal on `?view=<bench_id>&vtab=entries|pdf`. The entries keep court and item in the fixed leading column, cards on
  * phones and details in a side panel.
+ *
+ * The original PDF without first choosing a bench (design causelist-pdf-access, decisions 1-4): View Cause List is
+ * enabled whenever the day holds a list; with All Benches it opens Choose a Bench (or the only bench with lists at once);
+ * a note above the entries says each bench has its own list and PDF; each list heading of the entries carries View PDF
+ * and Download PDF. No request beyond the day and its entries.
  */
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -44,12 +49,14 @@ import {
 import type { CauselistBench, CauselistCounts } from "@/lib/api/types";
 import { can } from "@/lib/can";
 import {
+  benchesWithLists,
   benchOfView,
   benchParams,
   benchValueOf,
   chosenBench,
   ENTRY_PAGE,
   LIST_TYPES,
+  listsById,
   ONLY_VALUES,
   toApiQuery,
   validDate,
@@ -62,8 +69,9 @@ import { T } from "@/lib/messages";
 import { queryString, type Params } from "@/lib/params";
 import { useUrlOverlay } from "@/lib/useUrlOverlay";
 
+import { BenchChooser } from "./BenchChooser";
 import { BenchSelect } from "./BenchSelect";
-import { DateHero, DayNotice } from "./DayBar";
+import { DateHero, DayNotice, type ViewState } from "./DayBar";
 import { EntryTable } from "./EntryTable";
 import { ListStrip, listFileUrl } from "./ListStrip";
 import { ViewCauseList } from "./ViewCauseList";
@@ -105,6 +113,7 @@ export function CauseList({ params }: { params: Params }) {
   const departments = useDepartments();
   const [claiming, setClaiming] = useState<string | null>(null);
   const [words, setWords] = useState(params.q ?? "");
+  const [choosing, setChoosing] = useState(false);
   const defaultDate = dates.data?.default_date;
 
   useEffect(() => {
@@ -126,6 +135,18 @@ export function CauseList({ params }: { params: Params }) {
   const earlier = entries.data?.list?.superseded ? entries.data.list : null;
   const earlierBench = entries.data?.items[0]?.bench_id;
   const viewBench = benchOfView(benches, overlay.value);
+  const canView = can(me.data, "documents.view");
+  const canDownload = can(me.data, "documents.download");
+  // design causelist-pdf-access, decision 1: what View Cause List does
+  const withLists = held ? benchesWithLists(benches) : [];
+  const viewState: ViewState =
+    bench && viewValue(bench) ? "bench" : withLists.length === 0 ? "none" : withLists.length === 1 ? "single" : "choose";
+
+  function onView() {
+    if (viewState === "bench" && bench) overlay.open(viewValue(bench), { vtab: "entries" });
+    else if (viewState === "single") overlay.open(viewValue(withLists[0]!), { vtab: "entries" });
+    else if (viewState === "choose") setChoosing(true);
+  }
 
   function onDate(next: string) {
     setFilters({ date: next, bench_id: undefined, list_id: undefined, list_type: undefined, court_no: undefined });
@@ -230,11 +251,9 @@ export function CauseList({ params }: { params: Params }) {
               <DateHero
                 date={date}
                 day={day.data}
-                canView={!!bench && !!viewValue(bench)}
+                viewState={viewState}
                 onDate={onDate}
-                onView={() => {
-                  if (bench) overlay.open(viewValue(bench), { vtab: "entries" });
-                }}
+                onView={onView}
               />
             }
             onSubmit={held ? () => setFilters({ q: words.trim() || undefined }) : undefined}
@@ -263,11 +282,12 @@ export function CauseList({ params }: { params: Params }) {
           {day.isPending ? <Loading /> : null}
           <ErrorBanner error={day.error} onRetry={() => day.refetch()} />
           <DayNotice date={date} day={day.data} canFetch={can(me.data, "admin.napix_refetch")} onDate={onDate} />
+          {held && !benchValueOf(params) ? <Notice>{T.causelist.allBenchesNote}</Notice> : null}
           {bench ? (
             <ListStrip
               bench={bench}
-              canView={can(me.data, "documents.view")}
-              canDownload={can(me.data, "documents.download")}
+              canView={canView}
+              canDownload={canDownload}
               onEarlier={(id) => setFilters({ list_id: id, bench_id: undefined, offset: undefined })}
             />
           ) : null}
@@ -276,12 +296,12 @@ export function CauseList({ params }: { params: Params }) {
               <span className="row">
                 <Badge tone="warning">{T.causelist.earlierBadge}</Badge>
                 <span>{T.causelist.earlierText(formatDateTime(earlier.superseded_at))}</span>
-                {earlier.has_pdf && can(me.data, "documents.view") ? (
+                {earlier.has_pdf && canView ? (
                   <a href={listFileUrl(earlier.id, "inline")} target="_blank" rel="noopener noreferrer">
                     {T.causelist.view}
                   </a>
                 ) : null}
-                {earlier.has_pdf && can(me.data, "documents.download") ? (
+                {earlier.has_pdf && canDownload ? (
                   <a href={listFileUrl(earlier.id, "attachment")} download>
                     {T.causelist.download}
                   </a>
@@ -308,7 +328,14 @@ export function CauseList({ params }: { params: Params }) {
               <EmptyState>{T.causelist.noEntries}</EmptyState>
             ) : (
               <>
-                <EntryTable items={entries.data.items} names={names} onClaim={setClaiming} />
+                <EntryTable
+                  items={entries.data.items}
+                  names={names}
+                  onClaim={setClaiming}
+                  lists={listsById(benches)}
+                  canView={canView}
+                  canDownload={canDownload}
+                />
                 <Pagination
                   offset={Number(query.offset ?? 0)}
                   limit={ENTRY_PAGE}
@@ -325,10 +352,22 @@ export function CauseList({ params }: { params: Params }) {
               bench={viewBench}
               initialTab={viewTabOf(params.vtab)}
               names={names}
-              canView={can(me.data, "documents.view")}
-              canDownload={can(me.data, "documents.download")}
+              canView={canView}
+              canDownload={canDownload}
               hrefOf={(tab) => PATH + queryString({ ...params, view: overlay.value ?? undefined, vtab: tab })}
               onClose={overlay.close}
+            />
+          ) : null}
+          {choosing ? (
+            <BenchChooser
+              date={date}
+              benches={benches}
+              canPdf={canView || canDownload}
+              onChoose={(b, tab) => {
+                setChoosing(false);
+                overlay.open(viewValue(b), { vtab: tab });
+              }}
+              onClose={() => setChoosing(false)}
             />
           ) : null}
         </>

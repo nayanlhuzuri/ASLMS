@@ -180,7 +180,10 @@ Backend: none (no backend file changes; the existing `db/test_api_causelists.py`
 1. In `frontend/`: `npm ci`, `npm run gen:api` (no diff), `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`.
 2. The screen check on a private network against temporary images, never through Compose on the shared stack (runbook
    section 16): every case passes, the three new ones included, with no `clipped`, `gutter` or `doubled-heading`
-   finding.
+   finding. Done 2 Nov 2026 on branch commit 8631bc0 (images `tmp196-web` and `tmp196-uicheck`, Playwright 1.64.1,
+   network `tmp196-net`, all removed afterwards; the shared stack untouched): 551 passed, 7 skipped (the existing
+   viewport-only menu and drawer states), 173 routes and states, 416 screenshots, 0 findings; the six `/causelist`
+   states (the three new ones included) passed at 375, 768 and 1280 px.
 3. Deploy the portal only: `docker compose build web`, then bring `web` up with the court-data switch given on the
    command line as the runbook requires for every `up`; `python backend/tools/portal_smoke.py` → every page 200
    (`/causelist` included), no error line in the `web` log. No migration, no backend restart.
@@ -193,3 +196,21 @@ Backend: none (no backend file changes; the existing `db/test_api_causelists.py`
 
 ## Open questions
 None.
+
+## Deviations
+Small choices made while building where the note was silent (developer, 2 Nov 2026); none changes a rule or an API.
+1. **Accessible names in the chooser.** Each row's View and Original PDF buttons carry an accessible name naming the
+   bench ("View the Printed Entries of ‹bench›", "Open the Original PDF of ‹bench›"; `T.causelist.chooseViewOf`,
+   `choosePdfOf`), as decision 4 does for the heading links, since the same visible text repeats down the table. The
+   table's caption (visually hidden) is "Benches of This Day" (`T.causelist.chooseTable`).
+2. **The Lists column** joins the list types with commas and marks a version above 1 with the existing
+   "Corrected List" text (`Daily List · Corrected List`), as the Original PDF tab's list chooser already does; "No List
+   Published" stands in this column for a bench with no list.
+3. **Heading links** are small secondary anchors (`buttonClass("secondary", "sm")`) so they fit the heading row; the
+   heading text sits in a `data-heading-text` span, and the existing heading test reads that span.
+4. **The All Benches note** is also hidden while an earlier list version is open by `list_id` (a list is then chosen,
+   so "no bench is chosen" does not hold in substance).
+5. **Screen check fixture.** The synthetic entries of the uicheck day are given the sample bench's daily list id, so
+   the heading links are drawn in the new All Benches case (`e2e/fixtures/index.ts`, `tidy`).
+6. **Software documentation contents page.** The 4.10 paragraph grew by about two lines; `TOC_PAGES` was not
+   re-checked against a rendered copy (no renderer on the build machine).

@@ -113,6 +113,32 @@
   font-size: var(--t-sm);
 }
 
+/* a list heading with the court's PDF of that list (design causelist-pdf-access, decision 4): the text, then the links,
+   wrapping under it on a narrow screen rather than clipping */
+.headingRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2) var(--s3);
+  min-width: 0;
+}
+
+.headingRow > [data-heading-text] {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.headingLinks {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+.headingNote {
+  color: var(--text-3);
+  font-weight: 400;
+}
+
 .heading-section th {
   background: var(--surface-2);
   font-weight: 600;
@@ -303,6 +329,18 @@
 .showSelect {
   margin-left: auto;
   min-width: 200px;
+}
+
+/* Choose a Bench (design causelist-pdf-access, decision 2) */
+.chooseJudges {
+  overflow-wrap: anywhere;
+}
+
+.chooseActions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
 }
 
 /* the View Cause List modal's Original PDF tab */
