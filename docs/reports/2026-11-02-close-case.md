@@ -29,7 +29,16 @@ None beyond those recorded in the design note.
 213 `close-case-followups`.
 
 ## Deploying
-Not deployed: the deploy is the owner's step. Migration 0035 needs the `migrate` step, then `docker compose build`.
+Deployed 2 Nov 2026 at 10:05 IST, after CI on `main` passed (run 41378146718: policy, backend, frontend, compose).
+- Images built from a clean detached worktree of `main` at b82c10a (the main checkout was on the next cycle's branch),
+  `aslms-web` and the backend images including `aslms-migrate`; `./backend` on disk checked equal to `main`.
+- `docker compose stop api worker scheduler web pgbouncer` at 09:01 IST, then `docker compose --profile ops run --rm
+  migrate`: preflight passed (dev, 7 warnings), the image matched `./backend` (migrations up to 0035), the pre-migrate
+  backup written and listed, `0034 -> 0035`, seed 20 rows (`ref_permission` +2, `role_permissions` +18), audit row
+  `system.migrated`. The backup took most of the hour, so the portal was down from 09:01 to 10:05 IST.
+- `NAPIX_ENABLED=true docker compose --profile monitoring up -d --wait`; `init` reported the database at head (0035)
+  and nothing left to seed; court data on in `api` and `worker`; `portal_smoke.py` passed; the worker resumed court
+  calls (220 in the first 10 minutes); `case_closures` empty.
 
 ## Load status (`aslms queue-status`)
 causelist_day done 410, skipped 262; dossier done 58,187, pending 25,012, skipped 27 (full table from the command; the load continues in the worker).
