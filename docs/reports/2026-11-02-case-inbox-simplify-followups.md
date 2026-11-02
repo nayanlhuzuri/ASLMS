@@ -32,3 +32,11 @@ See the final return of the integrator: `main` and the tag pushed fast-forward o
 
 ## Load status
 `aslms queue-status` did not answer within the 120 s limit while the dev worker was busy with the historical load; not recorded.
+
+## Deploying
+Deployed 2 Nov 2026 at 11:13 IST, after CI on `main` passed (run 41392254736: policy, backend, frontend, compose). No
+migration. Images built with `docker compose build` and `--profile ops build migrate` from the clean `main` checkout at
+e9a46f9 before the next cycle took the checkout. `docker compose --profile monitoring up -d --wait` with the court-data
+switch on left the app containers in place, so `api`, `worker`, `scheduler` and `web` were recreated with `--no-deps
+--force-recreate` (same switch); court data on in `api` and `worker`; the running `web` has the image's build ID;
+`portal_smoke.py` passed.
