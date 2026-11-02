@@ -97,8 +97,9 @@ export function basisLine(next: NextHearing | null | undefined): string | null {
     case "confirmed":
       return od ? T.hearing.basis.confirmed(od) : null;
     case "manual":
-      // a date entered against an order is the correction of a misread reading
-      return od ? T.hearing.basis.corrected(od) : T.hearing.basis.manual;
+      // the server says when a manual date corrects a misread order (design next-date-direct-followups, decision 1);
+      // a date entered for an unclear or dateless order is a plain entry
+      return next.corrected && od ? T.hearing.basis.corrected(od) : T.hearing.basis.manual;
     case "around":
       return aroundSentence(next);
     default:

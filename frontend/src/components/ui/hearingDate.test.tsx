@@ -138,6 +138,7 @@ describe("HearingDate with the one next hearing", () => {
       order: ORDER,
       rule: "list_after_period",
       differs: null,
+      corrected: false,
     };
     const sm = render(<HearingDate next={next} now={NOW} />);
     const el = badge(sm.container);
@@ -159,6 +160,7 @@ describe("HearingDate with the one next hearing", () => {
       order: null,
       rule: null,
       differs: { date: "2026-11-10", order: ORDER },
+      corrected: false,
     };
     const { container } = render(<HearingDate next={next} now={NOW} />);
     const chip = container.querySelector("[data-differs]") as HTMLElement;
@@ -177,7 +179,7 @@ describe("HearingDate with the one next hearing", () => {
 
   it("no next hearing reads No Date Yet; a manual date says it was entered by hand", () => {
     expect(badge(render(<HearingDate next={null} now={NOW} />).container)).toHaveAttribute("data-band", "none");
-    const manual = { date: "2026-11-16", basis: "manual" as const, approximate: false, basis_words: null, order: null, rule: null, differs: null };
+    const manual = { date: "2026-11-16", basis: "manual" as const, approximate: false, basis_words: null, order: null, rule: null, differs: null, corrected: false };
     const md = render(<HearingDate next={manual} size="md" now={NOW} />);
     expect(md.container).toHaveTextContent("Entered by hand; the court has given no date");
   });

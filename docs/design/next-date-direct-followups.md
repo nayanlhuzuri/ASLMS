@@ -234,3 +234,21 @@ date read from the order of 12 Oct 2026 was wrong".
 
 ## Open questions
 None. Decision 2 changes one sentence of approved decision 18 and is flagged for the owner's approval of this note.
+
+## Deviations
+1. **`memberships_holding` for a retired function returns nobody, the super admin included** (decision 4 says "a
+   reserved or retired function returns only super admins, as `membership_functions` does"). `membership_functions`
+   gives the super admin `ACTIVE_FUNCTIONS`, which leaves the retired functions out, so "as `membership_functions`
+   does" means a reserved function is the super admin's only and a retired one is nobody's. The test compares the set
+   with `member_of(...).holds(...)` for both.
+2. **`direct_apply` and `hearing_refresh` take `page` as well as `commit`**, so the CLI passes
+   `next_hearing.CLI_PAGE` (1,000) and the service default stays `DEFAULT_BATCH` (5,000) for other callers. The dry run
+   of `direct` reads the existing `next_date_extracted:<order id>:<rules version>` keys in one query
+   (`next_dates.extracted_event_key`).
+3. **The vitest fixtures carry `corrected: false`**: `openapi-typescript` marks a defaulted response field as required,
+   so the four test fixtures that build a `NextHearing` by hand (`src/test/nextHearing.ts`, the two
+   `hearingDate` tests) set it.
+4. **An order reading with no order is no step-2 candidate.** `next_dates.order_id` is nullable, but every order
+   reading the reader writes carries its order (`read_order`), so decision 2's "readings of orders dated O" leaves out a
+   row without one. `tests/db/test_alerts_generate.py::test_hearing_from_cause_list_and_manual_next_date` built its
+   old pending reading without an order; the fixture now links it to the case's order.

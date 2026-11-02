@@ -216,3 +216,93 @@ def test_create_user_validation_and_login(session, world):
     assert (
         session.scalar(sa.select(sa.func.count()).select_from(Event).where(Event.type == "user_created")) == 2
     )
+
+
+def test_memberships_holding_matches_member_of(session, world):
+    """Design `next-date-direct-followups`, decision 4: the SQL read of the holders equals `member_of(...).holds`."""
+    from datetime import UTC, datetime, timedelta
+
+    from aslms.core.clock import today_ist
+    from aslms.domain.org import UserMembership, UserPermission
+
+    edu, today = world["edu"], today_ist()
+
+    def officer(name, role=Role.DEPT_OFFICER):
+        return create_user(
+            session,
+            SYS,
+            email=f"{name}@example.org",
+            password="correct-horse-battery-7",
+            full_name=name.title(),
+            role=role,
+            office=edu if role != Role.DIRECTORATE_USER else world["dse"],
+        )
+
+    def membership(user):
+        return session.scalar(sa.select(UserMembership).where(UserMembership.user_id == user.id))
+
+    def put(user, perm, effect, *, start=None, end=None, active=True):
+        m = membership(user)
+        session.add(
+            UserPermission(
+                user_id=user.id,
+                membership_id=m.id,
+                permission=perm,
+                effect=effect,
+                is_active=active,
+                valid_from=start or today - timedelta(days=30),
+                valid_to=end,
+            )
+        )
+        session.flush()
+
+    officer("by_type")  # notes.add by the type matrix
+    put(officer("granted"), Permission.CASES_CLAIM, PermissionEffect.GRANT)
+    put(officer("denied"), Permission.NOTES_ADD, PermissionEffect.DENY)
+    expired = officer("expired")
+    put(expired, Permission.CASES_CLAIM, PermissionEffect.GRANT, end=today - timedelta(days=1))
+    put(officer("expired_deny"), Permission.NOTES_ADD, PermissionEffect.DENY, end=today - timedelta(days=1))
+    put(officer("future"), Permission.CASES_CLAIM, PermissionEffect.GRANT, start=today + timedelta(days=1))
+    put(officer("ended_grant"), Permission.CASES_CLAIM, PermissionEffect.GRANT, active=False)
+    put(officer("today_grant"), Permission.CASES_CLAIM, PermissionEffect.GRANT, start=today, end=today)
+    put(officer("tickets"), Permission.ADMIN_TICKETS, PermissionEffect.GRANT)  # reserved: never by grant
+    put(officer("retired"), Permission.REQUESTS_SEND, PermissionEffect.GRANT)  # retired: nobody
+    officer("dse", Role.DIRECTORATE_USER)
+    ended = officer("ended_membership")
+    ended_m = membership(ended)
+    ended_m.is_active, ended_m.is_primary, ended_m.deactivated_at = False, False, datetime.now(UTC)
+    put(officer("ended_login"), Permission.CASES_CLAIM, PermissionEffect.GRANT)
+    session.scalar(sa.select(User).where(User.email == "ended_login@example.org")).is_active = False
+    session.flush()
+    everyone = session.execute(
+        sa.select(UserMembership, User).join(User, User.id == UserMembership.user_id)
+    ).all()
+    for perm in (
+        Permission.NOTES_ADD,
+        Permission.CASES_CLAIM,
+        Permission.NEXT_DATES_CORRECT,
+        Permission.ADMIN_TICKETS,
+        Permission.REQUESTS_SEND,
+        Permission.USERS_CREATE,
+    ):
+        expected = {m.id for m, u in everyone if access.member_of(session, m, u).holds(perm)}
+        got = [m.id for m, _ in access.memberships_holding(session, perm)]
+        assert set(got) == expected, perm
+        assert len(got) == len(set(got)), perm
+    claim = {u.email for _, u in access.memberships_holding(session, Permission.CASES_CLAIM)}
+    assert {"granted@example.org", "today_grant@example.org", "root@example.org"} <= claim
+    assert not claim & {
+        "expired@example.org",
+        "future@example.org",
+        "ended_grant@example.org",
+        "ended_login@example.org",
+    }
+    notes = {u.email for _, u in access.memberships_holding(session, Permission.NOTES_ADD)}
+    assert {"by_type@example.org", "expired_deny@example.org"} <= notes
+    assert not notes & {"denied@example.org", "ended_membership@example.org"}
+    tickets = [u.email for _, u in access.memberships_holding(session, Permission.ADMIN_TICKETS)]
+    assert tickets == ["root@example.org"]
+    assert access.memberships_holding(session, Permission.REQUESTS_SEND) == []
+    emails = [u.email for _, u in access.memberships_holding(session, Permission.NOTES_ADD)]
+    by_sql = session.scalars(sa.select(User.email).where(User.email.in_(emails)).order_by(User.email)).all()
+    assert emails == list(by_sql)  # by e-mail, in the database's order, as `correctors` always listed them

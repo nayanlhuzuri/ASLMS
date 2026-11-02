@@ -8,7 +8,7 @@ import type { NextHearing } from "@/lib/hearingDate";
 
 export function courtNext(date: string | null | undefined, extra: Partial<NextHearing> = {}): NextHearing | null {
   if (!date) return null;
-  return { date, basis: "court", approximate: false, basis_words: null, order: null, rule: null, differs: null, ...extra };
+  return { date, basis: "court", approximate: false, basis_words: null, order: null, rule: null, differs: null, corrected: false, ...extra };
 }
 
 /** A next hearing read from an order (exact, or around for a period). */
@@ -21,6 +21,7 @@ export function orderNext(date: string, extra: Partial<NextHearing> = {}): NextH
     order: { id: "o-1", order_no: "4", order_date: "2026-10-12", document_id: "d-1" },
     rule: "list_on_date",
     differs: null,
+    corrected: false,
     ...extra,
   };
 }

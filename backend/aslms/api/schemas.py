@@ -664,6 +664,13 @@ class NextHearingOut(BaseModel):
     order: NextHearingOrderOut | None
     rule: str | None
     differs: NextHearingDiffersOut | None
+    corrected: bool = Field(
+        default=False,
+        description=(
+            "true for a `manual` date that corrects a misread order: its order has a reading marked wrong; false for "
+            "a plain entry where the court gave no date and for every other basis"
+        ),
+    )
 
 
 class NextHearingDetailOut(NextHearingOut):

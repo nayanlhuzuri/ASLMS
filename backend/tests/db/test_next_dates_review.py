@@ -314,3 +314,44 @@ def test_times_are_ist_days(world):
         )
         assert timedelta(days=548) == timedelta(days=next_dates.NextDateConfig.from_settings().max_ahead_days)
         s.rollback()
+
+
+# ------------------------------------------------------------------------------------------------ row 203, decision 5
+
+
+def test_emit_event_returns_whether_it_wrote(world):
+    from aslms.domain.events import Event
+    from aslms.services.cases import emit_event
+
+    with world.Session() as s:
+        case = make_case(s)
+        key = f"test_event:{case.id}"
+        assert emit_event(s, EventType.NEXT_DATE_EXTRACTED, case, {"n": 1}, dedupe=key) is True
+        s.flush()
+        assert emit_event(s, EventType.NEXT_DATE_EXTRACTED, case, {"n": 2}, dedupe=key) is False
+        s.flush()
+        assert s.scalar(sa.select(sa.func.count()).select_from(Event).where(Event.dedupe_key == key)) == 1
+        s.rollback()
+
+
+def test_direct_counts_only_events_written(world):
+    """The dry run and --apply count an enter item only when its `next_date_extracted` event is written (or, in the
+    dry run, does not exist yet); a second --apply finds nothing."""
+    with world.Session() as s:
+        # an order read as giving no date while the court had a date ahead: no `next_date_extracted` event; then the
+        # court's date is gone, so the order is now an enter item
+        case = h.claimed(s, world, next_hearing=h.days(5))
+        h.order_with_text(s, case, NONE, order_date=h.days(-1))
+        h.read(s)
+        assert h.events(s, case) == []
+        case.next_hearing_date = None
+        s.flush()
+        dry = next_dates.direct_apply(s, apply=False)
+        first = next_dates.direct_apply(s, apply=True)
+        assert dry["enter_items_added"] == first["enter_items_added"] == 1
+        assert len(h.events(s, case)) == 1
+        dry2 = next_dates.direct_apply(s, apply=False)
+        second = next_dates.direct_apply(s, apply=True)
+        assert dry2["enter_items_added"] == second["enter_items_added"] == 0
+        assert len(h.events(s, case)) == 1
+        s.rollback()

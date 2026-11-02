@@ -263,7 +263,12 @@ def _v(value: Any) -> Any:
 
 
 def case_details(
-    session: Session, case_ids: list[uuid.UUID], *, hearings: int, listings: int
+    session: Session,
+    case_ids: list[uuid.UUID],
+    *,
+    hearings: int,
+    listings: int,
+    open_ids: Iterable[uuid.UUID] = (),
 ) -> list[dict[str, Any]]:
     """Design `assistant-ollama`, decision 3(a): the "Case Details (Court Record)" of each case, in the order of
     `case_ids`: the court-public facts of `case_contexts`, plus the last `hearings` hearings (business date, next date,
@@ -271,7 +276,11 @@ def case_details(
     number and printed item; rows of a list replaced by a corrected one marked `superseded`). The same tables as
     `case_detail.hearings` and `case_detail.listings`; nothing internal: no owner, recommendation, stage, custody or
     `ref_no`. Imports no connector. Design `assistant-polish`, decision 6: plus `coram`; design `next-date-direct`,
-    decision 11: plus `next_hearing` (the case's one next hearing, never a date entered by hand)."""
+    decision 11: plus `next_hearing` (the case's one next hearing, never a date entered by hand). Design
+    `next-date-direct-followups`, decision 6: a reading a person confirmed (`confirmed`) is given only for the cases
+    in `open_ids` (the cases the asker may open); every other case gets the court-public value
+    (`next_hearing.court_public`: `manual` and `confirmed` blanked, the discrepancy dropped)."""
+    open_set = set(open_ids)
     out = case_contexts(session, case_ids)
     ids = [c["case_id"] for c in out]
     if not ids:
@@ -351,7 +360,10 @@ def case_details(
         # design next-date-direct, decision 11: the case's one next hearing; a date entered by hand is an officer's
         # entry and is never given to the model (assistant-polish, decision 6)
         nh = next_hearing.describe_case(session, row)
-        c["next_hearing"] = nh if nh is not None and nh.get("basis") != "manual" else None
+        if c["case_id"] in open_set:
+            c["next_hearing"] = nh if nh is not None and nh.get("basis") != "manual" else None
+        else:
+            c["next_hearing"] = next_hearing.court_public(nh)
     return out
 
 

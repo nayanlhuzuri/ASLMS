@@ -280,6 +280,51 @@ def test_correct_on_a_case_the_court_has_listed_changes_only_the_order_tier(api,
         _court_untouched(s, case.id, h.days(12))
 
 
+def test_corrected_flag_only_for_corrections(world):
+    """Design `next-date-direct-followups`, decision 1: a manual date is a correction only when its order has a reading
+    marked wrong; a plain entry for an unclear order is not."""
+    from aslms.services import assistant_facts, next_hearing
+
+    with world.Session() as s:
+        root_actor, root = world.actor(s, "root")
+        actor, admin = world.actor(s, "edu_admin")
+        # Correct Misread Next Date with a date
+        case, order, row = _read_case(s, world)
+        next_dates.correct(s, root_actor, root, row.id, reason=REASON, next_date=h.days(26))
+        out = next_hearing.next_hearing_out(s, case)
+        assert (out["basis"], out["corrected"]) == ("manual", True)
+        (line,) = assistant_facts.next_hearing(s, case).lines
+        assert f"(corrected by hand: the date read from the order of {h.days(-2):%d %b %Y} was wrong)" in line
+        assert next_hearing.words(out).endswith(
+            f"(corrected by hand; the order of {h.days(-2):%d %b %Y} was misread)"
+        )
+        # an entry from Next Dates to Enter for an unclear order
+        unclear = h.claimed(s, world)
+        unclear_order = h.order_with_text(
+            s, unclear, "List the matter after the ensuing vacation.", order_date=h.days(-2)
+        )
+        h.read(s)
+        assert h.rows(s, unclear) == []
+        next_dates.enter(s, actor, admin, unclear, next_date=h.days(20), order_id=unclear_order.id)
+        out = next_hearing.next_hearing_out(s, unclear)
+        assert (out["basis"], out["corrected"], out["order"]["id"]) == ("manual", False, unclear_order.id)
+        assert (
+            "entered by hand; the court has given no date"
+            in assistant_facts.next_hearing(s, unclear).lines[0]
+        )
+        # marked wrong without a date, then entered
+        later, later_order, later_row = _read_case(s, world)
+        next_dates.correct(s, root_actor, root, later_row.id, reason=REASON)
+        assert next_hearing.next_hearing_out(s, later) is None
+        next_dates.enter(s, actor, admin, later, next_date=h.days(22), order_id=later_order.id)
+        out = next_hearing.next_hearing_out(s, later)
+        assert (out["date"], out["basis"], out["corrected"]) == (h.days(22), "manual", True)
+        # every other basis says false
+        court = h.claimed(s, world, next_hearing=h.days(9))
+        assert next_hearing.next_hearing_out(s, court)["corrected"] is False
+        s.rollback()
+
+
 def test_keep_closes_the_report(api, world):
     with world.Session() as s:
         case, order, row = _read_case(s, world)

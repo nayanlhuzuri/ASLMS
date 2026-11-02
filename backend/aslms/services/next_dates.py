@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
@@ -66,6 +67,7 @@ from aslms.domain.alerts import Alert, AlertStatus, NextDate, NextDateSource, Re
 from aslms.domain.cases import Case, CaseStatus, NextHearingBasis
 from aslms.domain.causelists import CURRENT_LIST, Causelist, CauselistEntry
 from aslms.domain.documents import Document, DocumentText, Order, OrderNextDateStatus, TextStatus
+from aslms.domain.events import Event
 from aslms.domain.ops import JobRun, JobStatus
 from aslms.domain.org import Office, User
 from aslms.domain.ownership import CaseOwnership, OwnershipRole, OwnershipStatus
@@ -460,10 +462,15 @@ def supersede(
     return int(result.rowcount or 0)
 
 
+def extracted_event_key(order_id: uuid.UUID | str) -> str:
+    return f"next_date_extracted:{order_id}:{rules.RULES_VERSION}"
+
+
 def _extracted_event(
     session: Session, case: Case, order: Order, reading: rules.Reading, row: NextDate | None, review: bool
-) -> None:
-    emit_event(
+) -> bool:
+    """The `next_date_extracted` event of an order's reading; True when written, False when it already exists."""
+    return emit_event(
         session,
         EventType.NEXT_DATE_EXTRACTED,
         case,
@@ -477,7 +484,7 @@ def _extracted_event(
             "next_date_id": str(row.id) if row is not None else None,
             "review": review,
         },
-        dedupe=f"next_date_extracted:{order.id}:{rules.RULES_VERSION}",
+        dedupe=extracted_event_key(order.id),
     )
 
 
@@ -1458,22 +1465,15 @@ def sample(
 
 
 def reportable_row(session: Session, case: Case, *, today: date | None = None) -> NextDate | None:
-    """Decision 17's row: the case's latest order reading (decision 4, step 2) - the latest open `order_specific` /
-    `order_period` row, dated today or later."""
+    """Decision 17's row, following decision 4 step 2 as row 203 (decision 2) builds it: the latest order's step-2
+    candidate when it is a reading (not a correction) dated today or later; None otherwise, also when the latest
+    order has no open reading (an older order's reading is never reportable)."""
     today = today or today_ist()
-    row = session.scalar(
-        select(NextDate)
-        .where(
-            NextDate.case_id == case.id,
-            NextDate.source.in_(ORDER_SOURCES),
-            NextDate.review_status.in_(OPEN_REVIEW),
-        )
-        .order_by(NextDate.created_at.desc(), NextDate.id.desc())
-        .limit(1)
-    )
-    if row is None or row.next_date < today:
+    session.flush()
+    candidate = next_hearing.latest_order_candidates(session, [case.id]).get(case.id)
+    if candidate is None or candidate.corrected or candidate.date < today:
         return None
-    return row
+    return session.get(NextDate, candidate.id)
 
 
 def _reason(value_: str | None) -> str:
@@ -1506,21 +1506,18 @@ def _member_holding(session: Session, user: User | Member, permission: Permissio
 
 
 def correctors(session: Session, case: Case) -> list[User]:
-    """The active holders of `next_dates.correct` who may see the case (the super admin always)."""
-    from aslms.domain.org import UserMembership
-
+    """The active holders of `next_dates.correct` who may see the case (the super admin always), by e-mail. Row 203,
+    decision 4: the holders are read in SQL first (`access.memberships_holding`); `member_of` is built only for
+    them, and visibility is checked once per person."""
     out: list[User] = []
-    for m, u in session.execute(
-        select(UserMembership, User)
-        .join(User, User.id == UserMembership.user_id)
-        .where(UserMembership.is_active.is_(True), User.is_active.is_(True))
-        .order_by(User.email, UserMembership.id)
-    ).all():
-        if any(x.id == u.id for x in out):
+    seen: set[uuid.UUID] = set()
+    for m, u in access.memberships_holding(session, Permission.NEXT_DATES_CORRECT):
+        if u.id in seen:
             continue
-        if access.member_of(session, m, u).holds(Permission.NEXT_DATES_CORRECT) and visibility.can_view_case(
-            session, u, case
-        ):
+        if not access.member_of(session, m, u).holds(Permission.NEXT_DATES_CORRECT):
+            continue
+        seen.add(u.id)
+        if visibility.can_view_case(session, u, case):
             out.append(u)
     return out
 
@@ -1808,10 +1805,18 @@ def report_still_current(session: Session, alert: Alert, *, today: date | None =
 
 
 def direct_apply(
-    session: Session, *, apply: bool, today: date | None = None, cfg: NextDateConfig | None = None
+    session: Session,
+    *,
+    apply: bool,
+    today: date | None = None,
+    cfg: NextDateConfig | None = None,
+    commit: Callable[[], None] | None = None,
+    page: int = next_hearing.DEFAULT_BATCH,
 ) -> dict[str, Any]:
     """Re-evaluates the old suggestions once. The dry run counts and writes nothing; `apply` writes, refreshes every
-    live case and audits `next_dates.direct_apply` (actor `cli`)."""
+    live case and audits `next_dates.direct_apply` (actor `cli`). Row 203, decision 5: with `commit` it commits after
+    step 1 and after each page of the refresh (pages of `page` cases); enter items are counted only when their
+    `next_date_extracted` event is written, and the dry run counts only those whose event does not exist yet."""
     from aslms.services.alerts import close_alert
 
     today = today or today_ist()
@@ -1891,7 +1896,20 @@ def direct_apply(
             if given.get(cid) is not None and given[cid].court_given:
                 out["manual_superseded"] += 1
                 conflicts.append({"case": ref, "kind": "manual_superseded"})
+        existing = (
+            set(
+                session.scalars(
+                    select(Event.dedupe_key).where(
+                        Event.dedupe_key.in_([extracted_event_key(o.id) for o in none_orders])
+                    )
+                ).all()
+            )
+            if none_orders
+            else set()
+        )
         for o in none_orders:
+            if extracted_event_key(o.id) in existing:
+                continue
             case = session.get(Case, o.case_id)
             if is_enter_item(session, case, o, today=today, cfg=cfg):
                 out["enter_items_added"] += 1
@@ -1912,6 +1930,9 @@ def direct_apply(
             .with_for_update()
         ).all():
             close_alert(session, alert, AlertStatus.DONE, "shown_directly")
+    if commit is not None:
+        session.flush()
+        commit()
     # 4. every live case (before 3: the enter rule reads the refreshed value); supersedes and audits manual rows
     superseded_before = {
         r
@@ -1921,7 +1942,7 @@ def direct_apply(
             )
         ).all()
     }
-    refreshed = next_hearing.refresh_all(session, today=today)
+    refreshed = next_hearing.refresh_all(session, today=today, page=page, commit=commit)
     out["cases_refreshed"] = refreshed.refreshed
     out["manual_superseded"] = refreshed.manual_superseded
     if superseded_before:
@@ -1936,8 +1957,8 @@ def direct_apply(
         case = session.get(Case, o.case_id)
         if is_enter_item(session, case, o, today=today, cfg=cfg):
             reading = rules.Reading(rules.NONE, phrase=o.next_date_phrase)
-            _extracted_event(session, case, o, reading, None, True)
-            out["enter_items_added"] += 1
+            if _extracted_event(session, case, o, reading, None, True):
+                out["enter_items_added"] += 1
     # 5. confirmed rows whose date differs from the court's (now flagged)
     for ref, differs_on in session.execute(
         select(Case.ref_no, Case.next_hearing_differs_on)
@@ -1961,17 +1982,26 @@ def direct_apply(
 
 
 def hearing_refresh(
-    session: Session, *, case: Case | None = None, dry_run: bool = False, today: date | None = None
+    session: Session,
+    *,
+    case: Case | None = None,
+    dry_run: bool = False,
+    today: date | None = None,
+    commit: Callable[[], None] | None = None,
+    page: int = next_hearing.DEFAULT_BATCH,
 ) -> dict[str, Any]:
     """`aslms next-dates hearing-refresh [--all | --case REF] [--dry-run]`: repair and backfill at once; audited
-    `next_dates.hearing_refresh` with the counts when it writes."""
+    `next_dates.hearing_refresh` with the counts when it writes. Row 203, decision 5: with `commit`, `--all` commits
+    after each page of `page` cases; the closing audit row is written at the end."""
     today = today or today_ist()
     if dry_run:
         if case is not None:
             value = next_hearing.compute(session, [case.id], today=today).get(case.id)
             return {"dry_run": True, "case": case.ref_no, "basis": value.basis.value if value else None}
         return {"dry_run": True, **next_hearing.preview_all(session, today=today)}
-    result = next_hearing.refresh_all(session, today=today, case_id=case.id if case is not None else None)
+    result = next_hearing.refresh_all(
+        session, today=today, case_id=case.id if case is not None else None, page=page, commit=commit
+    )
     counts = {"dry_run": False, **result.counters()}
     write_audit(
         session,

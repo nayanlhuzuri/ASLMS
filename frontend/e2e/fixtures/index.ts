@@ -744,7 +744,7 @@ function held(): HeldList {
  */
 function courtNext(date: string | null): S["NextHearingOut"] | null {
   if (!date) return null;
-  return { date, basis: "court", approximate: false, basis_words: null, order: null, rule: null, differs: null };
+  return { date, basis: "court", approximate: false, basis_words: null, order: null, rule: null, differs: null, corrected: false };
 }
 
 const ORDER_REF = { id: "0192a3b4-0000-7000-8000-000000000901", order_no: "4", order_date: "2026-10-12", document_id: null };
@@ -874,6 +874,7 @@ function working(): MyCaseList {
       order: ORDER_REF,
       rule: "list_after_period",
       differs: null,
+      corrected: false,
     },
     { ...courtNext(istDayPlus(12))!, differs: { date: istDayPlus(10), order: ORDER_REF } },
   ];

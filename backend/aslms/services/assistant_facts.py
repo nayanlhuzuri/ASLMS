@@ -202,6 +202,9 @@ class NextHearing:
     differs_order_date: date | None = None
     disposed: bool = False
     disposal_date: date | None = None
+    corrected: bool = (
+        False  # a manual date that corrects a misread order (next-date-direct-followups, decision 1)
+    )
     lines: tuple[str, ...] = field(default_factory=tuple)
 
     @property
@@ -232,6 +235,7 @@ def next_hearing(session: Session, case: Case, *, today: date | None = None) -> 
         differs_order_date=(differs.get("order") or {}).get("order_date"),
         disposed=_value(case.status) == CaseStatus.DISPOSED.value,
         disposal_date=case.disposal_date,
+        corrected=bool(out.get("corrected")),
     )
     return NextHearing(**{**nh.__dict__, "lines": tuple(_next_lines(nh, today))})
 
@@ -279,6 +283,11 @@ def _next_lines(nh: NextHearing, today: date) -> list[str]:
         return [f"Next hearing: around {when} ({bits}) [S1]."]
     if nh.basis in ("order", "confirmed"):
         return [f"Next hearing: {when} (given in {_of_order(nh.order_date)}) [S1]."]
+    if nh.corrected and nh.order_date is not None:
+        return [
+            f"Next hearing: {when} (corrected by hand: the date read from {_of_order(nh.order_date)} was wrong) "
+            "[S1]."
+        ]
     return [f"Next hearing: {when} (entered by hand; the court has given no date) [S1]."]
 
 

@@ -11206,6 +11206,12 @@ export interface components {
              * @description the words of an around date as the order puts them: `after 3 weeks`, `after 15.12.2026`
              */
             basis_words: string | null;
+            /**
+             * Corrected
+             * @description true for a `manual` date that corrects a misread order: its order has a reading marked wrong; false for a plain entry where the court gave no date and for every other basis
+             * @default false
+             */
+            corrected: boolean;
             /** Court Date */
             court_date?: string | null;
             /**
@@ -11275,6 +11281,12 @@ export interface components {
              * @description the words of an around date as the order puts them: `after 3 weeks`, `after 15.12.2026`
              */
             basis_words: string | null;
+            /**
+             * Corrected
+             * @description true for a `manual` date that corrects a misread order: its order has a reading marked wrong; false for a plain entry where the court gave no date and for every other basis
+             * @default false
+             */
+            corrected: boolean;
             /**
              * Date
              * Format: date

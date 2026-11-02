@@ -25,7 +25,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import event, select
+from sqlalchemy import and_, event, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, object_session
 
@@ -333,6 +333,62 @@ def super_admin_member(session: Session, user: User | Member) -> Member | None:
 def holders_in(session: Session, user: User | Member, permission: Permission | str) -> list[Member]:
     perm = _as_perm(permission)
     return [m for m in members(session, user) if perm in m.functions]
+
+
+def memberships_holding(session: Session, permission: Permission | str) -> list[tuple[UserMembership, User]]:
+    """Every active membership of an active login that holds `permission`, read in one SQL statement (design
+    `next-date-direct-followups`, decision 4), ordered by e-mail then membership: the super admin's; or an active
+    in-date `grant` override of the function; or the type matrix enables it and no active in-date `deny` override
+    exists. "Active in-date" is the rule of `membership_overrides` (`is_active`, `valid_from` ≤ today ≤ `valid_to`
+    or no `valid_to`). As `membership_functions`: a reserved function is held by the super admin only, a retired one
+    by nobody. The same set as the memberships whose `member_of(...).holds(permission)` is true."""
+    perm = _as_perm(permission)
+    if perm in RETIRED_PERMISSIONS:
+        return []
+    today = today_ist()
+
+    def override(effect: PermissionEffect):
+        return (
+            select(UserPermission.id)
+            .where(
+                UserPermission.membership_id == UserMembership.id,
+                UserPermission.permission == perm,
+                UserPermission.effect == effect,
+                UserPermission.is_active.is_(True),
+                UserPermission.valid_from <= today,
+                or_(UserPermission.valid_to.is_(None), UserPermission.valid_to >= today),
+            )
+            .exists()
+        )
+
+    by_type = (
+        select(RolePermission.id)
+        .where(
+            RolePermission.role == UserMembership.role,
+            RolePermission.permission == perm,
+            RolePermission.is_enabled.is_(True),
+        )
+        .exists()
+    )
+    super_admin = UserMembership.role == Role.SUPER_ADMIN
+    holds = (
+        super_admin
+        if perm in RESERVED_FUNCTIONS
+        else or_(
+            super_admin,
+            override(PermissionEffect.GRANT),
+            and_(by_type, ~override(PermissionEffect.DENY)),
+        )
+    )
+    return [
+        (m, u)
+        for m, u in session.execute(
+            select(UserMembership, User)
+            .join(User, User.id == UserMembership.user_id)
+            .where(UserMembership.is_active.is_(True), User.is_active.is_(True), holds)
+            .order_by(User.email, UserMembership.id)
+        ).all()
+    ]
 
 
 # ------------------------------------------------------------------------------------------------ scope

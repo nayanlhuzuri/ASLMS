@@ -6,15 +6,18 @@ the case's orders, or none):
 1. the court's record — the earliest date d ≥ T and d > O among `cases.next_hearing_date` (NAPIX `date_next_list`)
    and the case's current cause-list listings: basis `court`, exact (d > O strictly: on the day an order is passed,
    NAPIX and that day's list still show the hearing just held);
-2. else the latest order's reading — the latest (`created_at`, then `id`) `order_specific` / `order_period` row among
-   `not_needed`, `pending` and `confirmed`, used when its date is ≥ T: basis `order` (`list_on_date`), `around`
-   (periods, qualified and returnable dates) or `confirmed` (a row a person confirmed before this item);
-3. else the court's last given date, passed (owner, 28 Oct 2026: court dates are ultimatums) — a court date after O
-   but before T, else a dated reading of the latest order before T, with its own basis;
+2. else the latest order's step (row 203, `next-date-direct-followups`, decision 2): the candidate is the newest
+   (`created_at`, then `id`) of the open (`not_needed`, `pending`, `confirmed`) `order_specific` / `order_period`
+   readings of orders dated O and the open `manual` rows linked to an order dated O that are corrections (the order
+   has a `rejected` reading); used when its date is ≥ T: a reading with its basis `order` (`list_on_date`), `around`
+   (periods, qualified and returnable dates) or `confirmed` (a row a person confirmed before this item), a correction
+   with basis `manual`. A reading of an older order is never a candidate;
+3. else the court's last given date, passed (owner, 28 Oct 2026: court dates are ultimatums) — the later of a court
+   date after O but before T and the candidate when it is a reading dated before T (decision 3; on a tie, `court`);
 4. else the latest open `manual` row dated ≥ T: basis `manual`;
 5. else none.
-The discrepancy flag (decision 5): basis `court` and an exact (`order` / `confirmed`) reading of step 2 that gives a
-different date.
+The discrepancy flag (decision 5): basis `court` and a step-2 candidate that is an exact (`order` / `confirmed`)
+reading giving a different date (a correction never raises it).
 
 `refresh` stores the value in the six derived columns of `cases` (never `next_hearing_date`, the court's verbatim
 value), supersedes and audits open manual rows a court-given date outranks (decision 7) and emits
@@ -25,15 +28,15 @@ from __future__ import annotations
 
 import logging
 import uuid
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from typing import Any
 
-from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy import and_, func, literal, or_, select, union_all, update
 from sqlalchemy import text as sql_text
 from sqlalchemy.dialects.postgresql import distinct_on
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from aslms.core import clock
 from aslms.domain.alerts import Alert, AlertStatus, NextDate, NextDateSource, ReviewStatus
@@ -48,6 +51,7 @@ log = logging.getLogger(__name__)
 
 FAILURE_KIND = "next_hearing_refresh"
 DEFAULT_BATCH = 5000
+CLI_PAGE = 1000  # cases refreshed and committed per page by the repair commands (row 203, decision 5)
 CHUNK = 500  # cases locked and written per statement in the batch paths
 ORDER_SOURCES = (NextDateSource.ORDER_SPECIFIC, NextDateSource.ORDER_PERIOD)
 OPEN_REVIEW = (ReviewStatus.NOT_NEEDED, ReviewStatus.PENDING, ReviewStatus.CONFIRMED)
@@ -111,10 +115,14 @@ class RefreshResult:
 
 @dataclass(frozen=True)
 class _Reading:
+    """The latest order's step-2 candidate (row 203, decision 2): a reading or a correction of an order dated O."""
+
     id: uuid.UUID
     date: date
     basis: NextHearingBasis
     order_date: date | None
+    created_at: datetime | None = None
+    corrected: bool = False
 
 
 def _now() -> datetime:
@@ -187,27 +195,7 @@ def compute(
             .group_by(CauselistEntry.case_id)
         ).all()
     }
-    readings: dict[uuid.UUID, _Reading] = {}
-    for row_id, cid, d, source, status, rule, order_date in session.execute(
-        select(
-            NextDate.id,
-            NextDate.case_id,
-            NextDate.next_date,
-            NextDate.source,
-            NextDate.review_status,
-            Order.next_date_rule,
-            Order.order_date,
-        )
-        .outerjoin(Order, Order.id == NextDate.order_id)
-        .where(
-            NextDate.case_id.in_(ids),
-            NextDate.source.in_(ORDER_SOURCES),
-            NextDate.review_status.in_(OPEN_REVIEW),
-        )
-        .ext(distinct_on(NextDate.case_id))
-        .order_by(NextDate.case_id, NextDate.created_at.desc(), NextDate.id.desc())
-    ).all():
-        readings[cid] = _Reading(row_id, d, reading_basis(source, status, rule), order_date)
+    readings = latest_order_candidates(session, ids)
     manual = {
         cid: (row_id, d)
         for row_id, cid, d in session.execute(
@@ -247,6 +235,8 @@ def _merge(
     reading: _Reading | None,
     manual: tuple[uuid.UUID, date] | None,
 ) -> NextHearing | None:
+    """Steps 1 to 5 for one case; `reading` is the latest order's step-2 candidate (a reading or a correction)."""
+
     def after_order(d: date | None) -> bool:
         return d is not None and (o is None or d > o)
 
@@ -254,19 +244,87 @@ def _merge(
     reading_ahead = reading if reading is not None and reading.date >= today else None
     if ahead:
         d = min(ahead)
-        if reading_ahead is not None and reading_ahead.basis in EXACT_BASES and reading_ahead.date != d:
+        if (
+            reading_ahead is not None
+            and not reading_ahead.corrected
+            and reading_ahead.basis in EXACT_BASES
+            and reading_ahead.date != d
+        ):
             return NextHearing(d, NextHearingBasis.COURT, None, reading_ahead.date, reading_ahead.id)
         return NextHearing(d, NextHearingBasis.COURT)
     if reading_ahead is not None:
         return NextHearing(reading_ahead.date, reading_ahead.basis, reading_ahead.id)
-    passed = [d for d in (nhd, listing[1]) if after_order(d) and d < today]
-    if passed:
-        return NextHearing(max(passed), NextHearingBasis.COURT)
-    if reading is not None and reading.order_date is not None and reading.order_date == o:
-        return NextHearing(reading.date, reading.basis, reading.id)
+    # step 3 (row 203, decision 3): the later of the court's passed date and the latest order's passed reading; on a
+    # tie, the court's record. A passed correction is an entered date, never a court-given one.
+    court_passed = max((d for d in (nhd, listing[1]) if after_order(d) and d < today), default=None)
+    reading_passed = (
+        reading if reading is not None and not reading.corrected and reading.date < today else None
+    )
+    if court_passed is not None and (reading_passed is None or court_passed >= reading_passed.date):
+        return NextHearing(court_passed, NextHearingBasis.COURT)
+    if reading_passed is not None:
+        return NextHearing(reading_passed.date, reading_passed.basis, reading_passed.id)
     if manual is not None:
         return NextHearing(manual[1], NextHearingBasis.MANUAL, manual[0])
     return None
+
+
+def latest_order_candidates(session: Session, case_ids: Iterable[Any]) -> dict[uuid.UUID, _Reading]:
+    """Row 203, decision 2: each case's step-2 candidate in one set-based query - the newest (`created_at`, `id`) of
+    the open order readings of orders dated O (the latest `order_date` of the case's orders) and the open `manual`
+    rows linked to an order dated O that are corrections (that order has a `rejected` order reading). Used by
+    `compute` and by `next_dates.reportable_row` (decision 17's row)."""
+    ids = _ids(case_ids)
+    if not ids:
+        return {}
+    latest_order = (
+        select(Order.case_id.label("case_id"), func.max(Order.order_date).label("o"))
+        .where(Order.case_id.in_(ids))
+        .group_by(Order.case_id)
+        .subquery("cand_latest_order")
+    )
+    rejected = aliased(NextDate, name="cand_rejected")
+    corrected_cond = (
+        select(rejected.id)
+        .where(
+            rejected.order_id == NextDate.order_id,
+            rejected.source.in_(ORDER_SOURCES),
+            rejected.review_status == ReviewStatus.REJECTED,
+        )
+        .exists()
+    )
+    base = (
+        select(
+            NextDate.id.label("id"),
+            NextDate.case_id.label("case_id"),
+            NextDate.next_date.label("next_date"),
+            NextDate.source.label("source"),
+            NextDate.review_status.label("review_status"),
+            Order.next_date_rule.label("rule"),
+            Order.order_date.label("order_date"),
+            NextDate.created_at.label("created_at"),
+        )
+        .join(Order, Order.id == NextDate.order_id)
+        .join(
+            latest_order,
+            and_(latest_order.c.case_id == NextDate.case_id, latest_order.c.o == Order.order_date),
+        )
+        .where(NextDate.case_id.in_(ids), NextDate.review_status.in_(OPEN_REVIEW))
+    )
+    readings = base.add_columns(literal(False).label("corrected")).where(NextDate.source.in_(ORDER_SOURCES))
+    corrections = base.add_columns(literal(True).label("corrected")).where(
+        NextDate.source == NextDateSource.MANUAL, corrected_cond
+    )
+    both = union_all(readings, corrections).subquery("cand")
+    out: dict[uuid.UUID, _Reading] = {}
+    for r in session.execute(
+        select(both)
+        .ext(distinct_on(both.c.case_id))
+        .order_by(both.c.case_id, both.c.created_at.desc(), both.c.id.desc())
+    ).all():
+        basis = NextHearingBasis.MANUAL if r.corrected else reading_basis(r.source, r.review_status, r.rule)
+        out[r.case_id] = _Reading(r.id, r.next_date, basis, r.order_date, r.created_at, bool(r.corrected))
+    return out
 
 
 def court_given(session: Session, case: Case | uuid.UUID, *, today: date | None = None) -> bool:
@@ -579,8 +637,11 @@ def refresh_all(
     today: date | None = None,
     case_id: uuid.UUID | None = None,
     page: int = DEFAULT_BATCH,
+    commit: Callable[[], None] | None = None,
 ) -> RefreshResult:
-    """`aslms next-dates hearing-refresh --all | --case`: every live case (keyset pages), or one."""
+    """`aslms next-dates hearing-refresh --all | --case`: every live case (keyset pages), or one. With `commit`
+    (row 203, decision 5) it is called after each page, so a page's case locks are held for that page only and a stop
+    keeps the pages already written; running again finishes the rest."""
     today = today or clock.today_ist()
     total = RefreshResult()
     if case_id is not None:
@@ -599,6 +660,8 @@ def refresh_all(
         part.values = {}
         total.add(part)
         last = ids[-1]
+        if commit is not None:
+            commit()
     return total
 
 
@@ -704,6 +767,17 @@ def outs(
         if order_ids
         else {}
     )
+    corrected = _corrected_orders(
+        session,
+        {
+            rows[v.next_date_id].order_id
+            for v in values.values()
+            if v is not None
+            and v.basis == NextHearingBasis.MANUAL
+            and v.next_date_id in rows
+            and rows[v.next_date_id].order_id is not None
+        },
+    )
     reported = (
         _reported_at(
             session,
@@ -732,6 +806,7 @@ def outs(
             "order": _order_out(order),
             "rule": order.next_date_rule if order is not None else None,
             "differs": None,
+            "corrected": v.basis == NextHearingBasis.MANUAL and row is not None and row.order_id in corrected,
         }
         if v.differs_id is not None:
             drow = rows.get(v.differs_id)
@@ -749,6 +824,25 @@ def outs(
             )
         out[c.id] = item
     return out
+
+
+def _corrected_orders(session: Session, order_ids: set[uuid.UUID]) -> set[uuid.UUID]:
+    """Row 203, decision 1: the orders among these that have a `rejected` order reading. A `manual` value linked to
+    one of them is a correction ("the date read from that order was wrong"); a plain entry for an unclear, dateless
+    or unreadable order is not."""
+    if not order_ids:
+        return set()
+    return set(
+        session.scalars(
+            select(NextDate.order_id)
+            .where(
+                NextDate.order_id.in_(order_ids),
+                NextDate.source.in_(ORDER_SOURCES),
+                NextDate.review_status == ReviewStatus.REJECTED,
+            )
+            .distinct()
+        ).all()
+    )
 
 
 def _reported_at(session: Session, next_date_ids: list[uuid.UUID]) -> dict[uuid.UUID, datetime]:
@@ -816,7 +910,8 @@ def plain(d: date | None) -> str:
 
 def words(out: dict[str, Any] | None) -> str:
     """One plain line for the Assistant and alert texts: "Around 11 Mar 2026 (after 3 weeks, order of 18 Feb 2026)",
-    "25 Nov 2026 (court's records)", "20 Nov 2026 (order of 12 Oct 2026)", "No next hearing known"."""
+    "25 Nov 2026 (court's records)", "20 Nov 2026 (order of 12 Oct 2026)", "20 Nov 2026 (corrected by hand; the order
+    of 12 Oct 2026 was misread)", "No next hearing known"."""
     if not out:
         return "No next hearing known"
     d = out.get("date")
@@ -833,5 +928,7 @@ def words(out: dict[str, Any] | None) -> str:
     if basis in (NextHearingBasis.ORDER.value, NextHearingBasis.CONFIRMED.value):
         return f"{plain(d)} (order of {plain(od)})" if od else f"{plain(d)} (from an order)"
     if basis == NextHearingBasis.MANUAL.value:
+        if out.get("corrected") and od:
+            return f"{plain(d)} (corrected by hand; the order of {plain(od)} was misread)"
         return f"{plain(d)} (entered by hand; the court has given no date)"
     return plain(d)

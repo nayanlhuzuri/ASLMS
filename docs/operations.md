@@ -777,6 +777,18 @@ No court call is made.
 No new setting or environment variable. The Super Administrator's bell shows a reported wrong date; the function
 defaults are in Administration, User Types, under Alerts.
 
+**Running the two repair commands** (row 203, `next-date-direct-followups`): run `aslms next-dates direct --apply`
+and `aslms next-dates hearing-refresh --all` in a quiet window with the worker and scheduler stopped
+(`docker compose stop worker scheduler`; afterwards start them again with the court-data switch carried, as for every
+`up`), as on 29 Oct 2026. Each page of 1,000 cases is committed on its own (and `direct --apply` commits its first
+step before the refresh), so a page holds its case locks for that page only and a stop or failure keeps the pages
+already written; running the command again completes an interrupted run (a refreshed case refreshes to the same
+value, and a second `--apply` finds nothing). The closing audit row (`next_dates.direct_apply`,
+`next_dates.hearing_refresh`) is written at the end. `direct` counts an enter item only when its review event is
+written (the dry run only when it does not exist yet), so the dry run and `--apply` agree. Before an image with a
+changed ranking goes `up`, `docker compose run --rm --no-deps api aslms next-dates hearing-refresh --all --dry-run`
+(writes nothing, calls no court service) shows `would_change` and the counts by basis.
+
 ## 22. Cause-list days nobody asked for
 
 Row 200 (`causelist-day-gap-sweep`, no migration). A day of the collection period (the earliest cause-list day asked

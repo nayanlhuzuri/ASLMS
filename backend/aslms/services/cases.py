@@ -168,12 +168,13 @@ def emit_event(
     *,
     scoped: bool = False,
     actor_user_id: uuid.UUID | None = None,
-) -> None:
-    """One event row, deduplicated by `dedupe_key`. Tracking-card visibility unless `scoped`."""
+) -> bool:
+    """One event row, deduplicated by `dedupe_key`. Tracking-card visibility unless `scoped`. True when the row is
+    written, False when the dedupe key already exists (row 203, decision 5; callers may ignore it)."""
     key = dedupe or f"{kind.value}:{case.id if case else 'system'}:{payload_sha256(payload)[:16]}"
     exists = session.scalar(select(Event.id).where(Event.dedupe_key == key))
     if exists:
-        return
+        return False
     session.add(
         Event(
             case_id=case.id if case else None,
@@ -184,6 +185,7 @@ def emit_event(
             visibility=EventVisibility.SCOPED if scoped else EventVisibility.TRACKING_CARD,
         )
     )
+    return True
 
 
 # ------------------------------------------------------------------------------------------------ dossier

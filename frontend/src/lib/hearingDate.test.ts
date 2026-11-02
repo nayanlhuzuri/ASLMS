@@ -142,6 +142,7 @@ describe("the one next hearing in words", () => {
     order: ORDER,
     rule: "list_after_period",
     differs: null,
+    corrected: false,
   };
 
   it("puts Around first in both sizes, before the band word", () => {
@@ -166,7 +167,17 @@ describe("the one next hearing in words", () => {
     expect(at("order")).toBe("Given in the order of 12 Oct 2026");
     expect(at("confirmed")).toBe("From the order of 12 Oct 2026");
     expect(at("manual", null)).toBe("Entered by hand; the court has given no date");
-    expect(at("manual")).toBe("Corrected by hand: the date read from the order of 12 Oct 2026 was wrong");
+    // design next-date-direct-followups, decision 1: only the server's flag makes a manual date a correction
+    expect(at("manual")).toBe("Entered by hand; the court has given no date");
+    expect(basisLine({ ...around, basis: "manual", order: { ...ORDER, order_date: "2026-10-12" }, corrected: false })).toBe(
+      "Entered by hand; the court has given no date",
+    );
+    expect(basisLine({ ...around, basis: "manual", order: { ...ORDER, order_date: "2026-10-12" }, corrected: true })).toBe(
+      "Corrected by hand: the date read from the order of 12 Oct 2026 was wrong",
+    );
+    expect(basisLine({ ...around, basis: "manual", order: null, corrected: true })).toBe(
+      "Entered by hand; the court has given no date",
+    );
     expect(at("around", ORDER)).toBe("Around 11 Mar 2026 (after 3 weeks, order of 18 Feb 2026)");
     expect(basisLine(null)).toBeNull();
   });

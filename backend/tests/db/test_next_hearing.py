@@ -497,3 +497,175 @@ def test_hearing_refresh_command_dry_run_case_and_all(world, monkeypatch):
         case = s.get(Case, cid)
         assert case.next_hearing_on == h.days(20)
     assert runner.invoke(app, ["next-dates", "hearing-refresh", "--case", "NOSUCH/CASE"]).exit_code != 0
+
+
+# ------------------------------------------------------------------------------------------------ row 203 follow-ups
+# design `next-date-direct-followups`, decisions 2, 3 and 5
+
+REASON = "The order says twenty days; the reading took the wrong line."
+
+
+def _superseded_audits(s, row_id) -> int:
+    return s.scalar(
+        sa.select(sa.func.count())
+        .select_from(AuditLog)
+        .where(AuditLog.action == "next_date.superseded_by_court", AuditLog.entity_id == row_id)
+    )
+
+
+def test_a_correction_stands_where_the_reading_stood(world):
+    from aslms.services import next_dates
+
+    with world.Session() as s:
+        case = make_case(s)
+        h.order_with_text(s, case, f"List this matter on {h.dmy(h.days(15))}.", order_date=h.days(-5))
+        h.read(s)
+        (reading,) = h.rows(s, case)
+        case.next_hearing_date = h.days(-2)  # the court's date after the order, already passed
+        s.flush()
+        assert _value(s, case).basis == NextHearingBasis.ORDER
+        actor, root = world.actor(s, "root")
+        _, entered = next_dates.correct(s, actor, root, reading.id, reason=REASON, next_date=h.days(20))
+        v = _value(s, case)
+        assert (v.date, v.basis, v.next_date_id) == (h.days(20), NextHearingBasis.MANUAL, entered.id)
+        out = next_hearing.next_hearing_out(s, case)
+        assert out["basis"] == "manual" and out["corrected"] is True
+        assert _stored(s, case)[:2] == (h.days(20), "manual")
+        assert h.refreshed(s, entered).review_status == ReviewStatus.NOT_NEEDED  # open
+        assert _superseded_audits(s, entered.id) == 0
+        # the court gives a date ahead: decision 7 replaces the correction, audited
+        case.next_hearing_date = h.days(9)
+        s.flush()
+        next_hearing.refresh(s, [case.id])
+        assert _stored(s, case)[:2] == (h.days(9), "court")
+        assert h.refreshed(s, entered).review_status == ReviewStatus.SUPERSEDED
+        assert _superseded_audits(s, entered.id) == 1
+        s.rollback()
+
+
+def test_a_correction_beats_a_second_open_reading(world):
+    from aslms.services import next_dates
+
+    with world.Session() as s:
+        case = make_case(s)
+        order = h.order_with_text(s, case, f"List this matter on {h.dmy(h.days(15))}.", order_date=h.days(-3))
+        h.read(s)
+        (first,) = h.rows(s, case)
+        # a second reading of the same order, as a `--reread` can leave
+        second = NextDate(
+            case_id=case.id,
+            next_date=h.days(16),
+            source=NextDateSource.ORDER_SPECIFIC,
+            order_id=order.id,
+            review_status=ReviewStatus.NOT_NEEDED,
+        )
+        s.add(second)
+        s.flush()
+        assert _value(s, case).next_date_id == second.id  # the newer reading
+        assert next_dates.reportable_row(s, case).id == second.id
+        actor, root = world.actor(s, "root")
+        _, entered = next_dates.correct(s, actor, root, second.id, reason=REASON, next_date=h.days(21))
+        v = _value(s, case)
+        assert (v.date, v.basis, v.next_date_id) == (h.days(21), NextHearingBasis.MANUAL, entered.id)
+        assert h.refreshed(s, first).review_status == ReviewStatus.NOT_NEEDED  # still open, not the value
+        assert next_dates.reportable_row(s, case) is None  # a correction is not a reading to report
+        assert _superseded_audits(s, entered.id) == 0
+        s.rollback()
+
+
+def test_an_older_orders_reading_is_not_the_latest_orders(world):
+    from aslms.domain.documents import Document, DocumentText, TextStatus
+    from aslms.services import next_dates
+
+    with world.Session() as s:
+        case = h.claimed(s, world)
+        h.order_with_text(
+            s, case, f"List this matter on {h.dmy(h.days(12))}.", order_date=h.days(-10), order_no="1"
+        )
+        h.read(s)
+        assert _value(s, case).basis == NextHearingBasis.ORDER
+        # a newer order whose text is not extracted yet: never a candidate of the reader
+        newer = h.order_with_text(
+            s, case, None, order_date=h.days(-3), order_no="2", text_status=TextStatus.PENDING
+        )
+        h.read(s)
+        assert _value(s, case) is None
+        assert not next_hearing.court_given(s, case)
+        assert next_dates.reportable_row(s, case) is None
+        actor, admin = world.actor(s, "edu_admin")
+        entered = next_dates.enter(s, actor, admin, case, next_date=h.days(30))  # decision 6 allows it
+        assert _stored(s, case)[:2] == (h.days(30), "manual")
+        assert next_hearing.next_hearing_out(s, case)["corrected"] is False
+        # the newer order is read with a date: its date is the value and the entered date is superseded
+        doc = s.get(Document, newer.document_id)
+        doc.text_status = TextStatus.EXTRACTED
+        s.add(
+            DocumentText(
+                document_id=doc.id, full_text=f"List this matter on {h.dmy(h.days(25))}.", page_count=1
+            )
+        )
+        s.flush()
+        h.read(s)
+        assert _stored(s, case)[:2] == (h.days(25), "order")
+        assert h.refreshed(s, entered).review_status == ReviewStatus.SUPERSEDED
+        assert _superseded_audits(s, entered.id) == 1
+        s.rollback()
+
+
+def test_step_3_takes_the_later_passed_date(world):
+    with world.Session() as s:
+        case = make_case(s)
+        h.order_with_text(s, case, f"List this matter on {h.dmy(h.days(10))}.", order_date=h.days(-1))
+        h.read(s)
+        later = h.days(15)  # the reading passed 5 days ago
+        for court, basis, on in (
+            (h.days(5), NextHearingBasis.ORDER, h.days(10)),  # the court's date 10 days ago: the reading wins
+            (h.days(12), NextHearingBasis.COURT, h.days(12)),  # 3 days ago: the court's date wins
+            (h.days(10), NextHearingBasis.COURT, h.days(10)),  # a tie: the court's record
+        ):
+            case.next_hearing_date = court
+            s.flush()
+            v = _value(s, case, later)
+            assert (v.date, v.basis) == (on, basis), court
+        s.rollback()
+
+
+def test_refresh_all_commits_each_page(world, monkeypatch):
+    with world.Session() as s:
+        for n in range(5):
+            make_case(s).next_hearing_date = h.days(20 + n)
+        s.flush()
+        s.execute(sa.update(Case).values(next_hearing_set_at=None))
+        s.commit()
+    with world.Session() as s:
+        live = list(
+            s.scalars(sa.select(Case.id).where(Case.merged_into_case_id.is_(None)).order_by(Case.id)).all()
+        )
+        commits = []
+
+        def commit():
+            commits.append(1)
+            s.commit()
+
+        next_hearing.refresh_all(s, page=2, commit=commit)
+        assert len(live) >= 5 and len(commits) == (len(live) + 1) // 2
+    with world.Session() as s:
+        s.execute(sa.update(Case).values(next_hearing_set_at=None))
+        s.commit()
+    real = next_hearing.refresh
+    calls = {"n": 0}
+
+    def failing(session, ids, **kw):
+        calls["n"] += 1
+        if calls["n"] == 3:
+            raise RuntimeError("stopped on the third page")
+        return real(session, ids, **kw)
+
+    monkeypatch.setattr(next_hearing, "refresh", failing)
+    with world.Session() as s, pytest.raises(RuntimeError):
+        next_hearing.refresh_all(s, page=2, commit=s.commit)
+    with world.Session() as s:
+        written = {
+            cid for cid, at in s.execute(sa.select(Case.id, Case.next_hearing_set_at)).all() if at is not None
+        }
+        assert written == set(live[:4])  # the first two pages stay written

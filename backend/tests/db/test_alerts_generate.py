@@ -231,11 +231,16 @@ def test_hearing_from_cause_list_and_manual_next_date(world):
         )
         pending_review = make_case(s)
         h.claim(s, world, "edu_admin", pending_review)
+        # a reading belongs to the case's latest order (design next-date-direct-followups, decision 2)
+        from tests.db import next_dates_support as nds
+
+        latest = nds.order_with_text(s, pending_review, "List the matter after 2 days.", order_date=d(0))
         s.add(
             NextDate(
                 case_id=pending_review.id,
                 next_date=d(2),
                 source=NextDateSource.ORDER_PERIOD,
+                order_id=latest.id,
                 needs_review=True,
                 review_status=ReviewStatus.PENDING,
             )

@@ -19,7 +19,7 @@ from rich import print as rprint
 
 from aslms.core.config import get_settings
 from aslms.db.session import session_scope
-from aslms.services import next_dates
+from aslms.services import next_dates, next_hearing
 from aslms.services.audit import Actor
 from aslms.services.cases import CaseNotFound, resolve_case_ref
 from aslms.services.workflow_common import WorkflowError
@@ -128,7 +128,14 @@ def direct(
     compute every case's next hearing (superseding manual dates a court-given date outranks) and list the conflicts.
     A second --apply finds nothing."""
     with session_scope() as s:
-        out = next_dates.direct_apply(s, apply=apply, cfg=_config())
+        # row 203, decision 5: --apply commits step 1 and each page of 1,000 cases on its own
+        out = next_dates.direct_apply(
+            s,
+            apply=apply,
+            cfg=_config(),
+            commit=s.commit if apply else None,
+            page=next_hearing.CLI_PAGE,
+        )
         if not apply:
             s.rollback()
     conflicts = out.pop("conflicts")
@@ -155,7 +162,14 @@ def hearing_refresh(
                 target = resolve_case_ref(s, case)
             except CaseNotFound as exc:
                 raise typer.BadParameter(f"no case {case!r}") from exc
-        out = next_dates.hearing_refresh(s, case=target, dry_run=dry_run)
+        # row 203, decision 5: --all commits each page of 1,000 cases on its own
+        out = next_dates.hearing_refresh(
+            s,
+            case=target,
+            dry_run=dry_run,
+            commit=s.commit if all_ and not dry_run else None,
+            page=next_hearing.CLI_PAGE,
+        )
         if dry_run:
             s.rollback()
     rprint(out)

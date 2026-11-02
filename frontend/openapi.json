@@ -19747,6 +19747,12 @@
             "description": "the words of an around date as the order puts them: `after 3 weeks`, `after 15.12.2026`",
             "title": "Basis Words"
           },
+          "corrected": {
+            "default": false,
+            "description": "true for a `manual` date that corrects a misread order: its order has a reading marked wrong; false for a plain entry where the court gave no date and for every other basis",
+            "title": "Corrected",
+            "type": "boolean"
+          },
           "court_date": {
             "anyOf": [
               {
@@ -19925,6 +19931,12 @@
             ],
             "description": "the words of an around date as the order puts them: `after 3 weeks`, `after 15.12.2026`",
             "title": "Basis Words"
+          },
+          "corrected": {
+            "default": false,
+            "description": "true for a `manual` date that corrects a misread order: its order has a reading marked wrong; false for a plain entry where the court gave no date and for every other basis",
+            "title": "Corrected",
+            "type": "boolean"
           },
           "date": {
             "format": "date",

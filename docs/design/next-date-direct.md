@@ -793,3 +793,24 @@ Recorded by the developer while building (28 Oct 2026); the smallest reasonable 
     `next_date_reported:<next_date id>:<n>` (n = 2, 3, ...) for a later report made after the earlier ones were closed
     (kept, corrected or expired). Every lookup of the open report (the 409 `already_reported` check, Correct, Reading Is
     Right, the case page's `reported_at`) matches the reading id in the key's second part, whatever the number.
+
+## Follow-ups (row 203)
+Design `next-date-direct-followups` (approved by the owner on 30 Oct 2026) changes decision 4 steps 2 and 3 and one
+sentence of decision 18; the rest of this note stands.
+
+- **Step 2, the latest order's step.** O is the latest `order_date` among the case's orders (with or without a PDF).
+  The candidate is the newest (`created_at`, `id`) of the open order readings (`not_needed`, `pending`, `confirmed`)
+  of orders dated O and the open `manual` rows linked to an order dated O that are corrections (that order has a
+  `rejected` order reading). Step 2 uses the candidate when its date is today or later: a reading with its own basis,
+  a correction with basis `manual` (`NextHearingOut.corrected` true). A reading of an older order is never step 2 or
+  step 3: when the latest order has no reading yet, the case shows a court date, else an entered date, else none, and
+  entering is allowed. Decision 17's reportable row is the candidate when it is a reading dated today or later. The
+  discrepancy flag reads the candidate only when it is an exact reading.
+- **Step 3.** The later of the court's dates after O and before today and the candidate when it is a reading dated
+  before today; on a tie, the court's record. A passed correction is not a step-3 candidate.
+- **Decision 18, changed sentence.** "The correct date is a `manual` date: decision 4 ranks it below any court record"
+  now reads: the correct date is a `manual` date that stands where the reading it corrects stood (step 2); only a
+  court date ahead after the order outranks it, and decision 7 then replaces it with its audit row; a newer order
+  replaces it through `supersede_older`.
+- `NextHearingOut.corrected` (computed, not stored) tells a correction from a plain entry everywhere the value is
+  shown: the badge's basis line, `next_hearing.words` and the Case Assistant's quick fact.

@@ -44,3 +44,24 @@ def test_reading_basis():
     assert nh.reading_basis("order_period", "confirmed", "list_after_period").value == "confirmed"
     assert nh.reading_basis("order_specific", "not_needed", None).value == "order"
     assert nh.reading_basis("order_period", "not_needed", None).value == "around"
+
+
+def test_words_for_a_correction():
+    """Design `next-date-direct-followups`, decision 1: the server's `corrected` flag gives the corrected wording; a
+    manual date with an order but no flag is a plain entry."""
+    manual = {
+        "date": date(2026, 12, 1),
+        "basis": "manual",
+        "order": {**ORDER, "order_date": date(2026, 10, 12)},
+    }
+    assert nh.words({**manual, "corrected": True}) == (
+        "01 Dec 2026 (corrected by hand; the order of 12 Oct 2026 was misread)"
+    )
+    assert (
+        nh.words({**manual, "corrected": False})
+        == "01 Dec 2026 (entered by hand; the court has given no date)"
+    )
+    assert nh.words(manual) == "01 Dec 2026 (entered by hand; the court has given no date)"
+    assert nh.words({**manual, "corrected": True, "order": None}) == (
+        "01 Dec 2026 (entered by hand; the court has given no date)"
+    )

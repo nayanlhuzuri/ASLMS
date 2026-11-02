@@ -1655,9 +1655,17 @@ def _details_out(session: Session, user: User, c: dict[str, Any], visible: set[u
         return {**_unavailable("case_details"), "label": c.get("label"), "cited": bool(c.get("cited", True))}
     compact = bool(c.get("compact"))
     n = int(c.get("hearings") or 0)
-    rows = src.case_details(session, [case.id], hearings=n, listings=int(c.get("listings") or 0))
-    context = ollama.details_text(rows[0], compact=compact) if rows else None
     case_visible = case.id in visible
+    # design next-date-direct-followups, decision 6: the confirmed tier only in the full form the reader may see now,
+    # so the re-rendered S1 never shows more than the model was given nor more than the reader may see
+    rows = src.case_details(
+        session,
+        [case.id],
+        hearings=n,
+        listings=int(c.get("listings") or 0),
+        open_ids=[case.id] if case_visible and not compact else [],
+    )
+    context = ollama.details_text(rows[0], compact=compact) if rows else None
     return {
         "document_id": None,
         "order_id": None,

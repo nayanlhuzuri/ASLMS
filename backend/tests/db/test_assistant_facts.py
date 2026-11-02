@@ -358,3 +358,71 @@ def test_the_one_next_hearing_given_to_the_model_never_manual(world, case_id, st
     _ask(world, "edu_admin", "what did the court direct on these matters", case_id, conn2)
     sent2 = conn2.fake.chats[0]["messages"][-1]["content"]
     assert manual not in sent2 and "entered by hand" not in sent2
+
+
+def test_confirmed_only_for_the_case_the_asker_may_open(world, case_id, store):
+    """Design `next-date-direct-followups`, decision 6: a reading a person confirmed is a department's record. A
+    court-passage case the asker cannot open gets the court-public Case Details (no confirmed date); the focus case's
+    confirmed date is given; the re-read S1 never shows more than the model was given."""
+    from aslms.services import next_hearing
+    from tests.db import alerts_support as ah
+    from tests.db.world import make_case
+
+    today = clock.today_ist()
+    theirs_on, ours_on = today + timedelta(days=20), today + timedelta(days=8)
+    with world.Session() as s:
+        other = make_case(s, case_no="WP(C)/919/2026")
+        ah.claim(s, world, "health_admin", other)
+        o_other, _ = sup.order(s, store, other, ["The wombat scheme matters shall be listed again."])
+        row = _next_date(s, other, theirs_on, NextDateSource.ORDER_SPECIFIC, order=o_other)
+        _confirm(s, world, row)
+        ours = s.scalar(sa.select(Order).where(Order.case_id == case_id))
+        mine = _next_date(s, s.get(Case, case_id), ours_on, NextDateSource.ORDER_SPECIFIC, order=ours)
+        _confirm(s, world, mine)
+        s.flush()
+        next_hearing.refresh(s, [other.id, case_id])
+        assert s.get(Case, other.id).next_hearing_basis.value == "confirmed"
+        assert s.get(Case, case_id).next_hearing_basis.value == "confirmed"
+        other_id = other.id
+        s.commit()
+    # All court orders: the HEALTH case comes in through its court passage, compact and court-public
+    conn = _conn(world)
+    r = _ask(world, "edu_admin", "wombat scheme", case_id, conn, scope="research")
+    sent = conn.fake.chats[0]["messages"][-1]["content"]
+    assert "WP(C)/919/2026" in sent and "Next hearing: No next hearing known" in sent
+    assert af.plain_date(theirs_on) not in sent
+    out = sup.read(world, "edu_admin", r)
+    (theirs,) = [
+        c
+        for c in out["citations"]
+        if c["source_kind"] == "case_details" and c["case"]["cnr"] == _cnr(world, other_id)
+    ]
+    assert theirs["case"]["visible"] is False
+    assert af.plain_date(theirs_on) not in (theirs["context"] or "")
+    assert "No next hearing known" in theirs["context"]
+    # This case: the focus case's confirmed date is given, and shown again on re-read
+    conn2 = _conn(world)
+    r2 = _ask(world, "edu_admin", "what did the court direct on these matters", case_id, conn2)
+    sent2 = conn2.fake.chats[0]["messages"][-1]["content"]
+    assert f"Next hearing: {af.plain_date(ours_on)} (order of 12 Mar 2026)" in sent2
+    first = sup.read(world, "edu_admin", r2)["citations"][0]
+    assert first["source_kind"] == "case_details" and af.plain_date(ours_on) in first["context"]
+    # a reader who cannot open the case reads it court-public (never more than they may see)
+    with world.Session() as s:
+        msg = s.get(AssistantMessage, r2.answer_id)
+        c = dict(msg.citations[0])
+        detail = svc._details_out(s, world.user(s, "health_admin"), c, set())
+        assert af.plain_date(ours_on) not in (detail["context"] or "")
+
+
+def _cnr(world, case_id):
+    with world.Session() as s:
+        return s.get(Case, case_id).cnr
+
+
+def _confirm(s, world, row):
+    from datetime import UTC, datetime
+
+    reviewer = world.user(s, "edu_admin").id
+    row.reviewed_by_user_id, row.reviewed_at = reviewer, datetime.now(UTC)
+    row.review_status = ReviewStatus.CONFIRMED

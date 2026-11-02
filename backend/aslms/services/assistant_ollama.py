@@ -724,11 +724,18 @@ class OllamaConnector:
         g.court = self._court_sources(s, budget, found.passages, focus_ids)
         if details:
             budget.arm(s)
-            want = ([focus_ids[0]] if focus and focus_ids else []) + [c.case_id for c in g.court if c.case_id]
+            own = [focus_ids[0]] if focus and focus_ids else []
+            want = own + [c.case_id for c in g.court if c.case_id]
+            # design next-date-direct-followups, decision 6: the confirmed tier only for the focus case (the asker's
+            # own scope); every compact case from court passages gets the court-public next hearing
             rows = {
                 d["case_id"]: d
                 for d in src.case_details(
-                    s, list(dict.fromkeys(want)), hearings=self.hearings, listings=self.hearings
+                    s,
+                    list(dict.fromkeys(want)),
+                    hearings=self.hearings,
+                    listings=self.hearings,
+                    open_ids=own,
                 )
             }
             if focus and focus_ids and focus_ids[0] in rows:
