@@ -3198,3 +3198,26 @@ Row 208 `case-inbox-simplify-followups` (design `docs/design/case-inbox-simplify
 - Vitest cases for each decision in `cases-list`, `inbox`, `sort` and `routes` tests.
 
 **Deviations**: none. **Left for later**: nothing new. Deploy: `docker compose build` and restart with the court-data switch carried; no migration. No change to `schema.md`, the Word guides, `operations.md`, `.env.example` or the Process Workflows (no variable, command, table or rule changed).
+
+## Cause-list days nobody asked for: the gap sweep and the catch-up (2026-11-02)
+
+Row 200 `causelist-day-gap-sweep` (design `docs/design/causelist-day-gap-sweep.md`, approved 30 Oct 2026), branch `feature/causelist-day-gap-sweep`. No migration.
+
+**What was built**
+- `services/causelist_gaps.py`: `collection_start`, `missing_days`, `ranges`, `queue_days`, `not_asked`, `run_sweep`, `catch_up`, plus `lane_for` and `plan`. It writes only `fetch_queue`, `job_runs` and (for `--apply`) `audit_log`, and makes no NAPIX call.
+- The nightly `causelist-gap-sweep` at 04:15 IST (`aslms.causelist_gap_sweep`) queues every day from the earliest day asked for by the load or daily lane to yesterday that has no `causelist_day` row. It is idempotent and writes a `job_runs` row.
+- A catch-up (`aslms.lists_catchup`) at every scheduler start and inside the 06:30 and 18:30 list runs, writing a `lists-catchup` row only when it queued a day. This answers the owner's third question: the daily cycle did not catch up after an outage.
+- `queue.PRIORITY["list_catchup"] = 22`; `CAUSELIST_CATCHUP_DAYS` (default 7, 0 to 31) in `core/config.py` and `.env.example`; both jobs added to `job_repair.SCHEDULER_JOBS`.
+- `GET /admin/data-load/overview` gains `not_asked`; the Cause Lists tile shows "Days Not Asked For" with the dates; the Automatic Collection schedule gains the 04:15 entry; `aslms data-load gaps [--apply]` (dry run by default, `--apply` audits `data_load.gaps_queued`); `aslms data-load status` prints the days-not-asked line.
+- Tests: `backend/tests/db/test_causelist_gaps.py` (including the 2 to 5 October reproduction), extensions to the overview, status-line, ops and freshness tests, and Vitest cases in `collection.test.tsx`.
+
+**Decisions and reasons**
+1. The period starts at the earliest load or daily row; request-lane rows are left out so one old date fetched by a person does not stretch it.
+2. A day is "not asked for" only when no row exists at all; the sweep never revives `failed` days (they have the retry ladder) or re-fetches `skipped` ones.
+3. Lane by age: within the window the daily lane at 22 (yesterday, today and tomorrow at 20), older in the load lane at the load priority, so recent lists are not stuck behind the backdated load. This refines the owner's "load lane" proposal; flagged for confirmation.
+4. No nightly cap: load-lane days run only above the rate reserve, so a long gap costs time, not live work.
+5. The days are named in words with dates, not as a fourth progress segment; counted to yesterday only.
+
+**Deviations from the design note** (all in its Deviations section): the catch-up inside the 06:30 / 18:30 runs is in a savepoint; the window is strict (window 0 sends yesterday to the load lane); `not_asked` is null when the start is after yesterday; helpers `lane_for` and `plan` added; several ranges joined with commas; the Word guides' contents page numbers were not checked against a rendered copy (no renderer on that machine).
+
+**Left for later**: a Prometheus metric or alert for days not asked for; the contents page numbers of the two Word guides to be checked at the next regeneration. Deploy: `docker compose build`, then restart `api`, `worker`, `scheduler` and `web` with the court-data switch carried; no migration, no seed. Documents changed: `schema.md` (operations addendum), `operations.md` (section 22), `ASLMS_Process_Workflows.md`, both Word guides, `.env.example`, `CLAUDE.md`, `backlog.md`.

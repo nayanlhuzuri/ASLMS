@@ -489,6 +489,8 @@ function ScheduleCards() {
     const f = e.facts as Record<string, number | null | undefined>;
     if (e.key === "disposed-refresh" && f.eligible !== undefined) return T.dc.scheduleFacts.disposed(n(f.eligible), n(f.due_now));
     if (e.key === "purge" && f.deleted !== undefined && f.deleted !== null) return T.dc.scheduleFacts.purge(n(f.deleted));
+    // design causelist-day-gap-sweep, decision 6: what the 04:15 sweep queued at its last run
+    if (e.key === "day-gaps" && typeof f.queued === "number") return T.dc.scheduleFacts.dayGaps(f.queued);
     return null;
   };
   return (

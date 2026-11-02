@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | Owner | Government of Assam |
-| Describes | The system as built on `main`, 21 October 2026; the court-call slots, renewals, State-plus-department remarks and the no-local-model guard of row 137, 24 October 2026; court data freshness (section 2, items 10 to 12 of section 6) as changed on 24 October 2026; the Case Assistant in preview mode (sections 4.9 and 5), 24 October 2026; and, as built on `main` on 28 October 2026 (rows 135 to 190): the single Case inbox, the Administration hub and Title Case labels, the Office Picker and Filter Layout B, the sixth scoring weight for partial counsel codes (4.1), case numbers on the court's code (2.3), the head of a department chosen from existing logins and a login with no office (3.1), "Assign" in place of "Allot" throughout, the Data Collection tabs (2.5), the next hearing badge (4.5), search and sort on lists (4.2, 4.4), the session timeout (3.3, 5, 6) and the Case Assistant answered by a local model (1, 4.9, 5); and, as built on `main` on 1 November 2026 (rows 173, 206 and 174): the Case inbox in four tabs (4.3), the Problems and Fixes tab and Collect Now requests carried out at once (2.5) |
+| Describes | The system as built on `main`, 21 October 2026; the court-call slots, renewals, State-plus-department remarks and the no-local-model guard of row 137, 24 October 2026; court data freshness (section 2, items 10 to 12 of section 6) as changed on 24 October 2026; the Case Assistant in preview mode (sections 4.9 and 5), 24 October 2026; and, as built on `main` on 28 October 2026 (rows 135 to 190): the single Case inbox, the Administration hub and Title Case labels, the Office Picker and Filter Layout B, the sixth scoring weight for partial counsel codes (4.1), case numbers on the court's code (2.3), the head of a department chosen from existing logins and a login with no office (3.1), "Assign" in place of "Allot" throughout, the Data Collection tabs (2.5), the next hearing badge (4.5), search and sort on lists (4.2, 4.4), the session timeout (3.3, 5, 6) and the Case Assistant answered by a local model (1, 4.9, 5); and, as built on `main` on 1 November 2026 (rows 173, 206 and 174): the Case inbox in four tabs (4.3), the Problems and Fixes tab and Collect Now requests carried out at once (2.5); and, on branch `feature/causelist-day-gap-sweep` (row 200), the nightly check for cause-list days not asked for and the catch-up after an outage (2.2, 2.5) |
 | Readers | The product owner, department and State officials, auditors and anyone asked how ASLMS handles data |
 | Status | Living document: updated when a workflow changes |
 
@@ -185,6 +185,7 @@ NAPIX. All times are Indian Standard Time.
 | 03:00 daily | Duplicates | Finds and merges duplicate case records | No |
 | 02:30 daily | Disposed cases | Queues a full record for each disposed case within a year of its disposal whose last refresh is more than 28 days old, at most 1,000 a night (section 2.4) | Yes |
 | 03:45 daily | Call log purge | Removes call-log rows older than 2 years (section 2.7) | No |
+| 04:15 daily | Days not asked for | Queues every past day of the collection period whose cause list no collection has asked for yet: the last 7 days with the daily cause lists, older days with the historical load (section 2.5) | No (the worker fetches them later) |
 | Saturday 02:00 | Discovery | Searches the court by each department's "search the court" keywords (section 2.5) | Yes |
 | Sunday 02:00 | Weekly sweep | Fetches the full record of every case not yet disposed, and of every case never fully fetched; retries missing orders | Yes |
 | 00:30, 06:30, 12:30, 18:30 | Backups | Database dump and a copy of the document store | No |
@@ -339,6 +340,13 @@ Duplicates tabs are retired; their old addresses lead to Overview or Problems an
   the same) and **Data Gaps** (cases held without details with Collect These, orders not available from the court with
   Try Again, and documents without searchable text). The court's call log, recent quota resets and e-mail figures are
   in the Court Calls section of System Health.
+- **Days not asked for** (row 200): the Cause Lists tile names, with their dates, the days of the collection period
+  that no collection has asked the court for yet ("Days Not Asked For: 4 · 2 Oct to 5 Oct 2026"). The nightly check
+  at 04:15 queues them: a day within the last 7 days with the daily cause lists, an older one with the historical load
+  (so it waits while the load is paused). Days held, days with no list and failed days are never touched; failed days
+  keep their own retries. **After an outage** the daily cycle catches up by itself: when the scheduler starts again it
+  queues the missed recent days and today's and tomorrow's lists at once, and the 06:30 and 18:30 runs fill any recent
+  day still missing. An operator can see the same days with `aslms data-load gaps` and queue them with `--apply`.
 - None of these reads calls NAPIX.
 
 *Status on 2 November 2026, 00:00 IST.* All 671 cause-list days of the collection period are fetched; 83,203 cases are
@@ -347,8 +355,8 @@ held, 83,135 with full details; 200,734 of 389,663 order PDFs are stored and non
 
 *Status on 28 October 2026, 14:15 IST.* All 666 cause-list days of the collection period are fetched. (The four days
 2 to 5 October 2026 had not been queued, because the historical load ended on 1 October and the daily cycle began on 6
-October; they were queued and fetched on 28 October, and a permanent nightly check for such gaps is planned as backlog
-row 200.) The database held 83,205 cases, 83,135 of them with full details. The 70 without are 68 whose CNR the court's
+October; they were queued and fetched on 28 October; the nightly check for such gaps and the catch-up after an outage were
+added by backlog row 200.) The database held 83,205 cases, 83,135 of them with full details. The 70 without are 68 whose CNR the court's
 lookup answers with no case record (all filed 2007 to 2019) and 2 interlocutory applications with no CNR; the owner
 decided on 28 October to leave them as they are. Order PDFs stored: 142,634 of 389,623. The worker was using about 863
 court calls an hour of the 1,000 allowed.
@@ -370,6 +378,7 @@ All court work waits in one queue (`fetch_queue`). Each item has a **priority**,
 | 10 | Court masters |
 | 20 | Cause lists for yesterday, today and tomorrow |
 | 21 | Cause list re-checks |
+| 22 | Cause lists of missed recent days (older than yesterday, within the last 7 days), queued after an outage |
 | 30 | The daily status refresh, and **requests made by people** |
 | 40 | Full records of live cases, and the **order PDFs of a case a person asked for** (a search, a fetch from the court or a claim refresh) |
 | 41–46 | The historical load: cause lists and full records (discovery's records and searches at 41–43) |

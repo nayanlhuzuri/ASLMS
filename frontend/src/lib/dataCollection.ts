@@ -4,11 +4,12 @@
  * computes a figure the API did not send; it only words it.
  */
 import type { components } from "./api/schema";
-import { formatDate, formatDayLongYear, formatMonthYear, formatNumber } from "./format";
+import { dayMonth, formatDate, formatDayLongYear, formatMonthYear, formatNumber } from "./format";
 import { T } from "./messages";
 
 type S = components["schemas"];
 export type DataOverview = S["DataLoadOverviewOut"];
+export type DaysNotAsked = S["DaysNotAskedOut"];
 export type DataPulse = S["DataLoadPulseOut"];
 export type DataSchedule = S["DataLoadScheduleOut"];
 export type EstimateLine = S["EstimateLineOut"];
@@ -122,6 +123,26 @@ export function causeListsLine(o: Pick<DataOverview, "collection" | "position">)
   const month = o.position.working_on_month;
   if (!month) return T.dc.upToDate;
   return o.collection === "paused" ? T.dc.pausedAt(monthName(month)) : T.dc.workingOn(monthName(month));
+}
+
+/** One range of days in words: `2 Oct 2026`, `2 Oct to 5 Oct 2026`, `30 Dec 2025 to 2 Jan 2026`. */
+export function dayRangeText(r: { from: string; to: string; days: number }): string {
+  if (r.days <= 1 || r.from === r.to) return formatDate(r.from);
+  if (r.from.slice(0, 4) === r.to.slice(0, 4)) {
+    const dm = dayMonth(r.from);
+    if (dm) return T.dc.notAskedRange(`${dm.day} ${dm.month}`, formatDate(r.to));
+  }
+  return T.dc.notAskedRange(formatDate(r.from), formatDate(r.to));
+}
+
+/**
+ * The Cause Lists tile's warning (design causelist-day-gap-sweep, decision 6): "Days Not Asked For: 4 · 2 Oct to 5 Oct
+ * 2026", with "and n more ranges" past the 20 the API sends; null when no day is missing.
+ */
+export function notAskedLine(block: DaysNotAsked | null | undefined): string | null {
+  if (!block || block.count <= 0) return null;
+  const ranges = block.ranges.map(dayRangeText).join(", ");
+  return T.dc.notAskedLine(n(block.count), ranges, block.more_ranges);
 }
 
 /** The parts of the Problems line with a count above 0 (decision 16). */

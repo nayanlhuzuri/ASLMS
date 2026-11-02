@@ -148,6 +148,12 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* design causelist-day-gap-sweep, decision 6: the days no collection has asked for, a warning in words */
+.warnLine {
+  color: var(--amber);
+  font-weight: 500;
+}
+
 .info {
   display: inline-grid;
   place-items: center;

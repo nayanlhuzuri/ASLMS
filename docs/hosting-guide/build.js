@@ -132,8 +132,8 @@ function cover() {
     ["Title", "ASLMS Hosting Guide"],
     ["Owner", "Government of Assam"],
     ["Audience", "System administrators of the data centre that hosts ASLMS"],
-    ["Version", "1.1"],
-    ["Date", "28 October 2026"],
+    ["Version", "1.2"],
+    ["Date", "2 November 2026"],
     ["Status", "Draft for review with the data centre"],
     ["Classification", "For official use"],
   ], [2600, CW - 2600], { boldFirst: true });
@@ -173,6 +173,7 @@ function documentControl() {
   add(table(["Version", "Date", "Description"], [
     ["1.0", "27 October 2026", "First issue. Part 1: the one-VM pilot (the plan for the pilot), its preparation on Rocky Linux 9, deployment, Case Assistant, installer, backups, updates and operation. Part 2: full hosting for about 1,000 users and moving from one VM to many, after the pilot is approved."],
     ["1.1", "28 October 2026", "Session time-out (backlog row 169) merged and in service: the session settings in Annexure B no longer carry a condition, and the retired refresh-token setting is removed from the sign-in settings. The local Case Assistant model (backlog row 188) merged and in service: chapter 6 checked against the runbook and `.env.example` (where Ollama runs, the preflight checks, every `ASSISTANT_OLLAMA_*` setting with its default, the `aslms assistant` commands), and the row 188 conditions removed throughout (sections 2.3 and 5, chapter 6, the checklist and Annexures B to D)."],
+    ["1.2", "2 November 2026", "Cause-list days nobody asked for (backlog row 200): the 04:15 sweep added to the scheduled jobs (9.6) and to the runs to keep away from, the catch-up at the scheduler's start, and the setting `CAUSELIST_CATCHUP_DAYS` in Annexure B."],
   ], [1400, 2200, CW - 3600]));
   add(table(["Source in the ASLMS repository (branch main)", "Used for"], [
     ["`docs/operations.md` (the operations runbook)", "Installation, upgrades, backups, restore, certificates, monitoring, PgBouncer, troubleshooting"],
@@ -861,7 +862,7 @@ function s8() {
   ], [2600, 4600, CW - 7200]));
 
   add(H2("8.4 The maintenance window"));
-  add(P("Keep away from the scheduled runs (IST, from `backend/aslms/jobs/celery_app.py` and the backup service): cause lists **06:30 and 18:30**, status refresh **20:00**, masters 06:00, digests 08:00, disposed refresh 02:30, dedupe 03:00, call-log purge 03:45, weekly sweep **Sunday 02:00**, discovery Saturday 02:00, backups 00:30 / 06:30 / 12:30 / 18:30, restore check **Sunday 04:30**."));
+  add(P("Keep away from the scheduled runs (IST, from `backend/aslms/jobs/celery_app.py` and the backup service): cause lists **06:30 and 18:30**, status refresh **20:00**, masters 06:00, digests 08:00, disposed refresh 02:30, dedupe 03:00, call-log purge 03:45, days-not-asked-for sweep 04:15, weekly sweep **Sunday 02:00**, discovery Saturday 02:00, backups 00:30 / 06:30 / 12:30 / 18:30, restore check **Sunday 04:30**."));
   add(REC([
     "Releases with a migration, and reboots: about **21:00–23:00 on a weekday** (the 18:30 and 20:00 work is queued in the database and resumes after the start) or a **Sunday morning after 09:00**. Expected downtime 10–20 minutes.",
     "Patches without a database change at any quiet time. Notify users in advance; silence alerts in Alertmanager for the window; take a VM snapshot first.",
@@ -978,6 +979,7 @@ function s9() {
     ["06:30 and 18:30 daily", "Cause lists (18:30 also re-checks corrected lists)"],
     ["20:00 daily", "Current status of held cases"],
     ["02:30 / 03:00 / 03:45 daily", "Disposed-case refresh / duplicate-case sweep / court-call log purge (older than 2 years)"],
+    ["04:15 daily", "Cause-list days no collection has asked for, queued (the scheduler's start also catches up the last `CAUSELIST_CATCHUP_DAYS` days)"],
     ["08:00 daily", "Daily e-mail digests"],
     ["Sunday 02:00 / Saturday 02:00", "Weekly sweep of cases not fully fetched / department discovery"],
     ["Every 2 minutes", "E-mail notifications; storing search results"],
@@ -1259,7 +1261,7 @@ function annexB() {
     ["Case Assistant", "`ASSISTANT_MODE`, `ASSISTANT_TIMEOUT_SECONDS`, `ASSISTANT_*` limits; `ASSISTANT_OLLAMA_URL`, `ASSISTANT_OLLAMA_MODEL`, `ASSISTANT_OLLAMA_NUM_CTX`, `ASSISTANT_OLLAMA_NUM_PREDICT`, `ASSISTANT_OLLAMA_KEEP_ALIVE`, `ASSISTANT_OLLAMA_TIMEOUT_SECONDS`, `ASSISTANT_OLLAMA_SLOTS`, `ASSISTANT_OLLAMA_SLOT_WAIT_SECONDS`, `ASSISTANT_OLLAMA_SOURCES`, `ASSISTANT_OLLAMA_SOURCE_CHARS`, `ASSISTANT_OLLAMA_HISTORY_TURNS`, `ASSISTANT_OLLAMA_INTERNAL_CHARS`, `ASSISTANT_OLLAMA_HEARINGS`", "Engine and limits; no API key for the local model"],
     ["Mail", "`MAIL_BACKEND`, `MAILTRAP_API_TOKEN` (secret), `MAILTRAP_API_URL`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` (secret), `SMTP_STARTTLS`, `SMTP_FROM`, `SMTP_FROM_NAME`, `MAIL_TIMEOUT_SECONDS`", "The mail relay (mandatory)"],
     ["Portal", "`PORTAL_BASE_URL`, `COOKIE_SECURE`, `RELAY_TIMEOUT_SECONDS`, `ASLMS_SUBNET`, `WEB_IP`", "Address and private network"],
-    ["Alerts, reports, data collection", "`ALERT_*`, `COURT_SITTING_TIME`, `REQUEST_DUE_SOON_DAYS`, `NOTIFY_*`, `REPORT_*`, `DASHBOARD_LIST_SIZE`, `DATA_LOAD_ESTIMATE_WINDOW_DAYS`, `NAPIX_DISCOVERY_SHARE`, `DISCOVERY_FROM_YEAR`, `NEXT_DATE_*`, `DISPOSED_REFRESH_*`, `CAUSELIST_RECHECK_*`, `NAPIX_CALL_LOG_*`", "Behaviour limits; defaults normally kept"],
+    ["Alerts, reports, data collection", "`ALERT_*`, `COURT_SITTING_TIME`, `REQUEST_DUE_SOON_DAYS`, `NOTIFY_*`, `REPORT_*`, `DASHBOARD_LIST_SIZE`, `DATA_LOAD_ESTIMATE_WINDOW_DAYS`, `NAPIX_DISCOVERY_SHARE`, `DISCOVERY_FROM_YEAR`, `NEXT_DATE_*`, `DISPOSED_REFRESH_*`, `CAUSELIST_RECHECK_*`, `CAUSELIST_CATCHUP_DAYS`, `NAPIX_CALL_LOG_*`", "Behaviour limits; defaults normally kept"],
   ], [2200, 4700, CW - 6900]));
 }
 

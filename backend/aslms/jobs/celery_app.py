@@ -22,7 +22,10 @@ the rechecks of held lists (`enqueue_morning_lists`, `enqueue_evening_lists`); `
 monthly dossiers of cases disposed within a year (`job_runs` `disposed-refresh`); `napix-log-purge` (03:45 IST) deletes
 call-log rows older than `NAPIX_CALL_LOG_KEEP_DAYS` (`job_runs` `napix-log-purge`, audit `napix.call_log_purged`).
 `sessions-sweep` (every 5 minutes) ends idle and expired sign-in sessions with one audit row each (design
-session-timeout, decision 12).
+session-timeout, decision 12). Design causelist-day-gap-sweep: `causelist-gap-sweep` (04:15 IST) queues every day of
+the collection period to yesterday that has no cause-list row (`job_runs` `causelist-gap-sweep`, decision 4); at every
+scheduler start `aslms.lists_catchup` queues the missing days from today − `CAUSELIST_CATCHUP_DAYS` to tomorrow
+(`job_runs` `lists-catchup` when it queued a day, decision 5); neither calls NAPIX.
 Run: `celery -A aslms.jobs.celery_app worker -B --concurrency 1` (the Compose `scheduler` service)."""
 
 from __future__ import annotations
@@ -73,6 +76,8 @@ app.conf.update(
             "schedule": crontab(hour=2, minute=30),
         },
         "napix-log-purge": {"task": "aslms.napix_log_purge", "schedule": crontab(hour=3, minute=45)},
+        # design causelist-day-gap-sweep, decision 4: past days no collection has asked for; only enqueues
+        "causelist-gap-sweep": {"task": "aslms.causelist_gap_sweep", "schedule": crontab(hour=4, minute=15)},
         "status-daily": {"task": "aslms.enqueue_daily_status", "schedule": crontab(hour=20, minute=0)},
         "weekly-sweep": {
             "task": "aslms.enqueue_weekly",
@@ -106,7 +111,8 @@ PROCESS_STARTED_AT = datetime.now(UTC)
 @worker_ready.connect
 def on_worker_ready(**_kwargs) -> None:
     """Design deployment-checklist, decisions 5 and 18: in production the scheduler refuses a superuser connection; then
-    its own `job_runs` rows left `running` from before this start are marked failed (`interrupted`)."""
+    its own `job_runs` rows left `running` from before this start are marked failed (`interrupted`); then the daily
+    cycle's catch-up is dispatched once (design causelist-day-gap-sweep, decision 5)."""
     from aslms.services.db_guard import refuse_superuser
     from aslms.services.job_repair import SCHEDULER_JOBS, repair_at_start
 
@@ -116,6 +122,17 @@ def on_worker_ready(**_kwargs) -> None:
         # Celery's signal dispatch would swallow or delay the exit; the refusal is already logged
         os._exit(1)
     repair_at_start(get_sessionmaker(), SCHEDULER_JOBS, PROCESS_STARTED_AT, "scheduler")
+    dispatch_catchup()
+
+
+def dispatch_catchup() -> bool:
+    """Best effort: a broker error is logged and the next 06:30 / 18:30 run catches up."""
+    try:
+        app.send_task("aslms.lists_catchup", retry=False)
+        return True
+    except Exception as exc:  # noqa: BLE001 — never fatal at start-up
+        log.warning("lists catch-up not dispatched at scheduler start: %s", exc.__class__.__name__)
+        return False
 
 
 @app.task(name="aslms.enqueue_masters")
@@ -141,7 +158,7 @@ def enqueue_morning_lists() -> dict[str, int]:
 def enqueue_evening_lists() -> dict[str, int]:
     """18:30 IST: the three list days and the rechecks of today's and tomorrow's held lists."""
     with session_scope() as s:
-        return schedules.enqueue_evening_lists(s)
+        return schedules.enqueue_evening_lists(s, settings=settings)
 
 
 @app.task(name="aslms.enqueue_disposed_refresh")
@@ -149,6 +166,27 @@ def enqueue_disposed_refresh() -> dict[str, int]:
     """02:30 IST: dossier rows for the disposed cases due their monthly refresh; a `job_runs` row `disposed-refresh`."""
     with session_scope() as s:
         return schedules.run_disposed_refresh(s, settings)
+
+
+@app.task(name="aslms.causelist_gap_sweep")
+def causelist_gap_sweep() -> dict:
+    """04:15 IST: every missing cause-list day of the collection period to yesterday queued (recent days in the daily
+    lane, older in the load lane); one `job_runs` row `causelist-gap-sweep`; no audit row, no NAPIX call."""
+    from aslms.services import causelist_gaps
+
+    with session_scope() as s:
+        return causelist_gaps.run_sweep(s, settings, trigger="nightly")
+
+
+@app.task(name="aslms.lists_catchup")
+def lists_catchup() -> dict:
+    """Dispatched once at each scheduler start: the missing days from today − CAUSELIST_CATCHUP_DAYS to tomorrow;
+    `job_runs` `lists-catchup` when a day was queued. No NAPIX call."""
+    from aslms.services import causelist_gaps
+
+    with session_scope() as s:
+        out = causelist_gaps.catch_up(s, settings, trigger="start")
+    return {**out, "from": str(out["from"]), "to": str(out["to"]), "queued": [str(d) for d in out["queued"]]}
 
 
 @app.task(name="aslms.napix_log_purge")

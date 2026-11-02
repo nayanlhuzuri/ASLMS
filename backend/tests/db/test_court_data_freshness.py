@@ -1051,7 +1051,7 @@ def test_evening_and_morning_schedules(clean_db):
     today = date(2026, 10, 23)
     with clean_db() as s:
         out = schedules.enqueue_evening_lists(s, today)
-        assert out == {"days": 3, "rechecks": 2}
+        assert out == {"days": 3, "rechecks": 2, "caught_up": 0}
         rows = s.scalars(
             sa.select(FetchQueueItem).where(FetchQueueItem.kind == FetchKind.CAUSELIST_RECHECK)
         ).all()
@@ -1065,11 +1065,13 @@ def test_evening_and_morning_schedules(clean_db):
         assert schedules.enqueue_morning_lists(s, today, settings(causelist_recheck_morning=True)) == {
             "days": 3,
             "rechecks": 1,
+            "caught_up": 0,
         }
     with clean_db() as s:
         assert schedules.enqueue_morning_lists(s, today, settings(causelist_recheck_morning=False)) == {
             "days": 3,
             "rechecks": 0,
+            "caught_up": 0,
         }
 
 

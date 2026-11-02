@@ -222,9 +222,29 @@ def test_scheduler_worker_ready_repairs(monkeypatch):
     )
     monkeypatch.setattr("aslms.services.db_guard.refuse_superuser", lambda url, is_prod: None)
     monkeypatch.setattr(celery_app, "get_sessionmaker", lambda *a, **k: object())
+    order = []
+    monkeypatch.setattr(celery_app, "dispatch_catchup", lambda: order.append(("catchup", "jobs" in calls)))
     celery_app.on_worker_ready()
     assert calls["jobs"] == job_repair.SCHEDULER_JOBS
+    assert {"causelist-gap-sweep", "lists-catchup"} <= job_repair.SCHEDULER_JOBS
     assert calls["started"] == celery_app.PROCESS_STARTED_AT
+    # design causelist-day-gap-sweep, decision 5: the catch-up is dispatched once, after the repair
+    assert order == [("catchup", True)]
+
+
+def test_scheduler_catchup_dispatch_is_best_effort(monkeypatch):
+    from aslms.jobs import celery_app
+
+    sent = []
+    monkeypatch.setattr(celery_app.app, "send_task", lambda name, **kw: sent.append((name, kw)))
+    assert celery_app.dispatch_catchup() is True
+    assert sent == [("aslms.lists_catchup", {"retry": False})]
+
+    def broken(*a, **k):
+        raise ConnectionError("no broker")
+
+    monkeypatch.setattr(celery_app.app, "send_task", broken)
+    assert celery_app.dispatch_catchup() is False
 
 
 def test_scheduler_worker_ready_exits_on_superuser(monkeypatch):

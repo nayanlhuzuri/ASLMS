@@ -41,6 +41,7 @@ import {
   monthName,
   monthProblems,
   monthTone,
+  notAskedLine,
   POLL,
   PROBLEM_LINKS,
   problemParts,
@@ -190,6 +191,17 @@ function Count({ value }: { value: number }) {
   return <>{formatNumber(useCountUp(value))}</>;
 }
 
+/** Design causelist-day-gap-sweep, decision 6: the days no collection has asked for, named with their dates. */
+function NotAsked({ data }: { data: DataOverview }) {
+  const line = notAskedLine(data.not_asked);
+  if (!line) return null;
+  return (
+    <p className={`${ds.line} ${ds.warnLine}`}>
+      {line} <Info text={T.dc.notAskedTooltip} />
+    </p>
+  );
+}
+
 function CauseListsTile({ data }: { data: DataOverview }) {
   const d = data.days;
   const collected = useCountUp(d?.collected ?? 0);
@@ -197,6 +209,7 @@ function CauseListsTile({ data }: { data: DataOverview }) {
     return (
       <Tile index={0} title={T.dc.causeListsTitle} tooltip={T.dc.causeListsTooltip} big="—">
         <p className={ds.line}>{T.dc.noPeriodNote}</p>
+        <NotAsked data={data} />
       </Tile>
     );
   }
@@ -219,6 +232,7 @@ function CauseListsTile({ data }: { data: DataOverview }) {
         showText={false}
       />
       <p className={ds.line}>{causeListsLine(data)}</p>
+      <NotAsked data={data} />
     </Tile>
   );
 }

@@ -11244,6 +11244,17 @@
             "title": "Napix Enabled",
             "type": "boolean"
           },
+          "not_asked": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DaysNotAskedOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "days of the collection period no collection has asked for; null without a period"
+          },
           "orders": {
             "$ref": "#/components/schemas/DataLoadOrdersOut"
           },
@@ -11538,6 +11549,31 @@
         "title": "DayBucketOut",
         "type": "object"
       },
+      "DayRangeOut": {
+        "properties": {
+          "days": {
+            "title": "Days",
+            "type": "integer"
+          },
+          "from": {
+            "format": "date",
+            "title": "From",
+            "type": "string"
+          },
+          "to": {
+            "format": "date",
+            "title": "To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "days"
+        ],
+        "title": "DayRangeOut",
+        "type": "object"
+      },
       "DayTotalsOut": {
         "properties": {
           "calendar": {
@@ -11574,6 +11610,46 @@
           "not_queued"
         ],
         "title": "DayTotalsOut",
+        "type": "object"
+      },
+      "DaysNotAskedOut": {
+        "description": "Design causelist-day-gap-sweep, decision 6: the days of the collection period (the earliest load or daily-cycle\nday to yesterday) with no cause-list row in any lane; ranges oldest first, at most 20.",
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "from": {
+            "format": "date",
+            "title": "From",
+            "type": "string"
+          },
+          "more_ranges": {
+            "description": "ranges past the 20 shown",
+            "title": "More Ranges",
+            "type": "integer"
+          },
+          "ranges": {
+            "items": {
+              "$ref": "#/components/schemas/DayRangeOut"
+            },
+            "title": "Ranges",
+            "type": "array"
+          },
+          "to": {
+            "format": "date",
+            "title": "To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "count",
+          "ranges",
+          "more_ranges"
+        ],
+        "title": "DaysNotAskedOut",
         "type": "object"
       },
       "DedupeScanOut": {

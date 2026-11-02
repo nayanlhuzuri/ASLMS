@@ -1246,6 +1246,20 @@ const OVERRIDES: [RegExp, Override][] = [
     () => ({ ...(synthFor("/admin/discovery")!.body as Record<string, unknown>), terms: { active: 0, inactive: 0 } }),
   ],
   [/^\/admin\/data-load\/gaps$/, (url) => dataGaps(url)],
+  // design causelist-day-gap-sweep, decision 6: four days no collection asked for, named on the Cause Lists tile
+  [
+    /^\/admin\/data-load\/overview$/,
+    () => ({
+      ...(synthFor("/admin/data-load/overview")!.body as Record<string, unknown>),
+      not_asked: {
+        from: "2025-01-01",
+        to: "2026-10-27",
+        count: 4,
+        ranges: [{ from: "2026-10-02", to: "2026-10-05", days: 4 }],
+        more_ranges: 0,
+      },
+    }),
+  ],
   // design data-collection-redesign, round 3: Collect Now's requests and the day check
   [/^\/admin\/data-load\/requests$/, () => collectRequests()],
   [/^\/admin\/data-load\/requests\/[^/]+$/, (url) => collectRequest(url)],

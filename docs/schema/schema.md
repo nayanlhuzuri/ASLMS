@@ -414,6 +414,8 @@ As built by `alerts-notifications` (migration 0007, 6 Oct 2026): `alerts` gains 
 > As built from deployment-checklist Part A (19 Oct 2026): no table, column or migration. `init` now runs `aslms ops preflight && aslms ops db-guard && aslms db-roles && aslms seed`; migrations are an explicit `migrate` step (`aslms ops migrate`, which takes a pre-migration backup and exits 2 while `aslms_app` is connected). `job_runs.job` gains the free-text values `backup` and `restore_check`; new audit actions `system.migrated` and `system.restored`. `aslms_readonly` is unchanged until row 77 adds `pg_monitor` by migration.
 >
 > As built from deployment-checklist Part B (row 77, `deployment-monitoring`): migration 0020 runs `GRANT pg_monitor TO aslms_readonly` (downgrade: `REVOKE`); no table, column or reference code. The Prometheus postgres exporter and the ASLMS operations exporter (`aslms ops metrics`) connect as `aslms_readonly`; Grafana has no SQL data source.
+>
+> As built from causelist-day-gap-sweep (row 200): no table, column or migration. `job_runs.job` gains the free-text values `causelist-gap-sweep` (the nightly 04:15 IST sweep and `aslms data-load gaps --apply`) and `lists-catchup` (the daily cycle's catch-up at scheduler start and at 06:30 / 18:30, written only when it queued a day). `fetch_queue` priorities gain 22: a `causelist_day` row of the `daily` lane queued by the catch-up for a day older than yesterday within `CAUSELIST_CATCHUP_DAYS`. New audit action `data_load.gaps_queued` (a person's `--apply`; the nightly sweep writes no audit row).
 
 ## Phase 2 and 3 tables
 | Table | Columns (key ones) | Notes |

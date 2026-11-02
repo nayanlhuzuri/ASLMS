@@ -166,6 +166,14 @@ def test_overview_counts_days_cases_and_orders_of_the_period(world, tmp_path):
             "failed": 0,
         }
         assert ov["bulk"] is None and ov["napix_enabled"] is False
+        # design causelist-day-gap-sweep, decision 6: 6 to 9 Jan, which no collection has asked for (to yesterday)
+        assert ov["not_asked"] == {
+            "from": date(2025, 1, 1),
+            "to": date(2025, 1, 9),
+            "count": 4,
+            "ranges": [{"from": date(2025, 1, 6), "to": date(2025, 1, 9), "days": 4}],
+            "more_ranges": 0,
+        }
         s.rollback()
 
 
@@ -674,6 +682,9 @@ def test_overview_pulse_coverage_schedule_write_nothing_and_call_no_napix(world,
         body = r.json()
         assert r.status_code == 200 and body["left"]["order_pdfs"] == 1 and body["collection"] == "running"
         assert body["position"]["working_on_month"] == "2025-01"
+        gap = body["not_asked"]
+        assert gap["from"] == "2025-01-03" and gap["count"] > 0 and gap["more_ranges"] == 0
+        assert gap["ranges"][0]["from"] == "2025-01-04" and gap["ranges"][0]["days"] == gap["count"]
         assert set(body["estimate"]) == {"details", "all", "basis"}
         r = api.get("/admin/data-load/pulse", headers=h)
         assert r.status_code == 200 and {q["kind"] for q in r.json()["queue"]} == {

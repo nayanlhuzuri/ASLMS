@@ -7,6 +7,9 @@
 - 18:30 the same three days, plus a recheck of today's and tomorrow's held lists (priority 21, lane daily): Show
         Cause List only, to catch a corrected list re-issued under the same number (design `court-data-freshness`,
         decisions 7, 8 and 14)
+- 06:30 and 18:30 also catch up the window's older missing days (today − `CAUSELIST_CATCHUP_DAYS` to today − 2;
+        design `causelist-day-gap-sweep`, decision 5); the scheduler's start catches up to tomorrow
+- 04:15 the gap sweep: every day of the collection period to yesterday that no collection has asked for (decision 4)
 - 02:30 a dossier refresh for each disposed case due its monthly refresh in the year after disposal (decision 1)
 - 20:00 Current Status for every non-disposed case, in blocks of 500
 - Sunday 02:00 a dossier re-fetch for every pending case and a first fetch for every case never fully fetched,
@@ -16,6 +19,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
@@ -27,6 +31,8 @@ from aslms.domain.documents import DownloadStatus, Order
 from aslms.domain.ops import FetchKind, FetchLane, JobRun, JobStatus
 from aslms.services import queue
 from aslms.services.tracking import enqueue_status_batches, enqueue_weekly_dossier_sweep
+
+log = logging.getLogger(__name__)
 
 
 def enqueue_masters(session: Session) -> bool:
@@ -83,24 +89,41 @@ def enqueue_rechecks(
     return n
 
 
-def enqueue_evening_lists(session: Session, today: date | None = None) -> dict[str, int]:
-    """18:30 IST: the three list days, then a recheck of today's and tomorrow's held lists (decision 8)."""
+def _catch_up(session: Session, cfg, trigger: str, today: date) -> int:
+    """The window's older missing days after the three days (design `causelist-day-gap-sweep`, decision 5), in a
+    savepoint: a catch-up error is logged and never loses the three days queued before it."""
+    from aslms.services import causelist_gaps
+
+    try:
+        with session.begin_nested():
+            return len(causelist_gaps.catch_up(session, cfg, trigger=trigger, today=today)["queued"])
+    except Exception as exc:  # noqa: BLE001 — the next run and the nightly sweep catch up
+        log.warning("lists catch-up (%s) failed: %s", trigger, exc.__class__.__name__)
+        return 0
+
+
+def enqueue_evening_lists(session: Session, today: date | None = None, settings=None) -> dict[str, int]:
+    """18:30 IST: the three list days, then a recheck of today's and tomorrow's held lists (decision 8), then the
+    catch-up of the window's older missing days (`caught_up`, design `causelist-day-gap-sweep`, decision 5)."""
+    from aslms.core.config import get_settings
+
+    cfg = settings or get_settings()
     today = today or today_ist()
     days = enqueue_daily_lists(session, today)
     rechecks = enqueue_rechecks(session, [today, today + timedelta(days=1)])
-    return {"days": days, "rechecks": rechecks}
+    return {"days": days, "rechecks": rechecks, "caught_up": _catch_up(session, cfg, "evening", today)}
 
 
 def enqueue_morning_lists(session: Session, today: date | None = None, settings=None) -> dict[str, int]:
     """06:30 IST: the three list days, plus a recheck of today's held lists while `CAUSELIST_RECHECK_MORNING` is on
-    (decision 14, owner's answer (a))."""
+    (decision 14, owner's answer (a)), then the catch-up of the window's older missing days (`caught_up`)."""
     from aslms.core.config import get_settings
 
     cfg = settings or get_settings()
     today = today or today_ist()
     days = enqueue_daily_lists(session, today)
     rechecks = enqueue_rechecks(session, [today]) if cfg.causelist_recheck_morning else 0
-    return {"days": days, "rechecks": rechecks}
+    return {"days": days, "rechecks": rechecks, "caught_up": _catch_up(session, cfg, "morning", today)}
 
 
 def run_disposed_refresh(
@@ -189,6 +212,13 @@ PLAIN_SCHEDULE: tuple[dict[str, Any], ...] = (
         "when": "20:00",
         "what": "Check the status of every case that is not disposed",
         "job": None,
+    },
+    {
+        "key": "day-gaps",
+        "beat": "causelist-gap-sweep",
+        "when": "04:15",
+        "what": "Ask the court for past days' cause lists never asked for",
+        "job": "causelist-gap-sweep",
     },
     {
         "key": "disposed-refresh",
@@ -287,6 +317,12 @@ def schedule_view(session: Session, settings=None, now: datetime | None = None) 
             }
         elif run is not None and item["key"] == "purge":
             facts = {"deleted": (run.counters or {}).get("deleted")}
+        elif run is not None and item["key"] == "day-gaps":
+            c = run.counters or {}
+            facts = {
+                "queued": int(c.get("queued_daily") or 0) + int(c.get("queued_load") or 0),
+                "missing": c.get("missing"),
+            }
         elif run is not None and item["key"] == "dedupe":
             facts = {k: v for k, v in (run.counters or {}).items() if isinstance(v, int)}
         entries.append(

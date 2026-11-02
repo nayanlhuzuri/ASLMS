@@ -3584,6 +3584,27 @@ class EstimateAllOut(BaseModel):
     basis: EstimateAllBasisOut
 
 
+class DayRangeOut(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    from_: date = Field(alias="from")
+    to: date
+    days: int
+
+
+class DaysNotAskedOut(BaseModel):
+    """Design causelist-day-gap-sweep, decision 6: the days of the collection period (the earliest load or daily-cycle
+    day to yesterday) with no cause-list row in any lane; ranges oldest first, at most 20."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    from_: date = Field(alias="from")
+    to: date
+    count: int
+    ranges: list[DayRangeOut]
+    more_ranges: int = Field(description="ranges past the 20 shown")
+
+
 class DataLoadOverviewOut(BaseModel):
     as_of: datetime
     napix_enabled: bool
@@ -3600,6 +3621,9 @@ class DataLoadOverviewOut(BaseModel):
     estimate: EstimateAllOut
     bulk: CollectRequestSummaryOut | None = Field(
         None, description="the bulk request using the whole allowance (round 3), or null"
+    )
+    not_asked: DaysNotAskedOut | None = Field(
+        None, description="days of the collection period no collection has asked for; null without a period"
     )
 
 

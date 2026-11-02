@@ -255,3 +255,27 @@ Frontend (Vitest): the Cause Lists tile shows "Days Not Asked For: 4 · 2 Oct to
 
 ## Open questions
 None.
+
+## Deviations
+Recorded by the developer while building (the design was silent; the smallest reasonable option was taken).
+1. **The catch-up inside the 06:30 / 18:30 runs is in a savepoint.** A catch-up error is logged and `caught_up` is 0,
+   so the three current days queued before it in the same transaction are never lost to it.
+   `enqueue_evening_lists` gains an optional `settings` argument (the window), as `enqueue_morning_lists` has.
+2. **The window is strict.** A day is in the daily lane only when it is within `today − CAUSELIST_CATCHUP_DAYS`;
+   yesterday, today and tomorrow take 20 inside it. With the window at 0 every missing past day, yesterday included,
+   goes to the load lane (`test_window_zero_sends_every_gap_to_the_load_lane`), and the scheduler-start catch-up on an
+   empty install puts yesterday in the load lane too.
+3. **`not_asked` is null also when the collection start is after yesterday** (only today's or tomorrow's rows exist):
+   there is no period to yesterday. The sweep's `job_runs` counters then carry `from: null`.
+4. **Helpers beyond the listed signatures:** `lane_for` (decision 3 for one day) and `plan` (the dry run's view: the
+   missing days folded into ranges split by lane, each with its lane and priorities); the sweep's counters also carry
+   `more_ranges`, as the overview block does.
+5. **Several ranges are joined with commas** in `aslms data-load status` ("Days not asked for: 6 (2026-09-02,
+   2026-10-02 to 2026-10-05)") and on the tile ("… · 2 Sep 2026, 2 Oct to 5 Oct 2026"), "and n more ranges" past 20;
+   a range across two years names both years.
+6. **The schedule fact reads "last run queued n days" in lower case**, as the other facts shown in brackets after the
+   entry ("last run removed 0") do.
+7. **The uicheck fixture answers the overview with four days not asked for** (an override of the synthetic body), so
+   the screen check renders the warning line.
+8. **The Word guides' contents page numbers were not checked against a rendered copy** (no renderer on this machine):
+   one row was added to Annexure A of the software documentation and to 9.6 of the hosting guide.

@@ -2719,6 +2719,12 @@ export const T = {
     workingOn: (month: string) => `Working on ${month}`,
     pausedAt: (month: string) => `Paused at ${month}`,
     upToDate: "Up to Date",
+    // design causelist-day-gap-sweep, decision 6: the days of the collection period no collection has asked for
+    notAskedLine: (count: string, ranges: string, more: number) =>
+      `Days Not Asked For: ${count} · ${ranges}${more > 0 ? ` and ${more} more ${more === 1 ? "range" : "ranges"}` : ""}`,
+    notAskedRange: (from: string, to: string) => `${from} to ${to}`,
+    notAskedTooltip:
+      "Days in the collection period that no collection has asked the court for yet. The nightly sweep at 04:15 asks for them.",
     casesTitle: "Cases",
     casesBig: (n: string) => `${n} found`,
     casesTooltip: "Every case held, not counting merged duplicates, and how many have their details from the court.",
@@ -2939,6 +2945,7 @@ export const T = {
     scheduleFacts: {
       disposed: (eligible: string, due: string) => `${eligible} in their first year, ${due} due now`,
       purge: (n: string) => `last run removed ${n}`,
+      dayGaps: (n: number) => `last run queued ${n} ${n === 1 ? "day" : "days"}`,
     },
     dailyTitle: "Daily Updates, Last 7 Days",
     dailyStatus: { done: "Done", waiting: "Waiting", failed: "Failed", none: "No List Published" } as Record<string, string>,

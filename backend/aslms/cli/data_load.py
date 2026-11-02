@@ -1,7 +1,8 @@
 """`aslms data-load status | coverage | start | pause | resume | order | pdfs-after-details | dedupe | collect |
-stop` (design `data-load-console`, decision 20; `pdfs-after-details`: case details before order PDFs, owner 24 Oct
-2026; `collect` and `stop`: Collect Now's all cases listed on a day and Stop Using Everything, design
-`data-collection-redesign`, round 3).
+stop | gaps` (design `data-load-console`, decision 20; `pdfs-after-details`: case details before order PDFs, owner 24
+Oct 2026; `collect` and `stop`: Collect Now's all cases listed on a day and Stop Using Everything, design
+`data-collection-redesign`, round 3; `gaps`: the cause-list days no collection has asked for, design
+`causelist-day-gap-sweep`, decision 7).
 Every action acts as the single active super admin through its super-admin membership (the `system`
 actor before one exists) and is audited, as the API's actions are. `status` and `coverage` read only."""
 
@@ -74,6 +75,15 @@ def _estimate_line(label: str, line: dict) -> str:
     return f"{label}: about {at:%a %d %b %Y %H:%M} IST ({_n(line['calls_needed'])} calls)"
 
 
+def not_asked_line(block: dict | None) -> str:
+    """Design causelist-day-gap-sweep, decision 6: "Days not asked for: 4 (2026-10-02 to 2026-10-05)" or "none"."""
+    if not block or not block["count"]:
+        return "Days not asked for: none"
+    parts = [str(r["from"]) if r["days"] == 1 else f"{r['from']} to {r['to']}" for r in block["ranges"]]
+    more = f" and {block['more_ranges']} more ranges" if block.get("more_ranges") else ""
+    return f"Days not asked for: {_n(block['count'])} ({', '.join(parts)}{more})"
+
+
 def status_lines(ov: dict) -> list[str]:
     """The headline and the two estimate lines of the Overview (design data-collection-redesign, Services round 1)."""
     lines = [
@@ -86,6 +96,8 @@ def status_lines(ov: dict) -> list[str]:
         lines.append(
             f"Cause lists: {_n(d['collected'])} of {_n(d['calendar'])} days ({_n(d['failed'])} failed)"
         )
+    if ov["days"] is not None or ov.get("not_asked") is not None:
+        lines.append(not_asked_line(ov.get("not_asked")))
     c, o, left = ov["cases"], ov["orders"], ov["left"]
     lines.append(
         f"Cases: {_n(c['found'])} found, {_n(c['with_details'])} with details, {_n(c['without_details'])} without"
@@ -339,3 +351,39 @@ def stop_request(request_id: str = typer.Argument(..., help="the request id (its
         except REFUSED as exc:
             raise _refused(exc) from exc
     rprint(f"request {out['request_id']} stopped: {out['moved']} row(s) back to the normal turn")
+
+
+@data_load_app.command("gaps")
+def gaps(
+    apply: bool = typer.Option(
+        False, "--apply", help="queue the days now (without it: a dry run, nothing written)"
+    ),
+) -> None:
+    """The cause-list days of the collection period (the earliest load or daily-cycle day to yesterday) that no
+    collection has asked for, folded into ranges with the lane each would take (design causelist-day-gap-sweep,
+    decision 7). A dry run by default; `--apply` runs the nightly sweep now, with its `job_runs` row and one audit row
+    `data_load.gaps_queued`. No court call."""
+    from aslms.services import access, causelist_gaps
+
+    settings = get_settings()
+    with session_scope() as s:
+        p = causelist_gaps.plan(s, settings)
+        if p["from"] is None:
+            print("No collection period yet: no load or daily-cycle cause-list day has been asked for")
+        else:
+            print(f"Collection period: {p['from']} to {p['to']}")
+        print("Days not asked for: " + (f"{p['missing']:,}" if p["missing"] else "none"))
+        for r in p["ranges"]:
+            span = str(r["from"]) if r["days"] == 1 else f"{r['from']} to {r['to']}"
+            pr = "/".join(str(x) for x in r["priorities"])
+            print(
+                f"  {span} ({r['days']} day{'s' if r['days'] != 1 else ''}): {r['lane']} lane, priority {pr}"
+            )
+        if p["paused"] and p["would_queue_load"]:
+            print("The collection is paused: load-lane days wait until it is resumed")
+        if not apply:
+            print("Dry run: nothing written (--apply queues them)")
+            return
+        actor, member = _cli_actor(s)
+        out = causelist_gaps.run_sweep(s, settings, trigger="cli", actor=access.actor_as(actor, member))
+    print(f"Queued: {out['queued_daily']} in the daily lane, {out['queued_load']} in the load lane")

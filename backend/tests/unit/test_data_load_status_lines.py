@@ -71,3 +71,32 @@ def test_status_lines_not_started_with_connection_off_and_nothing_left():
     assert "Cause lists and case details: done" in lines
     assert "Every order PDF as well: no date: the court connection is off" in lines
     assert lines[-1] == "Pace: about 0 court calls an hour"
+
+
+def test_status_lines_name_the_days_not_asked_for():
+    """Design causelist-day-gap-sweep, decision 6: the line after the cause-list line, "none" when empty."""
+    block = {
+        "from": "2026-09-25",
+        "to": "2026-10-27",
+        "count": 4,
+        "ranges": [{"from": "2026-10-02", "to": "2026-10-05", "days": 4}],
+        "more_ranges": 0,
+    }
+    lines = status_lines(_overview(not_asked=block))
+    i = lines.index("Cause lists: 306 of 664 days (2 failed)")
+    assert lines[i + 1] == "Days not asked for: 4 (2026-10-02 to 2026-10-05)"
+    block = {**block, "count": 0, "ranges": []}
+    assert "Days not asked for: none" in status_lines(_overview(not_asked=block))
+    assert "Days not asked for: none" in status_lines(_overview(not_asked=None))
+    many = {
+        **block,
+        "count": 23,
+        "ranges": [{"from": "2026-10-02", "to": "2026-10-02", "days": 1}] * 20,
+        "more_ranges": 3,
+    }
+    line = status_lines(_overview(not_asked=many))[i + 1]
+    assert line.startswith("Days not asked for: 23 (2026-10-02, 2026-10-02") and line.endswith(
+        " and 3 more ranges)"
+    )
+    # no period at all: no cause-list line and no gap line
+    assert not any(x.startswith("Days not asked") for x in status_lines(_overview(days=None, not_asked=None)))

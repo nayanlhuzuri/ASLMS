@@ -228,6 +228,9 @@ class Settings(BaseSettings):
     # also rechecks today's lists while CAUSELIST_RECHECK_MORNING is on (owner's answer (a), 21 Oct 2026)
     causelist_recheck_fresh_minutes: int = Field(180, ge=30, le=720)
     causelist_recheck_morning: bool = True
+    # design causelist-day-gap-sweep, decision 3: a missing cause-list day within this many days goes to the daily lane
+    # (priority 22; yesterday to tomorrow at 20), an older one to the load lane; the catch-up's window (decision 5)
+    causelist_catchup_days: int = Field(7, ge=0, le=31)
     # napix_call_log retention (owner decision 12): rows older than KEEP_DAYS IST days are deleted nightly in batches
     napix_call_log_keep_days: int = Field(730, ge=365, le=3650)
     napix_call_log_purge_batch: int = Field(5000, ge=500, le=50_000)

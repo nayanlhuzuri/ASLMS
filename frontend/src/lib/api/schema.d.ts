@@ -8417,6 +8417,8 @@ export interface components {
             left: components["schemas"]["StillToFetchOut"];
             /** Napix Enabled */
             napix_enabled: boolean;
+            /** @description days of the collection period no collection has asked for; null without a period */
+            not_asked?: components["schemas"]["DaysNotAskedOut"] | null;
             orders: components["schemas"]["DataLoadOrdersOut"];
             period: components["schemas"]["LoadPeriodOut"] | null;
             position: components["schemas"]["LoadPositionOut"];
@@ -8501,6 +8503,21 @@ export interface components {
             /** Failed */
             failed: number;
         };
+        /** DayRangeOut */
+        DayRangeOut: {
+            /** Days */
+            days: number;
+            /**
+             * From
+             * Format: date
+             */
+            from: string;
+            /**
+             * To
+             * Format: date
+             */
+            to: string;
+        };
         /** DayTotalsOut */
         DayTotalsOut: {
             /** Calendar */
@@ -8515,6 +8532,32 @@ export interface components {
             waiting: number;
             /** With Lists */
             with_lists: number;
+        };
+        /**
+         * DaysNotAskedOut
+         * @description Design causelist-day-gap-sweep, decision 6: the days of the collection period (the earliest load or daily-cycle
+         *     day to yesterday) with no cause-list row in any lane; ranges oldest first, at most 20.
+         */
+        DaysNotAskedOut: {
+            /** Count */
+            count: number;
+            /**
+             * From
+             * Format: date
+             */
+            from: string;
+            /**
+             * More Ranges
+             * @description ranges past the 20 shown
+             */
+            more_ranges: number;
+            /** Ranges */
+            ranges: components["schemas"]["DayRangeOut"][];
+            /**
+             * To
+             * Format: date
+             */
+            to: string;
         };
         /** DedupeScanOut */
         DedupeScanOut: {

@@ -32,12 +32,14 @@ spawns. `claim` skips `load` rows while the current `data_load_settings` version
 carries the person who asked for its pending run in `requested_by` (design `napix-window`, decision 10).
 
 Priorities (lower runs first): a person's "now" requests 3 (one case) and 5 (bulk), outside the reserve bands
-(design `data-collection-redesign`, decision 24); masters 10; yesterday's, today's and tomorrow's lists 20; the evening rechecks of held
-lists 21; status batches and a person's requests 30; the daily cycle's new dossiers and a person's order PDFs 40; the
-backdated load 41-46 by the preset and the period brought forward, and discovery 41-43 (`services/load_policy.py`);
-the weekly dossier sweep 50; the monthly dossiers of cases disposed within a year 55 (design `court-data-freshness`,
-decision 2); live-case order PDFs of the daily, load and discovery lanes 60, after every detail kind (owner, 24 Oct
-2026: case details first, order PDFs later); disposed-case order PDFs 80."""
+(design `data-collection-redesign`, decision 24); masters 10; yesterday's, today's and tomorrow's lists 20; the
+evening rechecks of held lists 21; a missing day older than yesterday within `CAUSELIST_CATCHUP_DAYS`, queued by the
+catch-up or the gap sweep, 22 (design `causelist-day-gap-sweep`, decision 3); status batches and a person's requests
+30; the daily cycle's new dossiers and a person's order PDFs 40; the backdated load 41-46 by the preset and the period
+brought forward, and discovery 41-43 (`services/load_policy.py`); the weekly dossier sweep 50; the monthly dossiers of
+cases disposed within a year 55 (design `court-data-freshness`, decision 2); live-case order PDFs of the daily, load
+and discovery lanes 60, after every detail kind (owner, 24 Oct 2026: case details first, order PDFs later);
+disposed-case order PDFs 80."""
 
 from __future__ import annotations
 
@@ -58,6 +60,7 @@ PRIORITY = {
     "masters": 10,
     "list_today": 20,
     "list_recheck": 21,
+    "list_catchup": 22,
     "status": 30,
     "request": 30,
     "dossier_new": 40,

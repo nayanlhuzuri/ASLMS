@@ -31,6 +31,8 @@ SCHEDULER_JOBS = frozenset(
         "next_dates_read",
         "disposed-refresh",  # design court-data-freshness
         "napix-log-purge",
+        "causelist-gap-sweep",  # design causelist-day-gap-sweep, decisions 4 and 5
+        "lists-catchup",
     }
 )
 # `aslms ops backup-scheduler` (services/backups.py)

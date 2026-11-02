@@ -777,6 +777,32 @@ No court call is made.
 No new setting or environment variable. The Super Administrator's bell shows a reported wrong date; the function
 defaults are in Administration, User Types, under Alerts.
 
+## 22. Cause-list days nobody asked for
+
+Row 200 (`causelist-day-gap-sweep`, no migration). A day of the collection period (the earliest cause-list day asked
+for by the backdated load or the daily cycle, to yesterday) that has no cause-list row in any lane is a day "not asked
+for"; it happens when the backdated load ends before the daily cycle's first run, or the machine is off for days.
+
+- **Nightly sweep, 04:15 IST** (`causelist-gap-sweep` beat entry): queues every such day. A day within the last
+  `CAUSELIST_CATCHUP_DAYS` days (default 7, 0 to 31) goes to the daily lane (priority 22; yesterday at 20), an older
+  one to the load lane at the load's priority (41-46), so it runs in the calls left above the rate reserve and waits
+  while the load is paused. Done, no-list, waiting and failed days are never touched (failed days keep their retry
+  ladder and the Retry buttons on Problems and Fixes). One `job_runs` row `causelist-gap-sweep` a night; no audit row.
+- **Catch-up after an outage**: each time the `scheduler` starts it queues the missing days from today −
+  `CAUSELIST_CATCHUP_DAYS` to tomorrow at once (so today's and tomorrow's lists do not wait for 18:30), and the 06:30
+  and 18:30 runs also fill the window's older missing days. A `job_runs` row `lists-catchup` is written only when a day
+  was queued.
+- **See it**: the Overview's Cause Lists tile says "Days Not Asked For: n" with the dates, and `docker compose exec api
+  aslms data-load status` prints "Days not asked for: ..." after the cause-list line. The Automatic Collection
+  schedule shows the 04:15 entry with its last run.
+- **By hand**: `docker compose exec api aslms data-load gaps` is a dry run (the period, the days in ranges and the lane
+  each would take; writes nothing); `--apply` runs the sweep now, with its `job_runs` row and one audit row
+  `data_load.gaps_queued`. None of these calls the court; the worker fetches the rows as usual when the court-data
+  switch is on.
+
+Check after a deploy: `select job, status, counters from job_runs where job in ('lists-catchup','causelist-gap-sweep')
+order by started_at desc limit 5`.
+
 ## Pilot go-live checklist
 
 - [ ] Rows 76, 16, 77 and 78 merged.

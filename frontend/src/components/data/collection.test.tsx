@@ -9,7 +9,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import type { Coverage, DataLoad, Permission } from "@/lib/api/types";
-import { DC_KEYS, POLL, type DataOverview, type DataPulse, type DataSchedule } from "@/lib/dataCollection";
+import { DC_KEYS, notAskedLine, POLL, type DataOverview, type DataPulse, type DataSchedule } from "@/lib/dataCollection";
 import { formatNumber as f } from "@/lib/format";
 import { nav as navState, resetNav } from "@/test/nav";
 import { browserApi, expectDataTable, json, makeMe, primaryActions, renderWithClient } from "@/test/render";
@@ -114,6 +114,7 @@ const OVERVIEW = {
     },
   },
   bulk: null,
+  not_asked: { from: "2025-01-01", to: "2026-10-25", count: 0, ranges: [], more_ranges: 0 },
 } as DataOverview;
 
 const PULSE: DataPulse = {
@@ -175,6 +176,14 @@ const SCHEDULE: DataSchedule = {
       last_run_at: "2026-10-26T02:30:00+05:30",
       result: "succeeded",
       facts: { eligible: 1234, due_now: 56 },
+    },
+    {
+      key: "day-gaps",
+      when: "04:15",
+      what: "Ask the court for past days' cause lists never asked for",
+      last_run_at: "2026-10-26T04:15:00+05:30",
+      result: "succeeded",
+      facts: { queued: 4, missing: 4 },
     },
     {
       key: "purge",
@@ -292,6 +301,29 @@ describe("Overview (data-collection-redesign, decisions 14-21)", () => {
     expect(within(left).getByText(`267 cause-list days · 33 case details · ${f(182929)} order PDFs`)).toBeInTheDocument();
     // every tile says what it measures
     expect(within(lists).getByRole("img", { name: /Calendar days from the start/ })).toBeInTheDocument();
+  });
+
+  it("names the days not asked for under Cause Lists only when there are any (causelist-day-gap-sweep)", async () => {
+    overviewRoutes(READER);
+    const { unmount } = renderWithClient(<Overview />);
+    let lists = await screen.findByRole("article", { name: "Cause Lists" });
+    expect(within(lists).getByText("306 of 664 days")).toBeInTheDocument();
+    expect(within(lists).queryByText(/Days Not Asked For/)).toBeNull();
+    unmount();
+    const four = { from: "2025-01-01", to: "2026-10-25", count: 4, ranges: [{ from: "2026-10-02", to: "2026-10-05", days: 4 }], more_ranges: 0 };
+    overviewRoutes(READER, { "GET /admin/data-load/overview": { ...OVERVIEW, not_asked: four } });
+    const second = renderWithClient(<Overview />);
+    lists = await screen.findByRole("article", { name: "Cause Lists" });
+    expect(within(lists).getByText("306 of 664 days")).toBeInTheDocument();
+    expect(within(lists).getByText(/^Days Not Asked For: 4 · 2 Oct to 5 Oct 2026/)).toBeInTheDocument();
+    expect(within(lists).getByRole("img", { name: /The nightly sweep at 04:15 asks for them/ })).toBeInTheDocument();
+    second.unmount();
+    // no past-months period, but the daily cycle's days have a gap: shown under the no-period note
+    overviewRoutes(READER, { "GET /admin/data-load/overview": { ...OVERVIEW, days: null, period: null, not_asked: four } });
+    renderWithClient(<Overview />);
+    lists = await screen.findByRole("article", { name: "Cause Lists" });
+    expect(within(lists).getByText("No past-months collection has been started.")).toBeInTheDocument();
+    expect(within(lists).getByText(/^Days Not Asked For: 4/)).toBeInTheDocument();
   });
 
   it("opens the Waiting Work table by lane in plain words", async () => {
@@ -536,6 +568,11 @@ describe("Automatic Collection (data-collection-redesign, decisions 34-41)", () 
       within(schedule).getByText(`Refresh cases disposed in the last year, monthly (${f(1234)} in their first year, 56 due now)`),
     ).toBeInTheDocument();
     expect(within(schedule).getByText("Remove court call records older than 2 years (last run removed 0)")).toBeInTheDocument();
+    // design causelist-day-gap-sweep, decision 6: the 04:15 sweep with its last run and what it queued
+    expect(within(schedule).getByText("04:15")).toBeInTheDocument();
+    expect(
+      within(schedule).getByText("Ask the court for past days' cause lists never asked for (last run queued 4 days)"),
+    ).toBeInTheDocument();
     expect(within(schedule).getAllByText("Not Recorded")).toHaveLength(2);
     const daily = screen.getByRole("table", { name: "Daily Updates, Last 7 Days" });
     expect(within(daily).getByText("No List Published")).toBeInTheDocument();
@@ -788,5 +825,32 @@ describe("the Data Collection frame", () => {
     );
     await screen.findByText("body");
     expect((container.firstElementChild as HTMLElement).className).toBe("stack");
+  });
+});
+
+// ------------------------------------------------------------------------------------------------ days not asked for
+
+describe("notAskedLine (causelist-day-gap-sweep, decision 6)", () => {
+  const one = (from: string, to: string, days: number) => ({ from, to, days });
+  it("is null when no day is missing", () => {
+    expect(notAskedLine(null)).toBeNull();
+    expect(notAskedLine({ from: "2026-10-01", to: "2026-10-27", count: 0, ranges: [], more_ranges: 0 })).toBeNull();
+  });
+  it("names single days, ranges in one year and ranges across years", () => {
+    const line = notAskedLine({
+      from: "2025-12-01",
+      to: "2026-10-27",
+      count: 9,
+      ranges: [one("2025-12-30", "2026-01-02", 4), one("2026-03-04", "2026-03-04", 1), one("2026-10-02", "2026-10-05", 4)],
+      more_ranges: 0,
+    });
+    expect(line).toBe("Days Not Asked For: 9 · 30 Dec 2025 to 2 Jan 2026, 4 Mar 2026, 2 Oct to 5 Oct 2026");
+  });
+  it("says how many more ranges there are past the 20 shown", () => {
+    const ranges = Array.from({ length: 20 }, (_, i) => one(`2026-09-${String(i + 1).padStart(2, "0")}`, `2026-09-${String(i + 1).padStart(2, "0")}`, 1));
+    const line = notAskedLine({ from: "2026-09-01", to: "2026-10-27", count: 23, ranges, more_ranges: 3 })!;
+    expect(line.startsWith("Days Not Asked For: 23 · 1 Sep 2026, 2 Sep 2026")).toBe(true);
+    expect(line.endsWith(" and 3 more ranges")).toBe(true);
+    expect(notAskedLine({ from: "2026-09-01", to: "2026-10-27", count: 21, ranges, more_ranges: 1 })!.endsWith(" and 1 more range")).toBe(true);
   });
 });

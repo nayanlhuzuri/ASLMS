@@ -1414,7 +1414,10 @@ def overview(session: Session, cfg: Settings, now: datetime | None = None) -> di
     report statement timeout. `days` counts the calendar days of the load period up to today (any lane: the daily
     cycle collects the recent ones); `cases` every case held; `orders` every order known, and `in_period` those dated
     inside the period; `left` the work in every lane; `bulk` is the bulk request using the whole allowance, or None
-    (round 3, `services/collect.py`)."""
+    (round 3, `services/collect.py`); `not_asked` the days of the collection period to yesterday that no collection
+    has asked for, exactly what the next gap sweep queues (design `causelist-day-gap-sweep`, decision 6)."""
+    from aslms.services import causelist_gaps
+
     now = _now(now)
     today = today_ist(now)
     with_timeout(session, cfg.report_statement_timeout_seconds)
@@ -1445,6 +1448,7 @@ def overview(session: Session, cfg: Settings, now: datetime | None = None) -> di
         "problems": problem_counts(session, work, cases, orders),
         "estimate": estimate_all(session, settings, cfg, now),
         "bulk": collect.active_bulk_summary(session, cfg, now),
+        "not_asked": causelist_gaps.not_asked(session, today=today),
     }
 
 
