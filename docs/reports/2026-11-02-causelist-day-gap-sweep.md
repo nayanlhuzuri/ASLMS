@@ -35,3 +35,12 @@ See the final return of the integrator: `main` and the tag are pushed fast-forwa
 
 ## Load status (`aslms queue-status`)
 dossier: 63,918 done, 19,265 pending, 43 skipped; order_pdf: 200,734 done, 188,929 pending; status_batch: 2,017 done, 6 skipped; masters 1 done; causelist_recheck 7 skipped.
+
+## Deployed
+Deployed 2 Nov 2026 at 14:42 IST, after CI on `main` passed (run 41414656425: policy, backend, frontend, compose). No
+migration and no `.env` change (`CAUSELIST_CATCHUP_DAYS` defaults to 7). Images built from the clean `main` checkout at
+5d6fc77; `docker compose --profile monitoring up -d --wait` with the court-data switch on recreated the app services,
+then `api`, `worker`, `scheduler` and `web` once more with `--no-deps --force-recreate`; court data on in `api` and
+`worker`; the running `web` has the image's build ID; `portal_smoke.py` passed. The scheduler started the catch-up
+(`trigger start`, 26 Oct to 3 Nov 2026, nothing to queue) and lists `aslms.causelist_gap_sweep`; `aslms data-load gaps`
+(dry run): collection period 2025-01-01 to 2026-11-01, days not asked for: none.
