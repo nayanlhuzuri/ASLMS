@@ -29,3 +29,23 @@ None.
 
 ## Load status
 `aslms queue-status` timed out at 120 s and was not read; see the load status in the console.
+
+## Deployed
+Deployed 2 Nov 2026 at 23:17 IST. CI on `main` (run 41484115549) first failed on one timing test,
+`tests/unit/test_next_date_rules.py::test_hostile_text_reads_quickly` (1.13 s against its 1.0 s limit on the shared
+runner; 3,111 passed). Row 203 does not touch the rules module or that test, and it passes locally in 0.21 s, so only
+the failed job was re-run: attempt 2 passed every job. No migration. Images built from the clean `main` checkout at
+a6ab5cc; `docker compose --profile monitoring up -d --wait` with the court-data switch on recreated the app services,
+then `api`, `worker`, `scheduler` and `web` once more with `--no-deps --force-recreate`; court data on in `api` and
+`worker`; the running `web` has the image's build ID; `portal_smoke.py` passed.
+
+Verification 3 (runbook section 21), at 23:18 to 23:21 IST:
+- `aslms next-dates status` before: order 530, confirmed 1, none 64,560, court 17,662, around 529; flagged (order
+  differs) 243.
+- `hearing-refresh --all --dry-run`: 83,282 cases, `would_change` 83 (none 64,589, court 17,662, order 502, around
+  528, confirmed 1).
+- `docker compose stop worker scheduler`, then `hearing-refresh --all`: refreshed 83,282, changed 83, differs cleared
+  54, differs set 0, manual superseded 0, skipped locked 0.
+- Status after: order 502, confirmed 1, none 64,589, court 17,662, around 528; flagged 189.
+- `worker` and `scheduler` started again with the court-data switch on (both healthy; court data on in `api` and
+  `worker`).
