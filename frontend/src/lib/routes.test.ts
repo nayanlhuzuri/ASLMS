@@ -30,6 +30,7 @@ import {
   OLD_FILES_REDIRECTS,
   OLD_INBOX_REDIRECTS,
   OLD_TAB_REDIRECTS,
+  myCasesTarget,
   oldInboxTarget,
   PEOPLE_ADMIN_FUNCTIONS,
 } from "./routes";
@@ -226,6 +227,10 @@ describe("Files, My calendar and Alerts navigation (portal-files-alerts; portal-
       ["/inbox/working", {}, "/inbox/my-cases"],
       ["/inbox/claimed-by-me", { q: "x" }, "/inbox/my-cases?q=x"],
       ["/inbox/disposed", { case_state: "disposed" }, "/inbox/my-cases?case_state=disposed"],
+      // design case-inbox-simplify-followups, decision 3: an overdue filter lands on With Me's overdue list
+      ["/inbox/claimed-by-me", { action: "overdue", q: "ram" }, "/inbox/with-me?q=ram&overdue=true"],
+      ["/inbox/disposed", { overdue: "true" }, "/inbox/with-me?overdue=true"],
+      ["/inbox/claimed-by-me", { action: "due_week", q: "x" }, "/inbox/my-cases?q=x"],
       ["/inbox/pending", { overdue: "true", owner: "EDU" }, "/inbox/department?action=overdue&department=EDU"],
       ["/inbox/pending", { owner: "EDU", department: "FIN" }, "/inbox/department?owner=EDU&department=FIN"],
       ["/inbox/pending", { holder_department: "HEALTH" }, "/inbox/department?holder_department=HEALTH"],
@@ -243,6 +248,11 @@ describe("Files, My calendar and Alerts navigation (portal-files-alerts; portal-
       ["/inbox/transfers", {}, "/claim/transfers"],
     ];
     for (const [from, params, to] of cases) expect(oldInboxTarget(from, params), `${from} ${JSON.stringify(params)}`).toBe(to);
+  });
+
+  it("myCasesTarget sends an overdue filter to With Me's overdue list (case-inbox-simplify-followups, decision 3)", () => {
+    expect(myCasesTarget({})).toBe("/inbox/my-cases");
+    expect(myCasesTarget({ action: "overdue" })).toBe("/inbox/with-me?overdue=true");
   });
 
   it("no redirect target is itself a redirect source", () => {

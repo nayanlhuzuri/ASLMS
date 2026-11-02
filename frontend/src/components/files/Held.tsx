@@ -213,7 +213,9 @@ export function Held({ tab, params, department }: { tab: "with-me" | "pending"; 
             onRowClick={setOpen}
             rowLabel={(r) => T.files.openFile(r.case.case_no_text || r.case.ref_no)}
             empty={
-              caseFiltersSet(params, listKey, own.filter((c) => c.kind !== "segmented").map((c) => c.key)) ? (
+              // design case-inbox-simplify-followups, decision 2: the tracker's Overdue chip counts as a filter
+              caseFiltersSet(params, listKey, own.filter((c) => c.kind !== "segmented").map((c) => c.key)) ||
+              (scope === "owned" && overdue) ? (
                 <NoCaseMatches params={params} list={listKey} />
               ) : (
                 <EmptyState>{EMPTY[scope]}</EmptyState>

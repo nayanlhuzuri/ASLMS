@@ -225,4 +225,12 @@ describe("the address (decisions 5 and 35)", () => {
       offset: undefined,
     });
   });
+
+  it("Clear All on the tracker's Department list keeps the department (case-inbox-simplify-followups, decision 1)", () => {
+    expect(clearAllUpdates({ department: "FIN", action: "overdue", q: "ram", offset: "50" }, "held_owned")).toEqual({
+      action: undefined,
+      q: undefined,
+      offset: undefined,
+    });
+  });
 });

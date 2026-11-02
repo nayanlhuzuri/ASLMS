@@ -120,7 +120,8 @@ export const LIST_FILTERS: Record<ListKey, ListFilters> = {
   pool: { fields: [...ALL_CASE, "scored_for"], fixed: ["department"], legacy: { status: "case_status" } },
   transfers: { fields: [...ALL_CASE, "other_office"], fixed: ["department", "direction"] },
   held: { fields: [...ALL_CASE, "owner"], fixed: [] },
-  held_owned: { fields: [...ALL_CASE, "owner"], fixed: [] },
+  // design case-inbox-simplify-followups, decision 1: the tracker's Department list keeps its department across Clear All
+  held_owned: { fields: [...ALL_CASE, "owner"], fixed: ["department"] },
   // design case-inbox-simplify, decision 6: Show Earlier is the list's view, kept by Clear All
   sent: { fields: [...ALL_CASE, "owner"], fixed: ["earlier"] },
   alerts: { fields: [...ALL_CASE, "owner"], fixed: [] },

@@ -480,11 +480,21 @@ function without(params: Params, keys: string[]): Params {
   return Object.fromEntries(Object.entries(params).filter(([k]) => !keys.includes(k)));
 }
 
+/** A My-Cases-bound old address: With Me's overdue list for `overdue=true` or `action=overdue` (My Cases has no
+ *  overdue filter, case-inbox-simplify decision 4), else My Cases; `overdue` and `action` are dropped either way
+ *  (design case-inbox-simplify-followups, decision 3). */
+export function myCasesTarget(params: Params): string {
+  const overdue = params.overdue === "true" || params.action === "overdue";
+  const rest = without(params, ["overdue", "action"]);
+  return overdue ? "/inbox/with-me" + queryString({ ...rest, overdue: "true" }) : "/inbox/my-cases" + queryString(rest);
+}
+
 /**
  * Where an old Case inbox, Files or Cases address lands, in one hop with the query string (design case-inbox-simplify,
  * decision 15):
  * - `/inbox/working`: With Me for `held=me|offices` or `overdue=true` / `action=overdue` (With My Offices kept as
  *   `held=offices`, overdue as `overdue=true`), otherwise My Cases without `held`, `overdue` and `action`;
+ * - `/inbox/claimed-by-me` and `/inbox/disposed`: `myCasesTarget` (With Me's overdue list for an overdue filter);
  * - `/inbox/pending`, `/files/department` and `/cases/pending`: Department, `overdue=true` read as `action=overdue`
  *   and `owner=X` as `department=X` when no `department` is given;
  * - the rest from the fixed maps. A `case_state` is kept in the URL and ignored by the tabs.
@@ -499,6 +509,7 @@ export function oldInboxTarget(path: string, params: Params): string {
     }
     return "/inbox/my-cases" + queryString(without(params, ["held", "overdue", "action"]));
   }
+  if (path === "/inbox/claimed-by-me" || path === "/inbox/disposed") return myCasesTarget(params);
   if (OLD_DEPARTMENT_SOURCES.has(path)) {
     let next: Params = { ...params };
     if (next.overdue !== undefined) {

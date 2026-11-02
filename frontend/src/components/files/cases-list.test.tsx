@@ -234,6 +234,18 @@ describe("the custody lists of the Case inbox (case-workspace-admin, decisions 1
     await waitFor(() => expect(api.calls.some((c) => c.path.includes("overdue=true"))).toBe(true));
   });
 
+  it("the tracker's Overdue counts as a filter; With Me's empty state with no filter is unchanged (case-inbox-simplify-followups, decision 2)", async () => {
+    resetNav("/inbox/department");
+    browserApi({ "GET /custody/held": held([]), "GET /custody/recipients": DEPTS });
+    const { unmount } = renderWithClient(<Held tab="pending" params={{ action: "overdue" }} />);
+    expect(await screen.findByText("No cases match these filters.")).toBeInTheDocument();
+    expect(screen.queryByText("No case of your department is waiting on someone.")).toBeNull();
+    unmount();
+    renderWithClient(<Held tab="with-me" params={{}} />);
+    expect(await screen.findByText("No case is with you.")).toBeInTheDocument();
+    expect(screen.queryByText("No cases match these filters.")).toBeNull();
+  });
+
   it("a 403 on Pending action says tracking is not among the functions", async () => {
     browserApi({
       "GET /custody/held": json(403, { detail: { code: "forbidden", message: "custody.track needed" } }),

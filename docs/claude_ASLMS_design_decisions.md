@@ -3186,3 +3186,15 @@ Row 207 `close-case` (design `docs/design/close-case.md`, approved 30 Oct 2026 w
 - Developer deviations (design note, Deviations 1 to 11): the cause-list fetch uses `requeue=True` so a done row runs again; two extra foreign-key indexes; the trigger also lets the two snapshot user keys go NULL; the manual reopen alert expires with informational workflow alerts; Send Case moves into More Actions while Ready to Close so the page keeps one primary; route gates return 403 before the 404; the Department tab reads `case_status` as a hidden shared filter; the list tests sit in `test_close_case_lists.py` and `test_api_close_case.py`; enum codes appended; the remark link uses an anchor named by the note reference; the portal sends `closure=open` for Open.
 
 **Left for later**: archiving or retention after closure (policy owner); a State-wide closed count on the State dashboard and reports. Deploy: apply 0035 with the `migrate` step, then `init` (seed), then `docker compose build` with the court-data switch carried. Documents changed: `docs/ASLMS_Process_Workflows.md` (closing and reopening, section 4.3). No change to `operations.md`, `.env.example` or the Word guides (no variable, command or deploy step beyond the usual migrate).
+
+## Case Inbox follow-ups: three advisories of row 206 (2026-11-02)
+
+Row 208 `case-inbox-simplify-followups` (design `docs/design/case-inbox-simplify-followups.md`), branch `feature/case-inbox-simplify-followups`. Frontend only, no migration.
+
+**What was built**
+- Decision 1: Clear All on the tracker-only Department list keeps `department` fixed (`held_owned` in `frontend/src/lib/filters.ts`), so the list no longer switches to the first tracked department.
+- Decision 2: the tracker's Overdue chip (`action=overdue`, or an old `overdue=true`) counts as an active filter in `Held.tsx`, so an empty result shows the no-matches state with Clear All.
+- Decision 3: old My-Cases-bound addresses carrying an overdue filter (`/inbox/claimed-by-me`, `/inbox/disposed`, and the My Cases target of `ClaimedRedirect`) now land on With Me's overdue list through `myCasesTarget` in `routes.ts`, as `/inbox/working` already did.
+- Vitest cases for each decision in `cases-list`, `inbox`, `sort` and `routes` tests.
+
+**Deviations**: none. **Left for later**: nothing new. Deploy: `docker compose build` and restart with the court-data switch carried; no migration. No change to `schema.md`, the Word guides, `operations.md`, `.env.example` or the Process Workflows (no variable, command, table or rule changed).

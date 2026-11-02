@@ -6,7 +6,8 @@
  * decision 3, the old Cases list addresses, design case-inbox-merge, decision 12, and the six-tab inbox's addresses,
  * design case-inbox-simplify, decision 15, all through `oldInboxTarget`). `/inbox/recommended`, `/inbox/pool` and
  * `/inbox/transfers` go to Case claim; `/inbox/claimed` goes to Department when the API says `whole_department`, else to
- * My Cases; `/inbox` opens the first tab the login may open (`InboxIndex`).
+ * My Cases (With Me's overdue list for an overdue link, `myCasesTarget`); `/inbox` opens the first tab the login may
+ * open (`InboxIndex`).
  */
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
@@ -15,7 +16,7 @@ import { Loading } from "@/components/ui";
 import { useInboxCounts, useMe } from "@/lib/api/hooks";
 import { can } from "@/lib/can";
 import { queryString, type Params } from "@/lib/params";
-import { oldInboxTarget, redirectTarget } from "@/lib/routes";
+import { myCasesTarget, oldInboxTarget, redirectTarget } from "@/lib/routes";
 
 export { redirectTarget };
 
@@ -49,9 +50,11 @@ export function ClaimedRedirect({ params }: { params: Params }) {
     const whole = wanted
       ? can(me.data, "cases.view_all") || blocks.some((b) => b.office_code === wanted && b.whole_department)
       : can(me.data, "cases.view_all") || blocks.some((b) => b.whole_department);
-    target = (whole ? "/inbox/department" : "/inbox/my-cases") + queryString(params);
+    // design case-inbox-simplify-followups, decision 3: My Cases has no overdue filter, so an overdue link of a
+    // non-whole reader lands on With Me's overdue list; Department honours `action`
+    target = whole ? "/inbox/department" + queryString(params) : myCasesTarget(params);
   } else if (me.error) {
-    target = "/inbox/my-cases" + queryString(params);
+    target = myCasesTarget(params);
   }
   useReplace(target);
   return <Loading />;

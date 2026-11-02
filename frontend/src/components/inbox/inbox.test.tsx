@@ -598,6 +598,30 @@ describe("Department (decisions 9 to 14)", () => {
     await waitFor(() => expect(lastUrl(api.calls, "/custody/held?")).toContain("overdue=true"));
     expect(screen.getByRole("button", { name: "Tracking Summary" })).toBeInTheDocument();
   });
+
+  // design case-inbox-simplify-followups, decisions 1 and 2
+  it("Clear All on the tracker's list keeps the department", async () => {
+    browserApi(routes({ "GET /me": trackerOnly(), "GET /inbox/counts": NOT_WHOLE, "GET /custody/held": { items: [], total: 0 } }));
+    renderWithClient(<InboxFrame tab="department" params={{ department: "EDU", action: "overdue" }} />);
+    const none = await screen.findByText("No cases match these filters.");
+    expect(screen.queryByText("No case of your department is waiting on someone.")).toBeNull();
+    const box = none.closest<HTMLElement>("[data-ui='no-matches']")!;
+    await userEvent.click(within(box).getByRole("button", { name: "Clear All" }));
+    expect(nav.replace).toHaveBeenLastCalledWith("/inbox/department?department=EDU");
+  });
+
+  it("an old overdue=true on the tracker's list also counts", async () => {
+    browserApi(routes({ "GET /me": trackerOnly(), "GET /inbox/counts": NOT_WHOLE, "GET /custody/held": { items: [], total: 0 } }));
+    renderWithClient(<InboxFrame tab="department" params={{ department: "EDU", overdue: "true" }} />);
+    expect(await screen.findByText("No cases match these filters.")).toBeInTheDocument();
+  });
+
+  it("action=due_week is not a filter on the tracker's list", async () => {
+    browserApi(routes({ "GET /me": trackerOnly(), "GET /inbox/counts": NOT_WHOLE, "GET /custody/held": { items: [], total: 0 } }));
+    renderWithClient(<InboxFrame tab="department" params={{ department: "EDU", action: "due_week" }} />);
+    expect(await screen.findByText("No case of your department is waiting on someone.")).toBeInTheDocument();
+    expect(screen.queryByText("No cases match these filters.")).toBeNull();
+  });
 });
 
 describe("old addresses (decision 15)", () => {
@@ -624,6 +648,7 @@ describe("old addresses (decision 15)", () => {
     ["/inbox/working", { q: "ram" }, "/inbox/my-cases?q=ram"],
     ["/inbox/claimed-by-me", {}, "/inbox/my-cases"],
     ["/inbox/disposed", { q: "x" }, "/inbox/my-cases?q=x"],
+    ["/inbox/claimed-by-me", { action: "overdue" }, "/inbox/with-me?overdue=true"],
     ["/inbox/pending", { overdue: "true", owner: "EDU" }, "/inbox/department?action=overdue&department=EDU"],
     ["/cases/pending", {}, "/inbox/department"],
     ["/cases/with-me", {}, "/inbox/with-me"],
@@ -646,6 +671,19 @@ describe("old addresses (decision 15)", () => {
     browserApi(routes({ "GET /me": officer(), "GET /inbox/counts": NOT_WHOLE }));
     renderWithClient(<ClaimedRedirect params={{}} />);
     await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/inbox/my-cases"));
+  });
+
+  // design case-inbox-simplify-followups, decision 3
+  it("/inbox/claimed with action=overdue goes to With Me's overdue list for an officer", async () => {
+    browserApi(routes({ "GET /me": officer(), "GET /inbox/counts": NOT_WHOLE }));
+    renderWithClient(<ClaimedRedirect params={{ action: "overdue" }} />);
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/inbox/with-me?overdue=true"));
+  });
+
+  it("/inbox/claimed with action=overdue keeps it on Department for a whole-department reader", async () => {
+    browserApi(routes());
+    renderWithClient(<ClaimedRedirect params={{ department: "EDU", action: "overdue" }} />);
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/inbox/department?department=EDU&action=overdue"));
   });
 });
 
