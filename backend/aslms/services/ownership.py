@@ -843,10 +843,19 @@ def _apply_allot(
     return row
 
 
+def _refuse_closed_case(session: Session, case: Case) -> None:
+    """Design close-case, decision 8: a closed case does not change hands (409 `case_closed`)."""
+    from aslms.services import case_closure
+
+    if case_closure.is_closed(session, case):
+        raise OwnershipConflict("case_closed", case_closure.CASE_CLOSED_MESSAGE)
+
+
 def _check_allot(
     session: Session, actor_user: User, case: Case, *, office_code: str | None = None
 ) -> tuple[Member, Office, CaseOwnership]:
     access.require(session, actor_user, Permission.CASES_ALLOT)
+    _refuse_closed_case(session, case)
     member, dept = acting_member(
         session,
         actor_user,
@@ -890,6 +899,7 @@ def _check_take_over(
     """`office_code` (design `portal-cases-followups`, decision 2) names the caller's department whose row is
     taken over; without it the first membership holding the function with an active row of its department."""
     access.require(session, actor_user, Permission.CASES_TAKE_OVER)
+    _refuse_closed_case(session, case)
     taker: Member | None = None
     if office_code:
         named = _department_office(session, _own_department(session, actor_user, office_code))
@@ -1074,6 +1084,7 @@ def _check_request_transfer(
     `portal-cases-followups`, decision 3: a caller with a membership in the primary owner's department acts for
     it; otherwise the department is resolved as for any case action (a watcher then gets `not_primary`)."""
     access.require(session, actor_user, Permission.CASES_TRANSFER_REQUEST)
+    _refuse_closed_case(session, case)
     primary = next((r for r in _active_rows(session, case) if r.role == OwnershipRole.PRIMARY), None)
     primary_dept = _office(session, primary.office_id) if primary is not None else None
     mine = access.member_in_department(session, actor_user, primary_dept)

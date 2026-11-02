@@ -78,6 +78,10 @@ class NoteKind(enum.StrEnum):
     CORRECTION = "correction"  # retired by custody-workflow: a correction carries the original's kind
     OPINION = "opinion"
     HAND_OVER = "hand_over"
+    CLOSING = "closing"  # the closing remark, written only by Close Case (design close-case, decision 5)
+    REOPENING = (
+        "reopening"  # the reopening remark, written only by Reopen Case (design close-case, decision 18)
+    )
 
 
 class DocType(enum.StrEnum):
@@ -167,6 +171,10 @@ class EventType(enum.StrEnum):
         "listing_changed"  # a corrected cause list moved, added or removed the case (court-data-freshness)
     )
     NEXT_DATE_DIFFERS = "next_date_differs"  # an exact order date differs from the court's record (next-date-direct, decision 5)
+    CASE_CLOSED = "case_closed"  # a department closed a disposed case (close-case, decision 7)
+    CASE_REOPENED = (
+        "case_reopened"  # a closed case reopened, automatically or by hand (close-case, decision 12)
+    )
 
 
 class Permission(enum.StrEnum):
@@ -240,6 +248,9 @@ class Permission(enum.StrEnum):
     # assistant and audit
     ASSISTANT_USE = "assistant.use"
     AUDIT_VIEW = "audit.view"
+    # closing and reopening a case (design close-case, decision 2; appended so earlier sort orders stay)
+    CASES_CLOSE = "cases.close"
+    CASES_REOPEN = "cases.reopen"
 
     @property
     def module(self) -> str:
@@ -354,6 +365,9 @@ REF_TABLES: dict[str, tuple[type, type[enum.Enum]]] = {
 # `is_active = false` and disables the matrix rows of retired functions; access ignores them (design
 # `custody-workflow`, decisions 15 and 22).
 RETIRED_CODES: dict[str, frozenset[str]] = {
+    "ref_case_stage": frozenset(
+        {Stage.CLOSED.value}
+    ),  # retired from Set Stage by design close-case, decision 9
     "ref_note_kind": frozenset({NoteKind.CORRECTION.value}),
     "ref_alert_kind": frozenset({AlertKind.REQUEST_DUE.value}),
     "ref_event_type": frozenset({EventType.REQUEST_SENT.value, EventType.REQUEST_ANSWERED.value}),

@@ -158,10 +158,11 @@ function numberFor(key: string, idx: number): number {
   return 1.5 + idx;
 }
 
-const FALSE_FLAG = /archived|revoked|provisional|merged|deleted|disabled|truncated|stale|^must_|failed|error|is_reportable|has_legal_heir|overdue|napix_enabled|paused|current$/;
+// design close-case: an ordinary case is open (`closed`), and Close Case / Reopen Case are offered only by a state's fixture
+const FALSE_FLAG = /archived|revoked|provisional|merged|deleted|disabled|truncated|stale|^must_|failed|error|is_reportable|has_legal_heir|overdue|napix_enabled|paused|current$|^closed$|^close$|^reopen$/;
 
 /** Nullable fields left null: an ordinary record is not merged, superseded, withdrawn, revoked or archived. */
-const NULL_KEY = /merged_into|superseded_by|supersedes|withdrawn|revoked|archived|deleted|closed_at|disposal|decided_|reason_for_rej|end_reason|valid_to|error$|last_error/;
+const NULL_KEY = /merged_into|superseded_by|supersedes|withdrawn|revoked|archived|deleted|closed_at|disposal|decided_|reason_for_rej|end_reason|valid_to|error$|last_error|^closure$|^close_as$|_blocked$/;
 
 export interface SynthOptions {
   /** Items per list (the first is the stress row). */

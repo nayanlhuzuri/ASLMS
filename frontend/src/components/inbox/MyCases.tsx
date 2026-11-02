@@ -9,6 +9,9 @@
  * (the pending action and due date of a case with me) and a chevron; a row opens the case page by click or Enter. The
  * filter bar: the quick chip Hearing This Week, Stage, and the shared filters with Search Words on the first row;
  * "n cases", or "n of m cases" when filtered, m being the `all` figure of `/inbox/mine/counts`.
+ * Open / Closed (design close-case, decision 16): the switch's Open (the default, no URL key) sends `closure=open` and
+ * Closed (`closure=closed`, a fixed key Clear All keeps) lists the closed cases, newest closure first; m is `all_open`
+ * or `all_closed`. A disposed open row carries "Ready to Close", a closed row "Closed".
  */
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
@@ -25,7 +28,7 @@ import { casePath } from "@/lib/refs";
 
 import { useFilters } from "./common";
 import s from "./inbox.module.css";
-import { ActionCell, CaseCell, Chevron, CountLine, StageCell } from "./rows";
+import { ActionCell, CaseCell, Chevron, ClosureSwitch, CountLine, ClosureBadge, StageCell } from "./rows";
 import { NoCaseMatches } from "@/components/filters/NoCaseMatches";
 
 /** The stage choices: any, "No stage set" (`none`) and the catalogue's stages. */
@@ -67,9 +70,11 @@ export function MyCases({ params, counts }: { params: Params; counts: MyCaseCoun
   const setFilters = useFilters(params);
   const stages = useStageOptions();
   const offset = offsetOf(params);
+  const closure = params.closure === "closed" ? "closed" : "open";
   // no `case_state` and no `action`: there is no status switch, and overdue work is With Me's
   const query = {
     view: "all",
+    closure,
     stage: params.stage || undefined,
     ...toApiQuery(params, "mine"),
     limit: PAGE,
@@ -85,20 +90,32 @@ export function MyCases({ params, counts }: { params: Params; counts: MyCaseCoun
     { key: "case", header: T.inbox.case, primary: true, cell: (r) => <CaseCell c={r.case} /> },
     { key: "reason", header: T.inbox.reasonCol, cell: (r) => <ReasonBadges reasons={r.reasons} /> },
     { key: "stage", header: T.inbox.stage, cell: (r) => <StageCell stage={r.stage} /> },
-    { key: "next", header: T.inbox.nextHearingCol, cell: (r) => <HearingDate next={r.case.next_hearing} status={r.case.status} /> },
+    { key: "next", header: T.inbox.nextHearingCol, cell: (r) => (
+        <span className={s.nextCell}>
+          <HearingDate next={r.case.next_hearing} status={r.case.status} />
+          <ClosureBadge c={r.case} />
+        </span>
+      ) },
     { key: "action", header: T.inbox.yourAction, cell: (r) => <ActionCell custody={r.custody?.with_me ? r.custody : null} /> },
     { key: "open", header: <span className="visually-hidden">{T.inbox.actions}</span>, hideOnPhone: true, width: "var(--s6)", cell: () => <Chevron /> },
   ];
   return (
     <section className="stack" aria-label={T.tabs.inbox.mine}>
-      <ChipGroup label={T.inbox.quick}>
-        <Chip on={weekOn} onClick={() => setFilters({ next: weekOn ? undefined : "n7", next_from: undefined, next_to: undefined })}>
-          {T.inbox.hearingWeek}
-        </Chip>
-      </ChipGroup>
+      <div className={s.switchRow}>
+        <ClosureSwitch value={closure} onChange={(v) => setFilters({ closure: v === "closed" ? "closed" : undefined })} />
+        <ChipGroup label={T.inbox.quick}>
+          <Chip on={weekOn} onClick={() => setFilters({ next: weekOn ? undefined : "n7", next_from: undefined, next_to: undefined })}>
+            {T.inbox.hearingWeek}
+          </Chip>
+        </ChipGroup>
+      </div>
       <FilterBar list="mine" params={params} own={own} />
       <div className={s.toolbar}>
-        <CountLine total={list.data?.total} of={counts?.all} filtered={isFiltered(params, MINE_KEYS)} />
+        <CountLine
+          total={list.data?.total}
+          of={closure === "closed" ? counts?.all_closed : counts?.all_open}
+          filtered={isFiltered(params, MINE_KEYS)}
+        />
       </div>
       <ErrorBanner error={list.error} onRetry={() => list.refetch()} />
       {list.isPending ? <Loading /> : null}
@@ -115,7 +132,9 @@ export function MyCases({ params, counts }: { params: Params; counts: MyCaseCoun
               isFiltered(params, MINE_KEYS) ? (
                 <NoCaseMatches params={params} list="mine" />
               ) : (
-                <EmptyState title={T.inbox.nothingWaiting}>{T.inbox.emptyViews.mine}</EmptyState>
+                <EmptyState title={T.inbox.nothingWaiting}>
+                  {closure === "closed" ? T.inbox.emptyViews.mineClosed : T.inbox.emptyViews.mine}
+                </EmptyState>
               )
             }
           />

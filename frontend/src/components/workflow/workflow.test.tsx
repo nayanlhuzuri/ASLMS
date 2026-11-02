@@ -15,8 +15,10 @@ import { api } from "@/lib/api/client";
 import { caseKey } from "@/lib/api/hooks";
 
 import { CaseAlerts } from "./CaseAlerts";
+import { CloseCaseDialog } from "./CloseCaseDialog";
 import { CustodyActions } from "./CustodyDialogs";
 import { CustodyTab } from "./CustodyTab";
+import { ReopenCaseDialog } from "./ReopenCaseDialog";
 import { withNextHearing } from "@/test/nextHearing";
 
 const REF = "ASLMS-GHC-CASE-2026-000001";
@@ -28,6 +30,7 @@ function card(extra: Partial<CustodyCard> = {}): CustodyCard {
     due_soon: false,
     can_recall: false,
     can_send: true,
+    closed: false,
     due_date: null,
     holder_office: { code: "EDU-DSE", name: "Secondary Education" },
     holder_user: { id: "u-7", full_name: "Officer One", designation: "SO" },
@@ -54,7 +57,7 @@ function detailBase(extra: Partial<CaseDetail>): CaseDetail {
     ref_no: "ASLMS/GHC/CASE/2026/000001",
     access_basis: ["owner"],
     counts: { documents: 0, hearings: 0, links: 0, listings: 0, my_drafts: 0, notes: 0, orders: 0, timeline: 0 },
-    workflow: { note_mode: "permanent", upload: true, set_stage: true, next_dates: false, next_date_report: false, next_date_correct: false },
+    workflow: { note_mode: "permanent", upload: true, set_stage: true, next_dates: false, next_date_report: false, next_date_correct: false, close: false, reopen: false },
     custody: card(),
     stage: null,
     ownership: {
@@ -228,7 +231,7 @@ describe("Send case and Recall case", () => {
       "GET /custody/recipients": (call: { url: string }) => (call.url.includes("department=HEALTH") ? HEALTH_PEOPLE : DEPTS),
     });
     renderWithClient(
-      <CustodyActions caseRef={REF} detail={detail({ workflow: { note_mode: "draft", upload: true, set_stage: false, next_dates: false, next_date_report: false, next_date_correct: false } })} card={card()} />,
+      <CustodyActions caseRef={REF} detail={detail({ workflow: { note_mode: "draft", upload: true, set_stage: false, next_dates: false, next_date_report: false, next_date_correct: false, close: false, reopen: false } })} card={card()} />,
     );
     await userEvent.click(screen.getByRole("button", { name: "Send Case" }));
     const dialog = screen.getByRole("dialog", { name: "Send the Case" });
@@ -424,7 +427,7 @@ describe("the custody tab", () => {
   });
 
   it("lists the legs, hides a remark the API does not send, and shows the stage gaps", async () => {
-    browserApi(routes(detail({ workflow: { note_mode: null, upload: false, set_stage: false, next_dates: false, next_date_report: false, next_date_correct: false } })));
+    browserApi(routes(detail({ workflow: { note_mode: null, upload: false, set_stage: false, next_dates: false, next_date_report: false, next_date_correct: false, close: false, reopen: false } })));
     renderWithClient(<CustodyTab caseRef={REF} />);
     const table = await screen.findByRole("table", { name: "Movement Record" });
     const rows = within(table).getAllByRole("row");
@@ -545,7 +548,7 @@ function noteRoutes(d: CaseDetail, notes: Note[], extra: Record<string, unknown>
 describe("writing notes", () => {
   it("the composer says draft from note_mode, offers no upload and sends links only", async () => {
     const api = browserApi(
-      noteRoutes(detail({ workflow: { note_mode: "draft", upload: true, set_stage: true, next_dates: false, next_date_report: false, next_date_correct: false } }), [], {
+      noteRoutes(detail({ workflow: { note_mode: "draft", upload: true, set_stage: true, next_dates: false, next_date_report: false, next_date_correct: false, close: false, reopen: false } }), [], {
         [`POST ${BASE}/notes`]: json(201, draft({ documents: [] })),
       }),
     );
@@ -636,7 +639,7 @@ describe("writing notes", () => {
   });
 
   it("no composer without note_mode", async () => {
-    browserApi(noteRoutes(detail({ workflow: { note_mode: null, upload: false, set_stage: false, next_dates: false, next_date_report: false, next_date_correct: false } }), [note(1)]));
+    browserApi(noteRoutes(detail({ workflow: { note_mode: null, upload: false, set_stage: false, next_dates: false, next_date_report: false, next_date_correct: false, close: false, reopen: false } }), [note(1)]));
     renderWithClient(<Notes caseRef={REF} />);
     await screen.findByText("body 1");
     expect(screen.queryByRole("form", { name: "Write a Note" })).toBeNull();
@@ -647,7 +650,7 @@ describe("writing notes", () => {
 describe("the drafts panel", () => {
   function draftRoutes(extra: Record<string, unknown> = {}) {
     return noteRoutes(
-      detail({ workflow: { note_mode: "draft", upload: true, set_stage: false, next_dates: false, next_date_report: false, next_date_correct: false }, counts: { ...detail().counts, my_drafts: 1 } }),
+      detail({ workflow: { note_mode: "draft", upload: true, set_stage: false, next_dates: false, next_date_report: false, next_date_correct: false, close: false, reopen: false }, counts: { ...detail().counts, my_drafts: 1 } }),
       [],
       { [`GET ${BASE}/notes/drafts`]: { items: [draft()] }, ...extra },
     );
@@ -707,7 +710,7 @@ describe("uploads and document actions", () => {
   }
 
   it("the panel shows only with workflow.upload and says what reaches the Case Assistant", async () => {
-    browserApi(docRoutes(detail({ workflow: { note_mode: null, upload: false, set_stage: false, next_dates: false, next_date_report: false, next_date_correct: false } })));
+    browserApi(docRoutes(detail({ workflow: { note_mode: null, upload: false, set_stage: false, next_dates: false, next_date_report: false, next_date_correct: false, close: false, reopen: false } })));
     const { unmount } = renderWithClient(<Documents caseRef={REF} />);
     await screen.findByText("No documents.");
     expect(screen.queryByRole("form", { name: "Upload a Document" })).toBeNull();
@@ -776,7 +779,7 @@ describe("uploads and document actions", () => {
 
   it("Change visibility and Archive only on rows with can_manage; archive needs a reason; already_ingested in words", async () => {
     const api = browserApi(
-      docRoutes(detail({ workflow: { note_mode: null, upload: false, set_stage: false, next_dates: false, next_date_report: false, next_date_correct: false } }), [
+      docRoutes(detail({ workflow: { note_mode: null, upload: false, set_stage: false, next_dates: false, next_date_report: false, next_date_correct: false, close: false, reopen: false } }), [
         docItem("d-1", { can_manage: true }),
         docItem("d-2"),
       ], {
@@ -876,5 +879,105 @@ describe("the case alerts tab", () => {
     await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
     await userEvent.selectOptions(screen.getByLabelText("Show"), "all");
     await waitFor(() => expect(api.calls.some((c) => c.url.includes("status=all"))).toBe(true));
+  });
+});
+
+describe("Close Case and Reopen Case (design close-case, decision 19)", () => {
+  beforeEach(() => resetNav(BASE));
+
+  const closure = {
+    closed_at: "2026-11-02T05:00:00Z",
+    closed_as: "holder" as const,
+    closed_by: { name: "Officer One", designation: "SO", office_code: "EDU" },
+    office_code: "EDU",
+    note_ref_no: "ASLMS/EDU/NOTE/2026/000009",
+    disposal_date: "2026-10-20",
+    reopened_at: null,
+    reopen_kind: null,
+    reopened_status: null,
+    reopened_by: null,
+    reopen_note_ref_no: null,
+  };
+
+  it("the remark is required and counted, the drafts line shows only with drafts, and it posts /close", async () => {
+    const api = browserApi({
+      [`POST ${BASE}/close`]: { closure, note_ref_no: closure.note_ref_no, finalised_notes: [], card: card({ closed: true, can_send: false }), visible: true },
+    });
+    const done: string[] = [];
+    const { unmount } = renderWithClient(<CloseCaseDialog open caseRef={REF} drafts={0} onClose={() => undefined} onDone={(t) => done.push(t)} />);
+    const dialog = screen.getByRole("dialog", { name: "Close This Case" });
+    expect(within(dialog).queryByText("Your drafts on this case become permanent notes.")).toBeNull();
+    expect(within(dialog).getByText(/Closing ends this case's movement/)).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Close Case" }));
+    expect(within(dialog).getByText("Give a reason of 3 to 2,000 characters.")).toBeInTheDocument();
+    expect(api.calls.some((c) => c.method === "POST")).toBe(false);
+    await userEvent.type(within(dialog).getByLabelText("Why Is This Case Being Closed?"), "Complied with the order.");
+    expect(within(dialog).getByText("24 / 2000 characters")).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Close Case" }));
+    await waitFor(() => expect(api.calls.find((c) => c.method === "POST")?.body).toEqual({ remark: "Complied with the order." }));
+    await waitFor(() => expect(done).toEqual(["Case closed. The closing remark is note ASLMS/EDU/NOTE/2026/000009."]));
+    unmount();
+    renderWithClient(<CloseCaseDialog open caseRef={REF} drafts={2} onClose={() => undefined} onDone={() => undefined} />);
+    expect(screen.getByText("Your drafts on this case become permanent notes.")).toBeInTheDocument();
+  });
+
+  it("a closer who can no longer open the case goes to With Me", async () => {
+    browserApi({ [`POST ${BASE}/close`]: { closure, note_ref_no: closure.note_ref_no, finalised_notes: [], card: null, visible: false } });
+    renderWithClient(<CloseCaseDialog open caseRef={REF} drafts={0} onClose={() => undefined} onDone={() => undefined} />);
+    await userEvent.type(screen.getByLabelText("Why Is This Case Being Closed?"), "Nothing more to do.");
+    await userEvent.click(screen.getByRole("button", { name: "Close Case" }));
+    await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/inbox/with-me"));
+  });
+
+  it("every refusal shows its plain words", async () => {
+    const texts: Record<string, string> = {
+      case_closed: "This case is closed. It opens again when the court's status changes or when it is reopened.",
+      not_disposed: "The court has not disposed of this case, so it cannot be closed.",
+      already_closed: "This case is already closed.",
+      not_closer:
+        "Only an officer of the owning department who has the case, the Head of Department or the Super Administrator can close it.",
+      transfer_open: "A transfer of this case is waiting for a decision. Decide or withdraw it first.",
+      not_closed: "This case is not closed.",
+      not_reopener: "Only the owning department or the Super Administrator can reopen this case.",
+    };
+    for (const [code, text] of Object.entries(texts)) {
+      browserApi({
+        [`POST ${BASE}/close`]: json(409, { detail: { code, message: "x" } }),
+        [`POST ${BASE}/reopen`]: json(409, { detail: { code, message: "x" } }),
+      });
+      const close = code === "not_closed" || code === "not_reopener";
+      const { unmount } = renderWithClient(
+        close ? (
+          <ReopenCaseDialog open caseRef={REF} onClose={() => undefined} onDone={() => undefined} />
+        ) : (
+          <CloseCaseDialog open caseRef={REF} drafts={0} onClose={() => undefined} onDone={() => undefined} />
+        ),
+      );
+      const field = close ? "Why Is This Case Being Reopened?" : "Why Is This Case Being Closed?";
+      await userEvent.type(screen.getByLabelText(field), "a reason");
+      await userEvent.click(screen.getByRole("button", { name: close ? "Reopen Case" : "Close Case" }));
+      expect(await screen.findByText(text)).toBeInTheDocument();
+      unmount();
+    }
+  });
+
+  it("Reopen: the reason is required, it posts /reopen and the flash names the note", async () => {
+    const api = browserApi({
+      [`POST ${BASE}/reopen`]: {
+        closure: { ...closure, reopened_at: "2026-11-03T05:00:00Z", reopen_kind: "manual", reopened_status: "disposed", reopen_note_ref_no: "ASLMS/EDU/NOTE/2026/000010" },
+        note_ref_no: "ASLMS/EDU/NOTE/2026/000010",
+        card: card({ holder_user: null, pending_action: "examine" }),
+        visible: true,
+      },
+    });
+    const done: string[] = [];
+    renderWithClient(<ReopenCaseDialog open caseRef={REF} onClose={() => undefined} onDone={(t) => done.push(t)} />);
+    const dialog = screen.getByRole("dialog", { name: "Reopen This Case" });
+    await userEvent.click(within(dialog).getByRole("button", { name: "Reopen Case" }));
+    expect(within(dialog).getByText("Give a reason of 3 to 2,000 characters.")).toBeInTheDocument();
+    await userEvent.type(within(dialog).getByLabelText("Why Is This Case Being Reopened?"), "Compliance is due again.");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Reopen Case" }));
+    await waitFor(() => expect(api.calls.find((c) => c.method === "POST")?.body).toEqual({ reason: "Compliance is due again." }));
+    await waitFor(() => expect(done).toEqual(["Case reopened. The reopening remark is note ASLMS/EDU/NOTE/2026/000010."]));
   });
 });

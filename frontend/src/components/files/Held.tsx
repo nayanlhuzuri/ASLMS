@@ -19,7 +19,9 @@ import { useState } from "react";
 import { FilterBar, type OwnControl } from "@/components/filters/FilterBar";
 import { useFilters } from "@/components/inbox/common";
 import { Chevron } from "@/components/inbox/rows";
-import { Badge, CaseLink, DataTable, EmptyState, ErrorBanner, HearingDate, Lead, Loading, Pagination, type Column } from "@/components/ui";
+import { Badge, CaseLink, Chip, ChipGroup, DataTable, EmptyState, ErrorBanner, HearingDate, Lead, Loading, Pagination, type Column } from "@/components/ui";
+import inboxStyles from "@/components/inbox/inbox.module.css";
+import { ClosureBadge } from "@/components/inbox/rows";
 import { api } from "@/lib/api/client";
 import { useDepartments, useMe } from "@/lib/api/hooks";
 import type { HeldItem, HeldList, Me } from "@/lib/api/types";
@@ -164,18 +166,33 @@ export function Held({ tab, params, department }: { tab: "with-me" | "pending"; 
       cell: (r) => <LeadCell badge={leadBadge(r, tab)} />,
     },
     { key: "case", header: T.files.case, primary: true, cell: (r) => <CaseCell c={r.case} /> },
-    // design case-inbox-simplify, decision 2: a disposed case with me reads "Disposed" here
+    // design case-inbox-simplify, decision 2: a disposed case with me reads "Disposed" here, with "Ready to Close" beside
+    // it (design close-case, decision 15)
     ...(scope === "owned"
       ? []
-      : [{ key: "next", header: T.inbox.nextHearingCol, cell: (r: HeldItem) => <HearingDate next={r.case.next_hearing} status={r.case.status} /> }]),
+      : [{ key: "next", header: T.inbox.nextHearingCol, cell: (r: HeldItem) => (
+        <span className={inboxStyles.nextCell}>
+          <HearingDate next={r.case.next_hearing} status={r.case.status} />
+          <ClosureBadge c={r.case} />
+        </span>
+      ) }]),
     { key: "action", header: T.files.action, cell: (r) => r.card?.pending_action_label ?? "—" },
     { key: "due", header: T.files.due, cell: (r) => <DueCell date={r.card?.due_date} overdue={!!r.card?.overdue} /> },
     { key: "who", header: whoHeader, cell: (r) => <WithCell party={who(r)} meId={meId} /> },
     { key: "open", header: <span className="visually-hidden">{T.files.details}</span>, hideOnPhone: true, width: "var(--s6)", cell: () => <Chevron /> },
   ];
   const card = open?.card;
+  // design close-case, decision 15: the quick chip sets the shared filter `case_status=disposed`
+  const readyOn = params.case_status === "disposed";
   return (
     <div className="stack">
+      {scope === "owned" ? null : (
+        <ChipGroup label={T.inbox.quick}>
+          <Chip on={readyOn} onClick={() => setFilters({ case_status: readyOn ? undefined : "disposed" })}>
+            {T.inbox.readyToClose}
+          </Chip>
+        </ChipGroup>
+      )}
       <FilterBar
         list={listKey}
         params={params}

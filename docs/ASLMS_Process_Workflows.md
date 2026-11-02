@@ -717,6 +717,19 @@ Disposed badge. The old Cases and Files addresses redirect to it.
   - The department admin can **recall** the file (**Recall Case**).
   - Moving the file **never changes ownership**.
   - Every move is kept in the file's history.
+- **Closing a case (Open and Closed).** In the department's terms a case is **Open** or **Closed**, separate from the
+  court's status.
+  - Only a claimed case whose court status is disposed can be closed. The case page then shows **Ready to Close** and the
+    primary button **Close Case**.
+  - Who may close: the officer the file is with (if an officer of the owning department), the owning department's head
+    wherever the file is, and the Super Administrator. The person needs the function Close Cases.
+  - A remark is required. It is kept as an append-only note (kind Closing remark), with an audit row and a timeline event.
+    Closing ends the file's movement and clears the pending action, so the case leaves With Me; Send and Recall are gone.
+  - A closed case **reopens by itself** when a court record shows it no longer disposed, with an alert to the department.
+    It can also be reopened by hand (**Reopen Case**, needs the function Reopen Cases: Department Head, Department Admin and
+    the Super Administrator by default) with a reason, also kept as a note.
+  - My Cases and Department have an Open / Closed switch. Closing is a record of its own (`case_closures`); the court's
+    disposal mark is untouched. The stage list no longer offers "Closed".
 - **Stage:** the case's stage is set by hand from 24 stages (notice issued, reply filed, appeal…). It is guided, not
   forced. The system never sets a stage itself.
 - **Notes:** the holder of the file writes **drafts**, which become permanent when the file moves on. Anyone else's

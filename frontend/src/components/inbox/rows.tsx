@@ -6,7 +6,7 @@
  * the file is; the next hearing is the kit's `HearingDate` (design next-hearing-highlight, decision 11). A row opens by
  * click or Enter, so the case number is plain text here (the row is the link).
  */
-import { Badge, ListCount } from "@/components/ui";
+import { Badge, ListCount, SegmentedSwitch } from "@/components/ui";
 import type { CaseSummary, CustodyBrief, StageBrief } from "@/lib/api/types";
 import { formatDate } from "@/lib/format";
 import { T } from "@/lib/messages";
@@ -26,6 +26,32 @@ export function CaseCell({ c }: { c: Pick<CaseSummary, "case_no_text" | "ref_no"
         </span>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * The department's Open / Closed of a case (design close-case, decisions 15-17): a neutral "Closed" when the case is
+ * closed, a warning "Ready to Close" when the court has disposed of it and it is still open (`closed` false; nothing
+ * when the summary withholds it).
+ */
+export function ClosureBadge({ c }: { c: Pick<CaseSummary, "status" | "closed"> }) {
+  if (c.closed) return <Badge>{T.inbox.closed}</Badge>;
+  if (c.closed === false && c.status === "disposed") return <Badge tone="warning">{T.inbox.readyToClose}</Badge>;
+  return null;
+}
+
+/** My Cases' and Department's Open / Closed switch (design close-case, decisions 16 and 17): Open is the default. */
+export function ClosureSwitch({ value, onChange }: { value: "open" | "closed"; onChange: (v: "open" | "closed") => void }) {
+  return (
+    <SegmentedSwitch
+      label={T.inbox.closureSwitch}
+      options={[
+        { value: "open", label: T.inbox.open },
+        { value: "closed", label: T.inbox.closed },
+      ]}
+      value={value}
+      onChange={(v) => onChange(v === "closed" ? "closed" : "open")}
+    />
   );
 }
 

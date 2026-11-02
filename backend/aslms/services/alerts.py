@@ -74,6 +74,7 @@ from aslms.domain.ownership import (
 from aslms.domain.reference import (
     AlertKind,
     EventType,
+    NoteKind,
     Permission,
     RecordType,
     RefAlertKind,
@@ -129,6 +130,7 @@ HANDLED_EVENTS = OWNERSHIP_EVENTS | {
     EventType.SUGGESTED_ELSEWHERE,  # design ownership-refinements, decision 15
     EventType.RECOMMENDATION_CLOSED,  # design ownership-refinements, decision 10
     EventType.NOTE_ADDED,  # design alerts-visibility-roles, decision 1
+    EventType.CASE_REOPENED,  # design close-case, decision 13
 }
 # events read whether or not the case has an owner (a recommendation or a suggestion is usually on a pool case)
 UNOWNED_EVENTS = frozenset({EventType.RECOMMENDATION_MADE, EventType.SUGGESTED_ELSEWHERE})
@@ -385,6 +387,8 @@ def scan_events(
         "skipped_old": 0,
         "skipped_unowned": 0,
         "skipped_other": 0,
+        "skipped_reopened": 0,
+        "skipped_reopening_note": 0,
         "alerts_without_recipients": 0,
         "notifications": 0,
         "errors": 0,
@@ -521,6 +525,9 @@ def _handle_event(
             now=now,
             counters=counters,
         )
+    elif kind_of_event == EventType.STATUS_CHANGED and p.get("reopened"):
+        # design close-case, decision 13: the same apply reopened the case; its `case_reopened` alert covers it
+        counters["skipped_reopened"] = counters.get("skipped_reopened", 0) + 1
     elif kind_of_event in (EventType.CASE_DISPOSED, EventType.STATUS_CHANGED):
         pair = p.get("status")
         if kind_of_event == EventType.CASE_DISPOSED:
@@ -668,6 +675,8 @@ def _handle_event(
         _workflow_event(session, resolver, ev, case, p, today=today, cfg=cfg, now=now, counters=counters)
     elif kind_of_event == EventType.NOTE_ADDED:
         _note_event(session, resolver, defaults, ev, case, p, now=now, counters=counters)
+    elif kind_of_event == EventType.CASE_REOPENED:
+        _reopened_event(session, resolver, ev, case, p, now=now, counters=counters)
     elif kind_of_event == EventType.NEXT_DATE_EXTRACTED:
         _next_date_event(
             session,
@@ -793,6 +802,78 @@ def _workflow_event(
         counters["skipped_other"] += 1
 
 
+def _reopened_event(
+    session: Session,
+    resolver: Resolver,
+    ev: Event,
+    case: Case,
+    p: dict[str, Any],
+    *,
+    now: datetime,
+    counters: dict[str, Any],
+) -> None:
+    """Design close-case, decision 13: one department alert per reopen to the case's recipients (now the department
+    office's `cases.allot` holders, the assigned officer or unit and the watchers). Automatic: kind `status_changed`,
+    so the status-change preferences keep working; manual: kind `workflow` with `event = "reopened"`, the reopener
+    excluded. Both `high`; never the reason text."""
+    office = owning_office(session, case)
+    if office is None:
+        counters["skipped_unowned"] += 1
+        return
+    kind = p.get("reopen_kind")
+    data = {
+        "event": "reopened",
+        "reopened": True,
+        "reopen_kind": kind,
+        "office_code": p.get("office_code"),
+        "closed_at": p.get("closed_at"),
+        "note_ref_no": p.get("note_ref_no"),
+        "seq_no": p.get("seq_no"),
+    }
+    if kind == "automatic":
+        status = p.get("status") if isinstance(p.get("status"), list) else [None, CaseStatus.PENDING.value]
+        raise_alert(
+            session,
+            case=case,
+            kind=AlertKind.STATUS_CHANGED,
+            key=rules.dedupe_key(AlertKind.STATUS_CHANGED, case.id, "reopened", ev.id),
+            office=office,
+            severity=Severity.HIGH,
+            data={**data, "status": status[-1], "previous_status": status[0]},
+            source_event_id=ev.id,
+            recipients=lambda: resolver.finalise(resolver.case_recipients(case), case),
+            now=now,
+            counters=counters,
+        )
+    elif kind == "manual":
+        leg = session.scalar(
+            select(CustodyHistory).where(
+                CustodyHistory.case_id == case.id, CustodyHistory.seq_no == p.get("seq_no")
+            )
+        )
+        raise_alert(
+            session,
+            case=case,
+            kind=AlertKind.WORKFLOW,
+            key=rules.dedupe_key(AlertKind.WORKFLOW, "reopened", ev.id),
+            office=office,
+            severity=Severity.HIGH,
+            data={
+                **data,
+                "reopened_by_name": leg.actor_name if leg is not None else None,
+                "reopened_by_designation": leg.actor_designation if leg is not None else None,
+            },
+            source_event_id=ev.id,
+            recipients=lambda: resolver.finalise(
+                resolver.case_recipients(case), case, exclude_user_id=ev.actor_user_id
+            ),
+            now=now,
+            counters=counters,
+        )
+    else:
+        counters["skipped_other"] += 1
+
+
 def _note_event(
     session: Session,
     resolver: Resolver,
@@ -811,6 +892,10 @@ def _note_event(
     note = session.get(CaseNote, _uuid(p.get("note_id"))) if _uuid(p.get("note_id")) else None
     if note is None or NoteSource(note.source) != NoteSource.USER or note.case_id != case.id:
         counters["skipped_other"] += 1
+        return
+    if NoteKind(note.kind) == NoteKind.REOPENING:
+        # design close-case, decision 13: the reopen alert already names the reopening remark
+        counters["skipped_reopening_note"] = counters.get("skipped_reopening_note", 0) + 1
         return
     office = owning_office(session, case)
     if office is None:

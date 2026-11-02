@@ -186,6 +186,12 @@ def test_flags_null_on_pool_case(wide):
                 "next_dates_blocked": None,
                 "next_date_report": False,
                 "next_date_correct": False,
+                # design close-case, decision 20: an unclaimed case cannot be closed or reopened
+                "close": False,
+                "close_as": None,
+                "close_blocked": None,
+                "reopen": False,
+                "reopen_blocked": None,
             }, key
         s.rollback()
 
@@ -223,11 +229,35 @@ def test_flags_write_nothing(api, wide):
     off1 = api.get(f"/cases/{case_id}", headers=w.login(api, "edu_off1")).json()["workflow"]
     # design next-date-direct: no court date and no reading here, so nothing is blocked or reportable
     none = {"next_dates_blocked": None, "next_date_report": False, "next_date_correct": False}
-    assert off1 == {"note_mode": "draft", "upload": True, "set_stage": True, "next_dates": True, **none}
+    # design close-case, decision 20: a pending case is not disposed; the holder (a closer) is told why
+    shut = {"close": False, "close_as": None, "close_blocked": None, "reopen": False, "reopen_blocked": None}
+    holder = {**shut, "close_blocked": "not_disposed"}
+    assert off1 == {
+        "note_mode": "draft",
+        "upload": True,
+        "set_stage": True,
+        "next_dates": True,
+        **none,
+        **holder,
+    }
     admin = api.get(f"/cases/{case_id}", headers=w.login(api, "edu_admin")).json()["workflow"]
-    assert admin == {"note_mode": "permanent", "upload": True, "set_stage": True, "next_dates": True, **none}
+    assert admin == {
+        "note_mode": "permanent",
+        "upload": True,
+        "set_stage": True,
+        "next_dates": True,
+        **none,
+        **shut,
+    }
     reader = api.get(f"/cases/{case_id}", headers=w.login(api, "oversight")).json()["workflow"]
-    assert reader == {"note_mode": None, "upload": False, "set_stage": False, "next_dates": False, **none}
+    assert reader == {
+        "note_mode": None,
+        "upload": False,
+        "set_stage": False,
+        "next_dates": False,
+        **none,
+        **shut,
+    }
     with wide.Session() as s:
         _, off1_user = wide.actor(s, "edu_off1")
         workflow_actions.available(s, off1_user, s.get(Case, case_id))

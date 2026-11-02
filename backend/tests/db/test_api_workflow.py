@@ -64,7 +64,8 @@ def test_codes(api):
     assert kinds["hand_over"] and kinds["opinion"] and kinds["counsel_advice"] and not kinds["correction"]
     actions = {a["code"]: a for a in body["pending_actions"]}
     assert actions["parawise_comments"]["label"] == "Parawise comments" and not actions["none"]["sendable"]
-    assert len(body["stages"]) == 24
+    assert len(body["stages"]) == 23  # close-case, decision 9: `closed` retired from Set Stage
+    assert "closed" not in {st["code"] for st in body["stages"]}
     phases = {st["code"]: st["phase"] for st in body["stages"]}
     assert {c: phases.get(c) for c in NEW_STAGES} == NEW_STAGES  # case-stages-extension
     assert {r["code"] for r in body["custody_reasons"]} >= {"sent", "recalled", "reassigned_on_exit"}
@@ -120,7 +121,9 @@ def test_invisible_case_is_404(api, world, case_id):
     assert (
         api.post(f"/cases/{case_id}/custody/recall", headers=hf, json={"remark": "mine"}).status_code == 404
     )
-    assert api.post(f"/cases/{case_id}/stages", headers=hf, json={"stage": "closed"}).status_code == 404
+    assert (
+        api.post(f"/cases/{case_id}/stages", headers=hf, json={"stage": "hearing_pending"}).status_code == 404
+    )
     r = api.post(
         f"/cases/{case_id}/notes",
         headers=hf,
@@ -132,7 +135,9 @@ def test_invisible_case_is_404(api, world, case_id):
 
 def test_function_checks(api, world, case_id):
     hc = w.login(api, "edu_counsel")  # no stages.set, no custody.track
-    assert api.post(f"/cases/{case_id}/stages", headers=hc, json={"stage": "closed"}).status_code == 403
+    assert (
+        api.post(f"/cases/{case_id}/stages", headers=hc, json={"stage": "hearing_pending"}).status_code == 403
+    )
     assert api.get("/custody/summary", headers=hc).status_code == 403
     assert api.get("/custody/held?scope=owned", headers=w.login(api, "edu_off1")).status_code == 403
     ho = w.login(api, "oversight")  # no notes.add

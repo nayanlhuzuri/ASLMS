@@ -10,6 +10,10 @@
  * hearing (Any date / This week / Next 30 days / Choose dates…); "More filters": Case type, Year, Court, File is with,
  * Action; removable chips, "Clear all" and "n of m cases". Rows: the case, unit · officer, stage, next hearing and who
  * holds the file; a row opens the case page. Allot stays on the case page (its ownership actions).
+ * Open / Closed (design close-case, decision 17): Open (the default) sends `closure=open`; Closed (`closure=closed`)
+ * lists the closed cases, newest closure first, hides the Overdue and With Another Office chips and drops their keys
+ * (a closed case does not move); m is `claimed_open` or `claimed_closed`. `case_status=disposed` (the dashboard's
+ * Ready to Close link) narrows Open to the cases ready to close.
  */
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
@@ -26,7 +30,8 @@ import { casePath } from "@/lib/refs";
 
 import { useFilters } from "./common";
 import { isFiltered, useStageOptions } from "./MyCases";
-import { CaseCell, Chevron, CountLine, HolderCell, StageCell } from "./rows";
+import s from "./inbox.module.css";
+import { CaseCell, Chevron, ClosureSwitch, CountLine, HolderCell, ClosureBadge, StageCell } from "./rows";
 import { NoCaseMatches } from "@/components/filters/NoCaseMatches";
 
 /** Layout B's More Filters on Department cases (design portal-ui-polish-2, decision 23); Case Type is on the right. */
@@ -97,11 +102,15 @@ export function DepartmentCases({ params, department, block }: { params: Params;
   const people = useDepartmentPeople(department);
   const stages = useStageOptions();
   const offset = offsetOf(params);
+  const closure = params.closure === "closed" ? "closed" : "open";
+  const moving = closure === "closed" ? { holder: undefined, action: undefined } : {};
   // an incoming `case_state` (an old link) is ignored: the tab always reads both, active first
   const query = {
     office: department,
     case_state: "all",
+    closure,
     ...departmentQuery(params),
+    ...moving,
     ...toApiQuery(params, "department"),
     limit: PAGE,
     offset,
@@ -154,15 +163,27 @@ export function DepartmentCases({ params, department, block }: { params: Params;
     { key: "case", header: T.inbox.case, primary: true, cell: (r) => <CaseCell c={r.case} /> },
     { key: "allot", header: T.inbox.unitOfficer, cell: (r) => <AllotmentCell row={r} /> },
     { key: "stage", header: T.inbox.stage, cell: (r) => <StageCell stage={r.stage} /> },
-    { key: "next", header: T.inbox.nextHearingCol, cell: (r) => <HearingDate next={r.case.next_hearing} status={r.case.status} /> },
+    { key: "next", header: T.inbox.nextHearingCol, cell: (r) => (
+        <span className={s.nextCell}>
+          <HearingDate next={r.case.next_hearing} status={r.case.status} />
+          <ClosureBadge c={r.case} />
+        </span>
+      ) },
     { key: "holder", header: T.inbox.fileWith, cell: (r) => <HolderCell custody={r.custody} /> },
     { key: "open", header: <span className="visually-hidden">{T.inbox.actions}</span>, hideOnPhone: true, width: "var(--s6)", cell: () => <Chevron /> },
   ];
-  const unfiltered =
-    block.claimed_active === null || block.claimed_disposed === null ? null : block.claimed_active + block.claimed_disposed;
+  const unfiltered = closure === "closed" ? (block.claimed_closed ?? null) : (block.claimed_open ?? null);
   return (
     <section className="stack" aria-label={T.tabs.inbox.department}>
-      <DepartmentChips params={params} />
+      <div className={s.switchRow}>
+        <ClosureSwitch
+          value={closure}
+          onChange={(v) =>
+            setFilters(v === "closed" ? { closure: "closed", action: undefined, holder: undefined } : { closure: undefined })
+          }
+        />
+        {closure === "closed" ? null : <DepartmentChips params={params} />}
+      </div>
       {/* design portal-ui-polish-2, decision 23: Layout B with Words as the hero; Unit, Officer, Stage, Next Hearing and
           Case Type on the right; Year, Court, File Is With and Action under More Filters */}
       <FilterBar
@@ -171,7 +192,7 @@ export function DepartmentCases({ params, department, block }: { params: Params;
         hero="q"
         more={DEPARTMENT_MORE}
         params={params}
-        own={own}
+        own={closure === "closed" ? own.filter((o) => o.key !== "holder" && o.key !== "action") : own}
         wordsLabel={T.filters.wordsShort}
         wordsHint={T.filters.wordsHint}
         countLine={
@@ -193,7 +214,9 @@ export function DepartmentCases({ params, department, block }: { params: Params;
               isFiltered(params, DEPARTMENT_KEYS) ? (
                 <NoCaseMatches params={params} list="department" />
               ) : (
-                <EmptyState title={T.inbox.nothingWaiting}>{T.inbox.emptyViews.department}</EmptyState>
+                <EmptyState title={T.inbox.nothingWaiting}>
+                  {closure === "closed" ? T.inbox.emptyViews.departmentClosed : T.inbox.emptyViews.department}
+                </EmptyState>
               )
             }
           />

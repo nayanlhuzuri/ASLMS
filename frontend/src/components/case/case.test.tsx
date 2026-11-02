@@ -330,7 +330,7 @@ describe("the frame", () => {
     const noSend = { ...detail().custody!, can_send: false, can_recall: false };
     browserApi({
       "GET /me": me(),
-      [`GET ${BASE}`]: detail({ custody: noSend, workflow: { note_mode: "permanent", upload: true, set_stage: true, next_dates: true, next_date_report: false, next_date_correct: false } }),
+      [`GET ${BASE}`]: detail({ custody: noSend, workflow: { note_mode: "permanent", upload: true, set_stage: true, next_dates: true, next_date_report: false, next_date_correct: false, close: false, reopen: false } }),
       "GET /workflow/codes": { note_kinds: [], pending_actions: [], stages: [], response_modes: [], custody_reasons: [], limits: { note_max_chars: 100, attachments_max_files: 2, note_drafts_max: 5 } },
     });
     const view = renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
@@ -1305,7 +1305,7 @@ describe("next dates from orders on the case page (portal-next-dates, decisions 
     expect(within(r.region).queryByRole("button", { name: "Enter Next Date" })).toBeNull();
     r.unmount();
     r = await card(
-      detail({ next_dates_to_review: 1, workflow: { note_mode: "permanent", upload: true, set_stage: true, next_dates: true, next_date_report: false, next_date_correct: false } }),
+      detail({ next_dates_to_review: 1, workflow: { note_mode: "permanent", upload: true, set_stage: true, next_dates: true, next_date_report: false, next_date_correct: false, close: false, reopen: false } }),
       { "GET /next-dates/review": { items: [REVIEW_ITEM], total: 1 } },
     );
     const panel = await within(r.region).findByRole("group", { name: "Waiting for You" });
@@ -1319,7 +1319,7 @@ describe("next dates from orders on the case page (portal-next-dates, decisions 
 
   it("Enter next date from the case page posts no order", async () => {
     const { api, region } = await card(
-      detail({ workflow: { note_mode: "permanent", upload: true, set_stage: true, next_dates: true, next_date_report: false, next_date_correct: false } }),
+      detail({ workflow: { note_mode: "permanent", upload: true, set_stage: true, next_dates: true, next_date_report: false, next_date_correct: false, close: false, reopen: false } }),
       { [`POST ${BASE}/next-dates`]: json(201, nd({ source: "manual", next_date: "2026-12-01" })) },
     );
     await userEvent.click(within(region).getByRole("button", { name: "Enter Next Date" }));
@@ -1459,7 +1459,7 @@ describe("next dates from orders on the case page (portal-next-dates, decisions 
     const r = await card(
       detail({
         next_date_from_orders: nd(),
-        workflow: { ...FLAGS, next_dates_blocked: "court_date_fixed", next_date_report: false, next_date_correct: false },
+        workflow: { ...FLAGS, next_dates_blocked: "court_date_fixed", next_date_report: false, next_date_correct: false, close: false, reopen: false },
       }),
     );
     expect(within(r.region).getByText("The court has given the next date, so it cannot be changed here.")).toBeInTheDocument();
@@ -1473,7 +1473,7 @@ describe("next dates from orders on the case page (portal-next-dates, decisions 
       detail({
         next_date_from_orders: nd(),
         next_hearing: { ...orderNext("2026-11-20"), phrase: "List on 20.11.2026." } as CaseDetail["next_hearing"],
-        workflow: { ...FLAGS, next_dates_blocked: "court_date_fixed", next_date_report: true, next_date_correct: false },
+        workflow: { ...FLAGS, next_dates_blocked: "court_date_fixed", next_date_report: true, next_date_correct: false, close: false, reopen: false },
       }),
       { "POST /next-dates/nd-1/report": json(201, { reported: true, alert_ref_no: "ASLMS/GOA/ALR/2026/000001" }) },
     );
@@ -1499,7 +1499,7 @@ describe("next dates from orders on the case page (portal-next-dates, decisions 
       detail({
         next_date_from_orders: nd(),
         next_hearing: { ...orderNext("2026-11-20"), reported_at: "2026-10-20T05:00:00Z" } as CaseDetail["next_hearing"],
-        workflow: { ...FLAGS, next_dates_blocked: "court_date_fixed", next_date_report: false, next_date_correct: true },
+        workflow: { ...FLAGS, next_dates_blocked: "court_date_fixed", next_date_report: false, next_date_correct: true, close: false, reopen: false },
       }),
       {
         "POST /next-dates/nd-1/correct": (c: BrowserCall) =>
@@ -1777,5 +1777,87 @@ describe("recommendation statuses in words (ownership-refinements)", () => {
     const card = await screen.findByRole("region", { name: "Ownership" });
     expect(await within(card).findByText("Closed: Claimed by Another Department")).toBeInTheDocument();
     expect(within(card).queryByText("claimed_elsewhere")).toBeNull();
+  });
+});
+
+describe("the closure lines of the header (design close-case, decision 19)", () => {
+  const closure = {
+    closed_at: "2026-11-02T05:00:00Z",
+    closed_as: "holder" as const,
+    closed_by: { name: "Officer One", designation: "SO", office_code: "EDU" },
+    office_code: "EDU",
+    note_ref_no: "ASLMS/EDU/NOTE/2026/000009",
+    disposal_date: "2026-10-20",
+    reopened_at: null,
+    reopen_kind: null,
+    reopened_status: null,
+    reopened_by: null,
+    reopen_note_ref_no: null,
+  };
+  const closedCustody = { ...detail().custody!, closed: true, can_send: false, can_recall: false, holder_user: null, reason: "closed" };
+
+  it("a closed case shows the Closed badge, the line and the remark link only with a ref_no", async () => {
+    const c = detail({ status: { ...detail().status, status: "disposed" }, closure, custody: closedCustody });
+    browserApi(overviewRoutes(c, ownership(actions())));
+    renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
+    const header = await screen.findByRole("region", { name: "Case Summary" });
+    expect(within(header).getAllByText("Closed").length).toBeGreaterThan(0);
+    expect(within(header).getByText(/Closed on 2 Nov 2026 by Officer One, SO/)).toBeInTheDocument();
+    expect(within(header).getByRole("link", { name: "Read the Closing Remark" })).toHaveAttribute(
+      "href",
+      `${BASE}/notes#note-ASLMS-EDU-NOTE-2026-000009`,
+    );
+    expect(screen.queryByRole("button", { name: "Send Case" })).toBeNull();
+  });
+
+  it("no remark link when the API withholds the note", async () => {
+    browserApi(overviewRoutes(detail({ closure: { ...closure, note_ref_no: null }, custody: closedCustody }), ownership(actions())));
+    renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
+    const header = await screen.findByRole("region", { name: "Case Summary" });
+    expect(within(header).getByText(/Closed on 2 Nov 2026/)).toBeInTheDocument();
+    expect(within(header).queryByRole("link", { name: "Read the Closing Remark" })).toBeNull();
+  });
+
+  it("the reopened lines: by the court, and by a person with the remark link, while the case rests on the reopen leg", async () => {
+    const reopenedCustody = { ...detail().custody!, holder_user: null, reason: "reopened", pending_action: "examine" };
+    const auto = { ...closure, reopened_at: "2026-11-05T05:00:00Z", reopen_kind: "automatic" as const, reopened_status: "pending" };
+    browserApi(overviewRoutes(detail({ closure: auto, custody: reopenedCustody }), ownership(actions())));
+    const { unmount } = renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
+    expect(await screen.findByText("Reopened on 5 Nov 2026: the court's status changed.")).toBeInTheDocument();
+    unmount();
+    const manual = {
+      ...auto,
+      reopen_kind: "manual" as const,
+      reopened_status: "disposed",
+      reopened_by: { name: "Edu Head", designation: "Commissioner", office_code: "EDU" },
+      reopen_note_ref_no: "ASLMS/EDU/NOTE/2026/000010",
+    };
+    browserApi(overviewRoutes(detail({ closure: manual, custody: reopenedCustody }), ownership(actions())));
+    const second = renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
+    expect(await screen.findByText(/Reopened on 5 Nov 2026 by Edu Head, Commissioner/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Read the Reopening Remark" })).toHaveAttribute(
+      "href",
+      `${BASE}/notes#note-ASLMS-EDU-NOTE-2026-000010`,
+    );
+    second.unmount();
+    // once the case moves on, the line goes
+    browserApi(overviewRoutes(detail({ closure: manual, custody: { ...reopenedCustody, reason: "sent" } }), ownership(actions())));
+    renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
+    await screen.findByRole("region", { name: "Case Summary" });
+    expect(screen.queryByText(/Reopened on/)).toBeNull();
+  });
+
+  it("with Ready to Close, Send Case moves to More Actions and the page keeps one primary", async () => {
+    browserApi(
+      overviewRoutes(
+        detail({ workflow: { ...detail().workflow, close: true, close_as: "holder", reopen: false } }),
+        ownership(actions()),
+      ),
+    );
+    renderWithClient(<CaseFrame caseRef={REF}>body</CaseFrame>);
+    const header = await screen.findByRole("region", { name: "Case Summary" });
+    expect(within(header).queryByRole("button", { name: "Send Case" })).toBeNull();
+    await userEvent.click(within(header).getByRole("button", { name: "More Actions" }));
+    expect(screen.getByRole("menuitem", { name: "Send Case" })).toBeInTheDocument();
   });
 });

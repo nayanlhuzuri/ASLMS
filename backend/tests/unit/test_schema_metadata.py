@@ -115,3 +115,27 @@ def test_alert_tables_carry_the_design_columns_and_checks():
     assert {"status", "item_count", "attempts", "next_attempt_at", "error", "body", "alert_ids"} <= set(
         digests.c.keys()
     )
+
+
+def test_case_closures_table_class_and_keys():
+    """Design close-case, "Data": a transaction table with `updated_at` (mutable, not append-only, not cascading),
+    RESTRICT foreign keys except the snapshot user keys (SET NULL), the CHECKs and the two indexes."""
+    t = TABLES["case_closures"]
+    assert t.comment == "class=transaction"
+    assert "case_closures" in MUTABLE_TABLES
+    assert "case_closures" not in APPEND_ONLY_TABLES and "case_closures" not in CASCADE_TABLES
+    for fk in t.foreign_key_constraints:
+        col = list(fk.columns)[0].name
+        if col in {"actor_user_id", "reopened_by_user_id"}:
+            assert fk.ondelete == "SET NULL" and fk.referred_table.name == "users", col
+        else:
+            assert (fk.ondelete or "RESTRICT").upper() == "RESTRICT", col
+    checks = {c.name for c in t.constraints if isinstance(c, sa.CheckConstraint)}
+    assert {
+        "ck_case_closures_closed_as",
+        "ck_case_closures_reopen_kind",
+        "ck_case_closures_reopened",
+        "ck_case_closures_reopen_manual",
+    } <= checks
+    assert {"ix_case_closures_open", "ix_case_closures_case_closed"} <= {i.name for i in t.indexes}
+    assert t.c.note_id.unique and t.c.close_leg_id.unique and not t.c.note_id.nullable

@@ -11,7 +11,7 @@ import { mkdirSync, readdirSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 
 import { pageChecks, type PageFinding } from "./checks";
-import { answer, SAMPLE, type ACTIVITY_DEFAULT } from "./fixtures";
+import { answer, CLOSE_CASES, SAMPLE, type ACTIVITY_DEFAULT } from "./fixtures";
 import { OLD_CASE_REF_PATH } from "./fixtures/legacy";
 import { kept, runDir, slug, writeResult, type Finding } from "./results";
 
@@ -320,6 +320,34 @@ const STATES: State[] = [
     },
   },
   {
+    // design close-case, decision 16: My Cases under Closed
+    name: "/inbox/my-cases?closure=closed",
+    path: "/inbox/my-cases?closure=closed",
+    open: async (page) => {
+      await page.getByRole("radiogroup", { name: "Open or Closed" }).waitFor();
+      await page.getByText("Closed", { exact: true }).nth(1).waitFor();
+    },
+  },
+  {
+    // design close-case, decision 17: Department under Closed, its chips hidden
+    name: "/inbox/department?closure=closed",
+    path: "/inbox/department?closure=closed",
+    open: async (page) => {
+      await page.getByRole("radiogroup", { name: "Open or Closed" }).waitFor();
+      await page.locator("tbody tr").first().waitFor();
+      await expect(page.getByRole("button", { name: "Overdue" })).toHaveCount(0);
+    },
+  },
+  {
+    // design close-case, decision 15: With Me's Ready to Close chip and the badge beside "Disposed"
+    name: "/inbox/with-me (Ready to Close chip)",
+    path: "/inbox/with-me",
+    open: async (page) => {
+      await page.getByRole("button", { name: "Ready to Close" }).waitFor();
+      await page.getByText("Ready to Close", { exact: true }).nth(1).waitFor();
+    },
+  },
+  {
     // decision 6: the files still out, overdue first
     name: "/inbox/sent (still out)",
     path: "/inbox/sent",
@@ -439,6 +467,38 @@ const STATES: State[] = [
     path: "/assistant",
     open: async (page) => {
       await page.getByText("From the Case Record").first().waitFor();
+    },
+  },
+  {
+    // design close-case, decision 19: Ready to Close on Your Task, the page's one primary
+    name: `/cases/${CLOSE_CASES.ready.path} (Ready to Close)`,
+    path: `/cases/${CLOSE_CASES.ready.path}`,
+    open: async (page) => {
+      await page.getByRole("button", { name: "Close Case" }).first().waitFor();
+    },
+  },
+  {
+    name: `/cases/${CLOSE_CASES.ready.path} (Close dialog open)`,
+    path: `/cases/${CLOSE_CASES.ready.path}`,
+    open: async (page) => {
+      await page.getByRole("button", { name: "Close Case" }).first().click();
+      await page.getByRole("dialog", { name: "Close This Case" }).waitFor();
+    },
+  },
+  {
+    name: `/cases/${CLOSE_CASES.closed.path} (closed, Reopen Case)`,
+    path: `/cases/${CLOSE_CASES.closed.path}`,
+    open: async (page) => {
+      await page.getByText("Read the Closing Remark").first().waitFor();
+      await page.getByRole("button", { name: "Reopen Case" }).first().waitFor();
+    },
+  },
+  {
+    name: `/cases/${CLOSE_CASES.closed.path} (Reopen dialog open)`,
+    path: `/cases/${CLOSE_CASES.closed.path}`,
+    open: async (page) => {
+      await page.getByRole("button", { name: "Reopen Case" }).first().click();
+      await page.getByRole("dialog", { name: "Reopen This Case" }).waitFor();
     },
   },
   {

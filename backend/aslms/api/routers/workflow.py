@@ -26,7 +26,7 @@ from aslms.domain.cases import Case
 from aslms.domain.org import User
 from aslms.domain.reference import Permission
 from aslms.domain.workflow import CaseNoteDraft
-from aslms.services import access, attachments, notes, stages, visibility, workflow_codes
+from aslms.services import access, attachments, case_closure, notes, stages, visibility, workflow_codes
 from aslms.services import custody as custody_svc
 from aslms.services.case_filters import CaseFilters
 from aslms.services.cases import CaseNotFound, resolve_case_ref
@@ -265,6 +265,81 @@ def custody_recall(
     try:
         result = custody_svc.recall(session, actor_of(request, user, session), user, case, remark=body.remark)
         out = _move_out(session, user, case, result)
+    except HANDLED as exc:
+        raise _http(exc) from exc
+    return out
+
+
+# ------------------------------------------------------------------------------------------------ close / reopen
+
+
+def _closure_card(session: Session, user: User, case: Case) -> tuple[dict[str, Any] | None, bool]:
+    bases = visibility.access_basis(session, user, case)
+    return (custody_svc.card(session, user, case, bases=bases) if bases else None), bool(bases)
+
+
+@router.post(
+    "/cases/{ref}/close",
+    response_model=schemas.CaseCloseOut,
+    status_code=status.HTTP_201_CREATED,
+    responses=ERRORS,
+)
+def case_close(
+    ref: str,
+    body: schemas.CaseCloseIn,
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(require(Permission.CASES_CLOSE)),
+) -> schemas.CaseCloseOut:
+    """Close a claimed case the court has disposed of (design close-case), with the reason why: the officer of the
+    owning department who has it, the department's head wherever it is, or the Super Administrator. The case comes to
+    rest with the owning department's office with nothing pending, the remark becomes a note everyone who can open the
+    case can read, and the holder's drafts become permanent. `visible` is false when the closer can no longer open
+    the case."""
+    case = _case(session, ref)
+    try:
+        result = case_closure.close(session, actor_of(request, user, session), user, case, remark=body.remark)
+        card, visible = _closure_card(session, user, case)
+        out = schemas.CaseCloseOut(
+            closure=case_closure.brief(session, user, result.closure),
+            note_ref_no=result.note.ref_no,
+            finalised_notes=result.finalised,
+            card=card,
+            visible=visible,
+        )
+    except HANDLED as exc:
+        raise _http(exc) from exc
+    return out
+
+
+@router.post(
+    "/cases/{ref}/reopen",
+    response_model=schemas.CaseReopenOut,
+    status_code=status.HTTP_201_CREATED,
+    responses=ERRORS,
+)
+def case_reopen(
+    ref: str,
+    body: schemas.CaseReopenIn,
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(require(Permission.CASES_REOPEN)),
+) -> schemas.CaseReopenOut:
+    """Reopen a closed case with the reason why (design close-case): a membership of the owning department holding
+    `cases.reopen`, or the Super Administrator for any case. The case goes to the department's office with
+    'Examine' pending and the department is alerted."""
+    case = _case(session, ref)
+    try:
+        result = case_closure.reopen(
+            session, actor_of(request, user, session), user, case, reason=body.reason
+        )
+        card, visible = _closure_card(session, user, case)
+        out = schemas.CaseReopenOut(
+            closure=case_closure.brief(session, user, result.closure),
+            note_ref_no=result.note.ref_no if result.note is not None else "",
+            card=card,
+            visible=visible,
+        )
     except HANDLED as exc:
         raise _http(exc) from exc
     return out

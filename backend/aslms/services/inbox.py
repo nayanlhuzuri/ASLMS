@@ -173,9 +173,13 @@ def summaries(
     """The one builder of `CaseSummaryOut`. `next_hearing` is the case's one next hearing (design next-date-direct,
     decision 11), never the court's raw `next_hearing_date`. `hidden` names the cases the caller cannot open: their
     `next_hearing` keeps only the court-public tiers (`next_hearing.court_public`), never a department's own date."""
-    from aslms.services import next_hearing
+    from aslms.services import case_closure, next_hearing
 
+    hidden_ids = set(hidden)
     listings = _last_listings(session, [c.id for c in cases])
+    # design close-case, decision 17: one batched query (whatever the mix, so a page costs the same queries); withheld
+    # (null) for a case the caller cannot open
+    closed = case_closure.closed_ids(session, [c.id for c in cases])
     hearings = next_hearing.outs(session, cases)
     for cid in set(hidden) & hearings.keys():
         hearings[cid] = next_hearing.court_public(hearings[cid])
@@ -194,6 +198,7 @@ def summaries(
             "next_hearing": hearings.get(c.id),
             "last_listed_on": last["list_date"] if last else None,
             "last_listing": last,
+            "closed": None if c.id in hidden_ids else c.id in closed,
         }
     return out
 
@@ -369,10 +374,12 @@ def claimed_stmt(
     stage: str | None = None,
     holder: str | None = None,
     action: str | None = None,
+    closure: str | None = "all",
 ) -> Select:
     """The Claimed rows; `unallotted` keeps rows with no officer, `stage` the case's latest stage (or `none`),
     `holder` where the file is (`department` / `elsewhere`), `action` the file's due date (`overdue` /
-    `due_week`) (design `portal-ui-redesign`, A3)."""
+    `due_week`) (design `portal-ui-redesign`, A3); `closure` `open` / `closed` / `all` (design close-case,
+    decision 17)."""
     from aslms.services import my_cases
 
     stmt = (
@@ -393,6 +400,7 @@ def claimed_stmt(
         my_cases.stage_condition(stage),
         my_cases.holder_condition(holder, department),
         my_cases.action_condition(action),
+        my_cases.closure_condition(closure),
     ):
         if extra is not None:
             stmt = stmt.where(extra)
@@ -406,11 +414,16 @@ def _case_state(value: str | None) -> CaseState:
     return v  # type: ignore[return-value]
 
 
-def claimed_order(state: CaseState, action: str | None) -> list[Any]:
+def claimed_order(state: CaseState, action: str | None, closure: str | None = None) -> list[Any]:
     """Design `case-inbox-simplify`, decision 13: with `case_state=all` active cases first; with `action` the
     file's due date next (nulls last); then the next hearing (nulls last) and the newest claim. `active` and
-    `disposed` without `action` keep the earlier order exactly."""
+    `disposed` without `action` keep the earlier order exactly. With `closure=closed` the newest closure comes first
+    (design close-case, decision 17)."""
     order: list[Any] = []
+    if (closure or "").strip().lower() == "closed":
+        from aslms.services import case_closure
+
+        order.append(case_closure.closed_at_column(Case.id).desc().nulls_last())
     if state == "all":
         order.append((Case.status == CaseStatus.DISPOSED).asc())
     if action is not None and str(action).strip() != "":
@@ -434,6 +447,7 @@ def claimed(
     stage: str | None = None,
     holder: str | None = None,
     action: str | None = None,
+    closure: str | None = "all",
     limit: int | None = None,
     offset: int | None = None,
 ) -> Page:
@@ -465,9 +479,12 @@ def claimed(
         stage=stage,
         holder=holder,
         action=action,
+        closure=closure,
     )
     total = _count(session, stmt)
-    rows = session.execute(stmt.order_by(*claimed_order(state, action)).limit(limit).offset(offset)).all()
+    rows = session.execute(
+        stmt.order_by(*claimed_order(state, action, closure)).limit(limit).offset(offset)
+    ).all()
     cases = [c for _, c in rows]
     summ = summaries(session, cases)
     briefs = my_cases.case_briefs(session, user, [c.id for c in cases])
@@ -755,6 +772,8 @@ def _counts_for(session: Session, user: User, dept: Office | None, *, today: dat
         "recommended_medium": None,
         "claimed_active": None,
         "claimed_disposed": None,
+        "claimed_open": None,
+        "claimed_closed": None,
         "transfers_in_open": None,
         "pool_with_hearing_7d": None,
         "whole_department": False,
@@ -774,6 +793,11 @@ def _counts_for(session: Session, user: User, dept: Office | None, *, today: dat
         out["claimed_disposed"] = _count(
             session, claimed_stmt(session, user, dept, case_state="disposed", whole=whole)
         )
+        # design close-case, decision 17: claimed_open + claimed_closed = claimed_active + claimed_disposed
+        for closure in ("open", "closed"):
+            out[f"claimed_{closure}"] = _count(
+                session, claimed_stmt(session, user, dept, case_state="all", whole=whole, closure=closure)
+            )
         if view_all or (mine is not None and _transfers_allowed(session, mine)):
             out["transfers_in_open"] = _count(
                 session, transfers_stmt(dept, direction="in", status=TransferStatus.REQUESTED)

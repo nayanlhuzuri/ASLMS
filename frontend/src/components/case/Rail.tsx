@@ -11,12 +11,16 @@
  *   that day; the collapsed line carries the small badge.
  * - Quick actions: Add note, Upload and Set stage by the three workflow flags (the card hides with none).
  * - Journey of this case: the latest 4 movements, newest first, with the "now" marker.
+ * Close Case (design close-case, decision 19): "Ready to Close" with the primary Close Case by `workflow.close`; the
+ * reason a closer cannot close yet by `workflow.close_blocked` (`transfer_open`; nothing for `not_disposed`); a closed
+ * case shows its closure line in place of the task, with no Send or Recall; Reopen Case by `workflow.reopen`, and the
+ * owning-department line by `workflow.reopen_blocked`.
  * The server decides everything shown: the frontend never infers a hidden remark.
  */
 import Link from "next/link";
 import { useId, useState, type ReactNode } from "react";
 
-import { Button, Collapsible, ErrorBanner, HearingDate, Loading } from "@/components/ui";
+import { Badge, Button, Collapsible, ErrorBanner, HearingDate, Loading, Notice } from "@/components/ui";
 import { useJourney, useLatestListing, useMe } from "@/lib/api/hooks";
 import type { CaseDetail, CustodyCard, CustodyHistory, CustodyLeg, Listing } from "@/lib/api/types";
 import { cardHolder, cardSender, daysUntil, legActor, legHolder, withText } from "@/lib/cases";
@@ -26,7 +30,45 @@ import { casePath } from "@/lib/refs";
 
 import s from "./rail.module.css";
 
-export type RailAction = "note" | "upload" | "stage" | "recall" | "next";
+export type RailAction = "note" | "upload" | "stage" | "recall" | "next" | "close" | "reopen";
+
+/** The case's open closure, or null (design close-case, decision 1: Closed while not reopened). */
+export function openClosure(c: Pick<CaseDetail, "closure">) {
+  return c.closure && !c.closure.reopened_at ? c.closure : null;
+}
+
+/** "<name>, <designation>" of a closer or reopener. */
+export function closerName(by: { name?: string | null; designation?: string | null } | null | undefined): string {
+  return [by?.name, by?.designation].filter(Boolean).join(", ") || "—";
+}
+
+/** Close Case and Reopen Case on the Your Task card, by the server's flags (decision 19). */
+function CloseActions({ c, onAction }: { c: CaseDetail; onAction: (a: RailAction) => void }) {
+  const w = c.workflow;
+  return (
+    <>
+      {w.close ? (
+        <div className={s.ready} data-ready-to-close="true">
+          <Notice>
+            <strong>{T.closure.readyToClose}</strong> {T.closure.readyText}
+          </Notice>
+          <Button onClick={() => onAction("close")}>{T.closure.closeCase}</Button>
+        </div>
+      ) : w.close_blocked === "transfer_open" ? (
+        <p className={s.hint}>{T.closure.blockedTransfer}</p>
+      ) : null}
+      {w.reopen ? (
+        <div className={s.buttons}>
+          <Button variant="secondary" onClick={() => onAction("reopen")}>
+            {T.closure.reopenCase}
+          </Button>
+        </div>
+      ) : w.reopen_blocked === "not_own_department" ? (
+        <p className={s.hint}>{T.closure.notOwnDepartment}</p>
+      ) : null}
+    </>
+  );
+}
 
 /** The latest remark, clamped to `lines` with "Show all" when it is long; the full text stays in the page. */
 export function ClampedRemark({ text, lines, quote = true }: { text: string; lines: 2 | 6; quote?: boolean }) {
@@ -87,6 +129,22 @@ export function YourTask({
   const me = useMe();
   const card = c.custody;
   if (!card) return <p className="muted">{T.rail.unclaimed}</p>;
+  const closed = openClosure(c);
+  if (closed) {
+    // design close-case, decision 19: the closure line in place of the task; nothing moves while closed
+    return (
+      <div className={s.task}>
+        <div className={s.eyebrow}>
+          <Badge>{T.closure.closed}</Badge>
+        </div>
+        <p>{T.closure.closedOn(formatDate(closed.closed_at), closerName(closed.closed_by))}</p>
+        <div className={s.buttons}>
+          <RemarksButton journey={journey} onRemarks={onRemarks} />
+        </div>
+        <CloseActions c={c} onAction={onAction} />
+      </div>
+    );
+  }
   const meId = me.data?.user.id ?? null;
   const mine = !!card.holder_user && !!meId && card.holder_user.id === meId;
   const sender = cardSender(card);
@@ -119,7 +177,8 @@ export function YourTask({
         <RemarksButton journey={journey} onRemarks={onRemarks} />
         {recall}
       </div>
-      {mine && card.can_send ? <p className={s.hint}>{T.rail.doneHint}</p> : null}
+      {mine && card.can_send && !c.workflow.close ? <p className={s.hint}>{T.rail.doneHint}</p> : null}
+      <CloseActions c={c} onAction={onAction} />
     </div>
   );
 }

@@ -35,7 +35,7 @@ from aslms.domain.org import Office, User
 from aslms.domain.ownership import CaseOwnership, OwnershipRole, OwnershipStatus
 from aslms.domain.reference import EventType, Permission, RefEventType
 from aslms.domain.workflow import CaseNote
-from aslms.services import access, inbox, stages, workflow_actions
+from aslms.services import access, case_closure, inbox, stages, workflow_actions
 from aslms.services.refno import current_case_ref_no
 from aslms.services.visibility import (
     alert_document_condition,
@@ -154,6 +154,8 @@ OWNERSHIP_EVENTS = (
     EventType.STAGE_SET,
     EventType.NEXT_DATE_REVIEWED,  # design next-date-extraction, decision 14: shown to every reader of the case
     EventType.NEXT_DATE_ENTERED,
+    EventType.CASE_CLOSED,  # design close-case, decision 7: everyone who can open the case sees "Case closed"
+    EventType.CASE_REOPENED,  # design close-case, decision 12
 )
 # shown to the department named in the payload (`office_code`, `from_office_code`, `to_office_code`) and to
 # State-wide readers; `alert_raised` (design alerts-notifications, decision 15) carries the office addressed
@@ -388,6 +390,8 @@ def overview(session: Session, user: User, case: Case) -> dict[str, Any]:
         "merged_into_ref_no": merged_into.ref_no if merged_into else None,
         "counts": _counts(session, user, case),
         "workflow": workflow_actions.available(session, user, case),
+        # design close-case, decision 20: the latest closure (open or reopened), or null
+        "closure": case_closure.brief(session, user, case_closure.latest_closure(session, case)),
         **_next_date_block(session, user, case),
     }
 

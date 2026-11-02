@@ -3152,6 +3152,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/cases/{ref}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Case Close
+         * @description Close a claimed case the court has disposed of (design close-case), with the reason why: the officer of the
+         *     owning department who has it, the department's head wherever it is, or the Super Administrator. The case comes to
+         *     rest with the owning department's office with nothing pending, the remark becomes a note everyone who can open the
+         *     case can read, and the holder's drafts become permanent. `visible` is false when the closer can no longer open
+         *     the case.
+         */
+        post: operations["case_close_cases__ref__close_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/cases/{ref}/custody": {
         parameters: {
             query?: never;
@@ -3504,6 +3528,28 @@ export interface paths {
         get: operations["case_parties_cases__ref__parties_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cases/{ref}/reopen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Case Reopen
+         * @description Reopen a closed case with the reason why (design close-case): a membership of the owning department holding
+         *     `cases.reopen`, or the Super Administrator for any case. The case goes to the department's office with
+         *     'Examine' pending and the department is alerted.
+         */
+        post: operations["case_reopen_cases__ref__reopen_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4098,7 +4144,7 @@ export interface paths {
         /**
          * Mine Counts
          * @description The unfiltered totals of the views of `/inbox/mine`: `files` is the With Me count, `all` the My Cases
-         *     total (design case-inbox-simplify, decision 3).
+         *     total (design case-inbox-simplify, decision 3), split into `all_open` and `all_closed` (design close-case).
          */
         get: operations["mine_counts_inbox_mine_counts_get"];
         put?: never;
@@ -5985,6 +6031,67 @@ export interface components {
             /** Sub Category */
             sub_category: string | null;
         };
+        /** CaseCloseIn */
+        CaseCloseIn: {
+            /** Remark */
+            remark: string;
+        };
+        /**
+         * CaseCloseOut
+         * @description Design close-case: `visible` false when the closer can no longer open the case (then `card` is null).
+         */
+        CaseCloseOut: {
+            card: components["schemas"]["CustodyCardOut"] | null;
+            closure: components["schemas"]["CaseClosureOut"];
+            /** Finalised Notes */
+            finalised_notes: string[];
+            /** Note Ref No */
+            note_ref_no: string;
+            /** Visible */
+            visible: boolean;
+        };
+        /** CaseClosedByOut */
+        CaseClosedByOut: {
+            /** Designation */
+            designation: string | null;
+            /** Name */
+            name: string | null;
+            /** Office Code */
+            office_code: string | null;
+        };
+        /**
+         * CaseClosureOut
+         * @description Design close-case, decision 20: the latest closure of the case. A remark's `ref_no` only when the caller may
+         *     read that note.
+         */
+        CaseClosureOut: {
+            /**
+             * Closed As
+             * @enum {string}
+             */
+            closed_as: "holder" | "head" | "super_admin";
+            /**
+             * Closed At
+             * Format: date-time
+             */
+            closed_at: string;
+            closed_by: components["schemas"]["CaseClosedByOut"];
+            /** Disposal Date */
+            disposal_date: string | null;
+            /** Note Ref No */
+            note_ref_no: string | null;
+            /** Office Code */
+            office_code: string | null;
+            /** Reopen Kind */
+            reopen_kind: ("automatic" | "manual") | null;
+            /** Reopen Note Ref No */
+            reopen_note_ref_no: string | null;
+            /** Reopened At */
+            reopened_at: string | null;
+            reopened_by: components["schemas"]["CaseClosedByOut"] | null;
+            /** Reopened Status */
+            reopened_status: string | null;
+        };
         /** CaseCountsOut */
         CaseCountsOut: {
             /** Documents */
@@ -6018,6 +6125,7 @@ export interface components {
             /** Claimable */
             claimable: boolean;
             classification: components["schemas"]["CaseClassificationOut"];
+            closure?: components["schemas"]["CaseClosureOut"] | null;
             counts: components["schemas"]["CaseCountsOut"];
             court: components["schemas"]["CourtRefOut"] | null;
             /** Court Transfers */
@@ -6239,6 +6347,20 @@ export interface components {
             /** Updated By */
             updated_by: string | null;
         };
+        /** CaseReopenIn */
+        CaseReopenIn: {
+            /** Reason */
+            reason: string;
+        };
+        /** CaseReopenOut */
+        CaseReopenOut: {
+            card: components["schemas"]["CustodyCardOut"] | null;
+            closure: components["schemas"]["CaseClosureOut"];
+            /** Note Ref No */
+            note_ref_no: string;
+            /** Visible */
+            visible: boolean;
+        };
         /** CaseScoreOut */
         CaseScoreOut: {
             /** Band */
@@ -6325,6 +6447,11 @@ export interface components {
         CaseSummaryOut: {
             /** Case No Text */
             case_no_text: string | null;
+            /**
+             * Closed
+             * @description the department closed the case (design close-case); null when the caller cannot open the case
+             */
+            closed?: boolean | null;
             /** Cnr */
             cnr: string | null;
             /**
@@ -6397,6 +6524,15 @@ export interface components {
          */
         CaseWorkflowActionsOut: {
             /**
+             * Close
+             * @default false
+             */
+            close: boolean;
+            /** Close As */
+            close_as?: ("holder" | "head" | "super_admin") | null;
+            /** Close Blocked */
+            close_blocked?: ("not_disposed" | "transfer_open") | null;
+            /**
              * Next Date Correct
              * @default false
              */
@@ -6412,6 +6548,13 @@ export interface components {
             next_dates_blocked?: "court_date_fixed" | null;
             /** Note Mode */
             note_mode: ("draft" | "permanent") | null;
+            /**
+             * Reopen
+             * @default false
+             */
+            reopen: boolean;
+            /** Reopen Blocked */
+            reopen_blocked?: "not_own_department" | null;
             /** Set Stage */
             set_stage: boolean;
             /** Upload */
@@ -7550,6 +7693,12 @@ export interface components {
             can_recall: boolean;
             /** Can Send */
             can_send: boolean;
+            /**
+             * Closed
+             * @description the case is closed: nothing moves, so `can_send` and `can_recall` are false (close-case)
+             * @default false
+             */
+            closed: boolean;
             /** Due Date */
             due_date: string | null;
             /**
@@ -7764,6 +7913,12 @@ export interface components {
             next_dates_to_review: number | null;
             /** Recent Order Next Dates */
             recent_order_next_dates: components["schemas"]["DashboardOrderNextDateOut"][];
+            /**
+             * To Close
+             * @description Ready to Close: disposed and still open (design close-case, decision 22)
+             * @default 0
+             */
+            to_close: number;
         };
         /** DashboardCasesOut */
         DashboardCasesOut: {
@@ -7771,8 +7926,20 @@ export interface components {
             claimed_active: number;
             /** Claimed Disposed */
             claimed_disposed: number;
+            /**
+             * Closed
+             * @description primary-owned and closed by the department (design close-case)
+             * @default 0
+             */
+            closed: number;
             /** Not Allotted Active */
             not_allotted_active: number;
+            /**
+             * To Close
+             * @description primary-owned, disposed by the court and still open (design close-case)
+             * @default 0
+             */
+            to_close: number;
             /** Watching Active */
             watching_active: number;
         };
@@ -7928,8 +8095,8 @@ export interface components {
         };
         /**
          * DashboardMeAttentionOut
-         * @description One item that needs the caller (A7): an overdue file, a next date to confirm, a file due soon or a file
-         *     received lately.
+         * @description One item that needs the caller (A7): an overdue file, a next date to confirm, a file due soon, a disposed case
+         *     ready to close (design close-case, decision 21) or a file received lately.
          */
         DashboardMeAttentionOut: {
             case: components["schemas"]["AlertCaseOut"];
@@ -7941,7 +8108,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "overdue_action" | "confirm_next_date" | "due_soon" | "file_received";
+            kind: "overdue_action" | "confirm_next_date" | "due_soon" | "ready_to_close" | "file_received";
             /** Next Date Id */
             next_date_id: string | null;
             /** Overdue Days */
@@ -9575,8 +9742,12 @@ export interface components {
         InboxCountsOut: {
             /** Claimed Active */
             claimed_active: number | null;
+            /** Claimed Closed */
+            claimed_closed?: number | null;
             /** Claimed Disposed */
             claimed_disposed: number | null;
+            /** Claimed Open */
+            claimed_open?: number | null;
             /** Office Code */
             office_code?: string | null;
             /** Pool With Hearing 7D */
@@ -10439,6 +10610,18 @@ export interface components {
         MyCaseCountsOut: {
             /** All */
             all: number;
+            /**
+             * All Closed
+             * @description the closed cases of `all` (design close-case)
+             * @default 0
+             */
+            all_closed: number;
+            /**
+             * All Open
+             * @description `all` without the closed cases (design close-case)
+             * @default 0
+             */
+            all_open: number;
             /** Claimed */
             claimed: number;
             /** Disposed */
@@ -11662,7 +11845,7 @@ export interface components {
          *     (`user_permissions`). The part before the dot is the module.
          * @enum {string}
          */
-        Permission: "users.view" | "users.create" | "users.edit" | "users.set_type" | "users.enable_disable" | "users.grant" | "users.reset_password" | "users.propose_head" | "access.manage_types" | "offices.manage" | "admin.counsel_codes" | "admin.keywords" | "admin.watchlist" | "admin.masters_sync" | "admin.napix_refetch" | "admin.config" | "admin.designations" | "admin.scoring" | "admin.tickets" | "admin.sourcetrace" | "admin.data_load" | "admin.service_health" | "cases.view_scope" | "cases.view_all" | "cases.view_private_all" | "cases.search_court" | "cases.claim" | "cases.dismiss" | "cases.suggest_elsewhere" | "cases.transfer_request" | "cases.transfer_decide" | "cases.allot" | "cases.release" | "cases.take_over" | "custody.move" | "custody.recall" | "custody.track" | "requests.send" | "requests.answer" | "stages.set" | "notes.add" | "notes.view_counsel_shared" | "notes.view_private_office" | "documents.upload" | "documents.view" | "documents.download" | "alerts.acknowledge" | "next_dates.review" | "next_dates.report_wrong" | "next_dates.correct" | "reports.department" | "reports.state" | "dashboard.state" | "assistant.use" | "audit.view";
+        Permission: "users.view" | "users.create" | "users.edit" | "users.set_type" | "users.enable_disable" | "users.grant" | "users.reset_password" | "users.propose_head" | "access.manage_types" | "offices.manage" | "admin.counsel_codes" | "admin.keywords" | "admin.watchlist" | "admin.masters_sync" | "admin.napix_refetch" | "admin.config" | "admin.designations" | "admin.scoring" | "admin.tickets" | "admin.sourcetrace" | "admin.data_load" | "admin.service_health" | "cases.view_scope" | "cases.view_all" | "cases.view_private_all" | "cases.search_court" | "cases.claim" | "cases.dismiss" | "cases.suggest_elsewhere" | "cases.transfer_request" | "cases.transfer_decide" | "cases.allot" | "cases.release" | "cases.take_over" | "custody.move" | "custody.recall" | "custody.track" | "requests.send" | "requests.answer" | "stages.set" | "notes.add" | "notes.view_counsel_shared" | "notes.view_private_office" | "documents.upload" | "documents.view" | "documents.download" | "alerts.acknowledge" | "next_dates.review" | "next_dates.report_wrong" | "next_dates.correct" | "reports.department" | "reports.state" | "dashboard.state" | "assistant.use" | "audit.view" | "cases.close" | "cases.reopen";
         /** PermissionOut */
         PermissionOut: {
             code: components["schemas"]["Permission"];
@@ -21825,6 +22008,77 @@ export interface operations {
             };
         };
     };
+    case_close_cases__ref__close_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CaseCloseIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaseCloseOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     custody_history_cases__ref__custody_get: {
         parameters: {
             query?: {
@@ -22877,6 +23131,77 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PartiesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    case_reopen_cases__ref__reopen_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CaseReopenIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaseReopenOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
                 };
             };
             /** @description Validation Error */
@@ -24103,6 +24428,8 @@ export interface operations {
                 holder?: string | null;
                 /** @description overdue: the file's due date has passed; due_week: due within 7 days */
                 action?: string | null;
+                /** @description open: leave closed cases out; closed: only closed cases, newest closure first; all (default): both (design close-case) */
+                closure?: string;
                 limit?: number;
                 offset?: number;
                 /** @description Words as the Search box (at least 3 characters): a CNR, a case number (`WP(C) 4326/2025`), a `ref_no`, or words matched as prefixes over parties, advocates, counsel codes and numbers */
@@ -24194,6 +24521,8 @@ export interface operations {
                 stage?: string | null;
                 /** @description On the caller's file: overdue or due_week */
                 action?: string | null;
+                /** @description open: leave closed cases out; closed: only closed cases, newest closure first; all (default): both (design close-case) */
+                closure?: string;
                 limit?: number;
                 offset?: number;
                 /** @description Words as the Search box (at least 3 characters): a CNR, a case number (`WP(C) 4326/2025`), a `ref_no`, or words matched as prefixes over parties, advocates, counsel codes and numbers */

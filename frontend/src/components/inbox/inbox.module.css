@@ -62,3 +62,18 @@
 .assignRow > * {
   flex: 1 1 220px;
 }
+
+/* design close-case, decisions 15-17: the Closed / Ready to Close badge beside the next hearing, the switch row */
+.nextCell {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.switchRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+}

@@ -3773,6 +3773,236 @@
         "title": "CaseClassificationOut",
         "type": "object"
       },
+      "CaseCloseIn": {
+        "properties": {
+          "remark": {
+            "maxLength": 2000,
+            "title": "Remark",
+            "type": "string"
+          }
+        },
+        "required": [
+          "remark"
+        ],
+        "title": "CaseCloseIn",
+        "type": "object"
+      },
+      "CaseCloseOut": {
+        "description": "Design close-case: `visible` false when the closer can no longer open the case (then `card` is null).",
+        "properties": {
+          "card": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CustodyCardOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "closure": {
+            "$ref": "#/components/schemas/CaseClosureOut"
+          },
+          "finalised_notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Finalised Notes",
+            "type": "array"
+          },
+          "note_ref_no": {
+            "title": "Note Ref No",
+            "type": "string"
+          },
+          "visible": {
+            "title": "Visible",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "closure",
+          "note_ref_no",
+          "finalised_notes",
+          "card",
+          "visible"
+        ],
+        "title": "CaseCloseOut",
+        "type": "object"
+      },
+      "CaseClosedByOut": {
+        "properties": {
+          "designation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Designation"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "office_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Office Code"
+          }
+        },
+        "required": [
+          "name",
+          "designation",
+          "office_code"
+        ],
+        "title": "CaseClosedByOut",
+        "type": "object"
+      },
+      "CaseClosureOut": {
+        "description": "Design close-case, decision 20: the latest closure of the case. A remark's `ref_no` only when the caller may\nread that note.",
+        "properties": {
+          "closed_as": {
+            "enum": [
+              "holder",
+              "head",
+              "super_admin"
+            ],
+            "title": "Closed As",
+            "type": "string"
+          },
+          "closed_at": {
+            "format": "date-time",
+            "title": "Closed At",
+            "type": "string"
+          },
+          "closed_by": {
+            "$ref": "#/components/schemas/CaseClosedByOut"
+          },
+          "disposal_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disposal Date"
+          },
+          "note_ref_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Ref No"
+          },
+          "office_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Office Code"
+          },
+          "reopen_kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "automatic",
+                  "manual"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reopen Kind"
+          },
+          "reopen_note_ref_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reopen Note Ref No"
+          },
+          "reopened_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reopened At"
+          },
+          "reopened_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CaseClosedByOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reopened_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reopened Status"
+          }
+        },
+        "required": [
+          "closed_at",
+          "closed_as",
+          "closed_by",
+          "office_code",
+          "note_ref_no",
+          "disposal_date",
+          "reopened_at",
+          "reopen_kind",
+          "reopened_status",
+          "reopened_by",
+          "reopen_note_ref_no"
+        ],
+        "title": "CaseClosureOut",
+        "type": "object"
+      },
       "CaseCountsOut": {
         "properties": {
           "documents": {
@@ -3867,6 +4097,16 @@
           },
           "classification": {
             "$ref": "#/components/schemas/CaseClassificationOut"
+          },
+          "closure": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CaseClosureOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "counts": {
             "$ref": "#/components/schemas/CaseCountsOut"
@@ -4816,6 +5056,53 @@
         "title": "CasePortalOut",
         "type": "object"
       },
+      "CaseReopenIn": {
+        "properties": {
+          "reason": {
+            "maxLength": 2000,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "CaseReopenIn",
+        "type": "object"
+      },
+      "CaseReopenOut": {
+        "properties": {
+          "card": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CustodyCardOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "closure": {
+            "$ref": "#/components/schemas/CaseClosureOut"
+          },
+          "note_ref_no": {
+            "title": "Note Ref No",
+            "type": "string"
+          },
+          "visible": {
+            "title": "Visible",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "closure",
+          "note_ref_no",
+          "card",
+          "visible"
+        ],
+        "title": "CaseReopenOut",
+        "type": "object"
+      },
       "CaseScoreOut": {
         "properties": {
           "band": {
@@ -5135,6 +5422,18 @@
             ],
             "title": "Case No Text"
           },
+          "closed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the department closed the case (design close-case); null when the caller cannot open the case",
+            "title": "Closed"
+          },
           "cnr": {
             "anyOf": [
               {
@@ -5318,6 +5617,42 @@
       "CaseWorkflowActionsOut": {
         "description": "Design portal-workflow, decision 20a: what the caller may do, from the checks the writes run. `note_mode`\nis `draft` when the caller's acting membership holds the file, `permanent` when they may write a note\notherwise, `null` when they may not write one. `next_dates` (design portal-next-dates, decision 3): the caller\nmay enter next dates on the case; false with `next_dates_blocked = \"court_date_fixed\"` while the court has given\nthe next date (design next-date-direct, decision 6). `next_date_report` / `next_date_correct` (decisions 17 to\n19): the caller holds the function, may see the case and a reading of the latest order can be reported or\ncorrected.",
         "properties": {
+          "close": {
+            "default": false,
+            "title": "Close",
+            "type": "boolean"
+          },
+          "close_as": {
+            "anyOf": [
+              {
+                "enum": [
+                  "holder",
+                  "head",
+                  "super_admin"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Close As"
+          },
+          "close_blocked": {
+            "anyOf": [
+              {
+                "enum": [
+                  "not_disposed",
+                  "transfer_open"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Close Blocked"
+          },
           "next_date_correct": {
             "default": false,
             "title": "Next Date Correct",
@@ -5358,6 +5693,23 @@
               }
             ],
             "title": "Note Mode"
+          },
+          "reopen": {
+            "default": false,
+            "title": "Reopen",
+            "type": "boolean"
+          },
+          "reopen_blocked": {
+            "anyOf": [
+              {
+                "const": "not_own_department",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reopen Blocked"
           },
           "set_stage": {
             "title": "Set Stage",
@@ -8728,6 +9080,12 @@
             "title": "Can Send",
             "type": "boolean"
           },
+          "closed": {
+            "default": false,
+            "description": "the case is closed: nothing moves, so `can_send` and `can_recall` are false (close-case)",
+            "title": "Closed",
+            "type": "boolean"
+          },
           "due_date": {
             "anyOf": [
               {
@@ -9428,6 +9786,12 @@
             },
             "title": "Recent Order Next Dates",
             "type": "array"
+          },
+          "to_close": {
+            "default": 0,
+            "description": "Ready to Close: disposed and still open (design close-case, decision 22)",
+            "title": "To Close",
+            "type": "integer"
           }
         },
         "required": [
@@ -9449,8 +9813,20 @@
             "title": "Claimed Disposed",
             "type": "integer"
           },
+          "closed": {
+            "default": 0,
+            "description": "primary-owned and closed by the department (design close-case)",
+            "title": "Closed",
+            "type": "integer"
+          },
           "not_allotted_active": {
             "title": "Not Allotted Active",
+            "type": "integer"
+          },
+          "to_close": {
+            "default": 0,
+            "description": "primary-owned, disposed by the court and still open (design close-case)",
+            "title": "To Close",
             "type": "integer"
           },
           "watching_active": {
@@ -9929,7 +10305,7 @@
         "type": "object"
       },
       "DashboardMeAttentionOut": {
-        "description": "One item that needs the caller (A7): an overdue file, a next date to confirm, a file due soon or a file\nreceived lately.",
+        "description": "One item that needs the caller (A7): an overdue file, a next date to confirm, a file due soon, a disposed case\nready to close (design close-case, decision 21) or a file received lately.",
         "properties": {
           "case": {
             "$ref": "#/components/schemas/AlertCaseOut"
@@ -9962,6 +10338,7 @@
               "overdue_action",
               "confirm_next_date",
               "due_soon",
+              "ready_to_close",
               "file_received"
             ],
             "title": "Kind",
@@ -14987,6 +15364,17 @@
             ],
             "title": "Claimed Active"
           },
+          "claimed_closed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Claimed Closed"
+          },
           "claimed_disposed": {
             "anyOf": [
               {
@@ -14997,6 +15385,17 @@
               }
             ],
             "title": "Claimed Disposed"
+          },
+          "claimed_open": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Claimed Open"
           },
           "office_code": {
             "anyOf": [
@@ -17593,6 +17992,18 @@
         "properties": {
           "all": {
             "title": "All",
+            "type": "integer"
+          },
+          "all_closed": {
+            "default": 0,
+            "description": "the closed cases of `all` (design close-case)",
+            "title": "All Closed",
+            "type": "integer"
+          },
+          "all_open": {
+            "default": 0,
+            "description": "`all` without the closed cases (design close-case)",
+            "title": "All Open",
             "type": "integer"
           },
           "claimed": {
@@ -21342,7 +21753,9 @@
           "reports.state",
           "dashboard.state",
           "assistant.use",
-          "audit.view"
+          "audit.view",
+          "cases.close",
+          "cases.reopen"
         ],
         "title": "Permission",
         "type": "string"
@@ -40887,6 +41300,104 @@
         ]
       }
     },
+    "/cases/{ref}/close": {
+      "post": {
+        "description": "Close a claimed case the court has disposed of (design close-case), with the reason why: the officer of the\nowning department who has it, the department's head wherever it is, or the Super Administrator. The case comes to\nrest with the owning department's office with nothing pending, the remark becomes a note everyone who can open the\ncase can read, and the holder's drafts become permanent. `visible` is false when the closer can no longer open\nthe case.",
+        "operationId": "case_close_cases__ref__close_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CaseCloseIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseCloseOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Case Close",
+        "tags": [
+          "workflow"
+        ]
+      }
+    },
     "/cases/{ref}/custody": {
       "get": {
         "description": "The custody card and the legs by `seq_no` (the case's movement record), oldest first or with\n`order=desc` newest first; the remark only for callers working on the case and State-wide readers holding\n`cases.view_private_all`, which `remarks_shown` states.",
@@ -42594,6 +43105,104 @@
         "summary": "Case Parties",
         "tags": [
           "cases"
+        ]
+      }
+    },
+    "/cases/{ref}/reopen": {
+      "post": {
+        "description": "Reopen a closed case with the reason why (design close-case): a membership of the owning department holding\n`cases.reopen`, or the Super Administrator for any case. The case goes to the department's office with\n'Examine' pending and the department is alerted.",
+        "operationId": "case_reopen_cases__ref__reopen_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CaseReopenIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseReopenOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Case Reopen",
+        "tags": [
+          "workflow"
         ]
       }
     },
@@ -45169,6 +45778,18 @@
             }
           },
           {
+            "description": "open: leave closed cases out; closed: only closed cases, newest closure first; all (default): both (design close-case)",
+            "in": "query",
+            "name": "closure",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "description": "open: leave closed cases out; closed: only closed cases, newest closure first; all (default): both (design close-case)",
+              "title": "Closure",
+              "type": "string"
+            }
+          },
+          {
             "in": "query",
             "name": "limit",
             "required": false,
@@ -45532,6 +46153,18 @@
             }
           },
           {
+            "description": "open: leave closed cases out; closed: only closed cases, newest closure first; all (default): both (design close-case)",
+            "in": "query",
+            "name": "closure",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "description": "open: leave closed cases out; closed: only closed cases, newest closure first; all (default): both (design close-case)",
+              "title": "Closure",
+              "type": "string"
+            }
+          },
+          {
             "in": "query",
             "name": "limit",
             "required": false,
@@ -45789,7 +46422,7 @@
     },
     "/inbox/mine/counts": {
       "get": {
-        "description": "The unfiltered totals of the views of `/inbox/mine`: `files` is the With Me count, `all` the My Cases\ntotal (design case-inbox-simplify, decision 3).",
+        "description": "The unfiltered totals of the views of `/inbox/mine`: `files` is the With Me count, `all` the My Cases\ntotal (design case-inbox-simplify, decision 3), split into `all_open` and `all_closed` (design close-case).",
         "operationId": "mine_counts_inbox_mine_counts_get",
         "responses": {
           "200": {

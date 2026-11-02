@@ -160,6 +160,7 @@ const LEAD_TONE: Record<string, Tone> = {
   overdue_action: "danger",
   confirm_next_date: "warning",
   due_soon: "warning",
+  ready_to_close: "warning", // design close-case, decision 21
   file_received: "info",
 };
 

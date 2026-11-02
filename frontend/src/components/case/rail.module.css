@@ -213,3 +213,11 @@
   font-weight: 500;
   overflow-wrap: anywhere;
 }
+
+/* design close-case, decision 19: the Ready to Close notice with its Close Case button */
+.ready {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin-top: var(--s3);
+}

@@ -42,7 +42,7 @@ from aslms.domain.workflow import (
     CustodyHistory,
     PendingAction,
 )
-from aslms.services import access, case_filters, inbox, visibility
+from aslms.services import access, case_closure, case_filters, inbox, visibility
 from aslms.services.access import Member
 from aslms.services.audit import Actor, snapshot, write_audit
 from aslms.services.case_filters import CaseFilters
@@ -363,6 +363,12 @@ class MoveResult:
     finalised: list[str] = field(default_factory=list)
 
 
+def refuse_if_closed(session: Session, case: Case) -> None:
+    """Design close-case, decision 8: a closed case does not move (409 `case_closed`)."""
+    if case_closure.is_closed(session, case):
+        raise conflict("case_closed", case_closure.CASE_CLOSED_MESSAGE)
+
+
 def _custody_or_conflict(session: Session, case: Case) -> Custody:
     row = session.get(Custody, case.id)
     if row is None:
@@ -394,6 +400,7 @@ def send(
     stage_ref = stages.check_stage(session, stage) if stage else None
     lock_case(session, case)
     require_owned(session, case)
+    refuse_if_closed(session, case)
     custody = _custody_or_conflict(session, case)
     sender = controls_custody(session, user, custody)
     if sender is None:
@@ -462,6 +469,7 @@ def recall(
         raise forbidden("function_missing", "custody.recall is not enabled for you")
     lock_case(session, case)
     require_owned(session, case)
+    refuse_if_closed(session, case)
     custody = _custody_or_conflict(session, case)
     recaller = recaller_member(session, user, case)
     if recaller is None:
@@ -582,6 +590,9 @@ def card(
         and row.due_date <= today + timedelta(days=get_settings().request_due_soon_days)
     )
     recaller = recaller_member(session, user, case)
+    closed = case_closure.is_closed(
+        session, case
+    )  # design close-case, decision 20: nothing moves while closed
     return {
         "holder_office": _office_ref(office),
         "holder_user": (
@@ -606,8 +617,11 @@ def card(
         "reason": leg.reason if leg is not None else None,
         "remark": leg.remark if leg is not None and shows_remark(session, user, case) else None,
         "leg_seq_no": leg.seq_no if leg is not None else None,
-        "can_send": controls_custody(session, user, row) is not None,
-        "can_recall": recaller is not None and recaller.membership_id != row.holder_membership_id,
+        "can_send": not closed and controls_custody(session, user, row) is not None,
+        "can_recall": not closed
+        and recaller is not None
+        and recaller.membership_id != row.holder_membership_id,
+        "closed": closed,
     }
 
 
@@ -666,7 +680,11 @@ def _held_stmt(session: Session, user: User | Member, scope: str) -> Select:
     stmt = (
         select(HELD, Case)
         .join(Case, Case.id == HELD.case_id)
-        .where(visibility.visible_case_condition(session, user))
+        .where(
+            visibility.visible_case_condition(session, user),
+            # design close-case, decision 15: a closed case is pending work of no one, in every scope
+            ~case_closure.closed_condition(HELD.case_id),
+        )
     )
     if scope == "me":
         uid = user.id
@@ -861,7 +879,10 @@ def summary_for(
             & (CaseOwnership.role == OwnershipRole.PRIMARY),
         )
         .outerjoin(leg, leg.id == Custody.current_leg_id)
-        .where(CaseOwnership.office_id.in_([d.id for d in depts]))
+        .where(
+            CaseOwnership.office_id.in_([d.id for d in depts]),
+            ~case_closure.closed_condition(Custody.case_id),  # design close-case, decision 15
+        )
     ).all()
     dept_codes = {
         o.code

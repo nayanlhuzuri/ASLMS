@@ -188,6 +188,8 @@ def test_visibility_lost_membership_and_another_department(api, world, cases):
         "all": 0,
         "claimed": 0,
         "disposed": 0,
+        "all_open": 0,  # design close-case, decision 16
+        "all_closed": 0,
     }
 
 

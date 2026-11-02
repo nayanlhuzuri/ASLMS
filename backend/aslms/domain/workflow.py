@@ -38,6 +38,7 @@ from aslms.db.base import (
     uuid_fk,
     uuid_pk,
 )
+from aslms.domain.cases import CaseStatus
 from aslms.domain.documents import Visibility
 from aslms.domain.reference import NoteKind, Stage
 
@@ -86,6 +87,8 @@ CUSTODY_REASONS = (
     "sent",
     "recalled",
     "reassigned_on_exit",
+    "closed",  # design close-case, decision 6
+    "reopened",  # design close-case, decision 12
 )
 CUSTODY_REASON_LABELS = {
     "claimed": "Claimed",
@@ -95,6 +98,8 @@ CUSTODY_REASON_LABELS = {
     "sent": "Sent",
     "recalled": "Recalled",
     "reassigned_on_exit": "Reassigned on an officer's exit",
+    "closed": "Closed",
+    "reopened": "Reopened",
 }
 # legs that carry the sender's remark (CHECK `ck_custody_history_remark`)
 REMARK_REASONS = ("sent", "recalled", "reassigned_on_exit")
@@ -255,6 +260,67 @@ class CaseNoteDraftDocument(CreatedAtMixin, Base):
     id: Mapped[uuid.UUID] = uuid_pk()
     draft_id: Mapped[uuid.UUID] = uuid_fk("case_note_drafts.id")
     document_id: Mapped[uuid.UUID] = uuid_fk("documents.id")
+
+
+CLOSED_AS = ("holder", "head", "super_admin")
+REOPEN_KINDS = ("automatic", "manual")
+
+
+class CaseClosure(TimestampMixin, ActorSnapshotMixin, Base):
+    """A department's closure of a disposed, claimed case (design `close-case`, decision 1): the case is Closed
+    while a row with `reopened_at IS NULL` exists. Written only by `services/case_closure.py`; the reopening
+    columns are set once, from NULL (trigger `case_closures_reopen_once`). Never deleted. The actor snapshot is
+    the closer; `reopened_by_*` the manual reopener."""
+
+    __tablename__ = "case_closures"
+    __table_class__ = TableClass.TRANSACTION
+    __table_args__ = (
+        CheckConstraint(f"closed_as IN {_in(CLOSED_AS)}", name="closed_as"),
+        CheckConstraint(f"reopen_kind IS NULL OR reopen_kind IN {_in(REOPEN_KINDS)}", name="reopen_kind"),
+        CheckConstraint(
+            "(reopened_at IS NULL) = (reopen_leg_id IS NULL) AND (reopened_at IS NULL) = (reopened_status IS NULL) "
+            "AND (reopened_at IS NULL) = (reopen_kind IS NULL)",
+            name="reopened",
+        ),
+        CheckConstraint(
+            "(reopen_kind = 'manual') = (reopen_note_id IS NOT NULL) AND "
+            "(reopen_kind = 'manual') = (reopened_by_name IS NOT NULL) AND "
+            "(reopen_kind IS DISTINCT FROM 'automatic' OR reopened_status = 'pending')",
+            name="reopen_manual",
+        ),
+        Index("ix_case_closures_open", "case_id", unique=True, postgresql_where=text("reopened_at IS NULL")),
+        Index("ix_case_closures_case_closed", "case_id", text("closed_at DESC")),
+    )
+    id: Mapped[uuid.UUID] = uuid_pk()
+    case_id: Mapped[uuid.UUID] = uuid_fk("cases.id", index=False)
+    office_id: Mapped[uuid.UUID] = uuid_fk("offices.id")
+    ownership_id: Mapped[uuid.UUID] = uuid_fk("case_ownership.id")
+    closed_as: Mapped[str] = mapped_column(String(12), nullable=False)
+    note_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("case_notes.id", ondelete="RESTRICT"), nullable=False, unique=True
+    )
+    close_leg_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("custody_history.id", ondelete="RESTRICT"), nullable=False, unique=True
+    )
+    disposal_date: Mapped[date | None] = mapped_column(Date)
+    closed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    reopened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reopen_kind: Mapped[str | None] = mapped_column(String(10))
+    reopen_leg_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("custody_history.id", ondelete="RESTRICT"), unique=True
+    )
+    reopened_status: Mapped[CaseStatus | None] = mapped_column(pg_enum(CaseStatus, "case_status"))
+    reopen_note_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("case_notes.id", ondelete="RESTRICT"), unique=True
+    )
+    reopened_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL", use_alter=True)
+    )
+    reopened_by_name: Mapped[str | None] = mapped_column(String(200))
+    reopened_by_designation: Mapped[str | None] = mapped_column(String(200))
+    reopened_by_office_code: Mapped[str | None] = mapped_column(String(40))
 
 
 class SourcetraceIngestion(CreatedAtMixin, Base):

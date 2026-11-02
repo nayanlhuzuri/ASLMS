@@ -31,6 +31,7 @@ MODULES = [
     "aslms/services/notes.py",
     "aslms/services/workflow_common.py",
     "aslms/services/memberships.py",
+    "aslms/services/case_closure.py",  # design close-case: the refusal messages
     "aslms/cli/reports.py",
     "aslms/cli/users.py",
 ]
@@ -162,6 +163,14 @@ def _payloads() -> list[dict]:
         {**base, "event": "file_recalled", "reason": "recalled", "reason_label": "Recalled"},
         {**base, "event": "due", "overdue": False},
         {**base, "event": "due", "overdue": True},
+        # design close-case, decision 13: the manual reopen
+        {
+            **base,
+            "event": "reopened",
+            "reopened_by_name": "A Head",
+            "reopened_by_designation": "Secretary",
+            "note_ref_no": "ASLMS/EDU/NOTE/2026/000001",
+        },
     ]
 
 
@@ -174,3 +183,25 @@ def test_rendered_workflow_alerts():
             assert not offends(text), (payload["event"], text)
             assert not says_allot(text), (payload["event"], text)
         assert "Case" in title, (payload["event"], title)
+
+
+def test_reopen_and_refusal_texts():
+    """Design close-case, decision 25: both reopen alert texts and every refusal message pass the guards."""
+    from aslms.domain.reference import AlertKind
+    from aslms.services import alert_rules, case_closure
+
+    class _Case:
+        case_no_text = "WP(C)/1/2026"
+        cnr = "ASHC010000012026"
+        ref_no = "ASLMS/GHC/CASE/2026/000001"
+
+    title, body = alert_rules.render_alert(
+        AlertKind.STATUS_CHANGED,
+        _Case(),
+        {"event": "reopened", "status": "pending", "closed_at": "2026-10-30T05:00:00+00:00"},
+    )
+    assert title.startswith("Case reopened: ") and "30 Oct 2026" in body
+    texts = [title, body, case_closure.CASE_CLOSED_MESSAGE, *case_closure.MESSAGES.values()]
+    for text in texts:
+        assert not offends(text), text
+        assert not says_allot(text), text

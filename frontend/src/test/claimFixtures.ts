@@ -59,6 +59,9 @@ export function block(code: string | null, extra: Partial<InboxCounts> = {}): In
     recommended_medium: 1,
     claimed_active: 4,
     claimed_disposed: 1,
+    // design close-case, decision 17: open + closed = active + disposed
+    claimed_open: 4,
+    claimed_closed: 1,
     transfers_in_open: 1,
     pool_with_hearing_7d: 3,
     whole_department: true,

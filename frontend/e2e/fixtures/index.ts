@@ -45,6 +45,16 @@ type S = components["schemas"];
 
 export { SAMPLE } from "./synth";
 
+/**
+ * The cases of the Close Case states (design close-case, "Tests"): one the court has disposed of that the caller may close
+ * (Ready to Close), and one the department closed that the caller may reopen. Each answers with its own `ref_no`, so the
+ * case page does not move to the sample's address.
+ */
+export const CLOSE_CASES = {
+  ready: { ref: "ASLMS/GHC/CASE/2026/000071", path: "ASLMS-GHC-CASE-2026-000071" },
+  closed: { ref: "ASLMS/GHC/CASE/2026/000072", path: "ASLMS-GHC-CASE-2026-000072" },
+};
+
 export interface Answer {
   status: number;
   body: unknown;
@@ -144,6 +154,8 @@ function inboxCounts(): S["InboxCountsListOut"] {
     recommended_medium: 48,
     claimed_active: STRESS.count + 1,
     claimed_disposed: 310,
+    claimed_open: STRESS.count + 300,
+    claimed_closed: 11,
     transfers_in_open: 3,
     pool_with_hearing_7d: 27,
     whole_department: true,
@@ -710,8 +722,13 @@ function held(): HeldList {
     const item = base.items[i % base.items.length]!;
     return {
       ...item,
-      case: { ...item.case, id: `0192a3b4-0000-7000-8000-00000000020${i}`, status: i === variants.length - 1 ? "disposed" : "pending" },
-      card: { ...card, ...v },
+      case: {
+        ...item.case,
+        id: `0192a3b4-0000-7000-8000-00000000020${i}`,
+        status: i === variants.length - 1 ? "disposed" : "pending",
+        closed: false,
+      },
+      card: { ...card, ...v, closed: false },
     };
   });
   return { ...base, items, total: items.length };
@@ -750,8 +767,18 @@ const MINE_REASONS: string[][] = [
  * two badges and one with three, active first and the disposed case last, as the API orders them; every band of the
  * Next Hearing column shows.
  */
-function mineAll(): MyCaseList {
+function mineAll(closure: string | null = null): MyCaseList {
   const base = working();
+  if (closure === "closed") {
+    // design close-case, decision 16: closed cases, newest closure first, no one holding them
+    const items = base.items.slice(0, 3).map((row, i) => ({
+      ...row,
+      reasons: i === 0 ? ["claimed"] : ["allotted"],
+      custody: null,
+      case: { ...row.case, status: "disposed", closed: true, next_hearing: null },
+    }));
+    return { ...base, items, total: items.length };
+  }
   const items = base.items.map((row, i) => ({ ...row, reasons: MINE_REASONS[i % MINE_REASONS.length]! }));
   const ordered = [...items.filter((r) => r.case.status !== "disposed"), ...items.filter((r) => r.case.status === "disposed")];
   return { ...base, items: ordered, total: ordered.length };
@@ -766,6 +793,16 @@ function claimed(url: URL): OwnershipList {
   const row = base.items[0]!;
   const both = url.searchParams.get("case_state") === "all";
   const custody = row.custody ? { ...row.custody } : null;
+  if (url.searchParams.get("closure") === "closed") {
+    // design close-case, decision 17: the department's closed cases, resting at its office
+    const closedRows: OwnershipList["items"] = [0, 1].map((i) => ({
+      ...row,
+      id: `0192a3b4-0000-7000-8000-000000000b0${i}`,
+      case: { ...row.case, id: `0192a3b4-0000-7000-8000-000000000b1${i}`, status: "disposed", closed: true, next_hearing: null },
+      custody: custody ? { ...custody, with_me: false, holder_user: null, pending_action: "none", pending_action_label: "No action pending", due_date: null, overdue: false, overdue_days: 0 } : null,
+    }));
+    return { ...base, items: closedRows, total: closedRows.length };
+  }
   const rows: OwnershipList["items"] = [
     { ...row, id: "0192a3b4-0000-7000-8000-000000000a01", case: { ...row.case, id: "0192a3b4-0000-7000-8000-000000000a11", status: "pending", next_hearing: courtNext(istDayPlus(2)) } },
     {
@@ -1253,7 +1290,7 @@ const OVERRIDES: [RegExp, Override][] = [
     /^\/inbox\/mine$/,
     (url) => {
       const view = url.searchParams.get("view");
-      if (view === "all") return mineAll();
+      if (view === "all") return mineAll(url.searchParams.get("closure"));
       if (view === "working") return working();
       return view === "disposed" ? emptyList<S["MyCaseListOut"]>("MyCaseListOut") : synthFor("/inbox/mine")!.body;
     },
@@ -1284,9 +1321,51 @@ function tidy(path: string, body: unknown): unknown {
         reported_at: null,
       },
       next_date_from_orders: { ...suggestion, next_date: istDayPlus(3), review_status: "not_needed", needs_review: false, source: "order_period" },
+      ...closeState(path, c),
     };
   }
   return body;
+}
+
+/** Design close-case, "Tests": the sample is open with no closure; the two Close Case cases answer their states. */
+function closeState(path: string, c: S["CaseDetailOut"]): Partial<S["CaseDetailOut"]> {
+  const workflow = { ...c.workflow, close: false, close_as: null, close_blocked: null, reopen: false, reopen_blocked: null };
+  const custody = c.custody ? { ...c.custody, closed: false } : null;
+  if (path.endsWith(CLOSE_CASES.ready.path)) {
+    return {
+      ref_no: CLOSE_CASES.ready.ref,
+      status: { ...c.status, status: "disposed", next_hearing_date: null },
+      next_hearing: null,
+      custody,
+      workflow: { ...workflow, close: true, close_as: "holder" },
+      closure: null,
+    };
+  }
+  if (path.endsWith(CLOSE_CASES.closed.path)) {
+    return {
+      ref_no: CLOSE_CASES.closed.ref,
+      status: { ...c.status, status: "disposed", next_hearing_date: null },
+      next_hearing: null,
+      custody: custody
+        ? { ...custody, closed: true, can_send: false, can_recall: false, holder_user: null, reason: "closed", pending_action: "none", pending_action_label: "No action pending", due_date: null, overdue: false, overdue_days: 0 }
+        : null,
+      workflow: { ...workflow, reopen: true },
+      closure: {
+        closed_at: "2026-11-02T05:30:00Z",
+        closed_as: "holder",
+        closed_by: { name: "Anita Sharma Baruah", designation: STRESS.designation, office_code: "EDU" },
+        office_code: "EDU",
+        note_ref_no: "ASLMS/EDU/NOTE/2026/000009",
+        disposal_date: "2026-10-20",
+        reopened_at: null,
+        reopen_kind: null,
+        reopened_status: null,
+        reopened_by: null,
+        reopen_note_ref_no: null,
+      },
+    };
+  }
+  return { custody, workflow, closure: null };
 }
 
 /** The answer to one request of the page to `/api/backend/…` (the API path after that prefix). */

@@ -260,3 +260,9 @@
   font-family: var(--font-mono);
   font-size: 12px;
 }
+
+/* design close-case, decision 19: the closure line under the parties */
+.closure {
+  margin: 0;
+  color: var(--text-2);
+}

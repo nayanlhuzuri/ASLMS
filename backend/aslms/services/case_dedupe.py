@@ -47,7 +47,7 @@ from aslms.domain.ownership import (
     RecommendationStatus,
 )
 from aslms.domain.reference import EventType
-from aslms.domain.workflow import CaseNote, CaseNoteDraft, CaseStage, Custody, CustodyHistory
+from aslms.domain.workflow import CaseClosure, CaseNote, CaseNoteDraft, CaseStage, Custody, CustodyHistory
 from aslms.services.audit import Actor, write_audit
 from aslms.services.napix_values import as_int, case_no_text
 
@@ -236,6 +236,8 @@ def portal_records(session: Session, case: Case) -> list[str]:
         ("custody_history", select(CustodyHistory.id).where(CustodyHistory.case_id == case.id)),
         ("case_stages", select(CaseStage.id).where(CaseStage.case_id == case.id)),
         ("case_notes", select(CaseNote.id).where(CaseNote.case_id == case.id)),
+        # design close-case: a closure is a portal record (a closed case also holds ownership, custody and a note)
+        ("case_closures", select(CaseClosure.id).where(CaseClosure.case_id == case.id)),
         ("case_note_drafts", select(CaseNoteDraft.id).where(CaseNoteDraft.case_id == case.id)),
         ("documents", select(Document.id).where(Document.case_id == case.id)),
         (

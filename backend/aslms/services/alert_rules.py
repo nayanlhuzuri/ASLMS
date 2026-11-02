@@ -46,7 +46,7 @@ LIST_TYPE_LABELS = {
     "other": "cause list",
 }
 # workflow alerts that are informational (design custody-workflow, decision 23 a, b): expire with the others
-WORKFLOW_INFO_EVENTS = frozenset({"file_received", "file_recalled"})
+WORKFLOW_INFO_EVENTS = frozenset({"file_received", "file_recalled", "reopened"})
 
 
 def higher(a: Severity, b: Severity) -> bool:
@@ -186,8 +186,17 @@ def _d(value: Any) -> str:
         return value.astimezone(IST).strftime("%d %b %Y")
     if isinstance(value, date):
         return value.strftime("%d %b %Y")
+    text = str(value)
+    if len(text) > 10:
+        # a stored timestamp (an event payload's `closed_at`): its IST date, as for a datetime
+        try:
+            moment = datetime.fromisoformat(text)
+            if moment.tzinfo is not None:
+                return moment.astimezone(IST).strftime("%d %b %Y")
+        except ValueError:
+            pass
     try:
-        return date.fromisoformat(str(value)[:10]).strftime("%d %b %Y")
+        return date.fromisoformat(text[:10]).strftime("%d %b %Y")
     except ValueError:
         return str(value)
 
@@ -240,7 +249,14 @@ def render_alert(kind: AlertKind | str, case: Any, data: dict[str, Any]) -> tupl
         body = f"Order {d.get('order_no') or ''} dated {_d(d.get('order_date'))} is available in the portal."
     elif kind == AlertKind.STATUS_CHANGED:
         status = d.get("status") or "unknown"
-        if status == "disposed":
+        if d.get("event") == "reopened":
+            # design close-case, decision 13: the automatic reopen
+            title = f"Case reopened: {label}"
+            body = (
+                "The court records show the case as pending again. It had been closed on "
+                f"{_d(d.get('closed_at'))} and is open again, with the department for action."
+            )
+        elif status == "disposed":
             title = f"Case disposed on {_d(d.get('disposal_date'))}: {label}"
             body = f"The court records show the case disposed ({d.get('disposal_nature') or 'nature not stated'})."
         else:
@@ -436,6 +452,14 @@ def render_workflow(d: dict[str, Any], label: str) -> tuple[str, str]:
     elif event == "file_recalled":
         title = f"Case recalled by {d.get('holder_office_code') or 'the owning department'}: {label}"
         body = f"The case you had is now with {_holder(d)} ({d.get('reason_label') or d.get('reason') or 'moved'})."
+    elif event == "reopened":
+        # design close-case, decision 13: the manual reopen
+        who = ", ".join(p for p in (d.get("reopened_by_name"), d.get("reopened_by_designation")) if p)
+        title = f"Case reopened: {label}"
+        body = (
+            f"Reopened by {who or 'an officer'}, with a reason in note {d.get('note_ref_no') or ''}. "
+            "It is open again, with the department for action."
+        )
     elif event == "due":
         when = _d(d.get("due_date"))
         title = (f"Case overdue since {when}: " if d.get("overdue") else f"Case due {when}: ") + label

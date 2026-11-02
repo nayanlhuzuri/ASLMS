@@ -18,6 +18,7 @@ function card(extra: Partial<CustodyCard> = {}): CustodyCard {
     due_soon: false,
     can_recall: false,
     can_send: true,
+    closed: false,
     due_date: "2099-11-30",
     holder_office: { code: "EDU", name: "Education" },
     holder_user: { id: "u-1", full_name: "Anita Sharma", designation: "Under Secretary" },
@@ -44,7 +45,7 @@ function detailBase(extra: Partial<CaseDetail>): CaseDetail {
     ref_no: "ASLMS/GHC/CASE/2026/000001",
     identity: { case_no_text: "WP(C)/1234/2026" },
     custody: card(),
-    workflow: { note_mode: "draft", upload: true, set_stage: true, next_dates: true, next_date_report: false, next_date_correct: false },
+    workflow: { note_mode: "draft", upload: true, set_stage: true, next_dates: true, next_date_report: false, next_date_correct: false, close: false, reopen: false },
     status: { status: "pending", next_hearing_date: "2099-11-20" },
     counts: { documents: 0, hearings: 0, links: 0, listings: 0, my_drafts: 0, notes: 3, orders: 0, timeline: 0 },
     ...extra,
@@ -173,7 +174,7 @@ describe("Your task (case-workspace-admin, decision 10)", () => {
 
   it("no custody: one muted line and no buttons; no journey card", async () => {
     browserApi(routes(null));
-    renderRail(detail({ custody: null, workflow: { note_mode: null, upload: false, set_stage: false, next_dates: false, next_date_report: false, next_date_correct: false } }));
+    renderRail(detail({ custody: null, workflow: { note_mode: null, upload: false, set_stage: false, next_dates: false, next_date_report: false, next_date_correct: false, close: false, reopen: false } }));
     const task = await screen.findByRole("region", { name: "Your Task" });
     expect(within(task).getByText("The case moves between officers once a department claims it.")).toBeInTheDocument();
     expect(within(task).queryAllByRole("button")).toHaveLength(0);
@@ -243,10 +244,10 @@ describe("Next hearing, Quick actions and Journey (decisions 11, 12 and 14)", ()
     await userEvent.click(within(quick).getByRole("button", { name: "Upload a Document" }));
     expect(onAction).toHaveBeenCalledWith("upload");
     unmount();
-    const { unmount: u2 } = renderRail(detail({ workflow: { note_mode: null, upload: false, set_stage: true, next_dates: false, next_date_report: false, next_date_correct: false } }));
+    const { unmount: u2 } = renderRail(detail({ workflow: { note_mode: null, upload: false, set_stage: true, next_dates: false, next_date_report: false, next_date_correct: false, close: false, reopen: false } }));
     expect(within(screen.getByRole("region", { name: "Quick Actions" })).getAllByRole("button").map((b) => b.textContent)).toEqual(["Set Stage"]);
     u2();
-    renderRail(detail({ workflow: { note_mode: null, upload: false, set_stage: false, next_dates: false, next_date_report: false, next_date_correct: false } }));
+    renderRail(detail({ workflow: { note_mode: null, upload: false, set_stage: false, next_dates: false, next_date_report: false, next_date_correct: false, close: false, reopen: false } }));
     expect(screen.queryByRole("region", { name: "Quick Actions" })).toBeNull();
   });
 
@@ -360,5 +361,67 @@ describe("the layout (decision 8)", () => {
       for (const name of ["Add Note", "Upload a Document", "Set Stage"]) expect(items).not.toContain(name);
       expect(container.querySelectorAll(PRIMARY_SELECTOR)).toHaveLength(1);
     });
+  });
+});
+
+describe("Close Case on Your Task (design close-case, decision 19)", () => {
+  const W = { note_mode: null, upload: false, set_stage: false, next_dates: false, next_date_report: false, next_date_correct: false };
+  const CLOSURE = {
+    closed_at: "2026-11-02T05:00:00Z",
+    closed_as: "holder" as const,
+    closed_by: { name: "Officer One", designation: "SO", office_code: "EDU" },
+    office_code: "EDU",
+    note_ref_no: "ASLMS/EDU/NOTE/2026/000009",
+    disposal_date: "2026-10-20",
+    reopened_at: null,
+    reopen_kind: null,
+    reopened_status: null,
+    reopened_by: null,
+    reopen_note_ref_no: null,
+  };
+
+  it("Ready to Close appears only with workflow.close and opens the dialog", async () => {
+    browserApi(routes());
+    const onAction = vi.fn();
+    const { unmount } = renderRail(detail({ workflow: { ...W, close: true, close_as: "holder", reopen: false } }), true, onAction);
+    const task = await screen.findByRole("region", { name: "Your Task" });
+    expect(within(task).getByText("Ready to Close")).toBeInTheDocument();
+    expect(within(task).getByText(/The court has disposed of this case/)).toBeInTheDocument();
+    await userEvent.click(within(task).getByRole("button", { name: "Close Case" }));
+    expect(onAction).toHaveBeenCalledWith("close");
+    unmount();
+    renderRail(detail({ workflow: { ...W, close: false, close_blocked: "not_disposed", reopen: false } }));
+    const plain = await screen.findByRole("region", { name: "Your Task" });
+    expect(within(plain).queryByText("Ready to Close")).toBeNull();
+    expect(within(plain).queryByRole("button", { name: "Close Case" })).toBeNull();
+  });
+
+  it("a waiting transfer says why the case cannot be closed yet", async () => {
+    browserApi(routes());
+    renderRail(detail({ workflow: { ...W, close: false, close_blocked: "transfer_open", reopen: false } }));
+    const task = await screen.findByRole("region", { name: "Your Task" });
+    expect(within(task).getByText("A transfer of this case is waiting for a decision. Decide or withdraw it first.")).toBeInTheDocument();
+  });
+
+  it("a closed case shows the closure line, no Send or Recall, and Reopen Case only with workflow.reopen", async () => {
+    browserApi(routes());
+    const onAction = vi.fn();
+    const closedCard = card({ closed: true, can_send: false, can_recall: false, holder_user: null, reason: "closed" });
+    const { unmount } = renderRail(
+      detail({ custody: closedCard, closure: CLOSURE, workflow: { ...W, close: false, reopen: true } }),
+      true,
+      onAction,
+    );
+    const task = await screen.findByRole("region", { name: "Your Task" });
+    expect(within(task).getByText("Closed")).toBeInTheDocument();
+    expect(within(task).getByText("Closed on 2 Nov 2026 by Officer One, SO")).toBeInTheDocument();
+    expect(within(task).queryByRole("button", { name: /Recall Case|Send Case/ })).toBeNull();
+    await userEvent.click(within(task).getByRole("button", { name: "Reopen Case" }));
+    expect(onAction).toHaveBeenCalledWith("reopen");
+    unmount();
+    renderRail(detail({ custody: closedCard, closure: CLOSURE, workflow: { ...W, close: false, reopen: false, reopen_blocked: "not_own_department" } }));
+    const other = await screen.findByRole("region", { name: "Your Task" });
+    expect(within(other).queryByRole("button", { name: "Reopen Case" })).toBeNull();
+    expect(within(other).getByText("Only the owning department or the Super Administrator can reopen this case.")).toBeInTheDocument();
   });
 });

@@ -183,6 +183,15 @@ export function DepartmentBlock({ data }: { data: DashboardDepartment }) {
               </li>
             ) : null}
             <li>
+              {/* design close-case, decision 22: to Department Cases, Open, with the disposed filter */}
+              {att.to_close > 0 ? (
+                <Link href={`/inbox/department?department=${encodeURIComponent(code)}&case_status=disposed`}>{T.dash.readyToClose}</Link>
+              ) : (
+                <span>{T.dash.readyToClose}</span>
+              )}
+              <strong>{n(att.to_close)}</strong>
+            </li>
+            <li>
               <span>{T.dash.complianceSoon}</span>
               <strong>{n(att.compliance_due_soon)}</strong>
             </li>

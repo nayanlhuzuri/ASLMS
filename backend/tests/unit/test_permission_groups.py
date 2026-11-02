@@ -14,7 +14,7 @@ from aslms.services.access_seed import PERMISSION_GROUPS, PERMISSION_LABELS, per
 EXPECTED_SIZES = {
     "People and Access": 11,
     "Cases and Ownership": 12,
-    "Case Work": 8,
+    "Case Work": 10,  # close-case: cases.close, cases.reopen
     "Documents": 3,
     "Alerts": 4,  # next-date-direct, decision 19
     "Reports": 4,
@@ -26,7 +26,7 @@ def test_every_active_function_is_in_exactly_one_group():
     counts = Counter(p for _, _, members in PERMISSION_GROUPS for p in members)
     assert set(counts) == set(ACTIVE_FUNCTIONS)
     assert all(n == 1 for n in counts.values()), [p for p, n in counts.items() if n > 1]
-    assert len(ACTIVE_FUNCTIONS) == 53  # next-date-direct: + next_dates.report_wrong, next_dates.correct
+    assert len(ACTIVE_FUNCTIONS) == 55  # next-date-direct: + 2; close-case: + cases.close, cases.reopen
 
 
 def test_no_retired_or_unknown_code_in_a_group():
@@ -56,3 +56,22 @@ def test_every_active_function_has_a_one_line_label_and_description():
         assert label.strip() and "\n" not in label, p
         assert description.strip() and "\n" not in description, p
         assert len(description) <= 120, (p, len(description))
+
+
+def test_close_and_reopen_defaults():
+    """Design close-case, decision 2: `cases.close` for the head and the officer, `cases.reopen` for the head and the
+    admin, in Case Work after Track Pending Cases; no other type by default (the super admin holds every function)."""
+    from aslms.domain.reference import Role
+    from aslms.services.access_seed import DEFAULT_MATRIX
+
+    close = {r for r, ps in DEFAULT_MATRIX.items() if Permission.CASES_CLOSE in ps}
+    reopen = {r for r, ps in DEFAULT_MATRIX.items() if Permission.CASES_REOPEN in ps}
+    assert close == {Role.DEPT_HEAD, Role.DEPT_OFFICER}
+    assert reopen == {Role.DEPT_HEAD, Role.DEPT_ADMIN}
+    assert Role.SUPER_ADMIN not in DEFAULT_MATRIX
+    assert permission_group(Permission.CASES_CLOSE)[:2] == ("case_work", "Case Work")
+    members = dict((code, m) for code, _, m in PERMISSION_GROUPS)["case_work"]
+    i = members.index(Permission.CUSTODY_TRACK)
+    assert members[i + 1 : i + 3] == (Permission.CASES_CLOSE, Permission.CASES_REOPEN)
+    assert PERMISSION_LABELS[Permission.CASES_CLOSE][0] == "Close Cases"
+    assert PERMISSION_LABELS[Permission.CASES_REOPEN][0] == "Reopen Cases"

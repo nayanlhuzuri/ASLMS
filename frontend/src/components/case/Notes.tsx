@@ -25,7 +25,7 @@ import { can } from "@/lib/can";
 import { canViewInline, pdfDownloadOnly } from "@/lib/documents";
 import { formatDateTime } from "@/lib/format";
 import { T } from "@/lib/messages";
-import { apiCasePath } from "@/lib/refs";
+import { apiCasePath, noteRefAnchor } from "@/lib/refs";
 import { PAGE } from "@/lib/params";
 
 import s from "./case.module.css";
@@ -143,6 +143,7 @@ export function Notes({ caseRef }: { caseRef: string }) {
               {list.data.items.map((n) => (
                 <li key={n.id} id={anchor(n.seq_no)} className={s.note}>
                   <div className={s.noteHead}>
+                    <span id={noteRefAnchor(n.ref_no)} />
                     <strong>{n.kind_label}</strong>
                     <span className="mono muted">{n.ref_no}</span>
                     <span>

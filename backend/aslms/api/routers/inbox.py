@@ -73,6 +73,11 @@ def claimed(
     action: str | None = Query(
         None, description="overdue: the file's due date has passed; due_week: due within 7 days"
     ),
+    closure: str = Query(
+        "all",
+        description="open: leave closed cases out; closed: only closed cases, newest closure first; all (default): "
+        "both (design close-case)",
+    ),
     filters: CaseFilters = Depends(inbox_filter_query),
     limit: int = inbox.DEFAULT_LIMIT,
     offset: int = 0,
@@ -97,6 +102,7 @@ def claimed(
             stage=stage,
             holder=holder,
             action=action,
+            closure=closure,
             filters=filters,
             limit=limit,
             offset=offset,
@@ -115,6 +121,11 @@ def mine(
     ),
     stage: str | None = Query(None, description="The case's current stage (a ref_case_stage code), or none"),
     action: str | None = Query(None, description="On the caller's file: overdue or due_week"),
+    closure: str = Query(
+        "all",
+        description="open: leave closed cases out; closed: only closed cases, newest closure first; all (default): "
+        "both (design close-case)",
+    ),
     filters: CaseFilters = Depends(inbox_filter_query),
     limit: int = inbox.DEFAULT_LIMIT,
     offset: int = 0,
@@ -128,7 +139,15 @@ def mine(
     case-inbox-simplify, decision 4). Visibility applies; nothing is written."""
     try:
         page = my_cases.mine(
-            session, user, view=view, filters=filters, stage=stage, action=action, limit=limit, offset=offset
+            session,
+            user,
+            view=view,
+            filters=filters,
+            stage=stage,
+            action=action,
+            closure=closure,
+            limit=limit,
+            offset=offset,
         )
     except (Forbidden, ValueError) as exc:
         raise _http(exc) from exc
@@ -141,7 +160,7 @@ def mine_counts(
     user: User = Depends(current_user),
 ) -> schemas.MyCaseCountsOut:
     """The unfiltered totals of the views of `/inbox/mine`: `files` is the With Me count, `all` the My Cases
-    total (design case-inbox-simplify, decision 3)."""
+    total (design case-inbox-simplify, decision 3), split into `all_open` and `all_closed` (design close-case)."""
     try:
         return schemas.MyCaseCountsOut(**my_cases.mine_counts(session, user))
     except (Forbidden, ValueError) as exc:

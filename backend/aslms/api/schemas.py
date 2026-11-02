@@ -687,6 +687,10 @@ class CaseSummaryOut(BaseModel):
     next_hearing: NextHearingOut | None
     last_listed_on: date | None
     last_listing: CaseLastListingOut | None
+    closed: bool | None = Field(
+        None,
+        description="the department closed the case (design close-case); null when the caller cannot open the case",
+    )
 
 
 class RecommendationOut(BaseModel):
@@ -797,6 +801,8 @@ class MyCaseCountsOut(BaseModel):
     all: int
     claimed: int
     disposed: int
+    all_open: int = Field(0, description="`all` without the closed cases (design close-case)")
+    all_closed: int = Field(0, description="the closed cases of `all` (design close-case)")
 
 
 class OwnershipListOut(BaseModel):
@@ -844,6 +850,9 @@ class InboxCountsOut(BaseModel):
     recommended_medium: int | None
     claimed_active: int | None
     claimed_disposed: int | None
+    # design close-case, decision 17: claimed_open + claimed_closed = claimed_active + claimed_disposed
+    claimed_open: int | None = None
+    claimed_closed: int | None = None
     transfers_in_open: int | None
     pool_with_hearing_7d: int | None
     # design portal-ui-redesign, A4: the caller reads this department whole (cases.claim or cases.allot in their
@@ -1200,6 +1209,10 @@ class CustodyCardOut(BaseModel):
     leg_seq_no: int | None
     can_send: bool
     can_recall: bool
+    closed: bool = Field(
+        False,
+        description="the case is closed: nothing moves, so `can_send` and `can_recall` are false (close-case)",
+    )
 
 
 class StageBlockOut(BaseModel):
@@ -1238,6 +1251,43 @@ class CaseWorkflowActionsOut(BaseModel):
     next_dates_blocked: Literal["court_date_fixed"] | None = None
     next_date_report: bool = False
     next_date_correct: bool = False
+    # design close-case, decision 20
+    close: bool = False
+    close_as: Literal["holder", "head", "super_admin"] | None = None
+    close_blocked: Literal["not_disposed", "transfer_open"] | None = None
+    reopen: bool = False
+    reopen_blocked: Literal["not_own_department"] | None = None
+
+
+class CaseClosedByOut(BaseModel):
+    name: str | None
+    designation: str | None
+    office_code: str | None
+
+
+class CaseClosureOut(BaseModel):
+    """Design close-case, decision 20: the latest closure of the case. A remark's `ref_no` only when the caller may
+    read that note."""
+
+    closed_at: datetime
+    closed_as: Literal["holder", "head", "super_admin"]
+    closed_by: CaseClosedByOut
+    office_code: str | None
+    note_ref_no: str | None
+    disposal_date: date | None
+    reopened_at: datetime | None
+    reopen_kind: Literal["automatic", "manual"] | None
+    reopened_status: str | None
+    reopened_by: CaseClosedByOut | None
+    reopen_note_ref_no: str | None
+
+
+class CaseCloseIn(BaseModel):
+    remark: str = Field(max_length=2000)
+
+
+class CaseReopenIn(BaseModel):
+    reason: str = Field(max_length=2000)
 
 
 # ------------------------------------------------------------------------------------------------ next dates
@@ -1409,6 +1459,7 @@ class CaseDetailOut(BaseModel):
     next_hearing: NextHearingDetailOut | None = None
     next_date_from_orders: NextDateOut | None = None
     next_dates_to_review: int = 0
+    closure: CaseClosureOut | None = None
 
 
 class HearingOut(BaseModel):
@@ -2346,6 +2397,23 @@ class CustodyMoveOut(BaseModel):
     finalised_notes: list[str]
 
 
+class CaseCloseOut(BaseModel):
+    """Design close-case: `visible` false when the closer can no longer open the case (then `card` is null)."""
+
+    closure: CaseClosureOut
+    note_ref_no: str
+    finalised_notes: list[str]
+    card: CustodyCardOut | None
+    visible: bool
+
+
+class CaseReopenOut(BaseModel):
+    closure: CaseClosureOut
+    note_ref_no: str
+    card: CustodyCardOut | None
+    visible: bool
+
+
 class HeldItemOut(BaseModel):
     case: CaseSummaryOut
     card: CustodyCardOut | None
@@ -2686,10 +2754,10 @@ class DashboardUpcomingOut(BaseModel):
 
 
 class DashboardMeAttentionOut(BaseModel):
-    """One item that needs the caller (A7): an overdue file, a next date to confirm, a file due soon or a file
-    received lately."""
+    """One item that needs the caller (A7): an overdue file, a next date to confirm, a file due soon, a disposed case
+    ready to close (design close-case, decision 21) or a file received lately."""
 
-    kind: Literal["overdue_action", "confirm_next_date", "due_soon", "file_received"]
+    kind: Literal["overdue_action", "confirm_next_date", "due_soon", "ready_to_close", "file_received"]
     case: AlertCaseOut
     title: str
     date: date | None
@@ -2722,6 +2790,10 @@ class DashboardCasesOut(BaseModel):
     claimed_disposed: int
     watching_active: int
     not_allotted_active: int
+    to_close: int = Field(
+        0, description="primary-owned, disposed by the court and still open (design close-case)"
+    )
+    closed: int = Field(0, description="primary-owned and closed by the department (design close-case)")
 
 
 class DashboardPendingActionsOut(BaseModel):
@@ -2757,6 +2829,9 @@ class DashboardAttentionOut(BaseModel):
         None,
         description="the department's claimed cases whose latest order gives a date other than the court's record "
         "(design next-date-direct, decision 5)",
+    )
+    to_close: int = Field(
+        0, description="Ready to Close: disposed and still open (design close-case, decision 22)"
     )
 
 

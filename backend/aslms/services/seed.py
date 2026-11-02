@@ -105,6 +105,8 @@ NOTE_KIND_LABELS = {
     NoteKind.HEARING: "Hearing note",
     NoteKind.HAND_OVER: "Hand-over",
     NoteKind.FILE_NOTING: "Office note",  # design case-workspace-admin, decision 4 (migration 0025)
+    NoteKind.CLOSING: "Closing remark",  # design close-case, decision 5 (migration 0035)
+    NoteKind.REOPENING: "Reopening remark",  # design close-case, decision 18 (migration 0035)
 }
 # the full user-type names and their Table 1 descriptions (design portal-ui-polish-2, decisions 7 and 8; the same
 # text as migration 0026). Used on insert only: `init` never relabels an existing row, so a name or description an
@@ -178,6 +180,8 @@ TRACKING_CARD_EVENTS = {
     EventType.NEXT_DATE_REVIEWED,  # design next-date-extraction
     EventType.NEXT_DATE_ENTERED,
     EventType.LISTING_CHANGED,  # design court-data-freshness: cause-list placement is public court data
+    EventType.CASE_CLOSED,  # design close-case, migration 0035
+    EventType.CASE_REOPENED,
 }
 # timeline labels that differ from the label (new rows only)
 EVENT_TIMELINE_LABELS = {
@@ -185,6 +189,8 @@ EVENT_TIMELINE_LABELS = {
     EventType.CUSTODY_MOVED: "Case moved",  # design case-workspace-admin, decision 4 (migration 0025)
     EventType.ALLOTTED: "Assigned",  # design claim-assign-wording, decision 8 (migration 0030)
     EventType.NEXT_DATE_DIFFERS: "Next date differs from the court",  # design next-date-direct, migration 0034
+    EventType.CASE_CLOSED: "Case closed",  # design close-case, migration 0035
+    EventType.CASE_REOPENED: "Case reopened",
 }
 # event-type labels that differ from the code (new rows only)
 EVENT_TYPE_LABELS = {

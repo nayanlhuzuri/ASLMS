@@ -986,3 +986,33 @@ leave a detail open, the note makes the narrowest choice and names it:
 - decision 13: a manual reopen's alert is of kind `workflow`;
 - decision 14: a closed case found on a cause list is refreshed;
 - decision 18: anyone in the owning department given `cases.reopen` may reopen.
+
+## Deviations
+Recorded by the developer during the build (2 Nov 2026). None changes a rule of the owner or the plan.
+1. **Decision 14, `requeue`.** The cause-list apply queues the closed case's `dossier` fetch with `requeue=True`, not
+   `requeue=False`. Without `requeue` the queue leaves a `done` row done, and every closed case was fetched before (its
+   court status is what made it closable), so the fetch would never run. The queue's unique key (kind, ref) still keeps
+   at most one row per case.
+2. **Indexes.** Besides the two named indexes, `case_closures` has the foreign-key indexes
+   `ix_case_closures_office_id` and `ix_case_closures_ownership_id` (the `uuid_fk` convention of every table).
+3. **The reopen-once trigger** also lets the two snapshot user keys (`actor_user_id`, `reopened_by_user_id`) be set to
+   NULL by their `SET NULL` foreign keys; every other closer column is frozen, and the reopening columns change once.
+4. **The manual reopen alert** (`workflow`, `event = "reopened"`) expires with the informational workflow alerts
+   (`WORKFLOW_INFO_EVENTS` gains `reopened`), as the automatic one does through `status_changed`.
+5. **One primary on the case page.** With Ready to Close the rail's Close Case is the primary (decision 19), so the
+   header's Send Case moves into More Actions; the uicheck rule allows one visible primary per page.
+6. **Route gates.** As the API table says, `cases.close` and `cases.reopen` are checked on the routes, so a caller
+   without the function gets the route's 403 before the 404 of decision 4's first condition; the service keeps the
+   order of decisions 4 and 18 (`function_missing`) for direct callers.
+7. **Department's `case_status`.** The dashboard's Ready to Close link (decision 22) carries `case_status=disposed`, which
+   the Department tab did not read; it is now a hidden shared filter of that tab (shown as a removable chip).
+8. **Tests.** The list, count, dashboard, flag and stage cases the design names for `test_custody_held.py`,
+   `test_custody_sent_still_out.py`, `test_dashboard*.py`, `test_my_cases.py`, `test_inbox_claimed.py`,
+   `test_workflow_actions.py` and `test_stages.py` are in one new file, `tests/db/test_close_case_lists.py`, with the API
+   cases in `tests/db/test_api_close_case.py`.
+9. **Codes.** `Permission.CASES_CLOSE` and `CASES_REOPEN` are appended at the end of the enum (the seed's sort order of
+   the earlier codes is unchanged); the stage `closed` is retired through `RETIRED_CODES` (the seed's existing switch).
+10. **The remark link** opens the Notes tab at an anchor named by the note's reference (`#note-ASLMS-EDU-NOTE-…`), added
+    to every note.
+11. **My Cases and Department** send `closure=open` for Open (the API's default stays `all`, so other callers are
+    unchanged).

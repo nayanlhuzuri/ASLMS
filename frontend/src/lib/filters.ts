@@ -133,16 +133,20 @@ export const LIST_FILTERS: Record<ListKey, ListFilters> = {
   // the first row, no longer hidden under More Filters
   mine: {
     fields: ["q", "next", "case_type", "year", "court_no", "next_differs"],
-    fixed: [],
+    // design close-case, decision 16: the Open / Closed switch's `closure` is kept by Clear All
+    fixed: ["closure"],
     more: ["case_type", "year", "court_no", "next_differs"],
     hidden: ["next"],
   },
   // Department: Search, Unit, Officer, Stage, Next hearing; More: case type, year, court, file holder, action; no status
   // switch (design case-inbox-simplify, decision 9)
   department: {
-    fields: ["q", "next", "case_type", "year", "court_no", "next_differs"],
-    fixed: ["department"],
+    fields: ["q", "next", "case_type", "year", "court_no", "next_differs", "case_status"],
+    // design close-case, decisions 17 and 22: the switch's `closure` is kept by Clear All; `case_status=disposed` (the
+    // dashboard's Ready to Close link) is a hidden filter shown as a removable chip
+    fixed: ["department", "closure"],
     more: ["case_type", "year", "court_no", "next_differs"],
+    hidden: ["case_status"],
     nextChoices: ["", "n7", "n30", "range"],
   },
 };

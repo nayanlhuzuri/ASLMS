@@ -52,12 +52,13 @@ from aslms.domain.workflow import (
     CustodyHistory,
     PendingAction,
 )
-from aslms.services import access, case_filters, inbox, visibility
+from aslms.services import access, case_closure, case_filters, inbox, visibility
 from aslms.services.case_filters import CaseFilters
 from aslms.services.inbox import InboxError, Page
 from aslms.services.workflow_common import today_ist
 
 VIEWS = ("working", "files", "all", "claimed", "disposed")
+CLOSURES = ("open", "closed", "all")  # design close-case, decision 16
 ACTIONS = ("overdue", "due_week")
 NO_STAGE = "none"
 DUE_WEEK_DAYS = 7
@@ -214,6 +215,18 @@ def _view_set(c: MyConditions, view: str) -> ColumnElement[bool]:
     return or_(c.allotted, c.file, c.claimed)
 
 
+def closure_condition(raw: str | None, case_id_col: Any = None) -> ColumnElement[bool] | None:
+    """Design close-case, decision 16: `open` leaves closed cases out, `closed` keeps only them, `all` (the default)
+    both; any other value is 400."""
+    v = (raw or "all").strip().lower()
+    if v not in CLOSURES:
+        raise InboxError("closure is one of open, closed, all")
+    if v == "all":
+        return None
+    cond = case_closure.closed_condition(Case.id if case_id_col is None else case_id_col)
+    return cond if v == "closed" else ~cond
+
+
 def mine_stmt(
     session: Session,
     user: User,
@@ -223,6 +236,7 @@ def mine_stmt(
     stage: str | None = None,
     action: str | None = None,
     conds: MyConditions | None = None,
+    closure: str | None = "all",
 ) -> Select:
     if view not in VIEWS:
         raise InboxError("view is one of working, files, all, claimed, disposed")
@@ -237,7 +251,11 @@ def mine_stmt(
     state = _state(view)
     if state is not None:
         stmt = stmt.where(state)
-    for extra in (stage_condition(stage), action_condition(action, holder_user_id=user.id)):
+    for extra in (
+        stage_condition(stage),
+        action_condition(action, holder_user_id=user.id),
+        closure_condition(closure),
+    ):
         if extra is not None:
             stmt = stmt.where(extra)
     return stmt.where(*case_filters.conditions(session, filters))
@@ -255,14 +273,18 @@ def mine(
     filters: CaseFilters | None = None,
     stage: str | None = None,
     action: str | None = None,
+    closure: str | None = "all",
     limit: int | None = None,
     offset: int | None = None,
 ) -> Page:
     """A1: one view of the caller's own cases, each row with its owner, stage, file holder, allotment and the
-    reasons (`allotted`, `file`, `claimed`) that put it here."""
+    reasons (`allotted`, `file`, `claimed`) that put it here. `closure` (design close-case, decision 16): `open`,
+    `closed` (newest closure first) or `all`."""
     _require(session, user)
     c = my_conditions(session, user)
-    stmt = mine_stmt(session, user, view=view, filters=filters, stage=stage, action=action, conds=c)
+    stmt = mine_stmt(
+        session, user, view=view, filters=filters, stage=stage, action=action, conds=c, closure=closure
+    )
     limit, offset = inbox.clamp(limit, offset)
     total = inbox._count(session, stmt)
     due = select(_DUE.due_date).where(_DUE.case_id == Case.id).scalar_subquery()
@@ -296,6 +318,9 @@ def mine(
         if view == "all":
             # design case-inbox-simplify, decision 4: active cases first, disposed after them
             order.insert(0, (Case.status == CaseStatus.DISPOSED).asc())
+    if (closure or "").strip().lower() == "closed":
+        # design close-case, decision 16: the newest closure first, then the case number
+        order = [case_closure.closed_at_column(Case.id).desc().nulls_last(), Case.case_no_text, Case.id]
     rows = session.execute(
         stmt.add_columns(c.allotted.label("r_allotted"), c.file.label("r_file"), c.claimed.label("r_claimed"))
         .order_by(*order)
@@ -323,10 +348,16 @@ def mine(
 
 
 def mine_counts(session: Session, user: User) -> dict[str, int]:
-    """A2: the unfiltered totals of the views (`all` added by design case-inbox-simplify, decision 3)."""
+    """A2: the unfiltered totals of the views (`all` added by design case-inbox-simplify, decision 3); `all_open`
+    and `all_closed` split `all` (design close-case, decision 16)."""
     _require(session, user)
     c = my_conditions(session, user)
-    return {view: inbox._count(session, mine_stmt(session, user, view=view, conds=c)) for view in VIEWS}
+    out = {view: inbox._count(session, mine_stmt(session, user, view=view, conds=c)) for view in VIEWS}
+    for closure in ("open", "closed"):
+        out[f"all_{closure}"] = inbox._count(
+            session, mine_stmt(session, user, view="all", conds=c, closure=closure)
+        )
+    return out
 
 
 # ------------------------------------------------------------------------------------------------ row facts

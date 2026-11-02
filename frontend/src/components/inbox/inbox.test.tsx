@@ -21,7 +21,7 @@ import { InboxFrame, InboxIndex } from "./InboxFrame";
 import { ClaimedRedirect, OldInboxRedirect } from "./Redirects";
 import { courtNext } from "@/test/nextHearing";
 
-const COUNTS = { working: 5, files: 2, all: 9, claimed: 7, disposed: 1 };
+const COUNTS = { working: 5, files: 2, all: 11, claimed: 7, disposed: 1, all_open: 9, all_closed: 2 };
 
 const PEOPLE = {
   departments: [],
@@ -98,6 +98,7 @@ function card(extra: Partial<CustodyCard> = {}): CustodyCard {
     due_soon: false,
     can_recall: true,
     can_send: true,
+    closed: false,
     due_date: "2026-10-10",
     holder_office: { code: "EDU", name: "Education" },
     holder_user: { id: "u-1", full_name: "Anita Sharma", designation: "Under Secretary" },
@@ -372,7 +373,7 @@ describe("My Cases (decision 4)", () => {
     expect(nav.push).toHaveBeenCalledWith("/cases/ASLMS-GHC-CASE-2026-000003");
   });
 
-  it("the quick chip writes next=n7; the filtered count reads n of m, m being the all figure", async () => {
+  it("the quick chip writes next=n7; the filtered count reads n of m, m being the all_open figure (close-case, decision 16)", async () => {
     const api = browserApi(routes({ "GET /inbox/mine": { items: [myCase(1)], total: 1 } }));
     const { unmount } = renderWithClient(<InboxFrame tab="mine" params={{}} />);
     await userEvent.click(await screen.findByRole("button", { name: "Hearing This Week" }));
@@ -475,10 +476,10 @@ describe("Department (decisions 9 to 14)", () => {
     expect(url).toContain("year=2025");
   });
 
-  it("the request carries case_state=all whatever the URL says; m of n of m is claimed_active + claimed_disposed", async () => {
+  it("the request carries case_state=all whatever the URL says; m of n of m is claimed_open (close-case, decision 17)", async () => {
     const api = browserApi(routes());
     renderWithClient(<InboxFrame tab="department" params={{ case_state: "disposed", officer: "none", next: "n7", holder: "elsewhere", action: "overdue" }} />);
-    expect(await screen.findByText("1 of 5 cases")).toBeInTheDocument();
+    expect(await screen.findByText("1 of 4 cases")).toBeInTheDocument();
     const url = lastUrl(api.calls, "/inbox/claimed?");
     for (const part of ["office=EDU", "case_state=all", "unallotted=true", "holder=elsewhere", "action=overdue", "next_from="]) {
       expect(url).toContain(part);
@@ -501,7 +502,7 @@ describe("Department (decisions 9 to 14)", () => {
     expect(nav.replace).toHaveBeenCalledWith("/inbox/department?next=n7&officer=none");
     unmount();
     renderWithClient(<InboxFrame tab="department" params={{ officer: "none", next: "n7" }} />);
-    await screen.findByText("1 of 5 cases");
+    await screen.findByText("1 of 4 cases");
     expect(lastUrl(api.calls, "/inbox/claimed?")).toContain("unallotted=true");
     await userEvent.click(screen.getByRole("button", { name: "Remove filter Dealing Officer: Not Assigned Yet" }));
     expect(nav.replace).toHaveBeenLastCalledWith("/inbox/department?next=n7");
@@ -701,5 +702,76 @@ describe("the Next Hearing column's bands (design next-hearing-highlight, decisi
     renderWithClient(<InboxFrame tab="department" params={{}} />);
     await screen.findByRole("row", { name: "Open WP(C)/1/2026" });
     check((n) => `Open WP(C)/${n}/2026`);
+  });
+});
+
+describe("Open / Closed (design close-case, decisions 15-17)", () => {
+  it("My Cases: the switch sends closure=open by default and closure=closed when chosen; m comes from the split counts", async () => {
+    const api = browserApi(routes({ "GET /inbox/mine": { items: [myCase(1)], total: 1 } }));
+    const { unmount } = renderWithClient(<InboxFrame tab="mine" params={{ stage: "none" }} />);
+    const sw = await screen.findByRole("radiogroup", { name: "Open or Closed" });
+    expect(within(sw).getByRole("radio", { name: "Open" })).toHaveAttribute("aria-checked", "true");
+    expect(await screen.findByText("1 of 9 cases")).toBeInTheDocument();
+    expect(lastUrl(api.calls, "/inbox/mine?")).toContain("closure=open");
+    await userEvent.click(within(sw).getByRole("radio", { name: "Closed" }));
+    expect(nav.replace).toHaveBeenLastCalledWith(expect.stringMatching(/[?]stage=none&closure=closed$/));
+    unmount();
+    renderWithClient(<InboxFrame tab="mine" params={{ closure: "closed", stage: "none" }} />);
+    expect(await screen.findByText("1 of 2 cases")).toBeInTheDocument();
+    expect(lastUrl(api.calls, "/inbox/mine?")).toContain("closure=closed");
+  });
+
+  it("My Cases, Closed: the empty state and Clear All keeping the switch", async () => {
+    browserApi(routes());
+    const { unmount } = renderWithClient(<InboxFrame tab="mine" params={{ closure: "closed" }} />);
+    expect(await screen.findByText("Closed cases you are connected to appear here.")).toBeInTheDocument();
+    unmount();
+    renderWithClient(<InboxFrame tab="mine" params={{ closure: "closed", q: "zebra" }} />);
+    const none = await screen.findByText("No cases match these filters.");
+    await userEvent.click(within(none.parentElement!).getByRole("button", { name: "Clear All" }));
+    expect(nav.replace).toHaveBeenLastCalledWith(expect.stringMatching(/[?]closure=closed$/));
+  });
+
+  it("the Closed and Ready to Close badges", async () => {
+    const disposed = { ...summary(1), status: "disposed", closed: false };
+    const shut = { ...summary(2), status: "disposed", closed: true };
+    browserApi(
+      routes({
+        "GET /inbox/mine": {
+          items: [myCase(1, { case: disposed, reasons: ["claimed"] }), myCase(2, { case: shut, reasons: ["claimed"] })],
+          total: 2,
+        },
+      }),
+    );
+    renderWithClient(<InboxFrame tab="mine" params={{}} />);
+    const ready = await screen.findByRole("row", { name: "Open WP(C)/1/2026" });
+    expect(within(ready).getByText("Ready to Close")).toBeInTheDocument();
+    expect(within(screen.getByRole("row", { name: "Open WP(C)/2/2026" })).getByText("Closed")).toBeInTheDocument();
+  });
+
+  it("Department: the switch; under Closed the chips are hidden and their keys dropped; m from claimed_open / claimed_closed", async () => {
+    const api = browserApi(routes());
+    const { unmount } = renderWithClient(<InboxFrame tab="department" params={{ q: "ram" }} />);
+    expect(await screen.findByText("1 of 4 cases")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Overdue" })).toBeInTheDocument();
+    expect(lastUrl(api.calls, "/inbox/claimed?")).toContain("closure=open");
+    await userEvent.click(screen.getByRole("radio", { name: "Closed" }));
+    expect(nav.replace).toHaveBeenLastCalledWith(expect.stringMatching(/[?]q=ram&closure=closed$/));
+    unmount();
+    renderWithClient(<InboxFrame tab="department" params={{ closure: "closed", action: "overdue", holder: "elsewhere" }} />);
+    await screen.findByRole("row", { name: "Open WP(C)/1/2026" });
+    expect(screen.queryByRole("button", { name: "Overdue" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "With Another Office" })).toBeNull();
+    const url = lastUrl(api.calls, "/inbox/claimed?");
+    expect(url).toContain("closure=closed");
+    expect(url).not.toContain("action=overdue");
+    expect(url).not.toContain("holder=elsewhere");
+  });
+
+  it("the tracker's fallback list has no switch", async () => {
+    const api = browserApi(routes({ "GET /me": trackerOnly(), "GET /inbox/counts": NOT_WHOLE }));
+    renderWithClient(<InboxFrame tab="department" params={{}} />);
+    await waitFor(() => expect(api.calls.some((c) => c.path.startsWith("/custody/held?"))).toBe(true));
+    expect(screen.queryByRole("radiogroup", { name: "Open or Closed" })).toBeNull();
   });
 });

@@ -130,6 +130,8 @@ const ERRORS: Record<string, (extra: Record<string, unknown>) => string> = {
   draft_finalised: () => "This draft became a permanent note when the case moved.",
   bad_document_ref: () => "A linked document is not a document of this case that you can open.",
   not_working_on_case: () => "Your office does not own, hold or appear in this case.",
+  // design close-case, decision 25
+  case_closed: () => "This case is closed. It opens again when the court's status changes or when it is reopened.",
   // uploads and documents (decisions 13, 14)
   type_not_allowed: () => "Refused: only PDF, Word documents and JPEG or PNG images are accepted.",
   duplicate: (x) => `Refused: this file is already on the case${x.existing_ref_no ? ` as ${String(x.existing_ref_no)}` : ""}.`,
@@ -146,6 +148,19 @@ export type ErrorTexts = Record<string, (extra: Record<string, unknown>) => stri
 
 export const CUSTODY_ERRORS: ErrorTexts = {
   bad_target: () => "That officer cannot receive cases (an inactive or State-wide membership). Choose another.",
+};
+
+/** Close Case and Reopen Case (design close-case, decision 25). */
+export const CLOSE_ERRORS: ErrorTexts = {
+  not_disposed: () => "The court has not disposed of this case, so it cannot be closed.",
+  already_closed: () => "This case is already closed.",
+  not_closer: () =>
+    "Only an officer of the owning department who has the case, the Head of Department or the Super Administrator can close it.",
+  transfer_open: () => "A transfer of this case is waiting for a decision. Decide or withdraw it first.",
+  not_closed: () => "This case is not closed.",
+  not_reopener: () => "Only the owning department or the Super Administrator can reopen this case.",
+  not_owned: () => "The case has not been claimed by a department, so it cannot be closed.",
+  function_missing: () => "This is not among your functions.",
 };
 
 export const UPLOAD_ERRORS: ErrorTexts = {
@@ -945,6 +960,7 @@ export const T = {
     nextDatesReview: "Next Dates to Enter",
     // design next-date-direct, decision 5
     nextDatesDiffer: "Next Dates That Differ From the Court",
+    readyToClose: "Ready to Close",
     complianceSoon: "Compliance Due Soon",
     complianceOverdue: "Compliance Overdue",
     openTransfers: "Open Transfers",
@@ -1025,6 +1041,7 @@ export const T = {
       overdue_action: "Overdue",
       confirm_next_date: "Enter",
       due_soon: "Due Soon",
+      ready_to_close: "Ready to Close",
       file_received: "New",
     } as Record<string, string>,
     courtItem: (court: string | null, item: string | null) =>
@@ -1579,7 +1596,14 @@ export const T = {
     emptyViews: {
       mine: "Cases assigned to you, cases you claimed and cases sent to you appear here.",
       department: "The department's claimed cases appear here.",
+      mineClosed: "Closed cases you are connected to appear here.",
+      departmentClosed: "The department's closed cases appear here.",
     } as Record<string, string>,
+    // design close-case, decisions 15-17
+    closureSwitch: "Open or Closed",
+    open: "Open",
+    closed: "Closed",
+    readyToClose: "Ready to Close",
     // design case-inbox-simplify, decisions 4, 9, 10, 12 and 17: why a case is in My Cases, and Department's chips
     reasonCol: "Reason",
     reasons: { allotted: "Assigned to Me", claimed: "Claimed by Me", file: "With Me" } as Record<string, string>,
@@ -3248,6 +3272,34 @@ export const T = {
     sentTo: "Sent To",
     nowhere: "No Longer Visible to You",
   },
+  // design close-case, decisions 19 and 25
+  closure: {
+    closeCase: "Close Case",
+    reopenCase: "Reopen Case",
+    closeTitle: "Close This Case",
+    reopenTitle: "Reopen This Case",
+    closeBody:
+      "Closing ends this case's movement and clears its pending action. It leaves With Me and moves to Closed in My Cases and Department. It opens again by itself if the court's status changes, or when someone allowed to reopen cases reopens it with a reason.",
+    closeDrafts: "Your drafts on this case become permanent notes.",
+    closeField: "Why Is This Case Being Closed?",
+    reopenBody: "Reopening makes the case open again and puts it with the department, with 'Examine' pending. The department is alerted.",
+    reopenField: "Why Is This Case Being Reopened?",
+    remarkHint: "Saved as a note that everyone who can open this case can read. A note is never edited; a correction is a new note.",
+    remarkRequired: "Give a reason of 3 to 2,000 characters.",
+    closed: "Closed",
+    readyToClose: "Ready to Close",
+    readyText: "The court has disposed of this case. Close it when the department's work on it is done.",
+    blockedTransfer: "A transfer of this case is waiting for a decision. Decide or withdraw it first.",
+    notOwnDepartment: "Only the owning department or the Super Administrator can reopen this case.",
+    closedOn: (date: string, by: string) => `Closed on ${date} by ${by}`,
+    reopenedCourt: (date: string) => `Reopened on ${date}: the court's status changed.`,
+    reopenedBy: (date: string, by: string) => `Reopened on ${date} by ${by}`,
+    readClosing: "Read the Closing Remark",
+    readReopening: "Read the Reopening Remark",
+    closedFlash: (ref: string) => `Case closed. The closing remark is note ${ref}.`,
+    closedAway: "Case closed. You can no longer open it: it was with you only to work on.",
+    reopenedFlash: (ref: string) => `Case reopened. The reopening remark is note ${ref}.`,
+  },
   rail: {
     label: "Case Work",
     yourTask: "Your Task",
@@ -3492,7 +3544,7 @@ export const T = {
     // notes (decisions 10-12)
     writeNote: "Write a Note",
     composerDraft:
-      "This case is with you. Your notes are drafts, visible only to you, until the case is sent on or recalled; then they become permanent notes of the case.",
+      "This case is with you. Your notes are drafts, visible only to you, until the case is sent on, recalled or closed; then they become permanent notes of the case.",
     composerPermanent:
       "This note becomes part of the case record at once and cannot be edited or deleted. A mistake is corrected by a new note.",
     noteKind: "Kind",
@@ -3523,7 +3575,7 @@ export const T = {
     cancelCorrection: "Cancel Correction",
     drafts: "My Drafts",
     draftBadge: "Draft",
-    draftsNote: "Drafts are visible only to you and become permanent notes when the case is sent on or recalled.",
+    draftsNote: "Drafts are visible only to you and become permanent notes when the case is sent on, recalled or closed.",
     noDrafts: "No drafts.",
     editDraft: "Edit",
     editTitle: "Edit the Draft",

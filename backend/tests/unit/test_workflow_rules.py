@@ -39,6 +39,14 @@ def _migration():
     return mod
 
 
+def _migration_0035():
+    path = MIGRATION.parent / "0035_close_case.py"
+    spec = importlib.util.spec_from_file_location("m0035", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
 def _check(name: str) -> str:
     for c in CustodyHistory.__table__.constraints:
         if getattr(c, "name", None) and str(c.name).endswith(name):
@@ -53,7 +61,13 @@ def test_reasons_equal_the_check_list():
     for r in CUSTODY_REASONS:
         assert f"'{r}'" in reason_sql
     m = _migration()
-    assert tuple(m.REASONS) == tuple(CUSTODY_REASONS)
+    # 0009 wrote the first seven; 0035 (design close-case) added `closed` and `reopened`
+    assert tuple(m.REASONS) == tuple(CUSTODY_REASONS[:7])
+    m35 = _migration_0035()
+    assert tuple(m35.OLD_REASONS) == tuple(m.REASONS)
+    assert tuple(m35.NEW_REASONS) == tuple(CUSTODY_REASONS)
+    assert CUSTODY_REASONS[7:] == ("closed", "reopened")
+    assert not ({"closed", "reopened"} & set(REMARK_REASONS))
     assert tuple(m.REMARK_REASONS) == tuple(REMARK_REASONS)
     assert set(CUSTODY_REASON_LABELS) == set(CUSTODY_REASONS)
     remark_sql = _check("remark")
@@ -99,7 +113,8 @@ def test_retired_functions_excluded_from_the_active_set():
     assert RETIRED_PERMISSIONS == {Permission.REQUESTS_SEND, Permission.REQUESTS_ANSWER}
     assert not (access.ACTIVE_FUNCTIONS & RETIRED_PERMISSIONS)
     assert {Permission.CUSTODY_RECALL, Permission.CUSTODY_TRACK} <= access.ACTIVE_FUNCTIONS
-    assert len(Permission) == 55 and len(access.ACTIVE_FUNCTIONS) == 53  # next-date-direct: two functions
+    # next-date-direct: two functions; close-case: cases.close and cases.reopen
+    assert len(Permission) == 57 and len(access.ACTIVE_FUNCTIONS) == 55
 
 
 def test_send_field_checks():

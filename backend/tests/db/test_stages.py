@@ -79,3 +79,29 @@ def test_refusals(wide):
             _set(s, wide, "oversight", case, "notice_received")
         assert e.value.http_status == 403
         s.rollback()
+
+
+def test_closed_stage_cannot_be_set_and_old_rows_keep_label(wide):
+    """Design close-case: the stage `closed` is retired; past rows still read their label."""
+    from aslms.domain.reference import Stage
+
+    with wide.Session() as s:
+        case = w.claimed_case(s, wide)
+        assert "closed" not in [i.code for i in stages.catalogue(s)]
+        with pytest.raises(WorkflowError) as e:
+            _set(s, wide, "edu_admin", case, "closed")
+        assert e.value.http_status == 400
+        # a row recorded before the stage was retired still reads its label
+        actor, user = wide.actor(s, "edu_admin")
+        row = stages.CaseStage(
+            case_id=case.id,
+            office_id=wide.offices["EDU"].id,
+            stage=Stage("closed"),
+            response_mode="department",
+            **stages.snapshot(actor),
+        )
+        s.add(row)
+        s.flush()
+        out = stages.stage_out(s, row)
+        assert out["stage"] == "closed" and out["label"] == "Closed"
+        s.rollback()

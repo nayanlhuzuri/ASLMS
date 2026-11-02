@@ -112,7 +112,8 @@ def test_seed_and_migration_produce_the_same_rows(db_url, engine):
         after_migration = _rows(engine)
         assert len(after_migration) == 24
         assert _rows(engine, only_new=True) == EXPECTED
-        assert all(active for *_, active in after_migration)
+        # every stage active but `closed`, retired from Set Stage by 0035 and the seed (design close-case, decision 9)
+        assert all(active == (code != "closed") for code, *_, active in after_migration)
     finally:
         wipe_if_migrated(db_url)
     _seed(engine)  # a wiped database seeded without the migration

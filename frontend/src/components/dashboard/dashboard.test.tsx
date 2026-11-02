@@ -14,7 +14,7 @@ function department(code: string, name: string, extra: Partial<DashboardDepartme
   return {
     department: { code, name },
     generated_at: "2026-10-10T04:30:00Z",
-    cases: { claimed_active: 128400, claimed_disposed: 12, not_allotted_active: 3, watching_active: 1 },
+    cases: { claimed_active: 128400, claimed_disposed: 12, not_allotted_active: 3, watching_active: 1, to_close: 0, closed: 0 },
     hearings: {
       total: 2,
       critical: 1,
@@ -23,7 +23,7 @@ function department(code: string, name: string, extra: Partial<DashboardDepartme
         { case: { ...CASE, id: "c2", case_no_text: "WA/55/2026" }, date: "2026-10-15", court_no: "5", item_no: "2", critical: false, approximate: false },
       ],
     },
-    attention: { compliance_due_soon: 4, compliance_overdue: 1, next_dates_to_review: null, recent_order_next_dates: [] },
+    attention: { compliance_due_soon: 4, compliance_overdue: 1, next_dates_to_review: null, recent_order_next_dates: [], to_close: 0 },
     recommendations: { high: 5, medium: 7, transfers_in_open: 2 },
     pending_actions: { held: 9, overdue: 3, due_soon: 2, no_due_date: 1, items: null },
     custody_by_office: [{ office_code: "EDU-DSE", office_name: "Secondary Education", holder_department_code: "EDU", held: 4, with_pending_action: 2, overdue: 1 }],
@@ -326,7 +326,7 @@ describe("dashboard", () => {
 
   it("Next Dates That Differ From the Court links to Department Cases with the filter (next-date-direct, decision 5)", async () => {
     const d = department("EDU", "Education", {
-      attention: { compliance_due_soon: 0, compliance_overdue: 0, next_dates_to_review: null, recent_order_next_dates: [], next_dates_differ: 2 },
+      attention: { compliance_due_soon: 0, compliance_overdue: 0, next_dates_to_review: null, recent_order_next_dates: [], next_dates_differ: 2, to_close: 0 },
     });
     browserApi({
       "GET /me": makeMe(["cases.view_scope"]),
@@ -344,7 +344,7 @@ describe("dashboard", () => {
   it("Next dates to enter links to the review list for the department when above zero (portal-next-dates, decision 13)", async () => {
     const att = (n: number | null, recent: DashboardDepartment["attention"]["recent_order_next_dates"] = []) =>
       department("EDU", "Education", {
-        attention: { compliance_due_soon: 0, compliance_overdue: 0, next_dates_to_review: n, recent_order_next_dates: recent },
+        attention: { compliance_due_soon: 0, compliance_overdue: 0, next_dates_to_review: n, recent_order_next_dates: recent, to_close: 0 },
       });
     const routes = (d: DashboardDepartment) => ({
       "GET /me": makeMe(["cases.view_scope", "next_dates.review"]),
@@ -718,5 +718,44 @@ describe("the greeting and the view switch (design portal-ui-polish-2, decisions
     renderWithClient(<Dashboard />);
     expect(await screen.findByText("Opened on State because you have no cases of your own.")).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "State" })).toHaveAttribute("aria-checked", "true");
+  });
+});
+
+describe("Ready to Close on the dashboards (design close-case, decisions 21 and 22)", () => {
+  it("the personal attention list shows the ready_to_close item linking to the case", async () => {
+    const ready: DashboardMe["attention"][number] = {
+      kind: "ready_to_close",
+      case: { ...CASE, id: "c9", case_no_text: "WA/9/2026", ref_no: "ASLMS/GHC/CASE/2026/000009" },
+      title: "Ready to Close",
+      date: "2026-10-20",
+      detail: "Disposed by the court on 20 Oct 2026",
+      pending_action: "examine",
+      overdue_days: 0,
+      next_date_id: null,
+    };
+    browserApi(mine(personal({ attention: [ready] })));
+    renderWithClient(<Dashboard />);
+    const panel = await screen.findByRole("list", { name: "Needs Your Attention" });
+    expect(within(panel).getAllByText("Ready to Close").length).toBe(2); // the lead badge and the title
+    expect(within(panel).getByRole("link", { name: "Ready to Close" })).toHaveAttribute("href", "/cases/ASLMS-GHC-CASE-2026-000009");
+    expect(within(panel).getByText(/Disposed by the court on 20 Oct 2026/)).toBeInTheDocument();
+  });
+
+  it("the department Attention card's Ready to Close links to Department Cases with the disposed filter when above zero", async () => {
+    const d = department("EDU", "Education", {
+      attention: { compliance_due_soon: 0, compliance_overdue: 0, next_dates_to_review: null, recent_order_next_dates: [], to_close: 3 },
+    });
+    browserApi({
+      "GET /me": makeMe(["cases.view_scope"]),
+      "GET /dashboard": { me: false, state: false, departments: [{ code: "EDU", name: "Education" }] },
+      "GET /dashboard/department": d,
+    });
+    renderWithClient(<Dashboard />);
+    const block = await screen.findByRole("region", { name: "Department: Education" });
+    expect(within(block).getByRole("link", { name: "Ready to Close" })).toHaveAttribute(
+      "href",
+      "/inbox/department?department=EDU&case_status=disposed",
+    );
+    expect(within(block).getByRole("link", { name: "Ready to Close" }).closest("li")).toHaveTextContent("Ready to Close3");
   });
 });

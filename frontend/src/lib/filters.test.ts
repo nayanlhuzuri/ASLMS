@@ -9,6 +9,7 @@ import {
   dateParams,
   hasCaseFilter,
   legacyParams,
+  LIST_FILTERS,
   resolveDates,
   toApiQuery,
   validate,
@@ -254,5 +255,20 @@ describe("the defaultOn check control (ownership-refinements, decision 8)", () =
     expect(checkChip("visible_only", undefined, on)).toBeNull();
     expect(checkChip("visible_only", "true", on)).toBeNull();
     expect(checkChip("visible_only", "false", on)).toEqual({ keys: ["visible_only"], label: "Also Cases I Cannot Open" });
+  });
+});
+
+describe("the Open / Closed switch (design close-case, decisions 16, 17 and 22)", () => {
+  it("closure is a fixed key of My Cases and Department, kept by Clear All and never a shared filter", () => {
+    expect(LIST_FILTERS.mine.fixed).toContain("closure");
+    expect(LIST_FILTERS.department.fixed).toEqual(["department", "closure"]);
+    expect(toApiQuery({ closure: "closed" }, "mine", NEAR_MIDNIGHT)).not.toHaveProperty("closure");
+    expect(hasCaseFilter({ closure: "closed" }, "department")).toBe(false);
+  });
+
+  it("Department takes case_status as a hidden filter (the dashboard's Ready to Close link)", () => {
+    expect(LIST_FILTERS.department.hidden).toContain("case_status");
+    expect(toApiQuery({ case_status: "disposed" }, "department", NEAR_MIDNIGHT)).toMatchObject({ case_status: "disposed" });
+    expect(hasCaseFilter({ case_status: "disposed" }, "department")).toBe(true);
   });
 });

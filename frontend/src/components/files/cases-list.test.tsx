@@ -32,6 +32,7 @@ function card(extra: Partial<CustodyCard> = {}): CustodyCard {
     due_soon: false,
     can_recall: true,
     can_send: true,
+    closed: false,
     due_date: "2026-10-10",
     holder_office: { code: "EDU-DSE", name: "Secondary Education" },
     holder_user: { id: "u-7", full_name: "Officer One", designation: "Section Officer" },
@@ -432,5 +433,28 @@ describe("lists are DataTables, cards on phones (design portal-ui-polish, decisi
     const edu = await screen.findByRole("region", { name: "Tracking summary: EDU" });
     expectDataTable(within(edu).getByRole("table", { name: "By the Department It Is With" }));
     expectDataTable(within(edu).getByRole("table", { name: "By Who Has Them" }));
+  });
+});
+
+describe("Ready to Close on With Me (design close-case, decision 15)", () => {
+  it("the quick chip sets case_status=disposed, which the API receives; a disposed row carries the badge", async () => {
+    const disposed: HeldItem = { case: { ...summary("c-9", "WP(C)/9/2026"), status: "disposed", closed: false }, card: card() };
+    const api = browserApi({ "GET /custody/held": held([disposed]) });
+    const { unmount } = renderWithClient(<Held tab="with-me" params={{}} />);
+    const row = await screen.findByRole("row", { name: /WP\(C\)\/9\/2026/ });
+    expect(within(row).getByText("Ready to Close")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Ready to Close" }));
+    expect(nav.replace).toHaveBeenLastCalledWith("/inbox/with-me?case_status=disposed");
+    unmount();
+    renderWithClient(<Held tab="with-me" params={{ case_status: "disposed" }} />);
+    await waitFor(() => expect(api.calls.some((c) => c.path.startsWith("/custody/held?") && c.path.includes("case_status=disposed"))).toBe(true));
+    expect(screen.getByRole("button", { name: "Ready to Close" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("the tracker's Department list has no Ready to Close chip", async () => {
+    const api = browserApi({ "GET /me": makeMe(["cases.view_scope", "custody.track"]), "GET /custody/held": held([]) });
+    renderWithClient(<Held tab="pending" params={{}} />);
+    await waitFor(() => expect(api.calls.some((c) => c.path.startsWith("/custody/held?"))).toBe(true));
+    expect(screen.queryByRole("button", { name: "Ready to Close" })).toBeNull();
   });
 });

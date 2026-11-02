@@ -283,11 +283,18 @@ def record_status_change(session: Session, case: Case, changes: dict[str, tuple[
         )
     if "status" in changes:
         kind = EventType.CASE_DISPOSED if case.status == CaseStatus.DISPOSED else EventType.STATUS_CHANGED
+        extra: dict[str, Any] = {}
+        if case.status == CaseStatus.PENDING:
+            # design close-case, decision 11: the department's closure reopens before the event is emitted
+            from aslms.services import case_closure
+
+            if case_closure.reopen_on_court_status(session, case, previous_status=changes["status"][0]):
+                extra["reopened"] = True
         emit_event(
             session,
             kind,
             case,
-            {"cnr": case.cnr, **payload},
+            {"cnr": case.cnr, **payload, **extra},
             dedupe=f"{kind.value}:{case.cnr}:{case.status.value}:{case.disposal_date}",
         )
     elif set(changes) - {"next_hearing_date"}:

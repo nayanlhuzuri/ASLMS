@@ -13,6 +13,8 @@ functions alone whether the caller holds the file, works on the case or may set 
   `next-date-direct`, decision 6, recomputed for the case as the writes do).
 - `next_date_report` / `next_date_correct` (next-date-direct, decision 19): the caller holds
   `next_dates.report_wrong` / `next_dates.correct`, may see the case, and the latest order's reading can be reported.
+- `close`, `close_as`, `close_blocked`, `reopen`, `reopen_blocked` (design `close-case`, decision 20): from
+  `case_closure.close_flags` and `reopen_flags`, the checks `close` and `reopen` run.
 
 Reading only: no lock, no write, no audit row."""
 
@@ -42,7 +44,7 @@ def available(session: Session, user: User | Member, case: Case) -> dict[str, An
             note_mode = "draft" if holds else "permanent"
     upload = acting_member_for_case(session, user, case, Permission.DOCUMENTS_UPLOAD) is not None
     set_stage = owned and acting_member_for_case(session, user, case, Permission.STAGES_SET) is not None
-    from aslms.services import access, next_hearing
+    from aslms.services import access, case_closure, next_hearing
     from aslms.services import next_dates as nd
 
     may_enter = (
@@ -62,4 +64,6 @@ def available(session: Session, user: User | Member, case: Case) -> dict[str, An
         "next_dates_blocked": "court_date_fixed" if fixed else None,
         "next_date_report": bool(report and reportable is not None),
         "next_date_correct": bool(correct and reportable is not None),
+        **case_closure.close_flags(session, user, case),
+        **case_closure.reopen_flags(session, user, case),
     }

@@ -22,6 +22,11 @@
  *   above the tabs, as collapsible cards;
  * - the remarks history, a wide side panel on `?remarks=all` (`RemarksPanel`): Back closes it and the link can be
  *   shared.
+ * Close Case (design close-case, decision 19): a closed case shows the neutral "Closed" badge after the court status and
+ * the line "Closed on <date> by <name>, <designation>" with "Read the Closing Remark" (only when the API gives the
+ * note's reference); a reopened case whose current leg is still the reopen leg shows the reopened line. With Ready to
+ * Close the rail's Close Case is the page's one primary, so Send Case moves to More Actions. The Close and Reopen
+ * dialogs mount by `workflow.close` and `workflow.reopen`.
  * A case the API answers 404 shows one neutral message, so the page reveals nothing.
  */
 import { useQueryClient } from "@tanstack/react-query";
@@ -33,8 +38,10 @@ import { OwnershipDialogs, type DialogKind } from "@/components/inbox/dialogs";
 import { EnterNextDate } from "@/components/nextdates/Dialogs";
 import { Badge, Breadcrumb, Button, EmptyState, ErrorBanner, HearingDate, Loading, Menu, Notice, Tabs, type MenuItem } from "@/components/ui";
 import { useWorkflowRefresh } from "@/components/workflow/common";
+import { CloseCaseDialog } from "@/components/workflow/CloseCaseDialog";
 import { RecallDialog, SendDialog } from "@/components/workflow/CustodyDialogs";
 import { NoteDialog } from "@/components/workflow/NoteDialog";
+import { ReopenCaseDialog } from "@/components/workflow/ReopenCaseDialog";
 import { StageDialog } from "@/components/workflow/StageDialog";
 import { UploadDialog } from "@/components/workflow/Upload";
 import { api, ApiError } from "@/lib/api/client";
@@ -45,14 +52,14 @@ import { cardHolder, withText } from "@/lib/cases";
 import { formatDate } from "@/lib/format";
 import { NEXT_DATE_ERRORS, T } from "@/lib/messages";
 import { queryString, type Params } from "@/lib/params";
-import { apiCasePath, casePath, currentCaseHref } from "@/lib/refs";
+import { apiCasePath, casePath, currentCaseHref, noteRefAnchor } from "@/lib/refs";
 import { CASE_TABS, showsAssistant } from "@/lib/routes";
 import { useAction } from "@/lib/useAction";
 import { RAIL_MIN_WORKSPACE, useElementWidth, useMediaQuery, WIDE_CASE_PAGE } from "@/lib/useMediaQuery";
 import { useUrlOverlay } from "@/lib/useUrlOverlay";
 
 import s from "./case.module.css";
-import { Rail, type RailAction } from "./Rail";
+import { closerName, openClosure, Rail, type RailAction } from "./Rail";
 import { RemarksPanel } from "./Remarks";
 
 // decision 10.15: green means done (disposed); pending and unknown are neutral, amber is kept for due soon
@@ -153,8 +160,11 @@ function CaseActions({ caseRef, c, onOpen }: { caseRef: string; c: CaseDetail; o
     own({ kind: "claim", caseRef, departments: a?.claim_departments ?? null, currentOwner: v?.primary?.office_code ?? null });
   const accept = () => t && own({ kind: "decide", caseRef, transferId: t.id, accept: true });
 
-  // the fixed order of portal-ui-redesign, decision 24
-  const primary: { label: string; run: () => void; key: string } | null = k?.can_send
+  // the fixed order of portal-ui-redesign, decision 24; with Ready to Close the rail's Close Case is the one primary
+  // (design close-case, decision 19), so Send Case is in More Actions
+  const primary: { label: string; run: () => void; key: string } | null = c.workflow.close
+    ? null
+    : k?.can_send
     ? { key: "send", label: T.wf.send, run: () => onOpen({ kind: "send" }) }
     : a?.claim
       ? { key: "claim", label: T.own.claim, run: claim }
@@ -166,6 +176,7 @@ function CaseActions({ caseRef, c, onOpen }: { caseRef: string; c: CaseDetail; o
   const add = (key: string, label: string, onSelect: () => void) => {
     if (primary?.key !== key) items.push({ key, label, onSelect });
   };
+  if (k?.can_send && c.workflow.close) add("send", T.wf.send, () => onOpen({ kind: "send" }));
   if (k?.can_recall) add("recall", T.wf.recall, () => onOpen({ kind: "recall" }));
   if (c.workflow.next_dates) add("next", T.nd.enterNext, () => onOpen({ kind: "next" }));
   if (a?.claim) add("claim", T.own.claim, claim);
@@ -257,8 +268,63 @@ function CaseDialogs({
       {c.workflow.note_mode ? (
         <NoteDialog open={open?.kind === "note"} caseRef={caseRef} mode={c.workflow.note_mode} onClose={onClose} onDone={onNotice} />
       ) : null}
+      {c.workflow.close ? (
+        <CloseCaseDialog
+          open={open?.kind === "close"}
+          caseRef={caseRef}
+          drafts={c.counts.my_drafts}
+          onClose={onClose}
+          onDone={onNotice}
+        />
+      ) : null}
+      {c.workflow.reopen ? (
+        <ReopenCaseDialog open={open?.kind === "reopen"} caseRef={caseRef} onClose={onClose} onDone={onNotice} />
+      ) : null}
       <OwnershipDialogs open={open?.kind === "ownership" ? open.dialog : null} onClose={onClose} />
     </>
+  );
+}
+
+/**
+ * The closure lines of the header (design close-case, decision 19): "Closed on … by …" with the link to the closing
+ * remark, or, while the case still rests on its reopen leg, "Reopened on …" in the court's or the reopener's words.
+ * Each remark link only when the API gives the note's reference (the caller may read it).
+ */
+export function ClosureLine({ c, caseRef }: { c: CaseDetail; caseRef: string }) {
+  const closure = c.closure;
+  if (!closure) return null;
+  const notes = (ref: string) => `${casePath(caseRef, "notes")}#${noteRefAnchor(ref)}`;
+  if (!closure.reopened_at) {
+    return (
+      <p className={s.closure} data-closure="closed">
+        {T.closure.closedOn(formatDate(closure.closed_at), closerName(closure.closed_by))}
+        {closure.note_ref_no ? (
+          <>
+            {" · "}
+            <Link href={notes(closure.note_ref_no)}>{T.closure.readClosing}</Link>
+          </>
+        ) : null}
+      </p>
+    );
+  }
+  if (c.custody?.reason !== "reopened") return null;
+  if (closure.reopen_kind === "automatic") {
+    return (
+      <p className={s.closure} data-closure="reopened">
+        {T.closure.reopenedCourt(formatDate(closure.reopened_at))}
+      </p>
+    );
+  }
+  return (
+    <p className={s.closure} data-closure="reopened">
+      {T.closure.reopenedBy(formatDate(closure.reopened_at), closerName(closure.reopened_by))}
+      {closure.reopen_note_ref_no ? (
+        <>
+          {" · "}
+          <Link href={notes(closure.reopen_note_ref_no)}>{T.closure.readReopening}</Link>
+        </>
+      ) : null}
+    </p>
   );
 }
 
@@ -292,6 +358,7 @@ export function CaseHeader({
         {/* a case number is `cno`, a bare ref_no stays monospace (decision 10.1; design portal-ui-polish, decision 2) */}
         <h1 className={`${s.caseNo} ${c.identity.case_no_text ? "cno" : "mono"}`}>{caseName(c)}</h1>
         <Badge tone={statusTone(c.status.status)}>{status}</Badge>
+        {openClosure(c) ? <Badge>{T.closure.closed}</Badge> : null}
         <OwnerBadge c={c} me={me.data} />
         <ActionDueBadge c={c} me={me.data} />
         {onOpen ? <CaseActions caseRef={caseRef} c={c} onOpen={onOpen} /> : null}
@@ -301,6 +368,7 @@ export function CaseHeader({
           {pet ?? "—"} <span className="muted">{T.vs}</span> {res ?? "—"}
         </p>
       ) : null}
+      <ClosureLine c={c} caseRef={caseRef} />
       <dl className={s.facts}>
         <Fact label={T.case.nextHearing}>
           <NextHearingFact c={c} listing={listing.data?.items[0]} />

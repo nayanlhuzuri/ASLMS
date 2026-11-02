@@ -34,3 +34,8 @@ export function currentCaseHref(pathname: string, search: string, caseRef: strin
   const query = search.replace(/^\?/, "");
   return `${casePath(refNo, rest || undefined)}${query ? `?${query}` : ""}`;
 }
+
+/** The anchor of a note by its reference number (the case header's "Read the Closing Remark", design close-case). */
+export function noteRefAnchor(refNo: string): string {
+  return `note-${refNo.replace(/\//g, "-")}`;
+}

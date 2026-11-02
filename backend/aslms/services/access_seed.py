@@ -84,6 +84,16 @@ PERMISSION_LABELS: dict[P, tuple[str, str]] = {
         "Track Pending Cases",
         "See every case of the department that is waiting on someone, with due and overdue alerts.",
     ),
+    # design close-case, decision 2
+    P.CASES_CLOSE: (
+        "Close Cases",
+        "Close a disposed case of your department with the reason why. Only the officer who has it or the head can "
+        "close it.",
+    ),
+    P.CASES_REOPEN: (
+        "Reopen Cases",
+        "Reopen a closed case of your department, with the reason why. The Super Administrator can reopen any case.",
+    ),
     P.REQUESTS_SEND: ("Send Requests (Retired)", "Retired: sending the case replaces requests"),
     P.REQUESTS_ANSWER: ("Answer Requests (Retired)", "Retired: sending the case replaces requests"),
     P.STAGES_SET: ("Set the Stage", "Record where the department's work on a case stands."),
@@ -198,6 +208,8 @@ PERMISSION_GROUPS: tuple[tuple[str, str, tuple[P, ...]], ...] = (
             P.CUSTODY_MOVE,
             P.CUSTODY_RECALL,
             P.CUSTODY_TRACK,
+            P.CASES_CLOSE,  # design close-case, decision 2
+            P.CASES_REOPEN,
             P.STAGES_SET,
             P.NOTES_ADD,
             P.NOTES_VIEW_COUNSEL_SHARED,
@@ -282,11 +294,22 @@ DEFAULT_MATRIX: dict[Role, set[P]] = {
     Role.STATE_OVERSIGHT: _READ_CASES
     | {P.CASES_VIEW_ALL, P.DASHBOARD_STATE, P.REPORTS_STATE, P.REPORTS_DEPARTMENT, P.USERS_VIEW},
     # design alerts-visibility-roles, decision 17: the head recalls cases like the department admin
+    # design close-case, decision 2: Close Cases for the head and the officer, Reopen Cases for the head and the admin
     Role.DEPT_HEAD: _CASE_WORK
     | _OWNERSHIP
-    | {P.REPORTS_DEPARTMENT, P.USERS_VIEW, P.CUSTODY_TRACK, P.CUSTODY_RECALL},
-    Role.DEPT_ADMIN: _CASE_WORK | _OWNERSHIP | _DEPT_ADMIN | {P.CUSTODY_RECALL, P.CUSTODY_TRACK},
-    Role.DEPT_OFFICER: _CASE_WORK,
+    | {
+        P.REPORTS_DEPARTMENT,
+        P.USERS_VIEW,
+        P.CUSTODY_TRACK,
+        P.CUSTODY_RECALL,
+        P.CASES_CLOSE,
+        P.CASES_REOPEN,
+    },
+    Role.DEPT_ADMIN: _CASE_WORK
+    | _OWNERSHIP
+    | _DEPT_ADMIN
+    | {P.CUSTODY_RECALL, P.CUSTODY_TRACK, P.CASES_REOPEN},
+    Role.DEPT_OFFICER: _CASE_WORK | {P.CASES_CLOSE},
     Role.DIRECTORATE_USER: _CASE_WORK - {P.CASES_SEARCH_COURT},
     Role.REFERRAL_REVIEWER: _READ_CASES | {P.NOTES_ADD, P.STAGES_SET, P.ALERTS_ACKNOWLEDGE},
     Role.STANDING_COUNSEL: _READ_CASES | {P.NOTES_ADD, P.NOTES_VIEW_COUNSEL_SHARED, P.DOCUMENTS_UPLOAD},

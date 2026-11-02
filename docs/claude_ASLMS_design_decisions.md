@@ -3162,3 +3162,27 @@ Row 205 `nextjs-security-upgrade` (design `docs/design/nextjs-security-upgrade.m
 **Verification** (from the commit message): lint, typecheck, vitest (1878 passed), `npm run build` on Next.js 16.4.3, e2e tsc, `gen:api` with no diff, and the runbook section 16 screen check on a private network against images built from the branch (163 routes and states, 386 screenshots, 0 findings).
 
 **Left for later**: nothing new. Deploy: `docker compose build` and restart with the court-data switch carried; no migration. No change to the Word guides, `operations.md`, `.env.example`, `schema.md` or the Process Workflows (no variable, command, table or behaviour changed).
+
+## Close Case: a department's case is Open or Closed (2026-11-02)
+
+Row 207 `close-case` (design `docs/design/close-case.md`, approved 30 Oct 2026 with the owner's answers of that date), branch `feature/close-case`. Migration 0035.
+
+**What was built**
+- Table `case_closures` (one row per closing; a case may close, reopen and close again): owning department office, the active primary ownership, `closed_as` (`holder` / `head` / `super_admin`), the closing remark note, the `closed` custody leg, the court's disposal date, and the reopening columns (automatic or manual, author, reason, note). A case is Closed while a row has `reopened_at` empty. A partial unique index allows one open closure per case; a trigger lets the reopening columns change once and freezes the rest. As built in `docs/schema/schema.md`.
+- `services/case_closure.py`: close, automatic reopen (when a court record reads the case no longer disposed) and manual reopen. Each writes a case-scope note, a custody leg (`closed` to the owning department's office with no officer and no pending action; `reopened`), a timeline event (`case_closed`, `case_reopened`) and an audit row.
+- Functions `cases.close` (Department Head, Department Officer) and `cases.reopen` (Department Head, Department Admin), both in Case Work; the Super Administrator holds every function.
+- API: `POST /cases/{ref}/close` and `/reopen`; `closure` and the `close*` / `reopen*` flags on the case detail; `closure=open|closed|all` on `/inbox/mine` and `/inbox/claimed` with split counts; `closed` on every case summary; dashboard Ready to Close (`ready_to_close` attention, `cases.to_close`, `cases.closed`). Send, Recall and ownership moves answer 409 `case_closed` on a closed case; held lists and custody counts leave closed cases out.
+- Portal: Close This Case and Reopen This Case dialogs, Ready to Close on Your Task, Closed badge and closure line, Open / Closed switch on My Cases and Department, Ready to Close chip on With Me, remark links to the Notes tab. Seven uicheck states with two dedicated fixture cases.
+- Reference data: note kinds `closing` and `reopening`, event types, custody reasons `closed` and `reopened` (CHECK rebuilt with nine); the case stage `closed` is retired through `RETIRED_CODES` (old rows keep their label, it can no longer be set).
+
+**Decisions and reasons**
+- Closing is a record of its own, not a column on `cases`: it has an author, a standing, a remark, a leg and a reopening, and every round must stay on record. `cases.closed_at` keeps meaning the court disposal mark.
+- Who may close (owner, 29 and 30 Oct 2026): only officers of the owning department as holder, the owning department's head wherever the file is, or the super admin; only a claimed case, only when the court's status is disposed; a remark is required and kept append-only.
+- Reopening: automatic when the court's status changes from disposed, with a department alert; manual Reopen Case kept as a function (owner, 30 Oct 2026), replacing the backlog text "No manual reopen".
+- A closed case found on a cause list is refreshed by a queued `dossier` fetch.
+
+**Deviations**
+- DB_STANDARD section 6 says `closed_at` on `cases` is "set on disposal + owner closure". The owner closure is recorded in `case_closures` instead and `cases.closed_at` stays the disposal mark. The plan is unchanged; flagged for the owner.
+- Developer deviations (design note, Deviations 1 to 11): the cause-list fetch uses `requeue=True` so a done row runs again; two extra foreign-key indexes; the trigger also lets the two snapshot user keys go NULL; the manual reopen alert expires with informational workflow alerts; Send Case moves into More Actions while Ready to Close so the page keeps one primary; route gates return 403 before the 404; the Department tab reads `case_status` as a hidden shared filter; the list tests sit in `test_close_case_lists.py` and `test_api_close_case.py`; enum codes appended; the remark link uses an anchor named by the note reference; the portal sends `closure=open` for Open.
+
+**Left for later**: archiving or retention after closure (policy owner); a State-wide closed count on the State dashboard and reports. Deploy: apply 0035 with the `migrate` step, then `init` (seed), then `docker compose build` with the court-data switch carried. Documents changed: `docs/ASLMS_Process_Workflows.md` (closing and reopening, section 4.3). No change to `operations.md`, `.env.example` or the Word guides (no variable, command or deploy step beyond the usual migrate).

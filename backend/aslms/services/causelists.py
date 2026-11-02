@@ -242,6 +242,29 @@ def _get_or_create_list(
     return cl
 
 
+def _queue_closed_refresh(session: Session, court: Court, case: Case, origin: QueueOrigin) -> bool:
+    """Design close-case, decision 14: a case the department closed, found on a new cause list, is fetched from the
+    court once (a restored case is usually listed before anything else shows it). The queue keeps one row per case;
+    `requeue` revives a row already done (a closed case was always fetched before). True when a row is pending."""
+    from aslms.services import case_closure
+
+    if not case_closure.is_closed(session, case):
+        return False
+    ref = case.cnr or (f"{court.est_code}|{case.case_no_text}" if case.case_no_text else None)
+    if ref is None:
+        return False
+    return queue.enqueue(
+        session,
+        FetchKind.DOSSIER,
+        ref,
+        origin.dossier_priority(),
+        requeue=True,
+        lane=origin.lane,
+        list_date=origin.list_date,
+        requested_by=origin.requested_by,
+    )
+
+
 def apply_entries(
     session: Session,
     court: Court,
@@ -293,6 +316,8 @@ def apply_entries(
                     requested_by=origin.requested_by,
                 ):
                     report.queued += 1
+            elif not created and _queue_closed_refresh(session, court, case, origin):
+                report.queued += 1
         session.add(_entry_row(causelist, entry, source, case.id if case else None))
         report.entries_new += 1
         if case is not None:

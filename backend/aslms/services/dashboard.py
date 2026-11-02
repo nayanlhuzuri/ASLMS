@@ -20,11 +20,11 @@ import uuid
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import ColumnElement, Date, and_, cast, exists, func, select, true
+from sqlalchemy import ColumnElement, Date, and_, cast, exists, func, or_, select, true
 from sqlalchemy.orm import Session, aliased
 
 from aslms.domain.alerts import Alert, NextDate, NextDateSource, ReviewStatus
-from aslms.domain.cases import Case
+from aslms.domain.cases import Case, CaseStatus
 from aslms.domain.org import Office, User
 from aslms.domain.ownership import (
     CaseOwnership,
@@ -340,7 +340,7 @@ def me_block(
 # design `portal-ui-redesign`, decision 23 and API A7: the personal headline, upcoming hearings and the items
 # that need the caller's attention. Every list is ANDed with the caller's case visibility; nothing is written.
 
-ATTENTION_KINDS = ("overdue_action", "confirm_next_date", "due_soon", "file_received")
+ATTENTION_KINDS = ("overdue_action", "confirm_next_date", "due_soon", "ready_to_close", "file_received")
 RECEIVED_DAYS = 7
 # design next-date-direct, decision 9: the item of the queue is now a date to enter (the API kind keeps its name)
 CONFIRM_TITLE = "Next date to enter"
@@ -351,6 +351,7 @@ ENTER_DETAIL = {
     "marked_wrong": "The date read from this order was marked wrong",
 }
 RECEIVED_TITLE = "Case received"
+READY_TITLE = "Ready to Close"  # design close-case, decision 21
 
 
 def _due_words(days: int) -> str:
@@ -537,6 +538,50 @@ def personal_headline(session: Session, user: User, *, now: datetime, cfg: Repor
         listed.add(c.id)
     room = cfg.list_size - len(attention)
 
+    # design close-case, decision 21: disposed cases I hold through a membership of the owning department that holds
+    # `cases.close` (open ones: a closed case has no personal holder)
+    closers = [
+        m
+        for m in access.members(session, user)
+        if m.department is not None and m.holds(Permission.CASES_CLOSE)
+    ]
+    if closers and room > 0:
+        ready = or_(
+            *[
+                and_(
+                    held.holder_membership_id == m.membership_id,
+                    primary_owned_condition(m.department, held.case_id),
+                )
+                for m in closers
+            ]
+        )
+        for h, c, *_ in file_rows(
+            ready,
+            Case.status == CaseStatus.DISPOSED,
+            held.case_id.not_in(listed) if listed else true(),
+            order=(Case.disposal_date.desc().nulls_last(), held.since, held.case_id),
+            limit=room,
+        ):
+            act = PendingAction(h.pending_action)
+            attention.append(
+                {
+                    "kind": "ready_to_close",
+                    "case": calendar.case_ref(c),
+                    "title": READY_TITLE,
+                    "date": c.disposal_date,
+                    "detail": (
+                        f"Disposed by the court on {c.disposal_date.strftime('%d %b %Y')}"
+                        if c.disposal_date is not None
+                        else "Disposed by the court"
+                    ),
+                    "pending_action": act.value,
+                    "overdue_days": 0,
+                    "next_date_id": None,
+                }
+            )
+            listed.add(c.id)
+        room = cfg.list_size - len(attention)
+
     received = file_rows(
         held.since >= now - timedelta(days=RECEIVED_DAYS),
         func.coalesce(leg.actor_user_id != user.id, True),
@@ -610,10 +655,16 @@ def department_block(
             ),
         }
 
-    def claimed(state_: str, role: OwnershipRole):
-        return inbox.claimed_stmt(session, user, department, case_state=state_, whole=True, role=role)
+    def claimed(state_: str, role: OwnershipRole, closure: str = "all"):
+        return inbox.claimed_stmt(
+            session, user, department, case_state=state_, whole=True, role=role, closure=closure
+        )
 
+    # design close-case, decision 22: disposed and still open, and closed, of the primary-owned cases
+    to_close = _count(session, claimed("disposed", OwnershipRole.PRIMARY, "open"))
     cases = {
+        "to_close": to_close,
+        "closed": _count(session, claimed("all", OwnershipRole.PRIMARY, "closed")),
         "claimed_active": _count(session, claimed("active", OwnershipRole.PRIMARY)),
         "claimed_disposed": _count(session, claimed("disposed", OwnershipRole.PRIMARY)),
         "watching_active": _count(session, claimed("active", OwnershipRole.WATCHER)),
@@ -720,6 +771,7 @@ def department_block(
             "compliance_due_soon": int(due_soon),
             "compliance_overdue": int(overdue),
             "next_dates_differ": differ,
+            "to_close": to_close,
         },
     }
 

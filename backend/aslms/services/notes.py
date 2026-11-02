@@ -67,6 +67,9 @@ from aslms.services.workflow_common import (
 DEFAULT_NOTE_MAX = 20_000
 DEFAULT_DRAFTS_MAX = 20
 RETIRED_KINDS = frozenset({NoteKind.CORRECTION})
+# written only by Close Case and Reopen Case (design close-case, decisions 5 and 18): never chosen in Add Note,
+# always `case_scope`; a correction keeps the kind and the visibility like any correction
+SYSTEM_KINDS = frozenset({NoteKind.CLOSING, NoteKind.REOPENING})
 
 
 class DraftNotFound(LookupError):
@@ -89,7 +92,7 @@ def check_kind(session: Session, raw: str | None) -> NoteKind:
     except ValueError as exc:
         raise bad(f"unknown note kind {raw!r}") from exc
     row = session.get(RefNoteKind, kind.value)
-    if row is None or not row.is_active or kind in RETIRED_KINDS:
+    if row is None or not row.is_active or kind in RETIRED_KINDS or kind in SYSTEM_KINDS:
         raise bad(f"note kind {kind.value} cannot be chosen")
     return kind
 
@@ -238,6 +241,38 @@ def add_note(
         store=store,
     )
     return note, False
+
+
+def add_system_kind_note(
+    session: Session,
+    actor: Actor,
+    member: Member,
+    case: Case,
+    custody: Custody | None,
+    *,
+    kind: NoteKind,
+    body: str,
+) -> CaseNote:
+    """A permanent note of a kind from `SYSTEM_KINDS` (the closing or reopening remark, design close-case): written
+    through `_insert_note` (a `ref_no`, the `note_added` event and the `note.added` audit row), visibility
+    `case_scope`, on the custody's current leg, no files and no links. The caller holds the case row lock and has
+    checked the text."""
+    if kind not in SYSTEM_KINDS:
+        raise ValueError(f"{kind!r} is not a system note kind")
+    return _insert_note(
+        session,
+        actor,
+        member,
+        case,
+        custody,
+        kind=kind,
+        body=body,
+        vis=Visibility.CASE_SCOPE,
+        original=None,
+        prepared=(),
+        links=(),
+        store=None,
+    )
 
 
 def _next_seq(session: Session, case: Case) -> int:
@@ -800,13 +835,16 @@ def visible_count(session: Session, user: User | Member, case: Case) -> int:
 
 
 def kinds(session: Session) -> list[dict[str, Any]]:
-    """Note kinds with `selectable` (the retired `correction` is listed, not selectable)."""
+    """Note kinds with `selectable` (the retired `correction` and the system kinds `closing` and `reopening` are
+    listed, not selectable)."""
     rows = session.scalars(select(RefNoteKind).order_by(RefNoteKind.sort_order)).all()
     return [
         {
             "code": r.code,
             "label": r.label,
-            "selectable": bool(r.is_active) and NoteKind(r.code) not in RETIRED_KINDS,
+            "selectable": bool(r.is_active)
+            and NoteKind(r.code) not in RETIRED_KINDS
+            and NoteKind(r.code) not in SYSTEM_KINDS,
         }
         for r in rows
     ]

@@ -689,6 +689,7 @@ def apply_dossier(session: Session, case: Case, data: dict[str, Any]) -> ApplyRe
         case.cnr = cino.upper()
     new = _snapshot(session, case, SnapshotSource.CNR, data)
     was_disposed = case.status == CaseStatus.DISPOSED
+    previous_status = case.status
     court = _court_for(session, case, data)
     counts: dict[str, int] = {}
     apply_core_fields(session, case, data, court)
@@ -707,6 +708,10 @@ def apply_dossier(session: Session, case: Case, data: dict[str, Any]) -> ApplyRe
     case.is_provisional = False
     case.dossier_stale = False
     case.last_full_refresh_at = _now()
+    # design close-case, decision 11: the court's status reads pending while the department's closure is open
+    from aslms.services import case_closure
+
+    reopened = case_closure.reopen_on_court_status(session, case, previous_status=previous_status)
     if case.status == CaseStatus.DISPOSED and not was_disposed:
         emit_event(
             session,
@@ -719,11 +724,17 @@ def apply_dossier(session: Session, case: Case, data: dict[str, Any]) -> ApplyRe
         # a restored case (design court-data-freshness, decision 4): open again, so the disposal lifecycle mark is
         # cleared (set again by the next disposal) and owners and watchers hear of it through `status_changed`
         case.closed_at = None
+        payload: dict[str, Any] = {
+            "cnr": case.cnr,
+            "status": [CaseStatus.DISPOSED.value, CaseStatus.PENDING.value],
+        }
+        if reopened is not None:
+            payload["reopened"] = True  # design close-case, decision 13: the reopen alert covers it
         emit_event(
             session,
             EventType.STATUS_CHANGED,
             case,
-            {"cnr": case.cnr, "status": [CaseStatus.DISPOSED.value, CaseStatus.PENDING.value]},
+            payload,
             dedupe=f"status_changed:{case.cnr}:pending:{today_ist()}",
         )
     session.flush()

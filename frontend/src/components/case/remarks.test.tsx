@@ -17,6 +17,7 @@ function card(extra: Partial<CustodyCard> = {}): CustodyCard {
     due_soon: false,
     can_recall: false,
     can_send: true,
+    closed: false,
     due_date: null,
     holder_office: { code: "EDU", name: "Education" },
     holder_user: { id: "u-1", full_name: "Anita Sharma", designation: "Under Secretary" },
