@@ -1,0 +1,36 @@
+{
+  "complex1": {
+    "court_complex_name": "District Court Complex",
+    "establishment1": {
+      "est_code": "ASNG01",
+      "court_est_name": "District and Sessions Judge"
+    },
+    "establishment2": {
+      "est_code": "ASNG02",
+      "court_est_name": "Civil Judge Senior Division"
+    },
+    "establishment3": {
+      "est_code": "ASNG03",
+      "court_est_name": "Chief Judicial Magistrate"
+    },
+    "establishment4": {
+      "est_code": "ASNG04",
+      "court_est_name": "Civil Judge Junior Division, Nagaon"
+    },
+    "establishment5": {
+      "est_code": "ASNG10",
+      "court_est_name": "MACT"
+    }
+  },
+  "complex2": {
+    "court_complex_name": "SDJM Court Complex Koliabor",
+    "establishment1": {
+      "est_code": "ASNG05",
+      "court_est_name": "SDJM Kaliabor"
+    },
+    "establishment2": {
+      "est_code": "ASNG06",
+      "court_est_name": "Civil Judge Junior Division, Kaliabor"
+    }
+  }
+}

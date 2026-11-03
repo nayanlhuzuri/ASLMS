@@ -1,0 +1,793 @@
+{
+  "note": "Written by backend/tools/dc_probe.py (row 222). One entry per attempt, as recorded in napix_call_log (where rate_limit_remaining is NULL by the owner-approved deviation); rate headers as the gateway sent them. No credentials; the error text of a failed call is the gateway body (an encrypted status).",
+  "token_requests": 0,
+  "calls": [
+    {
+      "api": "dc-state-api/state",
+      "params": {},
+      "called_at": "2026-11-03T10:32:13.529842+00:00",
+      "ok": true,
+      "http_status": 200,
+      "napix_status": null,
+      "error_family": null,
+      "error": null,
+      "duration_ms": 266,
+      "token_verified": false,
+      "rate_headers": {
+        "x-ratelimit-limit": "name=default,1000;",
+        "x-ratelimit-remaining": "name=default,998;"
+      },
+      "response_header_names": [
+        "cache-control",
+        "connection",
+        "content-encoding",
+        "content-security-policy",
+        "content-type",
+        "content_security_policy",
+        "date",
+        "expect-ct",
+        "expires",
+        "permissions-policy",
+        "pragma",
+        "referrer-policy",
+        "server",
+        "set-cookie",
+        "strict-transport-security",
+        "transfer-encoding",
+        "vary",
+        "x-content-type-options",
+        "x-frame-options",
+        "x-global-transaction-id",
+        "x-xss-protection"
+      ]
+    },
+    {
+      "api": "dc-district-api/district",
+      "params": {
+        "state_code": "18"
+      },
+      "called_at": "2026-11-03T10:32:30.103239+00:00",
+      "ok": true,
+      "http_status": 200,
+      "napix_status": null,
+      "error_family": null,
+      "error": null,
+      "duration_ms": 233,
+      "token_verified": false,
+      "rate_headers": {
+        "x-ratelimit-limit": "name=default,1000;",
+        "x-ratelimit-remaining": "name=default,997;"
+      },
+      "response_header_names": [
+        "cache-control",
+        "connection",
+        "content-encoding",
+        "content-security-policy",
+        "content-type",
+        "content_security_policy",
+        "date",
+        "expect-ct",
+        "expires",
+        "permissions-policy",
+        "pragma",
+        "referrer-policy",
+        "server",
+        "set-cookie",
+        "strict-transport-security",
+        "transfer-encoding",
+        "vary",
+        "x-content-type-options",
+        "x-frame-options",
+        "x-global-transaction-id",
+        "x-xss-protection"
+      ]
+    },
+    {
+      "api": "dc-court-complex-api/courtComplex",
+      "params": {
+        "state_code": "18",
+        "dist_code": "322"
+      },
+      "called_at": "2026-11-03T10:32:38.510170+00:00",
+      "ok": true,
+      "http_status": 200,
+      "napix_status": null,
+      "error_family": null,
+      "error": null,
+      "duration_ms": 320,
+      "token_verified": false,
+      "rate_headers": {
+        "x-ratelimit-limit": "name=default,1000;",
+        "x-ratelimit-remaining": "name=default,996;"
+      },
+      "response_header_names": [
+        "cache-control",
+        "connection",
+        "content-encoding",
+        "content-security-policy",
+        "content-type",
+        "content_security_policy",
+        "date",
+        "expect-ct",
+        "expires",
+        "permissions-policy",
+        "pragma",
+        "referrer-policy",
+        "server",
+        "set-cookie",
+        "strict-transport-security",
+        "transfer-encoding",
+        "vary",
+        "x-content-type-options",
+        "x-frame-options",
+        "x-global-transaction-id",
+        "x-xss-protection"
+      ]
+    },
+    {
+      "api": "dc-court-complex-api/courtComplex",
+      "params": {
+        "state_code": "18",
+        "dist_code": "305"
+      },
+      "called_at": "2026-11-03T10:32:38.835581+00:00",
+      "ok": true,
+      "http_status": 200,
+      "napix_status": null,
+      "error_family": null,
+      "error": null,
+      "duration_ms": 119,
+      "token_verified": false,
+      "rate_headers": {
+        "x-ratelimit-limit": "name=default,1000;",
+        "x-ratelimit-remaining": "name=default,995;"
+      },
+      "response_header_names": [
+        "cache-control",
+        "connection",
+        "content-encoding",
+        "content-security-policy",
+        "content-type",
+        "content_security_policy",
+        "date",
+        "expect-ct",
+        "expires",
+        "permissions-policy",
+        "pragma",
+        "referrer-policy",
+        "server",
+        "set-cookie",
+        "strict-transport-security",
+        "transfer-encoding",
+        "vary",
+        "x-content-type-options",
+        "x-frame-options",
+        "x-global-transaction-id",
+        "x-xss-protection"
+      ]
+    },
+    {
+      "api": "dc-court-complex-api/courtComplex",
+      "params": {
+        "state_code": "18",
+        "dist_code": "706"
+      },
+      "called_at": "2026-11-03T10:32:38.963756+00:00",
+      "ok": true,
+      "http_status": 200,
+      "napix_status": null,
+      "error_family": null,
+      "error": null,
+      "duration_ms": 154,
+      "token_verified": false,
+      "rate_headers": {
+        "x-ratelimit-limit": "name=default,1000;",
+        "x-ratelimit-remaining": "name=default,994;"
+      },
+      "response_header_names": [
+        "cache-control",
+        "connection",
+        "content-encoding",
+        "content-security-policy",
+        "content-type",
+        "content_security_policy",
+        "date",
+        "expect-ct",
+        "expires",
+        "permissions-policy",
+        "pragma",
+        "referrer-policy",
+        "server",
+        "set-cookie",
+        "strict-transport-security",
+        "transfer-encoding",
+        "vary",
+        "x-content-type-options",
+        "x-frame-options",
+        "x-global-transaction-id",
+        "x-xss-protection"
+      ]
+    },
+    {
+      "api": "dc-court-list-api/courtList",
+      "params": {
+        "est_code": "ASKM01"
+      },
+      "called_at": "2026-11-03T10:32:52.950676+00:00",
+      "ok": true,
+      "http_status": 200,
+      "napix_status": null,
+      "error_family": null,
+      "error": null,
+      "duration_ms": 591,
+      "token_verified": false,
+      "rate_headers": {
+        "x-ratelimit-limit": "name=default,1000;",
+        "x-ratelimit-remaining": "name=default,993;"
+      },
+      "response_header_names": [
+        "cache-control",
+        "connection",
+        "content-encoding",
+        "content-security-policy",
+        "content-type",
+        "content_security_policy",
+        "date",
+        "expect-ct",
+        "expires",
+        "permissions-policy",
+        "pragma",
+        "referrer-policy",
+        "server",
+        "set-cookie",
+        "strict-transport-security",
+        "transfer-encoding",
+        "vary",
+        "x-content-type-options",
+        "x-frame-options",
+        "x-global-transaction-id",
+        "x-xss-protection"
+      ]
+    },
+    {
+      "api": "dc-causelist-api/causelist",
+      "params": {
+        "est_code": "ASKM01",
+        "court_no": "1",
+        "causelist_date": "2026-11-03",
+        "ci_cri": "2"
+      },
+      "called_at": "2026-11-03T10:33:03.317927+00:00",
+      "ok": true,
+      "http_status": 200,
+      "napix_status": null,
+      "error_family": null,
+      "error": null,
+      "duration_ms": 1315,
+      "token_verified": false,
+      "rate_headers": {
+        "x-ratelimit-limit": "name=default,1000;",
+        "x-ratelimit-remaining": "name=default,992;"
+      },
+      "response_header_names": [
+        "cache-control",
+        "connection",
+        "content-encoding",
+        "content-security-policy",
+        "content-type",
+        "content_security_policy",
+        "date",
+        "expect-ct",
+        "expires",
+        "permissions-policy",
+        "pragma",
+        "referrer-policy",
+        "server",
+        "set-cookie",
+        "strict-transport-security",
+        "transfer-encoding",
+        "vary",
+        "x-content-type-options",
+        "x-frame-options",
+        "x-global-transaction-id",
+        "x-xss-protection"
+      ]
+    },
+    {
+      "api": "dc-causelist-api/causelist",
+      "params": {
+        "est_code": "ASKM01",
+        "court_no": "1",
+        "causelist_date": "2026-11-03",
+        "ci_cri": "3"
+      },
+      "called_at": "2026-11-03T10:33:04.635827+00:00",
+      "ok": false,
+      "http_status": 500,
+      "napix_status": null,
+      "error_family": "NapixUnavailable",
+      "error": "NapixUnavailable: NAPIX HTTP 500",
+      "duration_ms": 57,
+      "token_verified": null,
+      "rate_headers": {
+        "x-ratelimit-limit": "name=default,1000;",
+        "x-ratelimit-remaining": "name=default,991;"
+      },
+      "response_header_names": [
+        "connection",
+        "content-type",
+        "date",
+        "x-global-transaction-id"
+      ]
+    },
+    {
+      "api": "dc-cnr-api/cnr",
+      "params": {
+        "cino": "ASKM010024792023"
+      },
+      "called_at": "2026-11-03T10:33:25.216524+00:00",
+      "ok": true,
+      "http_status": 200,
+      "napix_status": null,
+      "error_family": null,
+      "error": null,
+      "duration_ms": 839,
+      "token_verified": false,
+      "rate_headers": {
+        "x-ratelimit-limit": "name=default,1000;",
+        "x-ratelimit-remaining": "name=default,990;"
+      },
+      "response_header_names": [
+        "cache-control",
+        "connection",
+        "content-encoding",
+        "content-security-policy",
+        "content-type",
+        "content_security_policy",
+        "date",
+        "expect-ct",
+        "expires",
+        "permissions-policy",
+        "pragma",
+        "referrer-policy",
+        "server",
+        "set-cookie",
+        "strict-transport-security",
+        "transfer-encoding",
+        "vary",
+        "x-content-type-options",
+        "x-frame-options",
+        "x-global-transaction-id",
+        "x-xss-protection"
+      ]
+    },
+    {
+      "api": "dc-current-status-api/currentStatus",
+      "params": {
+        "cino": "ASKM010024792023"
+      },
+      "called_at": "2026-11-03T10:33:26.058190+00:00",
+      "ok": true,
+      "http_status": 200,
+      "napix_status": null,
+      "error_family": null,
+      "error": null,
+      "duration_ms": 428,
+      "token_verified": false,
+      "rate_headers": {
+        "x-ratelimit-limit": "name=default,1000;",
+        "x-ratelimit-remaining": "name=default,989;"
+      },
+      "response_header_names": [
+        "cache-control",
+        "connection",
+        "content-encoding",
+        "content-security-policy",
+        "content-type",
+        "content_security_policy",
+        "date",
+        "expect-ct",
+        "expires",
+        "permissions-policy",
+        "pragma",
+        "referrer-policy",
+        "server",
+        "set-cookie",
+        "strict-transport-security",
+        "transfer-encoding",
+        "vary",
+        "x-content-type-options",
+        "x-frame-options",
+        "x-global-transaction-id",
+        "x-xss-protection"
+      ]
+    },
+    {
+      "api": "dc-show-business-api/showBusiness",
+      "params": {
+        "cino": "ASKM010024792023",
+        "business_date": "2026-11-03"
+      },
+      "called_at": "2026-11-03T10:33:47.803549+00:00",
+      "ok": true,
+      "http_status": 200,
+      "napix_status": null,
+      "error_family": null,
+      "error": null,
+      "duration_ms": 424,
+      "token_verified": false,
+      "rate_headers": {
+        "x-ratelimit-limit": "name=default,1000;",
+        "x-ratelimit-remaining": "name=default,988;"
+      },
+      "response_header_names": [
+        "cache-control",
+        "connection",
+        "content-encoding",
+        "content-security-policy",
+        "content-type",
+        "content_security_policy",
+        "date",
+        "expect-ct",
+        "expires",
+        "permissions-policy",
+        "pragma",
+        "referrer-policy",
+        "server",
+        "set-cookie",
+        "strict-transport-security",
+        "transfer-encoding",
+        "vary",
+        "x-content-type-options",
+        "x-frame-options",
+        "x-global-transaction-id",
+        "x-xss-protection"
+      ]
+    },
+    {
+      "api": "dc-cnr-api/cnr",
+      "params": {
+        "cino": "ASKM010028022019"
+      },
+      "called_at": "2026-11-03T10:33:48.231995+00:00",
+      "ok": true,
+      "http_status": 200,
+      "napix_status": null,
+      "error_family": null,
+      "error": null,
+      "duration_ms": 885,
+      "token_verified": false,
+      "rate_headers": {
+        "x-ratelimit-limit": "name=default,1000;",
+        "x-ratelimit-remaining": "name=default,987;"
+      },
+      "response_header_names": [
+        "cache-control",
+        "connection",
+        "content-encoding",
+        "content-security-policy",
+        "content-type",
+        "content_security_policy",
+        "date",
+        "expect-ct",
+        "expires",
+        "permissions-policy",
+        "pragma",
+        "referrer-policy",
+        "server",
+        "set-cookie",
+        "strict-transport-security",
+        "transfer-encoding",
+        "vary",
+        "x-content-type-options",
+        "x-frame-options",
+        "x-global-transaction-id",
+        "x-xss-protection"
+      ]
+    },
+    {
+      "api": "dc-oreder-api/order",
+      "params": {
+        "cino": "ASKM010028022019",
+        "order_no": "6",
+        "order_date": "2022-06-04"
+      },
+      "called_at": "2026-11-03T10:34:04.112455+00:00",
+      "ok": true,
+      "http_status": 200,
+      "napix_status": null,
+      "error_family": null,
+      "error": null,
+      "duration_ms": 702,
+      "token_verified": false,
+      "rate_headers": {
+        "x-ratelimit-limit": "name=default,1000;",
+        "x-ratelimit-remaining": "name=default,986;"
+      },
+      "response_header_names": [
+        "cache-control",
+        "connection",
+        "content-encoding",
+        "content-security-policy",
+        "content-type",
+        "content_security_policy",
+        "date",
+        "expect-ct",
+        "expires",
+        "permissions-policy",
+        "pragma",
+        "referrer-policy",
+        "server",
+        "set-cookie",
+        "strict-transport-security",
+        "transfer-encoding",
+        "vary",
+        "x-content-type-options",
+        "x-frame-options",
+        "x-global-transaction-id",
+        "x-xss-protection"
+      ]
+    },
+    {
+      "api": "dc-causelist-api/causelist",
+      "params": {
+        "est_code": "ASKM01",
+        "court_no": "1",
+        "causelist_date": "2026-11-03",
+        "ci_cri": "3"
+      },
+      "called_at": "2026-11-03T10:34:04.820959+00:00",
+      "ok": true,
+      "http_status": 200,
+      "napix_status": null,
+      "error_family": null,
+      "error": null,
+      "duration_ms": 706,
+      "token_verified": false,
+      "rate_headers": {
+        "x-ratelimit-limit": "name=default,1000;",
+        "x-ratelimit-remaining": "name=default,985;"
+      },
+      "response_header_names": [
+        "cache-control",
+        "connection",
+        "content-encoding",
+        "content-security-policy",
+        "content-type",
+        "content_security_policy",
+        "date",
+        "expect-ct",
+        "expires",
+        "permissions-policy",
+        "pragma",
+        "referrer-policy",
+        "server",
+        "set-cookie",
+        "strict-transport-security",
+        "transfer-encoding",
+        "vary",
+        "x-content-type-options",
+        "x-frame-options",
+        "x-global-transaction-id",
+        "x-xss-protection"
+      ]
+    },
+    {
+      "api": "dc-advocate-causelist-api/advocateCauselist",
+      "params": {
+        "est_code": "ASKM01",
+        "advocate_bar_regn_no": "AS-270-2014",
+        "causelist_date": "2026-11-03"
+      },
+      "called_at": "2026-11-03T10:34:05.529743+00:00",
+      "ok": true,
+      "http_status": 200,
+      "napix_status": null,
+      "error_family": null,
+      "error": null,
+      "duration_ms": 491,
+      "token_verified": false,
+      "rate_headers": {
+        "x-ratelimit-limit": "name=default,1000;",
+        "x-ratelimit-remaining": "name=default,984;"
+      },
+      "response_header_names": [
+        "cache-control",
+        "connection",
+        "content-encoding",
+        "content-security-policy",
+        "content-type",
+        "content_security_policy",
+        "date",
+        "expect-ct",
+        "expires",
+        "permissions-policy",
+        "pragma",
+        "referrer-policy",
+        "server",
+        "set-cookie",
+        "strict-transport-security",
+        "transfer-encoding",
+        "vary",
+        "x-content-type-options",
+        "x-frame-options",
+        "x-global-transaction-id",
+        "x-xss-protection"
+      ]
+    },
+    {
+      "api": "dc-caveat-name-api/caveatName",
+      "params": {
+        "est_code": "ASKM01",
+        "caveat_party_name": "STATE OF ASSAM",
+        "search_type": "A"
+      },
+      "called_at": "2026-11-03T10:34:06.024808+00:00",
+      "ok": false,
+      "http_status": 400,
+      "napix_status": null,
+      "error_family": "NapixProtocolError",
+      "error": "NapixProtocolError: NAPIX HTTP 400: \r\n{\"status\":\"JVDO57lYCRsMFh8xLGOWVT3eQlLiziISKDNrZNRk4uZG56HFtQacldU\\/o72oZtDkPHDlXOkgGTa1mKMCY1\\/nRA==\"}",
+      "duration_ms": 394,
+      "token_verified": null,
+      "rate_headers": {
+        "x-ratelimit-limit": "name=default,1000;",
+        "x-ratelimit-remaining": "name=default,983;"
+      },
+      "response_header_names": [
+        "cache-control",
+        "connection",
+        "content-encoding",
+        "content-security-policy",
+        "content-type",
+        "content_security_policy",
+        "date",
+        "expect-ct",
+        "expires",
+        "permissions-policy",
+        "pragma",
+        "referrer-policy",
+        "server",
+        "set-cookie",
+        "strict-transport-security",
+        "transfer-encoding",
+        "vary",
+        "x-content-type-options",
+        "x-frame-options",
+        "x-global-transaction-id",
+        "x-php-response-code",
+        "x-xss-protection"
+      ]
+    },
+    {
+      "api": "dc-caveat-name-api/caveatName",
+      "params": {
+        "est_code": "ASKM01",
+        "caveat_party_name": "ASSAM",
+        "search_type": "A"
+      },
+      "called_at": "2026-11-03T10:34:45.227306+00:00",
+      "ok": false,
+      "http_status": 400,
+      "napix_status": null,
+      "error_family": "NapixProtocolError",
+      "error": "NapixProtocolError: NAPIX HTTP 400: \r\n{\"status\":\"JVDO57lYCRsMFh8xLGOWVT3eQlLiziISKDNrZNRk4uZG56HFtQacldU\\/o72oZtDkPHDlXOkgGTa1mKMCY1\\/nRA==\"}",
+      "duration_ms": 387,
+      "token_verified": null,
+      "rate_headers": {
+        "x-ratelimit-limit": "name=default,1000;",
+        "x-ratelimit-remaining": "name=default,982;"
+      },
+      "response_header_names": [
+        "cache-control",
+        "connection",
+        "content-encoding",
+        "content-security-policy",
+        "content-type",
+        "content_security_policy",
+        "date",
+        "expect-ct",
+        "expires",
+        "permissions-policy",
+        "pragma",
+        "referrer-policy",
+        "server",
+        "set-cookie",
+        "strict-transport-security",
+        "transfer-encoding",
+        "vary",
+        "x-content-type-options",
+        "x-frame-options",
+        "x-global-transaction-id",
+        "x-php-response-code",
+        "x-xss-protection"
+      ]
+    }
+  ],
+  "hc_comparison": [
+    {
+      "dc_call": {
+        "api": "dc-state-api/state",
+        "called_at": "2026-11-03T10:32:13.529842+00:00",
+        "rate_headers": {
+          "x-ratelimit-limit": "name=default,1000;",
+          "x-ratelimit-remaining": "name=default,998;"
+        }
+      },
+      "hc_latest_from_call_log": [
+        {
+          "api": "hc-caveat-name-api/caveatname",
+          "called_at": "2026-11-03T10:30:41.696794+00:00",
+          "remaining": 90
+        },
+        {
+          "api": "hc-caveat-name-api/caveatname",
+          "called_at": "2026-11-03T10:30:28.684432+00:00",
+          "remaining": 91
+        },
+        {
+          "api": "hc-caveat-name-api/caveatname",
+          "called_at": "2026-11-03T10:30:18.584818+00:00",
+          "remaining": 92
+        }
+      ],
+      "read_at": "2026-11-03T10:32:13.803629+00:00"
+    },
+    {
+      "dc_call": {
+        "api": "dc-advocate-causelist-api/advocateCauselist",
+        "called_at": "2026-11-03T10:34:05.529743+00:00",
+        "rate_headers": {
+          "x-ratelimit-limit": "name=default,1000;",
+          "x-ratelimit-remaining": "name=default,984;"
+        }
+      },
+      "hc_latest_from_call_log": [
+        {
+          "api": "hc-caveat-name-api/caveatname",
+          "called_at": "2026-11-03T10:30:41.696794+00:00",
+          "remaining": 90
+        },
+        {
+          "api": "hc-caveat-name-api/caveatname",
+          "called_at": "2026-11-03T10:30:28.684432+00:00",
+          "remaining": 91
+        },
+        {
+          "api": "hc-caveat-name-api/caveatname",
+          "called_at": "2026-11-03T10:30:18.584818+00:00",
+          "remaining": 92
+        }
+      ],
+      "read_at": "2026-11-03T10:34:06.024676+00:00"
+    },
+    {
+      "dc_call": {
+        "api": "dc-caveat-name-api/caveatName",
+        "called_at": "2026-11-03T10:34:45.227306+00:00",
+        "rate_headers": {
+          "x-ratelimit-limit": "name=default,1000;",
+          "x-ratelimit-remaining": "name=default,982;"
+        }
+      },
+      "hc_latest_from_call_log": [
+        {
+          "api": "hc-caveat-name-api/caveatname",
+          "called_at": "2026-11-03T10:30:41.696794+00:00",
+          "remaining": 90
+        },
+        {
+          "api": "hc-caveat-name-api/caveatname",
+          "called_at": "2026-11-03T10:30:28.684432+00:00",
+          "remaining": 91
+        },
+        {
+          "api": "hc-caveat-name-api/caveatname",
+          "called_at": "2026-11-03T10:30:18.584818+00:00",
+          "remaining": 92
+        }
+      ],
+      "read_at": "2026-11-03T10:34:45.616452+00:00"
+    }
+  ]
+}

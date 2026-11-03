@@ -1,0 +1,140 @@
+{
+  "district": {
+    "district1": {
+      "dist_code": 739,
+      "dist_name": "Bajali"
+    },
+    "district2": {
+      "dist_code": 616,
+      "dist_name": "Baksa"
+    },
+    "district3": {
+      "dist_code": 303,
+      "dist_name": "Barpeta"
+    },
+    "district4": {
+      "dist_code": 705,
+      "dist_name": "Biswanath"
+    },
+    "district5": {
+      "dist_code": 319,
+      "dist_name": "Bongaigaon"
+    },
+    "district6": {
+      "dist_code": 316,
+      "dist_name": "Cachar"
+    },
+    "district7": {
+      "dist_code": 708,
+      "dist_name": "Charaideo"
+    },
+    "district8": {
+      "dist_code": 320,
+      "dist_name": "Chirang"
+    },
+    "district9": {
+      "dist_code": 325,
+      "dist_name": "Darrang"
+    },
+    "district10": {
+      "dist_code": 308,
+      "dist_name": "Dhemaji"
+    },
+    "district11": {
+      "dist_code": 301,
+      "dist_name": "Dhubri"
+    },
+    "district12": {
+      "dist_code": 310,
+      "dist_name": "Dibrugarh"
+    },
+    "district13": {
+      "dist_code": 315,
+      "dist_name": "Dima Hasao"
+    },
+    "district14": {
+      "dist_code": 302,
+      "dist_name": "Goalpara"
+    },
+    "district15": {
+      "dist_code": 313,
+      "dist_name": "Golaghat"
+    },
+    "district16": {
+      "dist_code": 318,
+      "dist_name": "Hailakandi"
+    },
+    "district17": {
+      "dist_code": 709,
+      "dist_name": "Hojai"
+    },
+    "district18": {
+      "dist_code": 312,
+      "dist_name": "Jorhat"
+    },
+    "district19": {
+      "dist_code": 321,
+      "dist_name": "Kamrup"
+    },
+    "district20": {
+      "dist_code": 322,
+      "dist_name": "Kamrup Metro"
+    },
+    "district21": {
+      "dist_code": 314,
+      "dist_name": "Karbi Anglong"
+    },
+    "district22": {
+      "dist_code": 300,
+      "dist_name": "Kokrajhar"
+    },
+    "district23": {
+      "dist_code": 307,
+      "dist_name": "Lakhimpur"
+    },
+    "district24": {
+      "dist_code": 706,
+      "dist_name": "Majuli"
+    },
+    "district25": {
+      "dist_code": 304,
+      "dist_name": "Morigaon"
+    },
+    "district26": {
+      "dist_code": 305,
+      "dist_name": "Nagaon"
+    },
+    "district27": {
+      "dist_code": 323,
+      "dist_name": "Nalbari"
+    },
+    "district28": {
+      "dist_code": 311,
+      "dist_name": "Sivasagar"
+    },
+    "district29": {
+      "dist_code": 306,
+      "dist_name": "Sonitpur"
+    },
+    "district30": {
+      "dist_code": 707,
+      "dist_name": "South Salmara"
+    },
+    "district31": {
+      "dist_code": 317,
+      "dist_name": "Sribhumi"
+    },
+    "district32": {
+      "dist_code": 309,
+      "dist_name": "Tinsukia"
+    },
+    "district33": {
+      "dist_code": 326,
+      "dist_name": "Udalguri"
+    },
+    "district34": {
+      "dist_code": 710,
+      "dist_name": "West Karbi Anglong"
+    }
+  }
+}

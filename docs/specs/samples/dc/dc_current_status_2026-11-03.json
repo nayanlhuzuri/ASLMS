@@ -1,0 +1,25 @@
+{
+  "cases1": {
+    "date_of_filing": "2023-07-18",
+    "cino": "ASKM010024792023",
+    "dt_regis": "2023-07-18",
+    "type_name": "L A Reference Case",
+    "case_type_id": null,
+    "fil_no": "780",
+    "fil_year": "2023",
+    "reg_no": "49",
+    "reg_year": "2023",
+    "date_first_list": "2023-07-19",
+    "date_of_decision": "",
+    "date_next_list": "2026-12-11",
+    "pend_disp": "P",
+    "goshwara_no": "0",
+    "disp_nature": null,
+    "desgname": "District and Sessions Judge Kamrup Metro",
+    "court_no": "1",
+    "purpose_name": "Documents",
+    "pet_name": "Elu Phukan",
+    "res_name": "The Deputy Commissioner KamrupM",
+    "date_last_list": "2026-11-03"
+  }
+}

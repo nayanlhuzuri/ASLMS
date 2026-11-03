@@ -1,0 +1,49 @@
+{
+  "court": {
+    "court1": {
+      "court_no": "1",
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "judge_name": "Gautam   Baruah"
+    },
+    "court2": {
+      "court_no": "2",
+      "desgname": "Addl. District and Sessions Judge No. 1, Kamrup Metro",
+      "judge_name": "Chitra Rani Saikia"
+    },
+    "court3": {
+      "court_no": "4",
+      "desgname": "Addl. District  and Sessions Judge FTC No. 4    Kamrup Metro",
+      "judge_name": "Debashree Saikia"
+    },
+    "court4": {
+      "court_no": "19",
+      "desgname": "Addl. District and Sessions Judge No. 2, Kamrup Metro",
+      "judge_name": "Shri Narayan Upadhyaya"
+    },
+    "court5": {
+      "court_no": "21",
+      "desgname": "Addl. District and Sessions Judge FTC No. 3  Kamrup Metro",
+      "judge_name": "Shri Narayan Upadhyaya"
+    },
+    "court6": {
+      "court_no": "22",
+      "desgname": "Addl. District and Sessions Judge No. 5 - Kamrup Metro",
+      "judge_name": "Pranab  Sarma"
+    },
+    "court7": {
+      "court_no": "23",
+      "desgname": "Addl. Sessions Judge -cum- Special Judge (POCSO), Kamrup Metro",
+      "judge_name": "Nuruddin Ahmed"
+    },
+    "court8": {
+      "court_no": "24",
+      "desgname": "Presiding Officer - Exclusive Fast Track Sessions Court- Kamrup Metro",
+      "judge_name": "Sharmila   Bhuyan"
+    },
+    "court9": {
+      "court_no": "25",
+      "desgname": "Special Judge-NDPS Court-Assam-Guwahati",
+      "judge_name": "Nasim  Akhtar"
+    }
+  }
+}

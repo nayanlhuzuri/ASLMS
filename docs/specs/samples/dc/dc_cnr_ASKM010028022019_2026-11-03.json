@@ -1,0 +1,490 @@
+{
+  "state_code": 18,
+  "district_code": 322,
+  "date_of_filing": "2019-08-08",
+  "cino": "ASKM010028022019",
+  "dt_regis": "2019-08-08",
+  "type_name": "Title Appeal",
+  "case_type_id": 46,
+  "fil_no": "524",
+  "fil_year": "2019",
+  "reg_no": "24",
+  "reg_year": "2019",
+  "date_first_list": "2019-08-09",
+  "date_next_list": "2026-11-18",
+  "pend_disp": "P",
+  "date_of_decision": null,
+  "goshwara_no": "0",
+  "disp_name": null,
+  "desgname": "District and Sessions Judge Kamrup Metro",
+  "court_no": 1,
+  "court_est_name": "Dist Judge and Addl Dist Judges",
+  "establishment_name": "Dist Judge and Addl Dist Judges",
+  "est_code": "ASKM01",
+  "state_name": "Assam",
+  "dist_name": "Kamrup Metro",
+  "purpose_name": "Appeal Hearing",
+  "pet_name": "Upen Chandra Deka",
+  "pet_adv": "R K Bhuyan",
+  "pet_legal_heir": "Y",
+  "pet_adv_cd": "0",
+  "res_adv_cd": "0",
+  "pet_adv_bar_reg": "",
+  "res_adv_bar_reg": "",
+  "res_name": "Minati Bose",
+  "res_adv": "",
+  "res_legal_heir": "N",
+  "fir_no": "",
+  "police_station": null,
+  "police_st_code": null,
+  "uniform_code": null,
+  "fir_year": null,
+  "ci_cri": "2",
+  "lower_court_name": null,
+  "lower_court_caseno": 0,
+  "lower_court_dec_dt": null,
+  "date_last_list": "2026-11-03",
+  "main_matter_cino": "                ",
+  "date_filing_disp": null,
+  "reason_for_rej": null,
+  "acts": {
+    "act1": {
+      "actname": "Code of Civil Procedure",
+      "section": "Ord41,rul-1,96"
+    }
+  },
+  "pet_extra_party": {
+    "party_no1": "Ritashree Kashyap",
+    "party_no2": "Padma Lochan Deka",
+    "party_no3": "Dharitri Das",
+    "party_no4": "Swarna Lata Deka"
+  },
+  "pet_extra_adv": null,
+  "res_extra_party": null,
+  "res_extra_adv": null,
+  "historyofcasehearing": {
+    "sr_no1": {
+      "desgname": "",
+      "business_date": "",
+      "hearing_date": "2019-08-09",
+      "purpose_of_listing": "Admission Hearing"
+    },
+    "sr_no2": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2019-08-09",
+      "hearing_date": "2019-09-05",
+      "purpose_of_listing": "Service Report"
+    },
+    "sr_no3": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2019-09-05",
+      "hearing_date": "2019-11-05",
+      "purpose_of_listing": "Service Report"
+    },
+    "sr_no4": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2019-11-05",
+      "hearing_date": "2019-12-20",
+      "purpose_of_listing": "steps/ report"
+    },
+    "sr_no5": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2019-12-20",
+      "hearing_date": "2020-02-28",
+      "purpose_of_listing": "Service Report"
+    },
+    "sr_no6": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2020-02-28",
+      "hearing_date": "2020-03-17",
+      "purpose_of_listing": "Lower Court Report and Service Report"
+    },
+    "sr_no7": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2020-03-17",
+      "hearing_date": "2020-05-12",
+      "purpose_of_listing": "Lower Court Report and Service Report"
+    },
+    "sr_no8": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2020-05-12",
+      "hearing_date": "2020-07-13",
+      "purpose_of_listing": "Lower Court Report and Service Report"
+    },
+    "sr_no9": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2020-07-13",
+      "hearing_date": "2020-08-04",
+      "purpose_of_listing": "Lower Court Report and Service Report"
+    },
+    "sr_no10": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2020-08-04",
+      "hearing_date": "2020-09-11",
+      "purpose_of_listing": "Lower Court Report and Service Report"
+    },
+    "sr_no11": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2020-09-11",
+      "hearing_date": "2020-10-20",
+      "purpose_of_listing": "Lower Court Report and Service Report"
+    },
+    "sr_no12": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2020-10-20",
+      "hearing_date": "2020-12-14",
+      "purpose_of_listing": "hearing"
+    },
+    "sr_no13": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2020-12-14",
+      "hearing_date": "2021-02-12",
+      "purpose_of_listing": "hearing"
+    },
+    "sr_no14": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2021-02-12",
+      "hearing_date": "2021-04-28",
+      "purpose_of_listing": "hearing"
+    },
+    "sr_no15": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2021-04-28",
+      "hearing_date": "2021-07-17",
+      "purpose_of_listing": "hearing"
+    },
+    "sr_no16": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2021-07-17",
+      "hearing_date": "2021-10-06",
+      "purpose_of_listing": "hearing"
+    },
+    "sr_no17": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2021-10-06",
+      "hearing_date": "2021-12-15",
+      "purpose_of_listing": "hearing"
+    },
+    "sr_no18": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2021-12-15",
+      "hearing_date": "2022-02-10",
+      "purpose_of_listing": "hearing"
+    },
+    "sr_no19": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2022-02-10",
+      "hearing_date": "2022-03-24",
+      "purpose_of_listing": "hearing"
+    },
+    "sr_no20": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2022-03-24",
+      "hearing_date": "2022-04-05",
+      "purpose_of_listing": "hearing"
+    },
+    "sr_no21": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2022-04-05",
+      "hearing_date": "2022-06-04",
+      "purpose_of_listing": "Objection Hearing"
+    },
+    "sr_no22": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2022-06-04",
+      "hearing_date": "2022-07-18",
+      "purpose_of_listing": "Appeal Hearing"
+    },
+    "sr_no23": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2022-07-18",
+      "hearing_date": "2022-09-22",
+      "purpose_of_listing": "Appeal Hearing"
+    },
+    "sr_no24": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2022-09-22",
+      "hearing_date": "2022-11-11",
+      "purpose_of_listing": "Appeal Hearing"
+    },
+    "sr_no25": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2022-11-11",
+      "hearing_date": "2023-01-06",
+      "purpose_of_listing": "hearing"
+    },
+    "sr_no26": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2023-01-06",
+      "hearing_date": "2023-03-02",
+      "purpose_of_listing": "hearing"
+    },
+    "sr_no27": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2023-03-02",
+      "hearing_date": "2023-04-01",
+      "purpose_of_listing": "hearing"
+    },
+    "sr_no28": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2023-04-01",
+      "hearing_date": "2023-04-18",
+      "purpose_of_listing": "Necessary Order"
+    },
+    "sr_no29": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2023-04-18",
+      "hearing_date": "2023-05-19",
+      "purpose_of_listing": "hearing"
+    },
+    "sr_no30": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2023-05-19",
+      "hearing_date": "2023-07-05",
+      "purpose_of_listing": "Substitution"
+    },
+    "sr_no31": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2023-07-05",
+      "hearing_date": "2023-08-05",
+      "purpose_of_listing": "Substitution"
+    },
+    "sr_no32": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2023-08-05",
+      "hearing_date": "2023-10-03",
+      "purpose_of_listing": "Substitution"
+    },
+    "sr_no33": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2023-10-03",
+      "hearing_date": "2023-12-11",
+      "purpose_of_listing": "Substitution"
+    },
+    "sr_no34": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2023-12-11",
+      "hearing_date": "2024-02-26",
+      "purpose_of_listing": "Substitution"
+    },
+    "sr_no35": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2024-02-26",
+      "hearing_date": "2024-04-12",
+      "purpose_of_listing": "Necessary Order"
+    },
+    "sr_no36": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2024-04-12",
+      "hearing_date": "2024-05-06",
+      "purpose_of_listing": "Necessary Order"
+    },
+    "sr_no37": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2024-05-06",
+      "hearing_date": "2024-07-18",
+      "purpose_of_listing": "Necessary Order"
+    },
+    "sr_no38": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2024-07-18",
+      "hearing_date": "2024-08-14",
+      "purpose_of_listing": "Objection and Hearing"
+    },
+    "sr_no39": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2024-08-14",
+      "hearing_date": "2024-10-24",
+      "purpose_of_listing": "hearing"
+    },
+    "sr_no40": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2024-10-24",
+      "hearing_date": "2024-11-29",
+      "purpose_of_listing": "hearing"
+    },
+    "sr_no41": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2024-11-29",
+      "hearing_date": "2024-12-17",
+      "purpose_of_listing": "hearing"
+    },
+    "sr_no42": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2024-12-17",
+      "hearing_date": "2025-01-04",
+      "purpose_of_listing": "Further Hearing"
+    },
+    "sr_no43": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2025-01-04",
+      "hearing_date": "2025-02-04",
+      "purpose_of_listing": "Judgment"
+    },
+    "sr_no44": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2025-02-04",
+      "hearing_date": "2025-02-15",
+      "purpose_of_listing": "Necessary Order"
+    },
+    "sr_no45": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2025-02-15",
+      "hearing_date": "2025-03-26",
+      "purpose_of_listing": "Arguments"
+    },
+    "sr_no46": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2025-03-26",
+      "hearing_date": "2025-05-08",
+      "purpose_of_listing": "Report"
+    },
+    "sr_no47": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2025-05-08",
+      "hearing_date": "2025-05-22",
+      "purpose_of_listing": "Report"
+    },
+    "sr_no48": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2025-05-22",
+      "hearing_date": "2025-06-23",
+      "purpose_of_listing": "hearing"
+    },
+    "sr_no49": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2025-05-22",
+      "hearing_date": "2025-06-23",
+      "purpose_of_listing": "hearing"
+    },
+    "sr_no50": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2025-06-23",
+      "hearing_date": "2025-07-28",
+      "purpose_of_listing": "hearing"
+    },
+    "sr_no51": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2025-07-28",
+      "hearing_date": "2025-09-01",
+      "purpose_of_listing": "hearing"
+    },
+    "sr_no52": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2025-09-01",
+      "hearing_date": "2025-10-27",
+      "purpose_of_listing": "hearing"
+    },
+    "sr_no53": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2025-10-27",
+      "hearing_date": "2025-11-28",
+      "purpose_of_listing": "hearing"
+    },
+    "sr_no54": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2025-11-28",
+      "hearing_date": "2026-01-17",
+      "purpose_of_listing": "hearing"
+    },
+    "sr_no55": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2026-01-17",
+      "hearing_date": "2026-03-05",
+      "purpose_of_listing": "hearing"
+    },
+    "sr_no56": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2026-03-05",
+      "hearing_date": "2026-04-08",
+      "purpose_of_listing": "hearing"
+    },
+    "sr_no57": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2026-04-08",
+      "hearing_date": "2026-05-26",
+      "purpose_of_listing": "hearing"
+    },
+    "sr_no58": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2026-05-26",
+      "hearing_date": "2026-06-25",
+      "purpose_of_listing": "hearing"
+    },
+    "sr_no59": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2026-06-25",
+      "hearing_date": "2026-07-31",
+      "purpose_of_listing": "hearing"
+    },
+    "sr_no60": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2026-07-31",
+      "hearing_date": "2026-09-10",
+      "purpose_of_listing": "hearing"
+    },
+    "sr_no61": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2026-09-10",
+      "hearing_date": "2026-11-03",
+      "purpose_of_listing": "Appeal Hearing"
+    },
+    "sr_no62": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2026-11-03",
+      "hearing_date": "2026-11-18",
+      "purpose_of_listing": "Appeal Hearing"
+    }
+  },
+  "hide_pet_name": "N",
+  "hide_res_name": "N",
+  "hide_partyname_est": "N",
+  "interimorder": {
+    "sr_no1": {
+      "order_no": 1,
+      "order_date": "2021-04-28",
+      "order_judge_name": "Smti. Mitali Thakuria",
+      "order_details": "Order"
+    },
+    "sr_no2": {
+      "order_no": 2,
+      "order_date": "2021-12-15",
+      "order_judge_name": "Smti. Mitali Thakuria",
+      "order_details": "Order"
+    },
+    "sr_no3": {
+      "order_no": 3,
+      "order_date": "2022-02-10",
+      "order_judge_name": "Smti. Mitali Thakuria",
+      "order_details": "Order"
+    },
+    "sr_no4": {
+      "order_no": 4,
+      "order_date": "2022-03-24",
+      "order_judge_name": "Smti. Mitali Thakuria",
+      "order_details": "Order"
+    },
+    "sr_no5": {
+      "order_no": 5,
+      "order_date": "2022-04-05",
+      "order_judge_name": "Smti. Mitali Thakuria",
+      "order_details": "Order"
+    },
+    "sr_no6": {
+      "order_no": 6,
+      "order_date": "2022-06-04",
+      "order_judge_name": "Smti. Mitali Thakuria",
+      "order_details": "Order"
+    }
+  },
+  "finalorder": null,
+  "transfer": null,
+  "processes": null,
+  "iafiling": null,
+  "link_cases": null,
+  "objections": {
+    "scrutiny_date": "2019-08-08",
+    "objections_compliance_by_date": null,
+    "obj_reciept_date": null
+  }
+}

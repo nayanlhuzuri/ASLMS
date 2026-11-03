@@ -1,0 +1,37 @@
+{
+  "establishment_name": "District Judge and Addl. Dist. Judges",
+  "casenos": {
+    "case1": {
+      "cino": "ASKM010001712024",
+      "type_name": "L A Reference Case",
+      "reg_no": "3",
+      "reg_year": "2024",
+      "pet_name": "Elu Phukan",
+      "res_name": "The Deputy Commissioner KamrupM"
+    },
+    "case2": {
+      "cino": "ASKM010024792023",
+      "type_name": "L A Reference Case",
+      "reg_no": "49",
+      "reg_year": "2023",
+      "pet_name": "Elu Phukan",
+      "res_name": "The Deputy Commissioner KamrupM"
+    },
+    "case3": {
+      "cino": "ASKM010035812026",
+      "type_name": "Misc.J. civ",
+      "reg_no": "166",
+      "reg_year": "2026",
+      "pet_name": "Rajib Ram Phukan",
+      "res_name": "Elu Phukan"
+    },
+    "case4": {
+      "cino": "ASKM010035802026",
+      "type_name": "Misc.J. civ",
+      "reg_no": "165",
+      "reg_year": "2026",
+      "pet_name": "Rajib Ram Phukan",
+      "res_name": "Elu Phukan"
+    }
+  }
+}

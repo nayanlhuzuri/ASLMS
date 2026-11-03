@@ -1,0 +1,77 @@
+{
+  "complex1": {
+    "court_complex_name": "MAC Tribunal",
+    "establishment1": {
+      "est_code": "ASKM07",
+      "court_est_name": "MACT No 1"
+    }
+  },
+  "complex2": {
+    "court_complex_name": "Railway Magistrate Court Complex",
+    "establishment1": {
+      "est_code": "AS0109",
+      "court_est_name": "Railway Court Complex Guwahati"
+    }
+  },
+  "complex3": {
+    "court_complex_name": "Family Court",
+    "establishment1": {
+      "est_code": "ASKM08",
+      "court_est_name": "Family Court Complex"
+    }
+  },
+  "complex4": {
+    "court_complex_name": "Chief Judicial Magistrate's Complex",
+    "establishment1": {
+      "est_code": "AS0106",
+      "court_est_name": "Chief Judicial Magistrate"
+    }
+  },
+  "complex5": {
+    "court_complex_name": "Industrial Tribunal",
+    "establishment1": {
+      "est_code": "AS0110",
+      "court_est_name": "Industrial Tribunal"
+    }
+  },
+  "complex6": {
+    "court_complex_name": "District Judge's Court Complex",
+    "establishment1": {
+      "est_code": "ASKM01",
+      "court_est_name": "District Judge and Addl. Dist. Judges"
+    },
+    "establishment2": {
+      "est_code": "ASKM02",
+      "court_est_name": "Civil Judge Senior Division"
+    },
+    "establishment3": {
+      "est_code": "ASKM03",
+      "court_est_name": "Civil Judge Junior Division"
+    },
+    "establishment4": {
+      "est_code": "ASKM04",
+      "court_est_name": "Special Judges"
+    }
+  },
+  "complex7": {
+    "court_complex_name": "Additional CBI Court, Chandmari",
+    "establishment1": {
+      "est_code": "ASKM12",
+      "court_est_name": "Addl. CBI Court Complex"
+    }
+  },
+  "complex8": {
+    "court_complex_name": "Labour Court",
+    "establishment1": {
+      "est_code": "AS0111",
+      "court_est_name": "Labour Court Complex"
+    }
+  },
+  "complex9": {
+    "court_complex_name": "MACT No 2 and 3",
+    "establishment1": {
+      "est_code": "ASKM05",
+      "court_est_name": "MACT No. 2 and 3"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "complex1": {
+    "court_complex_name": "District Court Complex",
+    "establishment1": {
+      "est_code": "ASJR06",
+      "court_est_name": "Chief Judicial Magistrate"
+    },
+    "establishment2": {
+      "est_code": "ASMJ01",
+      "court_est_name": "District and Sessions Judge"
+    },
+    "establishment3": {
+      "est_code": "ASMJ02",
+      "court_est_name": "Civil Judge Senior Division"
+    },
+    "establishment4": {
+      "est_code": "ASMJ03",
+      "court_est_name": "Civil Judge Junior Division"
+    },
+    "establishment5": {
+      "est_code": "ASMJ04",
+      "court_est_name": "MACT"
+    }
+  }
+}

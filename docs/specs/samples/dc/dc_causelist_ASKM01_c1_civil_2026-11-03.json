@@ -1,0 +1,175 @@
+{
+  "desgname": "District and Sessions Judge Kamrup Metro",
+  "cases": {
+    "case1": {
+      "sr_no": 1,
+      "case_number": "Misc. Probate/72/2026",
+      "cause_title": "Babli Goel Vs Jhuma (Moni) Roy",
+      "main_advocate_names": "Sudarsh Gautam Vs ",
+      "purpose_name": "Service Report",
+      "urgent": "N",
+      "cino": "ASKM010035682026",
+      "est_code": "ASKM01"
+    },
+    "case2": {
+      "sr_no": 2,
+      "case_number": "Succesion Case/80/2026",
+      "cause_title": "Ribha Rani Bordoloi Vs Kishore Kumar Bordoloi",
+      "main_advocate_names": "Mokhtar Ali Vs ",
+      "purpose_name": "Service Report",
+      "urgent": "N",
+      "cino": "ASKM010035662026",
+      "est_code": "ASKM01"
+    },
+    "case3": {
+      "sr_no": 3,
+      "case_number": "L A Reference Case/26/2024",
+      "cause_title": "Debi Ram Saikia Vs The Deputy Collector",
+      "main_advocate_names": "S.A.Ahmed Vs ",
+      "purpose_name": "Substitution",
+      "urgent": "N",
+      "cino": "ASKM010026712024",
+      "est_code": "ASKM01"
+    },
+    "case4": {
+      "sr_no": 4,
+      "case_number": "L A Reference Case/27/2024",
+      "cause_title": "Debi Ram saikia Vs The Deputy Collector",
+      "main_advocate_names": "S.A.Ahmed Vs ",
+      "purpose_name": "Substitution",
+      "urgent": "N",
+      "cino": "ASKM010026722024",
+      "est_code": "ASKM01"
+    },
+    "case5": {
+      "sr_no": 5,
+      "case_number": "Misc.J. civ/165/2026",
+      "cause_title": "Rajib Ram Phukan Vs Elu Phukan",
+      "main_advocate_names": "Sunil Kumar Singha Vs Zenifer Rashul",
+      "purpose_name": "Objection",
+      "urgent": "N",
+      "cino": "ASKM010035802026",
+      "est_code": "ASKM01"
+    },
+    "case6": {
+      "sr_no": 6,
+      "case_number": "Misc.J. civ/166/2026",
+      "cause_title": "Rajib Ram Phukan Vs Elu Phukan",
+      "main_advocate_names": "Sunil Kumar Singha Vs Zenifer Rashul",
+      "purpose_name": "Objection",
+      "urgent": "N",
+      "cino": "ASKM010035812026",
+      "est_code": "ASKM01"
+    },
+    "case7": {
+      "sr_no": 7,
+      "case_number": "Transfer Misc. Case ( Civil )/17/2026",
+      "cause_title": "Keka Guha Vs M/s Shree Om Shivam Construction",
+      "main_advocate_names": "Aditya Bhatra Vs ",
+      "purpose_name": "Order",
+      "urgent": "N",
+      "cino": "ASKM010020592026",
+      "est_code": "ASKM01"
+    },
+    "case8": {
+      "sr_no": 8,
+      "case_number": "Transfer Misc. Case ( Civil )/18/2026",
+      "cause_title": "Dhanada Kalita Vs M/s Shree Om Shivam Construction",
+      "main_advocate_names": "Aditya Bhatra Vs ",
+      "purpose_name": "Order",
+      "urgent": "N",
+      "cino": "ASKM010020602026",
+      "est_code": "ASKM01"
+    },
+    "case9": {
+      "sr_no": 9,
+      "case_number": "Transfer Misc. Case ( Civil )/19/2026",
+      "cause_title": "Monoj Bhattacharyya Vs M/s Shree Om Shivam Construction",
+      "main_advocate_names": "Aditya Bhatra Vs ",
+      "purpose_name": "Order",
+      "urgent": "N",
+      "cino": "ASKM010020652026",
+      "est_code": "ASKM01"
+    },
+    "case10": {
+      "sr_no": 10,
+      "case_number": "Transfer Misc. Case ( Civil )/20/2026",
+      "cause_title": "Ranjit Bora Vs M/s Shree Om Dhivam Construction",
+      "main_advocate_names": "Aditya Bhatra Vs ",
+      "purpose_name": "Order",
+      "urgent": "N",
+      "cino": "ASKM010020662026",
+      "est_code": "ASKM01"
+    },
+    "case11": {
+      "sr_no": 11,
+      "case_number": "Transfer Misc. Case ( Civil )/21/2026",
+      "cause_title": "Pranita Mazumdar Vs M/s Shree Om Shivam Construction",
+      "main_advocate_names": "Aditya Bhatra Vs ",
+      "purpose_name": "Order",
+      "urgent": "N",
+      "cino": "ASKM010020672026",
+      "est_code": "ASKM01"
+    },
+    "case12": {
+      "sr_no": 12,
+      "case_number": "Succesion Case/62/2026",
+      "cause_title": "Kumkum Chakraborty Vs Shriram Finance Limited",
+      "main_advocate_names": "Sumit Agarwal Vs ",
+      "purpose_name": "Evidence",
+      "urgent": "N",
+      "cino": "ASKM010029712026",
+      "est_code": "ASKM01"
+    },
+    "case13": {
+      "sr_no": 13,
+      "case_number": "Misc.J. civ/139/2024",
+      "cause_title": "Amulya Charan Bhattacharyye Vs The District Collector, Kamrup (M)",
+      "main_advocate_names": " Vs ",
+      "purpose_name": "Objection",
+      "urgent": "N",
+      "cino": "ASKM010040862024",
+      "est_code": "ASKM01"
+    },
+    "case14": {
+      "sr_no": 14,
+      "case_number": "Letter Of Administration/4/2026",
+      "cause_title": "Renu Baruah Vs Dulu Ingti",
+      "main_advocate_names": "Badrul Islam Vs ",
+      "purpose_name": "Objection",
+      "urgent": "N",
+      "cino": "ASKM010010892026",
+      "est_code": "ASKM01"
+    },
+    "case15": {
+      "sr_no": 15,
+      "case_number": "L A Reference Case/49/2023",
+      "cause_title": "Elu Phukan Vs The Deputy Commissioner KamrupM",
+      "main_advocate_names": "Zenifer Rashul Vs ",
+      "purpose_name": "Documents",
+      "urgent": "N",
+      "cino": "ASKM010024792023",
+      "est_code": "ASKM01"
+    },
+    "case16": {
+      "sr_no": 16,
+      "case_number": "L A Reference Case/3/2024",
+      "cause_title": "Elu Phukan Vs The Deputy Commissioner KamrupM",
+      "main_advocate_names": "Zenifer Rashul Vs ",
+      "purpose_name": "hearing",
+      "urgent": "N",
+      "cino": "ASKM010001712024",
+      "est_code": "ASKM01"
+    },
+    "case17": {
+      "sr_no": 17,
+      "case_number": "Title Appeal/24/2019",
+      "cause_title": "Upen Chandra Deka Vs Minati Bose",
+      "main_advocate_names": "R K Bhuyan Vs ",
+      "purpose_name": "Appeal Hearing",
+      "urgent": "N",
+      "cino": "ASKM010028022019",
+      "est_code": "ASKM01"
+    }
+  }
+}

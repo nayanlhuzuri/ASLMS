@@ -1,0 +1,271 @@
+{
+  "state_code": 18,
+  "district_code": 322,
+  "date_of_filing": "2023-07-18",
+  "cino": "ASKM010024792023",
+  "dt_regis": "2023-07-18",
+  "type_name": "L A Reference Case",
+  "case_type_id": 44,
+  "fil_no": "780",
+  "fil_year": "2023",
+  "reg_no": "49",
+  "reg_year": "2023",
+  "date_first_list": "2023-07-19",
+  "date_next_list": "2026-12-11",
+  "pend_disp": "P",
+  "date_of_decision": null,
+  "goshwara_no": "0",
+  "disp_name": null,
+  "desgname": "District and Sessions Judge Kamrup Metro",
+  "court_no": 1,
+  "court_est_name": "Dist Judge and Addl Dist Judges",
+  "establishment_name": "Dist Judge and Addl Dist Judges",
+  "est_code": "ASKM01",
+  "state_name": "Assam",
+  "dist_name": "Kamrup Metro",
+  "purpose_name": "Documents",
+  "pet_name": "Elu Phukan",
+  "pet_adv": "Zenifer Rashul",
+  "pet_legal_heir": "N",
+  "pet_adv_cd": "1114",
+  "res_adv_cd": "0",
+  "pet_adv_bar_reg": "AS-270-2014",
+  "res_adv_bar_reg": "",
+  "res_name": "The Deputy Commissioner KamrupM",
+  "res_adv": "",
+  "res_legal_heir": "N",
+  "fir_no": "",
+  "police_station": null,
+  "police_st_code": null,
+  "uniform_code": null,
+  "fir_year": null,
+  "ci_cri": "2",
+  "lower_court_name": null,
+  "lower_court_caseno": 0,
+  "lower_court_dec_dt": null,
+  "date_last_list": "2026-11-03",
+  "main_matter_cino": "                ",
+  "date_filing_disp": null,
+  "reason_for_rej": null,
+  "acts": {
+    "act1": {
+      "actname": "Land Acquisition Act",
+      "section": "76"
+    }
+  },
+  "pet_extra_party": {
+    "party_no1": "Chandra Kumar Sharma",
+    "party_no2": "Minakshi Sarma Dabas",
+    "party_no3": "Nilakshi Sharma",
+    "party_no4": "Nayanananda Goswami",
+    "party_no5": "Bipasha Thakur",
+    "party_no6": "Amulya Charan Bhatacharyee",
+    "party_no7": "Monoj Ram Phukan",
+    "party_no8": "Dipenram Phukan",
+    "party_no9": "Ranjit Chandra Goswami"
+  },
+  "pet_extra_adv": null,
+  "res_extra_party": null,
+  "res_extra_adv": null,
+  "historyofcasehearing": {
+    "sr_no1": {
+      "desgname": "",
+      "business_date": "",
+      "hearing_date": "2023-07-19",
+      "purpose_of_listing": "Necessary Order"
+    },
+    "sr_no2": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2023-07-19",
+      "hearing_date": "2023-09-29",
+      "purpose_of_listing": "Service Report"
+    },
+    "sr_no3": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2023-09-29",
+      "hearing_date": "2023-12-06",
+      "purpose_of_listing": "Service Report"
+    },
+    "sr_no4": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2023-12-06",
+      "hearing_date": "2024-02-13",
+      "purpose_of_listing": "Record"
+    },
+    "sr_no5": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2024-02-13",
+      "hearing_date": "2024-04-05",
+      "purpose_of_listing": "Record"
+    },
+    "sr_no6": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2024-04-05",
+      "hearing_date": "2024-05-28",
+      "purpose_of_listing": "Objection"
+    },
+    "sr_no7": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2024-05-28",
+      "hearing_date": "2024-06-29",
+      "purpose_of_listing": "Objection and Hearing"
+    },
+    "sr_no8": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2024-06-29",
+      "hearing_date": "2024-07-09",
+      "purpose_of_listing": "Objection and Hearing"
+    },
+    "sr_no9": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2024-07-09",
+      "hearing_date": "2024-08-13",
+      "purpose_of_listing": "Hearing on Petition"
+    },
+    "sr_no10": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2024-08-13",
+      "hearing_date": "2024-08-28",
+      "purpose_of_listing": "Hearing on Petition"
+    },
+    "sr_no11": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2024-08-28",
+      "hearing_date": "2024-10-01",
+      "purpose_of_listing": "Written Statement"
+    },
+    "sr_no12": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2024-10-01",
+      "hearing_date": "2024-11-18",
+      "purpose_of_listing": "Record"
+    },
+    "sr_no13": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2024-11-18",
+      "hearing_date": "2024-12-20",
+      "purpose_of_listing": "Record"
+    },
+    "sr_no14": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2024-12-20",
+      "hearing_date": "2025-02-11",
+      "purpose_of_listing": "Record"
+    },
+    "sr_no15": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2025-02-11",
+      "hearing_date": "2025-03-27",
+      "purpose_of_listing": "Record"
+    },
+    "sr_no16": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2025-03-27",
+      "hearing_date": "2025-04-30",
+      "purpose_of_listing": "Record"
+    },
+    "sr_no17": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2025-04-30",
+      "hearing_date": "2025-06-17",
+      "purpose_of_listing": "Record"
+    },
+    "sr_no18": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2025-06-17",
+      "hearing_date": "2025-07-30",
+      "purpose_of_listing": "Record"
+    },
+    "sr_no19": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2025-07-30",
+      "hearing_date": "2025-08-30",
+      "purpose_of_listing": "Record"
+    },
+    "sr_no20": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2025-08-30",
+      "hearing_date": "2025-09-26",
+      "purpose_of_listing": "Necessary Order"
+    },
+    "sr_no21": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2025-09-26",
+      "hearing_date": "2025-11-19",
+      "purpose_of_listing": "Record"
+    },
+    "sr_no22": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2025-11-19",
+      "hearing_date": "2026-01-16",
+      "purpose_of_listing": "Record"
+    },
+    "sr_no23": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2026-01-16",
+      "hearing_date": "2026-02-27",
+      "purpose_of_listing": "hearing"
+    },
+    "sr_no24": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2026-02-27",
+      "hearing_date": "2026-04-27",
+      "purpose_of_listing": "Documents"
+    },
+    "sr_no25": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2026-04-27",
+      "hearing_date": "2026-06-03",
+      "purpose_of_listing": "Documents"
+    },
+    "sr_no26": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2026-06-03",
+      "hearing_date": "2026-07-13",
+      "purpose_of_listing": "Objection"
+    },
+    "sr_no27": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2026-07-13",
+      "hearing_date": "2026-09-11",
+      "purpose_of_listing": "Documents"
+    },
+    "sr_no28": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2026-09-11",
+      "hearing_date": "2026-11-03",
+      "purpose_of_listing": "Documents"
+    },
+    "sr_no29": {
+      "desgname": "District and Sessions Judge Kamrup Metro",
+      "business_date": "2026-11-03",
+      "hearing_date": "2026-12-11",
+      "purpose_of_listing": "Documents"
+    }
+  },
+  "hide_pet_name": "N",
+  "hide_res_name": "N",
+  "hide_partyname_est": "N",
+  "interimorder": null,
+  "finalorder": null,
+  "transfer": null,
+  "processes": {
+    "sr_no1": {
+      "process_id": "PASKM010024792023_1_1",
+      "process_date": "2023-09-29",
+      "process_title": "Summons to appear in person [O.5, R. 3] "
+    },
+    "sr_no2": {
+      "process_id": "PASKM010024792023_1_2",
+      "process_date": "2023-09-29",
+      "process_title": "Summons to appear in person [O.5, R. 3] "
+    }
+  },
+  "iafiling": null,
+  "link_cases": null,
+  "objections": {
+    "scrutiny_date": "2023-07-18",
+    "objections_compliance_by_date": null,
+    "obj_reciept_date": null
+  }
+}
