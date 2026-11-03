@@ -3379,3 +3379,17 @@ failure; this hotfix makes it more urgent.
    worktree and branch, calls NAPIX only through `backend/aslms/integration/napix/` with every call logged, and changes no
    schema or application behaviour.
 
+## Row 222 safety check: the quota window would misread District Court calls (2026-11-03)
+
+Before any District Court call, the row 222 agent found that `napix_window.readings` takes `rate_limit_remaining` from every
+`napix_call_log` row whatever the API, so a District Court reading from its own allowance would be read as a High Court
+reset and remaining count, and the runner and the court-search guard would act on it (details in backlog row 224). No
+call was made.
+
+**Owner decisions (3 Nov 2026)**
+1. Row 222 runs now with a one-off workaround and no application change: every District Court call is recorded in
+   `napix_call_log` and `napix_responses` as usual, but with `rate_limit_remaining` left empty, so the window ignores those
+   rows; the real rate headers go into the report and the NAPIX notes. Overview is not called in that run.
+2. The proper fix is backlog row 224 `napix-window-per-family`: the window, its readers and the console figures kept per
+   API family. It comes before any District Court collection is built.
+
